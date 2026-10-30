@@ -1,5 +1,5 @@
 // Fixed camera viewpoints for screenshot regression (section 19.3).
-// Phase 1 covers the sphere-walk scene; more are added with each feature.
+// Phase 1 covers the sphere-walk scene; Phase 2 adds the moonlet and supply point.
 [
     (
         name: "sphere_surface_eye_level",
@@ -17,6 +17,18 @@
         name: "sphere_terminator",
         position: (120.0, 20.0, 40.0),
         look_at: (0.0, 0.0, 0.0),
+        up: (0.0, 1.0, 0.0),
+    ),
+    (
+        name: "moonlet_from_sphere",
+        position: (0.0, 62.0, 0.0),
+        look_at: (-130.0, 60.0, -220.0),
+        up: (0.0, 1.0, 0.0),
+    ),
+    (
+        name: "supply_point_close",
+        position: (4.0, 62.5, -2.0),
+        look_at: (0.0, 60.5, -7.1),
         up: (0.0, 1.0, 0.0),
     ),
 ]

@@ -35,8 +35,28 @@ directional_shadow_max_distance = 200.0
 [node name="TestSphere" type="CelestialBody" parent="."]
 data_path = "res://data/bodies/test_sphere.ron"
 
+[node name="OxygenTanks" type="OxygenTankScatter" parent="TestSphere"]
+body_index = 0
+
+[node name="SupplyPoint" type="SupplyPoint" parent="TestSphere"]
+transform = Transform3D(1.0000, 0.0000, -0.0000, 0.0000, 0.9929, 0.1191, 0.0000, -0.1191, 0.9929, 0.000, 59.573, -7.149)
+
+[node name="TetherAnchor" type="TetherAnchor" parent="TestSphere/SupplyPoint"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+
+[node name="TestMoonlet" type="CelestialBody" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -130, 60, -220)
+data_path = "res://data/bodies/test_moonlet.ron"
+
+[node name="OxygenTanks" type="OxygenTankScatter" parent="TestMoonlet"]
+body_index = 1
+
 [node name="Player" parent="." instance=ExtResource("1_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 70, 0)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="SuitHud" type="SuitHud" parent="HUD"]
 
 [node name="DebugUI" type="CanvasLayer" parent="."]
 

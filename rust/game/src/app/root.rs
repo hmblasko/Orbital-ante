@@ -44,6 +44,7 @@ impl INode for GameRoot {
     }
 
     fn ready(&mut self) {
+        self.base_mut().add_to_group(crate::player::hud::GAME_ROOT_GROUP);
         let crash_dir = ProjectSettings::singleton().globalize_path(&self.data.crash_log_dir).to_string();
         crash::install(crash_dir.into());
 
@@ -81,6 +82,17 @@ impl GameRoot {
             harness.bind_mut().configure(mode, scene);
             self.base_mut().add_child(&harness);
         }
+    }
+
+    /// The death recap's Continue: death ends the run (section 2), so clear
+    /// it from the save, autosave, and go back to the menu.
+    #[func]
+    pub fn on_player_died_continue(&mut self) {
+        SaveData::singleton().bind_mut().end_run();
+        if !self.args.is_test_run() {
+            SaveData::singleton().bind_mut().autosave();
+        }
+        self.show_menu();
     }
 
     /// Back to the menu (pause menu "quit to menu" later).

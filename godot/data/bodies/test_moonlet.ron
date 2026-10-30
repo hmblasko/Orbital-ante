@@ -1,0 +1,27 @@
+// PLACEHOLDER second body for the Phase 2 suit test: a jetpack hop away from
+// the test sphere, with a zero-g gap between their gravity fields.
+// Not part of the body roster.
+(
+    name: "Test Moonlet (placeholder)",
+    radius: 22.0,
+    gravity: (
+        surface_gravity: 4.0,
+        influence_radius: 70.0,
+    ),
+    // Breathable air, so the "refill outside a suit" rule can be tested.
+    // PLACEHOLDER: no real moon has this; it's here for testing only.
+    atmosphere: Some((
+        breathable: true,
+        height_m: 8.0,
+    )),
+    placeholder_look: (
+        base_color: (0.55, 0.62, 0.72),
+        noise_frequency: 0.08,
+        texture_repeats: 4.0,
+        radial_segments: 64,
+        rings: 32,
+        marker_count: 10,
+        marker_size: (0.5, 2.0, 0.5),
+        marker_color: (0.3, 0.8, 0.95),
+    ),
+)

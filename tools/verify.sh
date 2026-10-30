@@ -29,8 +29,9 @@ gate() { "$V" gate "$OUT" "$@"; }
 IGNORE="$ROOT/godot/data/verify/log_ignore.ron"
 
 echo "== Rust unit, determinism and data-file tests"
-run_tests() { # name filter severity
-  (cd rust && cargo test --quiet --workspace -- "$2" >"$OUT/test_$1.log" 2>&1)
+run_tests() { # name filters(space-separated) gate-title
+  # shellcheck disable=SC2086  # filters are split on purpose
+  (cd rust && cargo test --quiet --workspace -- $2 >"$OUT/test_$1.log" 2>&1)
   local ok=$?
   local passed=$(grep -ho '[0-9]* passed' "$OUT/test_$1.log" | awk '{s+=$1} END {print s+0}')
   local failed=$(grep -ho '[0-9]* failed' "$OUT/test_$1.log" | awk '{s+=$1} END {print s+0}')
@@ -41,11 +42,11 @@ run_tests() { # name filter severity
   fi
 }
 run_tests unit "" "Rust unit tests"
-run_tests determinism "seed::" "Determinism tests"
+run_tests determinism "seed:: determinism" "Determinism tests"
 run_tests data "data::" "Data-file validation"
 
 if ! command -v "$GODOT" >/dev/null 2>&1 && [ ! -x "$GODOT" ]; then
-  for g in "Smoke test" "Input replay determinism" "Screenshot regression"; do gate "$g" not_run "Godot not found; set GODOT=/path/to/godot"; done
+  for g in "Smoke test" "Feature test scenes" "Input replay determinism" "Screenshot regression"; do gate "$g" not_run "Godot not found; set GODOT=/path/to/godot"; done
 else
   echo "== Importing project"
   "$GODOT" --headless --path godot --import >"$OUT/import.log" 2>&1
@@ -64,6 +65,21 @@ else
   else
     gate "Smoke test" pass "seed $SEED, 60 s wanderer bot, no detector hits, no log errors" "" smoke
   fi
+
+  echo "== Feature test scenes"
+  mkdir -p "$OUT/features"
+  feat_ok=0; feat_fail=""; feat_checks=0
+  for t in godot/tests/*_test.gd godot/tests/*_smoke.gd; do
+    [ -f "$t" ] || continue
+    n=$(basename "$t" .gd)
+    "$GODOT" --headless --path godot --fixed-fps 60 --script "res://tests/$n.gd" >"$OUT/features/$n.log" 2>&1
+    c=$?
+    "$V" logcheck "$OUT/features/$n.log" "$OUT/features/$n.logcheck.json" "$IGNORE" 0 >/dev/null; l=$?
+    feat_checks=$((feat_checks + $(grep -c ': ok ' "$OUT/features/$n.log")))
+    if [ $c -eq 0 ] && [ $l -eq 0 ] && grep -q "PASS" "$OUT/features/$n.log"; then feat_ok=$((feat_ok + 1)); else feat_fail="$feat_fail $n"; fi
+  done
+  if [ -z "$feat_fail" ]; then gate "Feature test scenes" pass "$feat_ok scripts passed ($feat_checks named checks), no log errors" "" features
+  else gate "Feature test scenes" fail "failed:$feat_fail (see features/*.log)" S2 features; fi
 
   echo "== Input replay determinism"
   if [ -f "$OUT/smoke/replay.ron" ]; then

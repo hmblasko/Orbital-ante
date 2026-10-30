@@ -6,3 +6,10 @@ MENU_NEW_SEED,New seed
 MENU_QUIT,Quit
 MENU_SEED,Seed: %s
 MENU_VERSION,v%s  |  runs started: %d
+HUD_OXYGEN,O2
+HUD_JETPACK,JET
+HUD_LOW_OXYGEN,LOW OXYGEN - find a tank or get back to the supply
+HUD_TETHERED,Tethered
+HUD_ZERO_G,Zero-g
+DEATH_SUFFOCATION,You ran out of oxygen.
+DEATH_CONTINUE,Press A to continue

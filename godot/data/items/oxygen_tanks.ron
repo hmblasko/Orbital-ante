@@ -1,0 +1,6 @@
+// Seeded oxygen tank placement (CLAUDE.md section 6: "neither trivial nor tedious").
+// Phase 2 scatters them on body surfaces; enemy ships, satellites and outposts
+// get tanks when those exist.
+(
+    tanks_per_body: 4,
+)

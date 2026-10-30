@@ -6,8 +6,10 @@
     radius: 60.0,
     gravity: (
         surface_gravity: 9.0,
-        influence_radius: 600.0,
+        // Small enough that a zero-g gap separates it from the test moonlet.
+        influence_radius: 150.0,
     ),
+    // No atmosphere: vacuum, like the Moon, so the suit uses oxygen.
     placeholder_look: (
         base_color: (0.78, 0.74, 0.68),
         noise_frequency: 0.05,

@@ -1,0 +1,13 @@
+// Things the suited player interacts with (CLAUDE.md section 6).
+(
+    // Standing this close to a supply point (the ship's air and fuel, later) refills the suit.
+    supply_radius_m: 4.0,
+    // Safety tether: maximum line length, and how close you must be to clip on.
+    tether_length_m: 25.0,
+    tether_attach_range_m: 4.0,
+    // How close an oxygen tank must be to pick it up with Interact.
+    tank_pickup_range_m: 2.5,
+    // Thruster light: brightness at full thrust, and how far it reaches.
+    thruster_light_energy: 2.5,
+    thruster_light_range_m: 6.0,
+)

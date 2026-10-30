@@ -98,7 +98,7 @@ orbital-ante/
    ```
    cargo test
    ```
-   Expect `test result: ok. 15 passed`.
+   Expect every line to say `test result: ok` (74 tests in total as of Phase 2).
 
 ## 5. Open and run the test scene on PC
 
@@ -110,10 +110,14 @@ orbital-ante/
 5. Controls:
    | Action | Controller | Keyboard / mouse |
    |---|---|---|
-   | Move | Left stick | W A S D |
+   | Move (on the ground) / jetpack thrust (in the air) | Left stick | W A S D |
    | Look | Right stick | Mouse (or arrow keys) |
-   | Jump | A | Space |
-   | Crouch (hold) | B | Ctrl or C |
+   | Jump; hold in the air for jetpack up | A | Space |
+   | Crouch (hold); in the air, jetpack down | B | Ctrl or C |
+   | Match velocity (hold, in the air) | LT | Left Shift |
+   | Interact (pick up an oxygen tank) | X | E |
+   | Use an oxygen tank | D-pad left | G |
+   | Clip on / unclip the safety tether | D-pad down | T |
    | Frame-time overlay on/off | L3 (click left stick) | F3 |
    | Free / recapture mouse | | Esc / click |
 6. To stop, press **F8** or close the game window.

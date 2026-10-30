@@ -80,6 +80,13 @@ impl SaveData {
         self.current.run = Some(super::format::RunSave { seed_code: code, ante: 1, ..Default::default() });
     }
 
+    /// Death ends the run (CLAUDE.md section 2): the run's Wallet, score and
+    /// items are lost; meta progress is kept.
+    #[func]
+    pub fn end_run(&mut self) {
+        self.current.run = None;
+    }
+
     #[func]
     pub fn get_save_folder(&mut self) -> GString {
         GString::from(&self.store().dir().display().to_string())

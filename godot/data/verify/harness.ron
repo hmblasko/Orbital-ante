@@ -11,6 +11,9 @@
         turn_strength: (0.2, 0.9),
         jump_chance: 0.25,
         crouch_chance: 0.1,
+        jetpack_chance: 0.5,
+        jetpack_hold_s: (0.3, 1.5),
+        match_velocity_chance: 0.1,
     ),
     detectors: (
         stuck_seconds: 30.0,

@@ -24,7 +24,17 @@ pub struct BodyData {
     /// Surface radius in metres.
     pub radius: f32,
     pub gravity: GravitySettings,
+    /// Breathable air near the surface. Missing means vacuum (the suit uses oxygen).
+    #[serde(default)]
+    pub atmosphere: Option<AtmosphereData>,
     pub placeholder_look: PlaceholderLook,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AtmosphereData {
+    pub breathable: bool,
+    /// Air reaches this far above the surface, in metres.
+    pub height_m: f32,
 }
 
 /// How the Phase 0 placeholder surface looks. Goes away with real terrain.
@@ -78,6 +88,15 @@ impl CelestialBody {
         match &self.data {
             Some(d) => gravity::point_gravity(self.base().get_global_position(), d.radius, &d.gravity, point),
             None => Vector3::ZERO,
+        }
+    }
+
+    /// True if `point` is inside this body's breathable air.
+    pub fn breathable_at(&self, point: Vector3) -> bool {
+        let Some(d) = &self.data else { return false };
+        match &d.atmosphere {
+            Some(a) if a.breathable => self.base().get_global_position().distance_to(point) <= d.radius + a.height_m,
+            _ => false,
         }
     }
 

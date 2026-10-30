@@ -83,6 +83,7 @@ pub struct Harness {
     shots: Vec<String>,
     camera: Option<Gd<Camera3D>>,
     failures: Vec<String>,
+    death_reported: bool,
     finished: bool,
     base: Base<Node>,
 }
@@ -110,6 +111,7 @@ impl INode for Harness {
             shots: Vec::new(),
             camera: None,
             failures: Vec::new(),
+            death_reported: false,
             finished: false,
             base,
         }
@@ -247,7 +249,13 @@ impl Harness {
     }
 
     fn run_detectors(&mut self) {
-        let Some(player) = self.player.as_ref() else { return };
+        let Some(player) = self.player.clone() else { return };
+        // Bots aren't meant to die in the test scene; an unexpected death is a failure.
+        if player.bind().is_dead() && !self.death_reported {
+            let key = player.bind().get_death_key();
+            self.death_reported = true;
+            self.fail(format!("player died at {:.1} s: {key}", self.game_time));
+        }
         let position = player.get_global_position();
         let velocity = player.get_velocity();
         let nearest = self

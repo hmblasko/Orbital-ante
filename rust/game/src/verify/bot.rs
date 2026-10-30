@@ -19,6 +19,12 @@ pub struct WandererSettings {
     pub turn_strength: (f32, f32),
     pub jump_chance: f64,
     pub crouch_chance: f64,
+    /// Chance a jump keeps the button held, firing the jetpack once airborne,
+    /// and for how long. Short enough that it never leaves the test sphere.
+    pub jetpack_chance: f64,
+    pub jetpack_hold_s: (f32, f32),
+    /// Chance to hold match velocity for one decision.
+    pub match_velocity_chance: f64,
 }
 
 /// What the bot wants pressed this tick: one strength per recorded action.
@@ -31,6 +37,8 @@ pub struct Wanderer {
     walking: bool,
     turn: f32,
     jump_next_tick: bool,
+    jetpack_hold_s: f32,
+    matching: bool,
     crouching: bool,
 }
 
@@ -41,7 +49,17 @@ fn index(action: &str) -> usize {
 
 impl Wanderer {
     pub fn new(settings: WandererSettings, rng: SeededRng) -> Self {
-        Self { settings, rng, time_to_decide: 0.0, walking: true, turn: 0.0, jump_next_tick: false, crouching: false }
+        Self {
+            settings,
+            rng,
+            time_to_decide: 0.0,
+            walking: true,
+            turn: 0.0,
+            jump_next_tick: false,
+            jetpack_hold_s: 0.0,
+            matching: false,
+            crouching: false,
+        }
     }
 
     /// Advance by `dt` seconds and return the inputs to hold this tick.
@@ -59,9 +77,13 @@ impl Wanderer {
         } else if self.turn < 0.0 {
             out[index("look_left")] = -self.turn;
         }
-        if self.jump_next_tick {
+        if self.jump_next_tick || self.jetpack_hold_s > 0.0 {
             out[index("jump")] = 1.0;
             self.jump_next_tick = false;
+            self.jetpack_hold_s -= dt;
+        }
+        if self.matching {
+            out[index("match_velocity")] = 1.0;
         }
         if self.crouching {
             out[index("crouch")] = 1.0;
@@ -86,6 +108,10 @@ impl Wanderer {
             0.0
         };
         self.jump_next_tick = self.rng.chance(s.jump_chance);
+        if self.jump_next_tick && self.rng.chance(s.jetpack_chance) {
+            self.jetpack_hold_s = self.rng.range_f32(s.jetpack_hold_s.0, s.jetpack_hold_s.1);
+        }
+        self.matching = self.rng.chance(s.match_velocity_chance);
         self.crouching = self.rng.chance(s.crouch_chance);
     }
 }
@@ -102,6 +128,9 @@ mod tests {
             turn_strength: (0.2, 0.8),
             jump_chance: 0.2,
             crouch_chance: 0.1,
+            jetpack_chance: 0.5,
+            jetpack_hold_s: (0.3, 1.5),
+            match_velocity_chance: 0.1,
         }
     }
 
@@ -126,5 +155,23 @@ mod tests {
             }
         }
         assert!(forward_ticks > 1800);
+    }
+
+    #[test]
+    fn uses_the_jetpack_in_bursts() {
+        let mut bot = Wanderer::new(settings(), SeededRng::derive(3, "bot"));
+        let (mut held, mut longest, mut run) = (0, 0, 0);
+        for _ in 0..3600 {
+            if bot.tick(1.0 / 60.0)[index("jump")] > 0.0 {
+                held += 1;
+                run += 1;
+                longest = longest.max(run);
+            } else {
+                run = 0;
+            }
+        }
+        assert!(held > 0);
+        // Never longer than the longest burst (1.5 s = 90 ticks, plus the jump tick).
+        assert!(longest <= 91, "held jump for {longest} ticks");
     }
 }

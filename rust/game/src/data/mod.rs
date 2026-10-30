@@ -49,6 +49,27 @@ mod tests {
     }
 
     #[test]
+    fn test_moonlet_parses_with_air() {
+        let body = parse::<crate::orbits::body::BodyData>(include_str!("../../../../godot/data/bodies/test_moonlet.ron")).unwrap();
+        assert!(body.atmosphere.is_some_and(|a| a.breathable));
+    }
+
+    #[test]
+    fn suit_data_parses() {
+        parse::<crate::player::suit::SuitData>(include_str!("../../../../godot/data/player/suit.ron")).unwrap();
+    }
+
+    #[test]
+    fn interactables_parse() {
+        parse::<crate::player::controller::InteractData>(include_str!("../../../../godot/data/player/interactables.ron")).unwrap();
+    }
+
+    #[test]
+    fn oxygen_tank_scatter_parses() {
+        parse::<crate::items::oxygen_tank::ScatterData>(include_str!("../../../../godot/data/items/oxygen_tanks.ron")).unwrap();
+    }
+
+    #[test]
     fn frame_overlay_parses() {
         parse::<crate::ui_bridge::frame_overlay::OverlayData>(include_str!("../../../../godot/data/debug/frame_overlay.ron")).unwrap();
     }
