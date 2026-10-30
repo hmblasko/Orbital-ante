@@ -109,6 +109,12 @@ gate "Steam Deck session and rubric" not_run "needs Matthew's Deck"
 echo "== Report"
 "$V" report "$OUT" "$OUT/report.html" "Verification report ($(git rev-parse --short HEAD 2>/dev/null || echo local), seed $SEED)"
 OA_BUILD=$(git rev-parse --short HEAD 2>/dev/null || echo local) "$V" bugs "$OUT"
+echo "== Gates"
+python3 - "$OUT/gates.json" <<'PY' 2>/dev/null || cat "$OUT/gates.json"
+import json, sys
+for g in json.load(open(sys.argv[1])):
+    print(f"{g['status'].upper():8} {g['name']}: {g['detail']}")
+PY
 echo "Report: $OUT/report.html"
 grep -q '"status": "fail"' "$OUT/gates.json" && exit 1
 exit 0
