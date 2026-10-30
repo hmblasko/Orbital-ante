@@ -264,7 +264,7 @@ impl Harness {
             .get_nodes_in_group(GRAVITY_GROUP)
             .iter_shared()
             .filter_map(|n| n.try_cast::<CelestialBody>().ok())
-            .map(|b| (b.get_global_position(), b.bind().radius()))
+            .map(|b| (b.get_global_position(), b.bind().min_surface_radius()))
             .min_by(|a, b| (a.0.distance_to(position) - a.1).total_cmp(&(b.0.distance_to(position) - b.1)));
         let wants_to_move = match &self.bot {
             Some(bot) => bot.wants_to_move(),

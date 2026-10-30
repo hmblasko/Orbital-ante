@@ -4,6 +4,10 @@
 
 use godot::builtin::Vector3;
 
+pub mod noise;
+pub mod rocks;
+pub mod terrain;
+
 /// `count` unit vectors spread evenly over a sphere (Fibonacci lattice).
 pub fn fibonacci_sphere(count: usize) -> Vec<Vector3> {
     let golden_angle = std::f32::consts::PI * (3.0 - 5f32.sqrt());

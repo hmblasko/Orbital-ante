@@ -1,0 +1,168 @@
+[gd_resource type="Theme" load_steps=12 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Fredoka-Variable.ttf" id="1_fredoka"]
+[ext_resource type="FontFile" path="res://assets/fonts/LilitaOne-Regular.ttf" id="2_lilita"]
+
+[sub_resource type="FontVariation" id="FontVariation_body"]
+base_font = ExtResource("1_fredoka")
+variation_opentype = {2003265652: 560}
+
+[sub_resource type="StyleBoxFlat" id="Button_normal"]
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 12.0
+bg_color = Color(0.09, 0.11, 0.17, 0.88)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 5
+border_color = Color(0.27, 0.32, 0.45, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+corner_detail = 6
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="Button_hover"]
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 12.0
+bg_color = Color(0.15, 0.18, 0.27, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 5
+border_color = Color(0.98, 0.62, 0.26, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+corner_detail = 6
+shadow_color = Color(0.98, 0.5, 0.15, 0.25)
+shadow_size = 10
+shadow_offset = Vector2(0, 3)
+
+[sub_resource type="StyleBoxFlat" id="Button_pressed"]
+content_margin_left = 22.0
+content_margin_top = 12.0
+content_margin_right = 22.0
+content_margin_bottom = 10.0
+bg_color = Color(0.98, 0.58, 0.22, 1)
+border_width_left = 3
+border_width_top = 5
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.72, 0.34, 0.1, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+corner_detail = 6
+
+[sub_resource type="StyleBoxFlat" id="Button_focus"]
+draw_center = false
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.86, 0.55, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+corner_detail = 6
+expand_margin_left = 4.0
+expand_margin_top = 4.0
+expand_margin_right = 4.0
+expand_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="Button_disabled"]
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 12.0
+bg_color = Color(0.09, 0.1, 0.13, 0.6)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 5
+border_color = Color(0.2, 0.22, 0.28, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="Panel_glass"]
+content_margin_left = 18.0
+content_margin_top = 10.0
+content_margin_right = 18.0
+content_margin_bottom = 10.0
+bg_color = Color(0.06, 0.08, 0.13, 0.78)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.75, 0.8, 0.55)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+corner_detail = 6
+
+[sub_resource type="StyleBoxFlat" id="Pill"]
+content_margin_left = 16.0
+content_margin_top = 6.0
+content_margin_right = 16.0
+content_margin_bottom = 7.0
+bg_color = Color(0.06, 0.08, 0.13, 0.82)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.98, 0.62, 0.26, 0.8)
+corner_radius_top_left = 40
+corner_radius_top_right = 40
+corner_radius_bottom_right = 40
+corner_radius_bottom_left = 40
+corner_detail = 8
+
+[resource]
+default_font = SubResource("FontVariation_body")
+default_font_size = 20
+Button/colors/font_color = Color(0.93, 0.94, 0.97, 1)
+Button/colors/font_focus_color = Color(1, 0.95, 0.85, 1)
+Button/colors/font_hover_color = Color(1, 0.95, 0.85, 1)
+Button/colors/font_pressed_color = Color(0.12, 0.07, 0.03, 1)
+Button/colors/font_hover_pressed_color = Color(0.12, 0.07, 0.03, 1)
+Button/colors/font_disabled_color = Color(0.5, 0.52, 0.58, 1)
+Button/constants/outline_size = 0
+Button/font_sizes/font_size = 24
+Button/fonts/font = ExtResource("2_lilita")
+Button/styles/normal = SubResource("Button_normal")
+Button/styles/hover = SubResource("Button_hover")
+Button/styles/pressed = SubResource("Button_pressed")
+Button/styles/hover_pressed = SubResource("Button_pressed")
+Button/styles/focus = SubResource("Button_focus")
+Button/styles/disabled = SubResource("Button_disabled")
+Label/colors/font_color = Color(0.92, 0.93, 0.96, 1)
+Label/colors/font_shadow_color = Color(0, 0, 0, 0.45)
+Label/constants/shadow_offset_x = 0
+Label/constants/shadow_offset_y = 2
+GlassPanel/base_type = &"PanelContainer"
+GlassPanel/styles/panel = SubResource("Panel_glass")
+PillPanel/base_type = &"PanelContainer"
+PillPanel/styles/panel = SubResource("Pill")
+TitleLabel/base_type = &"Label"
+TitleLabel/colors/font_color = Color(1, 0.93, 0.78, 1)
+TitleLabel/colors/font_outline_color = Color(0.13, 0.07, 0.05, 1)
+TitleLabel/colors/font_shadow_color = Color(0.98, 0.45, 0.15, 0.55)
+TitleLabel/constants/outline_size = 14
+TitleLabel/constants/shadow_offset_x = 0
+TitleLabel/constants/shadow_offset_y = 7
+TitleLabel/font_sizes/font_size = 96
+TitleLabel/fonts/font = ExtResource("2_lilita")

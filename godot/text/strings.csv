@@ -1,15 +1,23 @@
 keys,en
 MENU_TITLE,ORBITAL ANTE
-MENU_SUBTITLE,(working title) - placeholder menu
-MENU_START,Start test scene
+MENU_SUBTITLE,Working title  ·  prototype build
+MENU_START,Launch
 MENU_NEW_SEED,New seed
 MENU_QUIT,Quit
-MENU_SEED,Seed: %s
-MENU_VERSION,v%s  |  runs started: %d
-HUD_OXYGEN,O2
+MENU_SEED,SEED  %s
+MENU_VERSION,v%s  ·  runs started: %d
+HUD_OXYGEN,OXYGEN
 HUD_JETPACK,JET
-HUD_LOW_OXYGEN,LOW OXYGEN - find a tank or get back to the supply
+HUD_LOW_OXYGEN,LOW OXYGEN  -  find a tank or get back to supply
 HUD_TETHERED,Tethered
 HUD_ZERO_G,Zero-g
 DEATH_SUFFOCATION,You ran out of oxygen.
 DEATH_CONTINUE,Press A to continue
+MENU_HINT_PAD,A  Select      D-pad  Move
+HUD_SUIT,SUIT
+HUD_REFILLING,Refilling air and fuel
+PROMPT_TAKE_TANK,Take oxygen tank
+PROMPT_TETHER,Clip on tether
+PROMPT_UNTETHER,Unclip tether
+DEATH_TITLE,RUN OVER
+DEATH_CONTINUE_KEYS,Press Enter to continue

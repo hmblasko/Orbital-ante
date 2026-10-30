@@ -1,33 +1,40 @@
-//! A celestial body: solid surface plus point gravity.
+//! A celestial body: painted terrain surface, scattered rocks and point gravity.
 //!
-//! Phase 0 builds a PLACEHOLDER sphere surface (default primitive, fails the
-//! section 11 art bar on purpose). Phase 5 replaces it with real terrain.
+//! The surface comes from `procgen::terrain` (hills, ridges and craters) and
+//! is drawn with the TF2-style painted shader. Phase 5 replaces it with
+//! streamed terrain and the full feature sets; this is slice scope.
 
-use godot::classes::base_material_3d::{Flags, TextureParam};
-use godot::classes::geometry_instance_3d::ShadowCastingSetting;
+use godot::classes::mesh::{ArrayType, PrimitiveType};
 use godot::classes::{
-    BoxMesh, CollisionShape3D, FastNoiseLite, IStaticBody3D, MeshInstance3D, NoiseTexture2D,
-    SphereMesh, SphereShape3D, StandardMaterial3D, StaticBody3D,
+    ArrayMesh, CollisionShape3D, ConcavePolygonShape3D, ConvexPolygonShape3D, FastNoiseLite, IStaticBody3D,
+    MeshInstance3D, NoiseTexture2D, Shader, ShaderMaterial, StaticBody3D, Texture2D,
 };
 use godot::prelude::*;
 use serde::Deserialize;
 
 use super::gravity::{self, GravitySettings};
-use crate::procgen;
+use crate::procgen::rocks::rock_mesh;
+use crate::procgen::terrain::{MeshData, TerrainData, TerrainShape};
+use crate::seed::SeededRng;
 
 /// Scene-tree group every gravity source joins, so other nodes can find them.
 pub const GRAVITY_GROUP: &str = "gravity_wells";
 
+const TERRAIN_SHADER: &str = "res://shaders/painted_terrain.gdshader";
+const PROP_SHADER: &str = "res://shaders/painted_prop.gdshader";
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct BodyData {
     pub name: String,
-    /// Surface radius in metres.
+    /// Nominal surface radius in metres (hills and craters vary around it).
     pub radius: f32,
     pub gravity: GravitySettings,
     /// Breathable air near the surface. Missing means vacuum (the suit uses oxygen).
     #[serde(default)]
     pub atmosphere: Option<AtmosphereData>,
-    pub placeholder_look: PlaceholderLook,
+    pub terrain: TerrainData,
+    pub look: SurfaceLook,
+    pub rocks: RockData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,17 +44,34 @@ pub struct AtmosphereData {
     pub height_m: f32,
 }
 
-/// How the Phase 0 placeholder surface looks. Goes away with real terrain.
+/// Painted palette for the terrain shader (section 11: warm/cool
+/// separation, moderate saturation, soft gradients).
 #[derive(Debug, Clone, Deserialize)]
-pub struct PlaceholderLook {
-    pub base_color: (f32, f32, f32),
-    pub noise_frequency: f32,
-    pub texture_repeats: f32,
-    pub radial_segments: i32,
-    pub rings: i32,
-    pub marker_count: usize,
-    pub marker_size: (f32, f32, f32),
-    pub marker_color: (f32, f32, f32),
+pub struct SurfaceLook {
+    pub color_low: (f32, f32, f32),
+    pub color_high: (f32, f32, f32),
+    pub color_crater: (f32, f32, f32),
+    pub color_rim: (f32, f32, f32),
+    pub color_slope: (f32, f32, f32),
+    pub shadow_tint: (f32, f32, f32),
+    pub rim_color: (f32, f32, f32),
+    pub rim_strength: f32,
+    /// Broad paint variation repeats every 1/scale metres.
+    pub detail_scale: f32,
+    pub grain_scale: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RockData {
+    pub count: u32,
+    /// Boulder size range in metres; most are small.
+    pub size_m: (f32, f32),
+    /// Rocks per cluster; clusters read more natural than an even scatter.
+    pub cluster_size: (u32, u32),
+    pub cluster_spread_m: f32,
+    pub roughness: f32,
+    pub color: (f32, f32, f32),
+    pub color_dark: (f32, f32, f32),
 }
 
 /// `Gd<T>` (used below) is a smart pointer to an object that lives inside
@@ -59,13 +83,14 @@ pub struct CelestialBody {
     #[export(file = "*.ron")]
     data_path: GString,
     data: Option<BodyData>,
+    shape: Option<TerrainShape>,
     base: Base<StaticBody3D>,
 }
 
 #[godot_api]
 impl IStaticBody3D for CelestialBody {
     fn init(base: Base<StaticBody3D>) -> Self {
-        Self { data_path: GString::new(), data: None, base }
+        Self { data_path: GString::new(), data: None, shape: None, base }
     }
 
     fn ready(&mut self) {
@@ -74,10 +99,13 @@ impl IStaticBody3D for CelestialBody {
             godot_error!("CelestialBody {}: no data, body disabled", self.base().get_name());
             return;
         };
-        self.build_placeholder_surface(&data);
+        let shape = TerrainShape::new(&data.terrain, data.radius);
+        self.build_surface(&data, &shape);
+        self.scatter_rocks(&data, &shape);
         self.base_mut().add_to_group(GRAVITY_GROUP);
         godot_print!("CelestialBody ready: {} (radius {} m)", data.name, data.radius);
         self.data = Some(data);
+        self.shape = Some(shape);
     }
 }
 
@@ -95,83 +123,178 @@ impl CelestialBody {
     pub fn breathable_at(&self, point: Vector3) -> bool {
         let Some(d) = &self.data else { return false };
         match &d.atmosphere {
-            Some(a) if a.breathable => self.base().get_global_position().distance_to(point) <= d.radius + a.height_m,
+            Some(a) if a.breathable => self.base().get_global_position().distance_to(point) <= self.surface_radius_toward(point) + a.height_m,
             _ => false,
         }
     }
 
+    /// Nominal radius (hills and craters vary around it).
+    #[func]
     pub fn radius(&self) -> f32 {
         self.data.as_ref().map_or(0.0, |d| d.radius)
     }
 
-    fn build_placeholder_surface(&mut self, data: &BodyData) {
-        let look = &data.placeholder_look;
-
-        let mut sphere = SphereMesh::new_gd();
-        sphere.set_radius(data.radius);
-        sphere.set_height(data.radius * 2.0);
-        sphere.set_radial_segments(look.radial_segments);
-        sphere.set_rings(look.rings);
-
-        let mut noise = FastNoiseLite::new_gd();
-        noise.set_frequency(look.noise_frequency);
-        let mut texture = NoiseTexture2D::new_gd();
-        texture.set_noise(&noise);
-        texture.set_seamless(true);
-
-        let mut material = StandardMaterial3D::new_gd();
-        material.set_albedo(rgb(look.base_color));
-        material.set_texture(TextureParam::ALBEDO, &texture);
-        material.set_flag(Flags::UV1_USE_TRIPLANAR, true);
-        let repeat = look.texture_repeats / data.radius;
-        material.set_uv1_scale(Vector3::new(repeat, repeat, repeat));
-        sphere.set_material(&material);
-
-        let mut mesh = MeshInstance3D::new_alloc();
-        mesh.set_name("PLACEHOLDER_SurfaceMesh");
-        mesh.set_mesh(&sphere);
-        // Day/night shading comes from the light angle; letting the whole
-        // planet shadow itself only adds acne at this scale.
-        mesh.set_cast_shadows_setting(ShadowCastingSetting::OFF);
-        self.base_mut().add_child(&mesh);
-
-        let mut shape = SphereShape3D::new_gd();
-        shape.set_radius(data.radius);
-        let mut collision = CollisionShape3D::new_alloc();
-        collision.set_shape(&shape);
-        self.base_mut().add_child(&collision);
-
-        self.add_placeholder_markers(data);
+    /// Lowest the ground can be anywhere (for out-of-world checks).
+    #[func]
+    pub fn min_surface_radius(&self) -> f32 {
+        self.shape.as_ref().map_or(0.0, |s| s.min_radius())
     }
 
-    /// Evenly spaced pillars so the player can see themselves move.
-    fn add_placeholder_markers(&mut self, data: &BodyData) {
-        let look = &data.placeholder_look;
-        let (w, h, d) = look.marker_size;
-        let mut box_mesh = BoxMesh::new_gd();
-        box_mesh.set_size(Vector3::new(w, h, d));
-        let mut material = StandardMaterial3D::new_gd();
-        material.set_albedo(rgb(look.marker_color));
-        box_mesh.set_material(&material);
-
-        let mut shape = godot::classes::BoxShape3D::new_gd();
-        shape.set_size(Vector3::new(w, h, d));
-
-        for (i, dir) in procgen::fibonacci_sphere(look.marker_count).into_iter().enumerate() {
-            let basis = basis_with_up(dir);
-            let origin = dir * (data.radius + h * 0.5);
-            let mut marker = MeshInstance3D::new_alloc();
-            marker.set_name(&format!("PLACEHOLDER_Marker{i}"));
-            marker.set_mesh(&box_mesh);
-            marker.set_transform(Transform3D::new(basis, origin));
-            self.base_mut().add_child(&marker);
-
-            let mut collision = CollisionShape3D::new_alloc();
-            collision.set_shape(&shape);
-            collision.set_transform(Transform3D::new(basis, origin));
-            self.base_mut().add_child(&collision);
+    /// Distance from the centre to the ground in the direction of a world point.
+    #[func]
+    pub fn surface_radius_toward(&self, world_point: Vector3) -> f32 {
+        let dir = world_point - self.base().get_global_position();
+        match &self.shape {
+            Some(s) if dir.length_squared() > 1e-8 => s.surface_radius(dir),
+            _ => self.radius(),
         }
     }
+
+    fn build_surface(&mut self, data: &BodyData, shape: &TerrainShape) {
+        let mesh_data = shape.build_mesh();
+        let height_range = (data.terrain.hill_height_m + data.terrain.ridge_height_m).max(0.5) * 2.0;
+        let colors: Vec<Color> = mesh_data
+            .samples
+            .iter()
+            .map(|s| Color::from_rgba(s.crater_floor, s.crater_rim, (s.height / height_range + 0.5).clamp(0.0, 1.0), 1.0))
+            .collect();
+        let mesh = array_mesh(&mesh_data, Some(&colors));
+
+        let look = &data.look;
+        let mut material = ShaderMaterial::new_gd();
+        if let Ok(shader) = try_load::<Shader>(TERRAIN_SHADER) {
+            material.set_shader(&shader);
+        }
+        for (name, c) in [
+            ("color_low", look.color_low),
+            ("color_high", look.color_high),
+            ("color_crater", look.color_crater),
+            ("color_rim", look.color_rim),
+            ("color_slope", look.color_slope),
+            ("shadow_tint", look.shadow_tint),
+            ("rim_color", look.rim_color),
+        ] {
+            material.set_shader_parameter(name, &rgb(c).to_variant());
+        }
+        material.set_shader_parameter("rim_strength", &look.rim_strength.to_variant());
+        material.set_shader_parameter("detail_scale", &look.detail_scale.to_variant());
+        material.set_shader_parameter("grain_scale", &look.grain_scale.to_variant());
+        material.set_shader_parameter("body_radius", &data.radius.to_variant());
+        material.set_shader_parameter("detail_noise", &noise_texture(0.012, 4, data.terrain.seed as i32).to_variant());
+        material.set_shader_parameter("grain_noise", &noise_texture(0.09, 2, data.terrain.seed as i32 + 1).to_variant());
+
+        let mut instance = MeshInstance3D::new_alloc();
+        instance.set_name("SurfaceMesh");
+        instance.set_mesh(&mesh);
+        instance.set_material_override(&material);
+        self.base_mut().add_child(&instance);
+
+        let mut collision_shape = ConcavePolygonShape3D::new_gd();
+        collision_shape.set_faces(&triangle_soup(&mesh_data));
+        let mut collision = CollisionShape3D::new_alloc();
+        collision.set_name("SurfaceCollision");
+        collision.set_shape(&collision_shape);
+        self.base_mut().add_child(&collision);
+    }
+
+    /// Boulder clusters sitting on the terrain, with simple convex colliders.
+    fn scatter_rocks(&mut self, data: &BodyData, shape: &TerrainShape) {
+        let r = &data.rocks;
+        if r.count == 0 {
+            return;
+        }
+        let mut rng = SeededRng::derive(data.terrain.seed, "rocks");
+        let mut material = ShaderMaterial::new_gd();
+        if let Ok(shader) = try_load::<Shader>(PROP_SHADER) {
+            material.set_shader(&shader);
+        }
+        material.set_shader_parameter("albedo", &rgb(r.color).to_variant());
+        material.set_shader_parameter("albedo_dark", &rgb(r.color_dark).to_variant());
+        material.set_shader_parameter("shadow_tint", &rgb(data.look.shadow_tint).to_variant());
+        material.set_shader_parameter("grain_noise", &noise_texture(0.08, 3, data.terrain.seed as i32 + 2).to_variant());
+        material.set_shader_parameter("grain_scale", &0.6f32.to_variant());
+        material.set_shader_parameter("grain_strength", &0.45f32.to_variant());
+
+        // A few distinct rock shapes, reused (cheap to draw, still varied by scale and turn).
+        let variants: Vec<(Gd<ArrayMesh>, PackedVector3Array)> = (0..6)
+            .map(|i| {
+                let m = rock_mesh(data.terrain.seed as u32 ^ (i * 7919), 2, r.roughness, rng.range_f32(0.5, 0.85));
+                (array_mesh(&m, None), m.positions.iter().copied().collect())
+            })
+            .collect();
+
+        let mut placed = 0;
+        while placed < r.count {
+            let center = crate::procgen::scatter_on_sphere(&mut rng, 1)[0];
+            let in_cluster = rng.range_i64(r.cluster_size.0 as i64, r.cluster_size.1 as i64 + 1) as u32;
+            for _ in 0..in_cluster.min(r.count - placed) {
+                let offset = Vector3::new(rng.range_f32(-1.0, 1.0), rng.range_f32(-1.0, 1.0), rng.range_f32(-1.0, 1.0)) * (r.cluster_spread_m / data.radius);
+                let dir = (center + offset).normalized();
+                let t = rng.next_f32().powi(3);
+                let size = r.size_m.0 + (r.size_m.1 - r.size_m.0) * t;
+                let (mesh, points) = &variants[rng.below(variants.len() as u64) as usize];
+                let up_basis = super::body::basis_with_up(dir);
+                let turn = Basis::from_axis_angle(Vector3::UP, rng.range_f32(0.0, std::f32::consts::TAU));
+                let basis = (up_basis * turn).scaled(Vector3::new(size, size, size));
+                // Sink rocks a little so they sit in the ground, not on it.
+                let origin = dir * (shape.surface_radius(dir) + size * 0.15);
+                let transform = Transform3D::new(basis, origin);
+
+                let mut instance = MeshInstance3D::new_alloc();
+                instance.set_name(&format!("Rock{placed}"));
+                instance.set_mesh(mesh);
+                instance.set_material_override(&material);
+                instance.set_transform(transform);
+                self.base_mut().add_child(&instance);
+
+                let mut convex = ConvexPolygonShape3D::new_gd();
+                convex.set_points(points);
+                let mut collision = CollisionShape3D::new_alloc();
+                collision.set_shape(&convex);
+                collision.set_transform(transform);
+                self.base_mut().add_child(&collision);
+                placed += 1;
+            }
+        }
+    }
+}
+
+/// Godot mesh from our mesh data, optionally with per-vertex colours.
+pub fn array_mesh(m: &MeshData, colors: Option<&[Color]>) -> Gd<ArrayMesh> {
+    let mut arrays = VarArray::new();
+    arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
+    let positions: PackedVector3Array = m.positions.iter().copied().collect();
+    let normals: PackedVector3Array = m.normals.iter().copied().collect();
+    let indices: PackedInt32Array = m.indices.iter().copied().collect();
+    arrays.set(ArrayType::VERTEX.ord() as usize, &positions.to_variant());
+    arrays.set(ArrayType::NORMAL.ord() as usize, &normals.to_variant());
+    if let Some(colors) = colors {
+        let colors: PackedColorArray = colors.iter().copied().collect();
+        arrays.set(ArrayType::COLOR.ord() as usize, &colors.to_variant());
+    }
+    arrays.set(ArrayType::INDEX.ord() as usize, &indices.to_variant());
+    let mut mesh = ArrayMesh::new_gd();
+    mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrays);
+    mesh
+}
+
+fn triangle_soup(m: &MeshData) -> PackedVector3Array {
+    m.indices.iter().map(|&i| m.positions[i as usize]).collect()
+}
+
+/// Seamless painterly noise for the shaders.
+fn noise_texture(frequency: f32, octaves: i32, seed: i32) -> Gd<Texture2D> {
+    let mut noise = FastNoiseLite::new_gd();
+    noise.set_frequency(frequency);
+    noise.set_fractal_octaves(octaves);
+    noise.set_seed(seed);
+    let mut texture = NoiseTexture2D::new_gd();
+    texture.set_width(512);
+    texture.set_height(512);
+    texture.set_seamless(true);
+    texture.set_generate_mipmaps(true);
+    texture.set_noise(&noise);
+    texture.upcast()
 }
 
 fn rgb((r, g, b): (f32, f32, f32)) -> Color {

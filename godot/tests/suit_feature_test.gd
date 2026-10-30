@@ -7,7 +7,7 @@ extends SceneTree
 ## Run from the godot/ folder:
 ##   godot --headless --path . --fixed-fps 60 --script res://tests/suit_feature_test.gd
 
-const SURFACE_RADIUS := 60.0          # data/bodies/test_sphere.ron
+const FEET := 0.9                     # capsule half-height (data/player/movement.ron)
 const OXYGEN_REFILL_PER_S := 40.0     # data/player/suit.ron
 const OXYGEN_PER_TANK := 90.0         # data/player/suit.ron
 const TETHER_LENGTH := 25.0           # data/player/interactables.ron
@@ -45,8 +45,13 @@ func place(pos: Vector3, velocity := Vector3.ZERO) -> void:
 	player.global_position = pos
 	player.velocity = velocity
 
+func ground_clearance() -> float:
+	var body: Node3D = scene.get_node("TestSphere")
+	return player.global_position.length() - FEET - body.surface_radius_toward(player.global_position)
+
 func on_top() -> Vector3:
-	return Vector3(0, SURFACE_RADIUS + 1.0, 0)
+	var body: Node3D = scene.get_node("TestSphere")
+	return Vector3(0, body.surface_radius_toward(Vector3.UP * 100.0) + FEET + 0.3, 0)
 
 func _physics_process(_delta: float) -> bool:
 	frame += 1
@@ -94,9 +99,9 @@ func _physics_process(_delta: float) -> bool:
 				mark.max_r = 0.0
 				Input.action_press("jump")
 			if t() == 120: Input.action_release("jump")
-			if t() > 60: mark.max_r = maxf(mark.max_r, player.global_position.length())
+			if t() > 60: mark.max_r = maxf(mark.max_r, ground_clearance())
 			if t() == 240:
-				var height: float = mark.max_r - SURFACE_RADIUS - 0.9
+				var height: float = mark.max_r
 				check(height > 4.0, "jetpack lifts the player (apex %.1f m; a plain jump is about 1.7 m)" % height)
 				check(player.get_fuel_fraction() < mark.fuel, "jetpack burns fuel (%.2f -> %.2f)" % [mark.fuel, player.get_fuel_fraction()])
 				place(ZERO_G_POINT, Vector3(3, 0, 0))

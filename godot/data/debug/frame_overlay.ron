@@ -1,6 +1,7 @@
 // Developer frame-time overlay (CLAUDE.md section 15 budgets).
 (
-    visible_on_start: true,
+    // Developer tool: off by default so players see the game, F3 / L3 shows it.
+    visible_on_start: false,
     // Steam Deck targets at 1280x800: 60 fps budget and 40 fps floor.
     budget_ms: 16.6,
     floor_ms: 25.0,

@@ -255,6 +255,30 @@ impl PlayerController {
         self.suit.dead.is_some()
     }
 
+    /// What the interact-style buttons would do right now, for the HUD
+    /// prompt: "take_tank", "tether", "untether", or empty.
+    #[func]
+    pub fn get_interact_prompt(&self) -> GString {
+        if self.suit.dead.is_some() {
+            return GString::new();
+        }
+        if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
+            return "take_tank".into();
+        }
+        if self.tether_anchor.is_some() {
+            return "untether".into();
+        }
+        if self.nearest_in_group(TETHER_GROUP, self.interact.tether_attach_range_m).is_some() {
+            return "tether".into();
+        }
+        GString::new()
+    }
+
+    #[func]
+    pub fn is_at_supply(&self) -> bool {
+        self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some()
+    }
+
     /// Empty while alive.
     #[func]
     pub fn get_death_key(&self) -> GString {
@@ -307,7 +331,8 @@ impl PlayerController {
             dir = Vector3::UP;
         }
         let dir = dir.normalized();
-        let height = body.bind().radius() + self.data.capsule_height * 0.5 + self.data.spawn_height;
+        let ground = body.bind().surface_radius_toward(center + dir);
+        let height = ground + self.data.capsule_height * 0.5 + self.data.spawn_height;
         let basis = motion::align_up(self.base().get_global_basis(), dir, std::f32::consts::PI);
         self.base_mut().set_global_transform(Transform3D::new(basis, center + dir * height));
     }
