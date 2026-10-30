@@ -123,11 +123,20 @@ Whenever you change a `.ron` file in `godot/data/`: just run the scene again, no
 
 ## 6. Steam Deck test build route
 
-The Deck runs Linux, so it needs the **Linux** version of the Rust library (`liborbital_ante.so`).
-For Phase 0 there are two routes. Phase 1 adds GitHub Actions, which will build the Linux version
-for you on every push, and that becomes the main route.
+The Deck runs Linux, so it needs the **Linux** build.
 
-### Route A (recommended now): export a Linux build from your PC
+### Route 1 (recommended): download the build GitHub makes for you
+
+Every push to GitHub runs the CI workflow (`.github/workflows/ci.yml`). It tests the game, then builds Linux and Windows versions.
+
+1. On github.com, open the repo and click the **Actions** tab.
+2. Click the newest run with a green tick.
+3. Scroll to **Artifacts** and download **OrbitalAnte-linux**. It's a zip containing `OrbitalAnte.x86_64`, `OrbitalAnte.pck` and `liborbital_ante.so`.
+4. Unzip it and copy the folder to the Deck, then do steps 5 to 8 of Route 2 below.
+
+Tagged versions such as `v0.1.0` also get a GitHub **Release** with both zips attached.
+
+### Route 2: export a Linux build from your PC
 
 1. **Get a Linux build of the Rust library.**
    - If your PC runs Linux: `cd rust && cargo build --release`.
@@ -136,8 +145,7 @@ for you on every push, and that becomes the main route.
      `cd /mnt/c/dev/orbital-ante/rust && cargo build --release`.
      That puts `liborbital_ante.so` in `rust/target/release/`, where `orbital_ante.gdextension` expects it.
 2. **Install export templates (once).** In Godot: **Editor** menu > **Manage Export Templates…** > **Download and Install**.
-3. **Add a Linux preset (once).** **Project** menu > **Export…** > **Add…** > **Linux**. Leave the defaults, but check that
-   **Architecture** is `x86_64`. Close the window; Godot saves `export_presets.cfg`.
+3. **Presets are already set up** in `godot/export_presets.cfg` (Linux and Windows). They include the `data/` folder of RON files, which Godot would otherwise leave out.
 4. **Export.** **Project** > **Export…** > select the Linux preset > **Export Project…**. Untick **Export With Debug**
    for a release build, or leave it ticked to see errors on the Deck. Save as `builds/linux/OrbitalAnte.x86_64`.
    Godot copies `liborbital_ante.so` next to it. Check that the folder holds `OrbitalAnte.x86_64`, `OrbitalAnte.pck` and `liborbital_ante.so`.
@@ -153,10 +161,10 @@ for you on every push, and that becomes the main route.
 8. **Controller layout:** on the game's page, press the controller icon and pick the **Gamepad with Mouse Trackpad** template.
    That makes the right trackpad act as a mouse, which the game already uses for looking.
 
-### Route B: run the editor on the Deck
+### Route 3: run the editor on the Deck
 
 Possible, but SteamOS has no C compiler by default, so building Rust there needs a container (Distrobox).
-I'd skip this for now; Route A plus CI in Phase 1 is simpler.
+I'd skip this; Route 1 is simpler.
 
 ### Measuring frame times on the Deck
 
@@ -164,3 +172,32 @@ I'd skip this for now; Route A plus CI in Phase 1 is simpler.
 - Every 5 seconds it adds a row to `frametime_log.csv`. On the Deck that file is at
   `/home/deck/.local/share/godot/app_userdata/Orbital Ante/frametime_log.csv`. Copy it off and send it to me; that is a real measurement I can report.
 - Steam's own overlay: press **…** (Quick Access) > battery icon > **Performance Overlay Level** 3 or 4 for a frame-time graph.
+
+## 7. Running the checks yourself
+
+`tools/verify.sh` runs everything that "every commit" needs (CLAUDE.md section 19.1) and writes an HTML report.
+On Windows, run it from **Git Bash** (installed with Git).
+
+```
+GODOT=/path/to/Godot_v4.7.2-stable_linux.x86_64 tools/verify.sh
+```
+
+On Windows Git Bash, use your Godot path, for example `GODOT="/c/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe" tools/verify.sh`.
+Add `--no-render` to skip screenshots. Open `verify_out/latest/report.html` when it finishes.
+
+What it runs: Rust unit tests, determinism tests and data-file checks; a smoke test (boot, menu, test scene, 60-second autoplay bot, quit) with
+detectors for getting stuck, falling out of the world and physics blow-ups; a replay of that bot run that must end in exactly the same place;
+and screenshots from fixed viewpoints compared against approved baselines.
+
+**Approving screenshot baselines (only you do this):** look at the screenshots in the report. If they look right, run
+`rust/target/debug/oa_verify approve verify_out/latest/screenshots tests/baselines` and commit `tests/baselines/`.
+Baselines must come from the same kind of machine that checks them (CI uses software rendering), so approve the ones from the CI report artifact.
+
+**Recording your own play for a bug report:**
+```
+godot --path godot -- --record=/tmp/my_run.ron --seed=7K3M-Q9TD
+```
+Play, quit, and send the file. Anyone can then reproduce it exactly with `-- --replay=/tmp/my_run.ron`.
+
+**Filing bugs:** `oa_verify bugs verify_out/latest` writes `bugs.md`. Add `--file hmblasko/orbital-ante` to create GitHub issues
+(needs the `gh` tool, signed in); open issues with the same signature are skipped.

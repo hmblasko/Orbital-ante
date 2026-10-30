@@ -4,13 +4,11 @@
 # Godot cache and imports (regenerated on open)
 /godot/.godot/
 *.import.tmp
-
 # Exports and local builds
 /builds/
 *.x86_64
 *.exe
 *.pck
-
 # Editors / OS
 .vscode/
 .idea/
