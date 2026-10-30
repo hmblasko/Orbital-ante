@@ -1,0 +1,15 @@
+// Developer frame-time overlay (CLAUDE.md section 15 budgets).
+(
+    visible_on_start: true,
+    // Steam Deck targets at 1280x800: 60 fps budget and 40 fps floor.
+    budget_ms: 16.6,
+    floor_ms: 25.0,
+    stats_window_s: 2.0,
+    graph_frames: 240,
+    graph_size: (360.0, 90.0),
+    graph_max_ms: 40.0,
+    font_size: 16,
+    // A summary row is written to this CSV every interval.
+    log_interval_s: 5.0,
+    log_path: "user://frametime_log.csv",
+)

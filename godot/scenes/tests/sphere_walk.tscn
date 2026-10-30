@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_space"]
+sky_top_color = Color(0.02, 0.03, 0.08, 1)
+sky_horizon_color = Color(0.08, 0.1, 0.18, 1)
+ground_bottom_color = Color(0.01, 0.01, 0.03, 1)
+ground_horizon_color = Color(0.08, 0.1, 0.18, 1)
+sun_angle_max = 8.0
+
+[sub_resource type="Sky" id="Sky_space"]
+sky_material = SubResource("ProceduralSkyMaterial_space")
+
+[sub_resource type="Environment" id="Environment_space"]
+background_mode = 2
+sky = SubResource("Sky_space")
+ambient_light_source = 2
+ambient_light_color = Color(0.3, 0.33, 0.45, 1)
+ambient_light_energy = 1.0
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="SphereWalkTest" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_space")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7894, -0.5334, 0.3041, 0, 0.4953, 0.8687, -0.6139, -0.6857, 0.3909, 0, 0, 0)
+light_energy = 2.0
+shadow_enabled = true
+directional_shadow_max_distance = 200.0
+
+[node name="TestSphere" type="CelestialBody" parent="."]
+data_path = "res://data/bodies/test_sphere.ron"
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 70, 0)
+
+[node name="DebugUI" type="CanvasLayer" parent="."]
+
+[node name="FrameTimeOverlay" type="FrameTimeOverlay" parent="DebugUI"]
+offset_left = 16.0
+offset_top = 16.0

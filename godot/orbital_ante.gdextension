@@ -1,0 +1,15 @@
+; Tells Godot where the compiled Rust library lives.
+; Build it first with `cargo build` inside the rust/ folder.
+
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.7
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 = "res://../rust/target/debug/liborbital_ante.so"
+linux.release.x86_64 = "res://../rust/target/release/liborbital_ante.so"
+windows.debug.x86_64 = "res://../rust/target/debug/orbital_ante.dll"
+windows.release.x86_64 = "res://../rust/target/release/orbital_ante.dll"
+macos.debug = "res://../rust/target/debug/liborbital_ante.dylib"
+macos.release = "res://../rust/target/release/liborbital_ante.dylib"

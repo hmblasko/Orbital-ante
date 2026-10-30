@@ -1,0 +1,26 @@
+# Large binary game assets go through Git LFS (CLAUDE.md section 14).
+godot/assets/**/*.glb  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.gltf filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.bin  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.fbx  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.obj  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.blend filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.png  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.webp filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.exr  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.hdr  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.ktx2 filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.wav  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.ogg  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
+godot/assets/**/*.flac filter=lfs diff=lfs merge=lfs -text
+
+# Text files keep Unix line endings so Godot and Rust see the same bytes.
+*.rs   text eol=lf
+*.ron  text eol=lf
+*.gd   text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.godot text eol=lf
