@@ -43,14 +43,7 @@ pub fn gradient3(x: f32, y: f32, z: f32, seed: u32) -> f32 {
     let (xi, yi, zi) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
     let (xf, yf, zf) = (x - xi as f32, y - yi as f32, z - zi as f32);
     let (u, v, w) = (fade(xf), fade(yf), fade(zf));
-    let c = |dx: i32, dy: i32, dz: i32| {
-        grad(
-            hash(xi + dx, yi + dy, zi + dz, seed),
-            xf - dx as f32,
-            yf - dy as f32,
-            zf - dz as f32,
-        )
-    };
+    let c = |dx: i32, dy: i32, dz: i32| grad(hash(xi + dx, yi + dy, zi + dz, seed), xf - dx as f32, yf - dy as f32, zf - dz as f32);
     let x00 = lerp(c(0, 0, 0), c(1, 0, 0), u);
     let x10 = lerp(c(0, 1, 0), c(1, 1, 0), u);
     let x01 = lerp(c(0, 0, 1), c(1, 0, 1), u);
@@ -63,13 +56,7 @@ pub fn gradient3(x: f32, y: f32, z: f32, seed: u32) -> f32 {
 pub fn fbm3(p: [f32; 3], octaves: u32, gain: f32, seed: u32) -> f32 {
     let (mut sum, mut amp, mut freq, mut norm) = (0.0, 1.0, 1.0, 0.0);
     for i in 0..octaves {
-        sum += amp
-            * gradient3(
-                p[0] * freq,
-                p[1] * freq,
-                p[2] * freq,
-                seed.wrapping_add(i * 101),
-            );
+        sum += amp * gradient3(p[0] * freq, p[1] * freq, p[2] * freq, seed.wrapping_add(i * 101));
         norm += amp;
         amp *= gain;
         freq *= 2.0;
@@ -81,14 +68,7 @@ pub fn fbm3(p: [f32; 3], octaves: u32, gain: f32, seed: u32) -> f32 {
 pub fn ridged3(p: [f32; 3], octaves: u32, gain: f32, seed: u32) -> f32 {
     let (mut sum, mut amp, mut freq, mut norm) = (0.0, 1.0, 1.0, 0.0);
     for i in 0..octaves {
-        let n = 1.0
-            - gradient3(
-                p[0] * freq,
-                p[1] * freq,
-                p[2] * freq,
-                seed.wrapping_add(i * 131),
-            )
-            .abs();
+        let n = 1.0 - gradient3(p[0] * freq, p[1] * freq, p[2] * freq, seed.wrapping_add(i * 131)).abs();
         sum += amp * n * n;
         norm += amp;
         amp *= gain;

@@ -17,28 +17,15 @@ pub struct PaintSpec {
 
 impl PaintSpec {
     pub fn matte(albedo: Color, dark: Color) -> Self {
-        Self {
-            albedo,
-            albedo_dark: dark,
-            specular: 0.0,
-            emission: Color::BLACK,
-            emission_energy: 0.0,
-        }
+        Self { albedo, albedo_dark: dark, specular: 0.0, emission: Color::BLACK, emission_energy: 0.0 }
     }
 
     pub fn metal(albedo: Color, dark: Color) -> Self {
-        Self {
-            specular: 0.6,
-            ..Self::matte(albedo, dark)
-        }
+        Self { specular: 0.6, ..Self::matte(albedo, dark) }
     }
 
     pub fn glow(color: Color, energy: f32) -> Self {
-        Self {
-            emission: color,
-            emission_energy: energy,
-            ..Self::matte(color, color)
-        }
+        Self { emission: color, emission_energy: energy, ..Self::matte(color, color) }
     }
 }
 
@@ -66,13 +53,7 @@ pub fn paint(spec: &PaintSpec) -> Gd<ShaderMaterial> {
 }
 
 /// Add one part to `parent`.
-pub fn part<M: Inherits<Mesh>>(
-    parent: &mut Gd<Node3D>,
-    name: &str,
-    mesh: Gd<M>,
-    material: &Gd<ShaderMaterial>,
-    transform: Transform3D,
-) {
+pub fn part<M: Inherits<Mesh>>(parent: &mut Gd<Node3D>, name: &str, mesh: Gd<M>, material: &Gd<ShaderMaterial>, transform: Transform3D) {
     let mut instance = MeshInstance3D::new_alloc();
     instance.set_name(name);
     instance.set_mesh(&mesh.upcast::<Mesh>());

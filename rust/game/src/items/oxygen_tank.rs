@@ -40,22 +40,10 @@ impl OxygenTankPickup {
         let mut root = Node3D::new_alloc();
         root.set_name("PLACEHOLDER_OxygenTankModel");
         // Lying down, slightly sunk into the dust.
-        root.set_transform(Transform3D::new(
-            Basis::from_axis_angle(Vector3::BACK, std::f32::consts::FRAC_PI_2),
-            Vector3::new(0.0, 0.17, 0.0),
-        ));
-        let shell = paint(&PaintSpec::metal(
-            Color::from_rgb(0.22, 0.72, 0.74),
-            Color::from_rgb(0.10, 0.40, 0.45),
-        ));
-        let rubber = paint(&PaintSpec::matte(
-            Color::from_rgb(0.16, 0.16, 0.18),
-            Color::from_rgb(0.08, 0.08, 0.1),
-        ));
-        let brass = paint(&PaintSpec::metal(
-            Color::from_rgb(0.92, 0.70, 0.32),
-            Color::from_rgb(0.55, 0.38, 0.15),
-        ));
+        root.set_transform(Transform3D::new(Basis::from_axis_angle(Vector3::BACK, std::f32::consts::FRAC_PI_2), Vector3::new(0.0, 0.17, 0.0)));
+        let shell = paint(&PaintSpec::metal(Color::from_rgb(0.22, 0.72, 0.74), Color::from_rgb(0.10, 0.40, 0.45)));
+        let rubber = paint(&PaintSpec::matte(Color::from_rgb(0.16, 0.16, 0.18), Color::from_rgb(0.08, 0.08, 0.1)));
+        let brass = paint(&PaintSpec::metal(Color::from_rgb(0.92, 0.70, 0.32), Color::from_rgb(0.55, 0.38, 0.15)));
         let glow = paint(&PaintSpec::glow(Color::from_rgb(0.55, 1.0, 0.95), 2.5));
 
         let mut body = CapsuleMesh::new_gd();
@@ -69,13 +57,7 @@ impl OxygenTankPickup {
             band.set_inner_radius(0.16);
             band.set_outer_radius(0.2);
             band.set_rings(24);
-            part(
-                &mut root,
-                &format!("Band{i}"),
-                band,
-                &rubber,
-                at(0.0, *y, 0.0),
-            );
+            part(&mut root, &format!("Band{i}"), band, &rubber, at(0.0, *y, 0.0));
         }
         let mut neck = CylinderMesh::new_gd();
         neck.set_top_radius(0.05);
@@ -85,16 +67,7 @@ impl OxygenTankPickup {
         let mut handle = TorusMesh::new_gd();
         handle.set_inner_radius(0.05);
         handle.set_outer_radius(0.08);
-        part(
-            &mut root,
-            "Valve",
-            handle,
-            &brass,
-            Transform3D::new(
-                Basis::from_axis_angle(Vector3::RIGHT, std::f32::consts::FRAC_PI_2),
-                Vector3::new(0.0, 0.47, 0.0),
-            ),
-        );
+        part(&mut root, "Valve", handle, &brass, Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, std::f32::consts::FRAC_PI_2), Vector3::new(0.0, 0.47, 0.0)));
         let mut strip = BoxMesh::new_gd();
         strip.set_size(Vector3::new(0.03, 0.22, 0.02));
         part(&mut root, "FillGauge", strip, &glow, at(0.0, -0.02, 0.172));
@@ -139,25 +112,14 @@ impl INode3D for OxygenTankScatter {
 impl OxygenTankScatter {
     #[func]
     fn scatter(&mut self) {
-        let Some(body) = self
-            .base()
-            .get_parent()
-            .and_then(|p| p.try_cast::<CelestialBody>().ok())
-        else {
+        let Some(body) = self.base().get_parent().and_then(|p| p.try_cast::<CelestialBody>().ok()) else {
             godot_error!("OxygenTankScatter must be a child of a CelestialBody");
             return;
         };
         let data: ScatterData = crate::data::load(DATA_PATH, DATA_EMBEDDED);
         let center = body.get_global_position();
-        let mut rng = SeededRng::derive_indexed(
-            crate::seed::singleton::run_seed(),
-            "oxygen_tanks",
-            self.body_index as u64,
-        );
-        for (i, dir) in procgen::scatter_on_sphere(&mut rng, data.tanks_per_body as usize)
-            .into_iter()
-            .enumerate()
-        {
+        let mut rng = SeededRng::derive_indexed(crate::seed::singleton::run_seed(), "oxygen_tanks", self.body_index as u64);
+        for (i, dir) in procgen::scatter_on_sphere(&mut rng, data.tanks_per_body as usize).into_iter().enumerate() {
             let mut tank = OxygenTankPickup::new_alloc();
             tank.set_name(&format!("OxygenTank{i}"));
             let ground = body.bind().surface_radius_toward(center + dir);

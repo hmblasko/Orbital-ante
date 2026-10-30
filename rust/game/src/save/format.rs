@@ -59,26 +59,16 @@ pub struct PlayerSave {
 pub enum LoadError {
     Unreadable(String),
     /// Written by a newer build; never overwrite or "fix" it.
-    TooNew {
-        found: u32,
-    },
-    MigrationFailed {
-        from: u32,
-        reason: String,
-    },
+    TooNew { found: u32 },
+    MigrationFailed { from: u32, reason: String },
 }
 
 impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LoadError::Unreadable(e) => write!(f, "unreadable: {e}"),
-            LoadError::TooNew { found } => write!(
-                f,
-                "save version {found} is newer than this build ({CURRENT_VERSION})"
-            ),
-            LoadError::MigrationFailed { from, reason } => {
-                write!(f, "could not upgrade from version {from}: {reason}")
-            }
+            LoadError::TooNew { found } => write!(f, "save version {found} is newer than this build ({CURRENT_VERSION})"),
+            LoadError::MigrationFailed { from, reason } => write!(f, "could not upgrade from version {from}: {reason}"),
         }
     }
 }
@@ -96,31 +86,22 @@ type Migration = fn(ron::Value) -> Result<ron::Value, String>;
 const MIGRATIONS: &[Migration] = &[];
 
 pub fn parse_save(text: &str) -> Result<SaveFile, LoadError> {
-    let probe: VersionProbe =
-        ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()))?;
+    let probe: VersionProbe = ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()))?;
     if probe.version > CURRENT_VERSION {
-        return Err(LoadError::TooNew {
-            found: probe.version,
-        });
+        return Err(LoadError::TooNew { found: probe.version });
     }
     if probe.version == CURRENT_VERSION {
         return ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()));
     }
-    let mut value: ron::Value =
-        ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()))?;
+    let mut value: ron::Value = ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()))?;
     for from in probe.version..CURRENT_VERSION {
         let step = from
             .checked_sub(1)
             .and_then(|i| MIGRATIONS.get(i as usize))
-            .ok_or(LoadError::MigrationFailed {
-                from,
-                reason: "no migration for this version".into(),
-            })?;
+            .ok_or(LoadError::MigrationFailed { from, reason: "no migration for this version".into() })?;
         value = step(value).map_err(|reason| LoadError::MigrationFailed { from, reason })?;
     }
-    let mut save: SaveFile = value
-        .into_rust()
-        .map_err(|e| LoadError::Unreadable(e.to_string()))?;
+    let mut save: SaveFile = value.into_rust().map_err(|e| LoadError::Unreadable(e.to_string()))?;
     save.version = CURRENT_VERSION;
     Ok(save)
 }
@@ -139,20 +120,13 @@ mod tests {
             version: CURRENT_VERSION,
             game_version: "0.0.1".into(),
             save_counter: 7,
-            meta: MetaProgress {
-                runs_started: 3,
-                unlocks: vec!["test_unlock".into()],
-                ..Default::default()
-            },
+            meta: MetaProgress { runs_started: 3, unlocks: vec!["test_unlock".into()], ..Default::default() },
             run: Some(RunSave {
                 seed_code: "7K3M-Q9TD".into(),
                 ante: 2,
                 ante_score: 450,
                 wallet: 120,
-                player: Some(PlayerSave {
-                    body: "test_sphere".into(),
-                    position: (0.0, 60.9, 0.0),
-                }),
+                player: Some(PlayerSave { body: "test_sphere".into(), position: (0.0, 60.9, 0.0) }),
             }),
         }
     }
@@ -165,24 +139,13 @@ mod tests {
 
     #[test]
     fn newer_versions_are_refused() {
-        let text = write_save(&SaveFile {
-            version: CURRENT_VERSION + 1,
-            ..sample()
-        });
-        assert_eq!(
-            parse_save(&text),
-            Err(LoadError::TooNew {
-                found: CURRENT_VERSION + 1
-            })
-        );
+        let text = write_save(&SaveFile { version: CURRENT_VERSION + 1, ..sample() });
+        assert_eq!(parse_save(&text), Err(LoadError::TooNew { found: CURRENT_VERSION + 1 }));
     }
 
     #[test]
     fn garbage_is_unreadable() {
-        assert!(matches!(
-            parse_save("(version: 1, meta: ("),
-            Err(LoadError::Unreadable(_))
-        ));
+        assert!(matches!(parse_save("(version: 1, meta: ("), Err(LoadError::Unreadable(_))));
         assert!(matches!(parse_save(""), Err(LoadError::Unreadable(_))));
     }
 

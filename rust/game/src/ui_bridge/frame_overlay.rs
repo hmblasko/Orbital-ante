@@ -96,14 +96,12 @@ impl IControl for FrameTimeOverlay {
         self.base_mut().add_child(&label);
         self.label = Some(label);
 
-        self.base_mut()
-            .set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
+        self.base_mut().set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
         let visible = self.data.visible_on_start;
         self.base_mut().set_visible(visible);
 
         if let Some(viewport) = self.base().get_viewport() {
-            RenderingServer::singleton()
-                .viewport_set_measure_render_time(viewport.get_viewport_rid(), true);
+            RenderingServer::singleton().viewport_set_measure_render_time(viewport.get_viewport_rid(), true);
         }
 
         self.log = FileAccess::open(&self.data.log_path, ModeFlags::WRITE);
@@ -134,28 +132,17 @@ impl IControl for FrameTimeOverlay {
         }
 
         let frames: Vec<f32> = self.window.iter().map(|(_, ms)| *ms).collect();
-        let Some(stats) = frame_stats(&frames) else {
-            return;
-        };
+        let Some(stats) = frame_stats(&frames) else { return };
         let render = self.render_times();
-        let physics_ms =
-            Performance::singleton().get_monitor(Monitor::TIME_PHYSICS_PROCESS) * 1000.0;
-        let draw_calls =
-            Performance::singleton().get_monitor(Monitor::RENDER_TOTAL_DRAW_CALLS_IN_FRAME);
+        let physics_ms = Performance::singleton().get_monitor(Monitor::TIME_PHYSICS_PROCESS) * 1000.0;
+        let draw_calls = Performance::singleton().get_monitor(Monitor::RENDER_TOTAL_DRAW_CALLS_IN_FRAME);
 
         if self.elapsed >= self.next_log {
             self.next_log += self.data.log_interval_s as f64;
             let line = format!(
                 "{:.1},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{}",
-                self.elapsed,
-                frames.len(),
-                stats.average,
-                stats.worst_1_percent,
-                stats.max,
-                render.0,
-                render.1,
-                physics_ms,
-                draw_calls
+                self.elapsed, frames.len(), stats.average, stats.worst_1_percent, stats.max,
+                render.0, render.1, physics_ms, draw_calls
             );
             if let Some(file) = self.log.as_mut() {
                 file.store_line(&line);
@@ -169,13 +156,8 @@ impl IControl for FrameTimeOverlay {
                 "{fps:.0} fps   avg {:.2} ms   1% {:.2} ms   max {:.2} ms\n\
                  render cpu {:.2} ms   gpu {:.2} ms   physics {physics_ms:.2} ms   draws {draw_calls}\n\
                  budget {:.1} ms / floor {:.1} ms   [F3 / L3 toggles]",
-                stats.average,
-                stats.worst_1_percent,
-                stats.max,
-                render.0,
-                render.1,
-                self.data.budget_ms,
-                self.data.floor_ms,
+                stats.average, stats.worst_1_percent, stats.max, render.0, render.1,
+                self.data.budget_ms, self.data.floor_ms,
             );
             let colour = self.colour_for(stats.worst_1_percent);
             if let Some(label) = self.label.as_mut() {
@@ -197,20 +179,9 @@ impl IControl for FrameTimeOverlay {
         let colours: Vec<Color> = samples.iter().map(|ms| self.colour_for(*ms)).collect();
 
         let mut base = self.base_mut();
-        base.draw_rect(
-            Rect2::new(Vector2::ZERO, Vector2::new(w, h)),
-            Color::from_rgba(0.0, 0.0, 0.0, 0.55),
-        );
-        base.draw_line(
-            Vector2::new(0.0, budget_y),
-            Vector2::new(w, budget_y),
-            Color::from_rgb(0.3, 0.9, 0.4),
-        );
-        base.draw_line(
-            Vector2::new(0.0, floor_y),
-            Vector2::new(w, floor_y),
-            Color::from_rgb(0.95, 0.3, 0.25),
-        );
+        base.draw_rect(Rect2::new(Vector2::ZERO, Vector2::new(w, h)), Color::from_rgba(0.0, 0.0, 0.0, 0.55));
+        base.draw_line(Vector2::new(0.0, budget_y), Vector2::new(w, budget_y), Color::from_rgb(0.3, 0.9, 0.4));
+        base.draw_line(Vector2::new(0.0, floor_y), Vector2::new(w, floor_y), Color::from_rgb(0.95, 0.3, 0.25));
         for (i, ms) in samples.iter().enumerate() {
             let x = i as f32 * step;
             base.draw_line(Vector2::new(x, h), Vector2::new(x, to_y(*ms)), colours[i]);
@@ -221,15 +192,10 @@ impl IControl for FrameTimeOverlay {
 impl FrameTimeOverlay {
     /// (cpu, gpu) render time of the last frame in ms.
     fn render_times(&self) -> (f64, f64) {
-        let Some(viewport) = self.base().get_viewport() else {
-            return (0.0, 0.0);
-        };
+        let Some(viewport) = self.base().get_viewport() else { return (0.0, 0.0) };
         let rid = viewport.get_viewport_rid();
         let rs = RenderingServer::singleton();
-        (
-            rs.viewport_get_measured_render_time_cpu(rid),
-            rs.viewport_get_measured_render_time_gpu(rid),
-        )
+        (rs.viewport_get_measured_render_time_cpu(rid), rs.viewport_get_measured_render_time_gpu(rid))
     }
 
     /// Green within budget, yellow between budget and floor, red past the floor.
@@ -251,14 +217,7 @@ mod tests {
     #[test]
     fn stats_of_steady_frames() {
         let s = frame_stats(&[16.0; 100]).unwrap();
-        assert_eq!(
-            s,
-            FrameStats {
-                average: 16.0,
-                worst_1_percent: 16.0,
-                max: 16.0
-            }
-        );
+        assert_eq!(s, FrameStats { average: 16.0, worst_1_percent: 16.0, max: 16.0 });
     }
 
     #[test]

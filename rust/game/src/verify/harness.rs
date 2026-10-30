@@ -4,12 +4,9 @@
 //! results JSON and quits with exit code 0 (pass) or 1 (fail).
 
 use godot::classes::DisplayServer;
-use godot::classes::file_access::ModeFlags;
 use godot::classes::node::ProcessMode;
-use godot::classes::{
-    Camera3D, DirAccess, FileAccess, INode, Input, InputEvent, InputEventMouseMotion, Node,
-    ProjectSettings,
-};
+use godot::classes::{Camera3D, DirAccess, FileAccess, INode, Input, InputEvent, InputEventMouseMotion, Node, ProjectSettings};
+use godot::classes::file_access::ModeFlags;
 use godot::obj::Singleton;
 use godot::prelude::*;
 use serde::Deserialize;
@@ -59,21 +56,10 @@ pub struct Viewpoint {
 
 #[derive(Debug, Clone)]
 pub enum HarnessMode {
-    Smoke {
-        duration_s: Option<f32>,
-        bot: Option<String>,
-        out: String,
-    },
-    Replay {
-        path: String,
-        out: String,
-    },
-    Screenshots {
-        out: String,
-    },
-    Record {
-        path: String,
-    },
+    Smoke { duration_s: Option<f32>, bot: Option<String>, out: String },
+    Replay { path: String, out: String },
+    Screenshots { out: String },
+    Record { path: String },
 }
 
 #[derive(GodotClass)]
@@ -149,9 +135,7 @@ impl INode for Harness {
             Some(HarnessMode::Smoke { bot, .. }) => {
                 let profile = bot.unwrap_or_else(|| self.settings.default_bot.clone());
                 if profile != "wanderer" {
-                    self.fail(format!(
-                        "unknown bot profile '{profile}' (Phase 1 has: wanderer)"
-                    ));
+                    self.fail(format!("unknown bot profile '{profile}' (Phase 1 has: wanderer)"));
                 }
                 let rng = SeededRng::derive(crate::seed::singleton::run_seed(), "bot");
                 self.bot = Some(Wanderer::new(self.settings.wanderer.clone(), rng));
@@ -160,19 +144,14 @@ impl INode for Harness {
                 Ok(replay) => {
                     let current = RunSeed::singleton().bind().get_code().to_string();
                     if replay.seed_code != current {
-                        self.fail(format!(
-                            "replay was recorded with seed {} but this run uses {current}",
-                            replay.seed_code
-                        ));
+                        self.fail(format!("replay was recorded with seed {} but this run uses {current}", replay.seed_code));
                     }
                     self.replay_in = Some(replay);
                 }
                 Err(e) => self.fail(format!("cannot read replay {path}: {e}")),
             },
             Some(HarnessMode::Screenshots { .. }) => self.prepare_screenshots(),
-            Some(HarnessMode::Record { ref path }) => {
-                godot_print!("Harness: recording input to {path}")
-            }
+            Some(HarnessMode::Record { ref path }) => godot_print!("Harness: recording input to {path}"),
             None => self.fail("harness started without a mode".into()),
         }
         if !self.failures.is_empty() {
@@ -216,25 +195,17 @@ impl INode for Harness {
             Some(HarnessMode::Smoke { .. }) => {
                 let strengths = self.bot.as_mut().map(|b| b.tick(dt)).unwrap_or_default();
                 apply_actions(&strengths);
-                self.recorded.push(ReplayFrame {
-                    a: strengths,
-                    m: (0.0, 0.0),
-                });
+                self.recorded.push(ReplayFrame { a: strengths, m: (0.0, 0.0) });
                 self.run_detectors();
             }
             Some(HarnessMode::Replay { .. }) => {
                 let index = (self.tick - 1) as usize;
-                let frame = self
-                    .replay_in
-                    .as_ref()
-                    .and_then(|r| r.frames.get(index).cloned());
+                let frame = self.replay_in.as_ref().and_then(|r| r.frames.get(index).cloned());
                 match frame {
                     Some(frame) => {
                         apply_actions(&frame.a);
                         if let Some(player) = self.player.as_mut() {
-                            player
-                                .bind_mut()
-                                .add_look_delta(Vector2::new(frame.m.0, frame.m.1));
+                            player.bind_mut().add_look_delta(Vector2::new(frame.m.0, frame.m.1));
                         }
                         self.run_detectors();
                     }
@@ -243,10 +214,7 @@ impl INode for Harness {
             }
             Some(HarnessMode::Record { .. }) => {
                 let input = Input::singleton();
-                let a = RECORDED_ACTIONS
-                    .iter()
-                    .map(|name| input.get_action_raw_strength(*name))
-                    .collect();
+                let a = RECORDED_ACTIONS.iter().map(|name| input.get_action_raw_strength(*name)).collect();
                 let m = std::mem::replace(&mut self.mouse_accum, Vector2::ZERO);
                 self.recorded.push(ReplayFrame { a, m: (m.x, m.y) });
             }
@@ -277,15 +245,11 @@ impl Harness {
     }
 
     fn player_position(&self) -> Vector3 {
-        self.player
-            .as_ref()
-            .map_or(Vector3::ZERO, |p| p.get_global_position())
+        self.player.as_ref().map_or(Vector3::ZERO, |p| p.get_global_position())
     }
 
     fn run_detectors(&mut self) {
-        let Some(player) = self.player.clone() else {
-            return;
-        };
+        let Some(player) = self.player.clone() else { return };
         // Bots aren't meant to die in the test scene; an unexpected death is a failure.
         if player.bind().is_dead() && !self.death_reported {
             let key = player.bind().get_death_key();
@@ -301,9 +265,7 @@ impl Harness {
             .iter_shared()
             .filter_map(|n| n.try_cast::<CelestialBody>().ok())
             .map(|b| (b.get_global_position(), b.bind().min_surface_radius()))
-            .min_by(|a, b| {
-                (a.0.distance_to(position) - a.1).total_cmp(&(b.0.distance_to(position) - b.1))
-            });
+            .min_by(|a, b| (a.0.distance_to(position) - a.1).total_cmp(&(b.0.distance_to(position) - b.1)));
         let wants_to_move = match &self.bot {
             Some(bot) => bot.wants_to_move(),
             None => false,
@@ -319,9 +281,7 @@ impl Harness {
 
     fn prepare_screenshots(&mut self) {
         if DisplayServer::singleton().get_name() == "headless" {
-            self.fail(
-                "screenshots need rendering; run without --headless (use xvfb-run on CI)".into(),
-            );
+            self.fail("screenshots need rendering; run without --headless (use xvfb-run on CI)".into());
             return;
         }
         self.viewpoints = crate::data::load(VIEWPOINTS_PATH, VIEWPOINTS_EMBEDDED);
@@ -343,9 +303,7 @@ impl Harness {
     }
 
     fn place_camera(&mut self) {
-        let Some(vp) = self.viewpoints.get(self.shot_index).cloned() else {
-            return;
-        };
+        let Some(vp) = self.viewpoints.get(self.shot_index).cloned() else { return };
         if let Some(camera) = self.camera.as_mut() {
             let p = Vector3::new(vp.position.0, vp.position.1, vp.position.2);
             let target = Vector3::new(vp.look_at.0, vp.look_at.1, vp.look_at.2);
@@ -367,15 +325,9 @@ impl Harness {
         };
         let out = self.out_dir();
         let path = format!("{out}/{}.png", vp.name);
-        let image = self
-            .base()
-            .get_viewport()
-            .and_then(|v| v.get_texture())
-            .and_then(|t| t.get_image());
+        let image = self.base().get_viewport().and_then(|v| v.get_texture()).and_then(|t| t.get_image());
         match image {
-            Some(image) if image.save_png(&path) == godot::global::Error::OK => {
-                self.shots.push(path)
-            }
+            Some(image) if image.save_png(&path) == godot::global::Error::OK => self.shots.push(path),
             _ => self.fail(format!("could not capture screenshot {}", vp.name)),
         }
         self.shot_index += 1;
@@ -385,16 +337,10 @@ impl Harness {
 
     fn out_dir(&self) -> String {
         let raw = match &self.mode {
-            Some(
-                HarnessMode::Smoke { out, .. }
-                | HarnessMode::Replay { out, .. }
-                | HarnessMode::Screenshots { out },
-            ) => out.clone(),
+            Some(HarnessMode::Smoke { out, .. } | HarnessMode::Replay { out, .. } | HarnessMode::Screenshots { out }) => out.clone(),
             _ => "user://verify".to_string(),
         };
-        let abs = ProjectSettings::singleton()
-            .globalize_path(&raw)
-            .to_string();
+        let abs = ProjectSettings::singleton().globalize_path(&raw).to_string();
         DirAccess::make_dir_recursive_absolute(&abs);
         abs
     }
@@ -404,13 +350,8 @@ impl Harness {
         let replay = Replay {
             version: REPLAY_VERSION,
             seed_code: RunSeed::singleton().bind().get_code().to_string(),
-            scene: self
-                .scene
-                .as_ref()
-                .map(|s| s.get_scene_file_path().to_string())
-                .unwrap_or_default(),
-            physics_ticks_per_second: godot::classes::Engine::singleton()
-                .get_physics_ticks_per_second(),
+            scene: self.scene.as_ref().map(|s| s.get_scene_file_path().to_string()).unwrap_or_default(),
+            physics_ticks_per_second: godot::classes::Engine::singleton().get_physics_ticks_per_second(),
             frames: std::mem::take(&mut self.recorded),
             final_position: (p.x, p.y, p.z),
         };
@@ -427,11 +368,7 @@ impl Harness {
         let out = self.out_dir();
         let mut results = RunResults {
             seed_code: RunSeed::singleton().bind().get_code().to_string(),
-            scene: self
-                .scene
-                .as_ref()
-                .map(|s| s.get_scene_file_path().to_string())
-                .unwrap_or_default(),
+            scene: self.scene.as_ref().map(|s| s.get_scene_file_path().to_string()).unwrap_or_default(),
             game_seconds: self.game_time,
             headless: DisplayServer::singleton().get_name() == "headless",
             ..Default::default()
@@ -451,18 +388,11 @@ impl Harness {
                 results.kind = "replay".into();
                 results.replay_file = Some(path);
                 if let Some(replay) = &self.replay_in {
-                    let expected = Vector3::new(
-                        replay.final_position.0,
-                        replay.final_position.1,
-                        replay.final_position.2,
-                    );
+                    let expected = Vector3::new(replay.final_position.0, replay.final_position.1, replay.final_position.2);
                     let drift = expected.distance_to(p);
                     results.replay_drift_m = Some(drift);
                     if drift > self.settings.replay_tolerance_m {
-                        self.fail(format!(
-                            "replay ended {drift:.4} m from the recording (tolerance {} m)",
-                            self.settings.replay_tolerance_m
-                        ));
+                        self.fail(format!("replay ended {drift:.4} m from the recording (tolerance {} m)", self.settings.replay_tolerance_m));
                     }
                 }
             }
@@ -475,10 +405,7 @@ impl Harness {
 
         results.detector_hits = self.detectors.hits().to_vec();
         for hit in &results.detector_hits {
-            self.failures.push(format!(
-                "detector {:?} at {:.1} s: {}",
-                hit.kind, hit.time_s, hit.detail
-            ));
+            self.failures.push(format!("detector {:?} at {:.1} s: {}", hit.kind, hit.time_s, hit.detail));
         }
         if let Some(stats) = frame_stats(&self.frame_ms) {
             results.frame_times = FrameTimeSummary {
@@ -496,11 +423,7 @@ impl Harness {
             godot_error!("Harness: cannot write results: {e}");
         }
         let verdict = if results.passed { "PASS" } else { "FAIL" };
-        godot_print!(
-            "Harness: {} {verdict} after {:.1} game seconds; results in {out}",
-            results.kind,
-            self.game_time
-        );
+        godot_print!("Harness: {} {verdict} after {:.1} game seconds; results in {out}", results.kind, self.game_time);
         for f in &results.failures {
             godot_print!("Harness:   - {f}");
         }
@@ -534,18 +457,13 @@ pub fn load_replay(path: &str) -> Result<Replay, String> {
 }
 
 fn read_text(path: &str) -> Result<String, String> {
-    let abs = ProjectSettings::singleton()
-        .globalize_path(path)
-        .to_string();
+    let abs = ProjectSettings::singleton().globalize_path(path).to_string();
     std::fs::read_to_string(&abs).map_err(|e| e.to_string())
 }
 
 fn write_text(path: &str, text: &str) -> Result<(), String> {
-    let abs = ProjectSettings::singleton()
-        .globalize_path(path)
-        .to_string();
-    let mut file =
-        FileAccess::open(&abs, ModeFlags::WRITE).ok_or_else(|| format!("cannot open {abs}"))?;
+    let abs = ProjectSettings::singleton().globalize_path(path).to_string();
+    let mut file = FileAccess::open(&abs, ModeFlags::WRITE).ok_or_else(|| format!("cannot open {abs}"))?;
     file.store_string(text);
     file.close();
     Ok(())

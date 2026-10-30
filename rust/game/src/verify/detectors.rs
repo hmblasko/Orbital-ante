@@ -61,11 +61,7 @@ fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
 
 impl Detectors {
     pub fn new(settings: DetectorSettings) -> Self {
-        Self {
-            settings,
-            hits: Vec::new(),
-            anchor: None,
-        }
+        Self { settings, hits: Vec::new(), anchor: None }
     }
 
     pub fn hits(&self) -> &[DetectorHit] {
@@ -73,50 +69,26 @@ impl Detectors {
     }
 
     pub fn check(&mut self, s: Sample) {
-        let finite = s
-            .position
-            .iter()
-            .chain(s.velocity.iter())
-            .all(|v| v.is_finite());
+        let finite = s.position.iter().chain(s.velocity.iter()).all(|v| v.is_finite());
         let speed = distance(s.velocity, [0.0; 3]);
         if !finite {
-            self.hit(
-                DetectorKind::PhysicsExplosion,
-                &s,
-                "position or velocity is NaN or infinite".into(),
-            );
+            self.hit(DetectorKind::PhysicsExplosion, &s, "position or velocity is NaN or infinite".into());
             return;
         }
         if speed > self.settings.max_sane_speed {
-            self.hit(
-                DetectorKind::PhysicsExplosion,
-                &s,
-                format!("speed {speed:.1} m/s"),
-            );
+            self.hit(DetectorKind::PhysicsExplosion, &s, format!("speed {speed:.1} m/s"));
         }
 
         match s.nearest_body {
             Some((center, radius)) => {
                 let r = distance(s.position, center);
                 if r < radius - self.settings.below_surface_margin_m {
-                    self.hit(
-                        DetectorKind::OutOfWorld,
-                        &s,
-                        format!("{:.2} m below the surface", radius - r),
-                    );
+                    self.hit(DetectorKind::OutOfWorld, &s, format!("{:.2} m below the surface", radius - r));
                 } else if r > self.settings.kill_distance_m {
-                    self.hit(
-                        DetectorKind::OutOfWorld,
-                        &s,
-                        format!("{r:.0} m from the nearest body"),
-                    );
+                    self.hit(DetectorKind::OutOfWorld, &s, format!("{r:.0} m from the nearest body"));
                 }
             }
-            None => self.hit(
-                DetectorKind::OutOfWorld,
-                &s,
-                "no bodies in the scene".into(),
-            ),
+            None => self.hit(DetectorKind::OutOfWorld, &s, "no bodies in the scene".into()),
         }
 
         if !s.wants_to_move {
@@ -128,15 +100,7 @@ impl Detectors {
                 self.anchor = Some((s.position, s.time_s));
             }
             Some((_, since)) if s.time_s - since >= self.settings.stuck_seconds => {
-                self.hit(
-                    DetectorKind::Stuck,
-                    &s,
-                    format!(
-                        "moved under {} m in {:.0} s",
-                        self.settings.stuck_distance_m,
-                        s.time_s - since
-                    ),
-                );
+                self.hit(DetectorKind::Stuck, &s, format!("moved under {} m in {:.0} s", self.settings.stuck_distance_m, s.time_s - since));
                 self.anchor = Some((s.position, s.time_s));
             }
             Some(_) => {}
@@ -150,13 +114,7 @@ impl Detectors {
             return;
         }
         let [x, y, z] = s.position;
-        self.hits.push(DetectorHit {
-            kind,
-            time_s: s.time_s,
-            position: (x, y, z),
-            detail,
-            count: 1,
-        });
+        self.hits.push(DetectorHit { kind, time_s: s.time_s, position: (x, y, z), detail, count: 1 });
     }
 }
 
@@ -175,13 +133,7 @@ mod tests {
     }
 
     fn sample(t: f32, pos: [f32; 3]) -> Sample {
-        Sample {
-            time_s: t,
-            position: pos,
-            velocity: [0.0; 3],
-            nearest_body: Some(([0.0; 3], 60.0)),
-            wants_to_move: true,
-        }
+        Sample { time_s: t, position: pos, velocity: [0.0; 3], nearest_body: Some(([0.0; 3], 60.0)), wants_to_move: true }
     }
 
     #[test]
@@ -207,10 +159,7 @@ mod tests {
     fn standing_still_on_purpose_is_fine() {
         let mut d = Detectors::new(settings());
         for i in 0..(40 * 60) {
-            d.check(Sample {
-                wants_to_move: false,
-                ..sample(i as f32 / 60.0, [0.0, 61.0, 0.0])
-            });
+            d.check(Sample { wants_to_move: false, ..sample(i as f32 / 60.0, [0.0, 61.0, 0.0]) });
         }
         assert!(d.hits().is_empty());
     }
@@ -225,14 +174,8 @@ mod tests {
     #[test]
     fn nan_and_huge_speed_are_explosions_counted_once() {
         let mut d = Detectors::new(settings());
-        d.check(Sample {
-            velocity: [500.0, 0.0, 0.0],
-            ..sample(0.0, [0.0, 61.0, 0.0])
-        });
-        d.check(Sample {
-            position: [f32::NAN, 0.0, 0.0],
-            ..sample(0.1, [0.0, 61.0, 0.0])
-        });
+        d.check(Sample { velocity: [500.0, 0.0, 0.0], ..sample(0.0, [0.0, 61.0, 0.0]) });
+        d.check(Sample { position: [f32::NAN, 0.0, 0.0], ..sample(0.1, [0.0, 61.0, 0.0]) });
         assert_eq!(d.hits().len(), 1);
         assert_eq!(d.hits()[0].kind, DetectorKind::PhysicsExplosion);
         assert_eq!(d.hits()[0].count, 2);

@@ -46,28 +46,16 @@ pub struct Replay {
 
 impl Replay {
     pub fn to_text(&self) -> String {
-        ron::ser::to_string_pretty(
-            self,
-            ron::ser::PrettyConfig::new()
-                .compact_arrays(true)
-                .struct_names(false),
-        )
-        .expect("Replay always serialises")
+        ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::new().compact_arrays(true).struct_names(false))
+            .expect("Replay always serialises")
     }
 
     pub fn from_text(text: &str) -> Result<Self, String> {
         let replay: Replay = ron::from_str(text).map_err(|e| e.to_string())?;
         if replay.version != REPLAY_VERSION {
-            return Err(format!(
-                "replay version {} not supported (expected {REPLAY_VERSION})",
-                replay.version
-            ));
+            return Err(format!("replay version {} not supported (expected {REPLAY_VERSION})", replay.version));
         }
-        if let Some(bad) = replay
-            .frames
-            .iter()
-            .position(|f| f.a.len() != RECORDED_ACTIONS.len())
-        {
+        if let Some(bad) = replay.frames.iter().position(|f| f.a.len() != RECORDED_ACTIONS.len()) {
             return Err(format!("frame {bad} has the wrong number of actions"));
         }
         Ok(replay)
@@ -85,10 +73,7 @@ mod tests {
             seed_code: "AAAA-BBBB".into(),
             scene: "res://x.tscn".into(),
             physics_ticks_per_second: 60,
-            frames: vec![ReplayFrame {
-                a: vec![0.0; RECORDED_ACTIONS.len()],
-                m: (1.5, -2.0),
-            }],
+            frames: vec![ReplayFrame { a: vec![0.0; RECORDED_ACTIONS.len()], m: (1.5, -2.0) }],
             final_position: (1.0, 2.0, 3.0),
         };
         assert_eq!(Replay::from_text(&replay.to_text()).unwrap(), replay);
@@ -101,10 +86,7 @@ mod tests {
             seed_code: String::new(),
             scene: String::new(),
             physics_ticks_per_second: 60,
-            frames: vec![ReplayFrame {
-                a: vec![0.0; 2],
-                m: (0.0, 0.0),
-            }],
+            frames: vec![ReplayFrame { a: vec![0.0; 2], m: (0.0, 0.0) }],
             final_position: (0.0, 0.0, 0.0),
         };
         assert!(Replay::from_text(&replay.to_text()).is_err());

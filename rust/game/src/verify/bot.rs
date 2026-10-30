@@ -42,11 +42,9 @@ pub struct Wanderer {
     crouching: bool,
 }
 
+
 fn index(action: &str) -> usize {
-    RECORDED_ACTIONS
-        .iter()
-        .position(|a| *a == action)
-        .expect("action is recorded")
+    RECORDED_ACTIONS.iter().position(|a| *a == action).expect("action is recorded")
 }
 
 impl Wanderer {
@@ -105,11 +103,7 @@ impl Wanderer {
         self.walking = !self.rng.chance(s.pause_chance);
         self.turn = if self.rng.chance(s.turn_chance) {
             let strength = self.rng.range_f32(s.turn_strength.0, s.turn_strength.1);
-            if self.rng.chance(0.5) {
-                strength
-            } else {
-                -strength
-            }
+            if self.rng.chance(0.5) { strength } else { -strength }
         } else {
             0.0
         };

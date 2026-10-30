@@ -11,9 +11,7 @@ pub struct Rgb {
 }
 
 pub fn load_png(path: &Path) -> Result<Rgb, String> {
-    let decoder = png::Decoder::new(std::io::BufReader::new(
-        File::open(path).map_err(|e| e.to_string())?,
-    ));
+    let decoder = png::Decoder::new(std::io::BufReader::new(File::open(path).map_err(|e| e.to_string())?));
     let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
     let mut buf = vec![0; reader.output_buffer_size().ok_or("image too large")?];
     let info = reader.next_frame(&mut buf).map_err(|e| e.to_string())?;
@@ -29,11 +27,7 @@ pub fn load_png(path: &Path) -> Result<Rgb, String> {
         .chunks_exact(channels)
         .map(|c| [c[0], c[1], c[2]])
         .collect();
-    Ok(Rgb {
-        width: info.width as usize,
-        height: info.height as usize,
-        pixels,
-    })
+    Ok(Rgb { width: info.width as usize, height: info.height as usize, pixels })
 }
 
 fn luma(p: [u8; 3]) -> f64 {
@@ -43,10 +37,7 @@ fn luma(p: [u8; 3]) -> f64 {
 /// Mean structural similarity over 8x8 blocks of luma. 1.0 = identical.
 pub fn ssim(a: &Rgb, b: &Rgb) -> Result<f64, String> {
     if a.width != b.width || a.height != b.height {
-        return Err(format!(
-            "sizes differ: {}x{} vs {}x{}",
-            a.width, a.height, b.width, b.height
-        ));
+        return Err(format!("sizes differ: {}x{} vs {}x{}", a.width, a.height, b.width, b.height));
     }
     const BLOCK: usize = 8;
     const C1: f64 = (0.01 * 255.0) * (0.01 * 255.0);
@@ -72,8 +63,7 @@ pub fn ssim(a: &Rgb, b: &Rgb) -> Result<f64, String> {
             let va = saa / n - ma * ma;
             let vb = sbb / n - mb * mb;
             let cov = sab / n - ma * mb;
-            total += ((2.0 * ma * mb + C1) * (2.0 * cov + C2))
-                / ((ma * ma + mb * mb + C1) * (va + vb + C2));
+            total += ((2.0 * ma * mb + C1) * (2.0 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2));
             blocks += 1;
         }
     }
@@ -87,16 +77,9 @@ pub fn ssim(a: &Rgb, b: &Rgb) -> Result<f64, String> {
 pub fn automatic_checks(img: &Rgb) -> Vec<String> {
     let mut problems = Vec::new();
     let n = img.pixels.len().max(1) as f64;
-    let magenta = img
-        .pixels
-        .iter()
-        .filter(|p| p[0] > 230 && p[1] < 30 && p[2] > 230)
-        .count() as f64;
+    let magenta = img.pixels.iter().filter(|p| p[0] > 230 && p[1] < 30 && p[2] > 230).count() as f64;
     if magenta / n > 0.005 {
-        problems.push(format!(
-            "{:.1}% magenta pixels (missing texture?)",
-            100.0 * magenta / n
-        ));
+        problems.push(format!("{:.1}% magenta pixels (missing texture?)", 100.0 * magenta / n));
     }
     let lumas: Vec<f64> = img.pixels.iter().map(|p| luma(*p)).collect();
     let mean = lumas.iter().sum::<f64>() / n;
@@ -116,11 +99,7 @@ mod tests {
     use super::*;
 
     fn flat(w: usize, h: usize, c: [u8; 3]) -> Rgb {
-        Rgb {
-            width: w,
-            height: h,
-            pixels: vec![c; w * h],
-        }
+        Rgb { width: w, height: h, pixels: vec![c; w * h] }
     }
 
     fn gradient(w: usize, h: usize) -> Rgb {
@@ -128,11 +107,7 @@ mod tests {
             let v = ((i % w) * 255 / w) as u8;
             [v, v / 2, 255 - v]
         });
-        Rgb {
-            width: w,
-            height: h,
-            pixels: pixels.collect(),
-        }
+        Rgb { width: w, height: h, pixels: pixels.collect() }
     }
 
     #[test]
@@ -160,11 +135,7 @@ mod tests {
     fn checks_catch_black_white_and_magenta() {
         assert!(automatic_checks(&flat(16, 16, [0, 0, 0]))[0].contains("black"));
         assert!(automatic_checks(&flat(16, 16, [255, 255, 255]))[0].contains("white"));
-        assert!(
-            automatic_checks(&flat(16, 16, [255, 0, 255]))
-                .iter()
-                .any(|p| p.contains("magenta"))
-        );
+        assert!(automatic_checks(&flat(16, 16, [255, 0, 255])).iter().any(|p| p.contains("magenta")));
         assert!(automatic_checks(&gradient(64, 32)).is_empty());
     }
 }

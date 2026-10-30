@@ -2,9 +2,9 @@
 //! stops you floating away, but never reels you in.
 //! `TetherAnchor` marks where a tether can clip on (ships and stations later).
 
-use godot::classes::base_material_3d::ShadingMode;
 use godot::classes::mesh::PrimitiveType;
-use godot::classes::{INode3D, ImmediateMesh, MeshInstance3D, Node3D, StandardMaterial3D};
+use godot::classes::{ImmediateMesh, INode3D, MeshInstance3D, Node3D, StandardMaterial3D};
+use godot::classes::base_material_3d::ShadingMode;
 use godot::prelude::*;
 
 pub const TETHER_GROUP: &str = "tether_anchors";

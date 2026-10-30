@@ -8,20 +8,12 @@ use crate::gates;
 use crate::logcheck::LogSummary;
 
 fn esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
 fn subdirs(dir: &Path) -> Vec<String> {
     let mut v: Vec<String> = std::fs::read_dir(dir)
-        .map(|r| {
-            r.filter_map(|e| e.ok())
-                .filter(|e| e.path().is_dir())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .collect()
-        })
+        .map(|r| r.filter_map(|e| e.ok()).filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().into_owned()).collect())
         .unwrap_or_default();
     v.sort();
     v
@@ -34,11 +26,7 @@ fn frame_chart(csv: &str, budget: f64, floor: f64) -> String {
         .skip(1)
         .filter_map(|l| {
             let c: Vec<&str> = l.split(',').collect();
-            Some((
-                c.first()?.parse().ok()?,
-                c.get(2)?.parse().ok()?,
-                c.get(3)?.parse().ok()?,
-            ))
+            Some((c.first()?.parse().ok()?, c.get(2)?.parse().ok()?, c.get(3)?.parse().ok()?))
         })
         .collect();
     if rows.len() < 2 {
@@ -49,12 +37,7 @@ fn frame_chart(csv: &str, budget: f64, floor: f64) -> String {
     let ms_max = rows.iter().map(|r| r.2).fold(floor * 1.4, f64::max);
     let x = |t: f64| t / t_max * w;
     let y = |ms: f64| h - ms / ms_max * h;
-    let line = |f: &dyn Fn(&(f64, f64, f64)) -> f64| {
-        rows.iter()
-            .map(|r| format!("{:.1},{:.1}", x(r.0), y(f(r))))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+    let line = |f: &dyn Fn(&(f64, f64, f64)) -> f64| rows.iter().map(|r| format!("{:.1},{:.1}", x(r.0), y(f(r)))).collect::<Vec<_>>().join(" ");
     format!(
         r#"<svg viewBox="0 0 {w} {h}" role="img" aria-label="Frame time over the session"><line x1="0" x2="{w}" y1="{b:.1}" y2="{b:.1}" class="budget"/><line x1="0" x2="{w}" y1="{f:.1}" y2="{f:.1}" class="floor"/><polyline points="{avg}" class="avg"/><polyline points="{worst}" class="worst"/></svg><p class="legend"><span class="k avg">average</span> <span class="k worst">worst 1%</span> <span class="k budget">{budget} ms budget</span> <span class="k floor">{floor} ms floor</span></p>"#,
         b = y(budget),
@@ -64,18 +47,9 @@ fn frame_chart(csv: &str, budget: f64, floor: f64) -> String {
     )
 }
 
-pub fn build(
-    dir: &Path,
-    out_html: &Path,
-    title: &str,
-    budget_ms: f64,
-    floor_ms: f64,
-) -> Result<(), String> {
+pub fn build(dir: &Path, out_html: &Path, title: &str, budget_ms: f64, floor_ms: f64) -> Result<(), String> {
     let assets_name = format!("{}_files", out_html.file_stem().unwrap().to_string_lossy());
-    let assets = out_html
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join(&assets_name);
+    let assets = out_html.parent().unwrap_or(Path::new(".")).join(&assets_name);
     std::fs::create_dir_all(&assets).map_err(|e| e.to_string())?;
     let copy = |src: &Path, prefix: &str| -> String {
         let name = format!("{prefix}_{}", src.file_name().unwrap().to_string_lossy());
@@ -86,16 +60,7 @@ pub fn build(
     let mut h = String::new();
     let gates = gates::load(dir);
     let count = |s: &str| gates.iter().filter(|g| g.status == s).count();
-    write!(
-        h,
-        "<h1>{}</h1><p class=\"muted\">{} gates: {} passed, {} failed, {} not run.</p>",
-        esc(title),
-        gates.len(),
-        count("pass"),
-        count("fail"),
-        count("not_run")
-    )
-    .unwrap();
+    write!(h, "<h1>{}</h1><p class=\"muted\">{} gates: {} passed, {} failed, {} not run.</p>", esc(title), gates.len(), count("pass"), count("fail"), count("not_run")).unwrap();
 
     h += "<h2>Gates</h2><table><thead><tr><th>Gate</th><th>Result</th><th>Detail</th></tr></thead><tbody>";
     for g in &gates {
@@ -104,14 +69,7 @@ pub fn build(
             "fail" => "FAIL",
             _ => "NOT RUN",
         };
-        write!(
-            h,
-            "<tr><td>{}</td><td><span class=\"pill {}\">{label}</span></td><td>{}</td></tr>",
-            esc(&g.name),
-            g.status,
-            esc(&g.detail)
-        )
-        .unwrap();
+        write!(h, "<tr><td>{}</td><td><span class=\"pill {}\">{label}</span></td><td>{}</td></tr>", esc(&g.name), g.status, esc(&g.detail)).unwrap();
     }
     h += "</tbody></table>";
 
@@ -119,12 +77,8 @@ pub fn build(
     let mut any_run = false;
     for sub in subdirs(dir) {
         let run_dir = dir.join(&sub);
-        let Ok(text) = std::fs::read_to_string(run_dir.join("results.json")) else {
-            continue;
-        };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
-            continue;
-        };
+        let Ok(text) = std::fs::read_to_string(run_dir.join("results.json")) else { continue };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
         any_run = true;
         let ft = &v["frame_times"];
         write!(
@@ -166,42 +120,19 @@ pub fn build(
     }
 
     h += "<h2>Screenshots</h2>";
-    match std::fs::read_to_string(dir.join(COMPARE_FILE))
-        .ok()
-        .and_then(|t| serde_json::from_str::<CompareReport>(&t).ok())
-    {
+    match std::fs::read_to_string(dir.join(COMPARE_FILE)).ok().and_then(|t| serde_json::from_str::<CompareReport>(&t).ok()) {
         None => h += "<p>Screenshot comparison not run.</p>",
         Some(c) => {
             write!(h, "<p class=\"muted\">SSIM threshold {}. New baselines are approved by Matthew only.</p><div class=\"shots\">", c.threshold).unwrap();
             for s in &c.shots {
                 let cur = copy(&s.current, "current");
                 let base = s.baseline.as_ref().map(|b| copy(b, "baseline"));
-                write!(
-                    h,
-                    "<figure><img src=\"{cur}\" alt=\"{} current\">",
-                    esc(&s.name)
-                )
-                .unwrap();
+                write!(h, "<figure><img src=\"{cur}\" alt=\"{} current\">", esc(&s.name)).unwrap();
                 if let Some(b) = base.filter(|_| s.status != "match") {
                     write!(h, "<img src=\"{b}\" alt=\"{} baseline\">", esc(&s.name)).unwrap();
                 }
-                let score = s
-                    .ssim
-                    .map_or("no baseline".to_string(), |v| format!("SSIM {v:.4}"));
-                write!(
-                    h,
-                    "<figcaption><b>{}</b> <span class=\"pill {}\">{}</span> {score}",
-                    esc(&s.name),
-                    if s.status == "match" {
-                        "pass"
-                    } else if s.status == "new" {
-                        "not_run"
-                    } else {
-                        "fail"
-                    },
-                    esc(&s.status)
-                )
-                .unwrap();
+                let score = s.ssim.map_or("no baseline".to_string(), |v| format!("SSIM {v:.4}"));
+                write!(h, "<figcaption><b>{}</b> <span class=\"pill {}\">{}</span> {score}", esc(&s.name), if s.status == "match" { "pass" } else if s.status == "new" { "not_run" } else { "fail" }, esc(&s.status)).unwrap();
                 for p in &s.problems {
                     write!(h, "<br>{}", esc(p)).unwrap();
                 }
@@ -209,12 +140,7 @@ pub fn build(
             }
             h += "</div>";
             if !c.missing.is_empty() {
-                write!(
-                    h,
-                    "<p>Baselines with no new screenshot: {}</p>",
-                    esc(&c.missing.join(", "))
-                )
-                .unwrap();
+                write!(h, "<p>Baselines with no new screenshot: {}</p>", esc(&c.missing.join(", "))).unwrap();
             }
         }
     }
@@ -223,9 +149,7 @@ pub fn build(
     let csv = std::fs::read_to_string(dir.join("deck_frametime_log.csv")).ok();
     match csv {
         Some(csv) => h += &frame_chart(&csv, budget_ms, floor_ms),
-        None => {
-            h += "<p>Not measured: no Deck frame-time log in this run. Copy <code>frametime_log.csv</code> from the Deck into the run folder as <code>deck_frametime_log.csv</code>.</p>"
-        }
+        None => h += "<p>Not measured: no Deck frame-time log in this run. Copy <code>frametime_log.csv</code> from the Deck into the run folder as <code>deck_frametime_log.csv</code>.</p>",
     }
 
     h += "<h2>Not verified</h2><ul>";
@@ -234,9 +158,7 @@ pub fn build(
     }
     h += "</ul>";
 
-    let page = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Verification report</title><style>{CSS}</style></head><body>{h}</body></html>"
-    );
+    let page = format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Verification report</title><style>{CSS}</style></head><body>{h}</body></html>");
     std::fs::write(out_html, page).map_err(|e| e.to_string())
 }
 

@@ -40,10 +40,7 @@ pub struct LoadReport {
 
 impl SaveStore {
     pub fn new(dir: impl Into<PathBuf>, keep_autosaves: usize) -> Self {
-        Self {
-            dir: dir.into(),
-            keep_autosaves: keep_autosaves.max(1),
-        }
+        Self { dir: dir.into(), keep_autosaves: keep_autosaves.max(1) }
     }
 
     pub fn dir(&self) -> &Path {
@@ -62,9 +59,7 @@ impl SaveStore {
     pub fn autosave(&self, save: &mut SaveFile) -> std::io::Result<PathBuf> {
         save.save_counter = self.highest_counter() + 1;
         let next = self.autosaves().last().map_or(1, |(n, _)| n + 1);
-        let path = self
-            .dir
-            .join(format!("{AUTOSAVE_PREFIX}{next:06}{EXTENSION}"));
+        let path = self.dir.join(format!("{AUTOSAVE_PREFIX}{next:06}{EXTENSION}"));
         write_atomic(&path, &format::write_save(save))?;
         let all = self.autosaves();
         let excess = all.len().saturating_sub(self.keep_autosaves);
@@ -76,18 +71,12 @@ impl SaveStore {
 
     /// Autosave files, oldest first, with their sequence numbers.
     pub fn autosaves(&self) -> Vec<(u64, PathBuf)> {
-        let Ok(entries) = fs::read_dir(&self.dir) else {
-            return Vec::new();
-        };
+        let Ok(entries) = fs::read_dir(&self.dir) else { return Vec::new() };
         let mut found: Vec<(u64, PathBuf)> = entries
             .filter_map(|e| e.ok())
             .filter_map(|e| {
                 let name = e.file_name().to_string_lossy().into_owned();
-                let number = name
-                    .strip_prefix(AUTOSAVE_PREFIX)?
-                    .strip_suffix(EXTENSION)?
-                    .parse()
-                    .ok()?;
+                let number = name.strip_prefix(AUTOSAVE_PREFIX)?.strip_suffix(EXTENSION)?.parse().ok()?;
                 Some((number, e.path()))
             })
             .collect();
@@ -104,15 +93,9 @@ impl SaveStore {
             candidates.push(manual);
         }
         for path in candidates {
-            match fs::read_to_string(&path)
-                .map_err(|e| LoadError::Unreadable(e.to_string()))
-                .and_then(|t| format::parse_save(&t))
-            {
+            match fs::read_to_string(&path).map_err(|e| LoadError::Unreadable(e.to_string())).and_then(|t| format::parse_save(&t)) {
                 Ok(save) => {
-                    let newer = report
-                        .loaded
-                        .as_ref()
-                        .is_none_or(|(best, _)| save.save_counter > best.save_counter);
+                    let newer = report.loaded.as_ref().is_none_or(|(best, _)| save.save_counter > best.save_counter);
                     if newer {
                         report.loaded = Some((save, path));
                     }
@@ -159,8 +142,7 @@ mod tests {
     struct TempDir(PathBuf);
     impl TempDir {
         fn new(name: &str) -> Self {
-            let dir =
-                std::env::temp_dir().join(format!("oa_save_test_{name}_{}", std::process::id()));
+            let dir = std::env::temp_dir().join(format!("oa_save_test_{name}_{}", std::process::id()));
             let _ = fs::remove_dir_all(&dir);
             fs::create_dir_all(&dir).unwrap();
             Self(dir)
@@ -175,10 +157,7 @@ mod tests {
     fn save_with_runs(runs: u32) -> SaveFile {
         SaveFile {
             version: CURRENT_VERSION,
-            meta: MetaProgress {
-                runs_started: runs,
-                ..Default::default()
-            },
+            meta: MetaProgress { runs_started: runs, ..Default::default() },
             ..Default::default()
         }
     }

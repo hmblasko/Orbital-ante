@@ -14,11 +14,7 @@ pub fn align_up(basis: Basis, up: Vector3, max_angle: f32) -> Basis {
         return basis;
     }
     // Exactly upside down: any horizontal axis works; use the basis's own X.
-    let axis = if axis_len < 1e-6 {
-        basis.col_a().normalized()
-    } else {
-        axis / axis_len
-    };
+    let axis = if axis_len < 1e-6 { basis.col_a().normalized() } else { axis / axis_len };
     let step = angle.min(max_angle);
     (Basis::from_quaternion(Quaternion::from_axis_angle(axis, step)) * basis).orthonormalized()
 }
@@ -55,14 +51,8 @@ pub fn jetpack_delta_v(
     let right = basis.col_a().normalized();
     let up = basis.col_b().normalized();
     let planar = right * stick.x - camera_forward.normalized() * stick.y;
-    let planar = if planar.length() > 1.0 {
-        planar.normalized()
-    } else {
-        planar
-    };
-    (planar * thrust_acceleration + up * vertical.clamp(-1.0, 1.0) * vertical_acceleration)
-        * available
-        * dt
+    let planar = if planar.length() > 1.0 { planar.normalized() } else { planar };
+    (planar * thrust_acceleration + up * vertical.clamp(-1.0, 1.0) * vertical_acceleration) * available * dt
 }
 
 /// Velocity change that brings `relative` velocity toward zero at
@@ -70,21 +60,12 @@ pub fn jetpack_delta_v(
 pub fn match_velocity_delta(relative: Vector3, acceleration: f32, dt: f32) -> Vector3 {
     let step = acceleration * dt;
     let speed = relative.length();
-    if speed <= step {
-        -relative
-    } else {
-        -relative / speed * step
-    }
+    if speed <= step { -relative } else { -relative / speed * step }
 }
 
 /// Safety tether: once the player is at or beyond `length` from the anchor,
 /// remove any velocity carrying them further away. It never pulls them in.
-pub fn tether_velocity(
-    anchor: Vector3,
-    position: Vector3,
-    velocity: Vector3,
-    length: f32,
-) -> Vector3 {
+pub fn tether_velocity(anchor: Vector3, position: Vector3, velocity: Vector3, length: f32) -> Vector3 {
     let offset = position - anchor;
     let distance = offset.length();
     if distance < length || distance < 1e-6 {
@@ -92,11 +73,7 @@ pub fn tether_velocity(
     }
     let outward = offset / distance;
     let away = velocity.dot(outward);
-    if away > 0.0 {
-        velocity - outward * away
-    } else {
-        velocity
-    }
+    if away > 0.0 { velocity - outward * away } else { velocity }
 }
 
 #[cfg(test)]
@@ -106,55 +83,16 @@ mod tests {
     #[test]
     fn jetpack_thrusts_where_you_look_and_needs_fuel() {
         let forward = Vector3::new(0.0, 0.0, -1.0);
-        let dv = jetpack_delta_v(
-            Basis::IDENTITY,
-            forward,
-            Vector2::new(0.0, -1.0),
-            0.0,
-            6.0,
-            8.0,
-            1.0,
-            0.5,
-        );
+        let dv = jetpack_delta_v(Basis::IDENTITY, forward, Vector2::new(0.0, -1.0), 0.0, 6.0, 8.0, 1.0, 0.5);
         assert!((dv - Vector3::new(0.0, 0.0, -3.0)).length() < 1e-5);
-        let up = jetpack_delta_v(
-            Basis::IDENTITY,
-            forward,
-            Vector2::ZERO,
-            1.0,
-            6.0,
-            8.0,
-            1.0,
-            0.5,
-        );
+        let up = jetpack_delta_v(Basis::IDENTITY, forward, Vector2::ZERO, 1.0, 6.0, 8.0, 1.0, 0.5);
         assert!((up - Vector3::new(0.0, 4.0, 0.0)).length() < 1e-5);
-        assert_eq!(
-            jetpack_delta_v(
-                Basis::IDENTITY,
-                forward,
-                Vector2::new(1.0, 0.0),
-                1.0,
-                6.0,
-                8.0,
-                0.0,
-                0.5
-            ),
-            Vector3::ZERO
-        );
+        assert_eq!(jetpack_delta_v(Basis::IDENTITY, forward, Vector2::new(1.0, 0.0), 1.0, 6.0, 8.0, 0.0, 0.5), Vector3::ZERO);
     }
 
     #[test]
     fn diagonal_stick_is_not_faster() {
-        let dv = jetpack_delta_v(
-            Basis::IDENTITY,
-            Vector3::FORWARD,
-            Vector2::new(1.0, -1.0),
-            0.0,
-            6.0,
-            8.0,
-            1.0,
-            1.0,
-        );
+        let dv = jetpack_delta_v(Basis::IDENTITY, Vector3::FORWARD, Vector2::new(1.0, -1.0), 0.0, 6.0, 8.0, 1.0, 1.0);
         assert!((dv.length() - 6.0).abs() < 1e-4);
     }
 
@@ -174,20 +112,9 @@ mod tests {
         let v = tether_velocity(anchor, at_end, Vector3::new(4.0, 1.0, 0.0), 10.0);
         assert!((v - Vector3::new(0.0, 1.0, 0.0)).length() < 1e-5);
         // Moving back toward the anchor: untouched.
-        assert_eq!(
-            tether_velocity(anchor, at_end, Vector3::new(-2.0, 0.0, 0.0), 10.0),
-            Vector3::new(-2.0, 0.0, 0.0)
-        );
+        assert_eq!(tether_velocity(anchor, at_end, Vector3::new(-2.0, 0.0, 0.0), 10.0), Vector3::new(-2.0, 0.0, 0.0));
         // Inside the length: untouched.
-        assert_eq!(
-            tether_velocity(
-                anchor,
-                Vector3::new(5.0, 0.0, 0.0),
-                Vector3::new(4.0, 0.0, 0.0),
-                10.0
-            ),
-            Vector3::new(4.0, 0.0, 0.0)
-        );
+        assert_eq!(tether_velocity(anchor, Vector3::new(5.0, 0.0, 0.0), Vector3::new(4.0, 0.0, 0.0), 10.0), Vector3::new(4.0, 0.0, 0.0));
     }
 
     #[test]

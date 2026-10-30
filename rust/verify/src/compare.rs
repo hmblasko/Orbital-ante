@@ -29,12 +29,7 @@ pub struct CompareReport {
 
 fn pngs(dir: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|r| {
-            r.filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|x| x == "png"))
-                .collect()
-        })
+        .map(|r| r.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "png")).collect())
         .unwrap_or_default();
     v.sort();
     v
@@ -45,14 +40,7 @@ pub fn compare(baseline_dir: &Path, current_dir: &Path, threshold: f64) -> Compa
     for current in pngs(current_dir) {
         let name = current.file_stem().unwrap().to_string_lossy().into_owned();
         let baseline = baseline_dir.join(current.file_name().unwrap());
-        let mut result = ShotResult {
-            name,
-            status: "new".into(),
-            ssim: None,
-            problems: Vec::new(),
-            current: current.clone(),
-            baseline: None,
-        };
+        let mut result = ShotResult { name, status: "new".into(), ssim: None, problems: Vec::new(), current: current.clone(), baseline: None };
         match load_png(&current) {
             Err(e) => {
                 result.status = "error".into();
@@ -65,12 +53,7 @@ pub fn compare(baseline_dir: &Path, current_dir: &Path, threshold: f64) -> Compa
                     match load_png(&baseline).and_then(|b| ssim(&b, &img)) {
                         Ok(score) => {
                             result.ssim = Some(score);
-                            result.status = if score >= threshold {
-                                "match"
-                            } else {
-                                "flagged"
-                            }
-                            .into();
+                            result.status = if score >= threshold { "match" } else { "flagged" }.into();
                         }
                         Err(e) => {
                             result.status = "error".into();
@@ -91,9 +74,5 @@ pub fn compare(baseline_dir: &Path, current_dir: &Path, threshold: f64) -> Compa
         .map(|p| p.file_stem().unwrap().to_string_lossy().into_owned())
         .filter(|n| !have.contains(n))
         .collect();
-    CompareReport {
-        threshold,
-        shots,
-        missing,
-    }
+    CompareReport { threshold, shots, missing }
 }

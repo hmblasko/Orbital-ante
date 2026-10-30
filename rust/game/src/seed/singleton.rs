@@ -39,9 +39,7 @@ impl RunSeed {
     /// Start a fresh random seed (from the clock) and return its code.
     #[func]
     pub fn new_random(&mut self) -> GString {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos() as u64);
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
         let mut state = nanos;
         self.seed = clamp_seed(splitmix64(&mut state));
         self.get_code()

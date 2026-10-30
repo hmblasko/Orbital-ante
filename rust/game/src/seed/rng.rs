@@ -14,9 +14,7 @@ pub fn splitmix64(state: &mut u64) -> u64 {
 
 /// FNV-1a hash of a system name, so "procgen" and "loot" get different streams.
 pub fn hash_name(name: &str) -> u64 {
-    name.bytes().fold(0xCBF2_9CE4_8422_2325, |h, b| {
-        (h ^ b as u64).wrapping_mul(0x0100_0000_01B3)
-    })
+    name.bytes().fold(0xCBF2_9CE4_8422_2325, |h, b| (h ^ b as u64).wrapping_mul(0x0100_0000_01B3))
 }
 
 /// A random stream for one system. Cheap to create; derive a fresh one
@@ -174,11 +172,7 @@ mod tests {
         let got: Vec<u64> = (0..3).map(|_| rng.next_u64()).collect();
         assert_eq!(got, GOLDEN);
     }
-    const GOLDEN: [u64; 3] = [
-        2672281725075705521,
-        10481948829387592649,
-        1309160218682536240,
-    ];
+    const GOLDEN: [u64; 3] = [2672281725075705521, 10481948829387592649, 1309160218682536240];
 
     /// Reference outputs of xoshiro256** for state [1, 2, 3, 4].
     #[test]

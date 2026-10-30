@@ -12,9 +12,8 @@
 use std::f32::consts::{PI, TAU};
 
 use godot::classes::{
-    CanvasItem, ColorRect, Control, Font, FontFile, IControl, Input, InputEvent,
-    InputEventJoypadButton, InputEventJoypadMotion, InputEventKey, InputEventMouseButton, Shader,
-    ShaderMaterial, StyleBoxFlat, ThemeDb,
+    CanvasItem, ColorRect, Control, Font, FontFile, IControl, Input, InputEvent, InputEventJoypadButton,
+    InputEventJoypadMotion, InputEventKey, InputEventMouseButton, Shader, ShaderMaterial, StyleBoxFlat, ThemeDb,
 };
 use godot::global::HorizontalAlignment;
 use godot::prelude::*;
@@ -114,35 +113,19 @@ impl IControl for SuitHud {
     }
 
     fn ready(&mut self) {
-        self.base_mut()
-            .set_anchors_and_offsets_preset(godot::classes::control::LayoutPreset::FULL_RECT);
-        self.base_mut()
-            .set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
+        self.base_mut().set_anchors_and_offsets_preset(godot::classes::control::LayoutPreset::FULL_RECT);
+        self.base_mut().set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
         self.numbers = try_load::<FontFile>(NUMBER_FONT).ok().map(|f| f.upcast());
         let theme = ThemeDb::singleton().get_project_theme();
-        self.body = theme
-            .and_then(|t| t.get_default_font())
-            .or_else(|| ThemeDb::singleton().get_fallback_font());
-        self.glass = Some(style_box(
-            rgba(self.data.glass_color),
-            rgba(self.data.glass_edge_color),
-            2,
-            14,
-        ));
-        self.pill = Some(style_box(
-            rgba(self.data.glass_color),
-            Color::from_rgba(1.0, 1.0, 1.0, 0.25),
-            2,
-            40,
-        ));
+        self.body = theme.and_then(|t| t.get_default_font()).or_else(|| ThemeDb::singleton().get_fallback_font());
+        self.glass = Some(style_box(rgba(self.data.glass_color), rgba(self.data.glass_edge_color), 2, 14));
+        self.pill = Some(style_box(rgba(self.data.glass_color), Color::from_rgba(1.0, 1.0, 1.0, 0.25), 2, 40));
         self.add_visor();
     }
 
     fn input(&mut self, event: Gd<InputEvent>) {
         // Show keyboard or controller button names, whichever was used last.
-        if event.clone().try_cast::<InputEventKey>().is_ok()
-            || event.clone().try_cast::<InputEventMouseButton>().is_ok()
-        {
+        if event.clone().try_cast::<InputEventKey>().is_ok() || event.clone().try_cast::<InputEventMouseButton>().is_ok() {
             self.using_keyboard = true;
         } else if event.clone().try_cast::<InputEventJoypadButton>().is_ok() {
             self.using_keyboard = false;
@@ -160,30 +143,15 @@ impl IControl for SuitHud {
             && v.dead_key.is_some()
         {
             self.dead_for_s += delta as f32;
-            if !self.returned
-                && self.dead_for_s >= self.data.recap_input_delay_s
-                && Input::singleton().is_action_just_pressed("ui_accept")
-            {
+            if !self.returned && self.dead_for_s >= self.data.recap_input_delay_s && Input::singleton().is_action_just_pressed("ui_accept") {
                 self.returned = true;
                 self.return_to_menu();
             }
         }
         if let (Some(visor), Some(v)) = (self.visor.as_mut(), &view) {
             visor.set_shader_parameter("time_s", &self.time_s.to_variant());
-            visor.set_shader_parameter(
-                "low_oxygen",
-                &(if v.low && v.dead_key.is_none() {
-                    1.0f32
-                } else {
-                    0.0
-                })
-                .to_variant(),
-            );
-            let hurt = if v.dead_key.is_some() {
-                0.0
-            } else {
-                (1.0 - v.health).min(1.0) * 0.5
-            };
+            visor.set_shader_parameter("low_oxygen", &(if v.low && v.dead_key.is_none() { 1.0f32 } else { 0.0 }).to_variant());
+            let hurt = if v.dead_key.is_some() { 0.0 } else { (1.0 - v.health).min(1.0) * 0.5 };
             visor.set_shader_parameter("damage", &hurt.to_variant());
         }
         self.base_mut().queue_redraw();
@@ -191,9 +159,7 @@ impl IControl for SuitHud {
 
     fn draw(&mut self) {
         let Some(v) = self.view() else { return };
-        let (Some(numbers), Some(body)) = (self.numbers.clone(), self.body.clone()) else {
-            return;
-        };
+        let (Some(numbers), Some(body)) = (self.numbers.clone(), self.body.clone()) else { return };
         let size = self.base().get_size();
         // Headless runs have no window; nothing to draw.
         if size.y < 100.0 {
@@ -214,10 +180,7 @@ impl IControl for SuitHud {
 
 impl SuitHud {
     fn player(&self) -> Option<Gd<PlayerController>> {
-        self.base()
-            .get_tree()
-            .get_first_node_in_group(PLAYER_GROUP)
-            .and_then(|n| n.try_cast::<PlayerController>().ok())
+        self.base().get_tree().get_first_node_in_group(PLAYER_GROUP).and_then(|n| n.try_cast::<PlayerController>().ok())
     }
 
     fn view(&self) -> Option<View> {
@@ -235,19 +198,13 @@ impl SuitHud {
             zero_g: p.is_in_zero_g(),
             at_supply: p.is_at_supply(),
             prompt: p.get_interact_prompt().to_string(),
-            dead_key: if p.is_dead() {
-                Some(p.get_death_key())
-            } else {
-                None
-            },
+            dead_key: if p.is_dead() { Some(p.get_death_key()) } else { None },
         })
     }
 
     /// The visor frame is a sibling drawn under the gauges.
     fn add_visor(&mut self) {
-        let Ok(shader) = try_load::<Shader>(VISOR_SHADER) else {
-            return;
-        };
+        let Ok(shader) = try_load::<Shader>(VISOR_SHADER) else { return };
         let mut material = ShaderMaterial::new_gd();
         material.set_shader(&shader);
         material.set_shader_parameter("edge_darkness", &self.data.visor_edge_darkness.to_variant());
@@ -272,36 +229,15 @@ impl SuitHud {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn text(
-        &mut self,
-        font: &Gd<Font>,
-        at: Vector2,
-        width: f32,
-        align: HorizontalAlignment,
-        text: &str,
-        size: i32,
-        color: Color,
-    ) {
+    fn text(&mut self, font: &Gd<Font>, at: Vector2, width: f32, align: HorizontalAlignment, text: &str, size: i32, color: Color) {
         let c = self.canvas();
         let shadow = Color::from_rgba(0.0, 0.0, 0.0, 0.55 * color.a);
-        c.draw_string_ex(font, at + Vector2::new(0.0, 2.0), &GString::from(text))
-            .alignment(align)
-            .width(width)
-            .font_size(size)
-            .modulate(shadow)
-            .done();
-        c.draw_string_ex(font, at, &GString::from(text))
-            .alignment(align)
-            .width(width)
-            .font_size(size)
-            .modulate(color)
-            .done();
+        c.draw_string_ex(font, at + Vector2::new(0.0, 2.0), &GString::from(text)).alignment(align).width(width).font_size(size).modulate(shadow).done();
+        c.draw_string_ex(font, at, &GString::from(text)).alignment(align).width(width).font_size(size).modulate(color).done();
     }
 
     fn plate(&mut self, rect: Rect2, edge: Option<Color>) {
-        let Some(mut glass) = self.glass.clone() else {
-            return;
-        };
+        let Some(mut glass) = self.glass.clone() else { return };
         if let Some(e) = edge {
             glass.set_border_color(e);
         } else {
@@ -316,110 +252,45 @@ impl SuitHud {
 
     /// Oxygen: a 270-degree ring with tick marks, the time left in big
     /// numbers, and carried tanks as little capsules.
-    fn draw_oxygen(
-        &mut self,
-        numbers: &Gd<Font>,
-        body: &Gd<Font>,
-        size: Vector2,
-        s: f32,
-        v: &View,
-    ) {
+    fn draw_oxygen(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
         let d = self.data.clone();
         let (pw, ph) = (d.oxygen_plate_px.0 * s, d.oxygen_plate_px.1 * s);
-        let rect = Rect2::new(
-            Vector2::new(d.margin_px * s, size.y - d.margin_px * s - ph),
-            Vector2::new(pw, ph),
-        );
+        let rect = Rect2::new(Vector2::new(d.margin_px * s, size.y - d.margin_px * s - ph), Vector2::new(pw, ph));
         let warn = rgb(d.warning_color);
-        let col = if v.low && self.blink() {
-            warn
-        } else {
-            rgb(d.oxygen_color)
-        };
+        let col = if v.low && self.blink() { warn } else { rgb(d.oxygen_color) };
         self.plate(rect, if v.low { Some(faded(warn, 0.8)) } else { None });
 
         let r = d.oxygen_ring_radius_px * s;
         let center = rect.position + Vector2::new(16.0 * s + r, ph * 0.5);
         let (start, sweep) = (PI * 0.75, PI * 1.5);
         let mut c = self.canvas();
-        c.draw_arc_ex(
-            center,
-            r,
-            start,
-            start + sweep,
-            48,
-            faded(rgb(d.oxygen_color), 0.18),
-        )
-        .width(d.oxygen_ring_width_px * s)
-        .antialiased(true)
-        .done();
+        c.draw_arc_ex(center, r, start, start + sweep, 48, faded(rgb(d.oxygen_color), 0.18)).width(d.oxygen_ring_width_px * s).antialiased(true).done();
         if v.oxygen > 0.0 {
-            c.draw_arc_ex(center, r, start, start + sweep * v.oxygen, 48, col)
-                .width(d.oxygen_ring_width_px * s)
-                .antialiased(true)
-                .done();
+            c.draw_arc_ex(center, r, start, start + sweep * v.oxygen, 48, col).width(d.oxygen_ring_width_px * s).antialiased(true).done();
         }
         for i in 0..=d.oxygen_ticks {
             let a = start + sweep * i as f32 / d.oxygen_ticks as f32;
             let dir = Vector2::new(a.cos(), a.sin());
             let inner = r + d.oxygen_ring_width_px * s * 0.5 + 2.0 * s;
             let len = if i % 3 == 0 { 6.0 } else { 3.0 } * s;
-            c.draw_line_ex(
-                center + dir * inner,
-                center + dir * (inner + len),
-                faded(rgb(d.oxygen_color), 0.6),
-            )
-            .width(1.5 * s)
-            .antialiased(true)
-            .done();
+            c.draw_line_ex(center + dir * inner, center + dir * (inner + len), faded(rgb(d.oxygen_color), 0.6)).width(1.5 * s).antialiased(true).done();
         }
         // An "O2" badge in the ring's gap.
-        self.text(
-            body,
-            center + Vector2::new(-r, r * 0.95),
-            r * 2.0,
-            HorizontalAlignment::CENTER,
-            "O2",
-            (d.label_font_px as f32 * s) as i32,
-            col,
-        );
+        self.text(body, center + Vector2::new(-r, r * 0.95), r * 2.0, HorizontalAlignment::CENTER, "O2", (d.label_font_px as f32 * s) as i32, col);
 
         let secs = v.oxygen_s.ceil() as i64;
         let left = center.x + r + 18.0 * s;
         let label = self.base().tr("HUD_OXYGEN").to_string();
-        self.text(
-            body,
-            Vector2::new(left, rect.position.y + 26.0 * s),
-            200.0 * s,
-            HorizontalAlignment::LEFT,
-            &label,
-            (d.label_font_px as f32 * s) as i32,
-            faded(rgb(d.oxygen_color), 0.85),
-        );
-        self.text(
-            numbers,
-            Vector2::new(left, rect.position.y + 62.0 * s),
-            200.0 * s,
-            HorizontalAlignment::LEFT,
-            &format!("{}:{:02}", secs / 60, secs % 60),
-            (d.number_font_px as f32 * s) as i32,
-            col,
-        );
+        self.text(body, Vector2::new(left, rect.position.y + 26.0 * s), 200.0 * s, HorizontalAlignment::LEFT, &label, (d.label_font_px as f32 * s) as i32, faded(rgb(d.oxygen_color), 0.85));
+        self.text(numbers, Vector2::new(left, rect.position.y + 62.0 * s), 200.0 * s, HorizontalAlignment::LEFT, &format!("{}:{:02}", secs / 60, secs % 60), (d.number_font_px as f32 * s) as i32, col);
 
         // Tanks: small capsules, filled when carried.
         let mut c = self.canvas();
         for i in 0..v.max_tanks {
             let x = left + 112.0 * s + i as f32 * 22.0 * s;
-            let tank = Rect2::new(
-                Vector2::new(x, rect.position.y + 34.0 * s),
-                Vector2::new(14.0 * s, 30.0 * s),
-            );
+            let tank = Rect2::new(Vector2::new(x, rect.position.y + 34.0 * s), Vector2::new(14.0 * s, 30.0 * s));
             let mut sb = style_box(
-                if i < v.tanks {
-                    rgb(d.oxygen_color)
-                } else {
-                    Color::from_rgba(0.0, 0.0, 0.0, 0.0)
-                },
+                if i < v.tanks { rgb(d.oxygen_color) } else { Color::from_rgba(0.0, 0.0, 0.0, 0.0) },
                 faded(rgb(d.oxygen_color), if i < v.tanks { 1.0 } else { 0.5 }),
                 (2.0 * s) as i32,
                 (7.0 * s) as i32,
@@ -429,15 +300,7 @@ impl SuitHud {
         }
         if v.at_supply {
             let text = self.base().tr("HUD_REFILLING").to_string();
-            self.text(
-                body,
-                Vector2::new(rect.position.x, rect.position.y - 10.0 * s),
-                pw,
-                HorizontalAlignment::CENTER,
-                &text,
-                (d.label_font_px as f32 * s) as i32,
-                rgb(d.oxygen_color),
-            );
+            self.text(body, Vector2::new(rect.position.x, rect.position.y - 10.0 * s), pw, HorizontalAlignment::CENTER, &text, (d.label_font_px as f32 * s) as i32, rgb(d.oxygen_color));
         }
     }
 
@@ -445,25 +308,11 @@ impl SuitHud {
     fn draw_fuel(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
         let d = self.data.clone();
         let (pw, ph) = (d.fuel_plate_px.0 * s, d.fuel_plate_px.1 * s);
-        let rect = Rect2::new(
-            Vector2::new(size.x - d.margin_px * s - pw, size.y - d.margin_px * s - ph),
-            Vector2::new(pw, ph),
-        );
+        let rect = Rect2::new(Vector2::new(size.x - d.margin_px * s - pw, size.y - d.margin_px * s - ph), Vector2::new(pw, ph));
         let empty = v.fuel <= 0.001;
         let warn = rgb(d.warning_color);
-        self.plate(
-            rect,
-            if empty {
-                Some(faded(warn, 0.8))
-            } else {
-                Some(faded(rgb(d.fuel_color), 0.45))
-            },
-        );
-        let col = if empty && self.blink() {
-            warn
-        } else {
-            rgb(d.fuel_color)
-        };
+        self.plate(rect, if empty { Some(faded(warn, 0.8)) } else { Some(faded(rgb(d.fuel_color), 0.45)) });
+        let col = if empty && self.blink() { warn } else { rgb(d.fuel_color) };
 
         let bar_w = 22.0 * s;
         let top = rect.position.y + 14.0 * s;
@@ -480,37 +329,15 @@ impl SuitHud {
             let seg = Rect2::new(Vector2::new(x, y), Vector2::new(bar_w, seg_h));
             c.draw_rect(seg, faded(rgb(d.fuel_color), 0.15));
             if amount > 0.0 {
-                c.draw_rect(
-                    Rect2::new(
-                        Vector2::new(x, y + seg_h * (1.0 - amount)),
-                        Vector2::new(bar_w, seg_h * amount),
-                    ),
-                    col,
-                );
+                c.draw_rect(Rect2::new(Vector2::new(x, y + seg_h * (1.0 - amount)), Vector2::new(bar_w, seg_h * amount)), col);
             }
         }
         let label = self.base().tr("HUD_JETPACK").to_string();
         let tx = x + bar_w + 8.0 * s;
         let tw = rect.end().x - tx - 6.0 * s;
-        self.text(
-            body,
-            Vector2::new(tx, top + 14.0 * s),
-            tw,
-            HorizontalAlignment::CENTER,
-            &label,
-            (d.label_font_px as f32 * s) as i32,
-            faded(rgb(d.fuel_color), 0.9),
-        );
+        self.text(body, Vector2::new(tx, top + 14.0 * s), tw, HorizontalAlignment::CENTER, &label, (d.label_font_px as f32 * s) as i32, faded(rgb(d.fuel_color), 0.9));
         let pct = format!("{}", (v.fuel * 100.0).round() as i32);
-        self.text(
-            numbers,
-            Vector2::new(tx, bottom - 8.0 * s),
-            tw,
-            HorizontalAlignment::CENTER,
-            &pct,
-            (26.0 * s) as i32,
-            col,
-        );
+        self.text(numbers, Vector2::new(tx, bottom - 8.0 * s), tw, HorizontalAlignment::CENTER, &pct, (26.0 * s) as i32, col);
     }
 
     /// Suit integrity: a thin segmented line, bottom centre. Only drawn
@@ -526,36 +353,18 @@ impl SuitHud {
         let gap = 4.0 * s;
         let seg_w = (w - gap * (n - 1) as f32) / n as f32;
         let filled = v.health * n as f32;
-        let col = if v.health < 0.35 {
-            rgb(d.warning_color)
-        } else {
-            rgb(d.health_color)
-        };
+        let col = if v.health < 0.35 { rgb(d.warning_color) } else { rgb(d.health_color) };
         let mut c = self.canvas();
         for i in 0..n {
             let x = origin.x + i as f32 * (seg_w + gap);
-            c.draw_rect(
-                Rect2::new(Vector2::new(x, origin.y), Vector2::new(seg_w, h)),
-                Color::from_rgba(0.0, 0.0, 0.0, 0.45),
-            );
+            c.draw_rect(Rect2::new(Vector2::new(x, origin.y), Vector2::new(seg_w, h)), Color::from_rgba(0.0, 0.0, 0.0, 0.45));
             let amount = (filled - i as f32).clamp(0.0, 1.0);
             if amount > 0.0 {
-                c.draw_rect(
-                    Rect2::new(Vector2::new(x, origin.y), Vector2::new(seg_w * amount, h)),
-                    col,
-                );
+                c.draw_rect(Rect2::new(Vector2::new(x, origin.y), Vector2::new(seg_w * amount, h)), col);
             }
         }
         let label = self.base().tr("HUD_SUIT").to_string();
-        self.text(
-            body,
-            Vector2::new(origin.x, origin.y - 6.0 * s),
-            w,
-            HorizontalAlignment::CENTER,
-            &label,
-            (d.label_font_px as f32 * s) as i32,
-            col,
-        );
+        self.text(body, Vector2::new(origin.x, origin.y - 6.0 * s), w, HorizontalAlignment::CENTER, &label, (d.label_font_px as f32 * s) as i32, col);
     }
 
     /// Status pills, top centre: warnings first.
@@ -563,60 +372,27 @@ impl SuitHud {
         let d = self.data.clone();
         let mut pills: Vec<(String, Color)> = Vec::new();
         if v.low {
-            pills.push((
-                self.base().tr("HUD_LOW_OXYGEN").to_string(),
-                rgb(d.warning_color),
-            ));
+            pills.push((self.base().tr("HUD_LOW_OXYGEN").to_string(), rgb(d.warning_color)));
         }
         if v.tethered {
-            pills.push((
-                self.base().tr("HUD_TETHERED").to_string(),
-                rgb(d.fuel_color),
-            ));
+            pills.push((self.base().tr("HUD_TETHERED").to_string(), rgb(d.fuel_color)));
         }
         if v.zero_g {
-            pills.push((
-                self.base().tr("HUD_ZERO_G").to_string(),
-                rgb(d.oxygen_color),
-            ));
+            pills.push((self.base().tr("HUD_ZERO_G").to_string(), rgb(d.oxygen_color)));
         }
         let font_px = (d.status_font_px as f32 * s) as i32;
         let mut y = d.margin_px * s;
         for (i, (text, color)) in pills.iter().enumerate() {
-            let w = body
-                .get_string_size_ex(&GString::from(text.as_str()))
-                .font_size(font_px)
-                .done()
-                .x
-                + 52.0 * s;
+            let w = body.get_string_size_ex(&GString::from(text.as_str())).font_size(font_px).done().x + 52.0 * s;
             let h = 36.0 * s;
             let rect = Rect2::new(Vector2::new((size.x - w) * 0.5, y), Vector2::new(w, h));
-            let pulse = if i == 0 && v.low {
-                0.55 + 0.45 * (self.time_s * TAU * d.warning_blink_hz * 0.5).sin().abs()
-            } else {
-                1.0
-            };
+            let pulse = if i == 0 && v.low { 0.55 + 0.45 * (self.time_s * TAU * d.warning_blink_hz * 0.5).sin().abs() } else { 1.0 };
             if let Some(mut pill) = self.pill.clone() {
                 pill.set_border_color(faded(*color, 0.85 * pulse));
                 self.canvas().draw_style_box(&pill, rect);
             }
-            self.canvas().draw_circle(
-                rect.position + Vector2::new(20.0 * s, h * 0.5),
-                5.0 * s,
-                faded(*color, pulse),
-            );
-            self.text(
-                body,
-                Vector2::new(
-                    rect.position.x + 34.0 * s,
-                    rect.position.y + h * 0.5 + font_px as f32 * 0.36,
-                ),
-                w - 44.0 * s,
-                HorizontalAlignment::LEFT,
-                text,
-                font_px,
-                faded(*color, pulse.max(0.8)),
-            );
+            self.canvas().draw_circle(rect.position + Vector2::new(20.0 * s, h * 0.5), 5.0 * s, faded(*color, pulse));
+            self.text(body, Vector2::new(rect.position.x + 34.0 * s, rect.position.y + h * 0.5 + font_px as f32 * 0.36), w - 44.0 * s, HorizontalAlignment::LEFT, text, font_px, faded(*color, pulse.max(0.8)));
             y += h + 8.0 * s;
         }
     }
@@ -627,16 +403,8 @@ impl SuitHud {
         let d = self.data.clone();
         let center = size * 0.5;
         let mut c = self.canvas();
-        c.draw_circle(
-            center,
-            (d.crosshair_radius_px + 1.2) * s,
-            Color::from_rgba(0.0, 0.0, 0.0, 0.45),
-        );
-        c.draw_circle(
-            center,
-            d.crosshair_radius_px * s,
-            Color::from_rgba(1.0, 1.0, 1.0, 0.85),
-        );
+        c.draw_circle(center, (d.crosshair_radius_px + 1.2) * s, Color::from_rgba(0.0, 0.0, 0.0, 0.45));
+        c.draw_circle(center, d.crosshair_radius_px * s, Color::from_rgba(1.0, 1.0, 1.0, 0.85));
 
         let (key, pad, keyboard) = match v.prompt.as_str() {
             "take_tank" => ("PROMPT_TAKE_TANK", "X", "E"),
@@ -647,135 +415,48 @@ impl SuitHud {
         let glyph = if self.using_keyboard { keyboard } else { pad };
         let text = self.base().tr(key).to_string();
         let font_px = (d.prompt_font_px as f32 * s) as i32;
-        let tw = body
-            .get_string_size_ex(&GString::from(text.as_str()))
-            .font_size(font_px)
-            .done()
-            .x;
+        let tw = body.get_string_size_ex(&GString::from(text.as_str())).font_size(font_px).done().x;
         let h = 40.0 * s;
         let w = tw + h + 30.0 * s;
-        let rect = Rect2::new(
-            Vector2::new(center.x - w * 0.5, center.y + 60.0 * s),
-            Vector2::new(w, h),
-        );
+        let rect = Rect2::new(Vector2::new(center.x - w * 0.5, center.y + 60.0 * s), Vector2::new(w, h));
         if let Some(mut pill) = self.pill.clone() {
             pill.set_border_color(Color::from_rgba(1.0, 1.0, 1.0, 0.35));
             self.canvas().draw_style_box(&pill, rect);
         }
         // Button glyph: X is blue on Xbox-style pads and the Deck.
         let gc = rect.position + Vector2::new(h * 0.5 + 4.0 * s, h * 0.5);
-        let glyph_col = if glyph == "X" {
-            Color::from_rgb(0.28, 0.55, 1.0)
-        } else {
-            Color::from_rgb(0.85, 0.87, 0.92)
-        };
+        let glyph_col = if glyph == "X" { Color::from_rgb(0.28, 0.55, 1.0) } else { Color::from_rgb(0.85, 0.87, 0.92) };
         self.canvas().draw_circle(gc, h * 0.38, glyph_col);
-        self.text(
-            body,
-            gc + Vector2::new(-h * 0.5, font_px as f32 * 0.36),
-            h,
-            HorizontalAlignment::CENTER,
-            glyph,
-            (font_px as f32 * 0.9) as i32,
-            Color::from_rgb(0.05, 0.06, 0.1),
-        );
-        self.text(
-            body,
-            Vector2::new(
-                rect.position.x + h + 12.0 * s,
-                rect.position.y + h * 0.5 + font_px as f32 * 0.36,
-            ),
-            tw + 4.0,
-            HorizontalAlignment::LEFT,
-            &text,
-            font_px,
-            Color::from_rgb(0.95, 0.96, 1.0),
-        );
+        self.text(body, gc + Vector2::new(-h * 0.5, font_px as f32 * 0.36), h, HorizontalAlignment::CENTER, glyph, (font_px as f32 * 0.9) as i32, Color::from_rgb(0.05, 0.06, 0.1));
+        self.text(body, Vector2::new(rect.position.x + h + 12.0 * s, rect.position.y + h * 0.5 + font_px as f32 * 0.36), tw + 4.0, HorizontalAlignment::LEFT, &text, font_px, Color::from_rgb(0.95, 0.96, 1.0));
     }
 
     /// First-person death recap: a dimmed view, "RUN OVER", the cause in
     /// one line, then Continue.
-    fn draw_recap(
-        &mut self,
-        numbers: &Gd<Font>,
-        body: &Gd<Font>,
-        size: Vector2,
-        s: f32,
-        key: &GString,
-    ) {
+    fn draw_recap(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, key: &GString) {
         let d = self.data.clone();
         let t = (self.dead_for_s / 0.6).min(1.0);
         let mut c = self.canvas();
-        c.draw_rect(
-            Rect2::new(Vector2::ZERO, size),
-            Color::from_rgba(0.06, 0.0, 0.02, 0.55 * t),
-        );
+        c.draw_rect(Rect2::new(Vector2::ZERO, size), Color::from_rgba(0.06, 0.0, 0.02, 0.55 * t));
         let band_h = 210.0 * s;
-        let band = Rect2::new(
-            Vector2::new(0.0, size.y * 0.5 - band_h * 0.5),
-            Vector2::new(size.x, band_h),
-        );
+        let band = Rect2::new(Vector2::new(0.0, size.y * 0.5 - band_h * 0.5), Vector2::new(size.x, band_h));
         c.draw_rect(band, Color::from_rgba(0.02, 0.03, 0.06, 0.82 * t));
         let warn = rgb(d.warning_color);
-        c.draw_rect(
-            Rect2::new(band.position, Vector2::new(size.x, 4.0 * s)),
-            faded(warn, t),
-        );
-        c.draw_rect(
-            Rect2::new(
-                Vector2::new(0.0, band.end().y - 4.0 * s),
-                Vector2::new(size.x, 4.0 * s),
-            ),
-            faded(warn, t),
-        );
+        c.draw_rect(Rect2::new(band.position, Vector2::new(size.x, 4.0 * s)), faded(warn, t));
+        c.draw_rect(Rect2::new(Vector2::new(0.0, band.end().y - 4.0 * s), Vector2::new(size.x, 4.0 * s)), faded(warn, t));
 
         let title = self.base().tr("DEATH_TITLE").to_string();
-        self.text(
-            numbers,
-            Vector2::new(0.0, band.position.y + 82.0 * s),
-            size.x,
-            HorizontalAlignment::CENTER,
-            &title,
-            (d.recap_title_px as f32 * s) as i32,
-            faded(warn, t),
-        );
+        self.text(numbers, Vector2::new(0.0, band.position.y + 82.0 * s), size.x, HorizontalAlignment::CENTER, &title, (d.recap_title_px as f32 * s) as i32, faded(warn, t));
         let cause = self.base().tr(&StringName::from(key)).to_string();
-        self.text(
-            body,
-            Vector2::new(0.0, band.position.y + 132.0 * s),
-            size.x,
-            HorizontalAlignment::CENTER,
-            &cause,
-            (d.recap_line_px as f32 * s) as i32,
-            faded(Color::from_rgb(0.95, 0.95, 0.97), t),
-        );
+        self.text(body, Vector2::new(0.0, band.position.y + 132.0 * s), size.x, HorizontalAlignment::CENTER, &cause, (d.recap_line_px as f32 * s) as i32, faded(Color::from_rgb(0.95, 0.95, 0.97), t));
         if self.dead_for_s >= d.recap_input_delay_s {
-            let hint = self
-                .base()
-                .tr(if self.using_keyboard {
-                    "DEATH_CONTINUE_KEYS"
-                } else {
-                    "DEATH_CONTINUE"
-                })
-                .to_string();
-            self.text(
-                body,
-                Vector2::new(0.0, band.position.y + 180.0 * s),
-                size.x,
-                HorizontalAlignment::CENTER,
-                &hint,
-                (20.0 * s) as i32,
-                Color::from_rgba(0.85, 0.87, 0.92, 0.9),
-            );
+            let hint = self.base().tr(if self.using_keyboard { "DEATH_CONTINUE_KEYS" } else { "DEATH_CONTINUE" }).to_string();
+            self.text(body, Vector2::new(0.0, band.position.y + 180.0 * s), size.x, HorizontalAlignment::CENTER, &hint, (20.0 * s) as i32, Color::from_rgba(0.85, 0.87, 0.92, 0.9));
         }
     }
 
     fn return_to_menu(&mut self) {
-        if let Some(mut root) = self
-            .base()
-            .get_tree()
-            .get_first_node_in_group(GAME_ROOT_GROUP)
-        {
+        if let Some(mut root) = self.base().get_tree().get_first_node_in_group(GAME_ROOT_GROUP) {
             root.call_deferred("on_player_died_continue", &[]);
         }
     }

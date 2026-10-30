@@ -41,9 +41,7 @@ fn main() -> ExitCode {
 }
 
 fn arg<'a>(args: &'a [String], i: usize, what: &str) -> Result<&'a str, String> {
-    args.get(i)
-        .map(String::as_str)
-        .ok_or_else(|| format!("missing {what}"))
+    args.get(i).map(String::as_str).ok_or_else(|| format!("missing {what}"))
 }
 
 fn run(args: &[String]) -> Result<ExitCode, String> {
@@ -63,109 +61,49 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "logcheck" => {
             let log = std::fs::read(arg(args, 1, "log file")?).map_err(|e| e.to_string())?;
             let ignore: Vec<String> = match args.get(3) {
-                Some(p) => ron::from_str(&std::fs::read_to_string(p).map_err(|e| e.to_string())?)
-                    .map_err(|e| e.to_string())?,
+                Some(p) => ron::from_str(&std::fs::read_to_string(p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?,
                 None => Vec::new(),
             };
-            let max: u32 = args.get(4).map_or(Ok(0), |m| {
-                m.parse()
-                    .map_err(|_| "max_errors must be a number".to_string())
-            })?;
+            let max: u32 = args.get(4).map_or(Ok(0), |m| m.parse().map_err(|_| "max_errors must be a number".to_string()))?;
             let summary = logcheck::summarize(&String::from_utf8_lossy(&log), &ignore);
-            std::fs::write(
-                arg(args, 2, "output file")?,
-                serde_json::to_string_pretty(&summary).unwrap(),
-            )
-            .map_err(|e| e.to_string())?;
-            println!(
-                "{} errors, {} warnings, {} ignored",
-                summary.errors, summary.warnings, summary.ignored
-            );
-            Ok(if summary.errors > max {
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            })
+            std::fs::write(arg(args, 2, "output file")?, serde_json::to_string_pretty(&summary).unwrap()).map_err(|e| e.to_string())?;
+            println!("{} errors, {} warnings, {} ignored", summary.errors, summary.warnings, summary.ignored);
+            Ok(if summary.errors > max { ExitCode::FAILURE } else { ExitCode::SUCCESS })
         }
         "compare" => {
-            let threshold: f64 = args.get(4).map_or(Ok(0.98), |t| {
-                t.parse()
-                    .map_err(|_| "threshold must be a number".to_string())
-            })?;
-            let report = compare::compare(
-                Path::new(arg(args, 1, "baseline dir")?),
-                Path::new(arg(args, 2, "current dir")?),
-                threshold,
-            );
+            let threshold: f64 = args.get(4).map_or(Ok(0.98), |t| t.parse().map_err(|_| "threshold must be a number".to_string()))?;
+            let report = compare::compare(Path::new(arg(args, 1, "baseline dir")?), Path::new(arg(args, 2, "current dir")?), threshold);
             let run_dir = PathBuf::from(arg(args, 3, "run dir")?);
             std::fs::create_dir_all(&run_dir).map_err(|e| e.to_string())?;
-            std::fs::write(
-                run_dir.join(compare::COMPARE_FILE),
-                serde_json::to_string_pretty(&report).unwrap(),
-            )
-            .map_err(|e| e.to_string())?;
+            std::fs::write(run_dir.join(compare::COMPARE_FILE), serde_json::to_string_pretty(&report).unwrap()).map_err(|e| e.to_string())?;
             for s in &report.shots {
-                println!(
-                    "{:<32} {:<8} {}",
-                    s.name,
-                    s.status,
-                    s.ssim.map_or(String::new(), |v| format!("{v:.4}"))
-                );
+                println!("{:<32} {:<8} {}", s.name, s.status, s.ssim.map_or(String::new(), |v| format!("{v:.4}")));
             }
-            let flagged = report
-                .shots
-                .iter()
-                .any(|s| s.status == "flagged" || s.status == "error")
-                || !report.missing.is_empty();
-            Ok(if flagged {
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            })
+            let flagged = report.shots.iter().any(|s| s.status == "flagged" || s.status == "error") || !report.missing.is_empty();
+            Ok(if flagged { ExitCode::FAILURE } else { ExitCode::SUCCESS })
         }
         "approve" => {
-            let (from, to) = (
-                Path::new(arg(args, 1, "current dir")?),
-                Path::new(arg(args, 2, "baseline dir")?),
-            );
+            let (from, to) = (Path::new(arg(args, 1, "current dir")?), Path::new(arg(args, 2, "baseline dir")?));
             std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
-            for entry in std::fs::read_dir(from)
-                .map_err(|e| e.to_string())?
-                .filter_map(|e| e.ok())
-            {
+            for entry in std::fs::read_dir(from).map_err(|e| e.to_string())?.filter_map(|e| e.ok()) {
                 if entry.path().extension().is_some_and(|x| x == "png") {
-                    std::fs::copy(entry.path(), to.join(entry.file_name()))
-                        .map_err(|e| e.to_string())?;
+                    std::fs::copy(entry.path(), to.join(entry.file_name())).map_err(|e| e.to_string())?;
                     println!("approved {}", entry.file_name().to_string_lossy());
                 }
             }
             Ok(ExitCode::SUCCESS)
         }
         "report" => {
-            let title = args
-                .get(3)
-                .cloned()
-                .unwrap_or_else(|| "Verification report".into());
-            report::build(
-                Path::new(arg(args, 1, "run dir")?),
-                Path::new(arg(args, 2, "output html")?),
-                &title,
-                16.6,
-                25.0,
-            )?;
+            let title = args.get(3).cloned().unwrap_or_else(|| "Verification report".into());
+            report::build(Path::new(arg(args, 1, "run dir")?), Path::new(arg(args, 2, "output html")?), &title, 16.6, 25.0)?;
             Ok(ExitCode::SUCCESS)
         }
         "bugs" => {
             let dir = Path::new(arg(args, 1, "run dir")?);
             let build = std::env::var("OA_BUILD").unwrap_or_else(|_| "unknown".into());
             let drafts = bugs::drafts(dir, &build);
-            std::fs::write(dir.join("bugs.md"), bugs::to_markdown(&drafts))
-                .map_err(|e| e.to_string())?;
-            println!(
-                "{} bug draft(s) in {}",
-                drafts.len(),
-                dir.join("bugs.md").display()
-            );
+            std::fs::write(dir.join("bugs.md"), bugs::to_markdown(&drafts)).map_err(|e| e.to_string())?;
+            println!("{} bug draft(s) in {}", drafts.len(), dir.join("bugs.md").display());
             if args.get(2).map(String::as_str) == Some("--file") {
                 for line in bugs::file_with_gh(&drafts, arg(args, 3, "owner/repo")?) {
                     println!("{line}");
