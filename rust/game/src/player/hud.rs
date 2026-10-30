@@ -228,6 +228,7 @@ impl SuitHud {
         self.base().clone().upcast()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn text(&mut self, font: &Gd<Font>, at: Vector2, width: f32, align: HorizontalAlignment, text: &str, size: i32, color: Color) {
         let c = self.canvas();
         let shadow = Color::from_rgba(0.0, 0.0, 0.0, 0.55 * color.a);
