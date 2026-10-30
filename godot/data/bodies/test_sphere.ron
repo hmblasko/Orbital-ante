@@ -9,7 +9,7 @@
         influence_radius: 600.0,
     ),
     placeholder_look: (
-        base_color: (0.95, 0.9, 0.82),
+        base_color: (0.78, 0.74, 0.68),
         noise_frequency: 0.05,
         // How many times the noise texture repeats across one radius.
         texture_repeats: 6.0,

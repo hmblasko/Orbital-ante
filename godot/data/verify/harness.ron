@@ -1,0 +1,23 @@
+// Test harness settings (CLAUDE.md section 19).
+(
+    default_smoke_duration_s: 60.0,
+    default_bot: "wanderer",
+    max_errors: 0,
+    replay_tolerance_m: 0.01,
+    wanderer: (
+        decision_interval_s: (0.8, 3.0),
+        pause_chance: 0.1,
+        turn_chance: 0.6,
+        turn_strength: (0.2, 0.9),
+        jump_chance: 0.25,
+        crouch_chance: 0.1,
+    ),
+    detectors: (
+        stuck_seconds: 30.0,
+        stuck_distance_m: 1.0,
+        below_surface_margin_m: 0.5,
+        kill_distance_m: 2000.0,
+        max_sane_speed: 150.0,
+    ),
+    screenshot_settle_frames: 20,
+)

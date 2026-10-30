@@ -1,0 +1,15 @@
+[package]
+name = "oa_verify"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "oa_verify"
+path = "src/main.rs"
+
+[dependencies]
+png = "0.18.1"
+ron.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -16,8 +16,11 @@ use super::motion;
 use crate::orbits::CelestialBody;
 use crate::orbits::body::GRAVITY_GROUP;
 
+/// Group the player joins so tools and (later) AI can find it.
+pub const PLAYER_GROUP: &str = "player";
+
 const DATA_PATH: &str = "res://data/player/movement.ron";
-const DATA_EMBEDDED: &str = include_str!("../../../godot/data/player/movement.ron");
+const DATA_EMBEDDED: &str = include_str!("../../../../godot/data/player/movement.ron");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MovementData {
@@ -79,6 +82,7 @@ impl ICharacterBody3D for PlayerController {
     }
 
     fn ready(&mut self) {
+        self.base_mut().add_to_group(PLAYER_GROUP);
         self.head = self.base().try_get_node_as::<Node3D>(HEAD_NODE);
         if self.head.is_none() {
             godot_error!("PlayerController: missing child node '{HEAD_NODE}'");
@@ -131,6 +135,16 @@ impl ICharacterBody3D for PlayerController {
         self.update_velocity(gravity, up, dt);
         self.base_mut().move_and_slide();
         self.update_head(dt);
+    }
+}
+
+#[godot_api]
+impl PlayerController {
+    /// Look input in mouse pixels, as if the mouse moved. Used by input
+    /// replays so they follow exactly the same code path as a real mouse.
+    #[func]
+    pub fn add_look_delta(&mut self, delta: Vector2) {
+        self.mouse_delta += delta;
     }
 }
 

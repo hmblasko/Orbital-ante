@@ -1,0 +1,7 @@
+// Top-level scene flow.
+(
+    menu_scene: "res://scenes/ui/main_menu.tscn",
+    // The vertical slice will replace the sphere-walk test here.
+    slice_scene: "res://scenes/tests/sphere_walk.tscn",
+    crash_log_dir: "user://crash_logs",
+)

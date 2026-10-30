@@ -1,0 +1,16 @@
+[package]
+name = "orbital_ante"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[lib]
+# cdylib = a shared library (.so / .dll) that Godot loads at startup.
+# rlib lets `cargo test` link the crate for unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+godot = { version = "0.5.5", features = ["api-4-7"] }
+ron.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,17 @@
+// Base point values before multiplier and diminishing returns (CLAUDE.md 17.5).
+(
+    kill_tier: [25, 60, 150],
+    limb_shot: 5,
+    disarm: 15,
+    base_clear: (small: 150, medium: 400, large: 900),
+    all_bases_on_planet: 500,
+    dish_on: 120,
+    all_dishes_on_planet: 400,
+    satellite_repaired: 300,
+    discovery: (min: 30, max: 80),
+    salvage_piece: (min: 50, max: 400),
+    bounty_alive: (min: 600, max: 1500),
+    bounty_dead_fraction: 0.4,
+    contract: (min: 300, max: 1200),
+    racetrack_lap: 250,
+)

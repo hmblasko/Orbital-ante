@@ -40,16 +40,16 @@ mod tests {
 
     #[test]
     fn movement_data_parses() {
-        parse::<crate::player::controller::MovementData>(include_str!("../../../godot/data/player/movement.ron")).unwrap();
+        parse::<crate::player::controller::MovementData>(include_str!("../../../../godot/data/player/movement.ron")).unwrap();
     }
 
     #[test]
     fn test_sphere_parses() {
-        parse::<crate::orbits::body::BodyData>(include_str!("../../../godot/data/bodies/test_sphere.ron")).unwrap();
+        parse::<crate::orbits::body::BodyData>(include_str!("../../../../godot/data/bodies/test_sphere.ron")).unwrap();
     }
 
     #[test]
     fn frame_overlay_parses() {
-        parse::<crate::ui_bridge::frame_overlay::OverlayData>(include_str!("../../../godot/data/debug/frame_overlay.ron")).unwrap();
+        parse::<crate::ui_bridge::frame_overlay::OverlayData>(include_str!("../../../../godot/data/debug/frame_overlay.ron")).unwrap();
     }
 }

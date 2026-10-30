@@ -1,0 +1,22 @@
+// Save format version 1, frozen. Never edit: it proves old saves still load.
+(
+    version: 1,
+    game_version: "0.0.1",
+    save_counter: 7,
+    meta: (
+        runs_started: 3,
+        unlocks: ["test_unlock"],
+        notebook: [],
+        locker: [],
+    ),
+    run: Some((
+        seed_code: "7K3M-Q9TD",
+        ante: 2,
+        ante_score: 450,
+        wallet: 120,
+        player: Some((
+            body: "test_sphere",
+            position: (0.0, 60.9, 0.0),
+        )),
+    )),
+)
