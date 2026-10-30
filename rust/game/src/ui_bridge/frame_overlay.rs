@@ -14,7 +14,7 @@ use godot::prelude::*;
 use serde::Deserialize;
 
 const DATA_PATH: &str = "res://data/debug/frame_overlay.ron";
-const DATA_EMBEDDED: &str = include_str!("../../../godot/data/debug/frame_overlay.ron");
+const DATA_EMBEDDED: &str = include_str!("../../../../godot/data/debug/frame_overlay.ron");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OverlayData {

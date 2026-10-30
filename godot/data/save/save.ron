@@ -1,0 +1,6 @@
+// Save system settings (CLAUDE.md section 14).
+(
+    directory: "user://saves",
+    // Autosaves happen at ante end and when entering a ship; older ones are deleted.
+    keep_autosaves: 3,
+)

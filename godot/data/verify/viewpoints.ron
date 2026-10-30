@@ -1,0 +1,22 @@
+// Fixed camera viewpoints for screenshot regression (section 19.3).
+// Phase 1 covers the sphere-walk scene; more are added with each feature.
+[
+    (
+        name: "sphere_surface_eye_level",
+        position: (0.0, 61.6, 0.0),
+        look_at: (0.0, 59.0, -25.0),
+        up: (0.0, 1.0, 0.0),
+    ),
+    (
+        name: "sphere_from_orbit",
+        position: (0.0, 90.0, 150.0),
+        look_at: (0.0, 0.0, 0.0),
+        up: (0.0, 1.0, 0.0),
+    ),
+    (
+        name: "sphere_terminator",
+        position: (120.0, 20.0, 40.0),
+        look_at: (0.0, 0.0, 0.0),
+        up: (0.0, 1.0, 0.0),
+    ),
+]

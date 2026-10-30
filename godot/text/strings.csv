@@ -1,0 +1,8 @@
+keys,en
+MENU_TITLE,ORBITAL ANTE
+MENU_SUBTITLE,(working title) - placeholder menu
+MENU_START,Start test scene
+MENU_NEW_SEED,New seed
+MENU_QUIT,Quit
+MENU_SEED,Seed: %s
+MENU_VERSION,v%s  |  runs started: %d

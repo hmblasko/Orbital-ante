@@ -1,0 +1,11 @@
+// Ante structure and targets (CLAUDE.md sections 2, 17.5 and 18.2).
+// Decided starting values; tune from playtests and the balance simulator.
+(
+    ante_length_s: 720.0,              // 12 real minutes
+    first_discovery_bonus_s: 20.0,     // first visit to a landmark, cave or ruin
+    stopwatch_bonus_s: 60.0,
+    targets: [1000, 1700, 2800, 4400, 6500, 9000, 11800, 14500],
+    endless_growth: 1.6,               // ante 9+: each target is 1.6x the last
+    compact_display_above: 100000,     // show 160k, 1.2M above this
+    value_growth_per_ante: 0.15,       // enemy and contract values rise 15% per ante
+)

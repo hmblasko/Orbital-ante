@@ -1,0 +1,10 @@
+// Log lines from the test machine itself, not the game, that oa_verify ignores.
+// Keep this list short; every entry needs a reason.
+[
+    // CI and cloud machines have no sound card.
+    "All audio drivers failed",
+    "init_output_device",
+    "Condition \"status < 0\" is true. Returning: ERR_CANT_OPEN",
+    // Software-rendered virtual displays cannot change V-Sync.
+    "Could not set V-Sync mode",
+]

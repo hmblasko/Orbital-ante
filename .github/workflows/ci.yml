@@ -1,0 +1,127 @@
+# Builds and tests on every push (CLAUDE.md section 15 build pipeline).
+# - "verify": Rust tests, smoke test, replay check, screenshots, HTML report.
+# - "linux" / "windows": release exports; download them from the run's
+#   Artifacts section. Linux is the Steam Deck build.
+# - Tags like v0.2.0 also attach both builds to a GitHub release.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-linux-${{ hashFiles('rust/Cargo.lock') }}
+      - name: Install Godot and a software Vulkan driver
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q mesa-vulkan-drivers xvfb
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip -d "$HOME/godot"
+          echo "GODOT=$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Verify
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: tools/verify.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-report
+          path: verify_out/latest
+
+  linux:
+    runs-on: ubuntu-24.04
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-linux-release-${{ hashFiles('rust/Cargo.lock') }}
+      - name: Build Rust library (release)
+        run: cd rust && cargo build --release -p orbital_ante
+      - name: Install Godot and export templates
+        run: tools/ci_install_godot.sh linux
+      - name: Export
+        run: |
+          mkdir -p builds/linux
+          "$GODOT" --headless --path godot --import
+          "$GODOT" --headless --path godot --export-release "Linux" ../builds/linux/OrbitalAnte.x86_64
+          ls -la builds/linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrbitalAnte-linux
+          path: builds/linux
+
+  windows:
+    runs-on: windows-latest
+    needs: verify
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-windows-release-${{ hashFiles('rust/Cargo.lock') }}
+      - name: Build Rust library (release)
+        run: cd rust && cargo build --release -p orbital_ante
+      - name: Install Godot and export templates
+        run: tools/ci_install_godot.sh windows
+      - name: Export
+        run: |
+          mkdir -p builds/windows
+          "$GODOT" --headless --path godot --import
+          "$GODOT" --headless --path godot --export-release "Windows" ../builds/windows/OrbitalAnte.exe
+          ls -la builds/windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrbitalAnte-windows
+          path: builds/windows
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - run: |
+          (cd OrbitalAnte-linux && zip -qr ../OrbitalAnte-linux.zip .)
+          (cd OrbitalAnte-windows && zip -qr ../OrbitalAnte-windows.zip .)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            OrbitalAnte-linux.zip
+            OrbitalAnte-windows.zip
