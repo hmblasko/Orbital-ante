@@ -40,37 +40,83 @@ mod tests {
 
     #[test]
     fn movement_data_parses() {
-        parse::<crate::player::controller::MovementData>(include_str!("../../../../godot/data/player/movement.ron")).unwrap();
+        parse::<crate::player::controller::MovementData>(include_str!(
+            "../../../../godot/data/player/movement.ron"
+        ))
+        .unwrap();
     }
 
     #[test]
     fn test_sphere_parses() {
-        parse::<crate::orbits::body::BodyData>(include_str!("../../../../godot/data/bodies/test_sphere.ron")).unwrap();
+        parse::<crate::orbits::body::BodyData>(include_str!(
+            "../../../../godot/data/bodies/test_sphere.ron"
+        ))
+        .unwrap();
+    }
+
+    #[test]
+    fn test_sphere_has_every_landform_and_landmarks_parse() {
+        use crate::procgen::landforms::LandformKind::*;
+        let body = parse::<crate::orbits::body::BodyData>(include_str!(
+            "../../../../godot/data/bodies/test_sphere.ron"
+        ))
+        .unwrap();
+        let kinds: Vec<_> = body
+            .terrain
+            .landforms
+            .placed
+            .iter()
+            .map(|l| l.kind)
+            .collect();
+        for k in [Mountain, Mesa, Volcano, Canyon, River, Lake, Pool] {
+            assert!(kinds.contains(&k), "{k:?} missing from the showcase");
+        }
+        assert!(body.hoodoos.is_some());
+        let marks = parse::<crate::orbits::landmarks::LandmarkData>(include_str!(
+            "../../../../godot/data/bodies/test_sphere_landmarks.ron"
+        ))
+        .unwrap();
+        assert_eq!((marks.surface.len(), marks.orbiters.len()), (3, 3));
     }
 
     #[test]
     fn test_moonlet_parses_with_air() {
-        let body = parse::<crate::orbits::body::BodyData>(include_str!("../../../../godot/data/bodies/test_moonlet.ron")).unwrap();
+        let body = parse::<crate::orbits::body::BodyData>(include_str!(
+            "../../../../godot/data/bodies/test_moonlet.ron"
+        ))
+        .unwrap();
         assert!(body.atmosphere.is_some_and(|a| a.breathable));
     }
 
     #[test]
     fn suit_data_parses() {
-        parse::<crate::player::suit::SuitData>(include_str!("../../../../godot/data/player/suit.ron")).unwrap();
+        parse::<crate::player::suit::SuitData>(include_str!(
+            "../../../../godot/data/player/suit.ron"
+        ))
+        .unwrap();
     }
 
     #[test]
     fn interactables_parse() {
-        parse::<crate::player::controller::InteractData>(include_str!("../../../../godot/data/player/interactables.ron")).unwrap();
+        parse::<crate::player::controller::InteractData>(include_str!(
+            "../../../../godot/data/player/interactables.ron"
+        ))
+        .unwrap();
     }
 
     #[test]
     fn oxygen_tank_scatter_parses() {
-        parse::<crate::items::oxygen_tank::ScatterData>(include_str!("../../../../godot/data/items/oxygen_tanks.ron")).unwrap();
+        parse::<crate::items::oxygen_tank::ScatterData>(include_str!(
+            "../../../../godot/data/items/oxygen_tanks.ron"
+        ))
+        .unwrap();
     }
 
     #[test]
     fn frame_overlay_parses() {
-        parse::<crate::ui_bridge::frame_overlay::OverlayData>(include_str!("../../../../godot/data/debug/frame_overlay.ron")).unwrap();
+        parse::<crate::ui_bridge::frame_overlay::OverlayData>(include_str!(
+            "../../../../godot/data/debug/frame_overlay.ron"
+        ))
+        .unwrap();
     }
 }

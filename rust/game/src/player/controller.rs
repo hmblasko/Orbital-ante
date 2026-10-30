@@ -140,7 +140,10 @@ impl ICharacterBody3D for PlayerController {
             capsule.set_height(self.data.capsule_height);
             shape_node.set_shape(&capsule);
         }
-        if let Some(mut camera) = self.base().try_get_node_as::<godot::classes::Camera3D>(CAMERA_NODE) {
+        if let Some(mut camera) = self
+            .base()
+            .try_get_node_as::<godot::classes::Camera3D>(CAMERA_NODE)
+        {
             camera.set_fov(self.data.field_of_view);
         }
         let mut light = OmniLight3D::new_alloc();
@@ -165,9 +168,10 @@ impl ICharacterBody3D for PlayerController {
                 self.mouse_delta += motion.get_relative();
             }
         } else if let Ok(click) = event.try_cast::<InputEventMouseButton>()
-            && click.is_pressed() {
-                input.set_mouse_mode(MouseMode::CAPTURED);
-            }
+            && click.is_pressed()
+        {
+            input.set_mouse_mode(MouseMode::CAPTURED);
+        }
     }
 
     fn physics_process(&mut self, delta: f64) {
@@ -182,7 +186,11 @@ impl ICharacterBody3D for PlayerController {
         let position = self.base().get_global_position();
         let gravity = self.total_gravity(position);
         self.in_zero_g = gravity.length() < ZERO_G_THRESHOLD;
-        let up = if self.in_zero_g { self.base().get_global_basis().col_b() } else { -gravity.normalized() };
+        let up = if self.in_zero_g {
+            self.base().get_global_basis().col_b()
+        } else {
+            -gravity.normalized()
+        };
 
         let alive = self.suit.dead.is_none();
         if alive {
@@ -262,13 +270,20 @@ impl PlayerController {
         if self.suit.dead.is_some() {
             return GString::new();
         }
-        if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
+        if self.suit.tanks < self.suit_data.tanks.max_carried
+            && self
+                .nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m)
+                .is_some()
+        {
             return "take_tank".into();
         }
         if self.tether_anchor.is_some() {
             return "untether".into();
         }
-        if self.nearest_in_group(TETHER_GROUP, self.interact.tether_attach_range_m).is_some() {
+        if self
+            .nearest_in_group(TETHER_GROUP, self.interact.tether_attach_range_m)
+            .is_some()
+        {
             return "tether".into();
         }
         GString::new()
@@ -276,13 +291,16 @@ impl PlayerController {
 
     #[func]
     pub fn is_at_supply(&self) -> bool {
-        self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some()
+        self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m)
+            .is_some()
     }
 
     /// Empty while alive.
     #[func]
     pub fn get_death_key(&self) -> GString {
-        self.suit.dead.map_or(GString::new(), |c| GString::from(c.text_key()))
+        self.suit
+            .dead
+            .map_or(GString::new(), |c| GString::from(c.text_key()))
     }
 
     /// Test hook: set suit oxygen in seconds (feature tests only).
@@ -334,13 +352,18 @@ impl PlayerController {
         let ground = body.bind().surface_radius_toward(center + dir);
         let height = ground + self.data.capsule_height * 0.5 + self.data.spawn_height;
         let basis = motion::align_up(self.base().get_global_basis(), dir, std::f32::consts::PI);
-        self.base_mut().set_global_transform(Transform3D::new(basis, center + dir * height));
+        self.base_mut()
+            .set_global_transform(Transform3D::new(basis, center + dir * height));
     }
 
     /// Keep the body upright against gravity and apply horizontal look (yaw).
     fn update_orientation(&mut self, up: Vector3, dt: f32, alive: bool) {
         let input = Input::singleton();
-        let stick = if alive { input.get_vector("look_left", "look_right", "look_up", "look_down") } else { Vector2::ZERO };
+        let stick = if alive {
+            input.get_vector("look_left", "look_right", "look_up", "look_down")
+        } else {
+            Vector2::ZERO
+        };
         if !alive {
             self.mouse_delta = Vector2::ZERO;
         }
@@ -354,9 +377,14 @@ impl PlayerController {
         self.mouse_delta = Vector2::ZERO;
 
         // In zero-g there is no "up" to turn toward; keep the current one.
-        let max_turn = if self.in_zero_g { 0.0 } else { self.data.align_speed_deg.to_radians() * dt };
+        let max_turn = if self.in_zero_g {
+            0.0
+        } else {
+            self.data.align_speed_deg.to_radians() * dt
+        };
         let aligned = motion::align_up(self.base().get_global_basis(), up, max_turn);
-        let turned = (Basis::from_axis_angle(aligned.col_b().normalized(), -yaw) * aligned).orthonormalized();
+        let turned = (Basis::from_axis_angle(aligned.col_b().normalized(), -yaw) * aligned)
+            .orthonormalized();
         self.base_mut().set_global_basis(turned);
         self.base_mut().set_up_direction(up);
 
@@ -368,7 +396,11 @@ impl PlayerController {
     fn update_velocity(&mut self, gravity: Vector3, up: Vector3, dt: f32, alive: bool) {
         let input = Input::singleton();
         let on_floor = self.base().is_on_floor();
-        let stick = if alive { input.get_vector("move_left", "move_right", "move_forward", "move_back") } else { Vector2::ZERO };
+        let stick = if alive {
+            input.get_vector("move_left", "move_right", "move_forward", "move_back")
+        } else {
+            Vector2::ZERO
+        };
         let crouching = alive && input.is_action_pressed("crouch");
         let basis = self.base().get_global_basis();
         let mut velocity = self.base().get_velocity();
@@ -378,7 +410,11 @@ impl PlayerController {
         if on_floor {
             let forward = -basis.col_c();
             let right = basis.col_a();
-            let speed = if crouching { self.data.crouch_speed } else { self.data.walk_speed };
+            let speed = if crouching {
+                self.data.crouch_speed
+            } else {
+                self.data.walk_speed
+            };
             let wish = (right * stick.x - forward * stick.y) * speed;
             let (mut vertical, horizontal) = motion::split_vertical(velocity, up);
             let horizontal = horizontal.move_toward(wish, self.data.ground_acceleration * dt);
@@ -393,7 +429,16 @@ impl PlayerController {
             let available = self.suit.available_thrust(demand);
             let jp = &self.suit_data.jetpack;
             let camera_forward = self.camera_forward();
-            let dv = motion::jetpack_delta_v(basis, camera_forward, stick, vertical, jp.thrust_acceleration, jp.vertical_acceleration, available, dt);
+            let dv = motion::jetpack_delta_v(
+                basis,
+                camera_forward,
+                stick,
+                vertical,
+                jp.thrust_acceleration,
+                jp.vertical_acceleration,
+                available,
+                dt,
+            );
             velocity += dv;
             if available > 0.0 {
                 self.thrust = available;
@@ -403,7 +448,8 @@ impl PlayerController {
             if input.is_action_pressed("match_velocity") {
                 let relative = velocity - self.reference_velocity();
                 if relative.length() > 0.01 && self.suit.available_thrust(1.0) > 0.0 {
-                    let fix = motion::match_velocity_delta(relative, jp.match_velocity_acceleration, dt);
+                    let fix =
+                        motion::match_velocity_delta(relative, jp.match_velocity_acceleration, dt);
                     velocity += fix;
                     self.thrust = 1.0;
                     self.thrust_dir = fix.normalized();
@@ -452,7 +498,9 @@ impl PlayerController {
 
     fn try_pick_up_tank(&mut self) {
         let range = self.interact.tank_pickup_range_m;
-        let Some(mut tank) = self.nearest_in_group(TANK_GROUP, range) else { return };
+        let Some(mut tank) = self.nearest_in_group(TANK_GROUP, range) else {
+            return;
+        };
         if self.suit.take_tank(&self.suit_data) {
             // Leave the group now so a second press this frame can't take it again.
             tank.remove_from_group(TANK_GROUP);
@@ -483,7 +531,12 @@ impl PlayerController {
             None => return,
         };
         let position = self.base().get_global_position();
-        let velocity = motion::tether_velocity(anchor, position, self.base().get_velocity(), self.interact.tether_length_m);
+        let velocity = motion::tether_velocity(
+            anchor,
+            position,
+            self.base().get_velocity(),
+            self.interact.tether_length_m,
+        );
         self.base_mut().set_velocity(velocity);
     }
 
@@ -495,7 +548,9 @@ impl PlayerController {
             .iter_shared()
             .filter_map(|n| n.try_cast::<CelestialBody>().ok())
             .any(|b| b.bind().breathable_at(position));
-        let at_supply = self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some();
+        let at_supply = self
+            .nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m)
+            .is_some();
         let was_alive = self.suit.dead.is_none();
         let input = SuitInput {
             in_vacuum: !breathable,
@@ -507,10 +562,14 @@ impl PlayerController {
         if was_alive && let Some(cause) = self.suit.dead {
             self.tether_anchor = None;
             godot_print!("Player died: {}", cause.text_key());
-            self.base_mut().emit_signal("died", &[GString::from(cause.text_key()).to_variant()]);
+            self.base_mut()
+                .emit_signal("died", &[GString::from(cause.text_key()).to_variant()]);
         }
 
-        let line = self.tether_anchor.as_ref().map(|a| (a.get_global_position(), position));
+        let line = self
+            .tether_anchor
+            .as_ref()
+            .map(|a| (a.get_global_position(), position));
         if let Some(l) = self.tether_line.as_mut() {
             l.draw(line);
         }
@@ -524,7 +583,9 @@ impl PlayerController {
         if let Some(light) = self.thruster_light.as_mut() {
             light.set_param(Param::ENERGY, energy);
             if thrust > 0.0 {
-                let global = light.get_parent_node_3d().map_or(Transform3D::IDENTITY, |p| p.get_global_transform());
+                let global = light
+                    .get_parent_node_3d()
+                    .map_or(Transform3D::IDENTITY, |p| p.get_global_transform());
                 light.set_position(global.basis.inverse() * (-dir * 0.8));
             }
         }
@@ -532,7 +593,11 @@ impl PlayerController {
 
     fn update_head(&mut self, dt: f32) {
         let crouching = Input::singleton().is_action_pressed("crouch");
-        let target = if crouching { self.data.crouch_eye_height } else { self.data.eye_height };
+        let target = if crouching {
+            self.data.crouch_eye_height
+        } else {
+            self.data.eye_height
+        };
         let blend = (self.data.crouch_blend_speed * dt).min(1.0);
         self.eye_height += (target - self.eye_height) * blend;
         let (pitch, eye) = (self.pitch, self.eye_height);

@@ -44,11 +44,19 @@ impl INode for GameRoot {
     }
 
     fn ready(&mut self) {
-        self.base_mut().add_to_group(crate::player::hud::GAME_ROOT_GROUP);
-        let crash_dir = ProjectSettings::singleton().globalize_path(&self.data.crash_log_dir).to_string();
+        self.base_mut()
+            .add_to_group(crate::player::hud::GAME_ROOT_GROUP);
+        let crash_dir = ProjectSettings::singleton()
+            .globalize_path(&self.data.crash_log_dir)
+            .to_string();
         crash::install(crash_dir.into());
 
-        let raw: Vec<String> = Os::singleton().get_cmdline_user_args().as_slice().iter().map(|s| s.to_string()).collect();
+        let raw: Vec<String> = Os::singleton()
+            .get_cmdline_user_args()
+            .as_slice()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         self.args = match LaunchArgs::parse(&raw) {
             Ok(a) => a,
             Err(e) => {
@@ -76,7 +84,9 @@ impl GameRoot {
         if !self.args.is_test_run() {
             SaveData::singleton().bind_mut().autosave();
         }
-        let Some(scene) = self.swap_to(&self.data.slice_scene.clone()) else { return };
+        let Some(scene) = self.swap_to(&self.data.slice_scene.clone()) else {
+            return;
+        };
         if let Some(mode) = self.harness_mode() {
             let mut harness = Harness::new_alloc();
             harness.bind_mut().configure(mode, scene);
@@ -112,10 +122,14 @@ impl GameRoot {
         // A replay brings its own seed unless one is given explicitly.
         let requested = self.args.seed.clone().or_else(|| {
             let path = self.args.replay.as_ref()?;
-            crate::verify::harness::load_replay(path).ok().map(|r| r.seed_code)
+            crate::verify::harness::load_replay(path)
+                .ok()
+                .map(|r| r.seed_code)
         });
         let code = match &requested {
-            Some(code) if run_seed.bind_mut().set_code(GString::from(code)) => run_seed.bind().get_code(),
+            Some(code) if run_seed.bind_mut().set_code(GString::from(code)) => {
+                run_seed.bind().get_code()
+            }
             Some(code) => {
                 godot_error!("GameRoot: '{code}' is not a valid seed code; using a random seed");
                 run_seed.bind_mut().new_random()
@@ -123,20 +137,37 @@ impl GameRoot {
             None => run_seed.bind_mut().new_random(),
         };
         let version = ProjectSettings::singleton().get_setting("application/config/version");
-        crash::set_context(format!("seed: {code}\nversion: {version}\nargs: {:?}", self.args));
+        crash::set_context(format!(
+            "seed: {code}\nversion: {version}\nargs: {:?}",
+            self.args
+        ));
         godot_print!("Run seed: {code}");
     }
 
     fn harness_mode(&self) -> Option<HarnessMode> {
-        let out = self.args.out.clone().unwrap_or_else(|| "user://verify".to_string());
+        let out = self
+            .args
+            .out
+            .clone()
+            .unwrap_or_else(|| "user://verify".to_string());
         if let Some(path) = &self.args.replay {
-            Some(HarnessMode::Replay { path: path.clone(), out })
+            Some(HarnessMode::Replay {
+                path: path.clone(),
+                out,
+            })
         } else if self.args.smoke {
-            Some(HarnessMode::Smoke { duration_s: self.args.duration_s, bot: self.args.bot.clone(), out })
+            Some(HarnessMode::Smoke {
+                duration_s: self.args.duration_s,
+                bot: self.args.bot.clone(),
+                out,
+            })
         } else if self.args.screenshots {
             Some(HarnessMode::Screenshots { out })
         } else {
-            self.args.record.as_ref().map(|path| HarnessMode::Record { path: path.clone() })
+            self.args
+                .record
+                .as_ref()
+                .map(|path| HarnessMode::Record { path: path.clone() })
         }
     }
 

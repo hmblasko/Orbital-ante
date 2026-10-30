@@ -16,7 +16,7 @@ light_angular_distance = 0.6
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_mode = 1
-directional_shadow_max_distance = 120.0
+directional_shadow_max_distance = 160.0
 
 [node name="TestSphere" type="CelestialBody" parent="."]
 data_path = "res://data/bodies/test_sphere.ron"
@@ -25,20 +25,23 @@ data_path = "res://data/bodies/test_sphere.ron"
 body_index = 0
 
 [node name="SupplyPoint" type="SupplyPoint" parent="TestSphere"]
-transform = Transform3D(1.0000, 0.0000, -0.0000, 0.0000, 0.9929, 0.1191, 0.0000, -0.1191, 0.9929, 0.000, 59.573, -7.149)
+transform = Transform3D(1.0000, 0.0000, -0.0000, 0.0000, 0.9926, 0.1219, 0.0000, -0.1219, 0.9926, 0.000, 148.9, -18.3)
 
 [node name="TetherAnchor" type="TetherAnchor" parent="TestSphere/SupplyPoint"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
 
+[node name="Landmarks" type="LandmarkSet" parent="TestSphere"]
+data_path = "res://data/bodies/test_sphere_landmarks.ron"
+
 [node name="TestMoonlet" type="CelestialBody" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -130, 60, -220)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -300, 260, -480)
 data_path = "res://data/bodies/test_moonlet.ron"
 
 [node name="OxygenTanks" type="OxygenTankScatter" parent="TestMoonlet"]
 body_index = 1
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 70, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 160, 0)
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

@@ -12,7 +12,7 @@ const OXYGEN_REFILL_PER_S := 40.0     # data/player/suit.ron
 const OXYGEN_PER_TANK := 90.0         # data/player/suit.ron
 const TETHER_LENGTH := 25.0           # data/player/interactables.ron
 const SUFFOCATION_SECONDS := 10.0     # health 100 / 10 per second
-const ZERO_G_POINT := Vector3(-260, 0, 0)  # outside both test bodies' gravity
+const ZERO_G_POINT := Vector3(-600, 0, 0)  # outside both test bodies' gravity
 
 var scene: Node
 var player: CharacterBody3D

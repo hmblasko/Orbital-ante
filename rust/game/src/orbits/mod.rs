@@ -2,5 +2,6 @@
 
 pub mod body;
 pub mod gravity;
+pub mod landmarks;
 
 pub use body::CelestialBody;

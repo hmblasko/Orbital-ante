@@ -109,7 +109,11 @@ impl SuitState {
 
     /// How much of the requested thrust the fuel allows (0.0 to 1.0).
     pub fn available_thrust(&self, requested: f32) -> f32 {
-        if self.fuel_s > 0.0 && self.dead.is_none() { requested.clamp(0.0, 1.0) } else { 0.0 }
+        if self.fuel_s > 0.0 && self.dead.is_none() {
+            requested.clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
     }
 
     /// Advance by `dt` seconds.
@@ -119,7 +123,8 @@ impl SuitState {
         }
         // Oxygen.
         if input.at_supply_point {
-            self.oxygen_s = (self.oxygen_s + data.oxygen_refill_per_s * dt).min(data.oxygen_capacity_s);
+            self.oxygen_s =
+                (self.oxygen_s + data.oxygen_refill_per_s * dt).min(data.oxygen_capacity_s);
         } else if input.in_vacuum {
             self.oxygen_s = (self.oxygen_s - dt).max(0.0);
         }
@@ -178,7 +183,10 @@ mod tests {
     }
 
     fn vacuum() -> SuitInput {
-        SuitInput { in_vacuum: true, ..Default::default() }
+        SuitInput {
+            in_vacuum: true,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -223,7 +231,15 @@ mod tests {
         s.oxygen_s = 1.0;
         s.fuel_s = 0.0;
         for _ in 0..1000 {
-            s.step(&d, SuitInput { in_vacuum: true, at_supply_point: true, ..Default::default() }, 0.1);
+            s.step(
+                &d,
+                SuitInput {
+                    in_vacuum: true,
+                    at_supply_point: true,
+                    ..Default::default()
+                },
+                0.1,
+            );
         }
         assert_eq!(s.oxygen_s, d.oxygen_capacity_s);
         assert_eq!(s.fuel_s, d.jetpack.fuel_capacity_s);
@@ -233,7 +249,10 @@ mod tests {
     fn thrust_burns_fuel_and_stops_when_empty() {
         let d = data();
         let mut s = SuitState::new(&d);
-        let input = SuitInput { thrust: 1.0, ..Default::default() };
+        let input = SuitInput {
+            thrust: 1.0,
+            ..Default::default()
+        };
         let steps = (d.jetpack.fuel_capacity_s / 0.1).ceil() as usize + 5;
         for _ in 0..steps {
             s.step(&d, input, 0.1);
@@ -247,7 +266,10 @@ mod tests {
         let d = data();
         let mut s = SuitState::new(&d);
         s.fuel_s = 0.0;
-        let ground = SuitInput { on_ground: true, ..Default::default() };
+        let ground = SuitInput {
+            on_ground: true,
+            ..Default::default()
+        };
         let before_delay = ((d.jetpack.ground_refuel_delay_s / 0.1) as usize).saturating_sub(1);
         for _ in 0..before_delay {
             s.step(&d, ground, 0.1);
@@ -270,7 +292,10 @@ mod tests {
         assert!(!s.use_tank(&d), "full suit: keep the tank");
         s.oxygen_s = 0.0;
         assert!(s.use_tank(&d));
-        assert_eq!(s.oxygen_s, d.tanks.oxygen_per_tank_s.min(d.oxygen_capacity_s));
+        assert_eq!(
+            s.oxygen_s,
+            d.tanks.oxygen_per_tank_s.min(d.oxygen_capacity_s)
+        );
         assert_eq!(s.tanks, d.tanks.max_carried - 1);
     }
 

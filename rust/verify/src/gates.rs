@@ -30,11 +30,18 @@ pub fn load(dir: &Path) -> Vec<Gate> {
 
 pub fn append(dir: &Path, gate: Gate) -> Result<(), String> {
     if !["pass", "fail", "not_run"].contains(&gate.status.as_str()) {
-        return Err(format!("status must be pass, fail or not_run, not '{}'", gate.status));
+        return Err(format!(
+            "status must be pass, fail or not_run, not '{}'",
+            gate.status
+        ));
     }
     let mut gates = load(dir);
     gates.retain(|g| g.name != gate.name);
     gates.push(gate);
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(GATES_FILE), serde_json::to_string_pretty(&gates).unwrap()).map_err(|e| e.to_string())
+    std::fs::write(
+        dir.join(GATES_FILE),
+        serde_json::to_string_pretty(&gates).unwrap(),
+    )
+    .map_err(|e| e.to_string())
 }

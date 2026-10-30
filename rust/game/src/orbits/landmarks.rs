@@ -1,0 +1,235 @@
+//! `LandmarkSet`: real NASA hardware placed on and around a body, from a
+//! RON file. Surface pieces (a parked lander, a tracking dish, a crashed
+//! probe) stand on the terrain; orbiters (Hubble, TDRS, Voyager) circle
+//! the body on inclined orbits and keep moving whether watched or not.
+//!
+//! Serves pillar 1 (a living clockwork system: satellites orbit) and
+//! fun rule 4 (curiosity: recognisable hardware to fly to and find).
+//! Models come from NASA 3D Resources; see docs/asset_licence_ledger.md.
+
+use godot::classes::{
+    CollisionShape3D, INode3D, MeshInstance3D, Node3D, PackedScene, StaticBody3D,
+};
+use godot::prelude::*;
+use serde::Deserialize;
+
+use super::CelestialBody;
+use super::body::basis_with_up;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LandmarkData {
+    #[serde(default)]
+    pub surface: Vec<SurfaceLandmark>,
+    #[serde(default)]
+    pub orbiters: Vec<Orbiter>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SurfaceLandmark {
+    pub name: String,
+    pub model: String,
+    /// Direction from the body's centre.
+    pub at: (f32, f32, f32),
+    pub scale: f32,
+    pub yaw_deg: f32,
+    /// Lean, for wrecks that came down hard.
+    #[serde(default)]
+    pub tilt_deg: f32,
+    /// How far the model sinks into the ground, in metres.
+    #[serde(default)]
+    pub sink_m: f32,
+    /// Solid convex hull per part so the player can't walk through it.
+    #[serde(default)]
+    pub solid: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Orbiter {
+    pub name: String,
+    pub model: String,
+    pub scale: f32,
+    /// Distance from the body's centre, in metres.
+    pub orbit_radius_m: f32,
+    /// Seconds per full orbit.
+    pub period_s: f32,
+    pub inclination_deg: f32,
+    /// Where the orbit crosses the equator (longitude of the ascending node).
+    pub node_deg: f32,
+    /// Starting angle along the orbit.
+    pub phase_deg: f32,
+    /// Slow tumble, degrees per second about each axis.
+    #[serde(default)]
+    pub spin_deg_s: (f32, f32, f32),
+}
+
+/// Position on a circular inclined orbit at `time` seconds (pure, for tests).
+pub fn orbit_position(o: &Orbiter, time: f32) -> Vector3 {
+    let angle = o.phase_deg.to_radians() + time / o.period_s.max(0.001) * std::f32::consts::TAU;
+    let flat = Vector3::new(angle.cos(), 0.0, angle.sin()) * o.orbit_radius_m;
+    let tilt = Basis::from_axis_angle(Vector3::RIGHT, o.inclination_deg.to_radians());
+    let node = Basis::from_axis_angle(Vector3::UP, o.node_deg.to_radians());
+    node * (tilt * flat)
+}
+
+#[derive(GodotClass)]
+#[class(base = Node3D, init)]
+pub struct LandmarkSet {
+    #[export(file = "*.ron")]
+    data_path: GString,
+    data: Option<LandmarkData>,
+    orbiter_nodes: Vec<Gd<Node3D>>,
+    time: f32,
+    base: Base<Node3D>,
+}
+
+#[godot_api]
+impl INode3D for LandmarkSet {
+    fn ready(&mut self) {
+        let Some(data) = crate::data::try_load::<LandmarkData>(&self.data_path.to_string()) else {
+            godot_error!("LandmarkSet: no data at {}", self.data_path);
+            return;
+        };
+        for o in &data.orbiters {
+            if let Some(model) = instantiate(&o.model, &o.name) {
+                let mut holder = Node3D::new_alloc();
+                holder.set_name(&o.name);
+                let mut model = model;
+                model.set_scale(Vector3::splat(o.scale));
+                holder.add_child(&model);
+                holder.set_position(orbit_position(o, 0.0));
+                self.base_mut().add_child(&holder);
+                self.orbiter_nodes.push(holder);
+            }
+        }
+        self.data = Some(data);
+        // The parent body builds its terrain after its children are ready.
+        self.base_mut().call_deferred("place_on_surface", &[]);
+    }
+
+    fn physics_process(&mut self, delta: f64) {
+        self.time += delta as f32;
+        let Some(data) = &self.data else { return };
+        let time = self.time;
+        for (o, node) in data.orbiters.iter().zip(self.orbiter_nodes.iter_mut()) {
+            node.set_position(orbit_position(o, time));
+            let s = o.spin_deg_s;
+            let spin = Vector3::new(s.0, s.1, s.2) * (delta as f32).to_radians();
+            node.rotate_x(spin.x);
+            node.rotate_y(spin.y);
+            node.rotate_z(spin.z);
+        }
+    }
+}
+
+#[godot_api]
+impl LandmarkSet {
+    /// Stand each surface landmark on the terrain under its direction.
+    #[func]
+    fn place_on_surface(&mut self) {
+        // The scene may have been swapped out before this deferred call ran.
+        if !self.base().is_inside_tree() {
+            return;
+        }
+        let Some(body) = self
+            .base()
+            .get_parent()
+            .and_then(|p| p.try_cast::<CelestialBody>().ok())
+        else {
+            godot_error!("LandmarkSet must be a child of a CelestialBody");
+            return;
+        };
+        let Some(data) = self.data.clone() else {
+            return;
+        };
+        let center = body.get_global_position();
+        for l in &data.surface {
+            let Some(mut model) = instantiate(&l.model, &l.name) else {
+                continue;
+            };
+            let dir = Vector3::new(l.at.0, l.at.1, l.at.2).normalized();
+            let ground = body.bind().surface_radius_toward(center + dir);
+            let yaw = Basis::from_axis_angle(Vector3::UP, l.yaw_deg.to_radians());
+            let tilt = Basis::from_axis_angle(Vector3::RIGHT, l.tilt_deg.to_radians());
+            let basis = (basis_with_up(dir) * yaw * tilt).scaled(Vector3::splat(l.scale));
+            let transform = Transform3D::new(basis, center + dir * (ground - l.sink_m));
+            if l.solid {
+                let mut solid = StaticBody3D::new_alloc();
+                solid.set_name(&l.name);
+                self.base_mut().add_child(&solid);
+                solid.set_global_transform(transform);
+                solid.add_child(&model);
+                add_hulls(&mut solid, &model);
+            } else {
+                self.base_mut().add_child(&model);
+                model.set_global_transform(transform);
+            }
+        }
+    }
+}
+
+fn instantiate(path: &str, name: &str) -> Option<Gd<Node3D>> {
+    let scene = try_load::<PackedScene>(path).ok()?;
+    let mut node = scene.instantiate()?.try_cast::<Node3D>().ok()?;
+    node.set_name(&format!("{name}Model"));
+    Some(node)
+}
+
+/// One convex hull per mesh part, in the solid body's space.
+fn add_hulls(solid: &mut Gd<StaticBody3D>, model: &Gd<Node3D>) {
+    let parts = model
+        .find_children_ex("*")
+        .type_("MeshInstance3D")
+        .recursive(true)
+        .owned(false)
+        .done();
+    let inverse = solid.get_global_transform().affine_inverse();
+    for part in parts.iter_shared() {
+        let Ok(part) = part.try_cast::<MeshInstance3D>() else {
+            continue;
+        };
+        let Some(mesh) = part.get_mesh() else {
+            continue;
+        };
+        let Some(shape) = mesh
+            .create_convex_shape_ex()
+            .clean(true)
+            .simplify(true)
+            .done()
+        else {
+            continue;
+        };
+        let mut collision = CollisionShape3D::new_alloc();
+        collision.set_shape(&shape);
+        solid.add_child(&collision);
+        collision.set_transform(inverse * part.get_global_transform());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn orbiter() -> Orbiter {
+        Orbiter {
+            name: "Test".into(),
+            model: String::new(),
+            scale: 1.0,
+            orbit_radius_m: 200.0,
+            period_s: 100.0,
+            inclination_deg: 30.0,
+            node_deg: 40.0,
+            phase_deg: 10.0,
+            spin_deg_s: (0.0, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    fn determinism_orbits_are_circular_and_periodic() {
+        let o = orbiter();
+        for t in [0.0, 12.5, 61.0] {
+            assert!((orbit_position(&o, t).length() - 200.0).abs() < 1e-2);
+            assert!(orbit_position(&o, t).distance_to(orbit_position(&o, t + 100.0)) < 1e-2);
+        }
+        assert!(orbit_position(&o, 0.0).distance_to(orbit_position(&o, 25.0)) > 100.0);
+    }
+}

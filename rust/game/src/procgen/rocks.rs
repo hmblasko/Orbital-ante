@@ -18,12 +18,21 @@ pub fn rock_mesh(seed: u32, subdivisions: u32, roughness: f32, squash: f32) -> M
         let d = p.normalized();
         // Big lumps plus flat facets (the ridged term), so it reads as chipped stone.
         let lump = noise::fbm3([d.x * 1.3, d.y * 1.3, d.z * 1.3], 3, 0.5, seed);
-        let facet = noise::ridged3([d.x * 2.2 + 5.0, d.y * 2.2, d.z * 2.2], 2, 0.5, seed.wrapping_add(9));
+        let facet = noise::ridged3(
+            [d.x * 2.2 + 5.0, d.y * 2.2, d.z * 2.2],
+            2,
+            0.5,
+            seed.wrapping_add(9),
+        );
         let r = 1.0 + lump * roughness - facet * roughness * 0.6;
         let mut v = d * r.max(0.35);
         v.y *= squash;
         mesh.positions.push(v);
-        mesh.samples.push(SurfaceSample { height: v.y, crater_floor: 0.0, crater_rim: facet });
+        mesh.samples.push(SurfaceSample {
+            height: v.y,
+            crater_rim: facet,
+            ..Default::default()
+        });
     }
     mesh.indices = indices;
     mesh.recompute_flat_ish_normals();
@@ -33,16 +42,26 @@ pub fn rock_mesh(seed: u32, subdivisions: u32, roughness: f32, squash: f32) -> M
 fn icosahedron() -> (Vec<Vector3>, Vec<i32>) {
     let t = (1.0 + 5f32.sqrt()) / 2.0;
     let positions = [
-        (-1.0, t, 0.0), (1.0, t, 0.0), (-1.0, -t, 0.0), (1.0, -t, 0.0),
-        (0.0, -1.0, t), (0.0, 1.0, t), (0.0, -1.0, -t), (0.0, 1.0, -t),
-        (t, 0.0, -1.0), (t, 0.0, 1.0), (-t, 0.0, -1.0), (-t, 0.0, 1.0),
+        (-1.0, t, 0.0),
+        (1.0, t, 0.0),
+        (-1.0, -t, 0.0),
+        (1.0, -t, 0.0),
+        (0.0, -1.0, t),
+        (0.0, 1.0, t),
+        (0.0, -1.0, -t),
+        (0.0, 1.0, -t),
+        (t, 0.0, -1.0),
+        (t, 0.0, 1.0),
+        (-t, 0.0, -1.0),
+        (-t, 0.0, 1.0),
     ]
     .iter()
     .map(|&(x, y, z)| Vector3::new(x, y, z).normalized())
     .collect();
     let indices = vec![
-        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
-        3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
+        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7,
+        1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9,
+        8, 1,
     ];
     (positions, indices)
 }
@@ -73,14 +92,22 @@ impl MeshData {
     pub fn recompute_flat_ish_normals(&mut self) {
         // Outward winding first.
         for t in self.indices.chunks_exact_mut(3) {
-            let (a, b, c) = (self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]);
+            let (a, b, c) = (
+                self.positions[t[0] as usize],
+                self.positions[t[1] as usize],
+                self.positions[t[2] as usize],
+            );
             if (c - a).cross(b - a).dot(a + b + c) < 0.0 {
                 t.swap(1, 2);
             }
         }
         let mut normals = vec![Vector3::ZERO; self.positions.len()];
         for t in self.indices.chunks_exact(3) {
-            let (a, b, c) = (self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]);
+            let (a, b, c) = (
+                self.positions[t[0] as usize],
+                self.positions[t[1] as usize],
+                self.positions[t[2] as usize],
+            );
             let n = (c - a).cross(b - a);
             for &i in t {
                 normals[i as usize] += n;

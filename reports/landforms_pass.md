@@ -1,0 +1,22 @@
+# Landforms, assets and NASA hardware pass (2026-10-30)
+
+Matthew's ask: refine graphics; add mountains, mesas, hoodoos, canyons, volcanoes, lakes, rivers and pools; make assets look less cheap; bring in the NASA satellites and ships.
+
+## What changed
+- Test planet grown from 60 m to 150 m radius (the bottom of the moon range), painted-desert palette, 128 cells per cube face drawn as 96 tiles (off-screen tiles are culled).
+- `procgen/landforms.rs`: mountains, mesas (stepped cliffs, flat caprock), volcanoes (caldera, lava lake, lava streaks), canyons cut into a raised plateau with a stream on the floor, meandering rivers that drain into lakes, lakes with damp shores, and spring pools ringed by white mineral terraces. Placed by hand near the landing zone, plus seeded extras elsewhere. All sizes and counts in `data/bodies/test_sphere.ron`.
+- Water shader (depth colour, shore foam, ripples, sun glint) and lava glow in the terrain shader. Layered rock bands on mesa and canyon walls.
+- Hoodoos: eroded stone columns with banded colours and a darker caprock, clustered around mesas and canyon rims.
+- NASA 3D Resources models: Apollo Lunar Module (parked by the landing zone), DSN 34 m dish, Viking lander wreck, and Hubble, TDRS and Voyager on inclined orbits. All decimated to Deck budgets and merged to a few draw calls. The lander's US flag and "UNITED STATES" textures were replaced with plain gold foil.
+- Smoke test now measures ground clearance against the real collision with a ray (cliffs make the mesh differ from the height function between vertices) and treats "left the surface" as more than 3 s airborne.
+
+## Pillars and fun rules
+Pillar 1 (satellites orbit) and pillar 3 (landmarks to learn); fun rule 4 (curiosity) and rule 11 (systems to collide with: cliffs, water, lava).
+
+## Measured
+All automated gates pass locally (88 unit, 19 determinism, 11 data, smoke, 2 feature scenes, replay 0.0 m). Steam Deck frame times: not measured. Terrain is now about 197k triangles plus 6 NASA models (about 116k triangles in total).
+
+## Known limits / placeholders
+- Canyon walls and stream edges look faceted: the 1.8 m terrain cells are too coarse for them. Phase 5's streamed, level-of-detail terrain fixes this.
+- Water is visual only (you walk on the lake bed; no swimming yet), and liquid water on an airless test world is for showing the shader.
+- NASA models still use their original materials, not the TF2 paint pass.

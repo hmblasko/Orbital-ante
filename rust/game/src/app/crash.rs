@@ -23,9 +23,14 @@ pub fn install(dir: PathBuf) {
     INSTALL.call_once(move || {
         let previous = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
-            let when = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+            let when = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
             let context = CONTEXT.lock().map(|c| c.clone()).unwrap_or_default();
-            let text = format!("Orbital Ante crash log\nunix_time: {when}\n{context}\n\n{info}\n\n{}", Backtrace::force_capture());
+            let text = format!(
+                "Orbital Ante crash log\nunix_time: {when}\n{context}\n\n{info}\n\n{}",
+                Backtrace::force_capture()
+            );
             if fs::create_dir_all(&dir).is_ok() {
                 let _ = fs::write(dir.join(format!("crash_{when}.txt")), text);
             }

@@ -17,6 +17,8 @@ uniform float specular = 0.0;
 uniform float shininess = 24.0;
 uniform vec3 emission : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
+// Take the base colour from the mesh's vertex colours (hoodoo bands) instead of `albedo`.
+uniform bool use_vertex_color = false;
 
 varying vec3 obj_pos;
 varying vec3 obj_normal;
@@ -30,7 +32,10 @@ void fragment() {
 	vec3 w = pow(abs(obj_normal), vec3(4.0));
 	w /= (w.x + w.y + w.z);
 	float g = texture(grain_noise, obj_pos.zy * grain_scale).r * w.x + texture(grain_noise, obj_pos.xz * grain_scale).r * w.y + texture(grain_noise, obj_pos.xy * grain_scale).r * w.z;
-	ALBEDO = mix(albedo_dark, albedo, clamp(1.0 - grain_strength + g * grain_strength * 2.0, 0.0, 1.0));
+	// Vertex colours arrive as sRGB; the lighting works in linear.
+	vec3 base = use_vertex_color ? pow(COLOR.rgb, vec3(2.2)) : albedo;
+	vec3 dark = use_vertex_color ? base * 0.55 : albedo_dark;
+	ALBEDO = mix(dark, base, clamp(1.0 - grain_strength + g * grain_strength * 2.0, 0.0, 1.0));
 	EMISSION = emission * emission_energy;
 	ROUGHNESS = 1.0;
 }

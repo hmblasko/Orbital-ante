@@ -51,9 +51,12 @@ transform = Transform3D(0.9659, 0.2588, 0, -0.2588, 0.9659, 0, 0, 0, 1, 0, 0, 0)
 [node name="Planet" type="CelestialBody" parent="Backdrop/View/Spin"]
 data_path = "res://data/bodies/test_sphere.ron"
 
+[node name="Landmarks" type="LandmarkSet" parent="Backdrop/View/Spin/Planet"]
+data_path = "res://data/bodies/test_sphere_landmarks.ron"
+
 [node name="Moonlet" type="CelestialBody" parent="Backdrop/View"]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 80, 10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 175, 200, 25)
 data_path = "res://data/bodies/test_moonlet.ron"
 
 [node name="Camera3D" type="Camera3D" parent="Backdrop/View"]

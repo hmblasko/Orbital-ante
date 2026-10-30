@@ -23,7 +23,10 @@ pub struct SaveData {
 impl IObject for SaveData {
     fn init(base: Base<Object>) -> Self {
         Self {
-            current: SaveFile { version: CURRENT_VERSION, ..Default::default() },
+            current: SaveFile {
+                version: CURRENT_VERSION,
+                ..Default::default()
+            },
             store: None,
             base,
         }
@@ -76,8 +79,15 @@ impl SaveData {
     #[func]
     pub fn begin_run(&mut self) {
         self.current.meta.runs_started += 1;
-        let code = crate::seed::RunSeed::singleton().bind().get_code().to_string();
-        self.current.run = Some(super::format::RunSave { seed_code: code, ante: 1, ..Default::default() });
+        let code = crate::seed::RunSeed::singleton()
+            .bind()
+            .get_code()
+            .to_string();
+        self.current.run = Some(super::format::RunSave {
+            seed_code: code,
+            ante: 1,
+            ..Default::default()
+        });
     }
 
     /// Death ends the run (CLAUDE.md section 2): the run's Wallet, score and
@@ -103,7 +113,9 @@ impl SaveData {
     fn store(&mut self) -> &SaveStore {
         self.store.get_or_insert_with(|| {
             let settings: SaveSettings = crate::data::load(DATA_PATH, DATA_EMBEDDED);
-            let dir = ProjectSettings::singleton().globalize_path(&settings.directory).to_string();
+            let dir = ProjectSettings::singleton()
+                .globalize_path(&settings.directory)
+                .to_string();
             SaveStore::new(dir, settings.keep_autosaves)
         })
     }
@@ -117,7 +129,11 @@ impl SaveData {
             .unwrap_or_default();
     }
 
-    fn finish_write(&mut self, save: SaveFile, result: std::io::Result<std::path::PathBuf>) -> bool {
+    fn finish_write(
+        &mut self,
+        save: SaveFile,
+        result: std::io::Result<std::path::PathBuf>,
+    ) -> bool {
         match result {
             Ok(path) => {
                 godot_print!("SaveData: wrote {}", path.display());

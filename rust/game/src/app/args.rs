@@ -35,7 +35,11 @@ impl LaunchArgs {
                 "--seed" => out.seed = Some(need(value)?),
                 "--smoke" => out.smoke = true,
                 "--duration" => {
-                    out.duration_s = Some(need(value)?.parse().map_err(|_| "--duration must be a number of seconds".to_string())?)
+                    out.duration_s = Some(
+                        need(value)?
+                            .parse()
+                            .map_err(|_| "--duration must be a number of seconds".to_string())?,
+                    )
                 }
                 "--bot" => out.bot = Some(need(value)?),
                 "--replay" => out.replay = Some(need(value)?),
@@ -59,7 +63,13 @@ mod tests {
 
     #[test]
     fn parses_smoke_options() {
-        let a = LaunchArgs::parse(&["--smoke", "--seed=AAAA-BBBB", "--duration=60", "--out=/tmp/x"]).unwrap();
+        let a = LaunchArgs::parse(&[
+            "--smoke",
+            "--seed=AAAA-BBBB",
+            "--duration=60",
+            "--out=/tmp/x",
+        ])
+        .unwrap();
         assert!(a.smoke && a.is_test_run());
         assert_eq!(a.seed.as_deref(), Some("AAAA-BBBB"));
         assert_eq!(a.duration_s, Some(60.0));

@@ -3,7 +3,8 @@
 // never pure black, plus a view-dependent rim light. Albedo is painted
 // from per-vertex hints (crater floors, rims, height, slope) and broad,
 // low-contrast noise, like a hand-painted texture with soft gradients.
-// COLOR.r = crater floor, COLOR.g = crater rim, COLOR.b = normalised height.
+// COLOR.r = crater floor, COLOR.g = crater rim, COLOR.b = normalised height,
+// COLOR.a = mineral terraces; UV = (strata, lava); UV2 = (snow, wet).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
@@ -25,6 +26,15 @@ uniform float body_radius = 60.0;
 // Strength is the bump height in metres for a full 0..1 noise swing.
 uniform float bump_strength = 0.03;
 uniform float bump_scale = 0.12;
+// Landform paint (procgen/landforms.rs).
+uniform vec3 strata_a : source_color = vec3(0.62, 0.55, 0.50);
+uniform vec3 strata_b : source_color = vec3(0.48, 0.43, 0.40);
+uniform vec3 basalt_color : source_color = vec3(0.18, 0.17, 0.19);
+uniform vec3 lava_color : source_color = vec3(1.0, 0.42, 0.08);
+uniform float lava_energy = 3.0;
+uniform vec3 snow_color : source_color = vec3(0.92, 0.94, 0.98);
+uniform vec3 wet_color : source_color = vec3(0.30, 0.28, 0.27);
+uniform vec3 mineral_color : source_color = vec3(0.93, 0.92, 0.86);
 
 varying vec3 local_pos;
 varying vec3 local_normal;
@@ -61,6 +71,27 @@ void fragment() {
 	albedo = mix(albedo, color_slope, smoothstep(0.12, 0.4, slope));
 	albedo = mix(albedo, color_crater, COLOR.r * 0.85);
 	albedo = mix(albedo, color_rim, COLOR.g * 0.6);
+	// Layered rock bands by altitude, wobbled so they never look ruled.
+	float strata = UV.x;
+	float alt = length(local_pos) + (broad - 0.5) * 3.0 + (grain - 0.5) * 0.4;
+	float band = sin(alt * 1.5) * 0.5 + 0.5;
+	float coarse = sin(alt * 0.45 + 1.3) * 0.5 + 0.5;
+	vec3 rock = mix(strata_a, strata_b, smoothstep(0.15, 0.85, band));
+	rock = mix(rock, rock * vec3(1.06, 0.98, 0.92), smoothstep(0.6, 0.95, coarse));
+	rock *= 1.0 - 0.1 * smoothstep(0.75, 0.95, coarse);
+	albedo = mix(albedo, rock, strata * mix(0.6, 1.0, smoothstep(0.1, 0.4, slope)));
+	// Volcanic basalt, damp banks, mineral terraces, snow caps.
+	float lava = UV.y;
+	albedo = mix(albedo, basalt_color * (0.85 + broad * 0.3), smoothstep(0.05, 0.28, lava));
+	albedo = mix(albedo, wet_color, UV2.y * 0.7);
+	float mineral = COLOR.a;
+	albedo = mix(albedo, mineral_color * (0.94 + grain * 0.1), smoothstep(0.15, 0.55, mineral));
+	float snow = smoothstep(0.25, 0.6, UV2.x + (broad - 0.5) * 0.5) * (1.0 - 0.75 * smoothstep(0.3, 0.6, slope));
+	albedo = mix(albedo, snow_color, snow);
+	// Glowing lava with a cooled crust breaking it up.
+	float glow = smoothstep(0.6, 0.95, lava) * smoothstep(0.25, 0.55, grain + broad * 0.4);
+	albedo = mix(albedo, vec3(0.08, 0.06, 0.06), smoothstep(0.6, 0.95, lava));
+	EMISSION = lava_color * lava_energy * glow;
 	// Soft painterly variation and fine regolith grain.
 	albedo *= 0.88 + broad * 0.22;
 	albedo *= 0.90 + grain * 0.2;

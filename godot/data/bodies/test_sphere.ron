@@ -1,49 +1,104 @@
-// PLACEHOLDER body for the Phase 0 sphere-walk test scene.
-// Not part of the body roster; it is deliberately smaller than a moon
-// (section 4: moons are 150-400 m) so the curvature is easy to feel.
+// PLACEHOLDER body for the test scenes: a small painted-desert world that
+// shows every landform preset in one place (section 4: hilly, never flat;
+// mountains, mesas, hoodoos, canyons, volcanoes, lakes, rivers, pools).
+// Not part of the body roster. Radius 150 m is the low end of the moon
+// range, so the curve is still easy to feel on foot.
+// The liquid water is for showing the water shader; no vacuum world has it.
 (
     name: "Test Sphere (placeholder)",
-    radius: 60.0,
+    radius: 150.0,
     gravity: (
         surface_gravity: 9.0,
-        // Small enough that a zero-g gap separates it from the test moonlet.
-        influence_radius: 150.0,
+        // Leaves a zero-g gap before the test moonlet's field.
+        influence_radius: 330.0,
     ),
-    // No atmosphere: vacuum, like the Moon, so the suit uses oxygen.
     terrain: (
         seed: 4217,
-        // 96 x 96 cells per cube face: about 110k triangles.
-        subdivisions: 96,
-        hill_height_m: 1.3,
-        hill_frequency: 3.5,
+        // 128 x 128 cells per cube face: about 197k triangles, 1.8 m cells.
+        subdivisions: 128,
+        hill_height_m: 2.0,
+        hill_frequency: 5.5,
         hill_octaves: 5,
-        ridge_height_m: 1.6,
-        ridge_frequency: 2.2,
-        crater_count: 22,
-        crater_radius_m: (2.5, 11.0),
-        crater_depth_ratio: 0.2,
+        ridge_height_m: 2.0,
+        ridge_frequency: 3.5,
+        crater_count: 26,
+        crater_radius_m: (3.0, 16.0),
+        crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        landforms: (
+            water_level_m: Some(-2.5),
+            clear_zone_deg: 10.0,
+            // Hand-placed so the first walk from the landing zone shows them.
+            // The player spawns at +Y facing -Z.
+            placed: [
+                (kind: Mesa, at: (-0.12, 0.914, -0.39), radius_m: 22.0, height_m: 15.0),
+                (kind: Volcano, at: (0.55, 0.64, -0.54), radius_m: 50.0, height_m: 32.0),
+                (kind: Canyon, at: (-0.6, 0.75, 0.28), to: Some((-0.45, 0.62, -0.64)), radius_m: 10.0, height_m: 9.0),
+                (kind: Lake, at: (0.42, 0.88, 0.22), radius_m: 18.0, height_m: 3.5),
+                (kind: River, at: (0.85, 0.35, 0.4), to: Some((0.42, 0.88, 0.22)), radius_m: 3.0, height_m: 0.0),
+                (kind: Pool, at: (-0.2, 0.97, 0.12), radius_m: 3.5, height_m: 1.5),
+                (kind: Mountain, at: (0.0, 0.6, 0.8), radius_m: 40.0, height_m: 26.0),
+                (kind: Mountain, at: (0.3, 0.45, 0.84), radius_m: 30.0, height_m: 20.0),
+            ],
+            random: [
+                (kind: Mountain, count: 4, radius_m: (25.0, 40.0), height_m: (15.0, 26.0)),
+                (kind: Mesa, count: 4, radius_m: (12.0, 24.0), height_m: (9.0, 16.0)),
+                (kind: Volcano, count: 1, radius_m: (40.0, 50.0), height_m: (25.0, 32.0)),
+                (kind: Canyon, count: 2, radius_m: (8.0, 11.0), height_m: (6.0, 10.0), length_m: (120.0, 200.0)),
+                (kind: Lake, count: 2, radius_m: (12.0, 22.0), height_m: (2.0, 4.0)),
+                (kind: River, count: 3, radius_m: (2.5, 3.5), height_m: (0.0, 0.0), length_m: (80.0, 150.0)),
+                (kind: Pool, count: 4, radius_m: (2.5, 4.0), height_m: (1.0, 1.5)),
+            ],
+        ),
     ),
-    // Warm grey regolith with cool shadows (Moon-like, painted, not photoreal).
+    // Painted desert: ochre sand, pale highlands, terracotta slopes, cool
+    // violet shadows (warm/cool separation, section 11).
     look: (
-        color_low: (0.50, 0.47, 0.45),
-        color_high: (0.82, 0.78, 0.72),
-        color_crater: (0.36, 0.34, 0.35),
-        color_rim: (0.92, 0.89, 0.82),
-        color_slope: (0.56, 0.51, 0.47),
-        shadow_tint: (0.40, 0.44, 0.60),
-        rim_color: (0.55, 0.66, 1.0),
-        rim_strength: 0.35,
-        detail_scale: 0.03,
+        color_low: (0.78, 0.56, 0.38),
+        color_high: (0.90, 0.75, 0.56),
+        color_crater: (0.62, 0.43, 0.31),
+        color_rim: (0.95, 0.83, 0.64),
+        color_slope: (0.70, 0.42, 0.28),
+        shadow_tint: (0.38, 0.36, 0.62),
+        rim_color: (0.60, 0.70, 1.0),
+        rim_strength: 0.3,
+        detail_scale: 0.02,
         grain_scale: 0.15,
     ),
-    rocks: (
-        count: 90,
-        size_m: (0.35, 2.6),
-        cluster_size: (2, 6),
-        cluster_spread_m: 5.0,
-        roughness: 0.32,
-        color: (0.66, 0.61, 0.56),
-        color_dark: (0.34, 0.31, 0.30),
+    land_look: (
+        strata_a: (0.86, 0.50, 0.30),
+        strata_b: (0.66, 0.31, 0.21),
+        basalt: (0.34, 0.28, 0.30),
+        lava: (1.0, 0.45, 0.10),
+        lava_energy: 4.0,
+        lava_light_range_m: 24.0,
+        snow: (0.97, 0.95, 0.92),
+        wet: (0.46, 0.33, 0.26),
+        mineral: (0.95, 0.93, 0.86),
+        water_shallow: (0.30, 0.80, 0.80),
+        water_deep: (0.06, 0.28, 0.42),
+        water_foam: (0.95, 0.98, 1.0),
+        water_subdivisions: 48,
     ),
+    rocks: (
+        count: 220,
+        size_m: (0.35, 2.8),
+        cluster_size: (2, 6),
+        cluster_spread_m: 6.0,
+        roughness: 0.32,
+        color: (0.74, 0.50, 0.36),
+        color_dark: (0.42, 0.27, 0.20),
+    ),
+    hoodoos: Some((
+        clusters_per_mesa: 3,
+        clusters_per_canyon: 3,
+        per_cluster: (3, 6),
+        cluster_spread_m: 7.0,
+        height_m: (4.0, 9.0),
+        variants: 6,
+        band_a: (0.92, 0.58, 0.36),
+        band_b: (0.80, 0.56, 0.40),
+        cap: (0.52, 0.36, 0.30),
+    )),
+    render_tiles: 4,
 )

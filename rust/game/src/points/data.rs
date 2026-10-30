@@ -69,7 +69,8 @@ mod tests {
 
     #[test]
     fn sources_parse_and_ranges_are_ordered() {
-        let s: PointSources = parse(include_str!("../../../../godot/data/points/sources.ron")).unwrap();
+        let s: PointSources =
+            parse(include_str!("../../../../godot/data/points/sources.ron")).unwrap();
         for r in [s.discovery, s.salvage_piece, s.bounty_alive, s.contract] {
             assert!(r.min <= r.max);
         }
@@ -83,7 +84,11 @@ mod tests {
     fn target_curve_has_the_decided_shape() {
         let a = antes();
         assert_eq!(a.targets.len(), 8);
-        let ratios: Vec<f64> = a.targets.windows(2).map(|w| w[1] as f64 / w[0] as f64).collect();
+        let ratios: Vec<f64> = a
+            .targets
+            .windows(2)
+            .map(|w| w[1] as f64 / w[0] as f64)
+            .collect();
         assert!(ratios.iter().all(|r| *r > 1.0));
         assert!(ratios.windows(2).all(|w| w[1] < w[0]), "{ratios:?}");
     }
