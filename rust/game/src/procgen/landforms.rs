@@ -434,7 +434,6 @@ fn sample_one(
             if l.kind == LandformKind::Canyon && raise_pass {
                 // The plateau the canyon cuts through (like the Colorado Plateau).
                 let lift = l.height * smoothstep(5.0, 1.6, q) * along;
-                hints.strata = smoothstep(4.5, 1.2, q) * along;
                 return (height + lift, hints);
             }
             let floor = water + 0.6;
@@ -510,8 +509,9 @@ fn path_coords(l: &Landform, d: Vector3, body_radius: f32) -> Option<(f32, f32)>
     let phase = (l.seed % 628) as f32 * 0.01;
     let bends = (along_m / (l.radius_m * 4.5) + phase).sin() * 2.6
         + (along_m / (l.radius_m * 1.9) + phase * 2.0).sin() * 0.8;
-    let f = 1.2 / l.angle;
-    let wobble = noise::fbm3([d.x * f, d.y * f, d.z * f], 3, 0.5, l.seed ^ 5) * 2.0;
+    // Canyons wander in long, smooth bends; rivers wiggle more.
+    let (f, amp) = if l.kind == LandformKind::Canyon { (0.4 / l.angle, 1.2) } else { (1.2 / l.angle, 2.0) };
+    let wobble = noise::fbm3([d.x * f, d.y * f, d.z * f], 3, 0.5, l.seed ^ 5) * amp;
     let edge_t = (t / l.arc).clamp(-0.5, 1.5);
     let along = smoothstep(-0.04, 0.12, edge_t) * smoothstep(1.04, 0.88, edge_t);
     let offset = (bends + wobble) * l.angle * along;

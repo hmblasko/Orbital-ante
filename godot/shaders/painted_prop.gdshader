@@ -41,14 +41,16 @@ void fragment() {
 }
 
 void light() {
+	// The shadow floor only applies to the sun; lamps (supply ring, lava glow)
+	// must fade to nothing at their range, or their light cluster shows as a box.
 	float ndl = dot(NORMAL, LIGHT);
 	float hl = clamp(ndl * 0.5 + 0.5, 0.0, 1.0);
 	hl *= hl;
 	float lit = smoothstep(0.2, 0.65, hl);
 	vec3 ramp = mix(shadow_tint * shadow_floor, vec3(1.0), lit);
-	DIFFUSE_LIGHT += ramp * mix(0.3, 1.0, ATTENUATION) * LIGHT_COLOR / PI;
+	DIFFUSE_LIGHT += ramp * (LIGHT_IS_DIRECTIONAL ? mix(0.3, 1.0, ATTENUATION) : ATTENUATION) * LIGHT_COLOR / PI;
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	DIFFUSE_LIGHT += rim_color * fres * rim_strength * smoothstep(-0.3, 0.5, ndl) * LIGHT_COLOR / PI;
+	DIFFUSE_LIGHT += rim_color * fres * rim_strength * smoothstep(-0.3, 0.5, ndl) * (LIGHT_IS_DIRECTIONAL ? 1.0 : ATTENUATION) * LIGHT_COLOR / PI;
 	if (specular > 0.0) {
 		vec3 h = normalize(LIGHT + VIEW);
 		SPECULAR_LIGHT += pow(max(dot(NORMAL, h), 0.0), shininess) * specular * ATTENUATION * LIGHT_COLOR / PI;

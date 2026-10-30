@@ -49,6 +49,21 @@ pub struct BodyData {
     /// out of view are skipped (6 x tiles x tiles meshes in total).
     #[serde(default = "default_render_tiles")]
     pub render_tiles: u32,
+    /// Optional detail levels for the drawn surface (collision is unaffected).
+    #[serde(default)]
+    pub lod: Option<SurfaceLod>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SurfaceLod {
+    /// Cells per cube-face edge for tiles near the camera.
+    pub near_subdivisions: u32,
+    /// Cells per cube-face edge for distant tiles.
+    pub far_subdivisions: u32,
+    /// Tiles per cube-face edge (both levels; must divide both counts).
+    pub tiles: u32,
+    /// Distance from the camera to a tile's centre where it switches level.
+    pub near_range_m: f32,
 }
 
 fn default_render_tiles() -> u32 {
@@ -230,6 +245,11 @@ impl CelestialBody {
         self.data.as_ref().map_or(0.0, |d| d.radius)
     }
 
+    /// The low-ground sand colour, for dust on props and wrecks.
+    pub fn dust_color(&self) -> Color {
+        self.data.as_ref().map_or(Color::from_rgb(0.6, 0.6, 0.6), |d| rgb(d.look.color_low))
+    }
+
     /// Lowest the ground can be anywhere (for out-of-world checks).
     #[func]
     pub fn min_surface_radius(&self) -> f32 {
@@ -292,13 +312,33 @@ impl CelestialBody {
         }
         material.set_shader_parameter("lava_energy", &land.lava_energy.to_variant());
 
+        match &data.lod {
+            // Fine tiles close to the camera, coarse ones beyond; collision
+            // stays on the middle grid (`terrain.subdivisions`).
+            Some(lod) => {
+                let near = shape.build_mesh_with(lod.near_subdivisions);
+                self.add_surface_tiles(&near, lod.near_subdivisions, lod.tiles, &material, height_range, "Near", (0.0, lod.near_range_m));
+                let far = shape.build_mesh_with(lod.far_subdivisions);
+                self.add_surface_tiles(&far, lod.far_subdivisions, lod.tiles, &material, height_range, "Far", (lod.near_range_m, 0.0));
+            }
+            None => self.add_surface_tiles(&mesh_data, data.terrain.subdivisions, data.render_tiles, &material, height_range, "", (0.0, 0.0)),
+        }
+
+        let mut collision_shape = ConcavePolygonShape3D::new_gd();
+        collision_shape.set_faces(&triangle_soup(&mesh_data));
+        let mut collision = CollisionShape3D::new_alloc();
+        collision.set_name("SurfaceCollision");
+        collision.set_shape(&collision_shape);
+        self.base_mut().add_child(&collision);
+    }
+
+    /// Add one surface mesh as tiles. COLOR = (crater floor, crater rim,
+    /// height, mineral), UV = (strata, lava), UV2 = (snow, wet).
+    #[allow(clippy::too_many_arguments)]
+    fn add_surface_tiles(&mut self, mesh: &MeshData, subdivisions: u32, tiles: u32, material: &Gd<ShaderMaterial>, height_range: f32, label: &str, range: (f32, f32)) {
         // Painting hints: COLOR = (crater floor, crater rim, height, mineral),
         // UV = (strata, lava), UV2 = (snow, wet).
-        for (i, tile) in mesh_data
-            .split_tiles(data.terrain.subdivisions, data.render_tiles)
-            .iter()
-            .enumerate()
-        {
+        for (i, tile) in mesh.split_tiles(subdivisions, tiles).iter().enumerate() {
             if tile.triangle_count() == 0 {
                 continue;
             }
@@ -327,18 +367,29 @@ impl CelestialBody {
                     .collect(),
             };
             let mut instance = MeshInstance3D::new_alloc();
-            instance.set_name(&format!("SurfaceTile{i}"));
-            instance.set_mesh(&array_mesh_with_hints(tile, &hints));
-            instance.set_material_override(&material);
+            instance.set_name(&format!("SurfaceTile{label}{i}"));
+            // Visibility ranges (metres from the camera to the tile's centre);
+            // 0 means unlimited. No margins: overlapping levels would z-fight.
+            if range.0 > 0.0 {
+                instance.set_visibility_range_begin(range.0);
+            }
+            if range.1 > 0.0 {
+                instance.set_visibility_range_end(range.1);
+            }
+            // Each tile sits at its own centre so visibility ranges measure
+            // from the camera to the tile, not to the body's centre. The
+            // shader adds `tile_offset` back to get body-space positions.
+            let centre = tile.positions.iter().fold(Vector3::ZERO, |a, p| a + *p) / tile.positions.len() as f32;
+            let mut local = tile.clone();
+            for p in &mut local.positions {
+                *p -= centre;
+            }
+            instance.set_mesh(&array_mesh_with_hints(&local, &hints));
+            instance.set_position(centre);
+            instance.set_instance_shader_parameter("tile_offset", &centre.to_variant());
+            instance.set_material_override(material);
             self.base_mut().add_child(&instance);
         }
-
-        let mut collision_shape = ConcavePolygonShape3D::new_gd();
-        collision_shape.set_faces(&triangle_soup(&mesh_data));
-        let mut collision = CollisionShape3D::new_alloc();
-        collision.set_name("SurfaceCollision");
-        collision.set_shape(&collision_shape);
-        self.base_mut().add_child(&collision);
     }
 
     /// Boulder clusters sitting on the terrain, with simple convex colliders.
@@ -375,8 +426,11 @@ impl CelestialBody {
             })
             .collect();
 
+        let water = shape.water_level().unwrap_or(f32::MIN);
         let mut placed = 0;
-        while placed < r.count {
+        let mut attempts = 0;
+        while placed < r.count && attempts < r.count * 20 {
+            attempts += 1;
             let center = crate::procgen::scatter_on_sphere(&mut rng, 1)[0];
             let in_cluster =
                 rng.range_i64(r.cluster_size.0 as i64, r.cluster_size.1 as i64 + 1) as u32;
@@ -387,6 +441,12 @@ impl CelestialBody {
                     rng.range_f32(-1.0, 1.0),
                 ) * (r.cluster_spread_m / data.radius);
                 let dir = (center + offset).normalized();
+                // Keep boulders out of water and off cliff faces.
+                let ground = shape.surface_radius(dir);
+                let probe = (dir + basis_with_up(dir).col_a() * (1.0 / data.radius)).normalized();
+                if ground - data.radius < water + 0.3 || (shape.surface_radius(probe) - ground).abs() > 0.7 {
+                    continue;
+                }
                 let t = rng.next_f32().powi(3);
                 let size = r.size_m.0 + (r.size_m.1 - r.size_m.0) * t;
                 let (mesh, points) = &variants[rng.below(variants.len() as u64) as usize];

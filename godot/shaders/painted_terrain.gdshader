@@ -36,11 +36,15 @@ uniform vec3 snow_color : source_color = vec3(0.92, 0.94, 0.98);
 uniform vec3 wet_color : source_color = vec3(0.30, 0.28, 0.27);
 uniform vec3 mineral_color : source_color = vec3(0.93, 0.92, 0.86);
 
+// Where this tile's mesh origin sits in the body (tiles are drawn around
+// their own centres so detail levels switch by distance to the tile).
+instance uniform vec3 tile_offset = vec3(0.0);
+
 varying vec3 local_pos;
 varying vec3 local_normal;
 
 void vertex() {
-	local_pos = VERTEX;
+	local_pos = VERTEX + tile_offset;
 	local_normal = NORMAL;
 }
 
@@ -102,13 +106,15 @@ void fragment() {
 }
 
 void light() {
+	// The shadow floor only applies to the sun; lamps (supply ring, lava glow)
+	// must fade to nothing at their range, or their light cluster shows as a box.
 	float ndl = dot(NORMAL, LIGHT);
 	float half_lambert = clamp(ndl * 0.5 + 0.5, 0.0, 1.0);
 	half_lambert *= half_lambert;
 	// Warp ramp: cool, dim shadow side rising to full warm light.
 	float lit = smoothstep(0.12, 0.9, half_lambert);
 	vec3 ramp = mix(shadow_tint * shadow_floor, vec3(1.0), lit);
-	float shadow = mix(0.25, 1.0, ATTENUATION);
+	float shadow = (LIGHT_IS_DIRECTIONAL ? mix(0.25, 1.0, ATTENUATION) : ATTENUATION);
 	DIFFUSE_LIGHT += ramp * shadow * LIGHT_COLOR / PI;
 	// Rim light on edges facing the light's side.
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);

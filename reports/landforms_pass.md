@@ -20,3 +20,11 @@ All automated gates pass locally (88 unit, 19 determinism, 11 data, smoke, 2 fea
 - Canyon walls and stream edges look faceted: the 1.8 m terrain cells are too coarse for them. Phase 5's streamed, level-of-detail terrain fixes this.
 - Water is visual only (you walk on the lake bed; no swimming yet), and liquid water on an airless test world is for showing the shader.
 - NASA models still use their original materials, not the TF2 paint pass.
+
+## Refinement pass (same day)
+- NASA models are relit with a painted model shader (same ramp and rim as the world, softened textures, gentle metal highlight). Wrecks can carry settled sand (`grime` in the landmark data).
+- Terrain detail levels: 0.9 m cells within about 110 m of the camera, 1.8 m beyond (data: `lod` in test_sphere.ron). Tiles are centred on themselves so the switch distance is measured per tile. Collision stays on the 1.8 m grid.
+- Canyons bend in long smooth curves; plateau tops are no longer striped.
+- Boulders are kept out of water and off cliffs.
+- Bug fix: the painted shaders added a constant "shadow floor" for every light, so lamps (supply ring, lava glow) lit a hard-edged box of ground around them. The floor now applies to the sun only.
+- Not measured: Steam Deck frame time and memory with the finer near terrain (about 790k triangles exist in total, of which only nearby tiles are drawn).

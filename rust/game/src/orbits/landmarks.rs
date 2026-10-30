@@ -7,8 +7,10 @@
 //! fun rule 4 (curiosity: recognisable hardware to fly to and find).
 //! Models come from NASA 3D Resources; see docs/asset_licence_ledger.md.
 
+use godot::classes::base_material_3d::TextureParam;
 use godot::classes::{
-    CollisionShape3D, INode3D, MeshInstance3D, Node3D, PackedScene, StaticBody3D,
+    CollisionShape3D, INode3D, MeshInstance3D, Node3D, PackedScene, Shader, ShaderMaterial,
+    StandardMaterial3D, StaticBody3D,
 };
 use godot::prelude::*;
 use serde::Deserialize;
@@ -38,6 +40,9 @@ pub struct SurfaceLandmark {
     /// How far the model sinks into the ground, in metres.
     #[serde(default)]
     pub sink_m: f32,
+    /// 0..1: sand settled on upward faces, for wrecks that have sat a while.
+    #[serde(default)]
+    pub grime: f32,
     /// Solid convex hull per part so the player can't walk through it.
     #[serde(default)]
     pub solid: bool,
@@ -146,6 +151,12 @@ impl LandmarkSet {
             let Some(mut model) = instantiate(&l.model, &l.name) else {
                 continue;
             };
+            if l.grime > 0.0 {
+                let dust = body.bind().dust_color();
+                set_on_painted(&model, "grime", &l.grime.to_variant());
+                set_on_painted(&model, "dust_color", &dust.to_variant());
+                set_on_painted(&model, "planet_center", &center.to_variant());
+            }
             let dir = Vector3::new(l.at.0, l.at.1, l.at.2).normalized();
             let ground = body.bind().surface_radius_toward(center + dir);
             let yaw = Basis::from_axis_angle(Vector3::UP, l.yaw_deg.to_radians());
@@ -167,11 +178,52 @@ impl LandmarkSet {
     }
 }
 
+const MODEL_SHADER: &str = "res://shaders/painted_model.gdshader";
+
 fn instantiate(path: &str, name: &str) -> Option<Gd<Node3D>> {
     let scene = try_load::<PackedScene>(path).ok()?;
     let mut node = scene.instantiate()?.try_cast::<Node3D>().ok()?;
     node.set_name(&format!("{name}Model"));
+    repaint(&node);
     Some(node)
+}
+
+/// Swap each part's imported material for the painted model shader,
+/// keeping its colour texture, tint and metalness (section 11 TF2 rules).
+fn repaint(model: &Gd<Node3D>) {
+    let Ok(shader) = try_load::<Shader>(MODEL_SHADER) else { return };
+    let parts = model.find_children_ex("*").type_("MeshInstance3D").recursive(true).owned(false).done();
+    for part in parts.iter_shared() {
+        let Ok(mut part) = part.try_cast::<MeshInstance3D>() else { continue };
+        let Some(mesh) = part.get_mesh() else { continue };
+        for i in 0..mesh.get_surface_count() {
+            let Some(original) = mesh.surface_get_material(i).and_then(|m| m.try_cast::<StandardMaterial3D>().ok()) else {
+                continue;
+            };
+            let mut painted = ShaderMaterial::new_gd();
+            painted.set_shader(&shader);
+            painted.set_shader_parameter("albedo_color", &original.get_albedo().to_variant());
+            painted.set_shader_parameter("metallic", &original.get_metallic().to_variant());
+            if let Some(texture) = original.get_texture(TextureParam::ALBEDO) {
+                painted.set_shader_parameter("albedo_texture", &texture.to_variant());
+                painted.set_shader_parameter("has_texture", &true.to_variant());
+            }
+            part.set_surface_override_material(i, &painted);
+        }
+    }
+}
+
+/// Set a parameter on every painted material of a model.
+fn set_on_painted(model: &Gd<Node3D>, name: &str, value: &Variant) {
+    let parts = model.find_children_ex("*").type_("MeshInstance3D").recursive(true).owned(false).done();
+    for part in parts.iter_shared() {
+        let Ok(part) = part.try_cast::<MeshInstance3D>() else { continue };
+        for i in 0..part.get_surface_override_material_count() {
+            if let Some(mut m) = part.get_surface_override_material(i).and_then(|m| m.try_cast::<ShaderMaterial>().ok()) {
+                m.set_shader_parameter(name, value);
+            }
+        }
+    }
 }
 
 /// One convex hull per mesh part, in the solid body's space.

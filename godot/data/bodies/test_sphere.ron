@@ -101,4 +101,12 @@
         cap: (0.52, 0.36, 0.30),
     )),
     render_tiles: 4,
+    // Fine 0.9 m cells within about 110 m (cliffs and canyon walls stay
+    // crisp), 1.8 m cells beyond. Collision uses the 128 grid above.
+    lod: Some((
+        near_subdivisions: 256,
+        far_subdivisions: 128,
+        tiles: 8,
+        near_range_m: 110.0,
+    )),
 )

@@ -172,7 +172,12 @@ impl TerrainShape {
     /// Build the surface as a subdivided cube projected onto the sphere
     /// (more even triangles than a UV sphere, no pinched poles).
     pub fn build_mesh(&self) -> MeshData {
-        grid_sphere(self.data.subdivisions, |dir| {
+        self.build_mesh_with(self.data.subdivisions)
+    }
+
+    /// The same surface on a finer or coarser grid (for detail levels).
+    pub fn build_mesh_with(&self, subdivisions: u32) -> MeshData {
+        grid_sphere(subdivisions, |dir| {
             let s = self.sample(dir);
             (self.radius + s.height, s)
         })
