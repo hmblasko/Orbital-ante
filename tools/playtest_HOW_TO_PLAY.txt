@@ -25,5 +25,13 @@ Frame-time overlay: F3       Free the mouse cursor: Esc
 WHAT IS IN THIS BUILD
 - Walking on Earth with planet gravity, suit oxygen, jetpack and tether.
 - The full moving solar system with 14 bodies and a live map.
-- Not yet: the starter lander is still being built (Phase 4). An early test
-  of it is at scenes/tests/lander.tscn (open it, press F6); it is unfinished.
+- The starter lander, parked a short walk ahead of you. Stand under its
+  belly ring and the hatch opens and lifts you in. In the cabin, look at
+  the seat and press X / E to buckle in.
+    Flying: left stick / WASD thrust, A / Space up, B / Ctrl down,
+    right stick / mouse to turn, LB / RB (Z / X keys) to roll,
+    hold LT / Shift to match velocity (brakes to a hover).
+  Press X / E again to unbuckle, look at the floor hatch and press X / E to open it,
+  step onto it to ride down. Crouch (B / C) to duck out under the ship.
+- Not yet: the cockpit dashboard, cameras, autopilot, takeoff effects and
+  crash damage (the rest of Phase 4).

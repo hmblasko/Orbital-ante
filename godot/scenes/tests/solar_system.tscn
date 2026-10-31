@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="Environment" path="res://environments/space.tres" id="2_env"]
+[ext_resource type="PackedScene" path="res://scenes/ships/starter_lander.tscn" id="3_lander"]
 
 [node name="SolarSystemTest" type="Node3D"]
 
@@ -10,6 +11,9 @@ environment = ExtResource("2_env")
 
 [node name="SolarSystem" type="SolarSystem" parent="."]
 data_path = "res://data/system/solar_system.ron"
+
+[node name="Lander" parent="." instance=ExtResource("3_lander")]
+spawn_ahead_m = 16.0
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
 spawn_on_nearest_body = false
