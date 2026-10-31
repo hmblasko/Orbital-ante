@@ -28,8 +28,11 @@
                 (kind: Lake, count: 9, radius_m: (90.0, 200.0), height_m: (6.0, 12.0)),
                 (kind: River, count: 10, radius_m: (4.0, 6.0), height_m: (0.0, 0.0), length_m: (300.0, 600.0)),
                 (kind: Canyon, count: 3, radius_m: (14.0, 20.0), height_m: (12.0, 20.0), length_m: (400.0, 800.0)),
-                (kind: Mesa, count: 5, radius_m: (25.0, 45.0), height_m: (18.0, 30.0)),
+                // Erosion sequences (mesa, buttes, hoodoos), never lone mesas.
+                (kind: Erosion, count: 3, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
                 (kind: Pool, count: 6, radius_m: (5.0, 8.0), height_m: (1.2, 1.8)),
+                // Collapse pits that flood into cenotes below the water table.
+                (kind: Sinkhole, count: 3, radius_m: (8.0, 12.0), height_m: (10.0, 14.0)),
             ],
         ),
     ),
@@ -80,4 +83,35 @@
     )),
     preview_subdivisions: 64,
     air_glow: Some((color: (0.45, 0.70, 1.00), height_m: 80.0, strength: 1.00)),
+    // Weather: showers, thunderstorms with blue-white lightning, light snow.
+    weather: Some((
+        ceiling_m: 300.0,
+        calm_s: (150.0, 300.0),
+        wind_m_s: 2.0,
+        push_per_wind: 0.08,
+        ground_share: 0.3,
+        calm_fog: (0.62, 0.74, 0.88),
+        calm_fog_density: 0.0008,
+        events: [
+            (kind: Rain, weight: 3.0, duration_s: (90.0, 150.0), ramp_s: 20.0, wind_m_s: 6.0,
+             fog: (0.55, 0.60, 0.66), fog_density: 0.008, particle_color: (0.75, 0.82, 0.92), particles_per_s: 900.0, sun_dim: 0.35),
+            (kind: Thunderstorm, weight: 2.0, duration_s: (80.0, 140.0), ramp_s: 25.0, wind_m_s: 11.0,
+             fog: (0.40, 0.44, 0.52), fog_density: 0.014, particle_color: (0.72, 0.78, 0.90), particles_per_s: 1400.0,
+             lightning: Some((color: (0.78, 0.86, 1.00), every_s: (4.0, 10.0))), sun_dim: 0.6),
+            (kind: Snow, weight: 1.0, duration_s: (90.0, 150.0), ramp_s: 20.0, wind_m_s: 3.0,
+             fog: (0.82, 0.86, 0.92), fog_density: 0.010, particle_color: (0.96, 0.97, 1.00), particles_per_s: 500.0, sun_dim: 0.3),
+        ],
+    )),
+    // Lakes and cenotes are swimmable.
+    ocean: Some((
+        buoyancy: 0.9,
+        drag_per_s: 1.5,
+        walk_scale: 0.5,
+        fog: (0.14, 0.44, 0.50),
+        deep_fog: (0.03, 0.12, 0.18),
+        fog_density: 0.03,
+        deep_fog_density: 0.07,
+        dark_depth_m: 15.0,
+        max_sun_dim: 0.7,
+    )),
 )

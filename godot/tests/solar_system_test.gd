@@ -62,7 +62,7 @@ func _physics_process(delta: float) -> bool:
 		0:
 			if frame == 2:
 				for b in sys.get_children():
-					if b is Node3D and b.name != "Sunlight":
+					if b is Node3D and b.is_in_group("gravity_wells"):
 						start_positions[b.name] = sys.get_origin() + b.global_position
 			if t == SETTLE_FRAMES:
 				earth = sys.get_node("earth")

@@ -87,6 +87,36 @@ pub struct BodyData {
     /// Lava tubes opening from the sides of this body's sinkholes.
     #[serde(default)]
     pub caves: Option<CaveData>,
+    /// Storms, rain, haze and wind (bodies with air only).
+    #[serde(default)]
+    pub weather: Option<super::weather::WeatherData>,
+    /// Erupting CO2 vents (Mars's south polar cap).
+    #[serde(default)]
+    pub geysers: Option<super::geysers::GeyserData>,
+    /// Swimming and the underwater look, below the water table
+    /// (`terrain.landforms.water_level_m`). Without it, water is scenery.
+    #[serde(default)]
+    pub ocean: Option<OceanData>,
+}
+
+/// How water feels and looks from inside (Neptune's ocean, Earth's lakes).
+#[derive(Debug, Clone, Deserialize)]
+pub struct OceanData {
+    /// Share of gravity the water holds you up against (1 = you float).
+    pub buoyancy: f32,
+    /// Share of your speed the water takes away each second.
+    pub drag_per_s: f32,
+    /// Walking on the bottom is this much slower than on land.
+    pub walk_scale: f32,
+    /// Water colour and murk just under the surface, and in the deep.
+    pub fog: (f32, f32, f32),
+    pub deep_fog: (f32, f32, f32),
+    pub fog_density: f32,
+    pub deep_fog_density: f32,
+    /// Depth (metres) where the deep colour, murk and darkness take over.
+    pub dark_depth_m: f32,
+    /// Share of sunlight gone at `dark_depth_m` and below.
+    pub max_sun_dim: f32,
 }
 
 fn default_preview_subdivisions() -> u32 {
@@ -186,6 +216,13 @@ pub struct LandLook {
     /// Glassy impact melt.
     #[serde(default = "default_melt")]
     pub melt: (f32, f32, f32),
+    /// How much snow breaks into drifts: 1 = patchy, 0 = a solid cap.
+    #[serde(default = "default_snow_drift")]
+    pub snow_drift: f32,
+}
+
+fn default_snow_drift() -> f32 {
+    1.0
 }
 
 fn default_mare() -> (f32, f32, f32) {
@@ -222,6 +259,7 @@ impl Default for LandLook {
             rays: default_rays(),
             frost: default_frost(),
             melt: default_melt(),
+            snow_drift: default_snow_drift(),
         }
     }
 }
@@ -399,6 +437,11 @@ impl IStaticBody3D for CelestialBody {
             if let Some(clouds) = &data.clouds {
                 self.build_clouds(clouds);
             }
+            if let Some(g) = &data.geysers {
+                if let Some(node) = super::geysers::Geysers::build(self, g, run_seed) {
+                    self.base_mut().add_child(&node);
+                }
+            }
             if self.stream_detail {
                 self.build_preview(&data, &shape);
             } else {
@@ -559,6 +602,9 @@ impl CelestialBody {
     /// True if `point` is inside this body's breathable air.
     pub fn breathable_at(&self, point: Vector3) -> bool {
         let Some(d) = &self.data else { return false };
+        if d.ocean.is_some() && self.water_depth_at(point) > 0.0 {
+            return false;
+        }
         match &d.atmosphere {
             Some(a) if a.breathable => {
                 self.base().get_global_position().distance_to(point)
@@ -605,6 +651,35 @@ impl CelestialBody {
         let t = self.base().get_global_transform();
         let dir = t.basis.inverse() * (world_point - t.origin);
         self.surface_radius_local(dir)
+    }
+
+    /// The height function (None before ready or for a missing data file).
+    pub fn shape(&self) -> Option<Arc<TerrainShape>> {
+        self.shape.clone()
+    }
+
+    /// Swimming and underwater look, if this body has them.
+    pub fn ocean(&self) -> Option<OceanData> {
+        self.data.as_ref().and_then(|d| d.ocean.clone())
+    }
+
+    /// How far below the water surface `world_point` is, in metres
+    /// (negative above it, or no water at all).
+    #[func]
+    pub fn water_depth_at(&self, world_point: Vector3) -> f32 {
+        let Some(level) = self.water_level() else { return -1.0e9 };
+        let r = self.base().get_global_position().distance_to(world_point);
+        self.radius() + level - r
+    }
+
+    /// This body's weather, if it has air.
+    pub fn weather_data(&self) -> Option<super::weather::WeatherData> {
+        self.data.as_ref().and_then(|d| d.weather.clone())
+    }
+
+    /// The body's display name from its data file.
+    pub fn body_name(&self) -> String {
+        self.data.as_ref().map_or_else(String::new, |d| d.name.clone())
     }
 
     /// Distance from the centre to the ground along a direction in the
@@ -1187,6 +1262,7 @@ fn surface_material(data: &BodyData) -> Gd<ShaderMaterial> {
         material.set_shader_parameter(name, &rgb(c).to_variant());
     }
     material.set_shader_parameter("lava_energy", &land.lava_energy.to_variant());
+    material.set_shader_parameter("snow_drift", &land.snow_drift.to_variant());
     material
 }
 

@@ -120,6 +120,10 @@ pub struct PlayerController {
     /// The ship the player is in (cabin or lift), if any.
     aboard: Option<Gd<Ship>>,
     buckled: bool,
+    /// Wind push from the weather (m/s^2), set each physics frame.
+    wind_accel: Vector3,
+    /// In water this frame (swimming physics on).
+    submerged: bool,
     /// Buckle-in animation, 0 to 1, from where you stood (ship space).
     buckle_t: f32,
     buckle_from: Transform3D,
@@ -163,6 +167,8 @@ impl ICharacterBody3D for PlayerController {
             spawned: false,
             aboard: None,
             buckled: false,
+            wind_accel: Vector3::ZERO,
+            submerged: false,
             repair_spot: None,
             repairing: false,
             force_repair: false,
@@ -384,6 +390,45 @@ impl PlayerController {
     #[func]
     pub fn is_aboard(&self) -> bool {
         self.aboard.is_some()
+    }
+
+    /// Inside a ship's pressurised cabin (out of the weather).
+    #[func]
+    pub fn is_in_cabin(&self) -> bool {
+        self.aboard.as_ref().is_some_and(|s| s.bind().zone() == Zone::Cabin)
+    }
+
+    /// Swimming: the player's centre is under water on a body with an ocean.
+    #[func]
+    pub fn is_submerged(&self) -> bool {
+        self.submerged
+    }
+
+    /// The water you are in, if any (not while aboard a ship).
+    fn water_here(&self) -> Option<crate::orbits::body::OceanData> {
+        if self.aboard.is_some() {
+            return None;
+        }
+        let p = self.base().get_global_position();
+        self.base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .find_map(|b| {
+                let b = b.bind();
+                b.ocean().filter(|_| b.water_depth_at(p) > 0.0)
+            })
+    }
+
+    /// Wind push the weather applies this frame, m/s^2.
+    pub fn set_wind_acceleration(&mut self, accel: Vector3) {
+        self.wind_accel = accel;
+    }
+
+    #[func]
+    pub fn wind_acceleration(&self) -> Vector3 {
+        self.wind_accel
     }
 
     /// Test hook: press the interact button's action (buckle, unbuckle,
@@ -639,11 +684,15 @@ impl PlayerController {
         let mut velocity = self.base().get_velocity();
         self.thrust = 0.0;
         self.thrust_dir = Vector3::ZERO;
+        // Under water: buoyancy, drag and slow walking (Neptune, lakes).
+        let water = self.water_here();
+        self.submerged = water.is_some();
 
         if on_floor {
             let forward = -basis.col_c();
             let right = basis.col_a();
-            let speed = if crouching { self.data.crouch_speed } else { self.data.walk_speed };
+            let walk = water.as_ref().map_or(1.0, |o| o.walk_scale);
+            let speed = walk * if crouching { self.data.crouch_speed } else { self.data.walk_speed };
             let wish = (right * stick.x - forward * stick.y) * speed;
             let (mut vertical, horizontal) = motion::split_vertical(velocity, up);
             let horizontal = horizontal.move_toward(wish, self.data.ground_acceleration * dt);
@@ -676,7 +725,15 @@ impl PlayerController {
             }
         }
 
-        velocity += gravity * dt;
+        let lift = water.as_ref().map_or(0.0, |o| o.buoyancy.clamp(0.0, 1.0));
+        velocity += gravity * (1.0 - lift) * dt;
+        if let Some(o) = &water {
+            velocity *= (1.0 - o.drag_per_s * dt).max(0.0);
+        }
+        // Wind and dust devils (never inside a ship or while buckled in).
+        if self.aboard.is_none() && !self.buckled {
+            velocity += self.wind_accel * dt;
+        }
         // Cap falling speed only, so landing on a body never tunnels through it.
         if !self.in_zero_g {
             let (vertical, horizontal) = motion::split_vertical(velocity, up);

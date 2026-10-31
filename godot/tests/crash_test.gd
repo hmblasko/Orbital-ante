@@ -67,9 +67,11 @@ func _physics_process(_d: float) -> bool:
 		90:
 			check(player.is_buckled(), "the pilot buckles in")
 			check(ship.get_impact_count() == 0 and ship.get_hull_fraction() == 1.0, "parking and settling did no damage")
-			slam(4.0, 2.5, 0.0)
+			# Lift only 0.3 m so the legs touch down at about 3 m/s (a 4 m drop
+			# lands at 8 m/s, which is not a gentle landing on Earth).
+			slam(0.3, 2.5, 0.0)
 		200:
-			check(ship.get_impact_count() == 0 and ship.get_hull_fraction() == 1.0, "a gentle 2.5 m/s landing does no damage (hull %.2f)" % ship.get_hull_fraction())
+			check(ship.get_impact_count() == 0 and ship.get_hull_fraction() == 1.0, "a gentle 2.5 m/s landing does no damage (hull %.3f, impacts %d)" % [ship.get_hull_fraction(), ship.get_impact_count()])
 			slam(12.0, 14.0, 20.0)
 		320:
 			var legs := leg_health()

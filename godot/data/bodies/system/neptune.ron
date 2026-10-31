@@ -19,20 +19,33 @@
         crater_radius_m: (5.0, 10.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Neptune ocean-world kit (field guide 8; invented): a global sea
+        // over a mid-ocean ridge with black-smoker vents and a deep trench,
+        // fixed every run, plus a flat island at the landing pole. Seeded
+        // seamounts (some break the surface as islands), flat-topped guyots
+        // and submarine canyons.
         landforms: (
-            water_level_m: None,
+            water_level_m: Some(22.0),
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Mesa, at: (0.0, 1.0, 0.0), radius_m: 70.0, height_m: 34.0),
+                (kind: DoubleRidge, at: (0.90, 0.15, -0.40), to: Some((-0.20, 0.20, -0.96)), radius_m: 30.0, height_m: 16.0),
+                (kind: Rille, at: (0.30, -0.40, 0.86), to: Some((-0.50, -0.30, 0.81)), radius_m: 22.0, height_m: 30.0),
+            ],
             random: [
-                (kind: Mountain, count: 6, radius_m: (60.0, 100.0), height_m: (30.0, 60.0)),
+                (kind: Volcano, count: 5, radius_m: (60.0, 100.0), height_m: (35.0, 60.0)),
+                (kind: Mesa, count: 4, radius_m: (35.0, 55.0), height_m: (12.0, 18.0)),
+                (kind: Rille, count: 4, radius_m: (8.0, 12.0), height_m: (8.0, 14.0), length_m: (200.0, 400.0)),
+                (kind: Mountain, count: 3, radius_m: (60.0, 100.0), height_m: (15.0, 25.0)),
             ],
         ),
     ),
     look: (
-        color_low: (0.30, 0.38, 0.52),
-        color_high: (0.44, 0.52, 0.66),
-        color_crater: (0.24, 0.30, 0.42),
-        color_rim: (0.52, 0.60, 0.74),
-        color_slope: (0.28, 0.34, 0.46),
+        color_low: (0.18, 0.23, 0.30),
+        color_high: (0.28, 0.33, 0.40),
+        color_crater: (0.14, 0.17, 0.22),
+        color_rim: (0.34, 0.38, 0.44),
+        color_slope: (0.16, 0.19, 0.24),
         shadow_tint: (0.36, 0.36, 0.62),
         rim_color: (0.60, 0.70, 1.00),
         rim_strength: 0.3,
@@ -80,5 +93,50 @@
         storm_color: (0.12, 0.20, 0.46),
         ring_m: (0.0, 0.0),
         ring_color: (0.00, 0.00, 0.00),
+    )),
+    // Swimming under the sea: buoyant, draggy, darker the deeper you go.
+    ocean: Some((
+        buoyancy: 0.85,
+        drag_per_s: 1.2,
+        walk_scale: 0.55,
+        fog: (0.10, 0.36, 0.56),
+        deep_fog: (0.02, 0.04, 0.12),
+        fog_density: 0.02,
+        deep_fog_density: 0.05,
+        dark_depth_m: 30.0,
+        max_sun_dim: 0.92,
+    )),
+    // Above water: deep blue haze under the cloud deck. Below: drifting
+    // plankton and purple bioluminescent flashes (field guide 8).
+    weather: Some((
+        ceiling_m: 700.0,
+        calm_s: (40.0, 90.0),
+        wind_m_s: 5.0,
+        push_per_wind: 0.08,
+        ground_share: 0.3,
+        calm_fog: (0.30, 0.46, 0.82),
+        calm_fog_density: 0.003,
+        calm_sun_dim: 0.45,
+        events: [
+            (kind: Bioluminescence, weight: 1.0, duration_s: (150.0, 300.0), ramp_s: 15.0, wind_m_s: 0.0,
+             fog: (0.10, 0.36, 0.56), fog_density: 0.0, particle_color: (0.75, 0.45, 1.00), particles_per_s: 60.0,
+             lightning: Some((color: (0.70, 0.35, 1.00), every_s: (2.0, 5.0))), underwater: true),
+        ],
+    )),
+    // Black smokers along the mid-ocean ridge: shimmer first, then a dark
+    // plume that shoves you upward.
+    geysers: Some((
+        count: 6,
+        around: DoubleRidge,
+        ring: (0.5, 3.0),
+        cycle_s: (25.0, 50.0),
+        warn_s: 3.0,
+        erupt_s: 6.0,
+        radius_m: 3.0,
+        throw_m_s: 9.0,
+        column_height_m: 25.0,
+        dust_color: (0.08, 0.07, 0.08),
+        frost_color: (0.55, 0.70, 0.80),
+        show_within_m: 300.0,
     )),
 )

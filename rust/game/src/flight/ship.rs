@@ -468,6 +468,17 @@ impl Ship {
         self.parts[i].fraction(&d.damage.parts[i])
     }
 
+    /// Acid eating the hull core: `hp` of damage, never below `floor` (0..1
+    /// of full health), so a storm wears the ship down but never kills it
+    /// on its own.
+    pub fn corrode(&mut self, hp: f32, floor: f32) {
+        let Some(d) = self.data.as_ref() else { return };
+        let min = d.damage.hull_hp * floor.clamp(0.0, 1.0);
+        if self.hull_hp > min {
+            self.hull_hp = (self.hull_hp - hp).max(min);
+        }
+    }
+
     /// Hull core health 0..1.
     #[func]
     pub fn get_hull_fraction(&self) -> f32 {

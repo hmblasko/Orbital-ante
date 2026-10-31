@@ -19,13 +19,20 @@
         crater_radius_m: (8.0, 20.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Titan kit (field guide 8): a hydrocarbon sea fixed every run;
+        // seeded smaller lakes, flumen rivers, long linear dunes (wind
+        // streamlined, like yardangs in sand) and transverse dune fields.
         landforms: (
             water_level_m: Some(-1.5),
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Lake, at: (0.60, 0.55, 0.58), radius_m: 150.0, height_m: 8.0),
+            ],
             random: [
-                (kind: Lake, count: 8, radius_m: (50.0, 110.0), height_m: (4.0, 8.0)),
+                (kind: Lake, count: 5, radius_m: (40.0, 90.0), height_m: (4.0, 7.0)),
                 (kind: River, count: 8, radius_m: (3.0, 5.0), height_m: (0.0, 0.0), length_m: (200.0, 400.0)),
-                (kind: Dunes, count: 6, radius_m: (70.0, 130.0), height_m: (5.0, 8.0)),
+                (kind: Yardangs, count: 3, radius_m: (80.0, 120.0), height_m: (3.0, 5.0)),
+                (kind: Dunes, count: 3, radius_m: (70.0, 130.0), height_m: (5.0, 8.0)),
                 (kind: Mountain, count: 4, radius_m: (40.0, 70.0), height_m: (20.0, 35.0)),
             ],
         ),
@@ -77,4 +84,32 @@
     )),
     preview_subdivisions: 64,
     air_glow: Some((color: (1.00, 0.62, 0.22), height_m: 70.0, strength: 1.10)),
+    // Weather: orange haze always, slow methane drizzle now and then.
+    weather: Some((
+        ceiling_m: 260.0,
+        calm_s: (120.0, 240.0),
+        wind_m_s: 1.0,
+        push_per_wind: 0.08,
+        ground_share: 0.3,
+        calm_fog: (0.92, 0.62, 0.30),
+        calm_fog_density: 0.007,
+        events: [
+            (kind: Rain, weight: 2.0, duration_s: (100.0, 180.0), ramp_s: 25.0, wind_m_s: 2.0,
+             fog: (0.86, 0.55, 0.26), fog_density: 0.014, particle_color: (0.95, 0.75, 0.45), particles_per_s: 500.0, sun_dim: 0.3),
+            (kind: Haze, weight: 1.0, duration_s: (90.0, 150.0), ramp_s: 30.0, wind_m_s: 1.0,
+             fog: (0.88, 0.56, 0.24), fog_density: 0.025, particle_color: (0.9, 0.6, 0.3), particles_per_s: 0.0, sun_dim: 0.35),
+        ],
+    )),
+    // Methane lakes: thinner than water, so you sink faster.
+    ocean: Some((
+        buoyancy: 0.6,
+        drag_per_s: 1.0,
+        walk_scale: 0.6,
+        fog: (0.45, 0.30, 0.12),
+        deep_fog: (0.12, 0.07, 0.03),
+        fog_density: 0.04,
+        deep_fog_density: 0.08,
+        dark_depth_m: 10.0,
+        max_sun_dim: 0.8,
+    )),
 )

@@ -19,12 +19,24 @@
         crater_radius_m: (5.0, 10.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Jupiter inner surface kit (field guide 8; an invented world under
+        // the clouds): mesas under the Great Red Spot's latitude and a
+        // cloud-canyon chasm fixed every run; seeded ammonia-ice penitente
+        // fields, wind-carved yardang islands and mountains.
         landforms: (
             water_level_m: None,
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Mesa, at: (0.93, -0.37, 0.05), radius_m: 70.0, height_m: 40.0),
+                (kind: Mesa, at: (0.88, -0.40, -0.25), radius_m: 50.0, height_m: 32.0),
+                (kind: Butte, at: (0.95, -0.30, -0.10), radius_m: 25.0, height_m: 45.0),
+                (kind: Canyon, at: (0.20, 0.30, 0.93), to: Some((0.70, 0.25, 0.67)), radius_m: 25.0, height_m: 30.0),
+            ],
             random: [
-                (kind: Mountain, count: 10, radius_m: (80.0, 140.0), height_m: (40.0, 80.0)),
-                (kind: Mesa, count: 6, radius_m: (40.0, 70.0), height_m: (20.0, 35.0)),
+                (kind: Penitentes, count: 4, radius_m: (35.0, 55.0), height_m: (7.0, 11.0)),
+                (kind: Yardangs, count: 3, radius_m: (90.0, 140.0), height_m: (5.0, 8.0)),
+                (kind: Erosion, count: 2, radius_m: (35.0, 55.0), height_m: (25.0, 35.0)),
+                (kind: Mountain, count: 6, radius_m: (80.0, 140.0), height_m: (40.0, 80.0)),
             ],
         ),
     ),
@@ -81,5 +93,24 @@
         storm_color: (0.82, 0.42, 0.28),
         ring_m: (0.0, 0.0),
         ring_color: (0.00, 0.00, 0.00),
+    )),
+    // Inside the cloud deck: a tan, banded sky that hides the sun, red
+    // lightning and ammonia hail (field guide 8).
+    weather: Some((
+        ceiling_m: 1100.0,
+        calm_s: (90.0, 200.0),
+        wind_m_s: 6.0,
+        push_per_wind: 0.08,
+        ground_share: 0.3,
+        calm_fog: (0.74, 0.56, 0.40),
+        calm_fog_density: 0.0025,
+        calm_sun_dim: 0.45,
+        events: [
+            (kind: Thunderstorm, weight: 2.0, duration_s: (90.0, 150.0), ramp_s: 25.0, wind_m_s: 14.0,
+             fog: (0.58, 0.36, 0.26), fog_density: 0.012, particle_color: (0.92, 0.86, 0.80), particles_per_s: 600.0,
+             lightning: Some((color: (1.00, 0.35, 0.25), every_s: (3.0, 8.0))), sun_dim: 0.7),
+            (kind: Snow, weight: 1.0, duration_s: (80.0, 140.0), ramp_s: 20.0, wind_m_s: 9.0,
+             fog: (0.82, 0.74, 0.62), fog_density: 0.009, particle_color: (0.96, 0.94, 0.90), particles_per_s: 700.0, sun_dim: 0.55),
+        ],
     )),
 )

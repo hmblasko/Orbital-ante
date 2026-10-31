@@ -19,14 +19,21 @@
         crater_radius_m: (4.0, 14.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Europa kit (field guide 8): chaos terrain fixed every run; seeded
+        // double ridges criss-crossing the ice, smaller chaos patches and
+        // ice-fault cliffs. Meltwater pools sit in the low ground.
         landforms: (
             water_level_m: Some(-0.8),
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Chaos, at: (0.50, -0.20, 0.84), radius_m: 90.0, height_m: 7.0),
+            ],
             random: [
-                (kind: Ridge, count: 16, radius_m: (5.0, 9.0), height_m: (3.0, 6.0), length_m: (200.0, 450.0)),
-                (kind: Canyon, count: 2, radius_m: (6.0, 9.0), height_m: (5.0, 8.0), length_m: (200.0, 350.0)),
-                (kind: Lake, count: 4, radius_m: (25.0, 45.0), height_m: (2.0, 3.0)),
-                (kind: Pool, count: 5, radius_m: (4.0, 7.0), height_m: (1.0, 1.5)),
+                (kind: DoubleRidge, count: 12, radius_m: (5.0, 7.0), height_m: (5.0, 8.0), length_m: (200.0, 450.0)),
+                (kind: Chaos, count: 2, radius_m: (35.0, 55.0), height_m: (5.0, 7.0)),
+                (kind: Scarp, count: 3, radius_m: (6.0, 9.0), height_m: (5.0, 8.0), length_m: (150.0, 300.0)),
+                (kind: Lake, count: 3, radius_m: (25.0, 45.0), height_m: (2.0, 3.0)),
+                (kind: Pool, count: 4, radius_m: (4.0, 7.0), height_m: (1.0, 1.5)),
             ],
         ),
     ),

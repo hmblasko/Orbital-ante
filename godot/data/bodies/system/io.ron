@@ -19,13 +19,20 @@
         crater_radius_m: (3.0, 8.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Io kit (field guide 8): a big lava-lake patera fixed every run;
+        // seeded paterae, volcanoes and tall lone mountains. No impact
+        // craters at all: Io resurfaces itself too fast.
         landforms: (
             water_level_m: None,
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Patera, at: (0.60, 0.10, 0.79), radius_m: 45.0, height_m: 14.0),
+            ],
             random: [
-                (kind: Volcano, count: 9, radius_m: (35.0, 60.0), height_m: (18.0, 32.0)),
-                (kind: Mountain, count: 4, radius_m: (40.0, 60.0), height_m: (25.0, 40.0)),
-                (kind: Mesa, count: 4, radius_m: (18.0, 30.0), height_m: (10.0, 18.0)),
+                (kind: Patera, count: 5, radius_m: (15.0, 30.0), height_m: (8.0, 12.0)),
+                (kind: Volcano, count: 5, radius_m: (35.0, 60.0), height_m: (18.0, 32.0)),
+                (kind: Mountain, count: 4, radius_m: (40.0, 60.0), height_m: (30.0, 45.0)),
+                (kind: Mesa, count: 3, radius_m: (18.0, 30.0), height_m: (10.0, 18.0)),
             ],
         ),
     ),

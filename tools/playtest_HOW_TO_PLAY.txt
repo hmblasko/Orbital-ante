@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 31 Oct 2026 from the phase-2-player branch. Needs Godot 4.7.2 exactly.
+Built 31 Oct 2026 from the phase-2-player branch (Phase 5 in progress). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -56,3 +56,51 @@ WHAT IS IN THIS BUILD
 - Repair: go outside, look at a damaged leg, thruster, engine or antenna
   and hold X / E. The prompt names the part and a bar fills. Parts that
   broke off are gone. No repair sound yet.
+
+NEW IN PHASE 5 (planet surfaces, work in progress)
+- The Moon has its full surface kit: two dark mare plains (smooth, fast
+  driving ground), a big multi-ring basin on the far side, a complex crater
+  with a craggy central peak, winding rilles and wrinkle ridges on the mare,
+  crater chains, two young craters with bright rays, and two dark, frosty
+  craters that never see the sun (one at the south pole, one just off the
+  north pole near where you land).
+- Lava tubes: the Moon has two deep pits on its mare plains. Drop into one
+  with the jetpack and look for the dark opening in the pit wall. Walk in:
+  the tube winds under the plain to a wider chamber at the end. Your helmet
+  lamp switches on by itself in the dark and off again in daylight. Use the
+  jetpack to climb back out of the pit.
+- Seeded features (crater chains, rilles, pits and caves) now move between
+  runs with the run seed. The big landmarks stay put every run.
+
+- Mars: a huge dead shield volcano, a mega-canyon with a side branch and an
+  outflow channel, mesas stepping down into buttes and hoodoos, a canyon
+  maze, wind-carved yardang ridges, splash-rimmed rampart craters, and an
+  icy south polar cap with spiral troughs.
+- Mars geysers: on the south polar cap, vents puff white frost for a few
+  seconds, then blast a dark dust column. Stand on one when it goes and it
+  throws you about 20 m up. Every eruption is warned first (no sound yet).
+- Phobos: one giant crater (always in the same place), long grooves and
+  chains of pits.
+- Weather (seeded per run, and every storm builds up slowly so you see it
+  coming): Mars dust storms that hide the view and push you around (much
+  less while you stand on the ground), and dust devils you can walk into;
+  Earth showers, thunderstorms with blue-white lightning, and snow; Venus
+  acid storms with green lightning that slowly eat your ship's hull (never
+  below a quarter on their own, so leave and repair); Titan orange haze and
+  methane drizzle. Storms dim the sun. Weather never reaches inside the
+  ship's cabin or a cave.
+- New surfaces: Mercury (a big ring basin, long cliff scarps, frosty dark
+  polar crater), Venus (giant volcanoes, ring-shaped coronae, flat pancake
+  domes, lava channels), Io (glowing lava-lake pits), Europa (jumbled ice
+  blocks of chaos terrain, twin-crested ice ridges), Titan (a big methane
+  sea, long dunes), Earth (mesas with buttes and hoodoos, flooded sinkholes).
+- Gas giants: dive under Jupiter's, Saturn's or Uranus's cloud deck. The
+  sky turns the gas colour and the sun dims. Jupiter has ice-blade fields
+  (penitentes) and red lightning, Saturn a big polar basin and gold
+  lightning, Uranus a giant cliff and green lightning.
+- Neptune is an ocean world. You land on a dry island at the pole. Swim
+  down with the jetpack: the water holds you up and slows you, gets darker
+  and murkier the deeper you go, and purple glows flash in the dark. Your
+  suit oxygen runs under water. Black-smoker vents on the sea-floor ridge
+  shimmer, then shove you upward. Earth's lakes and Titan's methane lakes
+  are swimmable too.

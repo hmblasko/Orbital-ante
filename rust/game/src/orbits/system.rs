@@ -285,6 +285,11 @@ impl INode3D for SolarSystem {
         self.base_mut().add_child(&light);
         self.sun_light = Some(light);
 
+        // Storms, rain, haze and wind on bodies with air.
+        let mut weather = super::weather_node::Weather::new_alloc();
+        weather.set_name("Weather");
+        self.base_mut().add_child(&weather);
+
         for (i, b) in data.bodies.iter().enumerate() {
             let mut body = CelestialBody::new_alloc();
             body.set_name(&b.id);

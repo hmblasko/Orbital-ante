@@ -22,8 +22,16 @@
         landforms: (
             water_level_m: None,
             clear_zone_deg: 4.0,
+            // Phobos kit (field guide): one giant impact crater fixed every run
+            // (like Stickney, about a third of the moon across), and seeded
+            // grooves: long shallow troughs and chains of pits.
+            placed: [
+                (kind: Crater, at: (0.75, 0.15, 0.64), radius_m: 58.0, height_m: 9.0),
+            ],
             random: [
-                (kind: Crater, count: 1, radius_m: (55.0, 60.0), height_m: (8.0, 9.0)),
+                (kind: Rille, count: 6, radius_m: (2.5, 3.5), height_m: (1.5, 2.2), length_m: (90.0, 160.0)),
+                (kind: Catena, count: 5, radius_m: (2.5, 4.0), height_m: (1.2, 2.0), length_m: (40.0, 80.0)),
+                (kind: Bowl, count: 12, radius_m: (4.0, 9.0), height_m: (1.5, 3.0)),
             ],
         ),
     ),

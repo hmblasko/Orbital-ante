@@ -19,12 +19,22 @@
         crater_radius_m: (5.0, 10.0),
         crater_depth_ratio: 0.18,
         crater_rim_ratio: 0.35,
+        // Saturn inner surface kit (field guide 8; invented): the polar
+        // storm basin fixed every run (round for now; the hexagon outline is
+        // a later polish item); seeded giant ice dunes, sulcus grooves,
+        // cryovolcano cones and butte fields.
         landforms: (
             water_level_m: None,
             clear_zone_deg: 4.0,
+            placed: [
+                (kind: Basin, at: (0.0, -1.0, 0.0), radius_m: 220.0, height_m: 14.0),
+            ],
             random: [
-                (kind: Mountain, count: 8, radius_m: (80.0, 140.0), height_m: (40.0, 80.0)),
-                (kind: Butte, count: 8, radius_m: (20.0, 35.0), height_m: (30.0, 50.0)),
+                (kind: Dunes, count: 4, radius_m: (150.0, 220.0), height_m: (10.0, 16.0)),
+                (kind: Rille, count: 5, radius_m: (5.0, 8.0), height_m: (3.0, 5.0), length_m: (250.0, 500.0)),
+                (kind: Volcano, count: 3, radius_m: (50.0, 80.0), height_m: (25.0, 40.0)),
+                (kind: Erosion, count: 3, radius_m: (30.0, 45.0), height_m: (25.0, 40.0)),
+                (kind: Mountain, count: 4, radius_m: (80.0, 140.0), height_m: (40.0, 70.0)),
             ],
         ),
     ),
@@ -81,5 +91,21 @@
         storm_color: (0.00, 0.00, 0.00),
         ring_m: (2450.0, 3500.0),
         ring_color: (0.86, 0.80, 0.68),
+    )),
+    // Inside the cloud deck: golden haze and gold lightning (field guide 8).
+    weather: Some((
+        ceiling_m: 900.0,
+        calm_s: (100.0, 220.0),
+        wind_m_s: 7.0,
+        push_per_wind: 0.08,
+        ground_share: 0.3,
+        calm_fog: (0.86, 0.74, 0.48),
+        calm_fog_density: 0.0025,
+        calm_sun_dim: 0.4,
+        events: [
+            (kind: Thunderstorm, weight: 1.0, duration_s: (90.0, 150.0), ramp_s: 25.0, wind_m_s: 15.0,
+             fog: (0.70, 0.58, 0.34), fog_density: 0.011, particle_color: (0.95, 0.88, 0.70), particles_per_s: 500.0,
+             lightning: Some((color: (1.00, 0.85, 0.40), every_s: (3.0, 8.0))), sun_dim: 0.65),
+        ],
     )),
 )

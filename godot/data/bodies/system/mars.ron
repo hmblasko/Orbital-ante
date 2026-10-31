@@ -22,13 +22,31 @@
         landforms: (
             water_level_m: None,
             clear_zone_deg: 5.0,
+            // Mars kit (docs/planetary_geology_field_guide.md and the Mars and
+            // Moon kit draft). Signature (L) landmarks are fixed every run, the
+            // rest is seeded. The landing zone is the north pole (+Y); the
+            // polar ice cap is at the south pole.
+            placed: [
+                // Shield volcano: wide, gentle slopes up to a summit caldera.
+                (kind: Volcano, at: (0.62, 0.35, -0.70), radius_m: 170.0, height_m: 70.0),
+                // The chasma: a mega-canyon near the equator, with one tributary.
+                (kind: Canyon, at: (-0.20, 0.05, 0.98), to: Some((0.55, -0.05, 0.83)), radius_m: 22.0, height_m: 18.0),
+                (kind: Canyon, at: (0.30, 0.32, 0.90), to: Some((0.20, 0.04, 0.98)), radius_m: 11.0, height_m: 10.0),
+                // Outflow channel: a wide, shallow rover highway from the chasma's mouth north.
+                (kind: Rille, at: (0.58, 0.00, 0.81), to: Some((0.42, 0.58, 0.70)), radius_m: 20.0, height_m: 3.0),
+                // South polar layered deposits with spiral troughs.
+                (kind: PolarCap, at: (0.0, -1.0, 0.0), radius_m: 120.0, height_m: 10.0),
+            ],
             random: [
-                (kind: Canyon, count: 3, radius_m: (18.0, 26.0), height_m: (14.0, 24.0), length_m: (500.0, 900.0)),
-                (kind: Volcano, count: 3, radius_m: (90.0, 140.0), height_m: (50.0, 80.0)),
-                (kind: Dunes, count: 5, radius_m: (80.0, 140.0), height_m: (5.0, 9.0)),
-                (kind: Crater, count: 6, radius_m: (40.0, 90.0), height_m: (6.0, 14.0)),
-                (kind: Mesa, count: 8, radius_m: (25.0, 50.0), height_m: (16.0, 30.0)),
-                (kind: Butte, count: 10, radius_m: (12.0, 22.0), height_m: (25.0, 42.0)),
+                // Erosion sequences: a mesa with buttes stepping away (hoodoos gather round).
+                (kind: Erosion, count: 4, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
+                (kind: Labyrinth, count: 1, radius_m: (40.0, 50.0), height_m: (7.0, 10.0), length_m: (40.0, 70.0)),
+                (kind: Yardangs, count: 2, radius_m: (70.0, 100.0), height_m: (3.0, 5.0)),
+                (kind: Rampart, count: 3, radius_m: (10.0, 15.0), height_m: (4.0, 6.0)),
+                (kind: Crater, count: 3, radius_m: (40.0, 70.0), height_m: (6.0, 12.0)),
+                (kind: Dunes, count: 3, radius_m: (80.0, 130.0), height_m: (4.0, 8.0)),
+                // Inverted relief: old channels left standing as low, winding ridges.
+                (kind: Ridge, count: 3, radius_m: (5.0, 8.0), height_m: (1.5, 3.0), length_m: (100.0, 200.0)),
             ],
         ),
     ),
@@ -47,11 +65,14 @@
     land_look: (
         strata_a: (0.80, 0.46, 0.30),
         strata_b: (0.60, 0.30, 0.20),
-        basalt: (0.22, 0.20, 0.22),
+        // Mars's shield volcanoes are long dead and dust-covered: darker
+        // rusty flanks, no glowing lava.
+        basalt: (0.42, 0.25, 0.18),
         lava: (1.00, 0.45, 0.10),
-        lava_energy: 2.0,
-        lava_light_range_m: 40.0,
-        snow: (0.86, 0.72, 0.60),
+        lava_energy: 0.0,
+        lava_light_range_m: 0.0,
+        snow: (0.93, 0.89, 0.84),
+        snow_drift: 0.25,
         wet: (0.52, 0.28, 0.19),
         mineral: (0.90, 0.88, 0.82),
         water_shallow: (0.25, 0.70, 0.75),
@@ -91,4 +112,38 @@
     )),
     preview_subdivisions: 64,
     air_glow: Some((color: (0.95, 0.60, 0.40), height_m: 50.0, strength: 0.70)),
+    // Weather (section 4: sandstorms, wind; Mars kit: dust devils). Seeded per
+    // run; every storm builds over ramp_s so you can see it coming.
+    weather: Some((
+        ceiling_m: 260.0,
+        calm_s: (120.0, 260.0),
+        wind_m_s: 3.0,
+        push_per_wind: 0.12,
+        ground_share: 0.3,
+        calm_fog: (0.86, 0.58, 0.40),
+        calm_fog_density: 0.0015,
+        events: [
+            (kind: Sandstorm, weight: 2.0, duration_s: (90.0, 160.0), ramp_s: 25.0, wind_m_s: 18.0,
+             fog: (0.78, 0.48, 0.30), fog_density: 0.028, particle_color: (0.80, 0.52, 0.34), particles_per_s: 500.0, sun_dim: 0.45),
+            (kind: DustDevils, weight: 3.0, duration_s: (80.0, 140.0), ramp_s: 10.0, wind_m_s: 6.0,
+             fog: (0.86, 0.58, 0.40), fog_density: 0.003, particle_color: (0.76, 0.50, 0.34), particles_per_s: 0.0, devils: 3),
+        ],
+    )),
+    // CO2 geysers on the south polar cap (Mars kit): each vent hisses frost
+    // for warn_s seconds, then blasts a dark dust column that throws anyone
+    // standing on it. Vent spots and timings are seeded per run.
+    geysers: Some((
+        count: 7,
+        around: PolarCap,
+        ring: (0.35, 0.95),
+        cycle_s: (35.0, 70.0),
+        warn_s: 4.0,
+        erupt_s: 5.0,
+        radius_m: 3.5,
+        throw_m_s: 16.0,
+        column_height_m: 40.0,
+        dust_color: (0.22, 0.16, 0.13),
+        frost_color: (0.92, 0.94, 0.98),
+        show_within_m: 450.0,
+    )),
 )

@@ -37,6 +37,8 @@ uniform vec3 basalt_color : source_color = vec3(0.18, 0.17, 0.19);
 uniform vec3 lava_color : source_color = vec3(1.0, 0.42, 0.08);
 uniform float lava_energy = 3.0;
 uniform vec3 snow_color : source_color = vec3(0.92, 0.94, 0.98);
+// How much the snow breaks into drifts (1 = patchy, 0 = a solid cap).
+uniform float snow_drift = 1.0;
 uniform vec3 wet_color : source_color = vec3(0.30, 0.28, 0.27);
 uniform vec3 mineral_color : source_color = vec3(0.93, 0.92, 0.86);
 uniform vec3 mare_color : source_color = vec3(0.24, 0.24, 0.26);
@@ -108,8 +110,8 @@ void fragment() {
 	float snow = smoothstep(0.25, 0.6, UV2.x + (broad - 0.5) * 0.5) * (1.0 - 0.75 * smoothstep(0.3, 0.6, slope));
 	// Break the cap into drifts and bare rock streaks, so it reads as snow
 	// lying in hollows rather than a painted-on white cap.
-	float drift = smoothstep(0.45, 0.6, broad * 0.75 + grain * 0.45);
-	snow *= mix(0.15, 1.0, drift);
+	float drift = smoothstep(0.38, 0.66, broad * 0.75 + grain * 0.45);
+	snow *= mix(1.0 - 0.85 * snow_drift, 1.0, drift);
 	albedo = mix(albedo, mix(snow_color, albedo, 0.12), snow * 0.9);
 	// Glowing lava with a cooled crust breaking it up.
 	float glow = smoothstep(0.6, 0.95, lava) * smoothstep(0.25, 0.55, grain + broad * 0.4);
