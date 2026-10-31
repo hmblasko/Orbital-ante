@@ -4,7 +4,8 @@
 // from per-vertex hints (crater floors, rims, height, slope) and broad,
 // low-contrast noise, like a hand-painted texture with soft gradients.
 // COLOR.r = crater floor, COLOR.g = crater rim, COLOR.b = normalised height,
-// COLOR.a = mineral terraces; UV = (strata, lava); UV2 = (snow, wet).
+// COLOR.a = mineral terraces; UV = (strata, lava); UV2 = (snow, wet);
+// CUSTOM0 = (mare, rays, frost, melt).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
@@ -35,6 +36,10 @@ uniform float lava_energy = 3.0;
 uniform vec3 snow_color : source_color = vec3(0.92, 0.94, 0.98);
 uniform vec3 wet_color : source_color = vec3(0.30, 0.28, 0.27);
 uniform vec3 mineral_color : source_color = vec3(0.93, 0.92, 0.86);
+uniform vec3 mare_color : source_color = vec3(0.24, 0.24, 0.26);
+uniform vec3 ray_color : source_color = vec3(0.92, 0.91, 0.88);
+uniform vec3 frost_color : source_color = vec3(0.80, 0.86, 0.95);
+uniform vec3 melt_color : source_color = vec3(0.10, 0.11, 0.14);
 
 // Where this tile's mesh origin sits in the body (tiles are drawn around
 // their own centres so detail levels switch by distance to the tile).
@@ -42,10 +47,12 @@ instance uniform vec3 tile_offset = vec3(0.0);
 
 varying vec3 local_pos;
 varying vec3 local_normal;
+varying vec4 lunar;
 
 void vertex() {
 	local_pos = VERTEX + tile_offset;
 	local_normal = NORMAL;
+	lunar = CUSTOM0;
 }
 
 float triplanar(sampler2D tex, vec3 p, vec3 n, float scale) {
@@ -105,6 +112,19 @@ void fragment() {
 	float glow = smoothstep(0.6, 0.95, lava) * smoothstep(0.25, 0.55, grain + broad * 0.4);
 	albedo = mix(albedo, vec3(0.08, 0.06, 0.06), smoothstep(0.6, 0.95, lava));
 	EMISSION = lava_color * lava_energy * glow;
+	// Mare basalt: darker, cooler plains with soft mottling, never flat.
+	albedo = mix(albedo, mare_color * (0.86 + broad * 0.28), smoothstep(0.05, 0.6, lunar.r));
+	// Fresh ejecta rays: bright streaks broken up by the grain.
+	float rays = lunar.g * mix(0.55, 1.0, smoothstep(0.3, 0.6, grain * 0.6 + broad * 0.6));
+	albedo = mix(albedo, ray_color, rays * 0.9);
+	// Frost lying in hollows of the shadowed floor.
+	float frost = smoothstep(0.1, 0.5, lunar.b) * mix(0.55, 1.0, smoothstep(0.35, 0.6, grain));
+	albedo = mix(albedo, frost_color, frost * 0.7);
+	// Impact melt: near-black glass with a cool sheen at grazing angles.
+	float melt = smoothstep(0.2, 0.6, lunar.a);
+	albedo = mix(albedo, melt_color, melt * 0.9);
+	float fres_m = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	EMISSION += vec3(0.35, 0.42, 0.55) * fres_m * melt * 0.25;
 	// Soft painterly variation and fine regolith grain.
 	albedo *= 0.88 + broad * 0.22;
 	albedo *= 0.90 + grain * 0.2;

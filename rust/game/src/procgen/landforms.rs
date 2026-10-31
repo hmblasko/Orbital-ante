@@ -39,6 +39,20 @@ pub enum LandformKind {
     Ridge,
     /// A steep collapse pit; floods into a cenote below the water table.
     Sinkhole,
+    /// Lunar mare: a low, dark, smooth lava plain that buries the hills under it.
+    Mare,
+    /// A multi-ring impact basin: concentric scarps around a flooded centre.
+    Basin,
+    /// A sinuous rille: a narrow, winding dry trench (a collapsed lava channel).
+    Rille,
+    /// A simple bowl crater with a raised rim (`height_m` is its depth).
+    Bowl,
+    /// A young bowl crater with bright ejecta rays out to about five radii.
+    RayedCrater,
+    /// A deep bowl whose floor never sees the sun: frost lies on it.
+    ColdTrap,
+    /// Seeded only: a crater chain (catena), expanded into 4-8 bowls in a line.
+    Catena,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -81,6 +95,10 @@ pub struct RandomLandforms {
     /// Path length range for canyons and rivers.
     #[serde(default)]
     pub length_m: (f32, f32),
+    /// Only place these on top of an earlier landform of this kind (for
+    /// example rilles and wrinkle ridges on a mare).
+    #[serde(default)]
+    pub on: Option<LandformKind>,
 }
 
 /// One landform, precomputed for fast sampling.
@@ -115,6 +133,14 @@ pub struct LandHints {
     pub wet: f32,
     /// White mineral terraces around spring pools.
     pub mineral: f32,
+    /// Dark mare basalt.
+    pub mare: f32,
+    /// Bright ejecta rays.
+    pub rays: f32,
+    /// Frost in permanently shadowed ground.
+    pub ice: f32,
+    /// Glassy impact melt on crater floors.
+    pub melt: f32,
 }
 
 impl LandHints {
@@ -124,6 +150,10 @@ impl LandHints {
         self.snow = self.snow.max(o.snow);
         self.wet = self.wet.max(o.wet);
         self.mineral = self.mineral.max(o.mineral);
+        self.mare = self.mare.max(o.mare);
+        self.rays = self.rays.max(o.rays);
+        self.ice = self.ice.max(o.ice);
+        self.melt = self.melt.max(o.melt);
     }
 }
 
@@ -139,10 +169,17 @@ fn reach(kind: LandformKind) -> f32 {
         LandformKind::Dunes => 1.25,
         LandformKind::Crater => 1.8,
         LandformKind::Sinkhole => 1.6,
+        LandformKind::Mare => 1.4,
+        LandformKind::Basin => 1.6,
+        LandformKind::Bowl | LandformKind::ColdTrap => 1.8,
+        LandformKind::RayedCrater => RAY_REACH,
+        // Expanded into bowls at placement; never sampled itself.
+        LandformKind::Catena => 1.0,
         // Paths: half-width multiples, checked separately.
         LandformKind::Canyon => 5.0,
         LandformKind::River => 3.2,
         LandformKind::Ridge => 3.0,
+        LandformKind::Rille => 2.5,
     }
 }
 
@@ -261,9 +298,41 @@ impl Landforms {
                 let s = (seed as u32)
                     .wrapping_mul(2654435761)
                     .wrapping_add(k * 7919);
-                let dir = random_dir(&mut rng);
+                let dir = match group.on {
+                    Some(kind) => {
+                        let hosts: Vec<&Landform> = list.iter().filter(|l| l.kind == kind).collect();
+                        if hosts.is_empty() {
+                            break;
+                        }
+                        let host = hosts[rng.range_i64(0, hosts.len() as i64 - 1) as usize];
+                        // Somewhere inside the host's footprint.
+                        let r = host.angle * 0.8 * rng.next_f32().sqrt();
+                        rotate_toward(host.center, perpendicular_random(host.center, &mut rng), r)
+                    }
+                    None => random_dir(&mut rng),
+                };
                 let radius_m = rng.range_f32(group.radius_m.0, group.radius_m.1);
                 let height = rng.range_f32(group.height_m.0, group.height_m.1);
+                if group.kind == LandformKind::Catena {
+                    // A line of bowls, smaller toward one end, spaced about
+                    // a diameter apart (secondary craters from one impact).
+                    let length = rng.range_f32(group.length_m.0, group.length_m.1.max(group.length_m.0));
+                    if dir.y > clear_cos.min(0.9999) - length / body_radius {
+                        continue;
+                    }
+                    let heading = perpendicular_random(dir, &mut rng);
+                    let n = ((length / (radius_m * 2.4)).round() as u32).clamp(4, 8);
+                    for i in 0..n {
+                        let t = i as f32 / (n - 1) as f32;
+                        let at = rotate_toward(dir, heading, length * t / body_radius);
+                        let shrink = 1.0 - 0.45 * t * rng.range_f32(0.6, 1.0);
+                        k += 1;
+                        let s = (seed as u32).wrapping_mul(2654435761).wrapping_add(k * 7919);
+                        list.push(Landform::point(LandformKind::Bowl, at, radius_m * shrink, height * shrink, body_radius, s));
+                    }
+                    placed += 1;
+                    continue;
+                }
                 let l = if is_path_kind(group.kind) {
                     let length = rng.range_f32(
                         group.length_m.0.max(radius_m * 4.0),
@@ -308,7 +377,8 @@ impl Landforms {
                     continue;
                 }
                 let crowded = !l.is_path()
-                    && list.iter().filter(|o| !o.is_path()).any(|o| {
+                    && !is_background(l.kind)
+                    && list.iter().filter(|o| !o.is_path() && !is_background(o.kind)).any(|o| {
                         o.center.angle_to(l.center) < (footprint + o.angle * reach(o.kind)) * 0.85
                     });
                 if crowded {
@@ -318,6 +388,9 @@ impl Landforms {
                 placed += 1;
             }
         }
+        // Plains and basins reshape the ground first, so craters, ridges
+        // and rilles sit on top of them (stable: same order every run).
+        list.sort_by_key(|l| !is_background(l.kind));
         Self {
             list,
             water_level: data.water_level_m,
@@ -338,6 +411,7 @@ impl Landforms {
                         | LandformKind::River
                         | LandformKind::Lake
                         | LandformKind::Pool
+                        | LandformKind::Rille
                 );
                 // Canyons both raise a plateau (pass 0) and carve (pass 1).
                 let active = match pass {
@@ -366,6 +440,10 @@ impl Landforms {
                 // Relative digs: the base ground can be at most a few metres low.
                 LandformKind::Crater => -l.height * CRATER_DEPTH - 6.0,
                 LandformKind::Sinkhole => -l.height * 1.25 - 6.0,
+                LandformKind::Bowl | LandformKind::RayedCrater | LandformKind::ColdTrap => -l.height - 6.0,
+                LandformKind::Rille => -l.height - 6.0,
+                LandformKind::Mare => -l.height - 6.0,
+                LandformKind::Basin => -l.height * 1.3 - 8.0,
                 _ => 0.0,
             })
             .fold(0.0, f32::min)
@@ -381,11 +459,20 @@ const CRATER_DEPTH: f32 = 1.6;
 /// Crest-to-crest dune spacing as a multiple of dune height.
 const DUNE_SPACING: f32 = 6.0;
 
+/// How far out a rayed crater's rays reach, in crater radii.
+const RAY_REACH: f32 = 5.5;
+
 fn is_path_kind(kind: LandformKind) -> bool {
     matches!(
         kind,
-        LandformKind::Canyon | LandformKind::River | LandformKind::Ridge
+        LandformKind::Canyon | LandformKind::River | LandformKind::Ridge | LandformKind::Rille
     )
+}
+
+/// Broad forms that reshape the ground under other landforms rather than
+/// competing with them for space.
+fn is_background(kind: LandformKind) -> bool {
+    matches!(kind, LandformKind::Mare | LandformKind::Basin)
 }
 
 fn sample_one(
@@ -576,10 +663,11 @@ fn sample_one(
             let profile = if x < 0.55 {
                 // Flat floor with a central peak cluster that tops out above
                 // the plain, so it stands as an island if the crater floods.
-                let f = 3.0 / l.angle;
-                let crags = noise::ridged3([p[0] * f, p[1] * f, p[2] * f], 2, 0.5, l.seed ^ 57);
-                let peak = smoothstep(0.2, 0.0, x).powf(1.3) * (0.75 + 0.35 * crags);
-                -depth + l.height * (CRATER_DEPTH + 0.4) * peak
+                // A craggy massif of several summits, not a single cone.
+                let f = 7.0 / l.angle;
+                let crags = noise::ridged3([p[0] * f, p[1] * f, p[2] * f], 3, 0.55, l.seed ^ 57);
+                let peak = smoothstep(0.36, 0.08, x) * (0.4 + 0.55 * crags);
+                -depth + l.height * (CRATER_DEPTH + 0.2) * peak
             } else if x < 1.0 {
                 // Slumped terraces climbing to the rim.
                 let t = terrace(smoothstep(0.55, 1.0, x), 3.0);
@@ -588,7 +676,13 @@ fn sample_one(
                 // Ejecta blanket falling away from the raised rim.
                 l.height * (1.0 - smoothstep(1.0, 1.8, x)).powf(2.2)
             };
-            hints.strata = smoothstep(0.55, 0.7, x) * smoothstep(1.02, 0.92, x) * 0.6;
+            hints.strata = smoothstep(0.55, 0.7, x) * smoothstep(1.02, 0.92, x) * 0.35;
+            // Half of complex craters keep a glassy impact-melt sheet on the floor.
+            if l.seed % 2 == 0 {
+                let f = 2.0 / l.angle;
+                let patch = noise::fbm3([p[0] * f, p[1] * f, p[2] * f], 2, 0.5, l.seed ^ 87);
+                hints.melt = smoothstep(0.52, 0.4, x) * smoothstep(0.12, 0.2, x) * smoothstep(-0.1, 0.15, patch);
+            }
             (height + profile, hints)
         }
         LandformKind::Ridge => {
@@ -619,7 +713,105 @@ fn sample_one(
             hints.wet = smoothstep(0.9, 0.6, x) * 0.5;
             (height - dig, hints)
         }
+        LandformKind::Mare => {
+            if !raise_pass {
+                return (height, hints);
+            }
+            let x = outline(d, l, 0.35);
+            if x >= 1.4 {
+                return (height, hints);
+            }
+            // Lava filled the low ground and set flat: hills and old
+            // craters drown under it, leaving a gentle swell and a shore.
+            let w = smoothstep(1.4, 0.85, x);
+            let f = 0.8 / l.angle;
+            let swell = noise::fbm3([p[0] * f, p[1] * f, p[2] * f], 2, 0.5, l.seed ^ 19) * 0.25;
+            let flooded = height * MARE_KEEP - l.height * (1.0 + swell);
+            hints.mare = smoothstep(1.25, 0.95, x);
+            (height + (flooded - height) * w, hints)
+        }
+        LandformKind::Basin => {
+            if !raise_pass {
+                return (height, hints);
+            }
+            let x = outline(d, l, 0.05);
+            if x >= 1.6 {
+                return (height, hints);
+            }
+            // Concentric rings, each a steep inward-facing scarp, stepping
+            // down to a mare-flooded centre; ejecta fades outside.
+            let f = 2.5 / l.angle;
+            let rough = noise::ridged3([p[0] * f, p[1] * f, p[2] * f], 2, 0.5, l.seed ^ 43);
+            let mut profile = -l.height * smoothstep(1.0, BASIN_RINGS[2], x);
+            for (i, r) in BASIN_RINGS.iter().enumerate() {
+                let w = 0.05 + 0.02 * i as f32;
+                let rise = l.height * (0.55 - 0.12 * i as f32) * (0.7 + 0.5 * rough);
+                // Sharp inner face, long outer slope.
+                let k = if x < *r { smoothstep(r - w, *r, x) } else { smoothstep(r + w * 3.5, *r, x) };
+                profile += rise * k * k;
+            }
+            let fade = smoothstep(1.6, 1.0, x);
+            let inner = smoothstep(BASIN_RINGS[2] + 0.04, BASIN_RINGS[2] - 0.06, x);
+            hints.mare = inner;
+            // Flooded centre buries the hills like a mare.
+            let base = height * (1.0 - 0.75 * inner);
+            (base + profile * fade, hints)
+        }
+        LandformKind::Rille => {
+            let Some((q, along)) = path_coords(l, d, body_radius) else {
+                return (height, hints);
+            };
+            if raise_pass || q >= 2.5 {
+                return (height, hints);
+            }
+            // Steep walls, a narrow flat floor, slight levees either side.
+            let dig = l.height * smoothstep(1.0, 0.35, q) * along;
+            let levee = l.height * 0.12 * smoothstep(2.5, 1.4, q) * smoothstep(0.9, 1.3, q) * along;
+            hints.strata = smoothstep(1.05, 0.8, q) * smoothstep(0.45, 0.7, q) * 0.5 * along;
+            (height - dig + levee, hints)
+        }
+        LandformKind::Bowl | LandformKind::RayedCrater | LandformKind::ColdTrap => {
+            let x = outline(d, l, 0.05);
+            let reach_x = reach(l.kind);
+            if x >= reach_x {
+                return (height, hints);
+            }
+            let depth = l.height;
+            let rim = depth * 0.3;
+            let profile = if x < 1.0 {
+                -depth * (1.0 - x * x) + rim * x.powi(6)
+            } else {
+                rim * (1.0 - smoothstep(1.0, 1.8, x)).powf(2.0)
+            };
+            if l.kind == LandformKind::RayedCrater {
+                // Rays: narrow bright streaks around the crater, fading out.
+                let b = tangent_frame(l.center);
+                let (u, w) = (d.dot(b.0), d.dot(b.1));
+                let theta = w.atan2(u);
+                let spokes = noise::gradient3(theta.cos() * 7.0, theta.sin() * 7.0, x * 0.35, l.seed ^ 61);
+                let ray = smoothstep(0.0, 0.22, spokes) * smoothstep(RAY_REACH, 1.2, x);
+                let blanket = smoothstep(1.9, 1.0, x) * smoothstep(0.7, 1.0, x);
+                hints.rays = ray.max(blanket) * (x > 0.85) as i32 as f32 + smoothstep(0.6, 0.0, x) * 0.3;
+            }
+            if l.kind == LandformKind::ColdTrap {
+                hints.ice = smoothstep(0.85, 0.45, x);
+            }
+            (height + profile, hints)
+        }
+        LandformKind::Catena => (height, hints),
     }
+}
+
+/// Share of the old hills still showing through a mare (gentle swells, never flat).
+const MARE_KEEP: f32 = 0.4;
+
+/// Ring radii of a multi-ring basin, outermost first, as shares of its radius.
+const BASIN_RINGS: [f32; 3] = [1.0, 0.68, 0.42];
+
+/// Two unit tangents at `c` (for angles around a point on the sphere).
+pub(crate) fn tangent_frame(c: Vector3) -> (Vector3, Vector3) {
+    let a = perpendicular(c);
+    (a, c.cross(a))
 }
 
 /// A seeded tangent direction at `c` (for dune wind and the like).
@@ -645,7 +837,7 @@ fn path_coords(l: &Landform, d: Vector3, body_radius: f32) -> Option<(f32, f32)>
     let bends = (along_m / (l.radius_m * 4.5) + phase).sin() * 2.6
         + (along_m / (l.radius_m * 1.9) + phase * 2.0).sin() * 0.8;
     // Canyons wander in long, smooth bends; rivers wiggle more.
-    let (f, amp) = if l.kind == LandformKind::River { (1.2 / l.angle, 2.0) } else { (0.4 / l.angle, 1.2) };
+    let (f, amp) = if matches!(l.kind, LandformKind::River | LandformKind::Rille) { (1.2 / l.angle, 2.0) } else { (0.4 / l.angle, 1.2) };
     let wobble = noise::fbm3([d.x * f, d.y * f, d.z * f], 3, 0.5, l.seed ^ 5) * amp;
     let edge_t = (t / l.arc).clamp(-0.5, 1.5);
     let along = smoothstep(-0.04, 0.12, edge_t) * smoothstep(1.04, 0.88, edge_t);
@@ -751,6 +943,7 @@ mod tests {
                     radius_m: (30.0, 40.0),
                     height_m: (20.0, 28.0),
                     length_m: (0.0, 0.0),
+                    on: None,
                 },
                 RandomLandforms {
                     kind: LandformKind::River,
@@ -758,6 +951,7 @@ mod tests {
                     radius_m: (2.5, 3.5),
                     height_m: (0.0, 0.0),
                     length_m: (60.0, 120.0),
+                    on: None,
                 },
             ],
         }
@@ -910,5 +1104,86 @@ mod tests {
         assert!(at(&l, 0.0) < -18.0, "floor {}", at(&l, 0.0));
         assert!(at(&l, 0.0) >= l.lowest());
         assert!(at(&l, 1.3) > -2.0);
+    }
+
+    #[test]
+    fn mare_is_low_and_smooth() {
+        let l = one(LandformKind::Mare, 80.0, 3.0, None);
+        let f = &l.list[0];
+        // Hills of +-2 m underneath shrink to gentle swells under half that.
+        let (hi, _) = l.apply(f.center, 2.0, 600.0);
+        let (lo, hints) = l.apply(f.center, -2.0, 600.0);
+        assert!(hi < -1.0 && (hi - lo).abs() < 2.0, "hi {hi} lo {lo}");
+        assert!(hints.mare > 0.9);
+        assert!(at(&l, 1.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn basin_has_ring_scarps_around_a_low_flooded_centre() {
+        let l = one(LandformKind::Basin, 90.0, 10.0, None);
+        let centre = at(&l, 0.0);
+        let outer_ring = (95..=105).map(|i| at(&l, i as f32 * 0.01)).fold(f32::MIN, f32::max);
+        let trough = (78..=88).map(|i| at(&l, i as f32 * 0.01)).fold(f32::MAX, f32::min);
+        assert!(centre < -8.0, "centre {centre}");
+        assert!(outer_ring > trough + 2.0, "ring {outer_ring} trough {trough}");
+        assert!(centre >= l.lowest());
+        let (_, hints) = l.apply(l.list[0].center, 0.0, 600.0);
+        assert!(hints.mare > 0.9);
+    }
+
+    #[test]
+    fn rille_is_a_trench_below_the_plain() {
+        let l = one(LandformKind::Rille, 3.0, 4.0, Some((0.9, 0.2, 0.4)));
+        let f = &l.list[0];
+        let (a, b) = f.path_ends().unwrap();
+        let mid = (a + b).normalized();
+        let floor = (-60..=60)
+            .map(|i| l.apply((mid + f.normal * (i as f32 * 0.0005)).normalized(), 0.0, 600.0).0)
+            .fold(f32::MAX, f32::min);
+        assert!(floor < -3.0, "floor {floor}");
+        assert!(floor >= l.lowest());
+        let far = l.apply((mid + f.normal * 0.2).normalized(), 0.0, 600.0).0;
+        assert!(far.abs() < 0.01);
+    }
+
+    #[test]
+    fn rayed_crater_paints_rays_and_cold_trap_holds_frost() {
+        let l = one(LandformKind::RayedCrater, 10.0, 4.0, None);
+        assert!(at(&l, 0.0) < -3.5);
+        let f = &l.list[0];
+        let (u, w) = tangent_frame(f.center);
+        let rays = (0..72)
+            .map(|i| {
+                let a = i as f32 / 72.0 * std::f32::consts::TAU;
+                let dir = rotate_toward(f.center, u * a.cos() + w * a.sin(), f.angle * 3.0);
+                l.apply(dir, 0.0, 600.0).1.rays
+            })
+            .collect::<Vec<_>>();
+        let lit = rays.iter().filter(|r| **r > 0.5).count();
+        assert!(lit > 3 && lit < 60, "{lit} of 72 directions are on a ray");
+        let cold = one(LandformKind::ColdTrap, 12.0, 8.0, None);
+        assert!(cold.apply(cold.list[0].center, 0.0, 600.0).1.ice > 0.9);
+    }
+
+    #[test]
+    fn catena_expands_into_a_line_of_bowls_on_its_host() {
+        let data = LandformData {
+            water_level_m: None,
+            clear_zone_deg: 5.0,
+            placed: vec![PlacedLandform { kind: LandformKind::Mare, at: (1.0, 0.0, 0.0), to: None, radius_m: 120.0, height_m: 3.0 }],
+            random: vec![
+                RandomLandforms { kind: LandformKind::Catena, count: 2, radius_m: (4.0, 5.0), height_m: (2.0, 2.5), length_m: (40.0, 60.0), on: None },
+                RandomLandforms { kind: LandformKind::Rille, count: 2, radius_m: (2.0, 3.0), height_m: (3.0, 4.0), length_m: (60.0, 90.0), on: Some(LandformKind::Mare) },
+            ],
+        };
+        let l = Landforms::new(&data, 300.0, 3);
+        let bowls = l.list.iter().filter(|f| f.kind == LandformKind::Bowl).count();
+        assert!((8..=16).contains(&bowls), "{bowls} bowls");
+        assert_eq!(l.list[0].kind, LandformKind::Mare, "background forms come first");
+        let mare = l.list[0].center;
+        for r in l.list.iter().filter(|f| f.kind == LandformKind::Rille) {
+            let (a, _) = r.path_ends().unwrap();
+            assert!(a.angle_to(mare) < 120.0 / 300.0, "rille starts on the mare");
+        }
     }
 }

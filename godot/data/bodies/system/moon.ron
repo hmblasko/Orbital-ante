@@ -22,10 +22,29 @@
         landforms: (
             water_level_m: None,
             clear_zone_deg: 4.0,
+            // Moon kit (docs/planetary_geology_field_guide.md and the Mars and
+            // Moon kit draft). Signature (L) landmarks are fixed every run and
+            // the rest is seeded, as drafted (still for Matthew to confirm). The landing zone is the north pole (+Y).
+            placed: [
+                // Two mare plains: the safe fast-driving ground.
+                (kind: Mare, at: (0.55, 0.62, 0.56), radius_m: 72.0, height_m: 2.5),
+                (kind: Mare, at: (-0.78, 0.12, 0.62), radius_m: 95.0, height_m: 3.0),
+                // Multi-ring impact basin on the far side.
+                (kind: Basin, at: (-0.35, -0.55, -0.76), radius_m: 88.0, height_m: 10.0),
+                // Complex crater with a central peak (a dish site later).
+                (kind: Crater, at: (0.82, -0.18, -0.54), radius_m: 40.0, height_m: 8.0),
+                // Permanently shadowed craters: south pole, and one just off the north pole.
+                (kind: ColdTrap, at: (0.0, -1.0, 0.0), radius_m: 22.0, height_m: 13.0),
+                (kind: ColdTrap, at: (0.2, 0.98, -0.12), radius_m: 11.0, height_m: 7.0),
+            ],
             random: [
-                (kind: Crater, count: 6, radius_m: (30.0, 60.0), height_m: (6.0, 10.0)),
-                (kind: Ridge, count: 4, radius_m: (8.0, 12.0), height_m: (4.0, 7.0), length_m: (150.0, 300.0)),
-                (kind: Sinkhole, count: 3, radius_m: (5.0, 9.0), height_m: (8.0, 14.0)),
+                (kind: Crater, count: 3, radius_m: (28.0, 45.0), height_m: (5.0, 8.0)),
+                (kind: Rille, count: 3, radius_m: (4.5, 6.0), height_m: (3.0, 4.5), length_m: (80.0, 150.0), on: Some(Mare)),
+                (kind: Ridge, count: 4, radius_m: (6.0, 9.0), height_m: (1.2, 2.2), length_m: (60.0, 120.0), on: Some(Mare)),
+                (kind: Catena, count: 3, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
+                (kind: RayedCrater, count: 2, radius_m: (6.0, 10.0), height_m: (2.5, 4.0)),
+                (kind: Bowl, count: 30, radius_m: (3.0, 9.0), height_m: (1.0, 3.0)),
+                (kind: Sinkhole, count: 2, radius_m: (5.0, 8.0), height_m: (8.0, 14.0), on: Some(Mare)),
             ],
         ),
     ),
@@ -42,8 +61,8 @@
         grain_scale: 0.15,
     ),
     land_look: (
-        strata_a: (0.52, 0.51, 0.51),
-        strata_b: (0.36, 0.36, 0.38),
+        strata_a: (0.55, 0.54, 0.53),
+        strata_b: (0.46, 0.45, 0.45),
         basalt: (0.22, 0.20, 0.22),
         lava: (1.00, 0.45, 0.10),
         lava_energy: 0.0,
@@ -56,6 +75,10 @@
         water_foam: (0.95, 0.98, 1.00),
         water_subdivisions: 64,
         frozen: false,
+        mare: (0.26, 0.26, 0.29),
+        rays: (0.90, 0.89, 0.86),
+        frost: (0.62, 0.70, 0.82),
+        melt: (0.09, 0.10, 0.13),
     ),
     rocks: (
         count: 450,

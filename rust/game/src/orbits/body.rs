@@ -170,6 +170,31 @@ pub struct LandLook {
     /// Lakes and pools are frozen solid: painted ice you can walk on.
     #[serde(default)]
     pub frozen: bool,
+    /// Dark mare basalt plains.
+    #[serde(default = "default_mare")]
+    pub mare: (f32, f32, f32),
+    /// Bright fresh ejecta rays.
+    #[serde(default = "default_rays")]
+    pub rays: (f32, f32, f32),
+    /// Frost in shadowed crater floors.
+    #[serde(default = "default_frost")]
+    pub frost: (f32, f32, f32),
+    /// Glassy impact melt.
+    #[serde(default = "default_melt")]
+    pub melt: (f32, f32, f32),
+}
+
+fn default_mare() -> (f32, f32, f32) {
+    (0.24, 0.24, 0.26)
+}
+fn default_rays() -> (f32, f32, f32) {
+    (0.92, 0.91, 0.88)
+}
+fn default_frost() -> (f32, f32, f32) {
+    (0.80, 0.86, 0.95)
+}
+fn default_melt() -> (f32, f32, f32) {
+    (0.10, 0.11, 0.14)
 }
 
 impl Default for LandLook {
@@ -189,6 +214,10 @@ impl Default for LandLook {
             water_foam: (0.92, 0.97, 1.0),
             water_subdivisions: 48,
             frozen: false,
+            mare: default_mare(),
+            rays: default_rays(),
+            frost: default_frost(),
+            melt: default_melt(),
         }
     }
 }
@@ -396,6 +425,24 @@ impl CelestialBody {
             return;
         }
         self.detail = Detail::Building(std::thread::spawn(move || SurfaceMeshes::build(&data, &shape)));
+    }
+
+    /// Every landform on this body (kind name, direction from the centre in
+    /// body space, footprint radius in metres). Later systems (bases, dishes,
+    /// tanks, the horror zone) and the tests read features from here.
+    #[func]
+    pub fn get_landforms(&self) -> VarArray {
+        let mut out = VarArray::new();
+        let Some(shape) = &self.shape else { return out };
+        for l in &shape.landforms().list {
+            let mut d = VarDictionary::new();
+            d.set("kind", &GString::from(&format!("{:?}", l.kind)).to_variant());
+            d.set("dir", &l.center.to_variant());
+            d.set("radius_m", &l.radius_m.to_variant());
+            d.set("height_m", &l.height.to_variant());
+            out.push(&d.to_variant());
+        }
+        out
     }
 
     /// Drop full detail and go back to the cheap preview (frees memory for
@@ -1027,6 +1074,10 @@ fn surface_material(data: &BodyData) -> Gd<ShaderMaterial> {
         ("snow_color", land.snow),
         ("wet_color", land.wet),
         ("mineral_color", land.mineral),
+        ("mare_color", land.mare),
+        ("ray_color", land.rays),
+        ("frost_color", land.frost),
+        ("melt_color", land.melt),
     ] {
         material.set_shader_parameter(name, &rgb(c).to_variant());
     }
@@ -1035,7 +1086,8 @@ fn surface_material(data: &BodyData) -> Gd<ShaderMaterial> {
 }
 
 /// Painting hints per vertex: COLOR = (crater floor, crater rim, height,
-/// mineral), UV = (strata, lava), UV2 = (snow, wet).
+/// mineral), UV = (strata, lava), UV2 = (snow, wet), CUSTOM0 = (mare, rays,
+/// frost, melt) as bytes.
 fn surface_hints(tile: &MeshData, height_range: f32) -> SurfaceHints {
     SurfaceHints {
         colors: tile
@@ -1059,6 +1111,11 @@ fn surface_hints(tile: &MeshData, height_range: f32) -> SurfaceHints {
             .samples
             .iter()
             .map(|s| Vector2::new(s.land.snow, s.land.wet))
+            .collect(),
+        custom: tile
+            .samples
+            .iter()
+            .flat_map(|s| [s.land.mare, s.land.rays, s.land.ice, s.land.melt].map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8))
             .collect(),
     }
 }
@@ -1097,22 +1154,25 @@ pub struct SurfaceHints {
     pub colors: Vec<Color>,
     pub uv: Vec<Vector2>,
     pub uv2: Vec<Vector2>,
+    /// Four bytes per vertex (CUSTOM0, RGBA8 unorm).
+    pub custom: Vec<u8>,
 }
 
 /// Godot mesh with colours and two UV channels carrying painting hints.
 pub fn array_mesh_with_hints(m: &MeshData, hints: &SurfaceHints) -> Gd<ArrayMesh> {
-    mesh_from_arrays(m, Some(&hints.colors), Some((&hints.uv, &hints.uv2)))
+    mesh_from_arrays(m, Some(&hints.colors), Some((&hints.uv, &hints.uv2)), Some(&hints.custom))
 }
 
 /// Godot mesh from our mesh data, optionally with per-vertex colours.
 pub fn array_mesh(m: &MeshData, colors: Option<&[Color]>) -> Gd<ArrayMesh> {
-    mesh_from_arrays(m, colors, None)
+    mesh_from_arrays(m, colors, None, None)
 }
 
 fn mesh_from_arrays(
     m: &MeshData,
     colors: Option<&[Color]>,
     uvs: Option<(&[Vector2], &[Vector2])>,
+    custom: Option<&[u8]>,
 ) -> Gd<ArrayMesh> {
     let mut arrays = VarArray::new();
     arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
@@ -1130,6 +1190,11 @@ fn mesh_from_arrays(
         let uv2: PackedVector2Array = uv2.iter().copied().collect();
         arrays.set(ArrayType::TEX_UV.ord() as usize, &uv.to_variant());
         arrays.set(ArrayType::TEX_UV2.ord() as usize, &uv2.to_variant());
+    }
+    if let Some(custom) = custom {
+        // RGBA8 unorm is custom format 0, the default, so no format flag is needed.
+        let bytes: PackedByteArray = custom.iter().copied().collect();
+        arrays.set(ArrayType::CUSTOM0.ord() as usize, &bytes.to_variant());
     }
     arrays.set(ArrayType::INDEX.ord() as usize, &indices.to_variant());
     let mut mesh = ArrayMesh::new_gd();
