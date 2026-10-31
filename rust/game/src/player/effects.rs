@@ -227,7 +227,7 @@ fn burst(p: &mut Gd<CpuParticles3D>, at: Vector3, up: Vector3, gravity: Vector3,
     p.set_emitting(true);
 }
 
-fn emitter(name: &str, lifetime: f32, amount: i32, size: (f32, f32), speed: (f32, f32)) -> Gd<CpuParticles3D> {
+pub(crate) fn emitter(name: &str, lifetime: f32, amount: i32, size: (f32, f32), speed: (f32, f32)) -> Gd<CpuParticles3D> {
     let mut p = CpuParticles3D::new_alloc();
     p.set_name(name);
     p.set_amount(amount.max(1));
@@ -256,7 +256,7 @@ fn emitter(name: &str, lifetime: f32, amount: i32, size: (f32, f32), speed: (f32
 }
 
 /// A soft round billboard puff; vertex colour drives tint and fade.
-fn puff_mesh(glow: bool, camera_fade_m: (f32, f32)) -> Gd<QuadMesh> {
+pub(crate) fn puff_mesh(glow: bool, camera_fade_m: (f32, f32)) -> Gd<QuadMesh> {
     let mut gradient = Gradient::new_gd();
     gradient.set_color(0, Color::from_rgba(1.0, 1.0, 1.0, 1.0));
     gradient.set_color(1, Color::from_rgba(1.0, 1.0, 1.0, 0.0));
@@ -287,7 +287,7 @@ fn puff_mesh(glow: bool, camera_fade_m: (f32, f32)) -> Gd<QuadMesh> {
     mesh
 }
 
-fn ramp(stops: &[(f32, Color, f32)]) -> Gd<Gradient> {
+pub(crate) fn ramp(stops: &[(f32, Color, f32)]) -> Gd<Gradient> {
     let mut g = Gradient::new_gd();
     let offsets: PackedFloat32Array = stops.iter().map(|s| s.0).collect();
     let colors: PackedColorArray = stops.iter().map(|(_, c, a)| Color::from_rgba(c.r, c.g, c.b, *a)).collect();

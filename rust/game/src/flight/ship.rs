@@ -75,6 +75,7 @@ pub struct ShipData {
     pub parking: ParkingData,
     pub cockpit: super::cockpit::CockpitData,
     pub autopilot: model::AutopilotData,
+    pub takeoff: super::takeoff::TakeoffData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -253,6 +254,7 @@ pub struct Ship {
     ring_light: Option<Gd<OmniLight3D>>,
     engine_light: Option<Gd<OmniLight3D>>,
     cockpit: Option<super::cockpit::Cockpit>,
+    takeoff_fx: Option<super::takeoff::TakeoffEffects>,
     /// Locked target, the arrival point's offset from the ship last tick,
     /// and the ship's velocity relative to it.
     target: Option<Gd<CelestialBody>>,
@@ -306,6 +308,7 @@ impl IRigidBody3D for Ship {
             below: None,
             below_vel: Vector3::ZERO,
             cockpit: None,
+            takeoff_fx: None,
             base,
         }
     }
@@ -391,6 +394,13 @@ impl IRigidBody3D for Ship {
 #[godot_api]
 impl Ship {
     /// Hatch openness, 0 (shut) to 1 (open).
+    /// Plume, ground cloud and grit emitting (tests).
+    #[func]
+    pub fn get_takeoff_emitting(&self) -> PackedInt32Array {
+        let (a, b, c) = self.takeoff_fx.as_ref().map_or((false, false, false), |f| f.emitting());
+        PackedInt32Array::from(&[a as i32, b as i32, c as i32])
+    }
+
     /// Lock a body directly (tests and future map targeting).
     #[func]
     pub fn lock_body(&mut self, body: Option<Gd<CelestialBody>>) {
@@ -678,6 +688,9 @@ impl Ship {
         let mut v = self.base().get_linear_velocity() + gravity * dt;
         let mut thrust_local = Vector3::ZERO;
         let mut effort = 0.0;
+        // Velocity change from match velocity / hold, which the main engine
+        // provides when it points up (for the effects).
+        let mut assist = Vector3::ZERO;
         if self.pilot {
             let mut input = self.read_input(d);
             let manual = input.move_stick != Vector2::ZERO || input.vertical != 0.0 || input.pitch != 0.0 || input.yaw != 0.0 || input.roll != 0.0;
@@ -726,6 +739,7 @@ impl Ship {
                     effort = effort.max(0.5);
                 }
                 v += fix;
+                assist += fix;
             }
             if input.match_velocity && has_fuel {
                 let fix = model::match_velocity(v, d.flight.match_velocity_accel, dt);
@@ -733,6 +747,7 @@ impl Ship {
                     effort = effort.max(0.5);
                 }
                 v += fix;
+                assist += fix;
             }
             self.fuel_s = (self.fuel_s - effort * dt).max(0.0);
             // Sitting still on the ground with the stick idle, let the legs
@@ -755,10 +770,12 @@ impl Ship {
         }
         self.base_mut().set_linear_velocity(v);
         self.telemetry = Telemetry { speed: v.length(), thrust: thrust_local, effort };
+        let assist_up = if dt > 0.0 { assist.dot(basis.col_b()) / dt } else { 0.0 };
+        let up = (thrust_local.y.max(assist_up) / d.flight.up.max(0.01)).clamp(0.0, 1.0);
         if let Some(mut light) = self.engine_light.clone() {
-            let up = (thrust_local.y / d.flight.up.max(0.01)).max(0.0);
-            light.set_param(Param::ENERGY, up * 6.0);
+            light.set_param(Param::ENERGY, up * d.takeoff.light.energy * 0.5);
         }
+        self.update_takeoff_fx(d, up, gravity, dt);
     }
 
     /// Lock (D-pad up / L) the body nearest the centre of your view, toggle
@@ -844,6 +861,29 @@ impl Ship {
             }
         }
         best.map(|(_, w)| w)
+    }
+
+    /// Smoke, grit, shimmer, light and rumble from the main engine.
+    fn update_takeoff_fx(&mut self, d: &ShipData, throttle: f32, gravity: Vector3, dt: f32) {
+        let t = self.base().get_global_transform();
+        let nozzle = t * v3(d.takeoff.nozzle_at);
+        let exhaust_dir = (t.basis * v3(d.takeoff.nozzle_dir)).normalized_or_zero();
+        let (ground, ground_color) = match self.nearest_body() {
+            Some(body) => {
+                let centre = body.get_global_position();
+                let out = (nozzle - centre).normalized_or_zero();
+                let b = body.bind();
+                let point = centre + out * b.surface_radius_toward(nozzle);
+                // Only when the exhaust points at the ground.
+                let facing = exhaust_dir.dot(-out) > 0.3;
+                (facing.then_some((point, out)), b.dust_color())
+            }
+            None => (None, Color::from_rgb(0.5, 0.5, 0.5)),
+        };
+        let state = super::takeoff::EngineState { throttle, nozzle, exhaust_dir, ground, ground_color, gravity, piloted: self.pilot };
+        if let Some(fx) = self.takeoff_fx.as_mut() {
+            fx.update(&state, dt);
+        }
     }
 
     /// Track the nearest body's surface and our velocity relative to it.
@@ -1274,6 +1314,8 @@ impl Ship {
         self.ring_light = Some(ring_light);
         self.engine_light = Some(engine);
         self.cockpit = Some(cockpit);
+        let mut root = self.to_gd().upcast::<Node3D>();
+        self.takeoff_fx = Some(super::takeoff::TakeoffEffects::new(&mut root, d.takeoff.clone()));
     }
 }
 

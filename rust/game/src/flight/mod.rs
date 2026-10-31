@@ -6,5 +6,6 @@ pub mod dash;
 pub mod meshes;
 pub mod model;
 pub mod ship;
+pub mod takeoff;
 
 pub use ship::Ship;

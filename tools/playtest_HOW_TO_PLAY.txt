@@ -45,4 +45,7 @@ WHAT IS IN THIS BUILD
   step onto it to ride down. Crouch (B / C) to duck out under the ship.
 - Fixed: the side of the Moon facing Earth was almost weightless; the
   Moon's own gravity now takes over near it.
-- Not yet: takeoff effects, crash damage and repair (the rest of Phase 4).
+- Takeoff effects: the engine plume, a smoke cloud in the ground's colour,
+  flying grit, a flickering engine light and controller rumble. They're
+  biggest on the pad and fade as you climb. No sounds yet.
+- Not yet: crash damage and repair (the rest of Phase 4).

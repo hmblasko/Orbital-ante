@@ -217,4 +217,52 @@
         lock_cone_deg: 8.0,
         clearance_m: 150.0,
     ),
+    // Takeoff and landing effects (section 5: "intense like a real launch").
+    // Everything scales with main-engine throttle; the cloud and grit only
+    // when the bell is near the ground. The rumble sound is a missing asset.
+    takeoff: (
+        nozzle_at: (0.0, 0.7, 0.0),
+        nozzle_dir: (0.0, -1.0, 0.0),
+        plume: (
+            rate: 90.0,
+            lifetime_s: 0.35,
+            speed_m_s: (14.0, 22.0),
+            spread_deg: 7.0,
+            size_m: (0.6, 1.8),
+            color_hot: (1.0, 0.95, 0.8),
+            color_mid: (1.0, 0.6, 0.25),
+            color_cool: (0.55, 0.5, 0.5),
+        ),
+        cloud: (
+            max_height_m: 30.0,
+            full_height_m: 6.0,
+            rate: 60.0,
+            lifetime_s: 3.2,
+            speed_m_s: (6.0, 14.0),
+            size_m: (3.0, 9.0),
+            lift: 0.3,
+            lighten: 0.5,
+            opacity: 0.95,
+        ),
+        grit: (
+            rate: 70.0,
+            lifetime_s: 1.6,
+            speed_m_s: (5.0, 12.0),
+            size_m: (0.08, 0.2),
+            darken: 0.55,
+        ),
+        light: (
+            energy: 8.0,
+            range_m: 18.0,
+            color: (1.0, 0.65, 0.32),
+            flicker: 0.25,
+            ground_energy: 6.0,
+        ),
+        rumble: (
+            weak_near: 0.7,
+            strong_near: 0.9,
+            weak_far: 0.25,
+            strong_far: 0.1,
+        ),
+    ),
 )
