@@ -55,3 +55,22 @@ Matthew asked for unattractive placeholder assets to be removed.
 - The test sphere's mountain tops are now pale, wind-bleached sandstone instead of white snow, which looked like cake icing from orbit. Snow caps on other worlds are broken into drifts, and spring terraces get travertine lips and iron streaks.
 - Screenshot: `reports/refine_pass_3.png`. Gates: all PASS (unit 92, determinism 19, data 11, smoke, feature scripts 16 checks, replay 0.0 m). Steam Deck: not measured.
 - Still placeholder: 104 hoodoos are separate draw calls, to be batched in the Phase 10 performance pass or earlier if the Deck needs it.
+
+## Fifth pass: bigger planet and new landforms (31 Oct 2026)
+
+Matthew asked to scale the planets up a lot and add more geography (and said not to worry about the Deck for now).
+
+- The test planet goes from 150 m to 600 m radius (mid-range for a rocky planet in section 4). The moonlet goes from 22 m to 66 m. The satellites, the moonlet's position, the main-menu camera and the player spawn all move to match.
+- Five new landform types in `procgen/landforms.rs`, each with a unit test:
+  - Butte: a narrow, tall mesa remnant with a sheer cliff and a wide talus apron.
+  - Dune field: crescent-free transverse dunes with long windward ramps and steep slip faces. The sand buries the hills under it.
+  - Complex crater: terraced walls, a flat floor and a central peak. If it digs below the water table it floods, and the peak stands as an island.
+  - Wrinkle ridge: a long, lumpy raised ridge that follows a path.
+  - Sinkhole: a steep collapse pit. Below the water table it becomes a cenote.
+- The showcase near the landing zone now has a mesa with two buttes, a sinkhole a short walk from the lander, a volcano, a canyon, a lake fed by a river, a spring pool and a mountain pair. Further out are a big crater, a dune sea and a wrinkle ridge. About 130 more landforms are seeded over the rest of the planet.
+- Rocks (1,400) and hoodoos now have draw distances, so the bigger scatter only draws what is near.
+- Terrain build is threaded, and the dev build optimises the game crate. The planet's collision is now split into 64 x 64-cell tiles: one 3-million-triangle shape ran out of Jolt's sub-shape id bits.
+- Test fixes: the walk smoke test now checks metres travelled (373 m measured) instead of degrees. The zero-g point moved outside both fields. The drift push now happens one tick after the teleport, because a body teleported while standing loses part of its first slide to floor snapping.
+
+Screenshot sheet: `reports/bigger_planet.png` (rendered with lavapipe, not on a Deck).
+Steam Deck performance: not measured.

@@ -9,8 +9,8 @@ signal start_requested
 const SPIN_DEG_PER_S := 2.5      # planet turn speed
 const INTRO_S := 0.6             # fade and slide-in on open
 # Camera framing: side-on to the sun so the terminator shows, planet on the right.
-const CAMERA_POS := Vector3(-285, 48, 380)
-const CAMERA_AIM := Vector3(-110, 0, -82)
+const CAMERA_POS := Vector3(-1140, 192, 1520)
+const CAMERA_AIM := Vector3(-440, 0, -328)
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

@@ -68,7 +68,7 @@ mod tests {
             .iter()
             .map(|l| l.kind)
             .collect();
-        for k in [Mountain, Mesa, Volcano, Canyon, River, Lake, Pool] {
+        for k in [Mountain, Mesa, Butte, Volcano, Crater, Ridge, Dunes, Sinkhole, Canyon, River, Lake, Pool] {
             assert!(kinds.contains(&k), "{k:?} missing from the showcase");
         }
         assert!(body.hoodoos.is_some());

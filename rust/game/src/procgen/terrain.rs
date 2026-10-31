@@ -192,7 +192,7 @@ pub fn sphere_mesh(radius: f32, subdivisions: u32) -> MeshData {
 /// Subdivided cube projected onto a sphere, with the radius and painting
 /// hints for each direction supplied by `at`. Triangles are emitted face by
 /// face, row by row, two per cell (`split_tiles` relies on that order).
-fn grid_sphere(subdivisions: u32, at: impl Fn(Vector3) -> (f32, SurfaceSample)) -> MeshData {
+fn grid_sphere(subdivisions: u32, at: impl Fn(Vector3) -> (f32, SurfaceSample) + Sync) -> MeshData {
     let n = subdivisions.max(2) as usize;
     let faces: [(Vector3, Vector3, Vector3); 6] = [
         (Vector3::RIGHT, Vector3::UP, Vector3::BACK),
@@ -202,19 +202,37 @@ fn grid_sphere(subdivisions: u32, at: impl Fn(Vector3) -> (f32, SurfaceSample)) 
         (Vector3::BACK, Vector3::UP, Vector3::LEFT),
         (Vector3::FORWARD, Vector3::UP, Vector3::RIGHT),
     ];
-    let mut mesh = MeshData::default();
+    let mut dirs = Vec::with_capacity(6 * (n + 1) * (n + 1));
     for (normal, axis_a, axis_b) in faces {
-        let base = mesh.positions.len() as i32;
         for j in 0..=n {
             for i in 0..=n {
                 let u = i as f32 / n as f32 * 2.0 - 1.0;
                 let v = j as f32 / n as f32 * 2.0 - 1.0;
-                let dir = cube_to_sphere(normal + axis_a * v + axis_b * u);
-                let (r, s) = at(dir);
-                mesh.positions.push(dir * r);
-                mesh.samples.push(s);
+                dirs.push(cube_to_sphere(normal + axis_a * v + axis_b * u));
             }
         }
+    }
+    // Sampling the height function is the slow part; spread it over every
+    // core. Each chunk is independent, so the result is identical however
+    // many threads run (determinism tests depend on it).
+    let threads = std::thread::available_parallelism().map_or(1, |t| t.get()).max(1);
+    let chunk = dirs.len().div_ceil(threads);
+    let mut samples: Vec<(f32, SurfaceSample)> = vec![(0.0, SurfaceSample::default()); dirs.len()];
+    std::thread::scope(|scope| {
+        for (out, input) in samples.chunks_mut(chunk).zip(dirs.chunks(chunk)) {
+            let at = &at;
+            scope.spawn(move || {
+                for (o, d) in out.iter_mut().zip(input) {
+                    *o = at(*d);
+                }
+            });
+        }
+    });
+    let mut mesh = MeshData::default();
+    mesh.positions = dirs.iter().zip(&samples).map(|(d, (r, _))| *d * *r).collect();
+    mesh.samples = samples.into_iter().map(|(_, s)| s).collect();
+    for face in 0..6 {
+        let base = (face * (n + 1) * (n + 1)) as i32;
         let row = n as i32 + 1;
         for j in 0..n as i32 {
             for i in 0..n as i32 {
@@ -226,7 +244,7 @@ fn grid_sphere(subdivisions: u32, at: impl Fn(Vector3) -> (f32, SurfaceSample)) 
         }
     }
     mesh.fix_winding();
-    mesh.compute_normals();
+    mesh.compute_normals(n as u32);
     mesh
 }
 
@@ -256,7 +274,8 @@ impl MeshData {
         }
     }
 
-    fn compute_normals(&mut self) {
+    /// Smooth normals for a `grid_sphere` mesh with `subdivisions` cells per face edge.
+    fn compute_normals(&mut self, subdivisions: u32) {
         let mut normals = vec![Vector3::ZERO; self.positions.len()];
         for t in self.indices.chunks_exact(3) {
             let (a, b, c) = (
@@ -279,13 +298,24 @@ impl MeshData {
                 (p.z * 1000.0).round() as i32,
             ]
         };
-        for (p, n) in self.positions.iter().zip(&normals) {
-            *by_pos.entry(key(*p)).or_insert(Vector3::ZERO) += *n;
+        // Only vertices on a cube face's border can sit on a seam.
+        let row = (subdivisions.max(2) + 1) as usize;
+        let on_border = |i: usize| {
+            let k = i % (row * row);
+            let (x, y) = (k % row, k / row);
+            x == 0 || y == 0 || x == row - 1 || y == row - 1
+        };
+        for (i, (p, n)) in self.positions.iter().zip(&normals).enumerate() {
+            if on_border(i) {
+                *by_pos.entry(key(*p)).or_insert(Vector3::ZERO) += *n;
+            }
         }
         self.normals = self
             .positions
             .iter()
-            .map(|p| by_pos[&key(*p)].normalized())
+            .zip(normals)
+            .enumerate()
+            .map(|(i, (p, n))| if on_border(i) { by_pos[&key(*p)].normalized() } else { n.normalized() })
             .collect();
     }
 
@@ -417,3 +447,4 @@ mod tests {
         assert!(shape.sample(c.center).crater_floor > 0.9);
     }
 }
+

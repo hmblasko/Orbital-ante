@@ -16,7 +16,7 @@ light_angular_distance = 0.6
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_mode = 1
-directional_shadow_max_distance = 160.0
+directional_shadow_max_distance = 220.0
 
 [node name="TestSphere" type="CelestialBody" parent="."]
 data_path = "res://data/bodies/test_sphere.ron"
@@ -25,11 +25,11 @@ data_path = "res://data/bodies/test_sphere.ron"
 data_path = "res://data/bodies/test_sphere_landmarks.ron"
 
 [node name="TestMoonlet" type="CelestialBody" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -300, 260, -480)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -640, 555, -1025)
 data_path = "res://data/bodies/test_moonlet.ron"
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 160, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 612, 0)
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

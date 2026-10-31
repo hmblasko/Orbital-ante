@@ -12,7 +12,7 @@ const OXYGEN_REFILL_PER_S := 40.0     # data/player/suit.ron
 const OXYGEN_PER_TANK := 90.0         # data/player/suit.ron
 const TETHER_LENGTH := 25.0           # data/player/interactables.ron
 const SUFFOCATION_SECONDS := 10.0     # health 100 / 10 per second
-const ZERO_G_POINT := Vector3(-600, 0, 0)  # outside both test bodies' gravity
+const ZERO_G_POINT := Vector3(-1500, 0, 0)  # outside both test bodies' gravity
 
 var scene: Node
 var player: CharacterBody3D
@@ -110,9 +110,12 @@ func _physics_process(_delta: float) -> bool:
 				var height: float = mark.max_r
 				check(height > 4.0, "jetpack lifts the player (apex %.1f m; a plain jump is about 1.7 m)" % height)
 				check(player.get_fuel_fraction() < mark.fuel, "jetpack burns fuel (%.2f -> %.2f)" % [mark.fuel, player.get_fuel_fraction()])
-				place(ZERO_G_POINT, Vector3(3, 0, 0))
+				place(ZERO_G_POINT)
 				next()
 		5: # zero-g keeps its momentum; match velocity stops it
+			# Push one tick after the teleport: a body that was standing on the
+			# ground loses part of its first slide to floor snapping.
+			if t() == 2: player.velocity = Vector3(3, 0, 0)
 			if t() == 60:
 				check(player.is_in_zero_g(), "zero-g detected away from both bodies")
 				check(player.velocity.distance_to(Vector3(3, 0, 0)) < 0.01, "inertia: still drifting at %s after 1 s with no input" % player.velocity)

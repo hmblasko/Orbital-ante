@@ -5,28 +5,28 @@
 // ridges and a crevasse (section 4: menacing geography, never flat).
 (
     name: "Test Moonlet (placeholder)",
-    radius: 22.0,
+    radius: 66.0,
     gravity: (
         surface_gravity: 4.0,
-        influence_radius: 70.0,
+        influence_radius: 180.0,
     ),
     // Breathable air, so the "refill outside a suit" rule can be tested.
     // PLACEHOLDER: no real moon has this; it's here for testing only.
     atmosphere: Some((
         breathable: true,
-        height_m: 8.0,
+        height_m: 20.0,
     )),
     terrain: (
         seed: 905,
-        // 64 cells per face edge: about 0.5 m cells, enough for small ridges.
-        subdivisions: 64,
-        hill_height_m: 0.8,
-        hill_frequency: 3.0,
+        // 160 cells per face edge: about 0.65 m cells, enough for small ridges.
+        subdivisions: 160,
+        hill_height_m: 1.8,
+        hill_frequency: 5.0,
         hill_octaves: 4,
-        ridge_height_m: 0.9,
-        ridge_frequency: 2.5,
-        crater_count: 7,
-        crater_radius_m: (1.5, 4.0),
+        ridge_height_m: 2.0,
+        ridge_frequency: 4.0,
+        crater_count: 24,
+        crater_radius_m: (2.0, 9.0),
         crater_depth_ratio: 0.22,
         crater_rim_ratio: 0.3,
         landforms: (
@@ -35,10 +35,12 @@
             clear_zone_deg: 0.0,
             placed: [],
             random: [
-                (kind: Mountain, count: 3, radius_m: (5.0, 8.0), height_m: (3.0, 5.0)),
-                (kind: Canyon, count: 1, radius_m: (1.6, 2.0), height_m: (1.5, 2.0), length_m: (20.0, 28.0)),
-                (kind: Lake, count: 1, radius_m: (5.0, 6.0), height_m: (1.2, 1.5)),
-                (kind: Pool, count: 3, radius_m: (1.8, 2.5), height_m: (0.8, 1.0)),
+                (kind: Mountain, count: 6, radius_m: (12.0, 22.0), height_m: (8.0, 14.0)),
+                (kind: Canyon, count: 2, radius_m: (3.5, 5.0), height_m: (4.0, 6.0), length_m: (60.0, 90.0)),
+                (kind: Lake, count: 3, radius_m: (10.0, 16.0), height_m: (1.5, 2.5)),
+                (kind: Pool, count: 5, radius_m: (2.5, 4.0), height_m: (1.0, 1.4)),
+                (kind: Ridge, count: 2, radius_m: (3.0, 5.0), height_m: (2.5, 4.0), length_m: (50.0, 80.0)),
+                (kind: Sinkhole, count: 2, radius_m: (3.0, 5.0), height_m: (5.0, 8.0)),
             ],
         ),
     ),
@@ -69,11 +71,11 @@
         water_shallow: (0.72, 0.90, 0.97),
         water_deep: (0.16, 0.42, 0.66),
         water_foam: (0.95, 0.98, 1.0),
-        water_subdivisions: 32,
+        water_subdivisions: 48,
         frozen: true,
     ),
     rocks: (
-        count: 16,
+        count: 60,
         size_m: (0.2, 1.1),
         cluster_size: (2, 4),
         cluster_spread_m: 3.0,

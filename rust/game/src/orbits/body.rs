@@ -128,6 +128,9 @@ pub struct HoodooData {
     pub band_a: (f32, f32, f32),
     pub band_b: (f32, f32, f32),
     pub cap: (f32, f32, f32),
+    /// Hidden beyond this many metres from the camera (0 = always drawn).
+    #[serde(default)]
+    pub visible_m: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -165,7 +168,15 @@ pub struct RockData {
     pub roughness: f32,
     pub color: (f32, f32, f32),
     pub color_dark: (f32, f32, f32),
+    /// The smallest rocks hide beyond this many metres from the camera; the
+    /// largest stay drawn up to twice as far (0 = always drawn).
+    #[serde(default)]
+    pub visible_m: f32,
 }
+
+/// Cells along one edge of a terrain collision tile (64 x 64 cells is
+/// about 8k triangles per shape).
+const COLLISION_TILE_CELLS: u32 = 64;
 
 /// `Gd<T>` (used below) is a smart pointer to an object that lives inside
 /// Godot; you call methods through it, and Godot owns the memory.
@@ -329,12 +340,25 @@ impl CelestialBody {
             None => self.add_surface_tiles(&mesh_data, data.terrain.subdivisions, data.render_tiles, &material, height_range, "", (0.0, 0.0)),
         }
 
-        let mut collision_shape = ConcavePolygonShape3D::new_gd();
-        collision_shape.set_faces(&triangle_soup(&mesh_data));
-        let mut collision = CollisionShape3D::new_alloc();
-        collision.set_name("SurfaceCollision");
-        collision.set_shape(&collision_shape);
-        self.base_mut().add_child(&collision);
+        // Collision in tiles: Jolt numbers every triangle of a shape inside
+        // one 32-bit id shared with the body's other shapes (rocks, hoodoos),
+        // so one huge mesh on a large planet runs out of id bits.
+        let collision_tiles = (data.terrain.subdivisions / COLLISION_TILE_CELLS).max(1);
+        for (i, tile) in mesh_data
+            .split_tiles(data.terrain.subdivisions, collision_tiles)
+            .iter()
+            .enumerate()
+        {
+            if tile.triangle_count() == 0 {
+                continue;
+            }
+            let mut collision_shape = ConcavePolygonShape3D::new_gd();
+            collision_shape.set_faces(&triangle_soup(tile));
+            let mut collision = CollisionShape3D::new_alloc();
+            collision.set_name(&format!("SurfaceCollision{i}"));
+            collision.set_shape(&collision_shape);
+            self.base_mut().add_child(&collision);
+        }
     }
 
     /// Add one surface mesh as tiles. COLOR = (crater floor, crater rim,
@@ -465,6 +489,9 @@ impl CelestialBody {
 
                 let mut instance = MeshInstance3D::new_alloc();
                 instance.set_name(&format!("Rock{placed}"));
+                if r.visible_m > 0.0 {
+                    instance.set_visibility_range_end(r.visible_m * (1.0 + t));
+                }
                 instance.set_mesh(mesh);
                 instance.set_material_override(&material);
                 instance.set_transform(transform);
@@ -583,7 +610,7 @@ impl CelestialBody {
         let mut centers = Vec::new();
         for l in &shape.landforms().list {
             match l.kind {
-                LandformKind::Mesa => {
+                LandformKind::Mesa | LandformKind::Butte => {
                     for _ in 0..h.clusters_per_mesa {
                         let around = random_tangent(l.center, &mut rng);
                         let dist = l.angle * rng.range_f32(1.15, 1.6);
@@ -633,6 +660,9 @@ impl CelestialBody {
                 let transform = Transform3D::new(basis, dir * (ground - height * 0.04));
                 let mut instance = MeshInstance3D::new_alloc();
                 instance.set_name(&format!("Hoodoo{placed}"));
+                if h.visible_m > 0.0 {
+                    instance.set_visibility_range_end(h.visible_m);
+                }
                 instance.set_mesh(mesh);
                 instance.set_material_override(&material);
                 instance.set_transform(transform);
