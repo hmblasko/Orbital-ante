@@ -56,6 +56,9 @@ pub struct MovementData {
     pub eye_height: f32,
     pub crouch_eye_height: f32,
     pub crouch_blend_speed: f32,
+    /// Capsule height while crouched (shrinks from the top, feet stay put),
+    /// so you can duck under a lander's descent stage.
+    pub crouch_capsule_height: f32,
     /// How fast the body turns to match changing gravity, in degrees per second.
     pub align_speed_deg: f32,
     pub stick_look_speed_deg: f32,
@@ -81,6 +84,12 @@ pub struct InteractData {
 const HEAD_NODE: &str = "Head";
 const CAMERA_NODE: &str = "Head/Camera3D";
 const SHAPE_NODE: &str = "CollisionShape3D";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShipAction {
+    Buckle,
+    Hatch,
+}
 
 #[derive(GodotClass)]
 #[class(base = CharacterBody3D)]
@@ -112,6 +121,8 @@ pub struct PlayerController {
     /// Buckle-in animation, 0 to 1, from where you stood (ship space).
     buckle_t: f32,
     buckle_from: Transform3D,
+    /// The capsule is currently the short crouch one.
+    crouched_shape: bool,
     base: Base<CharacterBody3D>,
 }
 
@@ -145,6 +156,7 @@ impl ICharacterBody3D for PlayerController {
             buckled: false,
             buckle_t: 0.0,
             buckle_from: Transform3D::IDENTITY,
+            crouched_shape: false,
             base,
         }
     }
@@ -233,6 +245,7 @@ impl ICharacterBody3D for PlayerController {
             return;
         }
         self.update_orientation(up, dt, alive);
+        self.update_crouch_shape(alive && Input::singleton().is_action_pressed("crouch"));
         self.update_velocity(gravity, up, dt, alive);
         self.apply_tether();
         // Speed into the ground just before landing, for the landing puff.
@@ -314,13 +327,14 @@ impl PlayerController {
         }
         if let Some(ship) = &self.aboard {
             let p = self.base().get_global_position();
-            let s = ship.bind();
-            if s.can_buckle(p) {
-                return "buckle".into();
+            match self.ship_action() {
+                Some(ShipAction::Buckle) => return "buckle".into(),
+                Some(ShipAction::Hatch) => {
+                    return if ship.bind().get_hatch_open() > 0.5 { "close_hatch".into() } else { "open_hatch".into() };
+                }
+                None => {}
             }
-            if s.can_work_hatch(p) {
-                return if s.get_hatch_open() > 0.5 { "close_hatch".into() } else { "open_hatch".into() };
-            }
+            let _ = p;
         }
         if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
             return "take_tank".into();
@@ -402,11 +416,9 @@ impl PlayerController {
             return;
         }
         if let Some(mut ship) = self.aboard.clone() {
-            let (buckle, hatch) = {
-                let s = ship.bind();
-                (s.can_buckle(p), s.can_work_hatch(p))
-            };
-            if buckle {
+            let action = self.ship_action();
+            let _ = p;
+            if action == Some(ShipAction::Buckle) {
                 let t = ship.get_global_transform().affine_inverse() * self.base().get_global_transform();
                 self.buckle_from = t;
                 self.buckle_t = 0.0;
@@ -416,7 +428,7 @@ impl PlayerController {
                 ship.bind_mut().set_pilot(true);
                 return;
             }
-            if hatch {
+            if action == Some(ShipAction::Hatch) {
                 ship.bind_mut().toggle_hatch();
                 return;
             }
@@ -439,6 +451,31 @@ impl PlayerController {
         self.base_mut().set_velocity(Vector3::ZERO);
     }
 
+    /// Swap between the standing and crouched capsule. Standing back up
+    /// waits until there's headroom.
+    fn update_crouch_shape(&mut self, want: bool) {
+        if want == self.crouched_shape {
+            return;
+        }
+        let (full, short) = (self.data.capsule_height, self.data.crouch_capsule_height.min(self.data.capsule_height));
+        if !want {
+            let up = self.base().get_global_basis().col_b().normalized();
+            let from = self.base().get_global_transform();
+            if self.base_mut().test_move(from, up * (full - short)) {
+                return;
+            }
+        }
+        let height = if want { short } else { full };
+        if let Some(mut shape_node) = self.base().try_get_node_as::<CollisionShape3D>(SHAPE_NODE) {
+            let mut capsule = CapsuleShape3D::new_gd();
+            capsule.set_radius(self.data.capsule_radius);
+            capsule.set_height(height);
+            shape_node.set_shape(&capsule);
+            shape_node.set_position(Vector3::new(0.0, -(full - height) * 0.5, 0.0));
+        }
+        self.crouched_shape = want;
+    }
+
     fn set_shape_enabled(&mut self, on: bool) {
         if let Some(mut shape) = self.base().try_get_node_as::<CollisionShape3D>(SHAPE_NODE) {
             shape.set_disabled(!on);
@@ -453,8 +490,14 @@ impl PlayerController {
             self.set_shape_enabled(true);
             return;
         };
-        let ship_t = ship.get_global_transform();
+        let ship_now = ship.get_global_transform();
         let Some(seat) = ship.bind().seat_transform() else { return };
+        // The physics step moves the ship after this runs, so sit where the
+        // ship will be at the end of this tick, not where it was.
+        let w = ship.get_angular_velocity();
+        let spin = if w.length() > 1e-6 { Basis::from_axis_angle(w.normalized(), w.length() * dt) } else { Basis::IDENTITY };
+        let ship_t = Transform3D::new((spin * ship_now.basis).orthonormalized(), ship_now.origin + ship.get_linear_velocity() * dt);
+        let seat = ship_t * (ship_now.affine_inverse() * seat);
         self.buckle_t = (self.buckle_t + dt / BUCKLE_S).min(1.0);
         let e = self.buckle_t * self.buckle_t * (3.0 - 2.0 * self.buckle_t);
         let seat_local = ship_t.affine_inverse() * seat;
@@ -599,6 +642,22 @@ impl PlayerController {
     /// yet; Phase 3 (orbits) returns the nearest body's orbital velocity here.
     fn reference_velocity(&self) -> Vector3 {
         Vector3::ZERO
+    }
+
+    /// What X does aboard: buckle in or work the hatch. When both are in
+    /// reach, the one the player is looking more toward wins.
+    fn ship_action(&self) -> Option<ShipAction> {
+        let ship = self.aboard.as_ref()?;
+        let p = self.base().get_global_position();
+        let s = ship.bind();
+        let eye = self.head.as_ref().map_or(p, |h| h.get_global_position());
+        let facing = |target: Vector3| self.camera_forward().dot((target - eye).normalized());
+        match (s.can_buckle(p), s.can_work_hatch(p)) {
+            (true, true) => Some(if facing(s.seat_point()) >= facing(s.hatch_point()) { ShipAction::Buckle } else { ShipAction::Hatch }),
+            (true, false) => Some(ShipAction::Buckle),
+            (false, true) => Some(ShipAction::Hatch),
+            (false, false) => None,
+        }
     }
 
     fn camera_forward(&self) -> Vector3 {

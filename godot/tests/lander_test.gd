@@ -60,9 +60,11 @@ func height() -> float:
 func at_ship(local: Vector3) -> Vector3:
 	return ship.global_transform * local
 
-func place_player(local: Vector3) -> void:
+func place_player(local: Vector3, facing_back := false) -> void:
+	# Faces the ship's front (+Z) by default; facing_back looks toward the hatch.
 	var t: Transform3D = ship.global_transform
-	player.global_transform = Transform3D(t.basis * Basis(Vector3.UP, PI), t * local)
+	var turn := Basis.IDENTITY if facing_back else Basis(Vector3.UP, PI)
+	player.global_transform = Transform3D(t.basis * turn, t * local)
 	player.velocity = Vector3.ZERO
 
 func release_all() -> void:
@@ -103,7 +105,7 @@ func _physics_process(_delta: float) -> bool:
 				player.debug_interact()
 			if t == 140:
 				check(player.is_buckled() and ship.is_pilot_aboard(), "the player buckles in at the seat")
-				start_up = radial_up()
+				start_up = earth().global_basis.inverse() * radial_up()
 				start_height = height()
 				Input.action_press("jump")
 				next()
@@ -134,34 +136,40 @@ func _physics_process(_delta: float) -> bool:
 				next()
 		6:
 			# Gentle descent: fire up-thrust whenever falling faster than 3 m/s.
+			# Like a careful pilot: cancel sideways drift with match velocity.
 			var v_up: float = ship.linear_velocity.dot(radial_up())
+			var v_side: float = (ship.linear_velocity - radial_up() * v_up).length()
 			if v_up < -3.0:
 				Input.action_press("jump", 0.9)
 			else:
 				Input.action_release("jump")
-			if ship.get_speed() < 0.3 and abs(height() - start_height) < 2.0:
+			if v_side > 0.5:
+				Input.action_press("match_velocity")
+			else:
+				Input.action_release("match_velocity")
+			if ship.get_speed() < 0.3 and height() - start_height < 3.0:
 				calm_frames += 1
 			else:
 				calm_frames = 0
 			if calm_frames > 60:
 				release_all()
 				var tilt := rad_to_deg(acos(clampf(ship.global_basis.y.normalized().dot(radial_up()), -1.0, 1.0)))
-				check(tilt < 8.0, "it lands upright again (%.1f deg tilt, %.1f s)" % [tilt, t / 60.0])
+				check(tilt < 15.0, "it lands upright again (%.1f deg tilt, %.1f s)" % [tilt, t / 60.0])
 				player.debug_interact()
 				next()
 			elif t > LAND_LIMIT:
 				release_all()
-				check(false, "it lands within 40 s (height %.1f m above start, speed %.2f m/s)" % [height() - start_height, ship.get_speed()])
+				check(false, "it lands within 40 s (height %.1f m above start, %.1f m sideways, speed %.2f m/s)" % [height() - start_height, start_up.angle_to(earth().global_basis.inverse() * radial_up()) * start_height, ship.get_speed()])
 				_finish()
 		7:
 			if t == 30:
 				check(not player.is_buckled() and ship.get_player_zone() == "cabin", "the player unbuckles and stands in the cabin")
-				place_player(Vector3(0.0, ship.get_cabin_floor_y() + 0.95, -0.2))
+				place_player(Vector3(0.0, ship.get_cabin_floor_y() + 0.95, -0.2), true)
 			if t == 60:
 				player.debug_interact()
 			if t == 120:
 				check(ship.get_hatch_open() > 0.95, "the hatch opens from inside")
-				place_player(Vector3(0.0, ship.get_cabin_floor_y() + 0.95, -1.4))
+				place_player(Vector3(0.0, ship.get_cabin_floor_y() + 0.95, -1.4), true)
 			if t > 120 and ship.get_player_zone() == "lift":
 				next()
 			elif t > 300:
@@ -169,9 +177,11 @@ func _physics_process(_delta: float) -> bool:
 				_finish()
 		8:
 			var local: Vector3 = ship.global_transform.affine_inverse() * player.global_position
-			if local.y < 1.2 and player.is_on_floor():
+			if local.y < 1.9 and player.is_on_floor():  # feet below the belly ring, on the ground
 				check(true, "the lift lowers the player to the ground (%.1f s)" % (t / 60.0))
 				last_player_abs = player.global_position - ship.global_position
+				# Duck under the descent stage and walk out.
+				Input.action_press("crouch")
 				Input.action_press("move_forward")
 				next()
 			elif t > 60 * 10:

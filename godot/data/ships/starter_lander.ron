@@ -13,6 +13,9 @@
     engine_at: (0.0, 1.1, 0.0),
 
     mass_kg: 4000.0,
+    // Low, in the heavy descent stage, so the lander stays upright on slopes.
+    center_of_mass: (0.0, 1.5, 0.0),
+    angular_damp: 0.5,
     // Physics material for the footpads and hull.
     friction: 1.0,
     bounce: 0.05,
@@ -87,6 +90,9 @@
         // The lift beam reaches from the ground to the cabin floor, this wide.
         beam_radius: 0.85,
         lift_speed: 3.2,
+        top_above_floor: 0.45,
+        top_drift_speed: 2.5,
+        clear_margin: 0.35,
         lift_accel: 14.0,
         // Sideways pull toward the middle of the shaft.
         center_pull: 6.0,
@@ -128,4 +134,12 @@
     // Cabin wall collision: this many boxes around the bowl, this thick.
     wall_segments: 20,
     wall_thickness: 0.6,
+    // Test scenes park the lander on the flattest of these spots: this much
+    // further than spawn_ahead_m, at these bearings from straight ahead.
+    parking: (
+        extra_distances_m: [0.0, 5.0, 10.0, 15.0],
+        bearings_deg: [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0],
+        order_penalty_m: 0.02,
+        drop_height_m: 0.4,
+    ),
 )

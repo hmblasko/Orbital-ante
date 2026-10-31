@@ -15,6 +15,7 @@
     eye_height: 0.7,
     crouch_eye_height: 0.2,
     crouch_blend_speed: 10.0,
+    crouch_capsule_height: 1.2,
 
     // How fast the body turns to stay upright as gravity changes direction.
     align_speed_deg: 240.0,

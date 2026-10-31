@@ -1,0 +1,29 @@
+ORBITAL ANTE - PLAYTEST BUILD (working title)
+Built 31 Oct 2026 from the phase-2-player branch. Needs Godot 4.7.2 exactly.
+
+OPEN IT ON THE STEAM DECK (Desktop Mode)
+1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
+   (Dolphin file manager: right-click the zip > Extract > Extract archive here).
+2. Start Godot 4.7.2 (~/Applications/Godot/Godot_v4.7.2-stable_linux.x86_64).
+3. In the Project Manager click Import, open the unzipped
+   OrbitalAnte-playtest folder, pick project.godot, then click Import / Open.
+4. The first open imports the models and takes a minute or two. If you see a
+   few red "Cannot open file ... fontdata" lines during that first import,
+   they are harmless; close and reopen the project and they go away.
+5. Press F5 (or the Play button, top right) to start. Click Launch.
+
+Everything is in this one folder; the compiled game code is in bin/.
+If you imported an older copy of this zip, remove it from the Project
+Manager list first and delete its folder.
+
+CONTROLS (controller or mouse and keyboard)
+Move: left stick / WASD      Look: right stick / mouse
+Jump, jetpack up: A / Space  Crouch, jetpack down: B / Ctrl or C
+Interact: X / E              Map: M, zoom with PgUp/PgDn or mouse wheel
+Frame-time overlay: F3       Free the mouse cursor: Esc
+
+WHAT IS IN THIS BUILD
+- Walking on Earth with planet gravity, suit oxygen, jetpack and tether.
+- The full moving solar system with 14 bodies and a live map.
+- Not yet: the starter lander is still being built (Phase 4). An early test
+  of it is at scenes/tests/lander.tscn (open it, press F6); it is unfinished.

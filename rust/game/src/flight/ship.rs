@@ -14,10 +14,11 @@
 //! of the hull ("CabinBody") that follows the ship. The player never touches
 //! the rigid hull from inside, so standing in it can't stop it taking off.
 
-use godot::classes::{
+use godot::classes::{PhysicsServer3D, 
     BoxShape3D, CapsuleShape3D, CollisionShape3D, IRigidBody3D, Input, Material, MeshInstance3D, Node3D, OmniLight3D,
     PhysicsMaterial, RigidBody3D, Shader, ShaderMaterial, StaticBody3D,
 };
+use godot::classes::physics_server_3d::BodyState;
 use godot::classes::light_3d::Param;
 use godot::classes::rigid_body_3d::CenterOfMassMode;
 use godot::prelude::*;
@@ -58,6 +59,10 @@ pub struct ShipData {
     pub model_offset: V3,
     pub engine_at: V3,
     pub mass_kg: f32,
+    /// Ship-local centre of mass; low, in the heavy descent stage, so the
+    /// lander doesn't tip over on slopes.
+    pub center_of_mass: V3,
+    pub angular_damp: f32,
     pub friction: f32,
     pub bounce: f32,
     pub flight: FlightData,
@@ -67,6 +72,7 @@ pub struct ShipData {
     pub capsules: Vec<CapsuleData>,
     pub wall_segments: usize,
     pub wall_thickness: f32,
+    pub parking: ParkingData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -109,8 +115,25 @@ pub struct HatchData {
     pub lift_speed: f32,
     pub lift_accel: f32,
     pub center_pull: f32,
+    /// The lift hands over to cabin gravity this far above the cabin floor...
+    pub top_above_floor: f32,
+    /// ...after drifting the player off the hole at this speed...
+    pub top_drift_speed: f32,
+    /// ...until their feet are this far past the hole's edge.
+    pub clear_margin: f32,
     pub reach_m: f32,
     pub open_s: f32,
+}
+
+/// Where a ship parks itself at the start of a test scene: the flattest of
+/// these spots ahead of the player.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ParkingData {
+    pub extra_distances_m: Vec<f32>,
+    pub bearings_deg: Vec<f32>,
+    /// Score added per step away from straight ahead, to break ties.
+    pub order_penalty_m: f32,
+    pub drop_height_m: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -277,8 +300,11 @@ impl IRigidBody3D for Ship {
             b.set_gravity_scale(0.0);
             b.set_can_sleep(false);
             b.set_use_continuous_collision_detection(true);
+            b.set_contact_monitor(true);
+            b.set_max_contacts_reported(4);
             b.set_center_of_mass_mode(CenterOfMassMode::CUSTOM);
-            b.set_center_of_mass(Vector3::new(0.0, d.hatch.ring_y + 1.4, 0.0));
+            b.set_center_of_mass(v3(d.center_of_mass));
+            b.set_angular_damp(d.angular_damp);
             b.set_collision_layer(LAYER_HULL);
             b.set_collision_mask(LAYER_WORLD | LAYER_HULL);
             let mut material = PhysicsMaterial::new_gd();
@@ -318,6 +344,10 @@ impl IRigidBody3D for Ship {
         }
         if let Some(mut cabin) = self.cabin_body.clone() {
             cabin.set_global_transform(now);
+            // Push it to the physics server now: the player's move this tick
+            // must collide with the floor where the ship is, not where it was.
+            let rid = cabin.get_rid();
+            PhysicsServer3D::singleton().body_set_state(rid, BodyState::TRANSFORM, &now.to_variant());
         }
         if let Some(p) = player {
             self.update_zone(&d, p);
@@ -402,19 +432,22 @@ impl Ship {
                 let h = &d.hatch;
                 let off = Vector2::new(local.x - h.at_x, local.z - h.at_z);
                 let rel = t.basis.inverse() * v;
-                let lift_top = d.cabin.floor_y + 0.45;
+                let lift_top = d.cabin.floor_y + h.top_above_floor;
                 let target = if self.lift_dir > 0.0 {
                     if feet.y < lift_top {
                         Vector3::new(0.0, h.lift_speed, 0.0)
                     } else {
                         // At the top: drift off the hole toward the cabin's middle.
-                        let to_mid = Vector2::new(-off.x, d.cabin.center_z - h.at_z).normalized() * 2.5;
-                        Vector3::new(to_mid.x, 0.4, to_mid.y)
+                        let to_mid = Vector2::new(-off.x, d.cabin.center_z - h.at_z).normalized() * h.top_drift_speed;
+                        Vector3::new(to_mid.x, 0.0, to_mid.y)
                     }
                 } else {
-                    Vector3::new(0.0, -h.lift_speed, 0.0)
+                    // Going down: only the fall speed is controlled, so the
+                    // player can walk out from under the ship once down.
+                    let a = model::lift_accel(Vector3::new(0.0, rel.y, 0.0), Vector3::new(0.0, -h.lift_speed, 0.0), Vector2::ZERO, h.lift_accel, 0.0);
+                    return Some(t.basis * a);
                 };
-                let pull = if self.lift_dir > 0.0 && feet.y >= lift_top { 0.0 } else { h.center_pull };
+                let pull = if feet.y >= lift_top { 0.0 } else { h.center_pull };
                 let a = model::lift_accel(rel, target, off, h.lift_accel, pull);
                 Some(t.basis * a)
             }
@@ -458,6 +491,18 @@ impl Ship {
         Vector2::new(local.x - d.hatch.at_x, local.z - d.hatch.at_z).length() <= d.hatch.reach_m
     }
 
+    /// World points of the seat and the hatch, to tell which one the
+    /// player is facing when both are in reach.
+    pub fn seat_point(&self) -> Vector3 {
+        let d = self.data.as_ref().map(|d| v3(d.cabin.seat_at)).unwrap_or_default();
+        self.base().get_global_transform() * d
+    }
+
+    pub fn hatch_point(&self) -> Vector3 {
+        let local = self.data.as_ref().map(|d| Vector3::new(d.hatch.at_x, d.cabin.floor_y, d.hatch.at_z)).unwrap_or_default();
+        self.base().get_global_transform() * local
+    }
+
     pub fn toggle_hatch(&mut self) {
         self.hatch_held = !self.hatch_wanted;
         self.hatch_wanted = !self.hatch_wanted;
@@ -489,7 +534,13 @@ impl Ship {
         let feet_below = player.bind().feet_below();
         let local_feet = t.affine_inverse() * p - Vector3::new(0.0, feet_below, 0.0);
         let open = self.hatch > 0.5;
-        let zone = if player.bind().is_buckled() { Zone::Cabin } else { classify(d, local_feet, open) };
+        let mut zone = if player.bind().is_buckled() { Zone::Cabin } else { classify(d, local_feet, open) };
+        // Rising out of the lift: stay in it until clear of the hole, or
+        // cabin gravity drops the player straight back down the shaft.
+        let off_hole = Vector2::new(local_feet.x - d.hatch.at_x, local_feet.z - d.hatch.at_z).length();
+        if self.zone == Zone::Lift && zone == Zone::Cabin && self.lift_dir > 0.0 && off_hole < d.hatch.radius + d.hatch.clear_margin {
+            zone = Zone::Lift;
+        }
         if zone == self.zone {
             return;
         }
@@ -580,10 +631,17 @@ impl Ship {
                 v += fix;
             }
             self.fuel_s = (self.fuel_s - effort * dt).max(0.0);
-            let current = basis.inverse() * self.base().get_angular_velocity();
-            let w = model::step_turn_rate(&d.flight, current, &input, dt);
-            self.base_mut().set_angular_velocity(basis * w);
-            self.turn_rate = w;
+            // Sitting still on the ground with the stick idle, let the legs
+            // settle on their own; flight assist holding the attitude there
+            // makes the ship skate downhill on one pad.
+            let idle = input.move_stick == Vector2::ZERO && input.vertical == 0.0 && input.pitch == 0.0 && input.yaw == 0.0 && input.roll == 0.0;
+            let resting = idle && v.length() < d.flight.landed_speed && self.grounded();
+            if !resting {
+                let current = basis.inverse() * self.base().get_angular_velocity();
+                let w = model::step_turn_rate(&d.flight, current, &input, dt);
+                self.base_mut().set_angular_velocity(basis * w);
+                self.turn_rate = w;
+            }
         }
         self.base_mut().set_linear_velocity(v);
         self.telemetry = Telemetry { speed: v.length(), thrust: thrust_local, effort };
@@ -591,6 +649,11 @@ impl Ship {
             let up = (thrust_local.y / d.flight.up.max(0.01)).max(0.0);
             light.set_param(Param::ENERGY, up * 6.0);
         }
+    }
+
+    /// Touching anything (ground, a rock, another ship).
+    fn grounded(&self) -> bool {
+        !self.base().get_colliding_bodies().is_empty()
     }
 
     fn read_input(&mut self, d: &ShipData) -> PilotInput {
@@ -643,8 +706,8 @@ impl Ship {
         // Try spots ahead and around, and take the flattest (footpads at
         // the most even heights); ties go to the spot straight ahead.
         let mut best: Option<(f32, Vector3, Basis, f32)> = None;
-        for (k, extra) in [0.0f32, 8.0, 16.0].iter().enumerate() {
-            for (j, bearing) in [0.0f32, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0].iter().enumerate() {
+        for (k, extra) in d.parking.extra_distances_m.iter().enumerate() {
+            for (j, bearing) in d.parking.bearings_deg.iter().enumerate() {
                 let ahead = Basis::from_axis_angle(up0, bearing.to_radians()) * ahead0;
                 let angle = (self.spawn_ahead_m + extra) / r;
                 let up = (up0 * angle.cos() + ahead * angle.sin()).normalized();
@@ -665,14 +728,14 @@ impl Ship {
                 let lo = heights.iter().copied().fold(f32::MAX, f32::min);
                 // Water counts as unusable.
                 let wet = body.bind().water_level().is_some_and(|w| lo < r + w);
-                let score = (hi - lo) + if wet { 1000.0 } else { 0.0 } + (k + j) as f32 * 0.05;
+                let score = (hi - lo) + if wet { 1000.0 } else { 0.0 } + (k + j) as f32 * d.parking.order_penalty_m;
                 if best.as_ref().is_none_or(|b| score < b.0) {
                     best = Some((score, up, basis, hi));
                 }
             }
         }
         let Some((_, up, basis, ground)) = best else { return };
-        let at = centre + up * (ground + 0.4);
+        let at = centre + up * (ground + d.parking.drop_height_m);
         self.base_mut().set_global_transform(Transform3D::new(basis, at));
         self.base_mut().set_linear_velocity(Vector3::ZERO);
         self.base_mut().set_angular_velocity(Vector3::ZERO);
