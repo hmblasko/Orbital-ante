@@ -16,6 +16,8 @@ use godot::prelude::*;
 use serde::Deserialize;
 
 use super::CelestialBody;
+use crate::player::supply::SupplyPoint;
+use crate::player::tether::TetherAnchor;
 use super::body::basis_with_up;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,6 +48,10 @@ pub struct SurfaceLandmark {
     /// Solid convex hull per part so the player can't walk through it.
     #[serde(default)]
     pub solid: bool,
+    /// This is a ship the player refills air and fuel from, and can clip a
+    /// tether to. The point sits this far up the model, in the model's units.
+    #[serde(default)]
+    pub supply_height: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -163,16 +169,27 @@ impl LandmarkSet {
             let tilt = Basis::from_axis_angle(Vector3::RIGHT, l.tilt_deg.to_radians());
             let basis = (basis_with_up(dir) * yaw * tilt).scaled(Vector3::splat(l.scale));
             let transform = Transform3D::new(basis, center + dir * (ground - l.sink_m));
-            if l.solid {
+            let mut holder = if l.solid {
                 let mut solid = StaticBody3D::new_alloc();
                 solid.set_name(&l.name);
                 self.base_mut().add_child(&solid);
                 solid.set_global_transform(transform);
                 solid.add_child(&model);
                 add_hulls(&mut solid, &model);
+                solid.upcast::<Node3D>()
             } else {
                 self.base_mut().add_child(&model);
                 model.set_global_transform(transform);
+                model
+            };
+            if let Some(height) = l.supply_height {
+                let mut supply = SupplyPoint::new_alloc();
+                supply.set_name("SupplyPoint");
+                supply.set_position(Vector3::new(0.0, height, 0.0));
+                let mut anchor = TetherAnchor::new_alloc();
+                anchor.set_name("TetherAnchor");
+                supply.add_child(&anchor);
+                holder.add_child(&supply);
             }
         }
     }

@@ -4,8 +4,11 @@
 (
     surface: [
         // Stand-in for the starter lander until Phase 4 builds the flyable one.
+        // Its supply refills your suit and takes your tether (supply_height is
+        // in model units, about the middle of the descent stage).
         (name: "ParkedLunarModule", model: "res://assets/models/nasa/apollo_lunar_module.glb",
-         at: (0.073, 0.9945, -0.073), scale: 1.4, yaw_deg: 35.0, sink_m: 0.2, solid: true),
+         at: (0.073, 0.9945, -0.073), scale: 1.4, yaw_deg: 35.0, sink_m: 0.2, solid: true,
+         supply_height: Some(1.0)),
         // Ground dish: a landmark you can see from the mesa (Phase 8 makes dishes switchable).
         (name: "TrackingDish", model: "res://assets/models/nasa/dsn_34m_dish.glb",
          at: (-0.42, 0.88, -0.2), scale: 0.6, yaw_deg: 200.0, sink_m: 0.3, grime: 0.25, solid: true),

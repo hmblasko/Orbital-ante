@@ -40,3 +40,10 @@ Screenshot: `reports/movement_ice_pass.png` (top: jetpack plume; middle: footste
 
 Gates: unit 91, determinism 19, data 11, smoke, feature scripts (16 checks), replay 0.0 m: all PASS. Screenshot regression not run (no approved baselines). Steam Deck: not measured.
 Placeholder: puffs use a generated soft-circle sprite; no sound yet for footsteps, landings or the jetpack (Phase 9).
+
+## Placeholder clean-up (31 Oct 2026)
+
+Matthew asked for unattractive placeholder assets to be removed.
+- Removed the primitive air-and-tether station. The parked NASA Apollo Lunar Module now holds the supply point and tether anchor (`supply_height` in `test_sphere_landmarks.ron`), so you refill and clip on beside the lander. Supply and tether ranges went from 4.0 m to 5.5 m to reach from beside its hull.
+- Removed the primitive oxygen tank model and the tanks from the play scene, by Matthew's choice, until a properly modelled tank exists. The tank code stays; the feature test adds its own tanks to check pickup and use.
+- Screenshot: `reports/lander_supply.png`. Gates: all PASS (unit 91, determinism 19, data 11, smoke, feature scripts 16 checks, replay 0.0 m). Steam Deck: not measured.

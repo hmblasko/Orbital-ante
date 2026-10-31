@@ -5,12 +5,10 @@
 //! Serves pillar 3 (every run counts: placement changes with the seed) and
 //! fun rule 4 (curiosity: exploring finds air).
 
-use godot::classes::light_3d::Param;
-use godot::classes::{BoxMesh, CapsuleMesh, CylinderMesh, INode3D, Node3D, OmniLight3D, TorusMesh};
+use godot::classes::{INode3D, Node3D};
 use godot::prelude::*;
 use serde::Deserialize;
 
-use super::look::{PaintSpec, at, paint, part};
 use crate::orbits::CelestialBody;
 use crate::orbits::body::basis_with_up;
 use crate::procgen;
@@ -28,57 +26,8 @@ pub struct OxygenTankPickup {
 impl INode3D for OxygenTankPickup {
     fn ready(&mut self) {
         self.base_mut().add_to_group(TANK_GROUP);
-        self.build_model();
-    }
-}
-
-impl OxygenTankPickup {
-    /// PLACEHOLDER model: a stubby teal cylinder with rubber bands, a brass
-    /// valve and a glowing fill strip, lying on its side so it reads as
-    /// "dropped gear" from a distance.
-    fn build_model(&mut self) {
-        let mut root = Node3D::new_alloc();
-        root.set_name("PLACEHOLDER_OxygenTankModel");
-        // Lying down, slightly sunk into the dust.
-        root.set_transform(Transform3D::new(Basis::from_axis_angle(Vector3::BACK, std::f32::consts::FRAC_PI_2), Vector3::new(0.0, 0.17, 0.0)));
-        let shell = paint(&PaintSpec::metal(Color::from_rgb(0.22, 0.72, 0.74), Color::from_rgb(0.10, 0.40, 0.45)));
-        let rubber = paint(&PaintSpec::matte(Color::from_rgb(0.16, 0.16, 0.18), Color::from_rgb(0.08, 0.08, 0.1)));
-        let brass = paint(&PaintSpec::metal(Color::from_rgb(0.92, 0.70, 0.32), Color::from_rgb(0.55, 0.38, 0.15)));
-        let glow = paint(&PaintSpec::glow(Color::from_rgb(0.55, 1.0, 0.95), 2.5));
-
-        let mut body = CapsuleMesh::new_gd();
-        body.set_radius(0.17);
-        body.set_height(0.72);
-        body.set_radial_segments(24);
-        body.set_rings(6);
-        part(&mut root, "Shell", body, &shell, at(0.0, 0.0, 0.0));
-        for (i, y) in [-0.18f32, 0.14].iter().enumerate() {
-            let mut band = TorusMesh::new_gd();
-            band.set_inner_radius(0.16);
-            band.set_outer_radius(0.2);
-            band.set_rings(24);
-            part(&mut root, &format!("Band{i}"), band, &rubber, at(0.0, *y, 0.0));
-        }
-        let mut neck = CylinderMesh::new_gd();
-        neck.set_top_radius(0.05);
-        neck.set_bottom_radius(0.07);
-        neck.set_height(0.1);
-        part(&mut root, "Neck", neck, &brass, at(0.0, 0.4, 0.0));
-        let mut handle = TorusMesh::new_gd();
-        handle.set_inner_radius(0.05);
-        handle.set_outer_radius(0.08);
-        part(&mut root, "Valve", handle, &brass, Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, std::f32::consts::FRAC_PI_2), Vector3::new(0.0, 0.47, 0.0)));
-        let mut strip = BoxMesh::new_gd();
-        strip.set_size(Vector3::new(0.03, 0.22, 0.02));
-        part(&mut root, "FillGauge", strip, &glow, at(0.0, -0.02, 0.172));
-        self.base_mut().add_child(&root);
-
-        let mut light = OmniLight3D::new_alloc();
-        light.set_color(Color::from_rgb(0.5, 1.0, 0.95));
-        light.set_param(Param::RANGE, 1.4);
-        light.set_param(Param::ENERGY, 0.2);
-        light.set_position(Vector3::new(0.0, 0.5, 0.0));
-        self.base_mut().add_child(&light);
+        // No model yet: the placeholder was removed (31 Oct 2026) until a
+        // properly modelled tank exists, so tanks only appear in test scripts.
     }
 }
 

@@ -26,6 +26,12 @@ var died_key := ""
 
 func _initialize() -> void:
 	scene = load("res://scenes/tests/sphere_walk.tscn").instantiate()
+	# Tanks have no model yet, so the play scene has none; this test adds them.
+	for body_name in ["TestSphere", "TestMoonlet"]:
+		var scatter = ClassDB.instantiate("OxygenTankScatter")
+		scatter.name = "OxygenTanks"
+		scatter.body_index = 0 if body_name == "TestSphere" else 1
+		scene.get_node(body_name).add_child(scatter)
 	root.add_child(scene)
 	player = scene.get_node("Player")
 	player.died.connect(func(key): died_key = key)
@@ -64,9 +70,9 @@ func _physics_process(_delta: float) -> bool:
 			if t() == 300:
 				var used: float = mark.o2 - player.get_oxygen_seconds()
 				check(absf(used - 5.0) < 0.2, "oxygen drains in vacuum (used %.2f s of air in 5 s)" % used)
-				var supply: Node3D = scene.get_node("TestSphere/SupplyPoint")
+				# The supply is inside the parked lander: stand beside its hull.
 				player.debug_set_oxygen(100.0)
-				place(supply.global_position + supply.global_basis.y * 1.0)
+				place(beside_lander())
 				next()
 		2: # the supply point refills oxygen
 			if t() == 120:
@@ -114,9 +120,9 @@ func _physics_process(_delta: float) -> bool:
 			if t() == 120:
 				Input.action_release("match_velocity")
 				check(player.velocity.length() < 0.01, "match velocity stops the drift (speed %.3f m/s)" % player.velocity.length())
-				var anchor: Node3D = scene.get_node("TestSphere/SupplyPoint/TetherAnchor")
+				var anchor: Node3D = get_nodes_in_group("tether_anchors")[0]
 				mark.anchor = anchor
-				place(anchor.global_position + anchor.global_basis.y * 1.0)
+				place(beside_lander())
 				next()
 		6: # tether: clip on, then a hard push away is stopped at the line's length
 			if t() == 5: Input.action_press("tether_toggle")
@@ -152,3 +158,11 @@ func _finish() -> void:
 		quit(0)
 	else:
 		quit(1)
+
+## A spot on the ground just outside the parked lander's hull, between two legs.
+func beside_lander() -> Vector3:
+	var supply: Node3D = get_nodes_in_group("supply_points")[0]
+	var b: Basis = supply.get_parent().global_basis
+	var up: Vector3 = supply.global_position.normalized()
+	var out: Vector3 = (b.x.normalized() + b.z.normalized()).normalized()
+	return supply.global_position + out * 5.0 + up * 0.6
