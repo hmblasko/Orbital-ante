@@ -92,6 +92,11 @@ pub struct CabinData {
     pub seat_at: V3,
     pub seat_reach_m: f32,
     pub console_z: f32,
+    /// Console desk size (width, thickness, depth), its top's height above
+    /// the floor and how far it slants back toward the pilot.
+    pub console_size: (f32, f32, f32),
+    pub console_height_m: f32,
+    pub console_tilt_deg: f32,
     pub light_energy: f32,
     pub light_range_m: f32,
     pub light_color: V3,
@@ -1472,12 +1477,15 @@ impl Ship {
             add(&format!("Seat{i}"), &meshes::rounded_box(*size, *r, 5), Transform3D::new(basis, seat_floor + *at), painted(5, col));
         }
         // Console: a slanted desk under the windows.
-        let desk = Vector3::new(0.0, c.floor_y + 1.05, c.console_z);
-        add("Console", &meshes::rounded_box(Vector3::new(1.9, 0.16, 0.7), 0.07, 6), Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, (-28f32).to_radians()), desk), painted(6, console));
-        add("ConsoleStand", &meshes::rounded_box(Vector3::new(0.9, 1.0, 0.4), 0.1, 6), Transform3D::new(Basis::IDENTITY, Vector3::new(0.0, c.floor_y + 0.5, c.console_z + 0.15)), painted(6, console));
-        let desk_t = Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, (-28f32).to_radians()), desk);
+        let desk = Vector3::new(0.0, c.floor_y + c.console_height_m, c.console_z);
+        let tilt = Basis::from_axis_angle(Vector3::RIGHT, (-c.console_tilt_deg).to_radians());
+        let (cw, ct, cd) = c.console_size;
+        add("Console", &meshes::rounded_box(Vector3::new(cw, ct, cd), 0.07, 6), Transform3D::new(tilt, desk), painted(6, console));
+        let stand_h = c.console_height_m - 0.05;
+        add("ConsoleStand", &meshes::rounded_box(Vector3::new(cw * 0.45, stand_h, cd * 0.55), 0.1, 6), Transform3D::new(Basis::IDENTITY, Vector3::new(0.0, c.floor_y + stand_h * 0.5, c.console_z + 0.15)), painted(6, console));
+        let desk_t = Transform3D::new(tilt, desk);
         let mut root: Gd<Node3D> = self.to_gd().upcast();
-        let cockpit = super::cockpit::build(&mut interior, &mut root, &d.cockpit, desk_t, 0.08, &d.model, d.model_scale, v3(d.model_offset));
+        let cockpit = super::cockpit::build(&mut interior, &mut root, &d.cockpit, desk_t, ct * 0.5, &d.model, d.model_scale, v3(d.model_offset));
         // Lights: a warm cabin lamp, the blue ring, and the engine glow.
         let mut lamp = OmniLight3D::new_alloc();
         lamp.set_name("CabinLight");

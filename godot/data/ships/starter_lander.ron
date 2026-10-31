@@ -69,6 +69,11 @@
         // How close you must be to buckle in.
         seat_reach_m: 1.6,
         console_z: 1.95,
+        // Wide enough for the big dash screen with the little ship model
+        // beside it.
+        console_size: (2.5, 0.16, 0.8),
+        console_height_m: 1.05,
+        console_tilt_deg: 28.0,
         light_energy: 2.2,
         light_range_m: 7.0,
         light_color: (1.0, 0.86, 0.7),
@@ -139,12 +144,14 @@
     // Cockpit parts (Phase 4 part 2): dash screen on the console, the
     // little thrust-display model, and the cameras Y cycles through.
     cockpit: (
-        screen_size_m: (1.2, 0.6),
-        screen_at: (0.0, 7.72, 2.18),
-        screen_tilt_deg: 28.0,
+        // Big enough to read at a glance from the seat (about half the view
+        // wide), low enough to keep the windows clear.
+        screen_size_m: (1.9, 0.95),
+        screen_at: (0.0, 7.7, 1.85),
+        screen_tilt_deg: 24.0,
         mini_ship: (
             // Console-top space: x toward the pilot's left, z toward the windows.
-            at: (0.74, 0.1, -0.1),
+            at: (1.05, 0.1, -0.3),
             scale: 0.02,
             arrow_len_m: 0.08,
             arrow_color: (0.45, 0.9, 1.0),
