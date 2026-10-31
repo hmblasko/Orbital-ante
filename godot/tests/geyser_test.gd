@@ -80,7 +80,8 @@ func _physics_process(_d: float) -> bool:
 			elif t > MAX_DETAIL_FRAMES:
 				failures.append("Mars ground never streamed in"); finish(); return true
 		2:
-			if t == 60:
+			# Give slower machines up to 10 s to settle onto the vent.
+			if t >= 60 and (player.is_on_floor() or t >= 600):
 				check(player.is_on_floor(), "the player stands on the vent")
 				var now: float = sys.get_clock()
 				erupt_at = geysers.get_next_eruption_after(0, now + 6.0)

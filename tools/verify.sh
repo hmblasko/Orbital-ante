@@ -76,7 +76,12 @@ else
     c=$?
     "$V" logcheck "$OUT/features/$n.log" "$OUT/features/$n.logcheck.json" "$IGNORE" 0 >/dev/null; l=$?
     feat_checks=$((feat_checks + $(grep -c ': ok ' "$OUT/features/$n.log")))
-    if [ $c -eq 0 ] && [ $l -eq 0 ] && grep -q "PASS" "$OUT/features/$n.log"; then feat_ok=$((feat_ok + 1)); else feat_fail="$feat_fail $n"; fi
+    if [ $c -eq 0 ] && [ $l -eq 0 ] && grep -q "PASS" "$OUT/features/$n.log"; then feat_ok=$((feat_ok + 1)); else
+      feat_fail="$feat_fail $n"
+      # Show why in the console too, so CI logs explain the failure.
+      echo "-- $n failed (exit $c, logcheck $l):"
+      grep -E "FAIL|ERROR|SCRIPT ERROR|panicked" "$OUT/features/$n.log" | head -n 15
+    fi
   done
   if [ -z "$feat_fail" ]; then gate "Feature test scenes" pass "$feat_ok scripts passed ($feat_checks named checks), no log errors" "" features
   else gate "Feature test scenes" fail "failed:$feat_fail (see features/*.log)" S2 features; fi
