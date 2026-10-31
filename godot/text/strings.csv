@@ -21,3 +21,23 @@ PROMPT_TETHER,Clip on tether
 PROMPT_UNTETHER,Unclip tether
 DEATH_TITLE,RUN OVER
 DEATH_CONTINUE_KEYS,Press Enter to continue
+MAP_TITLE,SYSTEM MAP
+MAP_NO_SIGNAL,No system data here
+MAP_IN_GRAVITY,In {body}'s gravity
+MAP_DEEP_SPACE,Deep space
+MAP_HINT_KEYS,PgUp / PgDn  Zoom      M  Close
+MAP_HINT_PAD,RB / LB  Zoom      D-pad right  Close
+BODY_SUN,Sun
+BODY_MERCURY,Mercury
+BODY_VENUS,Venus
+BODY_EARTH,Earth
+BODY_MOON,Moon
+BODY_MARS,Mars
+BODY_PHOBOS,Phobos
+BODY_JUPITER,Jupiter
+BODY_IO,Io
+BODY_EUROPA,Europa
+BODY_SATURN,Saturn
+BODY_TITAN,Titan
+BODY_URANUS,Uranus
+BODY_NEPTUNE,Neptune

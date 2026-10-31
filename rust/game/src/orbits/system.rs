@@ -27,6 +27,8 @@ use crate::player::controller::PLAYER_GROUP;
 /// Things that are free in the world (not riding a body) and must move when
 /// the origin re-centres: dropped items, debris, ships in flight.
 pub const FLOATING_GROUP: &str = "floating_origin";
+/// The solar system joins this group so the map can find it.
+pub const SYSTEM_GROUP: &str = "solar_system";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SystemData {
@@ -37,6 +39,8 @@ pub struct SystemData {
     /// radii plus `detail_margin_m` of its centre.
     pub detail_radii: f32,
     pub detail_margin_m: f32,
+    /// Bodies drop full detail beyond this many times their detail distance.
+    pub release_factor: f32,
     /// Below this altitude (as a fraction of the radius) the player turns
     /// with the body's spin; above it the body turns underneath them.
     pub co_rotate_altitude: f32,
@@ -72,6 +76,47 @@ pub struct SystemBody {
     pub orbit: Option<OrbitData>,
     #[serde(default)]
     pub spin: SpinData,
+    /// Dot colour on the live map.
+    #[serde(default = "default_map_color")]
+    pub map_color: (f32, f32, f32),
+}
+
+fn default_map_color() -> (f32, f32, f32) {
+    (0.8, 0.8, 0.8)
+}
+
+/// One body as the live map draws it, in scene coordinates (after the
+/// floating origin), seen at the current moment.
+#[derive(Debug, Clone)]
+pub struct MapBody {
+    pub id: String,
+    pub color: Color,
+    /// Visible radius in metres (cloud tops for gas giants).
+    pub radius: f32,
+    /// Outer ring radius in metres (0 = no rings).
+    pub ring: f32,
+    pub position: Vector3,
+    /// The orbit path as a closed loop (empty for the sun).
+    pub orbit: Vec<Vector3>,
+    pub is_star: bool,
+    /// Orbits a planet rather than the sun.
+    pub is_moon: bool,
+}
+
+/// Everything the live map needs for one frame.
+#[derive(Debug, Clone)]
+pub struct MapSnapshot {
+    pub bodies: Vec<MapBody>,
+    pub player: Vector3,
+    pub player_forward: Vector3,
+    pub frame_body: Option<String>,
+}
+
+/// Points along one orbit loop, relative to its parent (pure, for tests).
+pub fn orbit_loop(o: &OrbitData, phase: f64, points: usize) -> Vec<DVec3> {
+    (0..points)
+        .map(|k| orbit::orbit_offset(o, phase, o.period_s * k as f64 / points as f64))
+        .collect()
 }
 
 /// Absolute positions (system frame, f64) and turns of every body at a time.
@@ -100,6 +145,15 @@ impl Ephemeris {
         }
         let phases = data.bodies.iter().map(|b| orbit::start_phases(run_seed, &b.id)).collect();
         Ok(Self { parents, phases })
+    }
+
+    pub fn parent(&self, i: usize) -> Option<usize> {
+        self.parents[i]
+    }
+
+    /// Seeded starting angle along body `i`'s orbit.
+    pub fn phase(&self, i: usize) -> f64 {
+        self.phases[i].0
     }
 
     /// Absolute centre of every body at time `t`.
@@ -209,6 +263,7 @@ impl INode3D for SolarSystem {
             self.base_mut().add_child(&body);
             self.bodies.push(body);
         }
+        self.base_mut().add_to_group(SYSTEM_GROUP);
         self.data = Some(data);
         self.ephemeris = Some(ephemeris);
         self.base_mut().call_deferred("place_player", &[]);
@@ -352,6 +407,45 @@ impl SolarSystem {
         best.1
     }
 
+    /// The live map's view of the system right now.
+    pub fn map_snapshot(&self, orbit_points: usize) -> Option<MapSnapshot> {
+        let (data, eph) = (self.data.as_ref()?, self.ephemeris.as_ref()?);
+        let positions = eph.positions(data, self.clock);
+        let bodies = data
+            .bodies
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let node = self.bodies[i].bind();
+                let (radius, ring, is_star) = node.map_shape();
+                let orbit = match (&b.orbit, eph.parent(i)) {
+                    (Some(o), Some(p)) => orbit_loop(o, eph.phase(i), orbit_points)
+                        .into_iter()
+                        .map(|q| (positions[p] + q - self.origin).to_f32())
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                MapBody {
+                    id: b.id.clone(),
+                    color: Color::from_rgb(b.map_color.0, b.map_color.1, b.map_color.2),
+                    radius,
+                    ring,
+                    position: (positions[i] - self.origin).to_f32(),
+                    orbit,
+                    is_star,
+                    is_moon: eph.parent(i).is_some_and(|p| data.bodies[p].orbit.is_some()),
+                }
+            })
+            .collect();
+        let player = self.player();
+        Some(MapSnapshot {
+            bodies,
+            player: player.as_ref().map_or(Vector3::ZERO, |p| p.get_global_position()),
+            player_forward: player.as_ref().map_or(Vector3::FORWARD, |p| -p.get_global_basis().col_c()),
+            frame_body: self.frame.map(|i| data.bodies[i].id.clone()),
+        })
+    }
+
     /// Seconds on the run clock (drives every orbit).
     #[func]
     pub fn get_clock(&self) -> f64 {
@@ -438,13 +532,19 @@ impl SolarSystem {
         }
     }
 
-    /// Ask nearby bodies for full detail (built in the background).
+    /// Ask nearby bodies for full detail (built in the background), and
+    /// let bodies far behind drop it again. The gap between the two
+    /// distances stops a body flickering between states at the boundary.
     fn stream_detail(&mut self, data: &SystemData) {
         let Some(p) = self.player().map(|p| p.get_global_position()) else { return };
-        for body in &mut self.bodies {
+        let frame = self.frame;
+        for (i, body) in self.bodies.iter_mut().enumerate() {
             let reach = body.bind().radius() * data.detail_radii + data.detail_margin_m;
-            if body.get_global_position().distance_to(p) < reach {
+            let distance = body.get_global_position().distance_to(p);
+            if distance < reach {
                 body.bind_mut().request_detail();
+            } else if distance > reach * data.release_factor && Some(i) != frame {
+                body.bind_mut().release_detail();
             }
         }
     }
@@ -501,6 +601,21 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn orbit_loop_is_a_closed_ring_at_the_orbit_radius() {
+        let d = data();
+        let o = d.bodies.iter().find(|b| b.id == "mars").unwrap().orbit.clone().unwrap();
+        let ring = orbit_loop(&o, 0.3, 64);
+        assert_eq!(ring.len(), 64);
+        for q in &ring {
+            assert!((q.length() - o.radius_m).abs() < 1e-6);
+        }
+        // Neighbouring points are evenly spaced (no gaps in the drawn loop).
+        let gap = |a: DVec3, b: DVec3| (a - b).length();
+        let first = gap(ring[0], ring[1]);
+        assert!((gap(ring[63], ring[0]) - first).abs() < 1e-6);
     }
 
     #[test]

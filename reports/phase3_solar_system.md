@@ -53,3 +53,10 @@ At section 4 body sizes, the bodies need about 70 km across to orbit without eve
 - Bodies never drop their full detail once built, so memory grows as you visit more bodies. Unloading comes next.
 - The slice and main menu still use the test planet. The new scene is a test scene.
 - Saturn's rings are a first pass.
+
+## Part 2 (31 Oct 2026): far detail release and the live map
+
+- Bodies drop their full-detail surface and go back to the light preview once you are 1.6x beyond their detail distance (except the body you are riding). Measured in the feature test: the Moon built full detail in the background in 4.7 s and dropped it again within 3 frames.
+- Live system map on a wrist screen: M on keyboard, D-pad right on the controller. Zoom with PgUp/PgDn, the mouse wheel, or RB/LB. Four zoom steps from the whole system (38 km half-height, centred on the sun) down to 1.8 km around you. Orbits and bodies are live, each planet is lit on its sun side, rings show on the gas giants, the body you are in the gravity of has a teal ring, and your arrow points where you look. Labels that would overlap are dropped, most important first. No landmark icons at all yet; only discovered ones will get icons when discovery arrives (Phase 7). The game keeps running while the map is open. Layout, colours and zoom steps are in godot/data/ui/system_map.ron.
+- Screenshot: reports/phase3_live_map.png (top: whole system; bottom: closest zoom near Earth).
+- Gates: 112 unit, 21 determinism, 11 data tests; smoke test; 3 feature scripts (33 checks, solar_system_test now 17); replay 0.0 m. Screenshot regression not run (--no-render). Steam Deck: not measured.

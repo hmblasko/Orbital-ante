@@ -30,8 +30,8 @@ const VISOR_SHADER: &str = "res://shaders/visor.gdshader";
 /// Group `GameRoot` joins, so the recap can return to the menu.
 pub const GAME_ROOT_GROUP: &str = "game_root";
 
-type Rgb = (f32, f32, f32);
-type Rgba = (f32, f32, f32, f32);
+pub(crate) type Rgb = (f32, f32, f32);
+pub(crate) type Rgba = (f32, f32, f32, f32);
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HudData {
@@ -462,7 +462,7 @@ impl SuitHud {
     }
 }
 
-fn style_box(bg: Color, border: Color, border_px: i32, radius: i32) -> Gd<StyleBoxFlat> {
+pub(crate) fn style_box(bg: Color, border: Color, border_px: i32, radius: i32) -> Gd<StyleBoxFlat> {
     let mut sb = StyleBoxFlat::new_gd();
     sb.set_bg_color(bg);
     sb.set_border_color(border);
@@ -473,14 +473,14 @@ fn style_box(bg: Color, border: Color, border_px: i32, radius: i32) -> Gd<StyleB
     sb
 }
 
-fn rgb((r, g, b): Rgb) -> Color {
+pub(crate) fn rgb((r, g, b): Rgb) -> Color {
     Color::from_rgb(r, g, b)
 }
 
-fn rgba((r, g, b, a): Rgba) -> Color {
+pub(crate) fn rgba((r, g, b, a): Rgba) -> Color {
     Color::from_rgba(r, g, b, a)
 }
 
-fn faded(c: Color, alpha: f32) -> Color {
+pub(crate) fn faded(c: Color, alpha: f32) -> Color {
     Color::from_rgba(c.r, c.g, c.b, c.a * alpha)
 }

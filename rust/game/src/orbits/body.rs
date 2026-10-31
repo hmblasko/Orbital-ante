@@ -273,6 +273,8 @@ pub struct CelestialBody {
     shape: Option<Arc<TerrainShape>>,
     material: Option<Gd<ShaderMaterial>>,
     detail: Detail,
+    /// Nodes that make up the full detail, freed by `release_detail`.
+    detail_nodes: Vec<Gd<Node>>,
     base: Base<StaticBody3D>,
 }
 
@@ -314,6 +316,7 @@ impl IStaticBody3D for CelestialBody {
             shape: None,
             material: None,
             detail: Detail::None,
+            detail_nodes: Vec::new(),
             base,
         }
     }
@@ -389,6 +392,24 @@ impl CelestialBody {
         self.detail = Detail::Building(std::thread::spawn(move || SurfaceMeshes::build(&data, &shape)));
     }
 
+    /// Drop full detail and go back to the cheap preview (frees memory for
+    /// bodies far behind you). Only once the detail has finished building.
+    #[func]
+    pub fn release_detail(&mut self) {
+        if !self.stream_detail || !matches!(self.detail, Detail::Built) {
+            return;
+        }
+        for mut node in std::mem::take(&mut self.detail_nodes) {
+            if node.is_instance_valid() {
+                node.queue_free();
+            }
+        }
+        self.detail = Detail::None;
+        if let (Some(data), Some(shape)) = (self.data.clone(), self.shape.clone()) {
+            self.build_preview(&data, &shape);
+        }
+    }
+
     /// True once fine meshes, collision, rocks and hoodoos are in place.
     #[func]
     pub fn has_detail(&self) -> bool {
@@ -424,6 +445,15 @@ impl CelestialBody {
             }
             _ => false,
         }
+    }
+
+    /// Map shape: visible radius (cloud tops for gas giants), outer ring
+    /// radius (0 = none), and whether it is a star.
+    pub fn map_shape(&self) -> (f32, f32, bool) {
+        let Some(d) = &self.data else { return (0.0, 0.0, false) };
+        let radius = d.clouds.as_ref().map_or(d.radius, |c| c.radius_m);
+        let ring = d.clouds.as_ref().map_or(0.0, |c| if c.ring_m.1 > c.ring_m.0 { c.ring_m.1 } else { 0.0 });
+        (radius, ring, d.star.is_some())
     }
 
     /// Water table above the nominal radius (None on a dry body).
@@ -474,6 +504,7 @@ impl CelestialBody {
         let shape = &*shape;
         let height_range = height_range(data);
         let mesh_data = &meshes.collision;
+        let before: std::collections::HashSet<_> = self.base().get_children().iter_shared().map(|n| n.instance_id()).collect();
         match &data.lod {
             // Fine tiles close to the camera, coarse ones beyond; collision
             // stays on the middle grid (`terrain.subdivisions`).
@@ -510,6 +541,12 @@ impl CelestialBody {
         self.scatter_rocks(data, shape);
         self.add_lava_lights(data, shape);
         self.scatter_hoodoos(data, shape);
+        self.detail_nodes = self
+            .base()
+            .get_children()
+            .iter_shared()
+            .filter(|n| !before.contains(&n.instance_id()))
+            .collect();
         for name in ["Preview", "PreviewCollision"] {
             if let Some(mut node) = self.base().get_node_or_null(name) {
                 // Rename first so `has_detail` is true straight away.

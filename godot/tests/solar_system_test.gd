@@ -8,7 +8,9 @@ extends SceneTree
 ##    re-centres (floating origin) without any jump in absolute position.
 ## 4. Every body has moved along its orbit.
 ## 5. A far body (the Moon) swaps its preview for full detail in the
-##    background when asked, without stalling.
+##    background when asked, without stalling, and drops it again.
+## 6. The live map opens with the map button, sees every body, and its zoom
+##    steps stay in range.
 ## Exits with code 1 on any failure.
 ##
 ## Run from the godot/ folder:
@@ -111,13 +113,46 @@ func _physics_process(delta: float) -> bool:
 				phase = 3; phase_start = frame
 		3:
 			var moon = sys.get_node("moon")
-			if moon.has_detail():
-				check(moon.get_node_or_null("SurfaceCollision0") != null, "the Moon built full detail in the background (%.1f s)" % (t / 60.0))
-				_finish()
+			if moon.get_node_or_null("SurfaceCollision0") != null:
+				check(true, "the Moon built full detail in the background (%.1f s)" % (t / 60.0))
+				moon.release_detail()
+				phase = 4; phase_start = frame
 			elif t > 60 * 60:
 				check(false, "the Moon built full detail within 60 s")
 				_finish()
+		4:
+			if t == 3:
+				var moon = sys.get_node("moon")
+				check(moon.get_node_or_null("SurfaceCollision0") == null and moon.get_node_or_null("Preview") != null, "the Moon drops full detail again when released")
+				phase = 5; phase_start = frame
+		5:
+			_check_map(t)
 	return false
+
+func _press_map() -> void:
+	var press := InputEventAction.new()
+	press.action = "open_map"
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release := InputEventAction.new()
+	release.action = "open_map"
+	Input.parse_input_event(release)
+
+func _check_map(t: int) -> void:
+	var map = scene.get_node("HUD/SystemMap")
+	if t == 1:
+		check(map.get_body_count() == start_positions.size(), "the map sees every body (%d)" % map.get_body_count())
+		map.set_zoom(99)
+		var widest_ok: bool = map.get_zoom() == 3
+		map.set_zoom(-4)
+		check(widest_ok and map.get_zoom() == 0, "map zoom stays within its steps")
+		_press_map()
+	elif t == 4:
+		check(map.is_open(), "the map button opens the map")
+		_press_map()
+	elif t == 7:
+		check(not map.is_open(), "the map button closes it again")
+		_finish()
 
 func _finish() -> void:
 	for p in passes: print("solar_system_test: ok   - " + p)

@@ -18,6 +18,8 @@ spawn_on_nearest_body = false
 
 [node name="SuitHud" type="SuitHud" parent="HUD"]
 
+[node name="SystemMap" type="SystemMap" parent="HUD"]
+
 [node name="DebugUI" type="CanvasLayer" parent="."]
 
 [node name="FrameTimeOverlay" type="FrameTimeOverlay" parent="DebugUI"]
