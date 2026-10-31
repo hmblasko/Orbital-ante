@@ -136,6 +136,54 @@
     wall_thickness: 0.6,
     // Test scenes park the lander on the flattest of these spots: this much
     // further than spawn_ahead_m, at these bearings from straight ahead.
+    // Cockpit parts (Phase 4 part 2): dash screen on the console, the
+    // little thrust-display model, and the cameras Y cycles through.
+    cockpit: (
+        screen_size_m: (1.2, 0.6),
+        screen_at: (0.0, 7.72, 2.18),
+        screen_tilt_deg: 28.0,
+        mini_ship: (
+            // Console-top space: x toward the pilot's left, z toward the windows.
+            at: (0.74, 0.1, -0.1),
+            scale: 0.02,
+            arrow_len_m: 0.08,
+            arrow_color: (0.45, 0.9, 1.0),
+            arrow_energy: 1.0,
+            pedestal_radius_m: 0.11,
+        ),
+        cameras: [
+            (
+                name_key: "CAM_LANDING",
+                at: (0.0, 1.75, 2.4),
+                look_at: (0.0, -8.0, 7.5),
+                up: (0.0, 0.0, 1.0),
+                fov_deg: 80.0,
+            ),
+            (
+                name_key: "CAM_SELFIE_LEFT",
+                at: (4.6, 11.5, -5.5),
+                look_at: (0.0, 5.0, 0.5),
+                up: (0.0, 1.0, 0.0),
+                fov_deg: 70.0,
+                pole_from: Some((2.0, 8.6, -1.6)),
+            ),
+            (
+                name_key: "CAM_SELFIE_RIGHT",
+                at: (-4.6, 11.5, -5.5),
+                look_at: (0.0, 5.0, 0.5),
+                up: (0.0, 1.0, 0.0),
+                fov_deg: 70.0,
+                pole_from: Some((-2.0, 8.6, -1.6)),
+            ),
+        ],
+        camera_frame: (
+            border_px: 26.0,
+            label_px: 44,
+            color: (0.75, 1.0, 0.8, 0.9),
+            rec_color: (1.0, 0.25, 0.2),
+            hint_key: "CAM_HINT",
+        ),
+    ),
     parking: (
         extra_distances_m: [0.0, 5.0, 10.0, 15.0],
         bearings_deg: [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0],

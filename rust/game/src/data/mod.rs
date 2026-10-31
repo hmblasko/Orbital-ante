@@ -121,4 +121,15 @@ mod tests {
         ))
         .unwrap();
     }
+
+    #[test]
+    fn starter_lander_parses() {
+        parse::<crate::flight::ship::ShipData>(include_str!("../../../../godot/data/ships/starter_lander.ron")).unwrap();
+    }
+
+    #[test]
+    fn dash_styles_parse() {
+        let d = parse::<crate::flight::dash::DashData>(include_str!("../../../../godot/data/ships/dash.ron")).unwrap();
+        assert_eq!(d.styles.len(), 3);
+    }
 }

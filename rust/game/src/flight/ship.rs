@@ -73,6 +73,7 @@ pub struct ShipData {
     pub wall_segments: usize,
     pub wall_thickness: f32,
     pub parking: ParkingData,
+    pub cockpit: super::cockpit::CockpitData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -250,6 +251,7 @@ pub struct Ship {
     door_cabin_shape: Option<Gd<CollisionShape3D>>,
     ring_light: Option<Gd<OmniLight3D>>,
     engine_light: Option<Gd<OmniLight3D>>,
+    cockpit: Option<super::cockpit::Cockpit>,
     base: Base<RigidBody3D>,
 }
 
@@ -279,6 +281,7 @@ impl IRigidBody3D for Ship {
             door_cabin_shape: None,
             ring_light: None,
             engine_light: None,
+            cockpit: None,
             base,
         }
     }
@@ -354,6 +357,7 @@ impl IRigidBody3D for Ship {
         }
         self.update_hatch(&d, dt);
         self.fly(&d, dt);
+        self.update_cockpit(&d);
         self.previous = Some(self.base().get_global_transform());
     }
 }
@@ -651,6 +655,69 @@ impl Ship {
         }
     }
 
+    /// Feed the dash, light the mini ship's thrusters, and handle the
+    /// cockpit buttons (Y: cameras, F4: dash style).
+    fn update_cockpit(&mut self, d: &ShipData) {
+        let aboard = self.zone != Zone::Outside;
+        let readout = self.dash_readout(d);
+        let player_camera = self.player().and_then(|p| p.try_get_node_as::<godot::classes::Camera3D>("Head/Camera3D"));
+        let names: Vec<String> = d.cockpit.cameras.iter().map(|c| self.base().tr(&c.name_key).to_string()).collect();
+        let input = Input::singleton();
+        let thrust = self.telemetry.thrust;
+        let scale = Vector3::new(d.flight.strafe.max(0.01), d.flight.up.max(0.01), d.flight.forward.max(0.01));
+        let pilot = self.pilot;
+        let Some(cp) = self.cockpit.as_mut() else { return };
+        cp.viewport.set_update_mode(if aboard { godot::classes::sub_viewport::UpdateMode::ALWAYS } else { godot::classes::sub_viewport::UpdateMode::DISABLED });
+        cp.dash.bind_mut().set_readout(readout);
+        cp.show_thrust(thrust / scale, &d.cockpit.mini_ship);
+        if aboard && input.is_action_just_pressed("cycle_dash") {
+            cp.dash.bind_mut().cycle_style();
+        }
+        if pilot && input.is_action_just_pressed("cameras_screen") {
+            cp.next_view(player_camera, &names);
+        } else if !pilot {
+            cp.reset_view(player_camera, &names);
+        }
+    }
+
+    fn dash_readout(&self, d: &ShipData) -> super::dash::DashReadout {
+        let t = self.base().get_global_transform();
+        let v = self.base().get_linear_velocity();
+        let nearest = self
+            .base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .map(|b| {
+                let r = b.bind().surface_radius_toward(t.origin);
+                let dist = (t.origin - b.get_global_position()).length();
+                (dist - r, b)
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        let (altitude, body_key, up) = match &nearest {
+            Some((alt, b)) if *alt < b.bind().radius() * 3.0 => {
+                let up = (t.origin - b.get_global_position()).normalized();
+                (Some(*alt), Some(format!("BODY_{}", b.get_name().to_string().to_uppercase())), up)
+            }
+            _ => (None, None, t.basis.col_b().normalized()),
+        };
+        // Ship space with x toward the pilot's right (-X), y up, z forward.
+        let local = t.basis.inverse() * v;
+        let oxygen = self.player().map_or(1.0, |p| p.bind().get_oxygen_fraction());
+        super::dash::DashReadout {
+            speed: v.length(),
+            vertical: v.dot(up),
+            altitude,
+            body_key,
+            drift: Vector3::new(-local.x, local.y, local.z),
+            fuel: self.get_fuel_fraction(),
+            oxygen,
+            matching: self.pilot && Input::singleton().is_action_pressed("match_velocity") && self.fuel_s > 0.0,
+            landed: v.length() < d.flight.landed_speed && self.grounded(),
+        }
+    }
+
     /// Touching anything (ground, a rock, another ship).
     fn grounded(&self) -> bool {
         !self.base().get_colliding_bodies().is_empty()
@@ -897,6 +964,9 @@ impl Ship {
         let desk = Vector3::new(0.0, c.floor_y + 1.05, c.console_z);
         add("Console", &meshes::rounded_box(Vector3::new(1.9, 0.16, 0.7), 0.07, 6), Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, (-28f32).to_radians()), desk), painted(6, console));
         add("ConsoleStand", &meshes::rounded_box(Vector3::new(0.9, 1.0, 0.4), 0.1, 6), Transform3D::new(Basis::IDENTITY, Vector3::new(0.0, c.floor_y + 0.5, c.console_z + 0.15)), painted(6, console));
+        let desk_t = Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, (-28f32).to_radians()), desk);
+        let mut root: Gd<Node3D> = self.to_gd().upcast();
+        let cockpit = super::cockpit::build(&mut interior, &mut root, &d.cockpit, desk_t, 0.08, &d.model, d.model_scale, v3(d.model_offset));
         // Lights: a warm cabin lamp, the blue ring, and the engine glow.
         let mut lamp = OmniLight3D::new_alloc();
         lamp.set_name("CabinLight");
@@ -923,6 +993,7 @@ impl Ship {
         self.door = Some(door.upcast());
         self.ring_light = Some(ring_light);
         self.engine_light = Some(engine);
+        self.cockpit = Some(cockpit);
     }
 }
 

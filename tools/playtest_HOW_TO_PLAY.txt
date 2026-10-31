@@ -31,7 +31,10 @@ WHAT IS IN THIS BUILD
     Flying: left stick / WASD thrust, A / Space up, B / Ctrl down,
     right stick / mouse to turn, LB / RB (Z / X keys) to roll,
     hold LT / Shift to match velocity (brakes to a hover).
+    The dash screen shows speed, climb rate, altitude, a drift ball (where
+    you're sliding), fuel and oxygen. F4 switches between its three styles.
+    Y / V flicks through the landing camera and two selfie-stick cameras.
   Press X / E again to unbuckle, look at the floor hatch and press X / E to open it,
   step onto it to ride down. Crouch (B / C) to duck out under the ship.
-- Not yet: the cockpit dashboard, cameras, autopilot, takeoff effects and
-  crash damage (the rest of Phase 4).
+- Not yet: autopilot, target lock, takeoff effects, crash damage and repair
+  (the rest of Phase 4).

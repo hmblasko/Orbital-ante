@@ -40,6 +40,9 @@ varying vec3 ship_pos;
 varying vec3 world_normal;
 varying vec3 world_up;
 varying vec3 local_pos;
+// The camera in ship space: only clip while looking from inside the ship,
+// so the hull stays solid from outside (selfie cameras, walking around).
+varying vec3 cam_ship;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -47,10 +50,16 @@ void vertex() {
 	world_up = normalize((MODEL_MATRIX * vec4(dust_up, 0.0)).xyz);
 	local_pos = VERTEX;
 	ship_pos = (part_to_ship * vec4(VERTEX, 1.0)).xyz;
+	if (clip_cabin) {
+		cam_ship = (part_to_ship * inverse(MODEL_MATRIX) * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz;
+	}
 }
 
 void fragment() {
-	if (clip_cabin) {
+	vec2 ce = vec2(cam_ship.x / (cabin_radii.x + 0.3), (cam_ship.z - cabin_center_z) / (cabin_radii.y + 0.3));
+	bool cam_inside = (dot(ce, ce) < 1.0 && cam_ship.y > cabin_y.x - 0.3 && cam_ship.y < cabin_y.y + 0.3)
+		|| (length(cam_ship.xz - shaft_at) < shaft_radius + 0.6 && cam_ship.y > shaft_y.x - 4.0 && cam_ship.y < cabin_y.y);
+	if (clip_cabin && cam_inside) {
 		vec2 e = vec2(ship_pos.x / cabin_radii.x, (ship_pos.z - cabin_center_z) / cabin_radii.y);
 		bool in_cabin = dot(e, e) < 1.0 && ship_pos.y > cabin_y.x && ship_pos.y < cabin_y.y;
 		bool in_shaft = length(ship_pos.xz - shaft_at) < shaft_radius && ship_pos.y > shaft_y.x && ship_pos.y < shaft_y.y;
