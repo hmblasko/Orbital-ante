@@ -19,6 +19,7 @@
         stuck_seconds: 30.0,
         stuck_distance_m: 1.0,
         below_surface_margin_m: 0.5,
+        settle_seconds: 0.25,
         kill_distance_m: 2000.0,
         max_sane_speed: 150.0,
     ),

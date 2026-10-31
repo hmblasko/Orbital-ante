@@ -177,7 +177,7 @@ impl Bowl {
 
     /// The walls and dome, facing inward, with the windows left open.
     pub fn shell(&self, segments: usize, windows: &[WindowCut]) -> Geo {
-        let profile = self.profile(10, 8);
+        let profile = self.profile(40, 12);
         let mut g = Geo::default();
         let rows = profile.len();
         let cols = segments + 1;
@@ -206,6 +206,39 @@ impl Bowl {
         }
         g.fix_winding();
         g
+    }
+
+    /// A rounded frame around a window opening, sitting on the wall.
+    pub fn window_frame(&self, w: &WindowCut, radius: f32) -> Geo {
+        let mut outline: Vec<(f32, f32)> = Vec::new();
+        let half = |y: f32| {
+            let t = (y - w.bottom_y) / (w.top_y - w.bottom_y);
+            w.half_width * (w.taper + (1.0 - w.taper) * t)
+        };
+        let n = 24;
+        // Bottom edge left to right, right side up, top right to left, left side down.
+        for i in 0..n {
+            let t = i as f32 / n as f32;
+            outline.push((w.angle - half(w.bottom_y) + 2.0 * half(w.bottom_y) * t, w.bottom_y));
+        }
+        for i in 0..n {
+            let y = w.bottom_y + (w.top_y - w.bottom_y) * i as f32 / n as f32;
+            outline.push((w.angle + half(y), y));
+        }
+        for i in 0..n {
+            let t = i as f32 / n as f32;
+            outline.push((w.angle + half(w.top_y) - 2.0 * half(w.top_y) * t, w.top_y));
+        }
+        for i in 0..n {
+            let y = w.top_y - (w.top_y - w.bottom_y) * i as f32 / n as f32;
+            outline.push((w.angle - half(y), y));
+        }
+        let points: Vec<Vector3> = outline.iter().map(|(a, y)| self.point(*a, 1.0, *y)).collect();
+        let normals: Vec<Vector3> = outline
+            .iter()
+            .map(|(a, _)| -Vector3::new(a.sin() / self.radius_x, 0.0, a.cos() / self.radius_z).normalized())
+            .collect();
+        swept_tube(&points, &normals, radius, 10, true)
     }
 
     /// The floor: an ellipse out to where the fillet starts, with a round
@@ -282,6 +315,36 @@ pub fn rounded_box(size: Vector3, radius: f32, divisions: usize) -> Geo {
                 let k = |ii: usize, jj: usize| base + (ii * (n + 1) + jj) as i32;
                 g.quad(k(i, j), k(i + 1, j), k(i + 1, j + 1), k(i, j + 1));
             }
+        }
+    }
+    g.fix_winding();
+    g
+}
+
+/// A round tube swept along a path. `refs` gives, per point, a direction
+/// to orient the tube's ring by (any vector not along the path).
+pub fn swept_tube(points: &[Vector3], refs: &[Vector3], radius: f32, sides: usize, closed: bool) -> Geo {
+    let mut g = Geo::default();
+    let n = points.len();
+    for k in 0..n {
+        let prev = if k == 0 { if closed { points[n - 1] } else { points[0] } } else { points[k - 1] };
+        let next = if k + 1 == n { if closed { points[0] } else { points[n - 1] } } else { points[k + 1] };
+        let tangent = (next - prev).normalized();
+        let side = tangent.cross(refs[k]).normalized();
+        let up = side.cross(tangent).normalized();
+        for i in 0..=sides {
+            let a = TAU * i as f32 / sides as f32;
+            let dir = side * a.cos() + up * a.sin();
+            g.push(points[k] + dir * radius, dir, Vector2::new(k as f32 / n as f32, i as f32 / sides as f32));
+        }
+    }
+    let rings = if closed { n } else { n - 1 };
+    for k in 0..rings {
+        let k1 = (k + 1) % n;
+        for i in 0..sides {
+            let a = (k * (sides + 1) + i) as i32;
+            let b = (k1 * (sides + 1) + i) as i32;
+            g.quad(a, b, b + 1, a + 1);
         }
     }
     g.fix_winding();

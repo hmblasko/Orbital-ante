@@ -220,6 +220,7 @@ pub struct Ship {
     /// Transform after last tick's work (before the physics step).
     previous: Option<Transform3D>,
     placed: bool,
+    ticks: u32,
     cabin_body: Option<Gd<StaticBody3D>>,
     door: Option<Gd<Node3D>>,
     door_shape: Option<Gd<CollisionShape3D>>,
@@ -248,6 +249,7 @@ impl IRigidBody3D for Ship {
             telemetry: Telemetry::default(),
             previous: None,
             placed: false,
+            ticks: 0,
             cabin_body: None,
             door: None,
             door_shape: None,
@@ -293,7 +295,9 @@ impl IRigidBody3D for Ship {
     fn physics_process(&mut self, delta: f64) {
         let Some(d) = self.data.clone() else { return };
         let dt = delta as f32;
-        if !self.placed {
+        self.ticks += 1;
+        // Wait a couple of ticks: the solar system places the player first.
+        if !self.placed && self.ticks >= 3 {
             self.placed = true;
             if self.spawn_ahead_m > 0.0 {
                 self.park_ahead_of_player(&d);
@@ -633,22 +637,41 @@ impl Ship {
         let centre = body.get_global_position();
         let up0 = (p - centre).normalized();
         let forward = -player.get_global_basis().col_c();
-        let ahead = (forward - up0 * forward.dot(up0)).normalized();
-        let r = body.bind().radius();
-        let angle = self.spawn_ahead_m / r.max(1.0);
-        let up = (up0 * angle.cos() + ahead * angle.sin()).normalized();
-        // The ship's back (where the hatch is) faces the player.
-        let basis = model::facing_basis(up, ahead);
+        let ahead0 = (forward - up0 * forward.dot(up0)).normalized();
+        let r = body.bind().radius().max(1.0);
         let reach = d.capsules.iter().map(|c| v3(c.from).length().max(v3(c.to).length())).fold(0.0, f32::max);
-        let mut ground: f32 = 0.0;
-        for k in 0..5 {
-            let offset = if k == 0 { Vector3::ZERO } else {
-                let a = std::f32::consts::FRAC_PI_2 * k as f32;
-                basis * Vector3::new(a.cos() * reach, 0.0, a.sin() * reach)
-            };
-            let probe = centre + up * r + offset;
-            ground = ground.max(body.bind().surface_radius_toward(probe));
+        // Try spots ahead and around, and take the flattest (footpads at
+        // the most even heights); ties go to the spot straight ahead.
+        let mut best: Option<(f32, Vector3, Basis, f32)> = None;
+        for (k, extra) in [0.0f32, 8.0, 16.0].iter().enumerate() {
+            for (j, bearing) in [0.0f32, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0].iter().enumerate() {
+                let ahead = Basis::from_axis_angle(up0, bearing.to_radians()) * ahead0;
+                let angle = (self.spawn_ahead_m + extra) / r;
+                let up = (up0 * angle.cos() + ahead * angle.sin()).normalized();
+                // The ship's back (where the hatch is) faces the player.
+                let tangent = (ahead - up * ahead.dot(up)).normalized();
+                let basis = model::facing_basis(up, tangent);
+                let mut heights = Vec::new();
+                for q in 0..5 {
+                    let offset = if q == 0 {
+                        Vector3::ZERO
+                    } else {
+                        let a = std::f32::consts::FRAC_PI_2 * q as f32;
+                        basis * Vector3::new(a.cos() * reach, 0.0, a.sin() * reach)
+                    };
+                    heights.push(body.bind().surface_radius_toward(centre + up * r + offset));
+                }
+                let hi = heights.iter().copied().fold(f32::MIN, f32::max);
+                let lo = heights.iter().copied().fold(f32::MAX, f32::min);
+                // Water counts as unusable.
+                let wet = body.bind().water_level().is_some_and(|w| lo < r + w);
+                let score = (hi - lo) + if wet { 1000.0 } else { 0.0 } + (k + j) as f32 * 0.05;
+                if best.as_ref().is_none_or(|b| score < b.0) {
+                    best = Some((score, up, basis, hi));
+                }
+            }
         }
+        let Some((_, up, basis, ground)) = best else { return };
         let at = centre + up * (ground + 0.4);
         self.base_mut().set_global_transform(Transform3D::new(basis, at));
         self.base_mut().set_linear_velocity(Vector3::ZERO);
@@ -664,6 +687,43 @@ impl Ship {
         model.set_scale(Vector3::splat(d.model_scale));
         model.set_position(v3(d.model_offset));
         self.base_mut().add_child(&model);
+        self.clip_hull_interior(d, &model);
+    }
+
+    /// The hull model is solid inside; hide whatever pokes into the cabin
+    /// and the hatch shaft so the interior reads clean.
+    fn clip_hull_interior(&self, d: &ShipData, model: &Gd<Node3D>) {
+        let c = &d.cabin;
+        let h = &d.hatch;
+        let ship_from_model = model.get_transform();
+        let parts = model.find_children_ex("*").type_("MeshInstance3D").recursive(true).owned(false).done();
+        for part in parts.iter_shared() {
+            let Ok(part) = part.try_cast::<MeshInstance3D>() else { continue };
+            // Part transform relative to the model root.
+            let mut rel = part.get_transform();
+            let mut parent = part.get_parent_node_3d();
+            while let Some(p) = parent {
+                if p == *model {
+                    break;
+                }
+                rel = p.get_transform() * rel;
+                parent = p.get_parent_node_3d();
+            }
+            let to_ship = ship_from_model * rel;
+            let m = Projection::from(to_ship);
+            for i in 0..part.get_surface_override_material_count() {
+                if let Some(mut mat) = part.get_surface_override_material(i).and_then(|m| m.try_cast::<ShaderMaterial>().ok()) {
+                    mat.set_shader_parameter("clip_cabin", &true.to_variant());
+                    mat.set_shader_parameter("part_to_ship", &m.to_variant());
+                    mat.set_shader_parameter("cabin_center_z", &c.center_z.to_variant());
+                    mat.set_shader_parameter("cabin_radii", &Vector2::new(c.radius_x + 0.02, c.radius_z + 0.02).to_variant());
+                    mat.set_shader_parameter("cabin_y", &Vector2::new(c.floor_y - 0.3, c.dome_top_y + 0.05).to_variant());
+                    mat.set_shader_parameter("shaft_at", &Vector2::new(h.at_x, h.at_z).to_variant());
+                    mat.set_shader_parameter("shaft_radius", &(h.radius + 0.02).to_variant());
+                    mat.set_shader_parameter("shaft_y", &Vector2::new(h.ring_y - 0.05, c.floor_y).to_variant());
+                }
+            }
+        }
     }
 
     /// The hull's collision, twice: on the rigid body (planets and other
@@ -740,7 +800,12 @@ impl Ship {
         let trim = Color::from_rgb(0.62, 0.64, 0.68);
         let seat_col = Color::from_rgb(0.72, 0.36, 0.20);
         let console = Color::from_rgb(0.34, 0.38, 0.44);
-        add("Shell", &bowl.shell(96, &c.window_cuts()), Transform3D::IDENTITY, painted(0, wall));
+        add("Shell", &bowl.shell(192, &c.window_cuts()), Transform3D::IDENTITY, painted(0, wall));
+        let mut frames = meshes::Geo::default();
+        for w in c.window_cuts() {
+            frames.append(&bowl.window_frame(&w, 0.075), Transform3D::IDENTITY);
+        }
+        add("WindowFrames", &frames, Transform3D::IDENTITY, painted(2, Color::from_rgb(0.42, 0.45, 0.5)));
         add("Floor", &bowl.floor(Vector2::new(h.at_x, h.at_z), h.radius, 64, 8), Transform3D::IDENTITY, painted(1, floor));
         let hatch_at = Vector3::new(h.at_x, c.floor_y, h.at_z);
         add("HatchRim", &meshes::flange(h.radius - 0.02, h.radius + 0.12, 0.05, 64), Transform3D::new(Basis::IDENTITY, hatch_at + Vector3::new(0.0, 0.005, 0.0)), painted(2, trim));

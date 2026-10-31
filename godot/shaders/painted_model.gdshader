@@ -22,7 +22,21 @@ uniform vec3 dust_color : source_color = vec3(0.78, 0.56, 0.38);
 // The way up from the planet, in this part's own space (set per part).
 uniform vec3 dust_up = vec3(0.0, 1.0, 0.0);
 
+// Ships: hide hull geometry that pokes into the walkable interior (the
+// model was built solid). Ship space, set per part by the ship.
+uniform bool clip_cabin = false;
+uniform mat4 part_to_ship = mat4(1.0);
+// Cabin bowl: centre z, radii x/z, and floor/top heights.
+uniform float cabin_center_z = 0.0;
+uniform vec2 cabin_radii = vec2(1.0);
+uniform vec2 cabin_y = vec2(0.0, 0.0);
+// Hatch shaft: centre (x, z), radius, and bottom/top heights.
+uniform vec2 shaft_at = vec2(0.0);
+uniform float shaft_radius = 0.0;
+uniform vec2 shaft_y = vec2(0.0, 0.0);
+
 varying vec3 world_pos;
+varying vec3 ship_pos;
 varying vec3 world_normal;
 varying vec3 world_up;
 varying vec3 local_pos;
@@ -32,9 +46,18 @@ void vertex() {
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	world_up = normalize((MODEL_MATRIX * vec4(dust_up, 0.0)).xyz);
 	local_pos = VERTEX;
+	ship_pos = (part_to_ship * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
+	if (clip_cabin) {
+		vec2 e = vec2(ship_pos.x / cabin_radii.x, (ship_pos.z - cabin_center_z) / cabin_radii.y);
+		bool in_cabin = dot(e, e) < 1.0 && ship_pos.y > cabin_y.x && ship_pos.y < cabin_y.y;
+		bool in_shaft = length(ship_pos.xz - shaft_at) < shaft_radius && ship_pos.y > shaft_y.x && ship_pos.y < shaft_y.y;
+		if (in_cabin || in_shaft) {
+			discard;
+		}
+	}
 	vec3 c = albedo_color.rgb;
 	if (has_texture) {
 		// Sample a blurrier mip so photo detail reads as soft paint.

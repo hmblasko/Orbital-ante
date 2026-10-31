@@ -211,8 +211,15 @@ impl ICharacterBody3D for PlayerController {
 
         let position = self.base().get_global_position();
         let gravity = self.total_gravity(position);
-        self.in_zero_g = gravity.length() < ZERO_G_THRESHOLD;
-        let up = if self.in_zero_g { self.base().get_global_basis().col_b() } else { -gravity.normalized() };
+        // Aboard a ship, "up" is the ship's up, even while the lift pushes
+        // you upward.
+        let ship_up = self.aboard.as_ref().map(|s| s.get_global_basis().col_b().normalized());
+        self.in_zero_g = ship_up.is_none() && gravity.length() < ZERO_G_THRESHOLD;
+        let up = match ship_up {
+            Some(u) => u,
+            None if self.in_zero_g => self.base().get_global_basis().col_b(),
+            None => -gravity.normalized(),
+        };
 
         let alive = self.suit.dead.is_none();
         if alive {
