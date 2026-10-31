@@ -265,4 +265,42 @@
             strong_far: 0.1,
         ),
     ),
+    // Crash damage (section 5). Impacts above safe_impact_mps hurt the
+    // parts near the contact; a part pushed past zero by detach_overkill
+    // breaks off for good. Parts are slices of a cylinder round the ship's
+    // up axis (ship space; angles from +X toward +Z, +Z = forward).
+    damage: (
+        safe_impact_mps: 4.0,
+        damage_per_mps: 10.0,
+        spread_m: 4.0,
+        hull_hp: 300.0,
+        debris_kick_mps: 3.0,
+        spark_s: 1.5,
+        pilot: (
+            unbuckled_safe_mps: 6.0,
+            unbuckled_damage_per_mps: 12.0,
+            buckled_safe_mps: 25.0,
+            buckled_damage_per_mps: 4.0,
+        ),
+        // Hold X / E while looking at a damaged part from outside. A part
+        // that broke off is gone for good.
+        repair: (
+            reach_m: 3.5,
+            cone_deg: 40.0,
+            hp_per_s: 45.0,
+            hull_at: (0.0, 3.2, 3.0),
+        ),
+        parts: [
+            (id: "leg_right", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 0.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_front", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_left", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 180.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_back", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: -90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "engine", name_key: "PART_ENGINE", kind: Engine, y: (-0.2, 2.0), r: (0.0, 1.8), angle_deg: 0.0, half_width_deg: 180.0, hp: 80.0, detach_overkill: 120.0, debris_mass: 60.0),
+            (id: "rcs_front_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: 45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_front_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: 135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: -135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: -45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "antenna", name_key: "PART_ANTENNA", kind: Antenna, y: (10.0, 13.5), r: (3.3, 6.5), angle_deg: 90.0, half_width_deg: 35.0, hp: 25.0, detach_overkill: 20.0, debris_mass: 5.0),
+        ],
+    ),
 )

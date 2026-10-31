@@ -12,6 +12,7 @@ HUD_LOW_OXYGEN,LOW OXYGEN  -  find a tank or get back to supply
 HUD_TETHERED,Tethered
 HUD_ZERO_G,Zero-g
 DEATH_SUFFOCATION,You ran out of oxygen.
+DEATH_CRASH,You weren't buckled in when the ship crashed.
 DEATH_CONTINUE,Press A to continue
 MENU_HINT_PAD,A  Select      D-pad  Move
 HUD_SUIT,SUIT
@@ -45,6 +46,7 @@ PROMPT_BUCKLE,Buckle in
 PROMPT_UNBUCKLE,Unbuckle
 PROMPT_OPEN_HATCH,Open hatch
 PROMPT_CLOSE_HATCH,Close hatch
+PROMPT_REPAIR,Hold to repair
 DASH_SPEED,Speed
 DASH_VERTICAL,climb
 DASH_ALTITUDE,Alt
@@ -55,6 +57,12 @@ DASH_MATCHING,Matching
 DASH_LANDED,Landed
 DASH_AUTOPILOT,Autopilot
 DASH_HOLDING,Holding
+DASH_HULL,Hull
+DASH_DAMAGED,Damaged
+PART_LEG,Landing leg
+PART_ENGINE,Main engine
+PART_THRUSTERS,Thrusters
+PART_ANTENNA,Antenna
 DASH_LOW_FUEL,Low fuel
 DASH_LOW_OXYGEN,Low O2
 DASH_DEEP_SPACE,Deep space

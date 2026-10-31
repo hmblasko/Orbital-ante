@@ -406,7 +406,16 @@ impl SuitHud {
         c.draw_circle(center, (d.crosshair_radius_px + 1.2) * s, Color::from_rgba(0.0, 0.0, 0.0, 0.45));
         c.draw_circle(center, d.crosshair_radius_px * s, Color::from_rgba(1.0, 1.0, 1.0, 0.85));
 
+        // "repair:PART_KEY:0.42": hold X to fix that part; the pill fills.
+        let mut repair: Option<(String, f32)> = None;
+        if let Some(rest) = v.prompt.strip_prefix("repair:") {
+            let mut it = rest.rsplitn(2, ':');
+            let frac = it.next().and_then(|f| f.parse::<f32>().ok()).unwrap_or(0.0);
+            let part = it.next().unwrap_or("");
+            repair = Some((part.to_string(), frac));
+        }
         let (key, pad, keyboard) = match v.prompt.as_str() {
+            _ if repair.is_some() => ("PROMPT_REPAIR", "X", "E"),
             "take_tank" => ("PROMPT_TAKE_TANK", "X", "E"),
             "tether" => ("PROMPT_TETHER", "\u{25BC}", "T"),
             "untether" => ("PROMPT_UNTETHER", "\u{25BC}", "T"),
@@ -417,7 +426,10 @@ impl SuitHud {
             _ => return,
         };
         let glyph = if self.using_keyboard { keyboard } else { pad };
-        let text = self.base().tr(key).to_string();
+        let mut text = self.base().tr(key).to_string();
+        if let Some((part, _)) = &repair {
+            text = format!("{text}: {}", self.base().tr(part.as_str()));
+        }
         let font_px = (d.prompt_font_px as f32 * s) as i32;
         let tw = body.get_string_size_ex(&GString::from(text.as_str())).font_size(font_px).done().x;
         let h = 40.0 * s;
@@ -426,6 +438,11 @@ impl SuitHud {
         if let Some(mut pill) = self.pill.clone() {
             pill.set_border_color(Color::from_rgba(1.0, 1.0, 1.0, 0.35));
             self.canvas().draw_style_box(&pill, rect);
+        }
+        if let Some((_, frac)) = &repair {
+            // Progress along the bottom of the pill, warm like interactables.
+            let bar = Rect2::new(rect.position + Vector2::new(h * 0.5, h - 7.0 * s), Vector2::new((w - h) * frac.clamp(0.0, 1.0), 4.0 * s));
+            self.canvas().draw_rect(bar, Color::from_rgb(1.0, 0.78, 0.35));
         }
         // Button glyph: X is blue on Xbox-style pads and the Deck.
         let gc = rect.position + Vector2::new(h * 0.5 + 4.0 * s, h * 0.5);

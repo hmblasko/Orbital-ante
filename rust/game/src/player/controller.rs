@@ -123,6 +123,12 @@ pub struct PlayerController {
     buckle_from: Transform3D,
     /// The capsule is currently the short crouch one.
     crouched_shape: bool,
+    /// A damaged ship part in view and reach: the ship, the part's index,
+    /// its name key and health 0..1 (for the prompt).
+    repair_spot: Option<(Gd<Ship>, usize, String, f32)>,
+    /// Holding X on it right now (tests can force it).
+    repairing: bool,
+    force_repair: bool,
     base: Base<CharacterBody3D>,
 }
 
@@ -154,6 +160,9 @@ impl ICharacterBody3D for PlayerController {
             spawned: false,
             aboard: None,
             buckled: false,
+            repair_spot: None,
+            repairing: false,
+            force_repair: false,
             buckle_t: 0.0,
             buckle_from: Transform3D::IDENTITY,
             crouched_shape: false,
@@ -235,6 +244,7 @@ impl ICharacterBody3D for PlayerController {
 
         let alive = self.suit.dead.is_none();
         if alive {
+            self.update_repair(dt);
             self.handle_actions();
         }
         if self.buckled {
@@ -336,6 +346,9 @@ impl PlayerController {
             }
             let _ = p;
         }
+        if let Some((_, _, key, frac)) = &self.repair_spot {
+            return GString::from(&format!("repair:{key}:{frac:.3}"));
+        }
         if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
             return "take_tank".into();
         }
@@ -372,6 +385,22 @@ impl PlayerController {
 
     /// Test hook: press the interact button's action (buckle, unbuckle,
     /// hatch, tank, as if X were pressed).
+    /// A crash throws you about inside the ship (from the ship's damage).
+    pub fn crash_hurt(&mut self, amount: f32) {
+        self.suit.hurt(amount, super::suit::DeathCause::Crash);
+    }
+
+    /// Test hook: hold (or let go of) the repair button.
+    #[func]
+    pub fn debug_hold_repair(&mut self, on: bool) {
+        self.force_repair = on;
+    }
+
+    #[func]
+    pub fn is_repairing(&self) -> bool {
+        self.repairing
+    }
+
     #[func]
     pub fn debug_interact(&mut self) {
         self.interact();
@@ -679,6 +708,36 @@ impl PlayerController {
         if input.is_action_just_pressed("tether_toggle") && self.tether_anchor.take().is_none() {
             let range = self.interact.tether_attach_range_m;
             self.tether_anchor = self.nearest_in_group(TETHER_GROUP, range);
+        }
+    }
+
+    /// Outside a ship, look at a damaged part within reach and hold X / E
+    /// to fix it (CLAUDE.md section 5: multi-part, quick repairs; works
+    /// mid-flight too). The repair sound is a missing asset.
+    fn update_repair(&mut self, dt: f32) {
+        self.repairing = false;
+        if self.aboard.is_some() || self.buckled {
+            self.repair_spot = None;
+            return;
+        }
+        let eye = self.head.as_ref().map_or(self.base().get_global_position(), |h| h.get_global_position());
+        let look = self.camera_forward();
+        let mut found = None;
+        for node in self.base().get_tree().get_nodes_in_group(crate::flight::ship::SHIP_GROUP).iter_shared() {
+            let Ok(ship) = node.try_cast::<Ship>() else { continue };
+            if let Some((i, _, key, frac)) = ship.bind().repair_spot(eye, look) {
+                found = Some((ship.clone(), i, key, frac));
+                break;
+            }
+        }
+        self.repair_spot = found;
+        let holding = self.force_repair || Input::singleton().is_action_pressed("interact");
+        if let (true, Some((mut ship, i, _, _))) = (holding, self.repair_spot.clone()) {
+            let frac = ship.bind_mut().repair(i, dt);
+            self.repairing = true;
+            if let Some(spot) = self.repair_spot.as_mut() {
+                spot.3 = frac;
+            }
         }
     }
 

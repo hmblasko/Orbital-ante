@@ -59,6 +59,8 @@ pub struct DashData {
     pub drift_min_mps: f32,
     pub low_fuel: f32,
     pub low_oxygen: f32,
+    /// The hull chip turns to a warning below this.
+    pub low_hull: f32,
     pub warning_blink_hz: f32,
     pub style_banner_s: f32,
     pub styles: Vec<DashStyle>,
@@ -87,6 +89,9 @@ pub struct DashReadout {
     pub landed: bool,
     /// Locked target, if any.
     pub target: Option<TargetReadout>,
+    /// Hull core health 0..1, and whether any part is damaged or missing.
+    pub hull: f32,
+    pub damaged: bool,
 }
 
 /// What the dash shows about the locked target.
@@ -228,6 +233,8 @@ struct Names {
     autopilot: String,
     holding: String,
     target: String,
+    hull: String,
+    damaged: String,
 }
 
 impl Names {
@@ -247,6 +254,8 @@ impl Names {
             body: r.body_key.as_deref().map_or_else(|| tr("DASH_DEEP_SPACE"), tr),
             terminal_title: tr("DASH_TERMINAL_TITLE"),
             autopilot: tr("DASH_AUTOPILOT"),
+            hull: format!("{} {:.0}%", tr("DASH_HULL"), r.hull * 100.0),
+            damaged: tr("DASH_DAMAGED"),
             holding: tr("DASH_HOLDING"),
             target: r.target.as_ref().map_or_else(String::new, |t| target_line(&tr(&t.body_key), t)),
         }
@@ -360,6 +369,11 @@ fn status_chips(r: &DashReadout, d: &DashData, n: &Names, blink: bool) -> Vec<(S
     }
     if r.oxygen < d.low_oxygen && blink {
         chips.push((n.low_oxygen.clone(), true));
+    }
+    if r.hull < 1.0 {
+        chips.push((n.hull.clone(), r.hull < d.low_hull));
+    } else if r.damaged {
+        chips.push((n.damaged.clone(), false));
     }
     if let Some(t) = &r.target {
         if t.autopilot {

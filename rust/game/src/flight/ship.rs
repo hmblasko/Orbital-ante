@@ -76,6 +76,7 @@ pub struct ShipData {
     pub cockpit: super::cockpit::CockpitData,
     pub autopilot: model::AutopilotData,
     pub takeoff: super::takeoff::TakeoffData,
+    pub damage: super::damage::DamageData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -255,6 +256,13 @@ pub struct Ship {
     engine_light: Option<Gd<OmniLight3D>>,
     cockpit: Option<super::cockpit::Cockpit>,
     takeoff_fx: Option<super::takeoff::TakeoffEffects>,
+    /// Crash damage: each part's state and meshes, and the hull core.
+    parts: Vec<super::damage::PartState>,
+    part_meshes: Vec<Vec<Gd<MeshInstance3D>>>,
+    hull_hp: f32,
+    sparks: Option<Gd<godot::classes::CpuParticles3D>>,
+    /// Damage done so far this run (tests and the run summary later).
+    impacts: u32,
     /// Locked target, the arrival point's offset from the ship last tick,
     /// and the ship's velocity relative to it.
     target: Option<Gd<CelestialBody>>,
@@ -309,6 +317,11 @@ impl IRigidBody3D for Ship {
             below_vel: Vector3::ZERO,
             cockpit: None,
             takeoff_fx: None,
+            parts: Vec::new(),
+            part_meshes: Vec::new(),
+            hull_hp: 0.0,
+            sparks: None,
+            impacts: 0,
             base,
         }
     }
@@ -382,6 +395,7 @@ impl IRigidBody3D for Ship {
         if let Some(p) = player {
             self.update_zone(&d, p);
         }
+        self.check_impacts(&d);
         self.update_hatch(&d, dt);
         self.update_target(&d, dt);
         self.update_below(dt);
@@ -399,6 +413,76 @@ impl Ship {
     pub fn get_takeoff_emitting(&self) -> PackedInt32Array {
         let (a, b, c) = self.takeoff_fx.as_ref().map_or((false, false, false), |f| f.emitting());
         PackedInt32Array::from(&[a as i32, b as i32, c as i32])
+    }
+
+    /// The damaged part (or the hull core, index = part count) nearest the
+    /// centre of a player's view within reach: its index, the point to
+    /// show, its name key and health 0..1.
+    pub fn repair_spot(&self, eye: Vector3, look: Vector3) -> Option<(usize, Vector3, String, f32)> {
+        let d = self.data.as_ref()?;
+        let r = &d.damage.repair;
+        let t = self.base().get_global_transform();
+        let eye_ship = t.affine_inverse() * eye;
+        let mut best: Option<(f32, (usize, Vector3, String, f32))> = None;
+        let mut consider = |i: usize, local: Vector3, key: &str, frac: f32| {
+            let world = t * local;
+            let to = world - eye;
+            if to.length() > r.reach_m {
+                return;
+            }
+            let angle = look.angle_to(to).to_degrees();
+            // Right up against a part counts even if it's off-centre.
+            if angle > r.cone_deg && to.length() > 0.8 {
+                return;
+            }
+            if best.as_ref().is_none_or(|(a, _)| angle < *a) {
+                best = Some((angle, (i, world, key.to_string(), frac)));
+            }
+        };
+        for (i, (pd, st)) in d.damage.parts.iter().zip(&self.parts).enumerate() {
+            if st.attached && st.hp < pd.hp {
+                consider(i, super::damage::part_nearest_point(pd, eye_ship), &pd.name_key, st.fraction(pd));
+            }
+        }
+        if self.hull_hp < d.damage.hull_hp {
+            consider(d.damage.parts.len(), super::damage::v3(r.hull_at), "DASH_HULL", self.hull_hp / d.damage.hull_hp.max(0.01));
+        }
+        best.map(|(_, b)| b)
+    }
+
+    /// Repair spot `i` (as from `repair_spot`) for `dt` seconds of holding.
+    /// Returns the new health 0..1.
+    pub fn repair(&mut self, i: usize, dt: f32) -> f32 {
+        let Some(d) = self.data.clone() else { return 1.0 };
+        let hp = d.damage.repair.hp_per_s * dt;
+        if i >= d.damage.parts.len() {
+            self.hull_hp = (self.hull_hp + hp).min(d.damage.hull_hp);
+            return self.hull_hp / d.damage.hull_hp.max(0.01);
+        }
+        super::damage::repair_part(&d.damage.parts[i], &mut self.parts[i], hp);
+        self.parts[i].fraction(&d.damage.parts[i])
+    }
+
+    /// Hull core health 0..1.
+    #[func]
+    pub fn get_hull_fraction(&self) -> f32 {
+        self.data.as_ref().map_or(1.0, |d| (self.hull_hp / d.damage.hull_hp.max(0.01)).clamp(0.0, 1.0))
+    }
+
+    /// Health 0..1 of the part with this id (-1 if broken off or unknown).
+    #[func]
+    pub fn get_part_health(&self, id: GString) -> f32 {
+        let Some(d) = &self.data else { return -1.0 };
+        let id = id.to_string();
+        match d.damage.parts.iter().position(|p| p.id == id) {
+            Some(i) if self.parts.get(i).is_some_and(|s| s.attached) => self.parts[i].fraction(&d.damage.parts[i]),
+            _ => -1.0,
+        }
+    }
+
+    #[func]
+    pub fn get_impact_count(&self) -> i64 {
+        self.impacts as i64
     }
 
     /// Lock a body directly (tests and future map targeting).
@@ -682,6 +766,20 @@ impl Ship {
     }
 
     fn fly(&mut self, d: &ShipData, dt: f32) {
+        // Damaged engine and thrusters push and turn less.
+        let mut ds = d.clone();
+        let (engine, thrusters) = super::damage::performance(&d.damage, &self.parts);
+        let f = &mut ds.flight;
+        f.up *= engine;
+        f.forward *= thrusters;
+        f.back *= thrusters;
+        f.strafe *= thrusters;
+        f.down *= thrusters;
+        f.pitch_rate_deg *= thrusters;
+        f.yaw_rate_deg *= thrusters;
+        f.roll_rate_deg *= thrusters;
+        f.turn_accel_deg *= thrusters;
+        let d = &ds;
         let position = self.base().get_global_position();
         let basis = self.base().get_global_basis();
         let gravity = self.total_gravity(position);
@@ -863,6 +961,80 @@ impl Ship {
         best.map(|(_, w)| w)
     }
 
+    /// Hard contacts since last tick damage the parts near them, may break
+    /// some off, and hurt a pilot who isn't buckled in.
+    fn check_impacts(&mut self, d: &ShipData) {
+        let rid = self.base().get_rid();
+        let Some(state) = PhysicsServer3D::singleton().body_get_direct_state(rid) else { return };
+        let mass = self.base().get_mass().max(0.01);
+        let mut worst: Option<(f32, Vector3)> = None;
+        for i in 0..state.get_contact_count() {
+            let speed = state.get_contact_impulse(i).length() / mass;
+            if worst.is_none_or(|(s, _)| speed > s) {
+                worst = Some((speed, state.get_contact_local_position(i)));
+            }
+        }
+        let Some((speed, at_world)) = worst else { return };
+        if speed < d.damage.safe_impact_mps.min(d.damage.pilot.unbuckled_safe_mps) {
+            return;
+        }
+        let t = self.base().get_global_transform();
+        let at = t.affine_inverse() * at_world;
+        let result = super::damage::apply_impact(&d.damage, &mut self.parts, &mut self.hull_hp, at, speed);
+        if !result.hits.is_empty() || result.hull_damage > 0.0 {
+            self.impacts += 1;
+            if let Some(mut sparks) = self.sparks.clone() {
+                sparks.set_global_position(at_world);
+                sparks.restart();
+                sparks.set_emitting(true);
+            }
+        }
+        for i in result.detached {
+            self.detach_part(d, i);
+        }
+        // The pilot: thrown about unless buckled in.
+        if self.zone != Zone::Outside
+            && let Some(mut p) = self.player()
+        {
+            let hurt = super::damage::pilot_damage(&d.damage.pilot, speed, self.pilot);
+            if hurt > 0.0 {
+                p.bind_mut().crash_hurt(hurt);
+            }
+        }
+    }
+
+    /// Break part `i` off into a tumbling piece of debris.
+    fn detach_part(&mut self, d: &ShipData, i: usize) {
+        let pd = &d.damage.parts[i];
+        let meshes = std::mem::take(&mut self.part_meshes[i]);
+        let Some(mut world) = self.base().get_parent() else { return };
+        let centre = super::damage::part_centre(pd);
+        let depth = (pd.r.1 - pd.r.0) * 0.5;
+        let height = (pd.y.1 - pd.y.0) * 0.5;
+        let width = if pd.half_width_deg >= 180.0 { pd.r.1 } else { ((pd.r.0 + pd.r.1) * 0.5 * pd.half_width_deg.to_radians().sin()).max(depth) };
+        let half = Vector3::new(depth.max(0.2), height.max(0.2), width.max(0.2)) * 0.8;
+        let t = self.base().get_global_transform();
+        // Turn the box to face out along the part's angle.
+        let a = pd.angle_deg.to_radians();
+        let facing = Basis::from_axis_angle(Vector3::UP, -a);
+        let ship_for_piece = Transform3D::new(t.basis * facing, t.origin);
+        let centre_rot = facing.inverse() * centre;
+        super::breakup::break_off(
+            &mut world,
+            &meshes,
+            ship_for_piece,
+            centre_rot,
+            half,
+            self.base().get_linear_velocity(),
+            self.base().get_angular_velocity(),
+            d.damage.debris_kick_mps,
+            pd.debris_mass,
+            &format!("Debris_{}", pd.id),
+            LAYER_HULL,
+            LAYER_WORLD | LAYER_HULL,
+        );
+    }
+
     /// Smoke, grit, shimmer, light and rumble from the main engine.
     fn update_takeoff_fx(&mut self, d: &ShipData, throttle: f32, gravity: Vector3, dt: f32) {
         let t = self.base().get_global_transform();
@@ -1035,6 +1207,8 @@ impl Ship {
                 autopilot: self.autopilot_on,
                 holding: self.hold_match,
             }),
+            hull: (self.hull_hp / d.damage.hull_hp.max(0.01)).clamp(0.0, 1.0),
+            damaged: self.parts.iter().zip(&d.damage.parts).any(|(s, p)| !s.attached || s.hp < p.hp),
         }
     }
 
@@ -1138,6 +1312,23 @@ impl Ship {
         model.set_position(v3(d.model_offset));
         self.base_mut().add_child(&model);
         self.clip_hull_interior(d, &model);
+        // Breakable parts get their own meshes, sharing the hull's materials.
+        self.part_meshes = super::breakup::split_by_part(&model, model.get_transform(), &d.damage.parts);
+        self.parts = d.damage.parts.iter().map(super::damage::PartState::new).collect();
+        self.hull_hp = d.damage.hull_hp;
+        let mut sparks = crate::player::effects::emitter("CrashSparks", d.damage.spark_s, 40, (0.05, 0.25), (3.0, 9.0));
+        sparks.set_one_shot(true);
+        sparks.set_explosiveness_ratio(0.9);
+        sparks.set_spread(80.0);
+        sparks.set_mesh(&crate::player::effects::puff_mesh(true, (0.2, 0.6)));
+        sparks.set_color_ramp(&crate::player::effects::ramp(&[
+            (0.0, Color::from_rgb(1.0, 0.95, 0.7), 1.0),
+            (0.4, Color::from_rgb(1.0, 0.55, 0.15), 0.9),
+            (1.0, Color::from_rgb(0.4, 0.3, 0.3), 0.0),
+        ]));
+        sparks.set_emitting(false);
+        self.base_mut().add_child(&sparks);
+        self.sparks = Some(sparks);
     }
 
     /// The hull model is solid inside; hide whatever pokes into the cabin

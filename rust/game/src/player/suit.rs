@@ -62,6 +62,8 @@ pub struct SuitInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeathCause {
     Suffocation,
+    /// Thrown about inside a crashing ship without the seatbelt on.
+    Crash,
 }
 
 impl DeathCause {
@@ -69,6 +71,7 @@ impl DeathCause {
     pub fn text_key(self) -> &'static str {
         match self {
             DeathCause::Suffocation => "DEATH_SUFFOCATION",
+            DeathCause::Crash => "DEATH_CRASH",
         }
     }
 }
@@ -105,6 +108,17 @@ impl SuitState {
 
     pub fn low_oxygen(&self, data: &SuitData) -> bool {
         self.oxygen_fraction(data) <= data.low_oxygen_fraction
+    }
+
+    /// Take `amount` damage from `cause`; dies at zero health.
+    pub fn hurt(&mut self, amount: f32, cause: DeathCause) {
+        if self.dead.is_some() || amount <= 0.0 {
+            return;
+        }
+        self.health = (self.health - amount).max(0.0);
+        if self.health <= 0.0 {
+            self.dead = Some(cause);
+        }
     }
 
     /// How much of the requested thrust the fuel allows (0.0 to 1.0).
@@ -172,6 +186,17 @@ impl SuitState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hurt_kills_at_zero_with_its_cause() {
+        let d: SuitData = crate::data::parse(include_str!("../../../../godot/data/player/suit.ron")).unwrap();
+        let mut s = SuitState::new(&d);
+        s.hurt(d.health_max * 0.4, DeathCause::Crash);
+        assert!(s.dead.is_none());
+        s.hurt(d.health_max, DeathCause::Crash);
+        assert_eq!(s.dead, Some(DeathCause::Crash));
+        assert_eq!(s.health, 0.0);
+    }
 
     pub fn data() -> SuitData {
         crate::data::parse(include_str!("../../../../godot/data/player/suit.ron")).unwrap()

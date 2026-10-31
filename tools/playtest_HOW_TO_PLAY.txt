@@ -48,4 +48,11 @@ WHAT IS IN THIS BUILD
 - Takeoff effects: the engine plume, a smoke cloud in the ground's colour,
   flying grit, a flickering engine light and controller rumble. They're
   biggest on the pad and fade as you climb. No sounds yet.
-- Not yet: crash damage and repair (the rest of Phase 4).
+- Crashes: hit the ground hard (over about 4 m/s) and the parts that hit
+  take damage, with sparks. Keep battering a part and it breaks off and
+  tumbles away for good. A damaged engine pushes less, damaged thrusters
+  turn slower, and the dash shows hull health. Stay buckled in: a hard
+  crash while you're standing up can kill you.
+- Repair: go outside, look at a damaged leg, thruster, engine or antenna
+  and hold X / E. The prompt names the part and a bar fills. Parts that
+  broke off are gone. No repair sound yet.

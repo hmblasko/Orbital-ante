@@ -15,6 +15,7 @@
     // Warnings.
     low_fuel: 0.2,
     low_oxygen: 0.25,
+    low_hull: 0.3,
     warning_blink_hz: 2.0,
     // How long the style's name shows after switching, seconds.
     style_banner_s: 1.6,
