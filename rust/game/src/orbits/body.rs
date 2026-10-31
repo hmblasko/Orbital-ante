@@ -275,6 +275,10 @@ pub struct CelestialBody {
     detail: Detail,
     /// Nodes that make up the full detail, freed by `release_detail`.
     detail_nodes: Vec<Gd<Node>>,
+    /// This body's moons (or planets, for the Sun) and how close to one
+    /// (in its radii) this body's pull is gone entirely.
+    shields: Vec<Gd<CelestialBody>>,
+    shield_inner_radii: f32,
     base: Base<StaticBody3D>,
 }
 
@@ -317,6 +321,8 @@ impl IStaticBody3D for CelestialBody {
             material: None,
             detail: Detail::None,
             detail_nodes: Vec::new(),
+            shields: Vec::new(),
+            shield_inner_radii: 0.0,
             base,
         }
     }
@@ -424,15 +430,27 @@ impl CelestialBody {
 
     /// Gravity acceleration this body applies at a world position.
     pub fn gravity_at(&self, point: Vector3) -> Vector3 {
-        match &self.data {
-            Some(d) => gravity::point_gravity(
-                self.base().get_global_position(),
-                d.radius,
-                &d.gravity,
-                point,
-            ),
-            None => Vector3::ZERO,
+        let Some(d) = &self.data else { return Vector3::ZERO };
+        let g = gravity::point_gravity(self.base().get_global_position(), d.radius, &d.gravity, point);
+        if g == Vector3::ZERO {
+            return g;
         }
+        // Near one of our moons, its own pull takes over.
+        let mut w = 1.0f32;
+        for moon in &self.shields {
+            let m = moon.bind();
+            let Some(md) = &m.data else { continue };
+            let dist = (point - moon.get_global_position()).length();
+            w = w.min(gravity::shield_weight(dist, md.radius * self.shield_inner_radii, md.gravity.influence_radius));
+        }
+        g * w
+    }
+
+    /// The bodies orbiting this one; this body's pull fades out near them,
+    /// gone entirely within `inner_radii` of their radius.
+    pub fn set_shields(&mut self, moons: Vec<Gd<CelestialBody>>, inner_radii: f32) {
+        self.shields = moons;
+        self.shield_inner_radii = inner_radii;
     }
 
     /// True if `point` is inside this body's breathable air.

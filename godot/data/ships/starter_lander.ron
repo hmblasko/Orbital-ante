@@ -183,11 +183,38 @@
             rec_color: (1.0, 0.25, 0.2),
             hint_key: "CAM_HINT",
         ),
+        // Brackets round the locked target (orange while the autopilot flies).
+        target_marker: (
+            size_px: 26.0,
+            line_px: 4.0,
+            label_px: 26,
+            edge_margin_px: 60.0,
+            color: (0.45, 0.85, 1.0, 0.95),
+            autopilot_color: (1.0, 0.7, 0.3, 0.95),
+        ),
     ),
     parking: (
         extra_distances_m: [0.0, 5.0, 10.0, 15.0],
         bearings_deg: [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0],
         order_penalty_m: 0.02,
         drop_height_m: 0.4,
+    ),
+    // Target lock (D-pad up / L) and autopilot (RT / Q). The autopilot
+    // turns the main engine toward where it needs to push, burns, brakes
+    // and stops you this far above the locked body, then holds match
+    // velocity until you touch the controls.
+    autopilot: (
+        burn_axis: (0.0, 1.0, 0.0),
+        arrive_altitude_m: 120.0,
+        max_speed_mps: 200.0,
+        brake_fraction: 0.6,
+        flip_s: 3.0,
+        speed_gain: 1.0,
+        align_deg: 25.0,
+        turn_gain: 2.5,
+        arrive_radius_m: 25.0,
+        arrive_speed_mps: 6.0,
+        lock_cone_deg: 8.0,
+        clearance_m: 150.0,
     ),
 )

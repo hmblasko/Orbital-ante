@@ -30,6 +30,18 @@ pub fn point_gravity(center: Vector3, radius: f32, settings: &GravitySettings, p
     offset / distance * strength
 }
 
+/// How much of a parent body's pull is left at `distance` from one of its
+/// moons: none inside `inner`, all of it beyond `outer` (the moon's
+/// influence radius), easing smoothly between. This keeps a planet from
+/// cancelling its own moon's gravity on the side facing it.
+pub fn shield_weight(distance: f32, inner: f32, outer: f32) -> f32 {
+    if outer <= inner {
+        return if distance >= outer { 1.0 } else { 0.0 };
+    }
+    let t = ((distance - inner) / (outer - inner)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,6 +54,15 @@ mod tests {
     fn surface_gravity_points_at_centre() {
         let g = point_gravity(Vector3::ZERO, 50.0, &settings(), Vector3::new(0.0, 50.0, 0.0));
         assert!((g - Vector3::new(0.0, -10.0, 0.0)).length() < 1e-4);
+    }
+
+    #[test]
+    fn shield_fades_parent_pull_near_a_moon() {
+        assert_eq!(shield_weight(100.0, 300.0, 600.0), 0.0);
+        assert_eq!(shield_weight(700.0, 300.0, 600.0), 1.0);
+        let mid = shield_weight(450.0, 300.0, 600.0);
+        assert!((mid - 0.5).abs() < 1e-5);
+        assert!(shield_weight(400.0, 300.0, 600.0) < mid);
     }
 
     #[test]

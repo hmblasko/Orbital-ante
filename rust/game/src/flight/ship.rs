@@ -74,6 +74,7 @@ pub struct ShipData {
     pub wall_thickness: f32,
     pub parking: ParkingData,
     pub cockpit: super::cockpit::CockpitData,
+    pub autopilot: model::AutopilotData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -252,6 +253,21 @@ pub struct Ship {
     ring_light: Option<Gd<OmniLight3D>>,
     engine_light: Option<Gd<OmniLight3D>>,
     cockpit: Option<super::cockpit::Cockpit>,
+    /// Locked target, the arrival point's offset from the ship last tick,
+    /// and the ship's velocity relative to it.
+    target: Option<Gd<CelestialBody>>,
+    target_prev: Option<Vector3>,
+    target_rel_vel: Vector3,
+    target_to: Vector3,
+    autopilot_on: bool,
+    /// The body nearest the ship, and the ship's velocity relative to it
+    /// (measured from how their offset changes, so it's right whichever
+    /// body's frame the ship is riding in).
+    below: Option<(InstanceId, Vector3)>,
+    below_vel: Vector3,
+    /// After the autopilot arrives it keeps matching velocity until you
+    /// touch the controls.
+    hold_match: bool,
     base: Base<RigidBody3D>,
 }
 
@@ -281,6 +297,14 @@ impl IRigidBody3D for Ship {
             door_cabin_shape: None,
             ring_light: None,
             engine_light: None,
+            target: None,
+            target_prev: None,
+            target_rel_vel: Vector3::ZERO,
+            target_to: Vector3::ZERO,
+            autopilot_on: false,
+            hold_match: false,
+            below: None,
+            below_vel: Vector3::ZERO,
             cockpit: None,
             base,
         }
@@ -356,6 +380,8 @@ impl IRigidBody3D for Ship {
             self.update_zone(&d, p);
         }
         self.update_hatch(&d, dt);
+        self.update_target(&d, dt);
+        self.update_below(dt);
         self.fly(&d, dt);
         self.update_cockpit(&d);
         self.previous = Some(self.base().get_global_transform());
@@ -365,6 +391,40 @@ impl IRigidBody3D for Ship {
 #[godot_api]
 impl Ship {
     /// Hatch openness, 0 (shut) to 1 (open).
+    /// Lock a body directly (tests and future map targeting).
+    #[func]
+    pub fn lock_body(&mut self, body: Option<Gd<CelestialBody>>) {
+        self.target = body;
+        self.target_prev = None;
+        self.autopilot_on = false;
+    }
+
+    #[func]
+    pub fn get_target_name(&self) -> GString {
+        self.target.as_ref().map(|b| GString::from(&b.get_name().to_string())).unwrap_or_default()
+    }
+
+    #[func]
+    pub fn is_autopilot_on(&self) -> bool {
+        self.autopilot_on
+    }
+
+    #[func]
+    pub fn get_target_relative_speed(&self) -> f32 {
+        if self.target.is_some() { self.target_rel_vel.length() } else { -1.0 }
+    }
+
+    #[func]
+    pub fn is_holding_match(&self) -> bool {
+        self.hold_match
+    }
+
+    /// Distance to the autopilot's arrival point above the target.
+    #[func]
+    pub fn get_target_arrival_distance(&self) -> f32 {
+        if self.target.is_some() { self.target_to.length() } else { -1.0 }
+    }
+
     #[func]
     pub fn get_hatch_open(&self) -> f32 {
         self.hatch
@@ -619,13 +679,53 @@ impl Ship {
         let mut thrust_local = Vector3::ZERO;
         let mut effort = 0.0;
         if self.pilot {
-            let input = self.read_input(d);
+            let mut input = self.read_input(d);
+            let manual = input.move_stick != Vector2::ZERO || input.vertical != 0.0 || input.pitch != 0.0 || input.yaw != 0.0 || input.roll != 0.0;
+            if manual {
+                self.autopilot_on = false;
+                self.hold_match = false;
+            }
+            // Holding after an autopilot arrival matches the target's motion,
+            // not the world's, so you stay put above a moving moon.
+            let hold_target = self.hold_match && self.target.is_some();
+            if self.hold_match && !hold_target {
+                input.match_velocity = true;
+            }
             let has_fuel = self.fuel_s > 0.0;
-            if has_fuel {
+            let mut steer: Option<Vector3> = None;
+            if self.autopilot_on && has_fuel && self.target.is_some() {
+                let ap = &d.autopilot;
+                let axis = Vector3::new(ap.burn_axis.0, ap.burn_axis.1, ap.burn_axis.2).normalized();
+                let burn_accel = if axis.y > 0.5 { d.flight.up } else { d.flight.forward };
+                let cmd = model::autopilot(self.target_to, self.target_rel_vel, gravity, burn_accel, ap);
+                if cmd.arrived {
+                    self.autopilot_on = false;
+                    self.hold_match = true;
+                } else if cmd.burn_dir != Vector3::ZERO {
+                    let wanted = basis.inverse() * cmd.burn_dir;
+                    steer = Some(model::steer_turn_rate(&d.flight, axis, wanted, ap.turn_gain));
+                    let off = axis.angle_to(wanted);
+                    if off.to_degrees() < ap.align_deg {
+                        // Burn harder the better it lines up.
+                        let throttle = cmd.throttle * off.cos();
+                        let a = axis * burn_accel * throttle;
+                        thrust_local = a;
+                        effort = throttle;
+                        v += basis * a * dt;
+                    }
+                }
+            } else if has_fuel {
                 let (a, e) = model::thrust(&d.flight, &input);
                 thrust_local = a;
                 effort = e;
                 v += basis * a * dt;
+            }
+            if hold_target && has_fuel && !input.match_velocity {
+                let fix = model::match_velocity(self.target_rel_vel, d.flight.match_velocity_accel, dt);
+                if fix.length_squared() > 0.0 {
+                    effort = effort.max(0.5);
+                }
+                v += fix;
             }
             if input.match_velocity && has_fuel {
                 let fix = model::match_velocity(v, d.flight.match_velocity_accel, dt);
@@ -640,7 +740,13 @@ impl Ship {
             // makes the ship skate downhill on one pad.
             let idle = input.move_stick == Vector2::ZERO && input.vertical == 0.0 && input.pitch == 0.0 && input.yaw == 0.0 && input.roll == 0.0;
             let resting = idle && v.length() < d.flight.landed_speed && self.grounded();
-            if !resting {
+            if let Some(target_rate) = steer {
+                let current = basis.inverse() * self.base().get_angular_velocity();
+                let max = d.flight.turn_accel_deg.to_radians() * dt;
+                let w = current + (target_rate - current).limit_length(Some(max));
+                self.base_mut().set_angular_velocity(basis * w);
+                self.turn_rate = w;
+            } else if !resting {
                 let current = basis.inverse() * self.base().get_angular_velocity();
                 let w = model::step_turn_rate(&d.flight, current, &input, dt);
                 self.base_mut().set_angular_velocity(basis * w);
@@ -655,6 +761,159 @@ impl Ship {
         }
     }
 
+    /// Lock (D-pad up / L) the body nearest the centre of your view, toggle
+    /// the autopilot (RT / Q), and track where the target is.
+    fn update_target(&mut self, d: &ShipData, dt: f32) {
+        let input = Input::singleton();
+        let here = self.base().get_global_position();
+        if self.pilot && input.is_action_just_pressed("lock_target") {
+            let picked = self.body_in_view(d);
+            if picked.is_some() && picked == self.target {
+                self.target = None;
+            } else if picked.is_some() {
+                self.target = picked;
+            }
+            self.target_prev = None;
+            self.autopilot_on = false;
+        }
+        if self.pilot && input.is_action_just_pressed("autopilot") && self.target.is_some() {
+            self.autopilot_on = !self.autopilot_on;
+            self.hold_match = false;
+        }
+        if !self.pilot {
+            self.autopilot_on = false;
+            self.hold_match = false;
+        }
+        let Some(target) = self.target.clone() else { return };
+        let centre = target.get_global_position();
+        let out = (here - centre).normalized();
+        let surface = target.bind().surface_radius_toward(here);
+        let arrive = centre + out * (surface + d.autopilot.arrive_altitude_m);
+        let straight = arrive - here;
+        // Never aim through a planet: if the straight line passes too close
+        // to another body, head for a point beside it instead, keeping the
+        // full trip length so the speed plan doesn't brake at the detour.
+        let to = match self.detour(&target, here, arrive, d.autopilot.clearance_m) {
+            Some(waypoint) => (waypoint - here).normalized() * straight.length(),
+            None => straight,
+        };
+        // The body we're riding moves with us, so our own velocity is
+        // already relative to it; any other body, measure how it moves.
+        let riding = self.frame_body().is_some_and(|b| b == target);
+        self.target_rel_vel = if riding {
+            self.base().get_linear_velocity()
+        } else {
+            match self.target_prev {
+                Some(prev) if dt > 0.0 => (prev - to) / dt,
+                _ => self.base().get_linear_velocity(),
+            }
+        };
+        self.target_prev = Some(to);
+        self.target_to = to;
+    }
+
+    /// A waypoint beside the first body (other than the target) that the
+    /// straight line from `from` to `to` passes within `clearance` of.
+    fn detour(&self, target: &Gd<CelestialBody>, from: Vector3, to: Vector3, clearance: f32) -> Option<Vector3> {
+        let seg = to - from;
+        let len2 = seg.length_squared();
+        if len2 < 1.0 {
+            return None;
+        }
+        let tree = self.base().get_tree();
+        let mut best: Option<(f32, Vector3)> = None;
+        for node in tree.get_nodes_in_group(GRAVITY_GROUP).iter_shared() {
+            let Ok(body) = node.try_cast::<CelestialBody>() else { continue };
+            if &body == target {
+                continue;
+            }
+            let c = body.get_global_position();
+            let t = ((c - from).dot(seg) / len2).clamp(0.0, 1.0);
+            let closest = from + seg * t;
+            let safe = body.bind().radius() + clearance;
+            let off = closest - c;
+            if off.length() >= safe || t <= 0.0 {
+                continue;
+            }
+            // Push the closest point out to a safe distance; if the line
+            // runs right through the centre, go out the way we came from.
+            let away = if off.length_squared() > 1e-4 { off.normalized() } else { (from - c).normalized() };
+            let waypoint = c + away * safe * 1.05;
+            if best.is_none_or(|(bt, _)| t < bt) {
+                best = Some((t, waypoint));
+            }
+        }
+        best.map(|(_, w)| w)
+    }
+
+    /// Track the nearest body's surface and our velocity relative to it.
+    fn update_below(&mut self, dt: f32) {
+        let here = self.base().get_global_position();
+        let Some(body) = self.nearest_body() else {
+            self.below = None;
+            return;
+        };
+        let offset = here - body.get_global_position();
+        let id = body.instance_id();
+        let riding = self.frame_body().is_some_and(|b| b == body);
+        self.below_vel = match self.below {
+            _ if riding => self.base().get_linear_velocity(),
+            Some((prev_id, prev)) if prev_id == id && dt > 0.0 => (offset - prev) / dt,
+            _ => self.base().get_linear_velocity(),
+        };
+        self.below = Some((id, offset));
+    }
+
+    /// The body whose surface is closest.
+    fn nearest_body(&self) -> Option<Gd<CelestialBody>> {
+        let here = self.base().get_global_position();
+        self.base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .map(|b| {
+                let alt = (here - b.get_global_position()).length() - b.bind().surface_radius_toward(here);
+                (alt, b)
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, b)| b)
+    }
+
+    /// The body whose gravity is strongest here.
+    fn frame_body(&self) -> Option<Gd<CelestialBody>> {
+        let here = self.base().get_global_position();
+        self.base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .max_by(|a, b| a.bind().gravity_at(here).length().total_cmp(&b.bind().gravity_at(here).length()))
+    }
+
+    /// The body closest to the middle of the pilot's view: inside the lock
+    /// cone, or whose disc covers the view's centre.
+    fn body_in_view(&self, d: &ShipData) -> Option<Gd<CelestialBody>> {
+        let cam = self.player().and_then(|p| p.try_get_node_as::<godot::classes::Camera3D>("Head/Camera3D"))?;
+        let eye = cam.get_global_position();
+        let look = -cam.get_global_basis().col_c().normalized();
+        let cone = d.autopilot.lock_cone_deg.to_radians();
+        self.base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .filter_map(|b| {
+                let to = b.get_global_position() - eye;
+                let dist = to.length().max(1.0);
+                let angle = look.angle_to(to);
+                let disc = (b.bind().radius() / dist).min(1.0).asin();
+                (angle < cone.max(disc)).then_some((angle - disc, b))
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, b)| b)
+    }
+
     /// Feed the dash, light the mini ship's thrusters, and handle the
     /// cockpit buttons (Y: cameras, F4: dash style).
     fn update_cockpit(&mut self, d: &ShipData) {
@@ -666,7 +925,18 @@ impl Ship {
         let thrust = self.telemetry.thrust;
         let scale = Vector3::new(d.flight.strafe.max(0.01), d.flight.up.max(0.01), d.flight.forward.max(0.01));
         let pilot = self.pilot;
+        // Shown only while you're flying; the label is the body's name.
+        let marker = match (&self.target, pilot) {
+            (Some(b), true) => Some((b.get_global_position(), self.base().tr(&format!("BODY_{}", b.get_name().to_string().to_uppercase())).to_string())),
+            _ => None,
+        };
+        let autopilot = self.autopilot_on;
         let Some(cp) = self.cockpit.as_mut() else { return };
+        {
+            let mut m = cp.marker.bind_mut();
+            m.target = marker;
+            m.autopilot = autopilot;
+        }
         cp.viewport.set_update_mode(if aboard { godot::classes::sub_viewport::UpdateMode::ALWAYS } else { godot::classes::sub_viewport::UpdateMode::DISABLED });
         cp.dash.bind_mut().set_readout(readout);
         cp.show_thrust(thrust / scale, &d.cockpit.mini_ship);
@@ -702,6 +972,9 @@ impl Ship {
             }
             _ => (None, None, t.basis.col_b().normalized()),
         };
+        // Speeds are relative to the body below, which may not be the one
+        // whose frame we ride in (hovering over the Moon in Earth's frame).
+        let v = if altitude.is_some() { self.below_vel } else { v };
         // Ship space with x toward the pilot's right (-X), y up, z forward.
         let local = t.basis.inverse() * v;
         let oxygen = self.player().map_or(1.0, |p| p.bind().get_oxygen_fraction());
@@ -715,6 +988,13 @@ impl Ship {
             oxygen,
             matching: self.pilot && Input::singleton().is_action_pressed("match_velocity") && self.fuel_s > 0.0,
             landed: v.length() < d.flight.landed_speed && self.grounded(),
+            target: self.target.as_ref().map(|b| super::dash::TargetReadout {
+                body_key: format!("BODY_{}", b.get_name().to_string().to_uppercase()),
+                distance: self.target_to.length(),
+                closing: self.target_rel_vel.dot(self.target_to.normalized_or_zero()),
+                autopilot: self.autopilot_on,
+                holding: self.hold_match,
+            }),
         }
     }
 

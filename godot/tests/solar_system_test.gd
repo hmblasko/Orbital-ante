@@ -108,6 +108,13 @@ func _physics_process(delta: float) -> bool:
 						moved += 1
 				check(moved == start_positions.size(), "every body moved along its orbit (%d of %d)" % [moved, start_positions.size()])
 				var moon = sys.get_node("moon")
+				# Standing on the side of the Moon that faces Earth still pulls
+				# you down onto the Moon at its own strength.
+				var earth: Node3D = sys.get_node("earth")
+				var toward_earth: Vector3 = (earth.global_position - moon.global_position).normalized()
+				var near_side: Vector3 = moon.global_position + toward_earth * (moon.radius() + 1.0)
+				var g: Vector3 = sys.get_gravity_at(near_side)
+				check(g.normalized().dot(-toward_earth) > 0.99 and g.length() > 2.5, "the Moon's near side pulls toward the Moon (%.2f m/s2)" % g.length())
 				check(not moon.has_detail() or moon.get_node_or_null("SurfaceCollision0") != null, "the Moon starts as a preview or already has full detail")
 				moon.request_detail()
 				phase = 3; phase_start = frame

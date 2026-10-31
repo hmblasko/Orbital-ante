@@ -50,6 +50,10 @@ pub struct SystemData {
     /// Below this altitude (as a fraction of the radius) the player turns
     /// with the body's spin; above it the body turns underneath them.
     pub co_rotate_altitude: f32,
+    /// A planet's pull fades out near each of its moons (and the Sun's
+    /// near each planet), gone entirely within this many of the moon's
+    /// radii, so the side of the Moon facing Earth isn't weightless.
+    pub shield_inner_radii: f32,
     pub sun_light_energy: f32,
     pub sun_light_color: (f32, f32, f32),
     /// Where the player starts: a body id and a direction in its own frame.
@@ -298,6 +302,10 @@ impl INode3D for SolarSystem {
             self.base_mut().add_child(&body);
             self.bodies.push(body);
         }
+        for (i, _) in data.bodies.iter().enumerate() {
+            let moons: Vec<Gd<CelestialBody>> = (0..data.bodies.len()).filter(|&j| ephemeris.parent(j) == Some(i)).map(|j| self.bodies[j].clone()).collect();
+            self.bodies[i].bind_mut().set_shields(moons, data.shield_inner_radii);
+        }
         self.base_mut().add_to_group(SYSTEM_GROUP);
         self.data = Some(data);
         self.ephemeris = Some(ephemeris);
@@ -511,6 +519,12 @@ impl SolarSystem {
     #[func]
     pub fn get_origin(&self) -> Vector3 {
         self.origin.to_f32()
+    }
+
+    /// Total pull of every body at a world point (tests and debugging).
+    #[func]
+    pub fn get_gravity_at(&self, point: Vector3) -> Vector3 {
+        self.bodies.iter().map(|b| b.bind().gravity_at(point)).fold(Vector3::ZERO, |a, g| a + g)
     }
 
     /// Id of the body the player is riding ("" in open space).

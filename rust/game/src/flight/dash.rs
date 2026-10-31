@@ -85,6 +85,21 @@ pub struct DashReadout {
     pub oxygen: f32,
     pub matching: bool,
     pub landed: bool,
+    /// Locked target, if any.
+    pub target: Option<TargetReadout>,
+}
+
+/// What the dash shows about the locked target.
+#[derive(Debug, Clone, Default)]
+pub struct TargetReadout {
+    /// Translation key of the body (BODY_MOON...).
+    pub body_key: String,
+    /// Distance to the autopilot's arrival point above it (m).
+    pub distance: f32,
+    /// How fast that distance is shrinking (m/s, + closing).
+    pub closing: f32,
+    pub autopilot: bool,
+    pub holding: bool,
 }
 
 #[derive(GodotClass)]
@@ -210,6 +225,9 @@ struct Names {
     low_oxygen: String,
     body: String,
     terminal_title: String,
+    autopilot: String,
+    holding: String,
+    target: String,
 }
 
 impl Names {
@@ -228,6 +246,9 @@ impl Names {
             low_oxygen: tr("DASH_LOW_OXYGEN"),
             body: r.body_key.as_deref().map_or_else(|| tr("DASH_DEEP_SPACE"), tr),
             terminal_title: tr("DASH_TERMINAL_TITLE"),
+            autopilot: tr("DASH_AUTOPILOT"),
+            holding: tr("DASH_HOLDING"),
+            target: r.target.as_ref().map_or_else(String::new, |t| target_line(&tr(&t.body_key), t)),
         }
     }
 }
@@ -326,6 +347,12 @@ fn fmt_alt(a: Option<f32>) -> String {
     }
 }
 
+/// "Moon 1.9 km  84 m/s" with a sign on the speed when moving away.
+fn target_line(name: &str, t: &TargetReadout) -> String {
+    let speed = if t.closing >= 0.0 { fmt_speed(t.closing) } else { format!("-{}", fmt_speed(-t.closing)) };
+    format!("{name} {}  {speed} m/s", fmt_alt(Some(t.distance)))
+}
+
 fn status_chips(r: &DashReadout, d: &DashData, n: &Names, blink: bool) -> Vec<(String, bool)> {
     let mut chips = Vec::new();
     if r.fuel < d.low_fuel && blink {
@@ -333,6 +360,14 @@ fn status_chips(r: &DashReadout, d: &DashData, n: &Names, blink: bool) -> Vec<(S
     }
     if r.oxygen < d.low_oxygen && blink {
         chips.push((n.low_oxygen.clone(), true));
+    }
+    if let Some(t) = &r.target {
+        if t.autopilot {
+            chips.push((n.autopilot.clone(), false));
+        } else if t.holding {
+            chips.push((n.holding.clone(), false));
+        }
+        chips.push((n.target.clone(), false));
     }
     if r.matching {
         chips.push((n.matching.clone(), false));
@@ -501,10 +536,10 @@ fn draw_analog(p: &mut Painter, d: &DashData, r: &DashReadout, n: &Names, blink:
     // Lamps for status.
     let chips = status_chips(r, d, n, true);
     for (i, (label, bad)) in chips.iter().take(2).enumerate() {
-        let at = Vector2::new(300.0 + i as f32 * 220.0, 30.0);
+        let at = Vector2::new(250.0 + i as f32 * 250.0, 30.0);
         let col = if *bad { warn } else { rgb(s.drift) };
         p.c.draw_circle(at + Vector2::new(14.0, 0.0), 12.0, col);
-        p.text(&p.lab.clone(), at + Vector2::new(34.0, 10.0), 200.0, HorizontalAlignment::LEFT, label, 24, face);
+        p.text(&p.lab.clone(), at + Vector2::new(34.0, 10.0), 220.0, HorizontalAlignment::LEFT, label, 22, face);
     }
 }
 
@@ -576,6 +611,14 @@ mod tests {
         assert_eq!(bar(10, 0.0), "[----------]");
         assert_eq!(bar(10, 1.0), "[##########]");
         assert_eq!(bar(10, 0.5).len(), 12);
+    }
+
+    #[test]
+    fn target_line_shows_distance_and_signed_speed() {
+        let t = TargetReadout { body_key: "BODY_MOON".into(), distance: 1900.0, closing: 84.0, autopilot: true, holding: false };
+        assert_eq!(target_line("Moon", &t), "Moon 1900 m  84.0 m/s");
+        let t = TargetReadout { distance: 12_500.0, closing: -3.0, ..t };
+        assert_eq!(target_line("Moon", &t), "Moon 12.5 km  -3.0 m/s");
     }
 
     #[test]

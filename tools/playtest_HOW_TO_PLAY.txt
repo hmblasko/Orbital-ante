@@ -34,7 +34,15 @@ WHAT IS IN THIS BUILD
     The dash screen shows speed, climb rate, altitude, a drift ball (where
     you're sliding), fuel and oxygen. F4 switches between its three styles.
     Y / V flicks through the landing camera and two selfie-stick cameras.
+    Target lock: look at a planet or moon and press D-pad up / L. Brackets
+    mark it (an arrow at the screen edge if it's off-screen) and the dash
+    shows its distance and closing speed. Press again on it to unlock.
+    Autopilot: with a target locked, press RT / Q. The lander turns, burns,
+    steers round any planet in the way, brakes and stops 120 m above the
+    target, then holds there until you touch the controls. Earth to the
+    Moon takes about 35 seconds. Any stick input takes back control.
   Press X / E again to unbuckle, look at the floor hatch and press X / E to open it,
   step onto it to ride down. Crouch (B / C) to duck out under the ship.
-- Not yet: autopilot, target lock, takeoff effects, crash damage and repair
-  (the rest of Phase 4).
+- Fixed: the side of the Moon facing Earth was almost weightless; the
+  Moon's own gravity now takes over near it.
+- Not yet: takeoff effects, crash damage and repair (the rest of Phase 4).

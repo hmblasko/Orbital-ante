@@ -16,6 +16,10 @@
     detail_margin_m: 600.0,
     release_factor: 1.6,
     co_rotate_altitude: 0.25,
+    // A planet's pull fades out near its moons (the Sun's near its planets),
+    // gone within this many moon radii of the moon's centre, so standing on
+    // the side of the Moon facing Earth still feels like the Moon.
+    shield_inner_radii: 1.2,
     sun_light_energy: 2.4,
     sun_light_color: (1.0, 0.95, 0.86),
     start_body: "earth",

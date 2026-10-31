@@ -36,6 +36,7 @@ pub struct CockpitData {
     pub mini_ship: MiniShipData,
     pub cameras: Vec<CameraData>,
     pub camera_frame: CameraFrameData,
+    pub target_marker: TargetMarkerData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -72,6 +73,19 @@ pub struct CameraFrameData {
     pub hint_key: String,
 }
 
+/// The bracket drawn round the locked target in your view.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TargetMarkerData {
+    /// Half size of the brackets, pixels at 800 px screen height.
+    pub size_px: f32,
+    pub line_px: f32,
+    pub label_px: i32,
+    /// Distance kept from the screen edge when the target is off-screen.
+    pub edge_margin_px: f32,
+    pub color: (f32, f32, f32, f32),
+    pub autopilot_color: (f32, f32, f32, f32),
+}
+
 /// Handles the ship keeps to drive the cockpit each tick.
 pub struct Cockpit {
     pub viewport: Gd<SubViewport>,
@@ -79,6 +93,7 @@ pub struct Cockpit {
     pub arrows: Vec<(Vector3, Gd<MeshInstance3D>)>,
     pub cameras: Vec<Gd<Camera3D>>,
     pub frame: Gd<CameraFrame>,
+    pub marker: Gd<TargetMarker>,
     /// 0 = your own eyes, 1.. = cameras[i - 1].
     pub view: usize,
 }
@@ -227,9 +242,13 @@ pub fn build(parent: &mut Gd<Node3D>, ship_root: &mut Gd<Node3D>, data: &Cockpit
     frame.bind_mut().data = Some(data.camera_frame.clone());
     frame.set_visible(false);
     layer.add_child(&frame);
+    let mut marker = TargetMarker::new_alloc();
+    marker.set_name("TargetMarker");
+    marker.bind_mut().data = Some(data.target_marker.clone());
+    layer.add_child(&marker);
     ship_root.add_child(&layer);
 
-    Cockpit { viewport, dash, arrows, cameras, frame, view: 0 }
+    Cockpit { viewport, dash, arrows, cameras, frame, marker, view: 0 }
 }
 
 /// Smallest rotation turning `from` onto `to` (both unit length).
@@ -283,6 +302,87 @@ impl Cockpit {
             self.cameras[i].make_current();
             self.frame.bind_mut().label = names.get(i).cloned().unwrap_or_default();
             self.frame.set_visible(true);
+        }
+    }
+}
+
+/// Brackets round the locked target, or an arrow at the screen edge
+/// pointing the way when it's behind you or off-screen.
+#[derive(GodotClass)]
+#[class(base = Control)]
+pub struct TargetMarker {
+    pub data: Option<TargetMarkerData>,
+    /// World position of the target and its label; None hides the marker.
+    pub target: Option<(Vector3, String)>,
+    pub autopilot: bool,
+    font: Option<Gd<Font>>,
+    base: Base<Control>,
+}
+
+#[godot_api]
+impl IControl for TargetMarker {
+    fn init(base: Base<Control>) -> Self {
+        Self { data: None, target: None, autopilot: false, font: None, base }
+    }
+
+    fn ready(&mut self) {
+        self.base_mut().set_anchors_and_offsets_preset(godot::classes::control::LayoutPreset::FULL_RECT);
+        self.base_mut().set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
+        self.font = try_load::<FontFile>("res://assets/fonts/LilitaOne-Regular.ttf").ok().map(|f| f.upcast());
+    }
+
+    fn process(&mut self, _delta: f64) {
+        self.base_mut().queue_redraw();
+    }
+
+    fn draw(&mut self) {
+        let (Some(d), Some((world, label))) = (self.data.clone(), self.target.clone()) else { return };
+        let Some(cam) = self.base().get_viewport().and_then(|v| v.get_camera_3d()) else { return };
+        let size = self.base().get_size();
+        if size.y < 100.0 {
+            return;
+        }
+        let k = size.y / 800.0;
+        let c = d.autopilot_color;
+        let col = if self.autopilot { Color::from_rgba(c.0, c.1, c.2, c.3) } else { Color::from_rgba(d.color.0, d.color.1, d.color.2, d.color.3) };
+        let behind = cam.is_position_behind(world);
+        let at = cam.unproject_position(world);
+        let centre = size * 0.5;
+        let margin = d.edge_margin_px * k;
+        let inside = !behind && at.x > margin && at.y > margin && at.x < size.x - margin && at.y < size.y - margin;
+        // Off-screen: which way to turn, from the target's position in the
+        // camera's own space (x right, y up), which stays right when behind.
+        let local = cam.get_global_transform().affine_inverse() * world;
+        let way = Vector2::new(local.x, -local.y);
+        let mut c2 = self.base().clone().upcast::<Control>();
+        let w = d.line_px * k;
+        if inside {
+            let h = d.size_px * k;
+            for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+                let corner = at + Vector2::new(sx * h, sy * h);
+                c2.draw_line_ex(corner, corner - Vector2::new(sx * h * 0.45, 0.0), col).width(w).done();
+                c2.draw_line_ex(corner, corner - Vector2::new(0.0, sy * h * 0.45), col).width(w).done();
+            }
+            if let Some(font) = &self.font {
+                let px = (d.label_px as f32 * k) as i32;
+                c2.draw_string_ex(font, at + Vector2::new(-200.0 * k, h + px as f32 * 1.1), &label)
+                    .alignment(HorizontalAlignment::CENTER)
+                    .width(400.0 * k)
+                    .font_size(px)
+                    .modulate(col)
+                    .done();
+            }
+        } else {
+            let dir = way.normalized_or_zero();
+            let dir = if dir == Vector2::ZERO { Vector2::new(0.0, -1.0) } else { dir };
+            // Walk out from the centre to the margin rectangle.
+            let half = centre - Vector2::new(margin, margin);
+            let t = (half.x / dir.x.abs().max(1e-4)).min(half.y / dir.y.abs().max(1e-4));
+            let tip = centre + dir * t;
+            let side = Vector2::new(-dir.y, dir.x);
+            let s = d.size_px * k * 0.7;
+            let pts = PackedVector2Array::from(&[tip, tip - dir * s * 2.4 + side * s * 0.8, tip - dir * s * 1.7, tip - dir * s * 2.4 - side * s * 0.8]);
+            c2.draw_colored_polygon(&pts, col);
         }
     }
 }
