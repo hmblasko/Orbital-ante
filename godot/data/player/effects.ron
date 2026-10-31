@@ -45,4 +45,15 @@
         camera_dip_m: 0.18,
         dip_recover_s: 0.25,
     ),
+    // Helmet lamp: comes on by itself where sunlight can't reach (lava tubes,
+    // permanently shadowed craters) and fades off again in daylight.
+    lamp: Some((
+        range_m: 35.0,
+        angle_deg: 34.0,
+        energy: 6.0,
+        color: (1.0, 0.93, 0.80),
+        fade_s: 0.6,
+        fill_range_m: 7.0,
+        fill_energy: 0.8,
+    )),
 )

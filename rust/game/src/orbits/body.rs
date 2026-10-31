@@ -23,6 +23,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 
 use super::gravity::{self, GravitySettings};
+use crate::procgen::caves::{Cave, CaveData, caves_for, cut_ground};
 use crate::procgen::hoodoo::hoodoo_mesh;
 use crate::procgen::landforms::LandformKind;
 use crate::procgen::rocks::rock_mesh;
@@ -83,6 +84,9 @@ pub struct BodyData {
     /// "orange haze on Mars, light blue on Earth; none on moons").
     #[serde(default)]
     pub air_glow: Option<AirGlow>,
+    /// Lava tubes opening from the sides of this body's sinkholes.
+    #[serde(default)]
+    pub caves: Option<CaveData>,
 }
 
 fn default_preview_subdivisions() -> u32 {
@@ -300,6 +304,7 @@ pub struct CelestialBody {
     stream_detail: bool,
     data: Option<BodyData>,
     shape: Option<Arc<TerrainShape>>,
+    caves: Arc<Vec<Cave>>,
     material: Option<Gd<ShaderMaterial>>,
     detail: Detail,
     /// Nodes that make up the full detail, freed by `release_detail`.
@@ -323,19 +328,30 @@ struct SurfaceMeshes {
     collision: MeshData,
     near: Option<MeshData>,
     far: Option<MeshData>,
+    /// One rock-wall mesh per lava tube.
+    caves: Vec<MeshData>,
 }
 
 impl SurfaceMeshes {
-    fn build(data: &BodyData, shape: &TerrainShape) -> Self {
-        let collision = shape.build_mesh();
-        let (near, far) = match &data.lod {
+    fn build(data: &BodyData, shape: &TerrainShape, caves: &[Cave]) -> Self {
+        let mut collision = shape.build_mesh();
+        let (mut near, mut far) = match &data.lod {
             Some(lod) => (
                 Some(shape.build_mesh_with(lod.near_subdivisions)),
                 Some(shape.build_mesh_with(lod.far_subdivisions)),
             ),
             None => (None, None),
         };
-        Self { collision, near, far }
+        // Open the cave mouths in every grid that is walked or seen up close.
+        cut_ground(&mut collision, caves);
+        for m in [near.as_mut(), far.as_mut()].into_iter().flatten() {
+            cut_ground(m, caves);
+        }
+        let caves = match &data.caves {
+            Some(c) => caves.iter().map(|cave| cave.build_mesh(c)).collect(),
+            None => Vec::new(),
+        };
+        Self { collision, near, far, caves }
     }
 }
 
@@ -347,6 +363,7 @@ impl IStaticBody3D for CelestialBody {
             stream_detail: false,
             data: None,
             shape: None,
+            caves: Arc::new(Vec::new()),
             material: None,
             detail: Detail::None,
             detail_nodes: Vec::new(),
@@ -365,7 +382,12 @@ impl IStaticBody3D for CelestialBody {
             );
             return;
         };
-        let shape = Arc::new(TerrainShape::new(&data.terrain, data.radius));
+        let run_seed = if godot::classes::Engine::singleton().has_singleton("RunSeed") { crate::seed::singleton::run_seed() } else { 0 };
+        let shape = Arc::new(TerrainShape::with_run_seed(&data.terrain, data.radius, run_seed));
+        self.caves = Arc::new(match &data.caves {
+            Some(c) => caves_for(&shape, c, run_seed ^ data.terrain.seed),
+            None => Vec::new(),
+        });
         self.base_mut().add_to_group(GRAVITY_GROUP);
         self.data = Some(data.clone());
         self.shape = Some(shape.clone());
@@ -380,7 +402,7 @@ impl IStaticBody3D for CelestialBody {
             if self.stream_detail {
                 self.build_preview(&data, &shape);
             } else {
-                let meshes = SurfaceMeshes::build(&data, &shape);
+                let meshes = SurfaceMeshes::build(&data, &shape, &self.caves.clone());
                 self.finish_detail(meshes);
             }
         }
@@ -424,7 +446,41 @@ impl CelestialBody {
             self.detail = Detail::Built;
             return;
         }
-        self.detail = Detail::Building(std::thread::spawn(move || SurfaceMeshes::build(&data, &shape)));
+        let caves = self.caves.clone();
+        self.detail = Detail::Building(std::thread::spawn(move || SurfaceMeshes::build(&data, &shape, &caves)));
+    }
+
+    /// True where sunlight can't reach: inside a lava tube, or down in a
+    /// permanently shadowed crater. The helmet lamp switches on here.
+    #[func]
+    pub fn is_dark_at(&self, world_point: Vector3) -> bool {
+        let Some(shape) = &self.shape else { return false };
+        let local = self.base().get_global_transform().affine_inverse() * world_point;
+        if self.caves.iter().any(|c| c.contains(local)) {
+            return true;
+        }
+        let dir = local.normalized();
+        shape.landforms().list.iter().any(|l| {
+            l.kind == LandformKind::ColdTrap
+                && dir.angle_to(l.center) < l.angle * 0.8
+                && local.length() < shape.radius() - l.height * 0.35
+        })
+    }
+
+    /// Lava tubes on this body: each is a dictionary with the mouth and a
+    /// point on the floor deep inside (body space), for the tests and for
+    /// placing tanks and chests later.
+    #[func]
+    pub fn get_caves(&self) -> VarArray {
+        let mut out = VarArray::new();
+        for c in self.caves.iter() {
+            let mut d = VarDictionary::new();
+            d.set("mouth", &c.floor_point(0.0).to_variant());
+            d.set("inside", &c.floor_point(0.6).to_variant());
+            d.set("chamber", &c.floor_point(0.8).to_variant());
+            out.push(&d.to_variant());
+        }
+        out
     }
 
     /// Every landform on this body (kind name, direction from the centre in
@@ -603,6 +659,7 @@ impl CelestialBody {
             collision.set_shape(&collision_shape);
             self.base_mut().add_child(&collision);
         }
+        self.add_caves(data, &meshes.caves, &material, height_range);
         self.scatter_rocks(data, shape);
         self.add_lava_lights(data, shape);
         self.scatter_hoodoos(data, shape);
@@ -686,26 +743,59 @@ impl CelestialBody {
     }
 
     /// Boulder clusters sitting on the terrain, with simple convex colliders.
+    /// Lava tube walls (painted like the ground, walkable from inside) and
+    /// the rubble piled around each mouth.
+    fn add_caves(&mut self, data: &BodyData, meshes: &[MeshData], material: &Gd<ShaderMaterial>, height_range: f32) {
+        let Some(cave_data) = &data.caves else { return };
+        let caves = self.caves.clone();
+        let rock_material = rock_material(data);
+        // Same paint as the ground, but no sunlight in full shadow.
+        let mut material = material.duplicate_resource();
+        material.set_shader_parameter("sun_shadow_floor", &0.0f32.to_variant());
+        // Softer grain: the lamp grazes the floor and strong bumps read as ripples.
+        material.set_shader_parameter("bump_strength", &cave_data.bump_strength.to_variant());
+        for (i, (cave, mesh)) in caves.iter().zip(meshes).enumerate() {
+            let hints = surface_hints(mesh, height_range);
+            let mut walls = MeshInstance3D::new_alloc();
+            walls.set_name(&format!("Cave{i}"));
+            walls.set_mesh(&array_mesh_with_hints(mesh, &hints));
+            walls.set_material_override(&material);
+            walls.set_instance_shader_parameter("tile_offset", &Vector3::ZERO.to_variant());
+            self.base_mut().add_child(&walls);
+            let mut faces = ConcavePolygonShape3D::new_gd();
+            faces.set_faces(&triangle_soup(mesh));
+            faces.set_backface_collision_enabled(true);
+            let mut collision = CollisionShape3D::new_alloc();
+            collision.set_name(&format!("CaveCollision{i}"));
+            collision.set_shape(&faces);
+            self.base_mut().add_child(&collision);
+            for (k, (at, size)) in cave.rubble(cave_data).into_iter().enumerate() {
+                let m = rock_mesh(data.terrain.seed as u32 ^ (k as u32 * 131 + i as u32), 2, data.rocks.roughness, 0.7);
+                let basis = (basis_with_up(at.normalized()) * Basis::from_axis_angle(Vector3::UP, k as f32 * 2.3)).scaled(Vector3::new(size, size * 0.8, size));
+                let transform = Transform3D::new(basis, at);
+                let mut rock = MeshInstance3D::new_alloc();
+                rock.set_name(&format!("Cave{i}Rubble{k}"));
+                rock.set_mesh(&array_mesh(&m, None));
+                rock.set_material_override(&rock_material);
+                rock.set_transform(transform);
+                self.base_mut().add_child(&rock);
+                let mut convex = ConvexPolygonShape3D::new_gd();
+                convex.set_points(&m.positions.iter().copied().collect::<PackedVector3Array>());
+                let mut shape = CollisionShape3D::new_alloc();
+                shape.set_shape(&convex);
+                shape.set_transform(transform);
+                self.base_mut().add_child(&shape);
+            }
+        }
+    }
+
     fn scatter_rocks(&mut self, data: &BodyData, shape: &TerrainShape) {
         let r = &data.rocks;
         if r.count == 0 {
             return;
         }
         let mut rng = SeededRng::derive(data.terrain.seed, "rocks");
-        let mut material = ShaderMaterial::new_gd();
-        if let Ok(shader) = try_load::<Shader>(PROP_SHADER) {
-            material.set_shader(&shader);
-        }
-        material.set_shader_parameter("albedo", &rgb(r.color).to_variant());
-        material.set_shader_parameter("albedo_dark", &rgb(r.color_dark).to_variant());
-        material.set_shader_parameter("shadow_tint", &rgb(data.look.shadow_tint).to_variant());
-        material.set_shader_parameter(
-            "grain_noise",
-            &noise_texture(0.08, 3, data.terrain.seed as i32 + 2).to_variant(),
-        );
-        material.set_shader_parameter("grain_scale", &0.6f32.to_variant());
-        material.set_shader_parameter("grain_strength", &0.45f32.to_variant());
-
+        let material = rock_material(data);
         // A few distinct rock shapes, reused (cheap to draw, still varied by scale and turn).
         let variants: Vec<(Gd<ArrayMesh>, PackedVector3Array)> = (0..6)
             .map(|i| {
@@ -1034,7 +1124,22 @@ impl CelestialBody {
     }
 }
 
-/// A random unit vector tangent to the sphere at `dir`.
+/// Painted boulder material for a body.
+fn rock_material(data: &BodyData) -> Gd<ShaderMaterial> {
+    let r = &data.rocks;
+    let mut material = ShaderMaterial::new_gd();
+    if let Ok(shader) = try_load::<Shader>(PROP_SHADER) {
+        material.set_shader(&shader);
+    }
+    material.set_shader_parameter("albedo", &rgb(r.color).to_variant());
+    material.set_shader_parameter("albedo_dark", &rgb(r.color_dark).to_variant());
+    material.set_shader_parameter("shadow_tint", &rgb(data.look.shadow_tint).to_variant());
+    material.set_shader_parameter("grain_noise", &noise_texture(0.08, 3, data.terrain.seed as i32 + 2).to_variant());
+    material.set_shader_parameter("grain_scale", &0.6f32.to_variant());
+    material.set_shader_parameter("grain_strength", &0.45f32.to_variant());
+    material
+}
+
 /// The painted terrain material for one body (shared by all its tiles).
 fn surface_material(data: &BodyData) -> Gd<ShaderMaterial> {
     let look = &data.look;

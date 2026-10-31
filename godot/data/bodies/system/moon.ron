@@ -44,7 +44,8 @@
                 (kind: Catena, count: 3, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
                 (kind: RayedCrater, count: 2, radius_m: (6.0, 10.0), height_m: (2.5, 4.0)),
                 (kind: Bowl, count: 30, radius_m: (3.0, 9.0), height_m: (1.0, 3.0)),
-                (kind: Sinkhole, count: 2, radius_m: (5.0, 8.0), height_m: (8.0, 14.0), on: Some(Mare)),
+                // Skylight pits on the mare; each opens into a lava tube (caves below).
+                (kind: Sinkhole, count: 2, radius_m: (7.0, 9.0), height_m: (13.0, 16.0), on: Some(Mare)),
             ],
         ),
     ),
@@ -90,6 +91,22 @@
         color_dark: (0.30, 0.29, 0.29),
         visible_m: 220.0,
     ),
+    // Lava tubes (Moon kit): one per skylight pit, opening from the pit wall
+    // and running out under the mare to a wider end chamber.
+    caves: Some((
+        count: 2,
+        length_m: (35.0, 55.0),
+        radius_m: (3.4, 4.2),
+        height_ratio: 0.9,
+        cover_m: 2.5,
+        chamber_scale: 1.7,
+        ring_spacing_m: 1.0,
+        ring_sides: 20,
+        roughness_m: 0.35,
+        mouth_flare: 1.6,
+        rubble: 10,
+        bump_strength: 0.012,
+    )),
     render_tiles: 8,
     preview_subdivisions: 64,
 )

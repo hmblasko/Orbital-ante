@@ -4,6 +4,7 @@
 
 use godot::builtin::Vector3;
 
+pub mod caves;
 pub mod hoodoo;
 pub mod landforms;
 pub mod noise;

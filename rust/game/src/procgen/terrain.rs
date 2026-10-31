@@ -69,6 +69,14 @@ pub struct TerrainShape {
 
 impl TerrainShape {
     pub fn new(data: &TerrainData, radius: f32) -> Self {
+        Self::with_run_seed(data, radius, 0)
+    }
+
+    /// The same body, with its seeded landforms placed from the run seed
+    /// (CLAUDE.md section 4: feature placement is seeded per run; fixed
+    /// landmarks and the base hills stay the same every run). 0 = the
+    /// body's own layout.
+    pub fn with_run_seed(data: &TerrainData, radius: f32, run_seed: u64) -> Self {
         let mut rng = SeededRng::from_u64(data.seed);
         let craters = (0..data.crater_count)
             .map(|_| {
@@ -86,7 +94,12 @@ impl TerrainShape {
                 }
             })
             .collect();
-        let landforms = Landforms::new(&data.landforms, radius, data.seed);
+        let landform_seed = if run_seed == 0 {
+            data.seed
+        } else {
+            SeededRng::derive(run_seed, &format!("landforms/{}", data.seed)).next_u64()
+        };
+        let landforms = Landforms::new(&data.landforms, radius, landform_seed);
         Self {
             data: data.clone(),
             radius,
@@ -331,6 +344,10 @@ impl MeshData {
         let mut out: Vec<(MeshData, std::collections::HashMap<i32, i32>)> =
             (0..6 * tiles * tiles).map(|_| Default::default()).collect();
         for (k, tri) in self.indices.chunks_exact(3).enumerate() {
+            // Triangles cut away (for cave mouths) are collapsed to one vertex.
+            if tri[0] == tri[1] {
+                continue;
+            }
             let cell = k / 2;
             let face = cell / (n * n);
             let (j, i) = ((cell % (n * n)) / n, cell % n);
@@ -428,6 +445,27 @@ mod tests {
             mesh.triangle_count()
         );
         assert!(tiles.iter().all(|t| t.triangle_count() == 2 * 4 * 4));
+    }
+
+    #[test]
+    fn determinism_run_seed_moves_seeded_landforms_only() {
+        let mut d = data();
+        d.landforms.random.push(crate::procgen::landforms::RandomLandforms {
+            kind: crate::procgen::landforms::LandformKind::Bowl,
+            count: 3,
+            radius_m: (3.0, 4.0),
+            height_m: (1.0, 2.0),
+            length_m: (0.0, 0.0),
+            on: None,
+        });
+        let centres = |s: &TerrainShape| s.landforms().list.iter().map(|l| l.center).collect::<Vec<_>>();
+        let a = TerrainShape::with_run_seed(&d, 60.0, 77);
+        let b = TerrainShape::with_run_seed(&d, 60.0, 77);
+        let c = TerrainShape::with_run_seed(&d, 60.0, 78);
+        assert_eq!(centres(&a), centres(&b));
+        assert_ne!(centres(&a), centres(&c));
+        // Base hills and small craters are part of the fixed body.
+        assert_eq!(a.craters[0].center, c.craters[0].center);
     }
 
     #[test]

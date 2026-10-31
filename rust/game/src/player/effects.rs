@@ -8,7 +8,8 @@
 use godot::classes::base_material_3d::{BillboardMode, DistanceFadeMode, TextureParam, ShadingMode, Transparency};
 use godot::classes::cpu_particles_3d::{DrawOrder, EmissionShape, Parameter};
 use godot::classes::gradient_texture_2d::Fill;
-use godot::classes::{CpuParticles3D, Gradient, GradientTexture2D, Node3D, QuadMesh, StandardMaterial3D};
+use godot::classes::light_3d::Param as LightParam;
+use godot::classes::{CpuParticles3D, Gradient, GradientTexture2D, Node3D, OmniLight3D, QuadMesh, SpotLight3D, StandardMaterial3D};
 use godot::prelude::*;
 use serde::Deserialize;
 
@@ -19,6 +20,22 @@ pub struct EffectsData {
     pub dust_lighten: f32,
     pub footsteps: FootstepData,
     pub landing: LandingData,
+    /// Helmet lamp that comes on by itself in caves and shadowed craters.
+    #[serde(default)]
+    pub lamp: Option<LampData>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LampData {
+    pub range_m: f32,
+    pub angle_deg: f32,
+    pub energy: f32,
+    pub color: (f32, f32, f32),
+    /// Seconds to fade fully on or off.
+    pub fade_s: f32,
+    /// A dim fill around the helmet so walls beside you aren't black.
+    pub fill_range_m: f32,
+    pub fill_energy: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,6 +94,8 @@ pub struct EffectsInput {
     pub thrust: f32,
     pub thrust_dir: Vector3,
     pub dust_color: Color,
+    /// No sunlight reaches here (cave or shadowed crater).
+    pub dark: bool,
 }
 
 /// Distance walked since the last footstep puff; returns true when a step lands.
@@ -107,6 +126,9 @@ pub struct SuitEffects {
     was_on_floor: bool,
     /// Current camera dip in metres, recovering toward 0.
     dip: f32,
+    /// Helmet lamp beam and fill, and how far on it is (0..1).
+    lamp: Option<(Gd<SpotLight3D>, Gd<OmniLight3D>)>,
+    lamp_level: f32,
 }
 
 impl SuitEffects {
@@ -144,7 +166,46 @@ impl SuitEffects {
         landing.set_emission_sphere_radius(0.45);
         parent.add_child(&landing);
 
-        Self { data, exhaust, steps, next_step: 0, landing, walked: 0.0, was_on_floor: true, dip: 0.0 }
+        // The lamp hangs off the camera so it points where you look.
+        let lamp = data.lamp.as_ref().and_then(|l| {
+            let mut camera = parent.get_node_or_null("Head/Camera3D")?;
+            let mut beam = SpotLight3D::new_alloc();
+            beam.set_name("HelmetLamp");
+            beam.set_color(rgb(l.color));
+            beam.set_param(LightParam::RANGE, l.range_m);
+            beam.set_param(LightParam::SPOT_ANGLE, l.angle_deg);
+            beam.set_param(LightParam::ENERGY, 0.0);
+            beam.set_position(Vector3::new(0.15, 0.1, 0.0));
+            beam.set_visible(false);
+            camera.add_child(&beam);
+            let mut fill = OmniLight3D::new_alloc();
+            fill.set_name("HelmetFill");
+            fill.set_color(rgb(l.color));
+            fill.set_param(LightParam::RANGE, l.fill_range_m);
+            fill.set_param(LightParam::ENERGY, 0.0);
+            fill.set_visible(false);
+            camera.add_child(&fill);
+            Some((beam, fill))
+        });
+
+        Self { data, exhaust, steps, next_step: 0, landing, walked: 0.0, was_on_floor: true, dip: 0.0, lamp, lamp_level: 0.0 }
+    }
+
+    /// True while the helmet lamp is on (or fading on).
+    pub fn lamp_on(&self) -> bool {
+        self.lamp_level > 0.5
+    }
+
+    fn update_lamp(&mut self, dark: bool, dt: f32) {
+        let (Some(l), Some((beam, fill))) = (self.data.lamp.as_ref(), self.lamp.as_mut()) else { return };
+        let target = if dark { 1.0 } else { 0.0 };
+        let step = dt / l.fade_s.max(0.01);
+        self.lamp_level += (target - self.lamp_level).clamp(-step, step);
+        let on = self.lamp_level > 0.001;
+        beam.set_visible(on);
+        fill.set_visible(on);
+        beam.set_param(LightParam::ENERGY, l.energy * self.lamp_level);
+        fill.set_param(LightParam::ENERGY, l.fill_energy * self.lamp_level);
     }
 
     /// Camera offset (metres, along the player's down) from a landing dip.
@@ -154,6 +215,7 @@ impl SuitEffects {
 
     pub fn update(&mut self, i: &EffectsInput, dt: f32) {
         self.update_exhaust(i);
+        self.update_lamp(i.dark, dt);
         let feet = i.feet;
         if i.on_floor && !self.was_on_floor {
             self.land(i, feet);

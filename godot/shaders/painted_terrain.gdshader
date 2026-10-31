@@ -18,6 +18,9 @@ uniform vec3 shadow_tint : source_color = vec3(0.30, 0.36, 0.55);
 uniform vec3 rim_color : source_color = vec3(0.55, 0.65, 0.95);
 uniform float rim_strength = 0.35;
 uniform float shadow_floor = 0.10;
+// Share of sunlight kept in full shadow (the painterly "never pure black"
+// floor). Cave walls use 0 so the sun never leaks underground.
+uniform float sun_shadow_floor = 0.25;
 uniform sampler2D detail_noise : filter_linear_mipmap, repeat_enable;
 uniform sampler2D grain_noise : filter_linear_mipmap, repeat_enable;
 uniform float detail_scale = 0.045;
@@ -143,7 +146,7 @@ void light() {
 	// Warp ramp: cool, dim shadow side rising to full warm light.
 	float lit = smoothstep(0.12, 0.9, half_lambert);
 	vec3 ramp = mix(shadow_tint * shadow_floor, vec3(1.0), lit);
-	float shadow = (LIGHT_IS_DIRECTIONAL ? mix(0.25, 1.0, ATTENUATION) : ATTENUATION);
+	float shadow = (LIGHT_IS_DIRECTIONAL ? mix(sun_shadow_floor, 1.0, ATTENUATION) : ATTENUATION);
 	DIFFUSE_LIGHT += ramp * shadow * LIGHT_COLOR / PI;
 	// Rim light on edges facing the light's side.
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);

@@ -109,6 +109,8 @@ pub struct PlayerController {
     /// Jetpack thrust actually firing this tick, 0.0 to 1.0, and its direction.
     thrust: f32,
     thrust_dir: Vector3,
+    /// Test hook: walk toward this world point as if pushing the stick.
+    debug_walk: Option<Vector3>,
     in_zero_g: bool,
     head: Option<Gd<Node3D>>,
     pitch: f32,
@@ -153,6 +155,7 @@ impl ICharacterBody3D for PlayerController {
             effects: None,
             thrust: 0.0,
             thrust_dir: Vector3::ZERO,
+            debug_walk: None,
             in_zero_g: false,
             head: None,
             pitch: 0.0,
@@ -396,6 +399,12 @@ impl PlayerController {
         self.force_repair = on;
     }
 
+    /// True while the helmet lamp is on (caves, shadowed craters).
+    #[func]
+    pub fn is_lamp_on(&self) -> bool {
+        self.effects.as_ref().is_some_and(|e| e.lamp_on())
+    }
+
     #[func]
     pub fn is_repairing(&self) -> bool {
         self.repairing
@@ -404,6 +413,12 @@ impl PlayerController {
     #[func]
     pub fn debug_interact(&mut self) {
         self.interact();
+    }
+
+    /// Test hook: walk toward a world point (Vector3.ZERO stops).
+    #[func]
+    pub fn debug_walk_toward(&mut self, target: Vector3) {
+        self.debug_walk = (target != Vector3::ZERO).then_some(target);
     }
 
     /// Test hook: set suit oxygen in seconds (feature tests only).
@@ -613,9 +628,14 @@ impl PlayerController {
     fn update_velocity(&mut self, gravity: Vector3, up: Vector3, dt: f32, alive: bool) {
         let input = Input::singleton();
         let on_floor = self.base().is_on_floor();
-        let stick = if alive { input.get_vector("move_left", "move_right", "move_forward", "move_back") } else { Vector2::ZERO };
+        let mut stick = if alive { input.get_vector("move_left", "move_right", "move_forward", "move_back") } else { Vector2::ZERO };
         let crouching = alive && input.is_action_pressed("crouch");
         let basis = self.base().get_global_basis();
+        if let (Some(target), true) = (self.debug_walk, alive) {
+            let to = target - self.base().get_global_position();
+            let flat = (to - up * to.dot(up)).normalized_or_zero();
+            stick = Vector2::new(flat.dot(basis.col_a()), flat.dot(basis.col_c()));
+        }
         let mut velocity = self.base().get_velocity();
         self.thrust = 0.0;
         self.thrust_dir = Vector3::ZERO;
@@ -846,6 +866,14 @@ impl PlayerController {
                 da.total_cmp(&db)
             })
             .map_or(Color::from_rgb(0.6, 0.6, 0.6), |b| b.bind().dust_color());
+        let eye = self.head.as_ref().map_or(position, |h| h.get_global_position());
+        let dark = self
+            .base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .any(|b| b.bind().is_dark_at(eye));
         let (_, horizontal) = motion::split_vertical(self.base().get_velocity(), up);
         let input = EffectsInput {
             position,
@@ -859,6 +887,7 @@ impl PlayerController {
             thrust: self.thrust,
             thrust_dir: self.thrust_dir,
             dust_color,
+            dark,
         };
         if let Some(effects) = self.effects.as_mut() {
             effects.update(&input, dt);

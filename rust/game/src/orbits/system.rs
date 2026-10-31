@@ -431,6 +431,24 @@ impl SolarSystem {
         self.co_rotating = true;
     }
 
+    /// Test hook: stand the player at `local_point` (body space) on body
+    /// `body_id`, riding that body as if they had landed there.
+    #[func]
+    fn debug_place_player_on(&mut self, body_id: GString, local_point: Vector3) -> bool {
+        let (Some(data), Some(mut player)) = (self.data.clone(), self.player()) else {
+            return false;
+        };
+        let Some(i) = data.bodies.iter().position(|b| b.id == body_id.to_string()) else {
+            return false;
+        };
+        let body = self.bodies[i].clone();
+        player.set_global_position(body.get_global_transform() * local_point);
+        player.set_velocity(Vector3::ZERO);
+        self.frame = Some(i);
+        self.co_rotating = true;
+        true
+    }
+
     /// The flattest dry spot within `search_deg` of `dir` (a world direction
     /// from the body's centre), so the run never starts on a cliff or in a lake.
     fn gentle_spot(&self, body: &Gd<CelestialBody>, dir: Vector3, search_deg: f32) -> Vector3 {
