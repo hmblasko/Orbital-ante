@@ -202,7 +202,7 @@ impl LandmarkSet {
 
 const MODEL_SHADER: &str = "res://shaders/painted_model.gdshader";
 
-fn instantiate(path: &str, name: &str) -> Option<Gd<Node3D>> {
+pub(crate) fn instantiate(path: &str, name: &str) -> Option<Gd<Node3D>> {
     let scene = try_load::<PackedScene>(path).ok()?;
     let mut node = scene.instantiate()?.try_cast::<Node3D>().ok()?;
     node.set_name(&format!("{name}Model"));

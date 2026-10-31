@@ -21,6 +21,8 @@ use super::motion;
 use super::suit::{SuitData, SuitInput, SuitState};
 use super::supply::SUPPLY_GROUP;
 use super::tether::{RopeLook, TETHER_GROUP, TetherLine};
+use crate::flight::Ship;
+use crate::flight::ship::{LAYER_CABIN, LAYER_HULL, LAYER_PLAYER, LAYER_WORLD, Zone};
 use crate::items::oxygen_tank::TANK_GROUP;
 use crate::orbits::CelestialBody;
 use crate::orbits::body::GRAVITY_GROUP;
@@ -104,8 +106,17 @@ pub struct PlayerController {
     eye_height: f32,
     mouse_delta: Vector2,
     spawned: bool,
+    /// The ship the player is in (cabin or lift), if any.
+    aboard: Option<Gd<Ship>>,
+    buckled: bool,
+    /// Buckle-in animation, 0 to 1, from where you stood (ship space).
+    buckle_t: f32,
+    buckle_from: Transform3D,
     base: Base<CharacterBody3D>,
 }
+
+/// Seconds to sit down and buckle in.
+const BUCKLE_S: f32 = 0.55;
 
 #[godot_api]
 impl ICharacterBody3D for PlayerController {
@@ -130,12 +141,24 @@ impl ICharacterBody3D for PlayerController {
             pitch: 0.0,
             mouse_delta: Vector2::ZERO,
             spawned: false,
+            aboard: None,
+            buckled: false,
+            buckle_t: 0.0,
+            buckle_from: Transform3D::IDENTITY,
             base,
         }
     }
 
     fn ready(&mut self) {
         self.base_mut().add_to_group(PLAYER_GROUP);
+        {
+            let mut b = self.base_mut();
+            b.set_collision_layer(LAYER_PLAYER);
+            b.set_collision_mask(LAYER_WORLD | LAYER_HULL);
+            // The solar system and ships carry the player; never follow a
+            // floor body's velocity on top of that.
+            b.set_platform_floor_layers(0);
+        }
         self.head = self.base().try_get_node_as::<Node3D>(HEAD_NODE);
         if self.head.is_none() {
             godot_error!("PlayerController: missing child node '{HEAD_NODE}'");
@@ -194,6 +217,13 @@ impl ICharacterBody3D for PlayerController {
         let alive = self.suit.dead.is_none();
         if alive {
             self.handle_actions();
+        }
+        if self.buckled {
+            self.sit(dt);
+            self.update_head(dt);
+            self.update_suit(dt);
+            self.update_thruster_light();
+            return;
         }
         self.update_orientation(up, dt, alive);
         self.update_velocity(gravity, up, dt, alive);
@@ -272,6 +302,19 @@ impl PlayerController {
         if self.suit.dead.is_some() {
             return GString::new();
         }
+        if self.buckled {
+            return "unbuckle".into();
+        }
+        if let Some(ship) = &self.aboard {
+            let p = self.base().get_global_position();
+            let s = ship.bind();
+            if s.can_buckle(p) {
+                return "buckle".into();
+            }
+            if s.can_work_hatch(p) {
+                return if s.get_hatch_open() > 0.5 { "close_hatch".into() } else { "open_hatch".into() };
+            }
+        }
         if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
             return "take_tank".into();
         }
@@ -286,13 +329,31 @@ impl PlayerController {
 
     #[func]
     pub fn is_at_supply(&self) -> bool {
-        self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some()
+        self.aboard.as_ref().is_some_and(|s| s.bind().zone() == Zone::Cabin)
+            || self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some()
     }
 
     /// Empty while alive.
     #[func]
     pub fn get_death_key(&self) -> GString {
         self.suit.dead.map_or(GString::new(), |c| GString::from(c.text_key()))
+    }
+
+    #[func]
+    pub fn is_buckled(&self) -> bool {
+        self.buckled
+    }
+
+    #[func]
+    pub fn is_aboard(&self) -> bool {
+        self.aboard.is_some()
+    }
+
+    /// Test hook: press the interact button's action (buckle, unbuckle,
+    /// hatch, tank, as if X were pressed).
+    #[func]
+    pub fn debug_interact(&mut self) {
+        self.interact();
     }
 
     /// Test hook: set suit oxygen in seconds (feature tests only).
@@ -310,7 +371,102 @@ impl PlayerController {
 }
 
 impl PlayerController {
+    pub fn aboard_ship(&self) -> Option<Gd<Ship>> {
+        self.aboard.clone()
+    }
+
+    /// Distance from the body's centre down to the feet.
+    pub fn feet_below(&self) -> f32 {
+        self.data.capsule_height * 0.5
+    }
+
+    /// Called by a ship when the player boards it or leaves it. Inside, the
+    /// player walks on the ship's static cabin copy instead of its hull.
+    pub fn set_aboard(&mut self, ship: Option<Gd<Ship>>) {
+        let mask = if ship.is_some() { LAYER_WORLD | LAYER_CABIN } else { LAYER_WORLD | LAYER_HULL };
+        self.base_mut().set_collision_mask(mask);
+        self.aboard = ship;
+    }
+
+    fn interact(&mut self) {
+        let p = self.base().get_global_position();
+        if self.buckled {
+            self.unbuckle();
+            return;
+        }
+        if let Some(mut ship) = self.aboard.clone() {
+            let (buckle, hatch) = {
+                let s = ship.bind();
+                (s.can_buckle(p), s.can_work_hatch(p))
+            };
+            if buckle {
+                let t = ship.get_global_transform().affine_inverse() * self.base().get_global_transform();
+                self.buckle_from = t;
+                self.buckle_t = 0.0;
+                self.buckled = true;
+                self.tether_anchor = None;
+                self.set_shape_enabled(false);
+                ship.bind_mut().set_pilot(true);
+                return;
+            }
+            if hatch {
+                ship.bind_mut().toggle_hatch();
+                return;
+            }
+        }
+        self.try_pick_up_tank();
+    }
+
+    fn unbuckle(&mut self) {
+        let Some(mut ship) = self.aboard.clone() else {
+            self.buckled = false;
+            return;
+        };
+        ship.bind_mut().set_pilot(false);
+        let stand = ship.bind().stand_transform();
+        self.buckled = false;
+        self.set_shape_enabled(true);
+        if let Some(t) = stand {
+            self.base_mut().set_global_transform(t);
+        }
+        self.base_mut().set_velocity(Vector3::ZERO);
+    }
+
+    fn set_shape_enabled(&mut self, on: bool) {
+        if let Some(mut shape) = self.base().try_get_node_as::<CollisionShape3D>(SHAPE_NODE) {
+            shape.set_disabled(!on);
+        }
+    }
+
+    /// Buckled in: ease into the seat, then stay locked to it. Look input
+    /// steers the ship instead of the head.
+    fn sit(&mut self, dt: f32) {
+        let Some(mut ship) = self.aboard.clone() else {
+            self.buckled = false;
+            self.set_shape_enabled(true);
+            return;
+        };
+        let ship_t = ship.get_global_transform();
+        let Some(seat) = ship.bind().seat_transform() else { return };
+        self.buckle_t = (self.buckle_t + dt / BUCKLE_S).min(1.0);
+        let e = self.buckle_t * self.buckle_t * (3.0 - 2.0 * self.buckle_t);
+        let seat_local = ship_t.affine_inverse() * seat;
+        let local = self.buckle_from.interpolate_with(&seat_local, e);
+        self.base_mut().set_global_transform(ship_t * local);
+        self.base_mut().set_velocity(Vector3::ZERO);
+        let blend = (6.0 * dt).min(1.0);
+        self.pitch += (0.0 - self.pitch) * blend;
+        let delta = std::mem::take(&mut self.mouse_delta);
+        ship.bind_mut().add_mouse(delta);
+    }
+
     fn total_gravity(&self, position: Vector3) -> Vector3 {
+        if let Some(ship) = &self.aboard {
+            let v = self.base().get_velocity();
+            if let Some(g) = ship.bind().gravity_for(position, v, self.feet_below()) {
+                return g;
+            }
+        }
         let tree = self.base().get_tree();
         tree.get_nodes_in_group(GRAVITY_GROUP)
             .iter_shared()
@@ -448,7 +604,7 @@ impl PlayerController {
     fn handle_actions(&mut self) {
         let input = Input::singleton();
         if input.is_action_just_pressed("interact") {
-            self.try_pick_up_tank();
+            self.interact();
         }
         if input.is_action_just_pressed("use_oxygen_tank") {
             self.suit.use_tank(&self.suit_data);
@@ -505,7 +661,10 @@ impl PlayerController {
             .iter_shared()
             .filter_map(|n| n.try_cast::<CelestialBody>().ok())
             .any(|b| b.bind().breathable_at(position));
-        let at_supply = self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some();
+        // The cabin has air, and refills the suit from the ship's supply.
+        let in_cabin = self.aboard.as_ref().is_some_and(|s| s.bind().zone() == Zone::Cabin);
+        let breathable = breathable || in_cabin;
+        let at_supply = in_cabin || self.nearest_in_group(SUPPLY_GROUP, self.interact.supply_radius_m).is_some();
         let was_alive = self.suit.dead.is_none();
         let input = SuitInput {
             in_vacuum: !breathable,

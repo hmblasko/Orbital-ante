@@ -15,7 +15,9 @@
 //! near the surface, so standing on a moving, turning planet feels still.
 //! Changing frame converts the velocity, so momentum is conserved.
 
-use godot::classes::{CharacterBody3D, DirectionalLight3D, Engine};
+use std::collections::HashMap;
+
+use godot::classes::{CharacterBody3D, DirectionalLight3D, Engine, RigidBody3D};
 use godot::prelude::*;
 use serde::Deserialize;
 
@@ -27,6 +29,10 @@ use crate::player::controller::PLAYER_GROUP;
 /// Things that are free in the world (not riding a body) and must move when
 /// the origin re-centres: dropped items, debris, ships in flight.
 pub const FLOATING_GROUP: &str = "floating_origin";
+/// Things that ride the bodies like the player does (ships): carried along
+/// with the body whose gravity dominates, turned with its spin near the
+/// surface, velocity kept relative to it.
+pub const RIDER_GROUP: &str = "rides_bodies";
 /// The solar system joins this group so the map can find it.
 pub const SYSTEM_GROUP: &str = "solar_system";
 
@@ -83,6 +89,32 @@ pub struct SystemBody {
 
 fn default_map_color() -> (f32, f32, f32) {
     (0.8, 0.8, 0.8)
+}
+
+/// Which body a rider moves with, and whether it turns with its spin.
+#[derive(Debug, Clone, Copy, Default)]
+struct Ride {
+    frame: Option<usize>,
+    co_rotating: bool,
+}
+
+/// A rider's position and velocity being carried through one tick, and the
+/// spin turn applied to it (if any).
+struct Carried {
+    position: Vector3,
+    velocity: Vector3,
+    turn: Option<Basis>,
+}
+
+/// Everything about this tick's motion that carrying needs.
+struct Step<'a> {
+    data: &'a SystemData,
+    eph: &'a Ephemeris,
+    old: &'a [DVec3],
+    new: &'a [DVec3],
+    t0: f64,
+    t1: f64,
+    delta: f64,
 }
 
 /// One body as the live map draws it, in scene coordinates (after the
@@ -192,6 +224,8 @@ pub struct SolarSystem {
     /// Index of the body the player is riding, and whether they turn with it.
     frame: Option<usize>,
     co_rotating: bool,
+    /// Frame state of every other rider, by instance id.
+    riders: HashMap<i64, Ride>,
     sun_light: Option<Gd<DirectionalLight3D>>,
     base: Base<Node3D>,
 }
@@ -208,6 +242,7 @@ impl INode3D for SolarSystem {
             origin: DVec3::ZERO,
             frame: None,
             co_rotating: false,
+            riders: HashMap::new(),
             sun_light: None,
             base,
         }
@@ -279,50 +314,70 @@ impl INode3D for SolarSystem {
         let old = eph.positions(&data, t0);
         let new = eph.positions(&data, t1);
         let player = self.player();
+        let step = Step { data: &data, eph: &eph, old: &old, new: &new, t0, t1, delta };
+
+        // Ships and other riders.
+        let tree = self.base().get_tree();
+        let mut alive = Vec::new();
+        for node in tree.get_nodes_in_group(RIDER_GROUP).iter_shared() {
+            let Ok(mut body) = node.try_cast::<RigidBody3D>() else { continue };
+            let id = body.instance_id().to_i64();
+            alive.push(id);
+            let p = body.get_global_position();
+            let ride = match self.riders.get(&id) {
+                Some(r) => *r,
+                // New riders start out moving with whatever they're near.
+                None => self.fresh_ride(&step, p),
+            };
+            let mut state = Carried { position: p, velocity: body.get_linear_velocity(), turn: None };
+            let ride = self.carry(&step, ride, &mut state);
+            self.riders.insert(id, ride);
+            let mut t = body.get_global_transform();
+            if let Some(turn) = state.turn {
+                t.basis = (turn * t.basis).orthonormalized();
+                let w = body.get_angular_velocity();
+                body.set_angular_velocity(turn * w);
+            }
+            t.origin = state.position;
+            body.set_global_transform(t);
+            body.set_linear_velocity(state.velocity);
+        }
+        self.riders.retain(|id, _| alive.contains(id));
 
         if let Some(mut player) = player.clone() {
-            let mut p = player.get_global_position();
-            let mut v = player.get_velocity();
-            let frame = self.dominant_body(p);
-            let frame_velocity = |i: Option<usize>| i.map_or(Vector3::ZERO, |i| ((new[i] - old[i]).scale(1.0 / delta)).to_f32());
-            if frame != self.frame {
-                // Keep absolute velocity: add the old frame's, remove the new one's.
-                v += frame_velocity(self.frame) - frame_velocity(frame);
-                if self.co_rotating {
-                    v += self.spin_velocity(&data, &eph, self.frame, p, t0);
-                    self.co_rotating = false;
+            let aboard = player
+                .clone()
+                .try_cast::<crate::player::PlayerController>()
+                .ok()
+                .and_then(|pc| pc.bind().aboard_ship());
+            if let Some(ship) = aboard {
+                // The ship carries the player; keep the player's frame in
+                // step with the ship's so leaving it is seamless.
+                if let Some(r) = self.riders.get(&ship.instance_id().to_i64()) {
+                    self.frame = r.frame;
+                    self.co_rotating = r.co_rotating;
                 }
-                self.frame = frame;
-            }
-            if let Some(i) = frame {
-                let center = (old[i] - self.origin).to_f32();
-                let radius = self.bodies[i].bind().radius();
-                let near = (p - center).length() < radius * (1.0 + data.co_rotate_altitude);
-                if near != self.co_rotating {
-                    // Entering or leaving the spinning air: swap the spin speed in or out.
-                    let spin = self.spin_velocity(&data, &eph, Some(i), p, t0);
-                    v += if near { -spin } else { spin };
-                    self.co_rotating = near;
-                }
-                p += (new[i] - old[i]).to_f32();
-                if self.co_rotating {
-                    let turn = eph.basis(&data, i, t1) * eph.basis(&data, i, t0).inverse();
-                    let new_center = (new[i] - self.origin).to_f32();
-                    p = new_center + turn * (p - new_center);
-                    v = turn * v;
+            } else {
+                let ride = Ride { frame: self.frame, co_rotating: self.co_rotating };
+                let mut state = Carried { position: player.get_global_position(), velocity: player.get_velocity(), turn: None };
+                let ride = self.carry(&step, ride, &mut state);
+                self.frame = ride.frame;
+                self.co_rotating = ride.co_rotating;
+                if let Some(turn) = state.turn {
                     let b = player.get_global_basis();
                     player.set_global_basis(turn * b);
                 }
+                player.set_global_position(state.position);
+                player.set_velocity(state.velocity);
             }
             // Floating origin: keep the player near (0, 0, 0).
+            let p = player.get_global_position();
             if (p.length() as f64) > data.recenter_m {
                 let shift = p;
                 self.origin = self.origin + DVec3::from_f32(shift);
-                p -= shift;
+                player.set_global_position(p - shift);
                 self.shift_floating(shift);
             }
-            player.set_global_position(p);
-            player.set_velocity(v);
         }
 
         for (i, body) in self.bodies.iter_mut().enumerate() {
@@ -473,6 +528,58 @@ impl SolarSystem {
         self.clock = seconds;
     }
 
+    /// Frame state for a rider seen for the first time: it moves with the
+    /// body it's near, so its velocity is already relative to it.
+    fn fresh_ride(&self, step: &Step, p: Vector3) -> Ride {
+        let frame = self.dominant_body(p);
+        let co_rotating = frame.is_some_and(|i| {
+            let centre = (step.old[i] - self.origin).to_f32();
+            (p - centre).length() < self.bodies[i].bind().radius() * (1.0 + step.data.co_rotate_altitude)
+        });
+        Ride { frame, co_rotating }
+    }
+
+    /// Moves one rider along with its frame body for this tick, converting
+    /// its velocity when the frame changes (momentum is kept).
+    fn carry(&self, step: &Step, mut ride: Ride, state: &mut Carried) -> Ride {
+        let (data, eph, old, new) = (step.data, step.eph, step.old, step.new);
+        let mut p = state.position;
+        let mut v = state.velocity;
+        let frame = self.dominant_body(p);
+        let frame_velocity = |i: Option<usize>| i.map_or(Vector3::ZERO, |i| ((new[i] - old[i]).scale(1.0 / step.delta)).to_f32());
+        if frame != ride.frame {
+            // Keep absolute velocity: add the old frame's, remove the new one's.
+            v += frame_velocity(ride.frame) - frame_velocity(frame);
+            if ride.co_rotating {
+                v += self.spin_velocity(data, eph, ride.frame, p, step.t0);
+                ride.co_rotating = false;
+            }
+            ride.frame = frame;
+        }
+        if let Some(i) = frame {
+            let center = (old[i] - self.origin).to_f32();
+            let radius = self.bodies[i].bind().radius();
+            let near = (p - center).length() < radius * (1.0 + data.co_rotate_altitude);
+            if near != ride.co_rotating {
+                // Entering or leaving the spinning air: swap the spin speed in or out.
+                let spin = self.spin_velocity(data, eph, Some(i), p, step.t0);
+                v += if near { -spin } else { spin };
+                ride.co_rotating = near;
+            }
+            p += (new[i] - old[i]).to_f32();
+            if ride.co_rotating {
+                let turn = eph.basis(data, i, step.t1) * eph.basis(data, i, step.t0).inverse();
+                let new_center = (new[i] - self.origin).to_f32();
+                p = new_center + turn * (p - new_center);
+                v = turn * v;
+                state.turn = Some(turn);
+            }
+        }
+        state.position = p;
+        state.velocity = v;
+        ride
+    }
+
     fn player(&self) -> Option<Gd<CharacterBody3D>> {
         let tree = self.base().get_tree();
         tree.get_first_node_in_group(PLAYER_GROUP).and_then(|n| n.try_cast::<CharacterBody3D>().ok())
@@ -507,6 +614,9 @@ impl SolarSystem {
             if let Ok(mut n) = node.try_cast::<Node3D>() {
                 let p = n.get_global_position();
                 n.set_global_position(p - shift);
+                if let Ok(mut ship) = n.try_cast::<crate::flight::Ship>() {
+                    ship.bind_mut().origin_shifted(shift);
+                }
             }
         }
     }

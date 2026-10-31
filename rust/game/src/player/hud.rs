@@ -410,6 +410,10 @@ impl SuitHud {
             "take_tank" => ("PROMPT_TAKE_TANK", "X", "E"),
             "tether" => ("PROMPT_TETHER", "\u{25BC}", "T"),
             "untether" => ("PROMPT_UNTETHER", "\u{25BC}", "T"),
+            "buckle" => ("PROMPT_BUCKLE", "X", "E"),
+            "unbuckle" => ("PROMPT_UNBUCKLE", "X", "E"),
+            "open_hatch" => ("PROMPT_OPEN_HATCH", "X", "E"),
+            "close_hatch" => ("PROMPT_CLOSE_HATCH", "X", "E"),
             _ => return,
         };
         let glyph = if self.using_keyboard { keyboard } else { pad };
