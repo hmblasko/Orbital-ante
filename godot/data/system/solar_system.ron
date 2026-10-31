@@ -1,0 +1,70 @@
+// The solar system roster (CLAUDE.md section 4). Fixed every run: the sun,
+// the bodies, their orbits and spins. Seeded: where each body starts along
+// its orbit and how far round its spin is (orbits.rs `start_phases`).
+//
+// Scale: body sizes follow section 4 (rocky planets 400-900 m, moons
+// 150-400 m, gas giants 1.5-2.5 km cloud tops). Bodies that size need about
+// 70 km across to orbit without ever touching (checked by a unit test over
+// 3 hours of run time), so this is wider than section 4's 25 km; Matthew is
+// deciding which way to go. Periods are minutes, not years, so the sky
+// visibly moves during an ante (pillar 1).
+// Parents must be listed before their moons.
+(
+    recenter_m: 1500.0,
+    detail_radii: 3.0,
+    detail_margin_m: 600.0,
+    co_rotate_altitude: 0.25,
+    sun_light_energy: 2.4,
+    sun_light_color: (1.0, 0.95, 0.86),
+    start_body: "earth",
+    // Start on Earth's day side with the sun 50 degrees from overhead.
+    start_dir: (0.0, 0.0, 0.0),
+    start_sun_angle_deg: 50.0,
+    start_search_deg: 8.0,
+    bodies: [
+        (id: "sun", data: "res://data/bodies/system/sun.ron",
+         spin: (period_s: 1500.0)),
+        (id: "mercury", data: "res://data/bodies/system/mercury.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 2400.0, period_s: 900.0, inclination_deg: 3.0, node_deg: 48.0)),
+         // Slow spin: the terminator line crawls at about 1 m/s, so you can outrun it.
+         spin: (period_s: 2400.0, axial_tilt_deg: 0.0)),
+        (id: "venus", data: "res://data/bodies/system/venus.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 3900.0, period_s: 1500.0, inclination_deg: 1.5, node_deg: 76.0)),
+         // Spins backwards, like the real Venus.
+         spin: (period_s: -3000.0, axial_tilt_deg: 3.0)),
+        (id: "earth", data: "res://data/bodies/system/earth.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 6700.0, period_s: 2400.0)),
+         spin: (period_s: 720.0, axial_tilt_deg: 23.4)),
+        (id: "moon", data: "res://data/bodies/system/moon.ron", parent: Some("earth"),
+         orbit: Some((radius_m: 1500.0, period_s: 420.0, inclination_deg: 5.0, node_deg: 30.0)),
+         spin: (period_s: 420.0, axial_tilt_deg: 1.5)),
+        (id: "mars", data: "res://data/bodies/system/mars.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 9900.0, period_s: 3600.0, inclination_deg: 1.8, node_deg: 50.0)),
+         spin: (period_s: 740.0, axial_tilt_deg: 25.0)),
+        (id: "phobos", data: "res://data/bodies/system/phobos.ron", parent: Some("mars"),
+         orbit: Some((radius_m: 950.0, period_s: 240.0, inclination_deg: 1.0)),
+         spin: (period_s: 240.0)),
+        (id: "jupiter", data: "res://data/bodies/system/jupiter.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 16400.0, period_s: 6000.0, inclination_deg: 1.3, node_deg: 100.0)),
+         spin: (period_s: 600.0, axial_tilt_deg: 3.0)),
+        (id: "io", data: "res://data/bodies/system/io.ron", parent: Some("jupiter"),
+         orbit: Some((radius_m: 2750.0, period_s: 360.0, inclination_deg: 2.0)),
+         spin: (period_s: 360.0)),
+        (id: "europa", data: "res://data/bodies/system/europa.ron", parent: Some("jupiter"),
+         orbit: Some((radius_m: 3700.0, period_s: 720.0, inclination_deg: 2.5, node_deg: 120.0)),
+         spin: (period_s: 720.0)),
+        (id: "saturn", data: "res://data/bodies/system/saturn.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 25600.0, period_s: 9000.0, inclination_deg: 2.5, node_deg: 113.0)),
+         spin: (period_s: 640.0, axial_tilt_deg: 26.7)),
+        (id: "titan", data: "res://data/bodies/system/titan.ron", parent: Some("saturn"),
+         orbit: Some((radius_m: 4400.0, period_s: 900.0, inclination_deg: 0.5)),
+         spin: (period_s: 900.0)),
+        (id: "uranus", data: "res://data/bodies/system/uranus.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 32500.0, period_s: 12000.0, inclination_deg: 0.8, node_deg: 74.0)),
+         // On its side, so its days and nights come in odd, long stretches.
+         spin: (period_s: -700.0, axial_tilt_deg: 97.8)),
+        (id: "neptune", data: "res://data/bodies/system/neptune.ron", parent: Some("sun"),
+         orbit: Some((radius_m: 36000.0, period_s: 15000.0, inclination_deg: 1.8, node_deg: 131.0)),
+         spin: (period_s: 690.0, axial_tilt_deg: 28.3)),
+    ],
+)

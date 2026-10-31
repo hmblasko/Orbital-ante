@@ -134,6 +134,11 @@ impl INode3D for LandmarkSet {
 
 #[godot_api]
 impl LandmarkSet {
+    /// Set the data file before the set enters the tree (for spawning from code).
+    pub fn configure(&mut self, data_path: &str) {
+        self.data_path = GString::from(data_path);
+    }
+
     /// Stand each surface landmark on the terrain under its direction.
     #[func]
     fn place_on_surface(&mut self) {
@@ -152,36 +157,36 @@ impl LandmarkSet {
         let Some(data) = self.data.clone() else {
             return;
         };
-        let center = body.get_global_position();
+        // Placed in the body's own frame, so they turn and travel with it.
         for l in &data.surface {
             let Some(mut model) = instantiate(&l.model, &l.name) else {
                 continue;
             };
-            if l.grime > 0.0 {
-                let dust = body.bind().dust_color();
-                set_on_painted(&model, "grime", &l.grime.to_variant());
-                set_on_painted(&model, "dust_color", &dust.to_variant());
-                set_on_painted(&model, "planet_center", &center.to_variant());
-            }
             let dir = Vector3::new(l.at.0, l.at.1, l.at.2).normalized();
-            let ground = body.bind().surface_radius_toward(center + dir);
+            let ground = body.bind().surface_radius_local(dir);
             let yaw = Basis::from_axis_angle(Vector3::UP, l.yaw_deg.to_radians());
             let tilt = Basis::from_axis_angle(Vector3::RIGHT, l.tilt_deg.to_radians());
             let basis = (basis_with_up(dir) * yaw * tilt).scaled(Vector3::splat(l.scale));
-            let transform = Transform3D::new(basis, center + dir * (ground - l.sink_m));
+            let transform = Transform3D::new(basis, dir * (ground - l.sink_m));
             let mut holder = if l.solid {
                 let mut solid = StaticBody3D::new_alloc();
                 solid.set_name(&l.name);
                 self.base_mut().add_child(&solid);
-                solid.set_global_transform(transform);
+                solid.set_transform(transform);
                 solid.add_child(&model);
                 add_hulls(&mut solid, &model);
                 solid.upcast::<Node3D>()
             } else {
                 self.base_mut().add_child(&model);
-                model.set_global_transform(transform);
+                model.set_transform(transform);
                 model
             };
+            if l.grime > 0.0 {
+                let dust = body.bind().dust_color();
+                set_on_painted(&holder, "grime", &l.grime.to_variant());
+                set_on_painted(&holder, "dust_color", &dust.to_variant());
+                set_dust_up(&holder, body.get_global_basis() * dir);
+            }
             if let Some(height) = l.supply_height {
                 let mut supply = SupplyPoint::new_alloc();
                 supply.set_name("SupplyPoint");
@@ -231,6 +236,21 @@ fn repaint(model: &Gd<Node3D>) {
 }
 
 /// Set a parameter on every painted material of a model.
+/// Tell each painted part which way is "up" for settled dust, in the part's
+/// own space (so it stays right however the body turns).
+fn set_dust_up(model: &Gd<Node3D>, world_up: Vector3) {
+    let parts = model.find_children_ex("*").type_("MeshInstance3D").recursive(true).owned(false).done();
+    for part in parts.iter_shared() {
+        let Ok(part) = part.try_cast::<MeshInstance3D>() else { continue };
+        let local_up = (part.get_global_basis().inverse() * world_up).normalized();
+        for i in 0..part.get_surface_override_material_count() {
+            if let Some(mut m) = part.get_surface_override_material(i).and_then(|m| m.try_cast::<ShaderMaterial>().ok()) {
+                m.set_shader_parameter("dust_up", &local_up.to_variant());
+            }
+        }
+    }
+}
+
 fn set_on_painted(model: &Gd<Node3D>, name: &str, value: &Variant) {
     let parts = model.find_children_ex("*").type_("MeshInstance3D").recursive(true).owned(false).done();
     for part in parts.iter_shared() {

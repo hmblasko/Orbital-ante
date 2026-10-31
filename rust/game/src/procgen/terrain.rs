@@ -14,7 +14,7 @@ use super::landforms::{LandHints, LandformData, Landforms};
 use super::noise;
 use crate::seed::SeededRng;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct TerrainData {
     /// Fixed per body (the body roster is fixed every run, section 4).
     pub seed: u64,

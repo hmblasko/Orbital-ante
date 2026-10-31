@@ -19,14 +19,19 @@ uniform float saturation = 1.12;
 // Dust settled on upward faces (wrecks), in the planet's own sand colour.
 uniform float grime = 0.0;
 uniform vec3 dust_color : source_color = vec3(0.78, 0.56, 0.38);
-uniform vec3 planet_center = vec3(0.0);
+// The way up from the planet, in this part's own space (set per part).
+uniform vec3 dust_up = vec3(0.0, 1.0, 0.0);
 
 varying vec3 world_pos;
 varying vec3 world_normal;
+varying vec3 world_up;
+varying vec3 local_pos;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	world_up = normalize((MODEL_MATRIX * vec4(dust_up, 0.0)).xyz);
+	local_pos = VERTEX;
 }
 
 void fragment() {
@@ -38,8 +43,8 @@ void fragment() {
 	float grey = dot(c, vec3(0.299, 0.587, 0.114));
 	c = clamp(mix(vec3(grey), c, saturation), 0.0, 1.0);
 	if (grime > 0.0) {
-		float facing_up = dot(world_normal, normalize(world_pos - planet_center));
-		float speckle = fract(sin(dot(floor(world_pos * 9.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+		float facing_up = dot(world_normal, world_up);
+		float speckle = fract(sin(dot(floor(local_pos * 9.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
 		c = mix(c, dust_color, grime * smoothstep(0.1, 0.8, facing_up) * (0.75 + 0.25 * speckle));
 		c *= 1.0 - grime * 0.25;
 	}

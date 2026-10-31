@@ -1,4 +1,11 @@
 //! A celestial body: painted terrain surface, scattered rocks and point gravity.
+//! Gas giants add a banded cloud deck over a deep inner surface, stars are a
+//! glowing sphere, and air shows as a soft glow shell.
+//!
+//! Far-away bodies can start as a cheap preview and build full detail (fine
+//! meshes, collision, rocks, hoodoos) on a worker thread when asked, so a
+//! whole solar system loads quickly and never stalls play (section 15:
+//! "no loading during play").
 //!
 //! The surface comes from `procgen::terrain` (hills, ridges and craters) and
 //! is drawn with the TF2-style painted shader. Phase 5 replaces it with
@@ -12,6 +19,8 @@ use godot::classes::{
 };
 use godot::prelude::*;
 use serde::Deserialize;
+use std::sync::Arc;
+use std::thread::JoinHandle;
 
 use super::gravity::{self, GravitySettings};
 use crate::procgen::hoodoo::hoodoo_mesh;
@@ -27,6 +36,10 @@ const TERRAIN_SHADER: &str = "res://shaders/painted_terrain.gdshader";
 const PROP_SHADER: &str = "res://shaders/painted_prop.gdshader";
 const WATER_SHADER: &str = "res://shaders/painted_water.gdshader";
 const ICE_SHADER: &str = "res://shaders/painted_ice.gdshader";
+const CLOUD_SHADER: &str = "res://shaders/gas_giant.gdshader";
+const STAR_SHADER: &str = "res://shaders/star.gdshader";
+const AIR_SHADER: &str = "res://shaders/air_glow.gdshader";
+const RING_SHADER: &str = "res://shaders/planet_ring.gdshader";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BodyData {
@@ -37,8 +50,12 @@ pub struct BodyData {
     /// Breathable air near the surface. Missing means vacuum (the suit uses oxygen).
     #[serde(default)]
     pub atmosphere: Option<AtmosphereData>,
+    /// Stars have no terrain (leave terrain, look and rocks out).
+    #[serde(default)]
     pub terrain: TerrainData,
+    #[serde(default)]
     pub look: SurfaceLook,
+    #[serde(default)]
     pub rocks: RockData,
     /// Colours for landform painting and water (defaults suit a dry grey moon).
     #[serde(default)]
@@ -53,6 +70,67 @@ pub struct BodyData {
     /// Optional detail levels for the drawn surface (collision is unaffected).
     #[serde(default)]
     pub lod: Option<SurfaceLod>,
+    /// Cells per cube-face edge of the cheap preview shown before full detail.
+    #[serde(default = "default_preview_subdivisions")]
+    pub preview_subdivisions: u32,
+    /// A gas giant's cloud deck, high above its inner surface.
+    #[serde(default)]
+    pub clouds: Option<CloudLook>,
+    /// A star: a glowing sphere with no surface to stand on.
+    #[serde(default)]
+    pub star: Option<StarLook>,
+    /// A soft glow of air around the body seen from space (section 4:
+    /// "orange haze on Mars, light blue on Earth; none on moons").
+    #[serde(default)]
+    pub air_glow: Option<AirGlow>,
+}
+
+fn default_preview_subdivisions() -> u32 {
+    48
+}
+
+/// Banded clouds of a gas giant, painted from four colours.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CloudLook {
+    /// Cloud-top radius in metres (the inner surface uses `radius`).
+    pub radius_m: f32,
+    pub band_a: (f32, f32, f32),
+    pub band_b: (f32, f32, f32),
+    pub band_c: (f32, f32, f32),
+    pub band_d: (f32, f32, f32),
+    /// Bands from pole to pole.
+    pub bands: f32,
+    /// How much the bands swirl and wobble (0 = straight stripes).
+    pub turbulence: f32,
+    /// A big storm oval (like Jupiter's Great Red Spot): latitude in
+    /// degrees, size as a fraction of the radius; 0 size = none.
+    #[serde(default)]
+    pub storm_latitude_deg: f32,
+    #[serde(default)]
+    pub storm_size: f32,
+    #[serde(default)]
+    pub storm_color: (f32, f32, f32),
+    /// Saturn-style rings: inner and outer radius in metres; (0, 0) = none.
+    #[serde(default)]
+    pub ring_m: (f32, f32),
+    #[serde(default)]
+    pub ring_color: (f32, f32, f32),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StarLook {
+    pub core: (f32, f32, f32),
+    pub edge: (f32, f32, f32),
+    /// Emission strength (drives the bloom).
+    pub energy: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AirGlow {
+    pub color: (f32, f32, f32),
+    /// Shell height above the surface (or cloud tops), in metres.
+    pub height_m: f32,
+    pub strength: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -142,7 +220,7 @@ pub struct AtmosphereData {
 
 /// Painted palette for the terrain shader (section 11: warm/cool
 /// separation, moderate saturation, soft gradients).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct SurfaceLook {
     pub color_low: (f32, f32, f32),
     pub color_high: (f32, f32, f32),
@@ -157,7 +235,7 @@ pub struct SurfaceLook {
     pub grain_scale: f32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct RockData {
     pub count: u32,
     /// Boulder size range in metres; most are small.
@@ -186,9 +264,44 @@ pub struct CelestialBody {
     /// Which RON file describes this body.
     #[export(file = "*.ron")]
     data_path: GString,
+    /// Start with a cheap preview and build full detail only when
+    /// `request_detail` is called (the solar system does this as you
+    /// approach). Off: build everything at once (test scenes).
+    #[export]
+    stream_detail: bool,
     data: Option<BodyData>,
-    shape: Option<TerrainShape>,
+    shape: Option<Arc<TerrainShape>>,
+    material: Option<Gd<ShaderMaterial>>,
+    detail: Detail,
     base: Base<StaticBody3D>,
+}
+
+/// Where a body's full detail is.
+enum Detail {
+    None,
+    Building(JoinHandle<SurfaceMeshes>),
+    Built,
+}
+
+/// Meshes for a body's full detail, built off the main thread.
+struct SurfaceMeshes {
+    collision: MeshData,
+    near: Option<MeshData>,
+    far: Option<MeshData>,
+}
+
+impl SurfaceMeshes {
+    fn build(data: &BodyData, shape: &TerrainShape) -> Self {
+        let collision = shape.build_mesh();
+        let (near, far) = match &data.lod {
+            Some(lod) => (
+                Some(shape.build_mesh_with(lod.near_subdivisions)),
+                Some(shape.build_mesh_with(lod.far_subdivisions)),
+            ),
+            None => (None, None),
+        };
+        Self { collision, near, far }
+    }
 }
 
 #[godot_api]
@@ -196,8 +309,11 @@ impl IStaticBody3D for CelestialBody {
     fn init(base: Base<StaticBody3D>) -> Self {
         Self {
             data_path: GString::new(),
+            stream_detail: false,
             data: None,
             shape: None,
+            material: None,
+            detail: Detail::None,
             base,
         }
     }
@@ -211,25 +327,80 @@ impl IStaticBody3D for CelestialBody {
             );
             return;
         };
-        let shape = TerrainShape::new(&data.terrain, data.radius);
-        self.build_surface(&data, &shape);
-        self.scatter_rocks(&data, &shape);
-        self.build_water(&data, &shape);
-        self.add_lava_lights(&data, &shape);
-        self.scatter_hoodoos(&data, &shape);
+        let shape = Arc::new(TerrainShape::new(&data.terrain, data.radius));
         self.base_mut().add_to_group(GRAVITY_GROUP);
+        self.data = Some(data.clone());
+        self.shape = Some(shape.clone());
+        if let Some(star) = &data.star {
+            self.build_star(&data, star);
+        } else {
+            self.material = Some(surface_material(&data));
+            self.build_water(&data, &shape);
+            if let Some(clouds) = &data.clouds {
+                self.build_clouds(clouds);
+            }
+            if self.stream_detail {
+                self.build_preview(&data, &shape);
+            } else {
+                let meshes = SurfaceMeshes::build(&data, &shape);
+                self.finish_detail(meshes);
+            }
+        }
+        if let Some(air) = &data.air_glow {
+            let top = data.clouds.as_ref().map_or(data.radius, |c| c.radius_m);
+            self.build_air_glow(air, top);
+        }
         godot_print!(
             "CelestialBody ready: {} (radius {} m)",
             data.name,
             data.radius
         );
-        self.data = Some(data);
-        self.shape = Some(shape);
+    }
+
+    fn process(&mut self, _delta: f64) {
+        if matches!(&self.detail, Detail::Building(job) if job.is_finished()) {
+            let Detail::Building(job) = std::mem::replace(&mut self.detail, Detail::Built) else {
+                return;
+            };
+            match job.join() {
+                Ok(meshes) => self.finish_detail(meshes),
+                Err(_) => godot_error!("CelestialBody {}: detail build failed", self.base().get_name()),
+            }
+        }
     }
 }
 
 #[godot_api]
 impl CelestialBody {
+    /// Start building full detail in the background (no effect if it is
+    /// already built or building, or the body is a star).
+    #[func]
+    pub fn request_detail(&mut self) {
+        if !matches!(self.detail, Detail::None) {
+            return;
+        }
+        let (Some(data), Some(shape)) = (self.data.clone(), self.shape.clone()) else {
+            return;
+        };
+        if data.star.is_some() {
+            self.detail = Detail::Built;
+            return;
+        }
+        self.detail = Detail::Building(std::thread::spawn(move || SurfaceMeshes::build(&data, &shape)));
+    }
+
+    /// True once fine meshes, collision, rocks and hoodoos are in place.
+    #[func]
+    pub fn has_detail(&self) -> bool {
+        matches!(self.detail, Detail::Built) && self.base().get_node_or_null("Preview").is_none()
+    }
+
+    /// Set the data file before the body enters the tree (for spawning from code).
+    pub fn configure(&mut self, data_path: &str, stream_detail: bool) {
+        self.data_path = GString::from(data_path);
+        self.stream_detail = stream_detail;
+    }
+
     /// Gravity acceleration this body applies at a world position.
     pub fn gravity_at(&self, point: Vector3) -> Vector3 {
         match &self.data {
@@ -255,6 +426,11 @@ impl CelestialBody {
         }
     }
 
+    /// Water table above the nominal radius (None on a dry body).
+    pub fn water_level(&self) -> Option<f32> {
+        self.shape.as_ref().and_then(|s| s.water_level())
+    }
+
     /// Nominal radius (hills and craters vary around it).
     #[func]
     pub fn radius(&self) -> f32 {
@@ -275,69 +451,41 @@ impl CelestialBody {
     /// Distance from the centre to the ground in the direction of a world point.
     #[func]
     pub fn surface_radius_toward(&self, world_point: Vector3) -> f32 {
-        let dir = world_point - self.base().get_global_position();
+        let t = self.base().get_global_transform();
+        let dir = t.basis.inverse() * (world_point - t.origin);
+        self.surface_radius_local(dir)
+    }
+
+    /// Distance from the centre to the ground along a direction in the
+    /// body's own (rotating) frame.
+    pub fn surface_radius_local(&self, dir: Vector3) -> f32 {
         match &self.shape {
             Some(s) if dir.length_squared() > 1e-8 => s.surface_radius(dir),
             _ => self.radius(),
         }
     }
 
-    fn build_surface(&mut self, data: &BodyData, shape: &TerrainShape) {
-        let mesh_data = shape.build_mesh();
-        let height_range =
-            (data.terrain.hill_height_m + data.terrain.ridge_height_m).max(0.5) * 2.0;
-        let look = &data.look;
-        let mut material = ShaderMaterial::new_gd();
-        if let Ok(shader) = try_load::<Shader>(TERRAIN_SHADER) {
-            material.set_shader(&shader);
-        }
-        for (name, c) in [
-            ("color_low", look.color_low),
-            ("color_high", look.color_high),
-            ("color_crater", look.color_crater),
-            ("color_rim", look.color_rim),
-            ("color_slope", look.color_slope),
-            ("shadow_tint", look.shadow_tint),
-            ("rim_color", look.rim_color),
-        ] {
-            material.set_shader_parameter(name, &rgb(c).to_variant());
-        }
-        material.set_shader_parameter("rim_strength", &look.rim_strength.to_variant());
-        material.set_shader_parameter("detail_scale", &look.detail_scale.to_variant());
-        material.set_shader_parameter("grain_scale", &look.grain_scale.to_variant());
-        material.set_shader_parameter("body_radius", &data.radius.to_variant());
-        material.set_shader_parameter(
-            "detail_noise",
-            &noise_texture(0.012, 4, data.terrain.seed as i32).to_variant(),
-        );
-        material.set_shader_parameter(
-            "grain_noise",
-            &noise_texture(0.09, 2, data.terrain.seed as i32 + 1).to_variant(),
-        );
-        let land = &data.land_look;
-        for (name, c) in [
-            ("strata_a", land.strata_a),
-            ("strata_b", land.strata_b),
-            ("basalt_color", land.basalt),
-            ("lava_color", land.lava),
-            ("snow_color", land.snow),
-            ("wet_color", land.wet),
-            ("mineral_color", land.mineral),
-        ] {
-            material.set_shader_parameter(name, &rgb(c).to_variant());
-        }
-        material.set_shader_parameter("lava_energy", &land.lava_energy.to_variant());
-
+    /// Full detail: fine surface tiles, tiled collision, rocks, hoodoos and lava glow.
+    fn finish_detail(&mut self, meshes: SurfaceMeshes) {
+        let (Some(data), Some(shape), Some(material)) = (self.data.clone(), self.shape.clone(), self.material.clone()) else {
+            return;
+        };
+        let data = &data;
+        let shape = &*shape;
+        let height_range = height_range(data);
+        let mesh_data = &meshes.collision;
         match &data.lod {
             // Fine tiles close to the camera, coarse ones beyond; collision
             // stays on the middle grid (`terrain.subdivisions`).
             Some(lod) => {
-                let near = shape.build_mesh_with(lod.near_subdivisions);
-                self.add_surface_tiles(&near, lod.near_subdivisions, lod.tiles, &material, height_range, "Near", (0.0, lod.near_range_m));
-                let far = shape.build_mesh_with(lod.far_subdivisions);
-                self.add_surface_tiles(&far, lod.far_subdivisions, lod.tiles, &material, height_range, "Far", (lod.near_range_m, 0.0));
+                if let Some(near) = &meshes.near {
+                    self.add_surface_tiles(near, lod.near_subdivisions, lod.tiles, &material, height_range, "Near", (0.0, lod.near_range_m));
+                }
+                if let Some(far) = &meshes.far {
+                    self.add_surface_tiles(far, lod.far_subdivisions, lod.tiles, &material, height_range, "Far", (lod.near_range_m, 0.0));
+                }
             }
-            None => self.add_surface_tiles(&mesh_data, data.terrain.subdivisions, data.render_tiles, &material, height_range, "", (0.0, 0.0)),
+            None => self.add_surface_tiles(mesh_data, data.terrain.subdivisions, data.render_tiles, &material, height_range, "", (0.0, 0.0)),
         }
 
         // Collision in tiles: Jolt numbers every triangle of a shape inside
@@ -359,6 +507,43 @@ impl CelestialBody {
             collision.set_shape(&collision_shape);
             self.base_mut().add_child(&collision);
         }
+        self.scatter_rocks(data, shape);
+        self.add_lava_lights(data, shape);
+        self.scatter_hoodoos(data, shape);
+        for name in ["Preview", "PreviewCollision"] {
+            if let Some(mut node) = self.base().get_node_or_null(name) {
+                // Rename first so `has_detail` is true straight away.
+                node.set_name(&format!("{name}Old"));
+                node.queue_free();
+            }
+        }
+        self.detail = Detail::Built;
+    }
+
+    /// A cheap, coarse surface (no collision detail, no props) shown until
+    /// full detail arrives. A smooth sphere at the lowest ground keeps
+    /// anything from falling into the body meanwhile.
+    fn build_preview(&mut self, data: &BodyData, shape: &TerrainShape) {
+        let Some(material) = self.material.clone() else { return };
+        let mut holder = Node3D::new_alloc();
+        holder.set_name("Preview");
+        self.base_mut().add_child(&holder);
+        let n = data.preview_subdivisions.max(4);
+        let mesh = shape.build_mesh_with(n);
+        let hints = surface_hints(&mesh, height_range(data));
+        let mut instance = MeshInstance3D::new_alloc();
+        instance.set_name("PreviewSurface");
+        instance.set_mesh(&array_mesh_with_hints(&mesh, &hints));
+        instance.set_instance_shader_parameter("tile_offset", &Vector3::ZERO.to_variant());
+        instance.set_material_override(&material);
+        holder.add_child(&instance);
+        let mut sphere = SphereShape3D::new_gd();
+        sphere.set_radius(shape.min_radius());
+        let mut collision = CollisionShape3D::new_alloc();
+        collision.set_name("PreviewCollision");
+        collision.set_shape(&sphere);
+        // Collision shapes must be direct children of the body.
+        self.base_mut().add_child(&collision);
     }
 
     /// Add one surface mesh as tiles. COLOR = (crater floor, crater rim,
@@ -371,30 +556,7 @@ impl CelestialBody {
             if tile.triangle_count() == 0 {
                 continue;
             }
-            let hints = SurfaceHints {
-                colors: tile
-                    .samples
-                    .iter()
-                    .map(|s| {
-                        Color::from_rgba(
-                            s.crater_floor,
-                            s.crater_rim,
-                            (s.height / height_range + 0.5).clamp(0.0, 1.0),
-                            s.land.mineral,
-                        )
-                    })
-                    .collect(),
-                uv: tile
-                    .samples
-                    .iter()
-                    .map(|s| Vector2::new(s.land.strata, s.land.lava))
-                    .collect(),
-                uv2: tile
-                    .samples
-                    .iter()
-                    .map(|s| Vector2::new(s.land.snow, s.land.wet))
-                    .collect(),
-            };
+            let hints = surface_hints(tile, height_range);
             let mut instance = MeshInstance3D::new_alloc();
             instance.set_name(&format!("SurfaceTile{label}{i}"));
             // Visibility ranges (metres from the camera to the tile's centre);
@@ -549,6 +711,92 @@ impl CelestialBody {
         }
     }
 
+    /// A star: a glowing sphere that never casts shadows.
+    fn build_star(&mut self, data: &BodyData, star: &StarLook) {
+        let mut material = ShaderMaterial::new_gd();
+        if let Ok(shader) = try_load::<Shader>(STAR_SHADER) {
+            material.set_shader(&shader);
+        }
+        material.set_shader_parameter("core_color", &rgb(star.core).to_variant());
+        material.set_shader_parameter("edge_color", &rgb(star.edge).to_variant());
+        material.set_shader_parameter("energy", &star.energy.to_variant());
+        material.set_shader_parameter(
+            "granules",
+            &noise_texture(0.02, 4, data.terrain.seed as i32 + 7).to_variant(),
+        );
+        self.add_shell("Star", data.radius, 64, &material);
+    }
+
+    /// A gas giant's cloud deck (and rings, if any).
+    fn build_clouds(&mut self, clouds: &CloudLook) {
+        let mut material = ShaderMaterial::new_gd();
+        if let Ok(shader) = try_load::<Shader>(CLOUD_SHADER) {
+            material.set_shader(&shader);
+        }
+        for (name, c) in [
+            ("band_a", clouds.band_a),
+            ("band_b", clouds.band_b),
+            ("band_c", clouds.band_c),
+            ("band_d", clouds.band_d),
+            ("storm_color", clouds.storm_color),
+        ] {
+            material.set_shader_parameter(name, &rgb(c).to_variant());
+        }
+        material.set_shader_parameter("bands", &clouds.bands.to_variant());
+        material.set_shader_parameter("turbulence", &clouds.turbulence.to_variant());
+        material.set_shader_parameter("storm_latitude", &clouds.storm_latitude_deg.to_radians().sin().to_variant());
+        material.set_shader_parameter("storm_size", &clouds.storm_size.to_variant());
+        material.set_shader_parameter(
+            "swirl_noise",
+            &noise_texture(0.015, 4, (clouds.radius_m * 7.0) as i32).to_variant(),
+        );
+        let mut shell = self.add_shell("Clouds", clouds.radius_m, 96, &material);
+        shell.set_cast_shadows_setting(godot::classes::geometry_instance_3d::ShadowCastingSetting::ON);
+        if clouds.ring_m.1 > clouds.ring_m.0 && clouds.ring_m.0 > 0.0 {
+            let mut ring = ShaderMaterial::new_gd();
+            if let Ok(shader) = try_load::<Shader>(RING_SHADER) {
+                ring.set_shader(&shader);
+            }
+            ring.set_shader_parameter("ring_color", &rgb(clouds.ring_color).to_variant());
+            ring.set_shader_parameter("inner_m", &clouds.ring_m.0.to_variant());
+            ring.set_shader_parameter("outer_m", &clouds.ring_m.1.to_variant());
+            ring.set_shader_parameter(
+                "grain",
+                &noise_texture(0.05, 3, (clouds.radius_m * 3.0) as i32).to_variant(),
+            );
+            let mut instance = MeshInstance3D::new_alloc();
+            instance.set_name("Rings");
+            instance.set_mesh(&array_mesh(&annulus(clouds.ring_m.0, clouds.ring_m.1, 256), None));
+            instance.set_material_override(&ring);
+            self.base_mut().add_child(&instance);
+        }
+    }
+
+    /// A soft shell of air: a bright rim seen from space, a tinted sky from inside.
+    fn build_air_glow(&mut self, air: &AirGlow, top: f32) {
+        let mut material = ShaderMaterial::new_gd();
+        if let Ok(shader) = try_load::<Shader>(AIR_SHADER) {
+            material.set_shader(&shader);
+        }
+        material.set_shader_parameter("air_color", &rgb(air.color).to_variant());
+        material.set_shader_parameter("strength", &air.strength.to_variant());
+        material.set_shader_parameter("inner_radius", &top.to_variant());
+        material.set_shader_parameter("outer_radius", &(top + air.height_m).to_variant());
+        let mut shell = self.add_shell("AirGlow", top + air.height_m, 64, &material);
+        shell.set_cast_shadows_setting(godot::classes::geometry_instance_3d::ShadowCastingSetting::OFF);
+    }
+
+    /// A smooth sphere mesh child with no shadow, returned for tweaks.
+    fn add_shell(&mut self, name: &str, radius: f32, subdivisions: u32, material: &Gd<ShaderMaterial>) -> Gd<MeshInstance3D> {
+        let mut instance = MeshInstance3D::new_alloc();
+        instance.set_name(name);
+        instance.set_mesh(&array_mesh(&sphere_mesh(radius, subdivisions), None));
+        instance.set_material_override(material);
+        instance.set_cast_shadows_setting(godot::classes::geometry_instance_3d::ShadowCastingSetting::OFF);
+        self.base_mut().add_child(&instance);
+        instance
+    }
+
     /// A warm glow over each volcano's lava lake.
     fn add_lava_lights(&mut self, data: &BodyData, shape: &TerrainShape) {
         let land = &data.land_look;
@@ -685,6 +933,104 @@ impl CelestialBody {
 }
 
 /// A random unit vector tangent to the sphere at `dir`.
+/// The painted terrain material for one body (shared by all its tiles).
+fn surface_material(data: &BodyData) -> Gd<ShaderMaterial> {
+    let look = &data.look;
+    let mut material = ShaderMaterial::new_gd();
+    if let Ok(shader) = try_load::<Shader>(TERRAIN_SHADER) {
+        material.set_shader(&shader);
+    }
+    for (name, c) in [
+        ("color_low", look.color_low),
+        ("color_high", look.color_high),
+        ("color_crater", look.color_crater),
+        ("color_rim", look.color_rim),
+        ("color_slope", look.color_slope),
+        ("shadow_tint", look.shadow_tint),
+        ("rim_color", look.rim_color),
+    ] {
+        material.set_shader_parameter(name, &rgb(c).to_variant());
+    }
+    material.set_shader_parameter("rim_strength", &look.rim_strength.to_variant());
+    material.set_shader_parameter("detail_scale", &look.detail_scale.to_variant());
+    material.set_shader_parameter("grain_scale", &look.grain_scale.to_variant());
+    material.set_shader_parameter("body_radius", &data.radius.to_variant());
+    material.set_shader_parameter(
+        "detail_noise",
+        &noise_texture(0.012, 4, data.terrain.seed as i32).to_variant(),
+    );
+    material.set_shader_parameter(
+        "grain_noise",
+        &noise_texture(0.09, 2, data.terrain.seed as i32 + 1).to_variant(),
+    );
+    let land = &data.land_look;
+    for (name, c) in [
+        ("strata_a", land.strata_a),
+        ("strata_b", land.strata_b),
+        ("basalt_color", land.basalt),
+        ("lava_color", land.lava),
+        ("snow_color", land.snow),
+        ("wet_color", land.wet),
+        ("mineral_color", land.mineral),
+    ] {
+        material.set_shader_parameter(name, &rgb(c).to_variant());
+    }
+    material.set_shader_parameter("lava_energy", &land.lava_energy.to_variant());
+    material
+}
+
+/// Painting hints per vertex: COLOR = (crater floor, crater rim, height,
+/// mineral), UV = (strata, lava), UV2 = (snow, wet).
+fn surface_hints(tile: &MeshData, height_range: f32) -> SurfaceHints {
+    SurfaceHints {
+        colors: tile
+            .samples
+            .iter()
+            .map(|s| {
+                Color::from_rgba(
+                    s.crater_floor,
+                    s.crater_rim,
+                    (s.height / height_range + 0.5).clamp(0.0, 1.0),
+                    s.land.mineral,
+                )
+            })
+            .collect(),
+        uv: tile
+            .samples
+            .iter()
+            .map(|s| Vector2::new(s.land.strata, s.land.lava))
+            .collect(),
+        uv2: tile
+            .samples
+            .iter()
+            .map(|s| Vector2::new(s.land.snow, s.land.wet))
+            .collect(),
+    }
+}
+
+/// A flat ring in the body's equator plane, UV.x running from inner (0) to outer (1).
+fn annulus(inner: f32, outer: f32, segments: u32) -> MeshData {
+    let mut m = MeshData::default();
+    for i in 0..=segments {
+        let a = i as f32 / segments as f32 * std::f32::consts::TAU;
+        let (s, c) = a.sin_cos();
+        for r in [inner, outer] {
+            m.positions.push(Vector3::new(c * r, 0.0, s * r));
+            m.normals.push(Vector3::UP);
+            m.samples.push(Default::default());
+        }
+    }
+    for i in 0..segments as i32 {
+        let k = i * 2;
+        m.indices.extend_from_slice(&[k, k + 1, k + 2, k + 1, k + 3, k + 2]);
+    }
+    m
+}
+
+fn height_range(data: &BodyData) -> f32 {
+    (data.terrain.hill_height_m + data.terrain.ridge_height_m).max(0.5) * 2.0
+}
+
 fn random_tangent(dir: Vector3, rng: &mut SeededRng) -> Vector3 {
     let b = basis_with_up(dir);
     let t = rng.range_f32(0.0, std::f32::consts::TAU);
