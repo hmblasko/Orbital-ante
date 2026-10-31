@@ -11,4 +11,14 @@
     // Thruster light: brightness at full thrust, and how far it reaches.
     thruster_light_energy: 2.5,
     thruster_light_range_m: 6.0,
+    // How the safety tether looks: braided orange-and-white line that sags when slack.
+    tether_rope: (
+        radius_m: 0.05,
+        segments: 24,
+        sides: 6,
+        color_a: (1.0, 0.52, 0.16),
+        color_b: (0.94, 0.92, 0.86),
+        twists_per_m: 2.5,
+        belt_below_center_m: 0.3,
+    ),
 )

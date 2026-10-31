@@ -89,9 +89,18 @@ void fragment() {
 	albedo = mix(albedo, basalt_color * (0.85 + broad * 0.3), smoothstep(0.05, 0.28, lava));
 	albedo = mix(albedo, wet_color, UV2.y * 0.7);
 	float mineral = COLOR.a;
-	albedo = mix(albedo, mineral_color * (0.94 + grain * 0.1), smoothstep(0.15, 0.55, mineral));
+	// Travertine: cream terrace lips with darker risers between them and
+	// warm iron streaks running downhill, never a plain white mound.
+	float lip = smoothstep(0.55, 0.9, sin(length(local_pos) * 9.0) * 0.5 + 0.5);
+	vec3 trav = mineral_color * mix(0.82, 1.0, lip) * (0.94 + grain * 0.1);
+	trav = mix(trav, trav * vec3(1.0, 0.78, 0.58), smoothstep(0.5, 0.75, broad) * 0.7);
+	albedo = mix(albedo, trav, smoothstep(0.15, 0.55, mineral));
 	float snow = smoothstep(0.25, 0.6, UV2.x + (broad - 0.5) * 0.5) * (1.0 - 0.75 * smoothstep(0.3, 0.6, slope));
-	albedo = mix(albedo, snow_color, snow);
+	// Break the cap into drifts and bare rock streaks, so it reads as snow
+	// lying in hollows rather than a painted-on white cap.
+	float drift = smoothstep(0.45, 0.6, broad * 0.75 + grain * 0.45);
+	snow *= mix(0.15, 1.0, drift);
+	albedo = mix(albedo, mix(snow_color, albedo, 0.12), snow * 0.9);
 	// Glowing lava with a cooled crust breaking it up.
 	float glow = smoothstep(0.6, 0.95, lava) * smoothstep(0.25, 0.55, grain + broad * 0.4);
 	albedo = mix(albedo, vec3(0.08, 0.06, 0.06), smoothstep(0.6, 0.95, lava));

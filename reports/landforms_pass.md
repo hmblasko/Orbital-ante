@@ -47,3 +47,11 @@ Matthew asked for unattractive placeholder assets to be removed.
 - Removed the primitive air-and-tether station. The parked NASA Apollo Lunar Module now holds the supply point and tether anchor (`supply_height` in `test_sphere_landmarks.ron`), so you refill and clip on beside the lander. Supply and tether ranges went from 4.0 m to 5.5 m to reach from beside its hull.
 - Removed the primitive oxygen tank model and the tanks from the play scene, by Matthew's choice, until a properly modelled tank exists. The tank code stays; the feature test adds its own tanks to check pickup and use.
 - Screenshot: `reports/lander_supply.png`. Gates: all PASS (unit 91, determinism 19, data 11, smoke, feature scripts 16 checks, replay 0.0 m). Steam Deck: not measured.
+
+## Fourth pass: hoodoos, tether rope, desert peaks (31 Oct 2026)
+
+- Hoodoos are rebuilt as one continuous eroded column: a flared foot, soft bulges and necks, rain-cut flutes, small ledges at the layer lines, and a flat, tilted caprock. They no longer read as stacked balls.
+- The tether is now a real rope: a braided orange-and-white tube that sags when slack and lies on the ground instead of sinking into it. Its look is in `interactables.ron` under `tether_rope`.
+- The test sphere's mountain tops are now pale, wind-bleached sandstone instead of white snow, which looked like cake icing from orbit. Snow caps on other worlds are broken into drifts, and spring terraces get travertine lips and iron streaks.
+- Screenshot: `reports/refine_pass_3.png`. Gates: all PASS (unit 92, determinism 19, data 11, smoke, feature scripts 16 checks, replay 0.0 m). Steam Deck: not measured.
+- Still placeholder: 104 hoodoos are separate draw calls, to be batched in the Phase 10 performance pass or earlier if the Deck needs it.

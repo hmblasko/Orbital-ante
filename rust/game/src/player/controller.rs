@@ -20,7 +20,7 @@ use super::effects::{EffectsInput, SuitEffects};
 use super::motion;
 use super::suit::{SuitData, SuitInput, SuitState};
 use super::supply::SUPPLY_GROUP;
-use super::tether::{TETHER_GROUP, TetherLine};
+use super::tether::{RopeLook, TETHER_GROUP, TetherLine};
 use crate::items::oxygen_tank::TANK_GROUP;
 use crate::orbits::CelestialBody;
 use crate::orbits::body::GRAVITY_GROUP;
@@ -72,6 +72,7 @@ pub struct InteractData {
     pub tank_pickup_range_m: f32,
     pub thruster_light_energy: f32,
     pub thruster_light_range_m: f32,
+    pub tether_rope: RopeLook,
 }
 
 /// Node names the controller expects in player.tscn.
@@ -156,7 +157,7 @@ impl ICharacterBody3D for PlayerController {
         self.base_mut().add_child(&light);
         self.thruster_light = Some(light);
         let mut me = self.to_gd().upcast::<Node3D>();
-        self.tether_line = Some(TetherLine::new(&mut me));
+        self.tether_line = Some(TetherLine::new(&mut me, self.interact.tether_rope.clone()));
         self.effects = Some(SuitEffects::new(&mut me, crate::data::load(EFFECTS_PATH, EFFECTS_EMBEDDED)));
         Input::singleton().set_mouse_mode(MouseMode::CAPTURED);
     }
@@ -519,9 +520,17 @@ impl PlayerController {
             self.base_mut().emit_signal("died", &[GString::from(cause.text_key()).to_variant()]);
         }
 
-        let line = self.tether_anchor.as_ref().map(|a| (a.get_global_position(), position));
+        // The rope clips to the suit's belt, a little below the body's centre.
+        let gravity = self.total_gravity(position);
+        let down = if gravity.length_squared() > 0.01 { gravity.normalized() } else { Vector3::ZERO };
+        let belt = position + down * self.interact.tether_rope.belt_below_center_m;
+        let line = self.tether_anchor.as_ref().map(|a| (a.get_global_position(), belt));
+        let length = self.interact.tether_length_m;
+        // Rest the slack on top of the dust, not in it.
+        let rope = &self.interact.tether_rope;
+        let ground = self.data.capsule_height * 0.5 - rope.belt_below_center_m - rope.radius_m * 2.0;
         if let Some(l) = self.tether_line.as_mut() {
-            l.draw(line);
+            l.draw(line, gravity, length, ground);
         }
     }
 
