@@ -32,6 +32,8 @@ var saw_warning := false
 var warned_before := false
 var max_height := 0.0
 var erupted := false
+var restood := false
+var checked_on_vent := false
 
 func _initialize() -> void:
 	scene = load("res://scenes/tests/solar_system.tscn").instantiate()
@@ -51,6 +53,13 @@ func finish() -> void:
 
 func stand_on_vent() -> void:
 	sys.debug_place_player_on("mars", vent_local + vent_local.normalized() * 1.0)
+
+## Sideways distance from the player to vent 0 as it stands now, metres.
+func flat_to_vent() -> float:
+	var col: Node3D = geysers.get_node("Vent0")
+	var up: Vector3 = col.global_basis.y.normalized()
+	var rel: Vector3 = player.global_position - col.global_position
+	return (rel - up * rel.dot(up)).length()
 
 func _physics_process(_d: float) -> bool:
 	frame += 1
@@ -82,13 +91,23 @@ func _physics_process(_d: float) -> bool:
 		2:
 			# Give slower machines up to 10 s to settle onto the vent.
 			if t >= 60 and (player.is_on_floor() or t >= 600):
-				check(player.is_on_floor(), "the player stands on the vent")
+				check(player.is_on_floor(), "the player stands on the ground")
 				var now: float = sys.get_clock()
 				erupt_at = geysers.get_next_eruption_after(0, now + 6.0)
 				phase = 3; phase_start = frame
 		3:
 			var now: float = sys.get_clock()
-			if now < erupt_at - WARN_S - 0.5: return false
+			if now < erupt_at - WARN_S - 1.5: return false
+			# An earlier eruption may have thrown the player off while we
+			# waited (slower machines stream Mars in later, which shifts the
+			# timing), so step back onto the vent before the warning starts.
+			if not restood:
+				restood = true
+				stand_on_vent()
+				return false
+			if not checked_on_vent and now >= erupt_at - WARN_S - 0.2:
+				checked_on_vent = true
+				check(flat_to_vent() < geysers.get_throw_radius(), "the player waits on the vent (%.1f m off)" % flat_to_vent())
 			var frost: Node = geysers.get_node("Vent0Frost")
 			var column: Node = geysers.get_node("Vent0")
 			if frost.emitting: saw_warning = true
