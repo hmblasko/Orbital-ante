@@ -28,3 +28,15 @@ All automated gates pass locally (88 unit, 19 determinism, 11 data, smoke, 2 fea
 - Boulders are kept out of water and off cliffs.
 - Bug fix: the painted shaders added a constant "shadow floor" for every light, so lamps (supply ring, lava glow) lit a hard-edged box of ground around them. The floor now applies to the sun only.
 - Not measured: Steam Deck frame time and memory with the finer near terrain (about 790k triangles exist in total, of which only nearby tiles are drawn).
+
+## Third pass: movement feel and the icy moonlet (31 Oct 2026)
+
+What changed
+- `rust/game/src/player/effects.rs` + `godot/data/player/effects.ron`: jetpack exhaust plume (hot white-blue to orange to grey, aimed opposite the push, fades near the camera so it never fills the view), footstep dust every stride (smaller when crouching), and a landing burst scaled by impact speed with a small camera dip (set `camera_dip_m: 0.0` to turn it off). Dust takes the colour of the body you stand on and falls back under that body's gravity. Pillar 4 (everything is physical), fun rule 10 (game feel).
+- `godot/shaders/painted_ice.gdshader` + `land_look.frozen`: lakes and pools can freeze solid. Clear blue ice with pale cracks and frost at the shore, plus a collision shell so you can walk on it.
+- `test_moonlet.ron`: the jetpack-hop moonlet is now icy, with frozen pools and a small lake, frost-capped ridges and a crevasse. Pillar 3 (each place shows something new), fun rule 4 (curiosity).
+
+Screenshot: `reports/movement_ice_pass.png` (top: jetpack plume; middle: footstep and landing dust; bottom: frozen lake and pools). The white capsule is a render-only stand-in for the player's body, which first-person view doesn't show.
+
+Gates: unit 91, determinism 19, data 11, smoke, feature scripts (16 checks), replay 0.0 m: all PASS. Screenshot regression not run (no approved baselines). Steam Deck: not measured.
+Placeholder: puffs use a generated soft-circle sprite; no sound yet for footsteps, landings or the jetpack (Phase 9).

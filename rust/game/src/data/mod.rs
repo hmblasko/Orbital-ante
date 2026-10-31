@@ -80,12 +80,14 @@ mod tests {
     }
 
     #[test]
-    fn test_moonlet_parses_with_air() {
+    fn test_moonlet_parses_with_air_and_ice() {
         let body = parse::<crate::orbits::body::BodyData>(include_str!(
             "../../../../godot/data/bodies/test_moonlet.ron"
         ))
         .unwrap();
         assert!(body.atmosphere.is_some_and(|a| a.breathable));
+        assert!(body.land_look.frozen);
+        assert!(body.terrain.landforms.water_level_m.is_some());
     }
 
     #[test]

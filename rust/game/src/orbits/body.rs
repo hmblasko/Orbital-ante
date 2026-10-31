@@ -8,7 +8,7 @@ use godot::classes::mesh::{ArrayType, PrimitiveType};
 use godot::classes::{
     ArrayMesh, CollisionShape3D, ConcavePolygonShape3D, ConvexPolygonShape3D, CylinderShape3D,
     FastNoiseLite, IStaticBody3D, MeshInstance3D, NoiseTexture2D, OmniLight3D, Shader,
-    ShaderMaterial, StaticBody3D, Texture2D,
+    ShaderMaterial, SphereShape3D, StaticBody3D, Texture2D,
 };
 use godot::prelude::*;
 use serde::Deserialize;
@@ -26,6 +26,7 @@ pub const GRAVITY_GROUP: &str = "gravity_wells";
 const TERRAIN_SHADER: &str = "res://shaders/painted_terrain.gdshader";
 const PROP_SHADER: &str = "res://shaders/painted_prop.gdshader";
 const WATER_SHADER: &str = "res://shaders/painted_water.gdshader";
+const ICE_SHADER: &str = "res://shaders/painted_ice.gdshader";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BodyData {
@@ -88,6 +89,9 @@ pub struct LandLook {
     pub water_foam: (f32, f32, f32),
     /// Water surface grid cells per cube-face edge.
     pub water_subdivisions: u32,
+    /// Lakes and pools are frozen solid: painted ice you can walk on.
+    #[serde(default)]
+    pub frozen: bool,
 }
 
 impl Default for LandLook {
@@ -106,6 +110,7 @@ impl Default for LandLook {
             water_deep: (0.05, 0.22, 0.38),
             water_foam: (0.92, 0.97, 1.0),
             water_subdivisions: 48,
+            frozen: false,
         }
     }
 }
@@ -485,24 +490,36 @@ impl CelestialBody {
         let land = &data.land_look;
         let mesh = sphere_mesh(data.radius + level, land.water_subdivisions);
         let mut material = ShaderMaterial::new_gd();
-        if let Ok(shader) = try_load::<Shader>(WATER_SHADER) {
+        let shader_path = if land.frozen { ICE_SHADER } else { WATER_SHADER };
+        if let Ok(shader) = try_load::<Shader>(shader_path) {
             material.set_shader(&shader);
         }
         material.set_shader_parameter("shallow_color", &rgb(land.water_shallow).to_variant());
         material.set_shader_parameter("deep_color", &rgb(land.water_deep).to_variant());
-        material.set_shader_parameter("foam_color", &rgb(land.water_foam).to_variant());
+        let edge = if land.frozen { "frost_color" } else { "foam_color" };
+        material.set_shader_parameter(edge, &rgb(land.water_foam).to_variant());
         material.set_shader_parameter(
             "wave_noise",
             &noise_texture(0.03, 3, data.terrain.seed as i32 + 5).to_variant(),
         );
         let mut instance = MeshInstance3D::new_alloc();
-        instance.set_name("Water");
+        instance.set_name(if land.frozen { "Ice" } else { "Water" });
         instance.set_mesh(&array_mesh(&mesh, None));
         instance.set_material_override(&material);
         instance.set_cast_shadows_setting(
             godot::classes::geometry_instance_3d::ShadowCastingSetting::OFF,
         );
         self.base_mut().add_child(&instance);
+        if land.frozen {
+            // One solid sphere at the ice level: wherever the ground is lower
+            // you stand on the ice, and elsewhere the terrain is on top anyway.
+            let mut sphere = SphereShape3D::new_gd();
+            sphere.set_radius(data.radius + level);
+            let mut collision = CollisionShape3D::new_alloc();
+            collision.set_name("IceCollision");
+            collision.set_shape(&sphere);
+            self.base_mut().add_child(&collision);
+        }
     }
 
     /// A warm glow over each volcano's lava lake.

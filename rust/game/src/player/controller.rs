@@ -16,6 +16,7 @@ use godot::classes::{
 use godot::prelude::*;
 use serde::Deserialize;
 
+use super::effects::{EffectsInput, SuitEffects};
 use super::motion;
 use super::suit::{SuitData, SuitInput, SuitState};
 use super::supply::SUPPLY_GROUP;
@@ -33,6 +34,8 @@ const SUIT_PATH: &str = "res://data/player/suit.ron";
 const SUIT_EMBEDDED: &str = include_str!("../../../../godot/data/player/suit.ron");
 const INTERACT_PATH: &str = "res://data/player/interactables.ron";
 const INTERACT_EMBEDDED: &str = include_str!("../../../../godot/data/player/interactables.ron");
+const EFFECTS_PATH: &str = "res://data/player/effects.ron";
+const EFFECTS_EMBEDDED: &str = include_str!("../../../../godot/data/player/effects.ron");
 
 /// Below this gravity (m/s^2) the player counts as in zero-g and stops
 /// turning to stay upright.
@@ -90,6 +93,7 @@ pub struct PlayerController {
     tether_anchor: Option<Gd<Node3D>>,
     tether_line: Option<TetherLine>,
     thruster_light: Option<Gd<OmniLight3D>>,
+    effects: Option<SuitEffects>,
     /// Jetpack thrust actually firing this tick, 0.0 to 1.0, and its direction.
     thrust: f32,
     thrust_dir: Vector3,
@@ -117,6 +121,7 @@ impl ICharacterBody3D for PlayerController {
             tether_anchor: None,
             tether_line: None,
             thruster_light: None,
+            effects: None,
             thrust: 0.0,
             thrust_dir: Vector3::ZERO,
             in_zero_g: false,
@@ -152,6 +157,7 @@ impl ICharacterBody3D for PlayerController {
         self.thruster_light = Some(light);
         let mut me = self.to_gd().upcast::<Node3D>();
         self.tether_line = Some(TetherLine::new(&mut me));
+        self.effects = Some(SuitEffects::new(&mut me, crate::data::load(EFFECTS_PATH, EFFECTS_EMBEDDED)));
         Input::singleton().set_mouse_mode(MouseMode::CAPTURED);
     }
 
@@ -191,7 +197,10 @@ impl ICharacterBody3D for PlayerController {
         self.update_orientation(up, dt, alive);
         self.update_velocity(gravity, up, dt, alive);
         self.apply_tether();
+        // Speed into the ground just before landing, for the landing puff.
+        let fall_speed = (-self.base().get_velocity().dot(up)).max(0.0);
         self.base_mut().move_and_slide();
+        self.update_effects(gravity, up, fall_speed, dt);
         self.update_head(dt);
         self.update_suit(dt);
         self.update_thruster_light();
@@ -530,12 +539,46 @@ impl PlayerController {
         }
     }
 
+    fn update_effects(&mut self, gravity: Vector3, up: Vector3, fall_speed: f32, dt: f32) {
+        let position = self.base().get_global_position();
+        let dust_color = self
+            .base()
+            .get_tree()
+            .get_nodes_in_group(GRAVITY_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<CelestialBody>().ok())
+            .min_by(|a, b| {
+                let da = a.get_global_position().distance_squared_to(position);
+                let db = b.get_global_position().distance_squared_to(position);
+                da.total_cmp(&db)
+            })
+            .map_or(Color::from_rgb(0.6, 0.6, 0.6), |b| b.bind().dust_color());
+        let (_, horizontal) = motion::split_vertical(self.base().get_velocity(), up);
+        let input = EffectsInput {
+            position,
+            feet: position - up * self.data.capsule_height * 0.5,
+            up,
+            gravity,
+            on_floor: self.base().is_on_floor(),
+            crouching: Input::singleton().is_action_pressed("crouch"),
+            ground_speed: horizontal.length(),
+            fall_speed,
+            thrust: self.thrust,
+            thrust_dir: self.thrust_dir,
+            dust_color,
+        };
+        if let Some(effects) = self.effects.as_mut() {
+            effects.update(&input, dt);
+        }
+    }
+
     fn update_head(&mut self, dt: f32) {
         let crouching = Input::singleton().is_action_pressed("crouch");
         let target = if crouching { self.data.crouch_eye_height } else { self.data.eye_height };
         let blend = (self.data.crouch_blend_speed * dt).min(1.0);
         self.eye_height += (target - self.eye_height) * blend;
-        let (pitch, eye) = (self.pitch, self.eye_height);
+        let dip = self.effects.as_ref().map_or(0.0, |e| e.camera_dip());
+        let (pitch, eye) = (self.pitch, self.eye_height - dip);
         if let Some(head) = self.head.as_mut() {
             head.set_position(Vector3::new(0.0, eye, 0.0));
             head.set_rotation(Vector3::new(pitch, 0.0, 0.0));
