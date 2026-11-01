@@ -32,6 +32,7 @@ var hold_frames := 0
 var part := 0
 var patrol0 := 0
 var base0 := Vector3.ZERO
+var bat: Node3D
 
 
 func _initialize() -> void:
@@ -132,6 +133,27 @@ func _process(_d: float) -> bool:
 					if q.x < half.x and q.z < half.z and q.y < half.y + 1.0: inside += 1
 			check(inside == 0, "no soldier stands inside a base piece (%d)" % inside)
 			base0 = centroid(pieces)
+			# The baseball bat lies on a supply crate (melee is found).
+			bat = null
+			for n in get_nodes_in_group("weapon_pickups"):
+				if String(n.name) == "Found_bat": bat = n
+			check(bat != null and bat.get_parent() in pieces and String(bat.get_parent().name).ends_with("Crate"), "a baseball bat lies on a base crate")
+			phase = 20 if bat != null else 2
+		20:
+			var up: Vector3 = (bat.global_position - moon.global_position).normalized()
+			var side := up.cross(Vector3.RIGHT).normalized()
+			var local: Vector3 = moon.global_transform.affine_inverse() * (bat.global_position + side * 1.6)
+			var dir := local.normalized()
+			var ground: float = moon.surface_radius_toward(moon.global_transform * (dir * 100.0))
+			sys.debug_place_player_on("moon", dir * (ground + 1.0))
+			phase = 21; wait_until = frame + 20
+		21:
+			player.debug_look_at(bat.global_position)
+			if frame < wait_until + 2: return false
+			var arsenal = player.get_node("Head/Arsenal")
+			check(String(arsenal.get_pickup_prompt()) == "bat", "looking at the bat offers to take it (%s)" % arsenal.get_pickup_prompt())
+			arsenal.debug_interact()
+			check(arsenal.get_melee_id() == "bat", "X takes the bat as your melee weapon")
 			phase = 2
 		2:
 			# First dish: look at the controls.

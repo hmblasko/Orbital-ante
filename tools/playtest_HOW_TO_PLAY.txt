@@ -80,6 +80,9 @@ NEW IN THIS BUILD (your fixes and the Phase 8 slice)
   X / E climbs out. In the air the stick tilts the buggy so you can land
   it. If it ends up on its roof, hold A (Space) to roll it back over.
   Hard crashes hurt you (it's an open seat), and enemies hear the motor.
+  While driving, the bottom-right gauges show your speed and boost fuel.
+- Baseball bat: one lies on a supply crate in the Venera base on the
+  Moon. Look at it and press X / E to take it as your melee weapon (LB / F).
 - Controls: the right stick now has a response curve (small tilts aim
   finely, full tilt is full speed), up/down is a bit slower than
   left/right, and holding the stick fully over for a moment speeds the turn

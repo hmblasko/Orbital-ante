@@ -61,6 +61,10 @@ pub struct BaseData {
     pub lamp_blink_hz: f32,
     pub min_gap_m: f32,
     pub sink_m: f32,
+    /// A melee weapon to find lying on top of the first crate (section 7:
+    /// melee weapons are rare and found).
+    #[serde(default)]
+    pub crate_find: Option<String>,
 }
 
 pub fn load_bases() -> BasesData {
@@ -298,6 +302,7 @@ pub fn base_structures(body_id: &str, shape: &TerrainShape, run_seed: u64, ante:
         let side_a = centre.cross(Vector3::RIGHT).normalized();
         let side_b = centre.cross(side_a).normalized();
         let r = shape.radius().max(1.0);
+        let mut find = b.crate_find.clone();
         for (k, p) in layout(b, &mut rng).into_iter().enumerate() {
             let dir = (centre * r + side_a * p.x + side_b * p.z).normalized();
             let ground = shape.surface_radius(dir);
@@ -314,6 +319,12 @@ pub fn base_structures(body_id: &str, shape: &TerrainShape, run_seed: u64, ante:
             };
             solid.add_child(&root);
             collider(&mut solid, size, centre_off);
+            if p.kind == PieceKind::Crate
+                && let Some(w) = find.take()
+                && let Some(pickup) = crate::combat::gibs::placed_melee(&w, Transform3D::new(Basis::from_axis_angle(Vector3::UP, 0.6), Vector3::new(0.0, size.y + 0.06, 0.0)))
+            {
+                solid.add_child(&pickup);
+            }
             let basis = basis_with_up(dir) * Basis::from_axis_angle(Vector3::UP, p.yaw);
             solid.set_transform(Transform3D::new(basis, dir * (ground - b.sink_m)));
             out.push(solid.upcast());

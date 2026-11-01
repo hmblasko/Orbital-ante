@@ -26,6 +26,8 @@
             min_gap_m: 2.4,
             // How far each piece sinks into the ground, so it never floats.
             sink_m: 0.15,
+            // The vertical slice's baseball bat lies on a supply crate here.
+            crate_find: Some("bat"),
         ),
     },
 )

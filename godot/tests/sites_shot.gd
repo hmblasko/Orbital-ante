@@ -95,6 +95,13 @@ func _process(_d: float) -> bool:
 			step = 3; wait_until = frame + 30
 		3:
 			shot("phase8_base_pod")
+			for n in get_nodes_in_group("weapon_pickups"):
+				if String(n.name) == "Found_bat":
+					var bu: Vector3 = (n.global_position - moon.global_position).normalized()
+					stand(n.global_position, flat(Vector3(0.3, 0, 1), bu), 2.0, n.global_position)
+			step = 30; wait_until = frame + 30
+		30:
+			shot("phase8_bat_on_crate")
 			var d: Node3D = dishes[0]
 			var up := (d.global_position - moon.global_position).normalized()
 			var part: Vector3 = d.get_part_position(0)

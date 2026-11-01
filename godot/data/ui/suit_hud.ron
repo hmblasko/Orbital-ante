@@ -26,6 +26,8 @@
     warning_blink_hz: 2.0,
     oxygen_color: (0.36, 0.90, 0.88),
     fuel_color: (1.0, 0.70, 0.28),
+    // The rover's boost gauge and speed while the rocket fires.
+    boost_color: (1.0, 0.45, 0.20),
     health_color: (0.92, 0.95, 1.0),
     warning_color: (1.0, 0.36, 0.18),
     glass_color: (0.05, 0.07, 0.12, 0.72),

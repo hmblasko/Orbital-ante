@@ -54,6 +54,8 @@ pub struct HudData {
     pub warning_blink_hz: f32,
     pub oxygen_color: Rgb,
     pub fuel_color: Rgb,
+    /// Rover boost gauge while the rocket fires.
+    pub boost_color: Rgb,
     pub health_color: Rgb,
     pub warning_color: Rgb,
     pub glass_color: Rgba,
@@ -69,6 +71,7 @@ pub struct HudData {
 }
 
 /// What the HUD shows of the weapon in hand.
+#[derive(Clone)]
 struct WeaponView {
     name_key: String,
     loaded: i64,
@@ -83,6 +86,7 @@ struct WeaponView {
 }
 
 /// Snapshot of the player for one frame, so drawing never holds a borrow.
+#[derive(Clone)]
 struct View {
     oxygen: f32,
     oxygen_s: f32,
@@ -97,6 +101,8 @@ struct View {
     prompt: String,
     dead_key: Option<GString>,
     weapon: Option<WeaponView>,
+    /// Driving a rover: speed (m/s), boost fuel 0..1 and whether it's firing.
+    driving: Option<(f32, f32, bool)>,
     /// Screen angle (0 = straight ahead, clockwise) of the last hit, and
     /// how strong its arrow still is.
     hit_dir: Option<(f32, f32)>,
@@ -198,7 +204,11 @@ impl IControl for SuitHud {
         self.draw_fuel(&numbers, &body, size, s, &v);
         self.draw_health(&body, size, s, &v);
         self.draw_status(&body, size, s, &v);
-        self.draw_weapon(&numbers, &body, size, s, &v);
+        if v.driving.is_some() {
+            self.draw_speed(&numbers, &body, size, s, &v);
+        } else {
+            self.draw_weapon(&numbers, &body, size, s, &v);
+        }
         self.draw_hit_feedback(size, s, &v);
         self.draw_crosshair_and_prompt(&body, size, s, &v);
     }
@@ -228,6 +238,10 @@ impl SuitHud {
         });
         let camera = player.get_node_or_null("Head/Camera3D").and_then(|n| n.try_cast::<Node3D>().ok());
         let p = player.bind();
+        let driving = p.driving_rover().map(|r| {
+            let r = r.bind();
+            (r.get_speed(), r.get_boost_fraction(), r.is_boosting())
+        });
         let hit_dir = match (p.last_hit(), camera) {
             (Some((from, age)), Some(cam)) if age < self.data.damage_arrow_s && !p.is_dead() => {
                 let local = cam.get_global_transform().affine_inverse() * from;
@@ -238,6 +252,7 @@ impl SuitHud {
         };
         Some(View {
             weapon,
+            driving,
             hit_dir,
             oxygen: p.get_oxygen_fraction(),
             oxygen_s: p.get_oxygen_seconds(),
@@ -359,6 +374,14 @@ impl SuitHud {
     /// Jetpack fuel: an upright segmented bar on its own plate.
     fn draw_fuel(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
         let d = self.data.clone();
+        // In a rover the same gauge shows the rocket boost instead.
+        let (fuel, label_key, fuel_color) = match v.driving {
+            Some((_, boost, firing)) => (boost, "HUD_BOOST", if firing { rgb(d.boost_color) } else { rgb(d.fuel_color) }),
+            None => (v.fuel, "HUD_JETPACK", rgb(d.fuel_color)),
+        };
+        let v = &View { fuel, ..v.clone() };
+        let mut d = d;
+        d.fuel_color = (fuel_color.r, fuel_color.g, fuel_color.b);
         let (pw, ph) = (d.fuel_plate_px.0 * s, d.fuel_plate_px.1 * s);
         let rect = Rect2::new(Vector2::new(size.x - d.margin_px * s - pw, size.y - d.margin_px * s - ph), Vector2::new(pw, ph));
         let empty = v.fuel <= 0.001;
@@ -384,12 +407,40 @@ impl SuitHud {
                 c.draw_rect(Rect2::new(Vector2::new(x, y + seg_h * (1.0 - amount)), Vector2::new(bar_w, seg_h * amount)), col);
             }
         }
-        let label = self.base().tr("HUD_JETPACK").to_string();
+        let label = self.base().tr(label_key).to_string();
         let tx = x + bar_w + 8.0 * s;
         let tw = rect.end().x - tx - 6.0 * s;
-        self.text(body, Vector2::new(tx, top + 14.0 * s), tw, HorizontalAlignment::CENTER, &label, (d.label_font_px as f32 * s) as i32, faded(rgb(d.fuel_color), 0.9));
+        // Shrink the label to fit the plate (BOOST is longer than JET).
+        let mut font_px = (d.label_font_px as f32 * s) as i32;
+        while font_px > 8 && body.get_string_size_ex(&GString::from(label.as_str())).font_size(font_px).done().x > tw {
+            font_px -= 1;
+        }
+        self.text(body, Vector2::new(tx, top + 14.0 * s), tw, HorizontalAlignment::CENTER, &label, font_px, faded(rgb(d.fuel_color), 0.9));
         let pct = format!("{}", (v.fuel * 100.0).round() as i32);
         self.text(numbers, Vector2::new(tx, bottom - 8.0 * s), tw, HorizontalAlignment::CENTER, &pct, (26.0 * s) as i32, col);
+    }
+
+    /// Driving: a speedometer plate where the weapon plate sits.
+    fn draw_speed(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
+        let Some((speed, _, firing)) = v.driving else { return };
+        let d = self.data.clone();
+        let (pw, ph) = (d.weapon_plate_px.0 * s, d.weapon_plate_px.1 * s);
+        let right = size.x - d.margin_px * s - d.fuel_plate_px.0 * s - 14.0 * s;
+        let rect = Rect2::new(Vector2::new(right - pw, size.y - d.margin_px * s - ph), Vector2::new(pw, ph));
+        let col = if firing { rgb(d.boost_color) } else { rgb(d.ammo_color) };
+        self.plate(rect, Some(faded(col, 0.4)));
+        let pad = 14.0 * s;
+        let inner = pw - pad * 2.0;
+        let label = self.base().tr("HUD_SPEED").to_string();
+        self.text(body, rect.position + Vector2::new(pad, 26.0 * s), inner, HorizontalAlignment::LEFT, &label, (d.label_font_px as f32 * s) as i32, faded(rgb(d.ammo_color), 0.85));
+        let big = (d.number_font_px as f32 * 1.15 * s) as i32;
+        let n = format!("{}", speed.round() as i32);
+        let base_y = rect.end().y - 22.0 * s;
+        let lw = numbers.get_string_size_ex(&GString::from(n.as_str())).font_size(big).done().x;
+        self.text(numbers, Vector2::new(rect.position.x + pad, base_y), lw + 4.0, HorizontalAlignment::LEFT, &n, big, col);
+        let unit = self.base().tr("HUD_MPS").to_string();
+        let small = (d.number_font_px as f32 * 0.62 * s) as i32;
+        self.text(numbers, Vector2::new(rect.position.x + pad + lw + 10.0 * s, base_y), inner - lw, HorizontalAlignment::LEFT, &unit, small, faded(rgb(d.ammo_color), 0.7));
     }
 
     /// Suit integrity: a thin segmented line, bottom centre. Only drawn

@@ -282,16 +282,26 @@ pub struct WeaponPickup {
     pub ammo: i64,
     pub life_s: f32,
     pub radius_m: f32,
+    /// Placed in the world (a find, not a drop): frozen where it lies,
+    /// moves with its parent and never despawns.
+    pub fixed: bool,
     base: Base<RigidBody3D>,
 }
 
 #[godot_api]
 impl IRigidBody3D for WeaponPickup {
     fn init(base: Base<RigidBody3D>) -> Self {
-        Self { weapon: GString::new(), ammo: 0, life_s: 90.0, radius_m: 1.6, base }
+        Self { weapon: GString::new(), ammo: 0, life_s: 90.0, radius_m: 1.6, fixed: false, base }
     }
 
     fn ready(&mut self) {
+        if self.fixed {
+            let mut b = self.base_mut();
+            b.add_to_group(PICKUP_GROUP);
+            b.set_freeze_mode(godot::classes::rigid_body_3d::FreezeMode::STATIC);
+            b.set_freeze_enabled(true);
+            return;
+        }
         let mut b = self.base_mut();
         b.add_to_group(RIDER_GROUP);
         b.add_to_group(FLOATING_GROUP);
@@ -300,6 +310,9 @@ impl IRigidBody3D for WeaponPickup {
     }
 
     fn physics_process(&mut self, delta: f64) {
+        if self.fixed {
+            return;
+        }
         let dt = delta as f32;
         let tree = self.base().get_tree();
         let here = self.base().get_global_position();
@@ -369,4 +382,29 @@ pub fn drop_weapon(world: &mut Gd<Node>, weapon: &str, ammo: u32, model: Gd<Node
     body.set_linear_velocity(velocity);
     body.set_angular_velocity(Vector3::new(1.5, 2.0, 0.5));
     body
+}
+
+/// A melee weapon lying in the world to be found (frozen, moves with its
+/// parent, never despawns). Look at it and press Interact to take it.
+pub fn placed_melee(weapon: &str, local: Transform3D) -> Option<Gd<WeaponPickup>> {
+    let model = super::meshes::weapon_model(weapon)?;
+    let mut body = WeaponPickup::new_alloc();
+    body.set_name(&format!("Found_{weapon}"));
+    {
+        let mut b = body.bind_mut();
+        b.weapon = GString::from(weapon);
+        b.fixed = true;
+    }
+    body.set_collision_layer(super::PROP_LAYER);
+    body.set_collision_mask(0);
+    body.set_transform(local);
+    body.add_child(&model);
+    let mut shape = CapsuleShape3D::new_gd();
+    shape.set_radius(0.08);
+    shape.set_height(0.8);
+    let mut col = CollisionShape3D::new_alloc();
+    col.set_shape(&shape);
+    col.set_transform(Transform3D::new(Basis::from_axis_angle(Vector3::RIGHT, std::f32::consts::FRAC_PI_2), Vector3::new(0.0, 0.03, -0.25)));
+    body.add_child(&col);
+    Some(body)
 }
