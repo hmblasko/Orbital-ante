@@ -136,6 +136,7 @@
     // Where enemies camp in the vertical slice: a seeded spot on a body,
     // this many degrees from the landing pole.
     camps: [
-        (body: "moon", angle_deg: (14.0, 22.0), spread_m: 10.0, enemies: ["venera_t1", "venera_t1", "venera_t1", "venera_t2"]),
+        (body: "moon", angle_deg: (14.0, 22.0), spread_m: 10.0, enemies: ["venera_t1", "venera_t1", "venera_t1", "venera_t2"],
+         base: Some("venera_small")),
     ],
 )

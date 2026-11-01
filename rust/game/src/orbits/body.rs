@@ -447,6 +447,13 @@ impl IStaticBody3D for CelestialBody {
             for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed, 1) {
                 self.base_mut().add_child(&e);
             }
+            for piece in crate::ai::base::base_structures(&body_id, &shape, run_seed, 1) {
+                self.base_mut().add_child(&piece);
+            }
+            // Dishes to switch on and satellites to repair (Phase 8 slice).
+            for site in crate::items::sites::sites_for_body(&body_id, &shape, run_seed) {
+                self.base_mut().add_child(&site);
+            }
             if self.stream_detail {
                 self.build_preview(&data, &shape);
             } else {
@@ -488,7 +495,7 @@ impl CelestialBody {
     pub fn respawn_camps(&mut self, ante: i64) {
         let Some(shape) = self.shape.clone() else { return };
         for n in self.base().get_children().iter_shared() {
-            if n.is_in_group(crate::ai::camp::CAMP_GROUP) {
+            if n.is_in_group(crate::ai::camp::CAMP_GROUP) || n.is_in_group(crate::ai::base::BASE_GROUP) {
                 let mut n = n;
                 n.queue_free();
             }
@@ -497,6 +504,9 @@ impl CelestialBody {
         let run_seed = if godot::classes::Engine::singleton().has_singleton("RunSeed") { crate::seed::singleton::run_seed() } else { 0 };
         for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed, ante.max(1) as u32) {
             self.base_mut().add_child(&e);
+        }
+        for piece in crate::ai::base::base_structures(&body_id, &shape, run_seed, ante.max(1) as u32) {
+            self.base_mut().add_child(&piece);
         }
     }
 

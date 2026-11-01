@@ -52,6 +52,7 @@ fn kind_name(k: ContractKind) -> &'static str {
         ContractKind::Capture => "capture",
         ContractKind::Discover => "discover",
         ContractKind::Land => "land",
+        ContractKind::Repair => "repair",
     }
 }
 
@@ -216,6 +217,29 @@ impl Points {
         let base = self.tables.sources.base_clear.small as i64;
         self.award(GString::from("base_clear"), base, GString::from("SOURCE_CAMP_CLEAR"));
         self.world(WorldEvent::CampCleared { body: body.to_string() });
+    }
+
+    /// A dish switched on or a satellite repaired (section 3), once per run
+    /// per `key`. `kind` is "dish" or "satellite"; `all_on_body` adds the
+    /// all-dishes bonus. Returns the points paid (0 if already counted).
+    #[func]
+    pub fn on_repaired(&mut self, kind: GString, key: GString, body: GString, all_on_body: bool) -> i64 {
+        let Some(r) = &mut self.run else { return 0 };
+        if r.phase != Phase::Playing || !r.first_time(&format!("repaired:{key}")) {
+            return 0;
+        }
+        let s = &self.tables.sources;
+        let (base, label, bonus) = match kind.to_string().as_str() {
+            "dish" => (s.dish_on as f32, "SOURCE_DISH", Some(s.all_dishes_on_planet as i64)),
+            _ => (s.satellite_repaired as f32 * self.stat_str("satellite_points"), "SOURCE_SATELLITE", None),
+        };
+        let source = if kind.to_string() == "dish" { "dish" } else { "satellite" };
+        let mut paid = self.award(GString::from(source), base.round() as i64, GString::from(label));
+        if all_on_body && let Some(b) = bonus {
+            paid += self.award(GString::from("all_dishes"), b, GString::from("SOURCE_ALL_DISHES"));
+        }
+        self.world(WorldEvent::Repaired { body: body.to_string() });
+        paid
     }
 
     /// First discovery of `key` this run: points, +20 s, a notification.

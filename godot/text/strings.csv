@@ -241,3 +241,12 @@ LANDFORM_CHAOS,chaos terrain
 LANDFORM_DOUBLERIDGE,a double ridge
 LANDFORM_PENITENTES,ice spikes
 BOARD_TAKEN_MARK,Taken
+PROMPT_SWITCH_ON,Hold to switch on
+SITE_DISH,Dish controls
+SITE_SATELLITE,Broken panel
+SOURCE_DISH,Dish online
+SOURCE_ALL_DISHES,Every dish online
+SOURCE_SATELLITE,Satellite repaired
+NOTE_PATROL_INCOMING,Signal restored. A patrol heard it and is coming down
+CONTRACT_MOON_SIGNAL,Get the Moon talking
+CONTRACT_MOON_SIGNAL_DESC,Switch on {count} dishes or fix the relay satellite on the {body}.

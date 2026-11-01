@@ -8,7 +8,7 @@
     contracts_max_taken: 2,
     contract_reward_by_risk: [(300, 450), (450, 650), (650, 950)],
     // Templates the board draws from. `from_ante` gates when each appears.
-    // Kinds: ClearCamp, KillTier, Capture, Discover, Land.
+    // Kinds: ClearCamp, KillTier, Capture, Discover, Land, Repair.
     contracts: [
         (id: "clear_camp", kind: ClearCamp, risk: 3, body: "moon", count: 1, from_ante: 1),
         (id: "thin_patrol", kind: KillTier, risk: 1, body: "", count: 2, tier: 1, from_ante: 1),
@@ -20,6 +20,7 @@
         (id: "visit_mercury", kind: Land, risk: 3, body: "mercury", count: 1, from_ante: 2),
         (id: "visit_phobos", kind: Land, risk: 2, body: "phobos", count: 1, from_ante: 1),
         (id: "officer_hunt", kind: KillTier, risk: 2, body: "", count: 1, tier: 2, from_ante: 2),
+        (id: "moon_signal", kind: Repair, risk: 2, body: "moon", count: 2, from_ante: 1),
     ],
     // One free scratch-off ticket per ante (works like a chest). Rarity
     // odds from section 9, shown on the ticket. Until loot and cosmetics

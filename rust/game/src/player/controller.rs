@@ -14,6 +14,8 @@ use godot::classes::{
     InputEventMouseButton, InputEventMouseMotion, Node3D, OmniLight3D,
 };
 use godot::prelude::*;
+
+use crate::items::sites::RepairSite;
 use serde::Deserialize;
 
 use super::effects::{EffectsInput, SuitEffects};
@@ -91,6 +93,13 @@ enum ShipAction {
     Hatch,
 }
 
+/// What the player is fixing: a ship part or a site (dish, satellite).
+#[derive(Clone)]
+enum RepairTarget {
+    Ship(Gd<Ship>),
+    Site(Gd<RepairSite>),
+}
+
 #[derive(GodotClass)]
 #[class(base = CharacterBody3D)]
 pub struct PlayerController {
@@ -134,7 +143,9 @@ pub struct PlayerController {
     last_hit_s: f32,
     /// A damaged ship part in view and reach: the ship, the part's index,
     /// its name key and health 0..1 (for the prompt).
-    repair_spot: Option<(Gd<Ship>, usize, String, f32)>,
+    repair_spot: Option<(RepairTarget, usize, String, f32)>,
+    /// "repair" or "switch" (a dish's controls), for the prompt.
+    repair_verb: &'static str,
     /// Holding X on it right now (tests can force it).
     repairing: bool,
     force_repair: bool,
@@ -181,6 +192,7 @@ impl ICharacterBody3D for PlayerController {
             wind_accel: Vector3::ZERO,
             submerged: false,
             repair_spot: None,
+            repair_verb: "repair",
             repairing: false,
             force_repair: false,
             buckle_t: 0.0,
@@ -370,7 +382,7 @@ impl PlayerController {
             let _ = p;
         }
         if let Some((_, _, key, frac)) = &self.repair_spot {
-            return GString::from(&format!("repair:{key}:{frac:.3}"));
+            return GString::from(&format!("{}:{key}:{frac:.3}", self.repair_verb));
         }
         if self.suit.tanks < self.suit_data.tanks.max_carried && self.nearest_in_group(TANK_GROUP, self.interact.tank_pickup_range_m).is_some() {
             return "take_tank".into();
@@ -880,17 +892,33 @@ impl PlayerController {
         let eye = self.head.as_ref().map_or(self.base().get_global_position(), |h| h.get_global_position());
         let look = self.camera_forward();
         let mut found = None;
+        let mut verb = "repair";
         for node in self.base().get_tree().get_nodes_in_group(crate::flight::ship::SHIP_GROUP).iter_shared() {
             let Ok(ship) = node.try_cast::<Ship>() else { continue };
             if let Some((i, _, key, frac)) = ship.bind().repair_spot(eye, look) {
-                found = Some((ship.clone(), i, key, frac));
+                found = Some((RepairTarget::Ship(ship.clone()), i, key, frac));
                 break;
             }
         }
+        // Dishes and damaged satellites (Phase 8).
+        if found.is_none() {
+            for node in self.base().get_tree().get_nodes_in_group(crate::items::sites::SITE_GROUP).iter_shared() {
+                let Ok(site) = node.try_cast::<RepairSite>() else { continue };
+                if let Some((i, v, key, frac)) = site.bind().repair_spot(eye, look) {
+                    verb = v;
+                    found = Some((RepairTarget::Site(site.clone()), i, key, frac));
+                    break;
+                }
+            }
+        }
         self.repair_spot = found;
+        self.repair_verb = verb;
         let holding = self.force_repair || Input::singleton().is_action_pressed("interact");
-        if let (true, Some((mut ship, i, _, _))) = (holding, self.repair_spot.clone()) {
-            let frac = ship.bind_mut().repair(i, dt);
+        if let (true, Some((target, i, _, _))) = (holding, self.repair_spot.clone()) {
+            let frac = match target {
+                RepairTarget::Ship(mut ship) => ship.bind_mut().repair(i, dt),
+                RepairTarget::Site(mut site) => site.bind_mut().work(i, dt),
+            };
             self.repairing = true;
             if let Some(spot) = self.repair_spot.as_mut() {
                 spot.3 = frac;

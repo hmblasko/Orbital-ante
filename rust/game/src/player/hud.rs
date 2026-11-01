@@ -544,13 +544,16 @@ impl SuitHud {
         let carry = v.weapon.as_ref().filter(|w| !w.carry.is_empty()).map(|w| w.carry.clone());
         let pickup = v.weapon.as_ref().filter(|w| !w.pickup.is_empty()).map(|w| format!("WEAPON_{}", w.pickup.to_uppercase()));
         let mut repair: Option<(String, f32)> = None;
-        if let Some(rest) = v.prompt.strip_prefix("repair:") {
+        // "switch:..." is the same hold-to-fix, worded for a dish's controls.
+        let switching = v.prompt.starts_with("switch:");
+        if let Some(rest) = v.prompt.strip_prefix("repair:").or_else(|| v.prompt.strip_prefix("switch:")) {
             let mut it = rest.rsplitn(2, ':');
             let frac = it.next().and_then(|f| f.parse::<f32>().ok()).unwrap_or(0.0);
             let part = it.next().unwrap_or("");
             repair = Some((part.to_string(), frac));
         }
         let (key, pad, keyboard) = match v.prompt.as_str() {
+            _ if repair.is_some() && switching => ("PROMPT_SWITCH_ON", "X", "E"),
             _ if repair.is_some() => ("PROMPT_REPAIR", "X", "E"),
             "take_tank" => ("PROMPT_TAKE_TANK", "X", "E"),
             "tether" => ("PROMPT_TETHER", "\u{25BC}", "T"),

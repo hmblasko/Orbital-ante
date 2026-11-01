@@ -202,6 +202,38 @@ impl LandmarkSet {
 
 const MODEL_SHADER: &str = "res://shaders/painted_model.gdshader";
 
+/// A painted, lit material (the shared TF2-style shader).
+pub(crate) fn paint_lit(c: (f32, f32, f32), metal: f32) -> Gd<godot::classes::Material> {
+    let mut m = ShaderMaterial::new_gd();
+    if let Ok(shader) = try_load::<Shader>(MODEL_SHADER) {
+        m.set_shader(&shader);
+    }
+    m.set_shader_parameter("albedo_color", &Color::from_rgb(c.0, c.1, c.2).to_variant());
+    m.set_shader_parameter("metallic", &metal.to_variant());
+    m.set_shader_parameter("rim_strength", &0.5f32.to_variant());
+    m.upcast()
+}
+
+/// A self-lit glow (status lamps, sparks).
+pub(crate) fn paint_glow(c: (f32, f32, f32), energy: f32) -> Gd<godot::classes::Material> {
+    use godot::classes::base_material_3d::{EmissionOperator, Feature, ShadingMode};
+    let mut m = StandardMaterial3D::new_gd();
+    m.set_shading_mode(ShadingMode::UNSHADED);
+    m.set_albedo(Color::from_rgb(c.0, c.1, c.2));
+    m.set_feature(Feature::EMISSION, true);
+    m.set_emission(Color::from_rgb(c.0, c.1, c.2));
+    m.set_emission_energy_multiplier(energy);
+    m.set_emission_operator(EmissionOperator::ADD);
+    m.upcast()
+}
+
+/// Settle `amount` (0..1) of grime on a model's painted parts.
+pub(crate) fn grime(model: &Gd<Node3D>, amount: f32) {
+    if amount > 0.0 {
+        set_on_painted(model, "grime", &amount.to_variant());
+    }
+}
+
 pub(crate) fn instantiate(path: &str, name: &str) -> Option<Gd<Node3D>> {
     let scene = try_load::<PackedScene>(path).ok()?;
     let mut node = scene.instantiate()?.try_cast::<Node3D>().ok()?;
@@ -264,7 +296,7 @@ fn set_on_painted(model: &Gd<Node3D>, name: &str, value: &Variant) {
 }
 
 /// One convex hull per mesh part, in the solid body's space.
-fn add_hulls(solid: &mut Gd<StaticBody3D>, model: &Gd<Node3D>) {
+pub(crate) fn add_hulls(solid: &mut Gd<StaticBody3D>, model: &Gd<Node3D>) {
     let parts = model
         .find_children_ex("*")
         .type_("MeshInstance3D")

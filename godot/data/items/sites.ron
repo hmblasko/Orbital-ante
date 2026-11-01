@@ -1,0 +1,56 @@
+// Things to fix for points (CLAUDE.md sections 3, 5 and 17.5): ground
+// dishes to switch on and damaged satellites to repair. Placement is seeded
+// per run (section 4); points come from data/points/sources.ron.
+(
+    // Look at a part within this reach and cone, then hold X / E.
+    reach_m: 2.8,
+    cone_deg: 16.0,
+    look: (
+        // Warm amber while broken or off (interactable), teal once fixed
+        // (friendly / neutral, section 10).
+        broken_color: (1.0, 0.55, 0.18),
+        fixed_color: (0.36, 0.90, 0.88),
+        light_energy: 1.6,
+        light_range_m: 5.0,
+        // Broken parts sputter like a shorted panel.
+        flicker_hz: 7.0,
+        cabinet_color: (0.80, 0.78, 0.70),
+        trim_color: (0.22, 0.24, 0.27),
+    ),
+    dishes: [
+        // Two dishes on the Moon (vertical slice). Each sits this many
+        // degrees from the landing pole, at least min_apart_deg apart.
+        (
+            body: "moon", count: 2,
+            angle_deg: (20.0, 44.0), min_apart_deg: 14.0,
+            model: "res://assets/models/nasa/dsn_34m_dish.glb",
+            scale: 0.6, sink_m: 0.3, grime: 0.25,
+            // The control cabinet stands this far from the dish's foot,
+            // clear of the dish (about 20 m across at this scale).
+            cabinet_offset_m: 12.5,
+            cabinet_size_m: (0.9, 1.3, 0.6),
+            // Hold this long to switch it on (a part, but a quick one).
+            switch_s: 1.4,
+            // Once on, the dish turns slowly to track the sky.
+            slew_deg_s: 2.5,
+        ),
+    ],
+    satellites: [
+        // One damaged relay satellite in low Moon orbit (vertical slice).
+        (
+            id: "moon_relay", body: "moon",
+            model: "res://assets/models/nasa/tdrs.glb", scale: 20.0,
+            altitude_m: (45.0, 70.0), period_s: 420.0,
+            inclination_deg: (10.0, 40.0),
+            spin_deg_s: (0.0, 1.2, 0.0),
+            // Broken parts and how long each takes to fix (multi-part, quick).
+            parts: 3, part_s: 2.0,
+            // The restored signal draws a patrol (section 3) unless Signal
+            // Jammer is held: these soldiers land on the surface below.
+            patrol: ["venera_t1", "venera_t1", "venera_t2"],
+            patrol_spread_m: 9.0,
+            // How far the patrol hears the signal (they search toward it).
+            patrol_alert_m: 60.0,
+        ),
+    ],
+)

@@ -103,6 +103,9 @@ pub struct CampData {
     pub angle_deg: (f32, f32),
     pub spread_m: f32,
     pub enemies: Vec<String>,
+    /// The base that stands around the camp (data/combat/bases.ron).
+    #[serde(default)]
+    pub base: Option<String>,
 }
 
 fn first_ante() -> u32 {

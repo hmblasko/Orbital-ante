@@ -24,6 +24,8 @@ pub enum ContractKind {
     Capture,
     Discover,
     Land,
+    /// Switch on a dish or repair a satellite.
+    Repair,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -172,6 +174,7 @@ pub enum WorldEvent {
     Discovered { body: String },
     Landed { body: String },
     CampCleared { body: String },
+    Repaired { body: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -432,6 +435,7 @@ impl RunState {
                 (ContractKind::Discover, WorldEvent::Discovered { body }) => body_ok(body),
                 (ContractKind::Land, WorldEvent::Landed { body }) => body_ok(body),
                 (ContractKind::ClearCamp, WorldEvent::CampCleared { body }) => body_ok(body),
+                (ContractKind::Repair, WorldEvent::Repaired { body }) => body_ok(body),
                 _ => false,
             };
             if hit {
@@ -702,6 +706,16 @@ mod tests {
         let paid = r.cash_out(&t).unwrap();
         assert_eq!(paid, t.rules.cash_out(600.0, 1000));
         assert_eq!(r.phase, Phase::Upgrade);
+    }
+
+    #[test]
+    fn repair_contracts_count_dishes_and_satellites_on_their_body() {
+        let (mut r, t) = playing(3);
+        r.taken = vec![Contract { id: "moon_signal".into(), kind: ContractKind::Repair, risk: 2, body: "moon".into(), count: 2, tier: 0, reward: 500, progress: 0, done: false }];
+        assert!(r.event(&WorldEvent::Repaired { body: "mars".into() }, &t).is_empty());
+        assert!(r.event(&WorldEvent::Repaired { body: "moon".into() }, &t).is_empty());
+        let paid = r.event(&WorldEvent::Repaired { body: "moon".into() }, &t);
+        assert_eq!(paid.len(), 1, "the second repair on the Moon completes it");
     }
 
     #[test]

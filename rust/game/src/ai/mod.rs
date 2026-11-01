@@ -5,5 +5,6 @@
 //! - `camp`: spawns seeded enemy camps on bodies.
 
 pub mod brain;
+pub mod base;
 pub mod camp;
 pub mod enemy;
