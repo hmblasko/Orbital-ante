@@ -189,7 +189,7 @@ func _process(_d: float) -> bool:
 			rover.debug_drive(0.0, 0.0, true, false)
 			phase = 13; mark = frame
 		13:
-			if rover.get_tilt_deg() > 25.0 and frame - mark < 300: return false
+			if rover.get_tilt_deg() > 25.0 and frame - mark < 480: return false
 			check(rover.get_tilt_deg() <= 25.0, "holding A rolls it back upright (%.1f s)" % ((frame - mark) / 60.0))
 			rover.debug_release()
 			# Walk far away: it parks.

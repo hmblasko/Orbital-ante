@@ -68,8 +68,9 @@
     air_control_deg_s2: 160.0,
     // ...up to this spin rate (deg/s) on pitch and roll.
     air_rate_deg_s: 90.0,
-    // Tipped over and nearly stopped: hold A to roll back upright.
-    righting: (tilt_deg: 70.0, max_speed_mps: 3.0, rate_deg_s: 90.0),
+    // Tipped over and nearly stopped: hold A to roll back upright. It keeps
+    // rolling until within done_deg of level, lifted by lift x its weight.
+    righting: (tilt_deg: 55.0, done_deg: 12.0, max_speed_mps: 5.0, rate_deg_s: 100.0, lift: 1.1),
     // The driver (left seat, like the LRV; +X is left): sit point (player body centre), where you climb out, and
     // how close you must be to get in.
     seat_at: (0.38, 1.55, -0.35),

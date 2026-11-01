@@ -126,6 +126,8 @@ pub struct BoostData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Righting {
     pub tilt_deg: f32,
+    pub done_deg: f32,
+    pub lift: f32,
     pub max_speed_mps: f32,
     pub rate_deg_s: f32,
 }
@@ -538,12 +540,18 @@ impl IRigidBody3D for Rover {
 
         // Tipped over and nearly stopped: hold A to roll back upright.
         let world_up = if g_len > 0.01 { -gravity / g_len } else { up };
-        let tipped = up.dot(world_up) < d.righting.tilt_deg.to_radians().cos();
-        self.righting = (self.driver || self.forced.is_some()) && input.boost && tipped && v.length() < d.righting.max_speed_mps;
+        let tilt = up.angle_to(world_up);
+        let tipped = tilt > d.righting.tilt_deg.to_radians();
+        let held = (self.driver || self.forced.is_some()) && input.boost;
+        // Starts when tipped and slow; once started it keeps going while A
+        // is held until the buggy is nearly level (no stalling on its side).
+        self.righting = held && ((tipped && v.length() < d.righting.max_speed_mps) || (self.righting && tilt > d.righting.done_deg.to_radians()));
         if self.righting {
             let axis = up.cross(world_up).normalized_or_zero();
             let axis = if axis.length_squared() < 0.5 { fwd } else { axis };
             st.set_angular_velocity(axis * d.righting.rate_deg_s.to_radians());
+            // A small hop so the roll hoop and wheels don't dig in.
+            st.apply_central_force_ex().force(world_up * (g_len * d.righting.lift * mass)).done();
         } else if grounded == 0 && (self.driver || self.forced.is_some()) {
             // In the air the stick tilts the buggy so you can land it.
             let pitch_axis = up.cross(fwd);
