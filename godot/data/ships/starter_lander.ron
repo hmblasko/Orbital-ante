@@ -1,0 +1,342 @@
+// The starter lander (CLAUDE.md sections 5 and 17.3): based on the Apollo
+// Lunar Module (NASA 3D Resources model, flags and lettering removed), at a
+// chunky game scale so the player can walk under its belly and stand up
+// inside. Ship space: metres, +Y up, +Z forward (the windows), the footpads
+// rest on y = 0.
+// Flight numbers are starting values; tune from playtests.
+(
+    model: "res://assets/models/nasa/apollo_lunar_module.glb",
+    model_scale: 2.4,
+    // Raises the model so its own footpads sit 1.1 m up, on the telescoping
+    // leg extensions (leg_extension below); the new pads rest on y = 0.
+    model_offset: (0.0, 0.86, 0.0),
+    leg_extension: Some((
+        lift_m: 1.1,
+        // Where the model's footpads are (x, z), in ship space.
+        pads: [(7.1, 0.0), (-7.1, 0.0), (0.0, 7.1), (0.0, -7.1)],
+        strut_radius_m: 0.13,
+        sleeve_radius_m: 0.19,
+        sleeve_length_m: 0.45,
+        pad_radius_m: 0.62,
+        pad_thickness_m: 0.16,
+        strut_color: (0.80, 0.80, 0.78),
+        sleeve_color: (0.20, 0.21, 0.23),
+        pad_color: (0.86, 0.68, 0.25),
+    )),
+    // The model's descent engine bell, for the thrust glow (ship space).
+    engine_at: (0.0, 2.20, 0.0),
+
+    mass_kg: 4000.0,
+    // Low, in the heavy descent stage, so the lander stays upright on slopes.
+    center_of_mass: (0.0, 2.60, 0.0),
+    angular_damp: 0.5,
+    // Physics material for the footpads and hull.
+    friction: 1.0,
+    bounce: 0.05,
+
+    // Section 6: ships and engines draw attention. A full burn is heard
+    // this far away (Ghost makes it louder).
+    engine_noise_m: 120.0,
+    engine_noise_every_s: 0.5,
+    flight: (
+        // Thrust accelerations in m/s^2 (Earth's surface gravity is 9.8).
+        forward: 12.0,
+        back: 8.0,
+        strafe: 8.0,
+        up: 22.0,
+        down: 10.0,
+        // Turning: top rates in degrees per second, and how fast the ship
+        // reaches them. With flight assist on, the ship stops turning by
+        // itself when you let go of the stick.
+        pitch_rate_deg: 70.0,
+        yaw_rate_deg: 70.0,
+        roll_rate_deg: 90.0,
+        turn_accel_deg: 260.0,
+        // Mouse: degrees per second of turn per pixel moved in one tick.
+        mouse_turn_deg: 1.4,
+        // Finer small corrections on the right stick; full tilt is full rate.
+        stick_curve: 1.6,
+        flight_assist: true,
+        // Match velocity: brakes to zero speed relative to the body you are
+        // near, at this deceleration.
+        match_velocity_accel: 15.0,
+        // Fuel in seconds of full main thrust; thrusters use it in
+        // proportion to how hard they push.
+        fuel_s: 300.0,
+        // Below this speed relative to the ground the ship counts as landed.
+        landed_speed: 0.6,
+    ),
+
+    cabin: (
+        // The cabin is a rounded bowl inside the ascent stage.
+        floor_y: 7.30,
+        wall_top_y: 10.10,
+        dome_top_y: 11.10,
+        radius_x: 1.85,
+        radius_z: 2.7,
+        center_z: 0.0,
+        // Its own gravity, pointing at the cabin floor.
+        gravity: 9.8,
+        // Front windows: centre angle (0 = straight ahead, + to the right),
+        // half-width in degrees at the top, bottom and top heights. Narrower
+        // at the bottom (taper 0.7 = 70% as wide), like the real LM's
+        // triangular windows. Made bigger and lower on 1 Nov 2026 so the
+        // seated pilot sees out over the dash.
+        windows: [
+            (angle_deg: -18.0, half_width_deg: 19.0, bottom_y: 8.10, top_y: 9.95, taper: 0.7),
+            (angle_deg: 18.0, half_width_deg: 19.0, bottom_y: 8.10, top_y: 9.95, taper: 0.7),
+        ],
+        seat_at: (0.0, 7.85, 0.35),
+        // How close you must be to buckle in.
+        seat_reach_m: 1.6,
+        console_z: 1.95,
+        // Wide enough for the big dash screen with the little ship model
+        // beside it.
+        console_size: (2.5, 0.16, 0.8),
+        console_height_m: 1.05,
+        console_tilt_deg: 28.0,
+        light_energy: 2.2,
+        light_range_m: 7.0,
+        light_color: (1.0, 0.86, 0.7),
+    ),
+
+    hatch: (
+        // Belly hatch: a vertical shaft through the descent stage, with a
+        // blue gravity ring at the bottom (Outer Wilds-style).
+        at_x: 0.0,
+        at_z: -1.4,
+        // Visual opening radius, and the solid collision opening (square
+        // half-width) that the hatch rim covers.
+        radius: 0.65,
+        collision_half: 0.5,
+        // Bottom of the descent stage, where the ring is.
+        ring_y: 3.02,
+        ring_color: (0.25, 0.65, 1.0),
+        ring_energy: 2.5,
+        // The lift beam reaches from the ground to the cabin floor, this wide.
+        beam_radius: 0.85,
+        lift_speed: 3.2,
+        top_above_floor: 0.45,
+        top_drift_speed: 2.5,
+        clear_margin: 0.35,
+        lift_accel: 14.0,
+        // Sideways pull toward the middle of the shaft.
+        center_pull: 6.0,
+        // How close (horizontal) to the hatch you must stand inside to open it.
+        reach_m: 1.4,
+        open_s: 0.6,
+    ),
+
+    // Collision, in ship space (metres). Boxes: centre, size, and yaw in
+    // degrees. Capsules: two end points and a radius. Plus the cabin walls,
+    // which are generated around the bowl.
+    boxes: [
+        // Descent stage, built around the hatch shaft.
+        (center: (-2.15, 4.86, 0.0), size: (2.9, 3.67, 7.2)),
+        (center: (2.15, 4.86, 0.0), size: (2.9, 3.67, 7.2)),
+        (center: (0.0, 4.86, -2.85), size: (1.4, 3.67, 1.5)),
+        (center: (0.0, 4.86, 1.45), size: (1.4, 3.67, 4.3)),
+        // Cabin floor slab, around the hatch opening.
+        (center: (-1.275, 7.00, 0.0), size: (1.55, 0.62, 5.6)),
+        (center: (1.275, 7.00, 0.0), size: (1.55, 0.62, 5.6)),
+        (center: (0.0, 7.00, -2.35), size: (1.0, 0.62, 0.9)),
+        (center: (0.0, 7.00, 0.95), size: (1.0, 0.62, 3.7)),
+        // Roof.
+        (center: (0.0, 11.40, 0.0), size: (5.0, 0.6, 6.4)),
+        // Descent engine bell.
+        (center: (0.0, 2.60, 0.0), size: (1.7, 0.85, 1.7)),
+    ],
+    capsules: [
+        (from: (7.1, 1.45, 0.0), to: (3.5, 4.50, 0.0), radius: 0.22),
+        (from: (-7.1, 1.45, 0.0), to: (-3.5, 4.50, 0.0), radius: 0.22),
+        (from: (0.0, 1.45, 7.1), to: (0.0, 4.50, 3.5), radius: 0.22),
+        (from: (0.0, 1.45, -7.1), to: (0.0, 4.50, -3.5), radius: 0.22),
+        // Telescoping leg extensions (1 Nov 2026: legs 1.1 m taller so you
+        // can walk under the belly to the hatch).
+        (from: (7.1, 0.35, 0.0), to: (7.1, 1.45, 0.0), radius: 0.16),
+        (from: (-7.1, 0.35, 0.0), to: (-7.1, 1.45, 0.0), radius: 0.16),
+        (from: (0.0, 0.35, 7.1), to: (0.0, 1.45, 7.1), radius: 0.16),
+        (from: (0.0, 0.35, -7.1), to: (0.0, 1.45, -7.1), radius: 0.16),
+        // Footpads (short fat capsules lying flat).
+        (from: (6.6, 0.3, 0.0), to: (7.6, 0.3, 0.0), radius: 0.3),
+        (from: (-6.6, 0.3, 0.0), to: (-7.6, 0.3, 0.0), radius: 0.3),
+        (from: (0.0, 0.3, 6.6), to: (0.0, 0.3, 7.6), radius: 0.3),
+        (from: (0.0, 0.3, -6.6), to: (0.0, 0.3, -7.6), radius: 0.3),
+    ],
+    // Cabin wall collision: this many boxes around the bowl, this thick.
+    wall_segments: 20,
+    wall_thickness: 0.6,
+    // Test scenes park the lander on the flattest of these spots: this much
+    // further than spawn_ahead_m, at these bearings from straight ahead.
+    // Cockpit parts (Phase 4 part 2): dash screen on the console, the
+    // little thrust-display model, and the cameras Y cycles through.
+    cockpit: (
+        // Readable at a glance from the seat, lying back on the console
+        // below the windows so the view out stays clear.
+        screen_size_m: (1.5, 0.75),
+        screen_at: (0.0, 8.40, 1.75),
+        screen_tilt_deg: 52.0,
+        mini_ship: (
+            // Console-top space: x toward the pilot's left, z toward the windows.
+            at: (1.05, 0.1, -0.3),
+            scale: 0.02,
+            arrow_len_m: 0.08,
+            arrow_color: (0.45, 0.9, 1.0),
+            arrow_energy: 1.0,
+            pedestal_radius_m: 0.11,
+        ),
+        cameras: [
+            (
+                name_key: "CAM_LANDING",
+                at: (0.0, 2.85, 2.4),
+                look_at: (0.0, -6.90, 7.5),
+                up: (0.0, 0.0, 1.0),
+                fov_deg: 80.0,
+            ),
+            (
+                name_key: "CAM_SELFIE_LEFT",
+                at: (4.6, 12.60, -5.5),
+                look_at: (0.0, 6.10, 0.5),
+                up: (0.0, 1.0, 0.0),
+                fov_deg: 70.0,
+                pole_from: Some((2.0, 9.70, -1.6)),
+            ),
+            (
+                name_key: "CAM_SELFIE_RIGHT",
+                at: (-4.6, 12.60, -5.5),
+                look_at: (0.0, 6.10, 0.5),
+                up: (0.0, 1.0, 0.0),
+                fov_deg: 70.0,
+                pole_from: Some((-2.0, 9.70, -1.6)),
+            ),
+        ],
+        camera_frame: (
+            border_px: 26.0,
+            label_px: 44,
+            color: (0.75, 1.0, 0.8, 0.9),
+            rec_color: (1.0, 0.25, 0.2),
+            hint_key: "CAM_HINT",
+        ),
+        // Brackets round the locked target (orange while the autopilot flies).
+        target_marker: (
+            size_px: 26.0,
+            line_px: 4.0,
+            label_px: 26,
+            edge_margin_px: 60.0,
+            color: (0.45, 0.85, 1.0, 0.95),
+            autopilot_color: (1.0, 0.7, 0.3, 0.95),
+        ),
+    ),
+    parking: (
+        extra_distances_m: [0.0, 5.0, 10.0, 15.0],
+        bearings_deg: [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0],
+        order_penalty_m: 0.02,
+        drop_height_m: 0.4,
+        // At the home base the lander waits on the launch pad instead.
+        pad_search_m: 120.0,
+    ),
+    // Target lock (D-pad up / L) and autopilot (RT / Q). The autopilot
+    // turns the main engine toward where it needs to push, burns, brakes
+    // and stops you this far above the locked body, then holds match
+    // velocity until you touch the controls.
+    autopilot: (
+        burn_axis: (0.0, 1.0, 0.0),
+        arrive_altitude_m: 120.0,
+        max_speed_mps: 200.0,
+        brake_fraction: 0.6,
+        flip_s: 3.0,
+        speed_gain: 1.0,
+        align_deg: 25.0,
+        turn_gain: 2.5,
+        arrive_radius_m: 25.0,
+        arrive_speed_mps: 6.0,
+        lock_cone_deg: 8.0,
+        clearance_m: 150.0,
+    ),
+    // Takeoff and landing effects (section 5: "intense like a real launch").
+    // Everything scales with main-engine throttle; the cloud and grit only
+    // when the bell is near the ground. The rumble sound is a missing asset.
+    takeoff: (
+        nozzle_at: (0.0, 1.80, 0.0),
+        nozzle_dir: (0.0, -1.0, 0.0),
+        plume: (
+            rate: 90.0,
+            lifetime_s: 0.35,
+            speed_m_s: (14.0, 22.0),
+            spread_deg: 7.0,
+            size_m: (0.6, 1.8),
+            color_hot: (1.0, 0.95, 0.8),
+            color_mid: (1.0, 0.6, 0.25),
+            color_cool: (0.55, 0.5, 0.5),
+        ),
+        cloud: (
+            max_height_m: 30.0,
+            full_height_m: 6.0,
+            rate: 60.0,
+            lifetime_s: 3.2,
+            speed_m_s: (6.0, 14.0),
+            size_m: (3.0, 9.0),
+            lift: 0.3,
+            lighten: 0.5,
+            opacity: 0.95,
+        ),
+        grit: (
+            rate: 70.0,
+            lifetime_s: 1.6,
+            speed_m_s: (5.0, 12.0),
+            size_m: (0.08, 0.2),
+            darken: 0.55,
+        ),
+        light: (
+            energy: 8.0,
+            range_m: 18.0,
+            color: (1.0, 0.65, 0.32),
+            flicker: 0.25,
+            ground_energy: 6.0,
+        ),
+        rumble: (
+            weak_near: 0.7,
+            strong_near: 0.9,
+            weak_far: 0.25,
+            strong_far: 0.1,
+        ),
+    ),
+    // Crash damage (section 5). Impacts above safe_impact_mps hurt the
+    // parts near the contact; a part pushed past zero by detach_overkill
+    // breaks off for good. Parts are slices of a cylinder round the ship's
+    // up axis (ship space; angles from +X toward +Z, +Z = forward).
+    damage: (
+        safe_impact_mps: 4.0,
+        damage_per_mps: 10.0,
+        spread_m: 4.0,
+        hull_hp: 300.0,
+        debris_kick_mps: 3.0,
+        spark_s: 1.5,
+        pilot: (
+            unbuckled_safe_mps: 6.0,
+            unbuckled_damage_per_mps: 12.0,
+            buckled_safe_mps: 25.0,
+            buckled_damage_per_mps: 4.0,
+        ),
+        // Hold X / E while looking at a damaged part from outside. A part
+        // that broke off is gone for good.
+        repair: (
+            reach_m: 3.5,
+            cone_deg: 40.0,
+            hp_per_s: 45.0,
+            hull_at: (0.0, 4.30, 3.0),
+        ),
+        parts: [
+            (id: "leg_right", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 0.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_front", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_left", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 180.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_back", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: -90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "engine", name_key: "PART_ENGINE", kind: Engine, y: (0.90, 3.10), r: (0.0, 1.8), angle_deg: 0.0, half_width_deg: 180.0, hp: 80.0, detach_overkill: 120.0, debris_mass: 60.0),
+            (id: "rcs_front_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: 45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_front_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: 135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: -135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: -45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "antenna", name_key: "PART_ANTENNA", kind: Antenna, y: (11.10, 14.60), r: (3.3, 6.5), angle_deg: 90.0, half_width_deg: 35.0, hp: 25.0, detach_overkill: 20.0, debris_mass: 5.0),
+        ],
+    ),
+)

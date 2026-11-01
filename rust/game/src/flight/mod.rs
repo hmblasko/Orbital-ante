@@ -1,3 +1,14 @@
-//! Ship flight model: 6-axis thrust, inertia, match velocity, autopilot (CLAUDE.md section 5).
-//!
-//! Empty until Phase 4 (starter lander). Kept so the crate layout matches CLAUDE.md section 14.
+//! Ship flight: the shared 6-axis flight model, ships, and their interiors
+//! (CLAUDE.md section 5).
+
+pub mod breakup;
+pub mod cockpit;
+pub mod damage;
+pub mod dash;
+pub mod meshes;
+pub mod model;
+pub mod rover;
+pub mod ship;
+pub mod takeoff;
+
+pub use ship::Ship;

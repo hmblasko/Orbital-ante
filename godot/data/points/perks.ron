@@ -1,0 +1,48 @@
+// Perks, synergy tags and attributes (CLAUDE.md sections 3 and 17.4).
+// Perks are trade-offs, never flat buffs. `mods` multiply named stats
+// (1.0 = unchanged); flags switch on special rules. `active: false` perks
+// need systems from later phases (rovers, salvage, chests, bounties) and are
+// not offered in the draft until those exist.
+(
+    draft_size: 3,
+    perks: [
+        (id: "deep_breath", tags: [Scavenger], mods: {"oxygen_capacity": 1.4, "jetpack_fuel": 0.8}, flags: [], active: true),
+        (id: "ghost", tags: [Stealth], mods: {"crouch_spot_time": 2.5, "engine_noise": 1.6}, flags: [], active: true),
+        (id: "lucky_charm", tags: [Scavenger], mods: {}, flags: ["chest_double_roll", "no_scratch_off"], active: false),
+        (id: "signal_jammer", tags: [Stealth, Salvage], mods: {"satellite_points": 0.7}, flags: ["quiet_satellites"], active: true),
+        (id: "pack_mule", tags: [Salvage, Diplomacy], mods: {"carry_speed": 0.8}, flags: ["carry_two"], active: false),
+        (id: "glass_cannon", tags: [Heat], mods: {"damage_dealt": 1.3, "damage_taken": 1.3}, flags: [], active: true),
+        (id: "second_wind", tags: [Heat], mods: {}, flags: ["second_wind"], active: true),
+        (id: "hot_rod", tags: [Speed, Chaos], mods: {"rover_boost_recharge": 2.0, "rover_crash_damage": 1.4}, flags: [], active: true),
+        (id: "diplomat", tags: [Diplomacy], mods: {"diplomacy_alive": 1.5, "hostility_kill": 2.0}, flags: [], active: false),
+        (id: "overclocked", tags: [Speed, Heat], mods: {"ship_accel": 1.3, "ship_fuel_use": 1.4}, flags: [], active: true),
+        (id: "junk_magnet", tags: [Salvage], mods: {"ship_damage_taken": 1.1}, flags: ["salvage_magnet"], active: false),
+        (id: "ragdoll_physicist", tags: [Chaos], mods: {"gravity_gun_ammo_use": 2.0}, flags: ["ragdoll_damage"], active: false),
+        (id: "silver_tongue", tags: [Diplomacy], mods: {"bounty_points": 0.9}, flags: ["hostility_cools"], active: false),
+        (id: "afterburner", tags: [Speed], mods: {"dash_oxygen_use": 2.0}, flags: ["jetpack_dash"], active: false),
+    ],
+    // Synergy bonuses at 2 and 4 of a tag held. Each tag at 4 also adds
+    // multiplier.tag_bonus to the score multiplier (rules.ron).
+    tags: {
+        Salvage:   (two: (mods: {"salvage_points": 1.25}, flags: []), four: (mods: {"crane_reach": 2.0}, flags: ["wrecks_auto_tow"])),
+        Stealth:   (two: (mods: {"spot_time": 1.3}, flags: []), four: (mods: {}, flags: ["stealth_first_shot_gibs"])),
+        Heat:      (two: (mods: {}, flags: ["heat_low_health_damage"]), four: (mods: {}, flags: ["heat_kill_heal"])),
+        Speed:     (two: (mods: {"move_speed": 1.1, "ship_accel": 1.1}, flags: []), four: (mods: {}, flags: ["ram_damage"])),
+        Diplomacy: (two: (mods: {"diplomacy_gain": 1.25}, flags: []), four: (mods: {}, flags: ["faction_truce"])),
+        Chaos:     (two: (mods: {"ragdoll_launch": 1.5}, flags: []), four: (mods: {}, flags: ["gib_ammo"])),
+        Scavenger: (two: (mods: {"ammo_pickup": 1.25}, flags: []), four: (mods: {}, flags: ["chest_rarity_up"])),
+    },
+    // Heat 2 and 4 numbers (section 17.4).
+    heat_low_health_below: 0.5,
+    heat_low_health_damage: 1.1,
+    heat_kill_heal_below: 0.25,
+    heat_kill_heal_amount: 0.10,
+    // Attributes bought with Wallet points between antes, 5 levels each
+    // (prices in rules.ron). Each level multiplies these stats.
+    attributes: [
+        (id: "damage", per_level: {"damage_dealt": 1.08}),
+        (id: "speed", per_level: {"move_speed": 1.05, "jump": 1.05}),
+        (id: "oxygen", per_level: {"oxygen_capacity": 1.12}),
+        (id: "defense", per_level: {"damage_taken": 0.93}),
+    ],
+)

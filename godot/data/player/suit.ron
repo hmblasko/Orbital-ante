@@ -1,0 +1,25 @@
+// Spacesuit, jetpack and oxygen tanks (CLAUDE.md section 6).
+// Starting values; tune from playtests.
+(
+    health_max: 100.0,
+    // 4 minutes of air: a third of an ante, so air matters without nagging.
+    oxygen_capacity_s: 240.0,
+    oxygen_refill_per_s: 40.0,
+    // 10 seconds from empty to dead, after a 60-second warning (see below).
+    suffocation_damage_per_s: 10.0,
+    // Warn at 25% (section 10.1 uses the same threshold for the muffled-helmet filter).
+    low_oxygen_fraction: 0.25,
+    jetpack: (
+        fuel_capacity_s: 12.0,
+        thrust_acceleration: 7.0,
+        vertical_acceleration: 9.0,
+        match_velocity_acceleration: 10.0,
+        ground_refuel_delay_s: 1.5,
+        ground_refuel_per_s: 2.0,
+        supply_refuel_per_s: 6.0,
+    ),
+    tanks: (
+        oxygen_per_tank_s: 90.0,
+        max_carried: 2,
+    ),
+)

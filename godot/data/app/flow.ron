@@ -1,7 +1,8 @@
 // Top-level scene flow.
 (
     menu_scene: "res://scenes/ui/main_menu.tscn",
-    // The vertical slice will replace the sphere-walk test here.
-    slice_scene: "res://scenes/tests/sphere_walk.tscn",
+    // What Launch starts. The whole solar system, starting on Earth (Phase 3,
+    // Matthew's choice 31 Oct 2026). The vertical slice will replace it.
+    slice_scene: "res://scenes/tests/solar_system.tscn",
     crash_log_dir: "user://crash_logs",
 )

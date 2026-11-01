@@ -44,6 +44,7 @@ impl INode for GameRoot {
     }
 
     fn ready(&mut self) {
+        self.base_mut().add_to_group(crate::player::hud::GAME_ROOT_GROUP);
         let crash_dir = ProjectSettings::singleton().globalize_path(&self.data.crash_log_dir).to_string();
         crash::install(crash_dir.into());
 
@@ -71,7 +72,12 @@ impl GameRoot {
     /// Called by the menu's Start button.
     #[func]
     pub fn start_game(&mut self) {
+        SaveData::singleton().bind_mut().set_autosave_enabled(!self.args.is_test_run());
         SaveData::singleton().bind_mut().begin_run();
+        // A fresh run: ante 1's contract board opens when the slice loads.
+        crate::points::Points::singleton().bind_mut().start_run();
+        // Bot and replay runs skip the between-ante screens.
+        crate::points::Points::singleton().bind_mut().set_screens_mode(if self.args.is_test_run() { 0 } else { -1 });
         if !self.args.is_test_run() {
             SaveData::singleton().bind_mut().autosave();
         }
@@ -81,6 +87,33 @@ impl GameRoot {
             harness.bind_mut().configure(mode, scene);
             self.base_mut().add_child(&harness);
         }
+    }
+
+    /// The death recap's Continue: death ends the run (section 2), so clear
+    /// it from the save, autosave, and go back to the menu.
+    #[func]
+    pub fn on_player_died_continue(&mut self) {
+        // With the ante loop running, the run summary comes first; it calls
+        // on_run_over when read.
+        let director = self.base().get_tree().get_first_node_in_group(crate::points::director::DIRECTOR_GROUP);
+        if let Some(mut d) = director {
+            d.call("show_summary_after_death", &[]);
+            return;
+        }
+        SaveData::singleton().bind_mut().end_run();
+        if !self.args.is_test_run() {
+            SaveData::singleton().bind_mut().autosave();
+        }
+        self.show_menu();
+    }
+
+    /// The run summary was read (won, died or out of time; the summary
+    /// already put it on the leaderboard and autosaved): back to the menu.
+    #[func]
+    pub fn on_run_over(&mut self) {
+        SaveData::singleton().bind_mut().end_run();
+        crate::points::Points::singleton().bind_mut().clear_run();
+        self.show_menu();
     }
 
     /// Back to the menu (pause menu "quit to menu" later).

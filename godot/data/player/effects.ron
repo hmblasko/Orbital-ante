@@ -1,0 +1,59 @@
+// Movement polish: jetpack exhaust and dust (CLAUDE.md section 10: every
+// action stacks sound, light, particles, rumble and a subtle, toggleable
+// camera kick). Serves pillar 4 (everything is physical) and fun rule 10
+// (game feel). Dust takes the colour of the ground you're on.
+(
+    exhaust: (
+        // Puffs per second at full thrust.
+        rate: 160.0,
+        lifetime_s: 0.45,
+        speed_m_s: (4.0, 7.0),
+        spread_deg: 12.0,
+        size_m: (0.15, 0.55),
+        // The plume starts this far behind the push, on the side the thrusters fire.
+        nozzle_distance_m: 0.5,
+        // Puffs fade out nearer the camera than this, so the plume never fills the view.
+        camera_fade_m: (0.4, 1.3),
+        color_hot: (0.80, 0.92, 1.0),
+        color_mid: (1.0, 0.72, 0.42),
+        color_cool: (0.62, 0.62, 0.68),
+    ),
+    // Dust is the ground's colour lifted toward white by this much, so a puff
+    // still reads against the same sand it came from.
+    dust_lighten: 0.45,
+    footsteps: (
+        // A small puff every this many metres walked.
+        stride_m: 1.6,
+        crouch_stride_m: 1.0,
+        puffs: 10,
+        lifetime_s: 0.7,
+        speed_m_s: (0.8, 1.8),
+        size_m: (0.15, 0.5),
+        // Crouch-walking is quiet: smaller puffs.
+        crouch_scale: 0.5,
+    ),
+    landing: (
+        // Falls slower than this make no landing puff.
+        min_speed_m_s: 2.0,
+        // Puffs at the hardest landing; scales down with speed.
+        puffs: 26,
+        hard_speed_m_s: 9.0,
+        lifetime_s: 1.0,
+        speed_m_s: (1.5, 4.5),
+        size_m: (0.2, 0.7),
+        // Camera dips this far (metres) on a hard landing; 0 turns it off (comfort).
+        camera_dip_m: 0.18,
+        dip_recover_s: 0.25,
+    ),
+    // Helmet lamp: comes on by itself where sunlight can't reach (lava tubes,
+    // permanently shadowed craters) and fades off again in daylight.
+    lamp: Some((
+        range_m: 35.0,
+        angle_deg: 34.0,
+        energy: 6.0,
+        color: (1.0, 0.93, 0.80),
+        fade_s: 0.6,
+        fill_range_m: 7.0,
+        fill_energy: 0.8,
+    )),
+)

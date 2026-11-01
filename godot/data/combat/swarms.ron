@@ -1,0 +1,49 @@
+// Hunter swarms (CLAUDE.md section 2: escalation as antes rise; "counts
+// should be high"). Every so often a pack of faction hunters drops in round
+// the player and hunts them down. Packs grow bigger and come more often as
+// the ante rises. Every drop is warned first (section 12 rule 8, fair
+// failure): a notification plus red flare columns where they will land.
+//
+// One entry per ante (1 to 8). size: hunters per pack (min, max);
+// every_s: seconds between packs; first_s: grace before the ante's first
+// pack; tier2: share of tier 2 hunters (the rest tier 1).
+(
+    antes: [
+        (size: (2, 3),   every_s: 200.0, first_s: 150.0, tier2: 0.0),
+        (size: (3, 4),   every_s: 160.0, first_s: 120.0, tier2: 0.2),
+        (size: (4, 5),   every_s: 130.0, first_s: 100.0, tier2: 0.3),
+        (size: (5, 7),   every_s: 110.0, first_s: 80.0,  tier2: 0.35),
+        (size: (6, 8),   every_s: 95.0,  first_s: 70.0,  tier2: 0.4),
+        (size: (7, 10),  every_s: 85.0,  first_s: 60.0,  tier2: 0.45),
+        (size: (8, 11),  every_s: 75.0,  first_s: 50.0,  tier2: 0.5),
+        (size: (10, 14), every_s: 60.0,  first_s: 40.0,  tier2: 0.55),
+    ],
+    // Endless (ante 9+): each ante adds this many hunters to both ends of
+    // the size range and multiplies every_s by every_mult (not below every_min_s).
+    endless_size_step: 1,
+    endless_every_mult: 0.92,
+    every_min_s: 40.0,
+    // Who hunts (vertical slice: the Venera Collective only).
+    tier1: "venera_t1",
+    tier2_id: "venera_t2",
+    // Warning time between the flares and the drop.
+    warn_s: 4.0,
+    // Drop points: a ring this far from the player (metres), packed within
+    // spread_m of the pack's centre, dropping from this height.
+    ring_m: (45.0, 70.0),
+    spread_m: 8.0,
+    drop_height_m: 14.0,
+    // Hunters re-fix the player's position this often while within
+    // track_m (a tracker ping, so they close in). Hide in a ship and fly
+    // away to shake them; past despawn_m they give up and leave.
+    track_every_s: 6.0,
+    track_m: 160.0,
+    despawn_m: 320.0,
+    // Only on foot or in a rover, near a surface: never in space or aboard
+    // a ship, and never inside the home base's safe ring.
+    max_altitude_m: 60.0,
+    home_safe_m: 160.0,
+    // Never push the live soldier count past the section 14 cap (40).
+    max_active: 40,
+    flare: (color: (1.0, 0.22, 0.12), width_m: 0.25, height_m: 40.0, light_energy: 4.0, light_range_m: 14.0),
+)

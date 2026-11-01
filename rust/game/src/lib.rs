@@ -30,4 +30,10 @@ struct OrbitalAnte;
 // `#[class(singleton)]`. CLAUDE.md rule 7 allows only GameState, RunSeed,
 // Audio, Points, Notifications and SaveData.
 #[gdextension]
-unsafe impl ExtensionLibrary for OrbitalAnte {}
+unsafe impl ExtensionLibrary for OrbitalAnte {
+    fn on_stage_deinit(stage: InitStage) {
+        if stage == InitStage::MainLoop {
+            ai::enemy::clear_cut_cache();
+        }
+    }
+}

@@ -1,0 +1,33 @@
+// Faction base structures (CLAUDE.md sections 4 and 7). A base stands
+// around a camp's soldiers, gives tier 2 something to take cover behind,
+// and moves with the camp each ante. Vertical slice: one small Venera
+// Collective outpost on the Moon. Sizes in metres; colours are the
+// faction's (section 17.1: olive and rust; faction colours only for
+// factions). Built from bevelled, rounded parts (section 11).
+(
+    bases: {
+        "venera_small": (
+            colors: (
+                hull: (0.42, 0.46, 0.30),
+                trim: (0.58, 0.30, 0.18),
+                dark: (0.17, 0.18, 0.16),
+                lamp: (1.0, 0.36, 0.18),
+                window: (1.0, 0.78, 0.45),
+            ),
+            // Rounded hab pods, set on this ring around the camp centre.
+            pods: 2, pod_size_m: (3.4, 2.3, 2.6), pod_ring_m: (11.0, 14.0),
+            // Low bevelled walls to hide behind.
+            walls: 4, wall_size_m: (2.6, 1.0, 0.45), wall_ring_m: (5.0, 8.0),
+            // Supply crates, in small stacks.
+            crates: 5, crate_size_m: 0.85, crate_ring_m: (3.0, 12.0),
+            // A radio mast with a blinking lamp, visible from the air.
+            mast_height_m: 7.0, mast_ring_m: (9.0, 12.0), lamp_blink_hz: 0.8,
+            // Nothing is placed closer than this to anything else.
+            min_gap_m: 2.4,
+            // How far each piece sinks into the ground, so it never floats.
+            sink_m: 0.15,
+            // The vertical slice's baseball bat lies on a supply crate here.
+            crate_find: Some("bat"),
+        ),
+    },
+)

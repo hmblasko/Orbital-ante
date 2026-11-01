@@ -18,6 +18,10 @@ pub struct DetectorSettings {
     /// Further than this from every body counts as out of world.
     pub kill_distance_m: f32,
     pub max_sane_speed: f32,
+    /// Skip checks for this long after the scene starts, while scenes place
+    /// the player (the solar system spawns them on Earth after the first tick).
+    #[serde(default)]
+    pub settle_seconds: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -69,6 +73,9 @@ impl Detectors {
     }
 
     pub fn check(&mut self, s: Sample) {
+        if s.time_s < self.settings.settle_seconds {
+            return;
+        }
         let finite = s.position.iter().chain(s.velocity.iter()).all(|v| v.is_finite());
         let speed = distance(s.velocity, [0.0; 3]);
         if !finite {
@@ -129,6 +136,7 @@ mod tests {
             below_surface_margin_m: 0.5,
             kill_distance_m: 1000.0,
             max_sane_speed: 200.0,
+            settle_seconds: 0.0,
         }
     }
 

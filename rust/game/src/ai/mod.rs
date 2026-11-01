@@ -1,3 +1,11 @@
-//! Enemy AI states: Patrol, Suspicious, Alert, Search, Return (CLAUDE.md section 7).
+//! Enemy AI (CLAUDE.md section 7): Patrol, Suspicious, Alert, Search, Return.
 //!
-//! Empty until Phase 6 (combat). Kept so the crate layout matches CLAUDE.md section 14.
+//! - `brain`: the pure state machine.
+//! - `enemy`: the Enemy node (body, senses, movement, shooting, damage).
+//! - `camp`: spawns seeded enemy camps on bodies.
+
+pub mod brain;
+pub mod base;
+pub mod camp;
+pub mod enemy;
+pub mod swarm;

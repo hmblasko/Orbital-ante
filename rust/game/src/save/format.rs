@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Bump this whenever `SaveFile` changes shape, and add a migration below.
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SaveFile {
@@ -32,6 +32,29 @@ pub struct MetaProgress {
     pub notebook: Vec<String>,
     #[serde(default)]
     pub locker: Vec<String>,
+    /// Local leaderboard (section 3): best runs, tagged with the seed.
+    /// Added in save version 2.
+    #[serde(default)]
+    pub leaderboard: Vec<LeaderEntry>,
+}
+
+/// One finished run on the local leaderboard.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct LeaderEntry {
+    pub seed_code: String,
+    /// Highest ante reached.
+    pub ante: u32,
+    pub points: u64,
+    /// "won", "died" or "time_up".
+    pub outcome: String,
+}
+
+/// Keep the best `size` entries: highest ante first, then most points.
+pub fn add_to_leaderboard(board: &mut Vec<LeaderEntry>, entry: LeaderEntry, size: usize) -> Option<usize> {
+    board.push(entry.clone());
+    board.sort_by(|a, b| b.ante.cmp(&a.ante).then(b.points.cmp(&a.points)));
+    board.truncate(size);
+    board.iter().position(|e| *e == entry)
 }
 
 /// Lost when the run ends (CLAUDE.md section 2, "Lost").
@@ -45,6 +68,11 @@ pub struct RunSave {
     pub wallet: i64,
     #[serde(default)]
     pub player: Option<PlayerSave>,
+    /// Perks picked and attribute levels bought this run (version 2).
+    #[serde(default)]
+    pub perks: Vec<String>,
+    #[serde(default)]
+    pub attributes: Vec<(String, u32)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -81,9 +109,18 @@ struct VersionProbe {
 /// One upgrade step: turns a version N file (as generic RON) into version N+1.
 type Migration = fn(ron::Value) -> Result<ron::Value, String>;
 
-/// `MIGRATIONS[i]` upgrades version `i + 1` to `i + 2`. Empty while we are on
-/// version 1. Each new entry also needs a fixture file in tests/fixtures.
-const MIGRATIONS: &[Migration] = &[];
+/// `MIGRATIONS[i]` upgrades version `i + 1` to `i + 2`. Each entry also
+/// needs a fixture file in tests/fixtures.
+const MIGRATIONS: &[Migration] = &[v1_to_v2];
+
+/// Version 2 added the leaderboard and the run's build. Old files get an
+/// empty leaderboard and build; nothing else changes.
+fn v1_to_v2(value: ron::Value) -> Result<ron::Value, String> {
+    let ron::Value::Map(mut map) = value else { return Err("save is not a map".into()) };
+    let key = ron::Value::String("version".into());
+    map.insert(key, ron::Value::Number(ron::Number::from(2u32)));
+    Ok(ron::Value::Map(map))
+}
 
 pub fn parse_save(text: &str) -> Result<SaveFile, LoadError> {
     let probe: VersionProbe = ron::from_str(text).map_err(|e| LoadError::Unreadable(e.to_string()))?;
@@ -127,6 +164,8 @@ mod tests {
                 ante_score: 450,
                 wallet: 120,
                 player: Some(PlayerSave { body: "test_sphere".into(), position: (0.0, 60.9, 0.0) }),
+                perks: vec!["ghost".into()],
+                attributes: vec![("damage".into(), 2)],
             }),
         }
     }
@@ -154,6 +193,22 @@ mod tests {
     fn v1_fixture_still_loads() {
         let save = parse_save(include_str!("../../tests/fixtures/save_v1.ron")).unwrap();
         assert_eq!(save.meta.runs_started, 3);
-        assert_eq!(save.run.unwrap().seed_code, "7K3M-Q9TD");
+        let run = save.run.unwrap();
+        assert_eq!(run.seed_code, "7K3M-Q9TD");
+        assert!(run.perks.is_empty(), "v1 had no build; migration leaves it empty");
+        assert!(save.meta.leaderboard.is_empty());
+        assert_eq!(save.version, CURRENT_VERSION);
+    }
+
+    #[test]
+    fn leaderboard_keeps_the_best_runs() {
+        let mut board = Vec::new();
+        let e = |ante, points| LeaderEntry { seed_code: "A".into(), ante, points, outcome: "died".into() };
+        add_to_leaderboard(&mut board, e(2, 900), 3);
+        add_to_leaderboard(&mut board, e(4, 100), 3);
+        add_to_leaderboard(&mut board, e(2, 1500), 3);
+        let rank = add_to_leaderboard(&mut board, e(1, 50), 3);
+        assert_eq!(rank, None, "too low to place");
+        assert_eq!(board.iter().map(|x| (x.ante, x.points)).collect::<Vec<_>>(), vec![(4, 100), (2, 1500), (2, 900)]);
     }
 }

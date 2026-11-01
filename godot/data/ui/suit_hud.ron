@@ -1,0 +1,50 @@
+// Visor HUD layout (CLAUDE.md section 6). Sizes are pixels at 1280x800 (the
+// Steam Deck screen) and scale with the window height. All text stays well
+// above section 15's 9 px minimum.
+// Colours: oxygen teal and fuel amber are friendly/neutral reads (section
+// 10); warnings use the red-orange danger colour.
+(
+    margin_px: 26.0,
+    // Oxygen: glass plate, bottom left, with a 270-degree ring gauge.
+    oxygen_plate_px: (252.0, 96.0),
+    oxygen_ring_radius_px: 30.0,
+    oxygen_ring_width_px: 8.0,
+    oxygen_ticks: 12,
+    // Jetpack fuel: glass plate, bottom right, segmented upright bar.
+    fuel_plate_px: (96.0, 150.0),
+    fuel_segments: 10,
+    // Suit integrity (health): thin segmented bar, bottom centre.
+    health_bar_px: (260.0, 10.0),
+    health_segments: 10,
+    number_font_px: 34,
+    label_font_px: 15,
+    status_font_px: 18,
+    prompt_font_px: 20,
+    recap_title_px: 64,
+    recap_line_px: 28,
+    crosshair_radius_px: 2.5,
+    warning_blink_hz: 2.0,
+    oxygen_color: (0.36, 0.90, 0.88),
+    fuel_color: (1.0, 0.70, 0.28),
+    // The rover's boost gauge and speed while the rocket fires.
+    boost_color: (1.0, 0.45, 0.20),
+    health_color: (0.92, 0.95, 1.0),
+    warning_color: (1.0, 0.36, 0.18),
+    glass_color: (0.05, 0.07, 0.12, 0.72),
+    glass_edge_color: (0.40, 0.80, 0.85, 0.45),
+    // Seconds after death before the recap accepts Continue (stops an
+    // accidental press skipping it).
+    recap_input_delay_s: 1.5,
+    // Visor frame darkness at the screen edge (0 = none).
+    visor_edge_darkness: 0.5,
+    // Weapon plate, bottom right beside the jetpack gauge: ammo as big
+    // numbers (loaded / reserve), unlike the oxygen dial and fuel bar.
+    weapon_plate_px: (210.0, 112.0),
+    ammo_color: (0.95, 0.93, 0.86),
+    // Hit marker ticks around the crosshair: plain hit, gib, kill.
+    hit_marker_px: 11.0,
+    hit_colors: [(1.0, 1.0, 1.0), (1.0, 0.62, 0.22), (1.0, 0.25, 0.18)],
+    // Red arc pointing to whoever just shot you; fades over this long.
+    damage_arrow_s: 1.6,
+    damage_arrow_radius_px: 120.0,
+)

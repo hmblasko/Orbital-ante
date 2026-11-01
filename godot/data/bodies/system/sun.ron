@@ -1,0 +1,15 @@
+// Sun (section 4 roster, Phase 3 first pass). Lethal heat close in (heat damage comes in a later phase).
+// Generated once by tools/gen_system_bodies.py; tune this file directly.
+(
+    name: "Sun",
+    radius: 1200.0,
+    gravity: (
+        surface_gravity: 14.0,
+        influence_radius: 4200.0,
+    ),
+    star: Some((
+        core: (1.00, 0.93, 0.74),
+        edge: (1.00, 0.52, 0.16),
+        energy: 1.7,
+    )),
+)

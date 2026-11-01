@@ -1,0 +1,153 @@
+// Mars (section 4 roster, Phase 3 first pass). Dust, a giant canyon and rover country; Faction B home (bases come later).
+// Generated once by tools/gen_system_bodies.py; tune this file directly.
+(
+    name: "Mars",
+    radius: 520.0,
+    gravity: (
+        surface_gravity: 6.0,
+        influence_radius: 1250.0,
+    ),
+    terrain: (
+        seed: 1501,
+        subdivisions: 384,
+        hill_height_m: 4.0,
+        hill_frequency: 10.0,
+        hill_octaves: 6,
+        ridge_height_m: 4.0,
+        ridge_frequency: 6.0,
+        crater_count: 70,
+        crater_radius_m: (4.0, 30.0),
+        crater_depth_ratio: 0.18,
+        crater_rim_ratio: 0.35,
+        landforms: (
+            water_level_m: None,
+            clear_zone_deg: 5.0,
+            // Mars kit (docs/planetary_geology_field_guide.md and the Mars and
+            // Moon kit draft). Signature (L) landmarks are fixed every run, the
+            // rest is seeded. The landing zone is the north pole (+Y); the
+            // polar ice cap is at the south pole.
+            placed: [
+                // Shield volcano: wide, gentle slopes up to a summit caldera.
+                (kind: Volcano, at: (0.62, 0.35, -0.70), radius_m: 170.0, height_m: 70.0),
+                // The chasma: a mega-canyon near the equator, with one tributary.
+                (kind: Canyon, at: (-0.20, 0.05, 0.98), to: Some((0.55, -0.05, 0.83)), radius_m: 22.0, height_m: 18.0),
+                (kind: Canyon, at: (0.30, 0.32, 0.90), to: Some((0.20, 0.04, 0.98)), radius_m: 11.0, height_m: 10.0),
+                // Outflow channel: a wide, shallow rover highway from the chasma's mouth north.
+                (kind: Rille, at: (0.58, 0.00, 0.81), to: Some((0.42, 0.58, 0.70)), radius_m: 20.0, height_m: 3.0),
+                // South polar layered deposits with spiral troughs.
+                (kind: PolarCap, at: (0.0, -1.0, 0.0), radius_m: 120.0, height_m: 10.0),
+            ],
+            random: [
+                // Erosion sequences: a mesa with buttes stepping away (hoodoos gather round).
+                (kind: Erosion, count: 4, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
+                (kind: Labyrinth, count: 1, radius_m: (40.0, 50.0), height_m: (7.0, 10.0), length_m: (40.0, 70.0)),
+                (kind: Yardangs, count: 2, radius_m: (70.0, 100.0), height_m: (3.0, 5.0)),
+                (kind: Rampart, count: 5, radius_m: (10.0, 15.0), height_m: (4.0, 6.0)),
+                (kind: Crater, count: 5, radius_m: (40.0, 70.0), height_m: (6.0, 12.0)),
+                (kind: Dunes, count: 5, radius_m: (80.0, 130.0), height_m: (4.0, 8.0)),
+                // Inverted relief: old channels left standing as low, winding ridges.
+                (kind: Ridge, count: 3, radius_m: (5.0, 8.0), height_m: (1.5, 3.0), length_m: (100.0, 200.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Canyon, count: 2, radius_m: (12.1, 17.2), height_m: (10.3, 17.2), length_m: (344.8, 689.5)),
+                (kind: Mesa, count: 4, radius_m: (22.9, 38.2), height_m: (12.7, 22.9)),
+                (kind: Volcano, count: 2, radius_m: (44.6, 76.5), height_m: (22.9, 40.8)),
+            ],
+        ),
+    ),
+    look: (
+        color_low: (0.68, 0.38, 0.24),
+        color_high: (0.82, 0.56, 0.38),
+        color_crater: (0.52, 0.28, 0.19),
+        color_rim: (0.88, 0.66, 0.48),
+        color_slope: (0.56, 0.29, 0.19),
+        shadow_tint: (0.36, 0.36, 0.62),
+        rim_color: (0.60, 0.70, 1.00),
+        rim_strength: 0.3,
+        detail_scale: 0.02,
+        grain_scale: 0.15,
+    ),
+    land_look: (
+        strata_a: (0.80, 0.46, 0.30),
+        strata_b: (0.60, 0.30, 0.20),
+        // Mars's shield volcanoes are long dead and dust-covered: darker
+        // rusty flanks, no glowing lava.
+        basalt: (0.42, 0.25, 0.18),
+        lava: (1.00, 0.45, 0.10),
+        lava_energy: 0.0,
+        lava_light_range_m: 0.0,
+        snow: (0.93, 0.89, 0.84),
+        snow_drift: 0.25,
+        wet: (0.52, 0.28, 0.19),
+        mineral: (0.90, 0.88, 0.82),
+        water_shallow: (0.25, 0.70, 0.75),
+        water_deep: (0.05, 0.22, 0.40),
+        water_foam: (0.95, 0.98, 1.00),
+        water_subdivisions: 64,
+        frozen: false,
+    ),
+    rocks: (
+        count: 900,
+        size_m: (0.4, 3.2),
+        cluster_size: (2, 6),
+        cluster_spread_m: 8.0,
+        roughness: 0.32,
+        color: (0.58, 0.34, 0.24),
+        color_dark: (0.32, 0.18, 0.13),
+        visible_m: 220.0,
+    ),
+    hoodoos: Some((
+        clusters_per_mesa: 2,
+        clusters_per_canyon: 2,
+        per_cluster: (3, 6),
+        cluster_spread_m: 12.0,
+        height_m: (5.0, 13.0),
+        variants: 6,
+        band_a: (0.86, 0.52, 0.34),
+        band_b: (0.74, 0.46, 0.32),
+        cap: (0.48, 0.30, 0.24),
+        visible_m: 600.0,
+    )),
+    render_tiles: 8,
+    lod: Some((
+        near_subdivisions: 512,
+        far_subdivisions: 192,
+        tiles: 8,
+        near_range_m: 200.0,
+    )),
+    preview_subdivisions: 64,
+    air_glow: Some((color: (0.95, 0.60, 0.40), height_m: 50.0, strength: 0.70)),
+    // Weather (section 4: sandstorms, wind; Mars kit: dust devils). Seeded per
+    // run; every storm builds over ramp_s so you can see it coming.
+    weather: Some((
+        ceiling_m: 260.0,
+        calm_s: (120.0, 260.0),
+        wind_m_s: 3.0,
+        push_per_wind: 0.12,
+        ground_share: 0.3,
+        calm_fog: (0.86, 0.58, 0.40),
+        calm_fog_density: 0.0015,
+        events: [
+            (kind: Sandstorm, weight: 2.0, duration_s: (90.0, 160.0), ramp_s: 25.0, wind_m_s: 18.0,
+             fog: (0.78, 0.48, 0.30), fog_density: 0.028, particle_color: (0.80, 0.52, 0.34), particles_per_s: 500.0, sun_dim: 0.45),
+            (kind: DustDevils, weight: 3.0, duration_s: (80.0, 140.0), ramp_s: 10.0, wind_m_s: 6.0,
+             fog: (0.86, 0.58, 0.40), fog_density: 0.003, particle_color: (0.76, 0.50, 0.34), particles_per_s: 0.0, devils: 3),
+        ],
+    )),
+    // CO2 geysers on the south polar cap (Mars kit): each vent hisses frost
+    // for warn_s seconds, then blasts a dark dust column that throws anyone
+    // standing on it. Vent spots and timings are seeded per run.
+    geysers: Some((
+        count: 7,
+        around: PolarCap,
+        ring: (0.35, 0.95),
+        cycle_s: (35.0, 70.0),
+        warn_s: 4.0,
+        erupt_s: 5.0,
+        radius_m: 3.5,
+        throw_m_s: 16.0,
+        column_height_m: 40.0,
+        dust_color: (0.22, 0.16, 0.13),
+        frost_color: (0.92, 0.94, 0.98),
+        show_within_m: 450.0,
+    )),
+)

@@ -1,0 +1,38 @@
+// Ante plate and notifications (CLAUDE.md sections 6 and 10). Sizes are
+// pixels at 1280x800 and scale with the window height; all text stays well
+// above section 15's 9 px minimum.
+(
+    margin_px: 26.0,
+    // Top left: ante number, timer, score / target, multiplier, pace.
+    plate_px: (300.0, 118.0),
+    timer_font_px: 34,
+    score_font_px: 22,
+    label_font_px: 15,
+    contract_font_px: 15,
+    // The clock turns red-orange and pulses below this many seconds.
+    timer_warn_below_s: 120.0,
+    // Score count-up: closes this fraction of the gap per second (slot
+    // machine feel), never slower than min_rate points per second.
+    count_up_rate: 6.0,
+    count_up_min_rate: 120.0,
+    // Notifications, top right.
+    note_width_px: 420.0,
+    note_height_px: 38.0,
+    note_font_px: 17,
+    note_big_font_px: 21,
+    note_max_visible: 4,
+    note_life_s: 4.0,
+    note_max_waiting: 8,
+    note_slide_s: 0.25,
+    // Colours by kind: points, big points, discovery, contract, info, warning.
+    // Rarity colours are kept for rarity, faction colours for factions.
+    note_colors: [(0.95, 0.93, 0.86), (1.0, 0.80, 0.30), (0.40, 0.85, 1.0), (0.55, 0.95, 0.55), (0.85, 0.88, 0.95), (1.0, 0.36, 0.18)],
+    text_color: (0.95, 0.93, 0.86),
+    target_color: (0.55, 0.95, 0.55),
+    multiplier_color: (1.0, 0.70, 0.28),
+    pace_colors: [(0.36, 0.90, 0.88), (0.95, 0.93, 0.86), (1.0, 0.36, 0.18)],
+    warning_color: (1.0, 0.36, 0.18),
+    glass_color: (0.05, 0.07, 0.12, 0.72),
+    glass_edge_color: (0.40, 0.80, 0.85, 0.45),
+    blink_hz: 2.0,
+)

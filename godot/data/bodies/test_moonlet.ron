@@ -1,0 +1,86 @@
+// PLACEHOLDER second body for the Phase 2 suit test: a jetpack hop away from
+// the test sphere, with a zero-g gap between their gravity fields.
+// Not part of the body roster. An icy little world so the hop lands somewhere
+// that feels different: frozen pools you can skate across, frost-capped
+// ridges and a crevasse (section 4: menacing geography, never flat).
+(
+    name: "Test Moonlet (placeholder)",
+    radius: 66.0,
+    gravity: (
+        surface_gravity: 4.0,
+        influence_radius: 180.0,
+    ),
+    // Breathable air, so the "refill outside a suit" rule can be tested.
+    // PLACEHOLDER: no real moon has this; it's here for testing only.
+    atmosphere: Some((
+        breathable: true,
+        height_m: 20.0,
+    )),
+    terrain: (
+        seed: 905,
+        // 160 cells per face edge: about 0.65 m cells, enough for small ridges.
+        subdivisions: 160,
+        hill_height_m: 1.8,
+        hill_frequency: 5.0,
+        hill_octaves: 4,
+        ridge_height_m: 2.0,
+        ridge_frequency: 4.0,
+        crater_count: 24,
+        crater_radius_m: (2.0, 9.0),
+        crater_depth_ratio: 0.22,
+        crater_rim_ratio: 0.3,
+        landforms: (
+            // Below this, the ground is under ice.
+            water_level_m: Some(-0.5),
+            clear_zone_deg: 0.0,
+            placed: [],
+            random: [
+                (kind: Mountain, count: 6, radius_m: (12.0, 22.0), height_m: (8.0, 14.0)),
+                (kind: Canyon, count: 2, radius_m: (3.5, 5.0), height_m: (4.0, 6.0), length_m: (60.0, 90.0)),
+                (kind: Lake, count: 3, radius_m: (10.0, 16.0), height_m: (1.5, 2.5)),
+                (kind: Pool, count: 5, radius_m: (2.5, 4.0), height_m: (1.0, 1.4)),
+                (kind: Ridge, count: 2, radius_m: (3.0, 5.0), height_m: (2.5, 4.0), length_m: (50.0, 80.0)),
+                (kind: Sinkhole, count: 2, radius_m: (3.0, 5.0), height_m: (5.0, 8.0)),
+            ],
+        ),
+    ),
+    // Icy blue-white, so it reads as a different place from far away.
+    look: (
+        color_low: (0.50, 0.62, 0.76),
+        color_high: (0.70, 0.80, 0.90),
+        color_crater: (0.30, 0.42, 0.57),
+        color_rim: (0.88, 0.93, 0.98),
+        color_slope: (0.40, 0.52, 0.66),
+        shadow_tint: (0.28, 0.34, 0.66),
+        rim_color: (0.65, 0.80, 1.0),
+        rim_strength: 0.3,
+        detail_scale: 0.05,
+        grain_scale: 0.18,
+    ),
+    land_look: (
+        // Blue-grey ice strata in the crevasse walls.
+        strata_a: (0.60, 0.72, 0.84),
+        strata_b: (0.38, 0.50, 0.66),
+        basalt: (0.22, 0.26, 0.34),
+        lava: (1.0, 0.42, 0.08),
+        lava_energy: 0.0,
+        lava_light_range_m: 0.0,
+        snow: (0.97, 0.99, 1.0),
+        wet: (0.36, 0.48, 0.62),
+        mineral: (0.86, 0.94, 1.0),
+        water_shallow: (0.72, 0.90, 0.97),
+        water_deep: (0.16, 0.42, 0.66),
+        water_foam: (0.95, 0.98, 1.0),
+        water_subdivisions: 48,
+        frozen: true,
+    ),
+    rocks: (
+        count: 60,
+        size_m: (0.2, 1.1),
+        cluster_size: (2, 4),
+        cluster_spread_m: 3.0,
+        roughness: 0.28,
+        color: (0.70, 0.80, 0.90),
+        color_dark: (0.36, 0.44, 0.56),
+    ),
+)

@@ -92,7 +92,7 @@ mod tests {
     fn endless_targets_grow_by_the_endless_factor() {
         let a = antes();
         assert_eq!(a.target(1), 1000);
-        assert_eq!(a.target(8), 14500);
-        assert_eq!(a.target(9), 23200);
+        assert_eq!(a.target(8), 24000);
+        assert_eq!(a.target(9), 38400);
     }
 }

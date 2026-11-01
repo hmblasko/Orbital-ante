@@ -1,0 +1,4 @@
+[gd_scene format=3]
+
+[node name="StarterLander" type="Ship"]
+data_path = "res://data/ships/starter_lander.ron"

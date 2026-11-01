@@ -1,22 +1,132 @@
-// PLACEHOLDER body for the Phase 0 sphere-walk test scene.
-// Not part of the body roster; it is deliberately smaller than a moon
-// (section 4: moons are 150-400 m) so the curvature is easy to feel.
+// PLACEHOLDER body for the test scenes: a painted-desert world that shows
+// every landform preset in one place (section 4: hilly, never flat;
+// mountains, mesas, buttes, hoodoos, canyons, volcanoes, craters, ridges,
+// dunes, sinkholes, lakes, rivers, pools). Not part of the body roster.
+// Radius 600 m is mid-range for a rocky planet (400-900 m), so it takes a
+// few minutes to cross on foot and the horizon stays far off.
+// The liquid water is for showing the water shader; no vacuum world has it.
 (
     name: "Test Sphere (placeholder)",
-    radius: 60.0,
+    radius: 600.0,
     gravity: (
         surface_gravity: 9.0,
-        influence_radius: 600.0,
+        // Leaves a zero-g gap before the test moonlet's field.
+        influence_radius: 1000.0,
     ),
-    placeholder_look: (
-        base_color: (0.78, 0.74, 0.68),
-        noise_frequency: 0.05,
-        // How many times the noise texture repeats across one radius.
-        texture_repeats: 6.0,
-        radial_segments: 128,
-        rings: 64,
-        marker_count: 24,
-        marker_size: (0.6, 3.0, 0.6),
-        marker_color: (0.95, 0.55, 0.2),
+    terrain: (
+        seed: 4217,
+        // 512 x 512 cells per cube face: about 1.8 m cells for collision
+        // and placement (render meshes come from `lod` below).
+        subdivisions: 512,
+        hill_height_m: 5.0,
+        hill_frequency: 11.0,
+        hill_octaves: 6,
+        ridge_height_m: 5.0,
+        ridge_frequency: 7.0,
+        crater_count: 120,
+        crater_radius_m: (4.0, 30.0),
+        crater_depth_ratio: 0.18,
+        crater_rim_ratio: 0.35,
+        landforms: (
+            water_level_m: Some(-2.5),
+            clear_zone_deg: 6.0,
+            // Hand-placed so the first walk from the landing zone shows them.
+            // The player spawns at +Y facing -Z.
+            placed: [
+                (kind: Mesa, at: (-0.0613, 0.978, -0.1992), radius_m: 44.0, height_m: 30.0),
+                // A pair of buttes beyond the mesa: what's left once a mesa erodes.
+                (kind: Butte, at: (-0.065, 0.9272, -0.3689), radius_m: 20.0, height_m: 42.0),
+                (kind: Butte, at: (0.0338, 0.8746, -0.4836), radius_m: 14.0, height_m: 34.0),
+                (kind: Volcano, at: (0.3032, 0.9052, -0.2977), radius_m: 100.0, height_m: 60.0),
+                (kind: Canyon, at: (-0.3206, 0.9353, 0.1496), to: Some((-0.2504, 0.9003, -0.3561)), radius_m: 16.0, height_m: 18.0),
+                (kind: Lake, at: (0.2167, 0.9696, 0.1135), radius_m: 36.0, height_m: 4.0),
+                (kind: River, at: (0.5162, 0.8213, 0.2429), to: Some((0.2167, 0.9696, 0.1135)), radius_m: 4.5, height_m: 0.0),
+                (kind: Pool, at: (-0.1009, 0.993, 0.0606), radius_m: 5.0, height_m: 1.6),
+                // A collapse pit a short walk from the lander.
+                (kind: Sinkhole, at: (0.0798, 0.9903, -0.114), radius_m: 14.0, height_m: 16.0),
+                (kind: Mountain, at: (0.0, 0.8944, 0.4472), radius_m: 80.0, height_m: 52.0),
+                (kind: Mountain, at: (0.1763, 0.8516, 0.4937), radius_m: 60.0, height_m: 40.0),
+                // Further out: a big complex crater, a dune sea and a wrinkle ridge.
+                (kind: Crater, at: (0.7656, 0.6428, -0.0267), radius_m: 75.0, height_m: 12.0),
+                (kind: Dunes, at: (-0.6124, 0.7071, 0.3536), radius_m: 110.0, height_m: 9.0),
+                (kind: Ridge, at: (-0.814, 0.5, -0.296), to: Some((-0.153, 0.469, -0.870)), radius_m: 14.0, height_m: 10.0),
+            ],
+            random: [
+                (kind: Mountain, count: 20, radius_m: (50.0, 90.0), height_m: (30.0, 55.0)),
+                (kind: Mesa, count: 14, radius_m: (25.0, 50.0), height_m: (18.0, 32.0)),
+                (kind: Butte, count: 14, radius_m: (12.0, 22.0), height_m: (25.0, 45.0)),
+                (kind: Volcano, count: 4, radius_m: (80.0, 110.0), height_m: (50.0, 70.0)),
+                (kind: Crater, count: 10, radius_m: (40.0, 90.0), height_m: (6.0, 14.0)),
+                (kind: Dunes, count: 6, radius_m: (80.0, 140.0), height_m: (5.0, 9.0)),
+                (kind: Sinkhole, count: 10, radius_m: (6.0, 14.0), height_m: (10.0, 20.0)),
+                (kind: Canyon, count: 8, radius_m: (14.0, 20.0), height_m: (12.0, 20.0), length_m: (400.0, 800.0)),
+                (kind: Ridge, count: 8, radius_m: (10.0, 18.0), height_m: (6.0, 12.0), length_m: (300.0, 600.0)),
+                (kind: Lake, count: 8, radius_m: (25.0, 45.0), height_m: (3.0, 5.0)),
+                (kind: River, count: 12, radius_m: (3.5, 5.0), height_m: (0.0, 0.0), length_m: (200.0, 450.0)),
+                (kind: Pool, count: 14, radius_m: (4.0, 7.0), height_m: (1.2, 1.8)),
+            ],
+        ),
     ),
+    // Painted desert: ochre sand, pale highlands, terracotta slopes, cool
+    // violet shadows (warm/cool separation, section 11).
+    look: (
+        color_low: (0.78, 0.56, 0.38),
+        color_high: (0.90, 0.75, 0.56),
+        color_crater: (0.62, 0.43, 0.31),
+        color_rim: (0.95, 0.83, 0.64),
+        color_slope: (0.70, 0.42, 0.28),
+        shadow_tint: (0.38, 0.36, 0.62),
+        rim_color: (0.60, 0.70, 1.0),
+        rim_strength: 0.3,
+        detail_scale: 0.02,
+        grain_scale: 0.15,
+    ),
+    land_look: (
+        strata_a: (0.86, 0.50, 0.30),
+        strata_b: (0.66, 0.31, 0.21),
+        basalt: (0.34, 0.28, 0.30),
+        lava: (1.0, 0.45, 0.10),
+        lava_energy: 4.0,
+        lava_light_range_m: 45.0,
+        // A desert world has no snow: peaks get pale, wind-bleached sandstone
+        // instead, which reads from orbit without looking iced like a cake.
+        snow: (0.88, 0.76, 0.60),
+        wet: (0.46, 0.33, 0.26),
+        mineral: (0.90, 0.84, 0.74),
+        water_shallow: (0.30, 0.80, 0.80),
+        water_deep: (0.06, 0.28, 0.42),
+        water_foam: (0.95, 0.98, 1.0),
+        water_subdivisions: 48,
+    ),
+    rocks: (
+        count: 1400,
+        size_m: (0.35, 2.8),
+        cluster_size: (2, 6),
+        cluster_spread_m: 6.0,
+        roughness: 0.32,
+        color: (0.74, 0.50, 0.36),
+        color_dark: (0.42, 0.27, 0.20),
+        visible_m: 220.0,
+    ),
+    hoodoos: Some((
+        clusters_per_mesa: 3,
+        clusters_per_canyon: 3,
+        per_cluster: (3, 6),
+        cluster_spread_m: 12.0,
+        height_m: (5.0, 13.0),
+        variants: 6,
+        band_a: (0.92, 0.58, 0.36),
+        band_b: (0.80, 0.56, 0.40),
+        cap: (0.52, 0.36, 0.30),
+        visible_m: 600.0,
+    )),
+    render_tiles: 16,
+    // Fine 1.2 m cells within about 200 m (cliffs and canyon walls stay
+    // crisp), 3.7 m cells beyond. Collision uses the 512 grid above.
+    lod: Some((
+        near_subdivisions: 768,
+        far_subdivisions: 256,
+        tiles: 16,
+        near_range_m: 200.0,
+    )),
 )

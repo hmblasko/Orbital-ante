@@ -1,0 +1,74 @@
+// Run flow (CLAUDE.md sections 2, 3, 9, 13): contracts, the scratch-off
+// ticket and discovery values. All odds are seeded, fair and shown in-game.
+(
+    // Contract board at the start of each ante: this many offered, take up
+    // to max_taken. Rewards by risk level 1-3 (section 18.7: the riskier
+    // option pays 1.3-1.6x the safer one's expected value).
+    contracts_offered: 3,
+    contracts_max_taken: 2,
+    contract_reward_by_risk: [(300, 450), (450, 650), (650, 950)],
+    // Templates the board draws from. `from_ante` gates when each appears.
+    // Kinds: ClearCamp, KillTier, Capture, Discover, Land, Repair.
+    contracts: [
+        (id: "clear_camp", kind: ClearCamp, risk: 3, body: "moon", count: 1, from_ante: 1),
+        (id: "thin_patrol", kind: KillTier, risk: 1, body: "", count: 2, tier: 1, from_ante: 1),
+        (id: "take_alive", kind: Capture, risk: 2, body: "", count: 1, from_ante: 1),
+        (id: "survey_moon", kind: Discover, risk: 1, body: "moon", count: 3, from_ante: 1),
+        (id: "survey_earth", kind: Discover, risk: 1, body: "earth", count: 3, from_ante: 1),
+        (id: "visit_mars", kind: Land, risk: 2, body: "mars", count: 1, from_ante: 1),
+        (id: "visit_venus", kind: Land, risk: 3, body: "venus", count: 1, from_ante: 2),
+        (id: "visit_mercury", kind: Land, risk: 3, body: "mercury", count: 1, from_ante: 2),
+        (id: "visit_phobos", kind: Land, risk: 2, body: "phobos", count: 1, from_ante: 1),
+        (id: "officer_hunt", kind: KillTier, risk: 2, body: "", count: 1, tier: 2, from_ante: 2),
+        (id: "moon_signal", kind: Repair, risk: 2, body: "moon", count: 2, from_ante: 1),
+    ],
+    // One free scratch-off ticket per ante (works like a chest). Rarity
+    // odds from section 9, shown on the ticket. Until loot and cosmetics
+    // exist (Phase 8) the prizes are Wallet points (a fraction of the
+    // current target) or a stopwatch (+60 s next ante).
+    scratch_odds: [
+        (rarity: Common, weight: 55.0, prize: Wallet(0.03)),
+        (rarity: Uncommon, weight: 25.0, prize: Wallet(0.08)),
+        (rarity: Rare, weight: 13.0, prize: Stopwatch),
+        (rarity: Legendary, weight: 6.0, prize: Wallet(0.3)),
+        (rarity: Unusual, weight: 1.0, prize: Wallet(0.6)),
+    ],
+    scratch_reveal_s: 1.0,
+    // Discovery (section 3: modest, a surprise, never a price list): first
+    // visit per run. Points by landform kind; anything unlisted is ignored.
+    // Rarity colours (section 10: rarity colours only for rarity), TF2-like
+    // and told apart by name and shape too, never colour alone.
+    rarity_colors: {
+        Common: (0.86, 0.86, 0.82), Uncommon: (0.45, 0.78, 0.98), Rare: (0.62, 0.48, 0.98),
+        Legendary: (1.0, 0.72, 0.22), Unusual: (0.80, 0.42, 0.98),
+    },
+    discovery_points: {
+        "Basin": 80, "Crater": 70, "Volcano": 80, "Mesa": 50, "Butte": 40, "Mountain": 50,
+        "Sinkhole": 50, "ColdTrap": 70, "RayedCrater": 60, "Mare": 40, "Corona": 70,
+        "Patera": 70, "Chaos": 60, "PolarCap": 70, "Erosion": 50, "Labyrinth": 60,
+        "Yardangs": 50, "Rampart": 50, "Dunes": 40, "Lake": 40, "PancakeDome": 50,
+        "Penitentes": 60, "Catena": 40, "Canyon": 70, "Rille": 50, "Ridge": 30,
+        "Bowl": 30, "River": 40, "Pool": 30,
+    },
+    cave_points: 70,
+    landmark_points: 60,
+    first_landing_points: 80,
+    // You discover a feature by coming within its footprint plus this margin
+    // and below this height above the ground.
+    discovery_margin_m: 25.0,
+    discovery_max_altitude_m: 120.0,
+    // Ignore landforms smaller than this (pebble-sized bowls aren't news).
+    discovery_min_radius_m: 18.0,
+    discovery_check_s: 0.25,
+    // Within this many metres of a cave mouth or a surface landmark counts
+    // as finding it.
+    cave_find_m: 14.0,
+    landmark_find_m: 30.0,
+    // Feet within this of the ground, off the ship, counts as a landing.
+    landed_altitude_m: 2.5,
+    // The run starts here, so standing at home is not a "first landing".
+    home_body: "earth",
+    // A run lasts antes 1..final_ante, then Endless.
+    final_ante: 8,
+    leaderboard_size: 10,
+)

@@ -1,0 +1,61 @@
+// The player's home base on Earth (CLAUDE.md sections 2, 5 and 6): a
+// medium base round the launch pad where every run starts. The lander
+// waits on the pad beside the NASA launch gantry (no flags). Layout is in
+// metres on the ground plane round the start spot: x to the right of the
+// player's first view, z straight ahead. Built from bevelled, rounded
+// parts with the shared painted shader (section 11). Friendly / neutral
+// colours: white and warm grey with teal trim (section 10); no faction
+// colours.
+(
+    body: "earth",
+    colors: (
+        wall: (0.90, 0.89, 0.85),
+        trim: (0.25, 0.72, 0.74),
+        dark: (0.20, 0.22, 0.25),
+        concrete: (0.62, 0.61, 0.58),
+        stripe: (0.98, 0.78, 0.22),
+        glass: (0.55, 0.85, 1.0),
+        lamp: (1.0, 0.86, 0.62),
+        steel: (0.76, 0.34, 0.22),
+    ),
+    // The launch pad: a raised round plinth the lander sits on.
+    pad: (at: (0.0, 34.0), radius_m: 11.0, lip_m: 0.35, lamps: 16),
+    // The NASA launch gantry beside the pad, facing it, painted rust-red
+    // steel like a real service tower.
+    gantry: (
+        model: "res://assets/models/nasa/launch_gantry.glb",
+        at: (17.5, 34.0), yaw_deg: 90.0, scale: 1.5, sink_m: 1.6,
+    ),
+    // Buildings: kind, centre, size (x, height, z), yaw.
+    buildings: [
+        (kind: Hangar, at: (-24.0, 30.0), size: (14.0, 7.0, 11.0), yaw_deg: 90.0),
+        (kind: ControlTower, at: (-15.0, 9.0), size: (5.0, 11.0, 5.0), yaw_deg: 30.0),
+        (kind: Hab, at: (14.0, 8.0), size: (7.0, 4.0, 7.0), yaw_deg: 0.0),
+        (kind: Hab, at: (21.0, 15.0), size: (6.0, 3.6, 6.0), yaw_deg: 25.0),
+        (kind: Locker, at: (-6.0, -6.0), size: (6.0, 3.8, 4.5), yaw_deg: 160.0),
+        (kind: FuelTank, at: (11.0, 47.0), size: (2.6, 8.0, 2.6), yaw_deg: 0.0),
+        (kind: FuelTank, at: (15.0, 50.0), size: (2.6, 8.0, 2.6), yaw_deg: 0.0),
+        (kind: FuelTank, at: (-3.0, 52.0), size: (2.2, 6.0, 2.2), yaw_deg: 0.0),
+    ],
+    // A tracking dish on a rise behind the habs.
+    dish: (model: "res://assets/models/nasa/dsn_34m_dish.glb", at: (30.0, -4.0), scale: 0.3, yaw_deg: 220.0, sink_m: 0.2),
+    // Paths: from, to, width. Lit by lamp posts every lamp_every_m.
+    paths: [
+        (from: (0.0, -2.0), to: (0.0, 22.0), width_m: 3.0),
+        (from: (0.0, 6.0), to: (-13.0, 9.0), width_m: 2.2),
+        (from: (0.0, 6.0), to: (12.0, 8.0), width_m: 2.2),
+        (from: (-4.0, 22.0), to: (-17.0, 28.0), width_m: 2.6),
+    ],
+    lamp_every_m: 8.0,
+    lamp_height_m: 3.6,
+    // Each piece sinks to the lowest ground under it, plus this, so nothing
+    // floats on Earth's hills.
+    sink_m: 0.25,
+    // The ground is graded flat this far round the start (metres), blending
+    // back into the hills by flat_outer_m, so the base stands level.
+    flat_inner_m: 64.0,
+    flat_outer_m: 105.0,
+    // A Moon buggy parked between the pad and the hangar, nose toward the
+    // start, so the first minute can include a joyride.
+    rover: Some((data: "res://data/vehicles/moon_buggy.ron", at: (-14.5, 42.0), yaw_deg: 200.0)),
+)

@@ -1,0 +1,224 @@
+ORBITAL ANTE - PLAYTEST BUILD (working title)
+Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base, your control fixes, the Moon buggy and hunter swarms). Needs Godot 4.7.2 exactly.
+
+OPEN IT ON THE STEAM DECK (Desktop Mode)
+1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
+   (Dolphin file manager: right-click the zip > Extract > Extract archive here).
+2. Start Godot 4.7.2 (~/Applications/Godot/Godot_v4.7.2-stable_linux.x86_64).
+3. In the Project Manager click Import, open the unzipped
+   OrbitalAnte-playtest folder, pick project.godot, then click Import / Open.
+4. The first open imports the models and takes a minute or two. If you see a
+   few red "Cannot open file ... fontdata" lines during that first import,
+   they are harmless; close and reopen the project and they go away.
+5. Press F5 (or the Play button, top right) to start. Click Launch, pick
+   your contracts on the board, then press Launch.
+
+Everything is in this one folder; the compiled game code is in bin/.
+If you imported an older copy of this zip, remove it from the Project
+Manager list first and delete its folder.
+
+CONTROLS (controller or mouse and keyboard)
+Move: left stick / WASD      Look: right stick / mouse
+Jump, jetpack up: A / Space
+Crouch: tap B / Ctrl or C to stay crouched (tap again or jump to stand),
+  hold it to crouch only while held, or click the left stick to toggle.
+  In the air B / Ctrl is jetpack down.
+Interact: X / E              Map: M, zoom with PgUp/PgDn or mouse wheel
+Frame-time overlay: F3 (keyboard only now)   Free the mouse cursor: Esc
+Cash out (buckled in, target reached): hold View / Enter
+
+COMBAT (on foot)
+Fire: RT / left mouse        Aim down sights: LT / right mouse
+Melee (the bat if you have one, otherwise a shove): LB / F
+Rope gun: RB / B key         Swap rifle and rock: Y / Tab
+Reload: R, or X / E when there's nothing else to use
+Pick up a dropped gun (swaps yours), or pick up / put down a tied
+soldier: X / E while looking at it
+(LT still matches velocity with the jetpack when you're off the ground.)
+
+WHAT IS IN THIS BUILD
+- Walking on Earth with planet gravity, suit oxygen, jetpack and tether.
+- The full moving solar system with 14 bodies and a live map.
+- You start at the home base on Earth. The starter lander waits on the
+  launch pad beside the gantry, straight ahead up the lit path. Stand under its
+  belly ring and the hatch opens and lifts you in. In the cabin, look at
+  the seat and press X / E to buckle in.
+    Flying: left stick / WASD thrust, A / Space up, B / Ctrl down,
+    right stick / mouse to turn, LB / RB (Z / X keys) to roll,
+    hold LT / Shift to match velocity (brakes to a hover).
+    The dash screen shows speed, climb rate, altitude, a drift ball (where
+    you're sliding), fuel and oxygen. F4 switches between its three styles.
+    Y / V flicks through the landing camera and two selfie-stick cameras.
+    Target lock: look at a planet or moon and press D-pad up / L. Brackets
+    mark it (an arrow at the screen edge if it's off-screen) and the dash
+    shows its distance and closing speed. Press again on it to unlock.
+    Autopilot: with a target locked, press RT / Q. The lander turns, burns,
+    steers round any planet in the way, brakes and stops 120 m above the
+    target, then holds there until you touch the controls. Earth to the
+    Moon takes about 35 seconds. Any stick input takes back control.
+  Press X / E again to unbuckle, look at the floor hatch and press X / E to open it,
+  step onto it to ride down. Crouch (B / C) to duck out under the ship.
+- Fixed: the side of the Moon facing Earth was almost weightless; the
+  Moon's own gravity now takes over near it.
+- Takeoff effects: the engine plume, a smoke cloud in the ground's colour,
+  flying grit, a flickering engine light and controller rumble. They're
+  biggest on the pad and fade as you climb. No sounds yet.
+- Crashes: hit the ground hard (over about 4 m/s) and the parts that hit
+  take damage, with sparks. Keep battering a part and it breaks off and
+  tumbles away for good. A damaged engine pushes less, damaged thrusters
+  turn slower, and the dash shows hull health. Stay buckled in: a hard
+  crash while you're standing up can kill you.
+- Repair: go outside, look at a damaged leg, thruster, engine or antenna
+  and hold X / E. The prompt names the part and a bar fills. Parts that
+  broke off are gone. No repair sound yet.
+
+NEW IN THIS BUILD (your fixes and the Phase 8 slice)
+- Hunter swarms: while you're out on a surface (on foot or in the buggy,
+  below about 60 m), packs of Venera hunters come for you. First you get a
+  "Hunters inbound!" note and red flare columns 45-70 m away where they
+  will land; 4 seconds later they drop in and run straight at you,
+  re-finding you every few seconds. Packs get bigger and come more often
+  each ante: 2-3 hunters every ~3 min at ante 1, up to 10-14 every minute
+  at ante 8 (and more in Endless), with more tier 2s later. To shake them,
+  get aboard a ship and leave, or get far away (they give up past ~320 m).
+  The home base is a safe zone, and there's a grace period at the start of
+  each ante.
+- Moon buggy: one is parked beside the launch pad at home, and one waits
+  near the Moon's landing area. Walk up and press X / E to climb in.
+  Left stick (WASD) drives and steers, A (Space) fires the rocket boost,
+  B (C) is the handbrake for drifts, right stick (mouse) looks around,
+  X / E climbs out. In the air the stick tilts the buggy so you can land
+  it. If it ends up on its roof, hold A (Space) to roll it back over.
+  Hard crashes hurt you (it's an open seat), and enemies hear the motor.
+  While driving, the bottom-right gauges show your speed and boost fuel.
+- Baseball bat: one lies on a supply crate in the Venera base on the
+  Moon. Look at it and press X / E to take it as your melee weapon (LB / F).
+- Controls: the right stick now has a response curve (small tilts aim
+  finely, full tilt is full speed), up/down is a bit slower than
+  left/right, and holding the stick fully over for a moment speeds the turn
+  up for quick about-faces. Crouch is tap-to-toggle (see Controls).
+- Lander: the legs are 1.1 m taller on telescoping struts, so you can walk
+  straight under the belly to the hatch ring. The front windows are bigger
+  and lower, and the dash screen lies back on the console below them, so
+  you can see out from the seat.
+- Home base: a launch pad with the lander on it, the NASA gantry, a
+  hangar, a control tower, two crew habs, the locker building, fuel tanks,
+  a tracking dish and lamp-lit paths, on ground graded flat.
+- More terrain features on every planet and moon (mesas, volcanoes,
+  canyons, scarps, dunes, craters and more).
+- Moon dishes: two big dishes stand on the Moon. Walk to the control
+  cabinet beside one and hold X / E to switch it on (120 points; switching
+  on both adds 400).
+- Damaged satellite: a relay satellite with three sparking orange panels
+  orbits low over the Moon. Fly up, match speed, clip your tether on and
+  hold X / E on each panel (300 points when all are fixed). Its restored
+  signal brings a Venera patrol down to the surface below it.
+- Venera base: the Moon camp now has hab pods, low walls to hide behind,
+  supply crates and a radio mast with a blinking light. It moves with the
+  camp each ante.
+- New contract: "Get the Moon talking" (switch on dishes or fix the relay).
+- Balance: upgrades cost half as much, discovery/repair/salvage values grow
+  10% per ante, and later ante targets are higher (simulated, untested by
+  players).
+
+NEW IN PHASE 7 (the ante loop)
+- A run is now a set of timed antes. Each ante starts on a contract board:
+  three optional jobs (risk 1 to 3, riskier ones pay more), take up to two.
+  Press Launch and the 12-minute clock starts. Ante 1's target is 1,000.
+- Top left: the ante, the clock (turns red under 2 minutes), your Ante
+  Score against the target with a count-up and a bar, the multiplier
+  (x1.0 and up) and a pace meter (ahead / on pace / behind). Your taken
+  contracts and their progress sit under it.
+- Points: kills (grunt 25, veteran 60), limb shots +5, disarms +15, a camp
+  clear 150 (every soldier down or tied up), first landing on a body 80,
+  and first discoveries of big landforms and lava tubes (30-80 each, plus
+  20 extra seconds on the clock). Repeating the same thing pays a bit less
+  each time; mixing kinds of score raises the multiplier, and so does
+  chaining actions within 20 seconds of each other.
+- Notifications slide in top right (four at most; repeats count up).
+- Hit the target and you can keep going, or buckle into the lander and hold
+  View / Enter to cash out: every second left on the clock turns into
+  Wallet points. Run out of time below the target and the run is over.
+- Between antes: the upgrade screen. Buy attribute levels (Damage, Speed
+  and jump, Oxygen, Defense) with your Wallet, pick one of three perks
+  (reroll for a price that goes up each time), and scratch your free
+  ticket (its odds are printed on it). Unspent Wallet earns 10% interest.
+  Five perks work in this build: Deep Breath, Ghost, Glass Cannon, Second
+  Wind and Overclocked; the rest need later systems (rovers, salvage,
+  chests, bounties) and are held back.
+- Each new ante the Moon camp is manned again in a new spot.
+- The run summary shows how far you got and your local leaderboard
+  (best antes and points, with the seed). Dying also ends the run there.
+
+NEW IN PHASE 6 (combat, vertical slice)
+- A camp of four Venera Collective soldiers (working faction name) patrols
+  a short walk from where you land on the Moon: three light troopers with
+  rifles who rush you, and one bigger tier 2 with a laser double-barrel
+  who flanks. A yellow "?" means one heard or glimpsed something; a red
+  "!" means they've seen you and will open fire about 0.7 s later. Lose
+  them and they search the last place they saw you for about 45 s, then
+  go back to patrolling. Crouching makes you slower to spot.
+- You start with the rifle. Shoot an arm to disarm (the gun drops; walk
+  over a gun like yours for its ammo, or press X / E to swap guns), shoot
+  a leg off to drop them, headshots hurt double. Limbs come off as gibs,
+  and the dead become ragdolls. Disarmed soldiers run at you and punch.
+- The laser double-barrel (take it from the tier 2) gibs at close range.
+  The rock is infinite, pathetic and funny. No baseball bat is placed in
+  the world yet; it's in the game for the bounty/loot pass.
+- Rope gun: 3 shots for the whole run, and misses count. A roped soldier
+  drops its gun and is wrapped in rope. Press X / E to pick it up (it rides
+  under your arm) and again to put it down. Delivering targets is a later
+  phase.
+- HUD: weapon and ammo bottom right (with rope shots left), hit marker
+  ticks at the crosshair (white hit, orange limb off, red kill), and a red
+  arc pointing to whoever just shot you.
+- Gore is on by default; the toggle comes with the options menu. No combat
+  sounds yet.
+
+NEW IN PHASE 5 (planet surfaces)
+- The Moon has its full surface kit: two dark mare plains (smooth, fast
+  driving ground), a big multi-ring basin on the far side, a complex crater
+  with a craggy central peak, winding rilles and wrinkle ridges on the mare,
+  crater chains, two young craters with bright rays, and two dark, frosty
+  craters that never see the sun (one at the south pole, one just off the
+  north pole near where you land).
+- Lava tubes: the Moon has two deep pits on its mare plains. Drop into one
+  with the jetpack and look for the dark opening in the pit wall. Walk in:
+  the tube winds under the plain to a wider chamber at the end. Your helmet
+  lamp switches on by itself in the dark and off again in daylight. Use the
+  jetpack to climb back out of the pit.
+- Seeded features (crater chains, rilles, pits and caves) now move between
+  runs with the run seed. The big landmarks stay put every run.
+
+- Mars: a huge dead shield volcano, a mega-canyon with a side branch and an
+  outflow channel, mesas stepping down into buttes and hoodoos, a canyon
+  maze, wind-carved yardang ridges, splash-rimmed rampart craters, and an
+  icy south polar cap with spiral troughs.
+- Mars geysers: on the south polar cap, vents puff white frost for a few
+  seconds, then blast a dark dust column. Stand on one when it goes and it
+  throws you about 20 m up. Every eruption is warned first (no sound yet).
+- Phobos: one giant crater (always in the same place), long grooves and
+  chains of pits.
+- Weather (seeded per run, and every storm builds up slowly so you see it
+  coming): Mars dust storms that hide the view and push you around (much
+  less while you stand on the ground), and dust devils you can walk into;
+  Earth showers, thunderstorms with blue-white lightning, and snow; Venus
+  acid storms with green lightning that slowly eat your ship's hull (never
+  below a quarter on their own, so leave and repair); Titan orange haze and
+  methane drizzle. Storms dim the sun. Weather never reaches inside the
+  ship's cabin or a cave.
+- New surfaces: Mercury (a big ring basin, long cliff scarps, frosty dark
+  polar crater), Venus (giant volcanoes, ring-shaped coronae, flat pancake
+  domes, lava channels), Io (glowing lava-lake pits), Europa (jumbled ice
+  blocks of chaos terrain, twin-crested ice ridges), Titan (a big methane
+  sea, long dunes), Earth (mesas with buttes and hoodoos, flooded sinkholes).
+- Gas giants: dive under Jupiter's, Saturn's or Uranus's cloud deck. The
+  sky turns the gas colour and the sun dims. Jupiter has ice-blade fields
+  (penitentes) and red lightning, Saturn a big polar basin and gold
+  lightning, Uranus a giant cliff and green lightning.
+- Neptune is an ocean world. You land on a dry island at the pole. Swim
+  down with the jetpack: the water holds you up and slows you, gets darker
+  and murkier the deeper you go, and purple glows flash in the dark. Your
+  suit oxygen runs under water. Black-smoker vents on the sea-floor ridge
+  shimmer, then shove you upward. Earth's lakes and Titan's methane lakes
+  are swimmable too.

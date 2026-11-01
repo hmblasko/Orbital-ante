@@ -1,0 +1,115 @@
+// Moon (section 4 roster, Phase 3 first pass). Crater driving and far-side outposts; the vertical-slice location.
+// Generated once by tools/gen_system_bodies.py; tune this file directly.
+(
+    name: "Moon",
+    radius: 260.0,
+    gravity: (
+        surface_gravity: 3.0,
+        influence_radius: 620.0,
+    ),
+    terrain: (
+        seed: 1401,
+        subdivisions: 256,
+        hill_height_m: 3.0,
+        hill_frequency: 8.0,
+        hill_octaves: 6,
+        ridge_height_m: 3.0,
+        ridge_frequency: 5.0,
+        crater_count: 140,
+        crater_radius_m: (3.0, 28.0),
+        crater_depth_ratio: 0.22,
+        crater_rim_ratio: 0.35,
+        landforms: (
+            water_level_m: None,
+            clear_zone_deg: 4.0,
+            // Moon kit (docs/planetary_geology_field_guide.md and the Mars and
+            // Moon kit draft). Signature (L) landmarks are fixed every run and
+            // the rest is seeded, as drafted (still for Matthew to confirm). The landing zone is the north pole (+Y).
+            placed: [
+                // Two mare plains: the safe fast-driving ground.
+                (kind: Mare, at: (0.55, 0.62, 0.56), radius_m: 72.0, height_m: 2.5),
+                (kind: Mare, at: (-0.78, 0.12, 0.62), radius_m: 95.0, height_m: 3.0),
+                // Multi-ring impact basin on the far side.
+                (kind: Basin, at: (-0.35, -0.55, -0.76), radius_m: 88.0, height_m: 10.0),
+                // Complex crater with a central peak (a dish site later).
+                (kind: Crater, at: (0.82, -0.18, -0.54), radius_m: 40.0, height_m: 8.0),
+                // Permanently shadowed craters: south pole, and one just off the north pole.
+                (kind: ColdTrap, at: (0.0, -1.0, 0.0), radius_m: 22.0, height_m: 13.0),
+                (kind: ColdTrap, at: (0.2, 0.98, -0.12), radius_m: 11.0, height_m: 7.0),
+            ],
+            random: [
+                (kind: Crater, count: 6, radius_m: (28.0, 45.0), height_m: (5.0, 8.0)),
+                (kind: Rille, count: 5, radius_m: (4.5, 6.0), height_m: (3.0, 4.5), length_m: (80.0, 150.0), on: Some(Mare)),
+                (kind: Ridge, count: 4, radius_m: (6.0, 9.0), height_m: (1.2, 2.2), length_m: (60.0, 120.0), on: Some(Mare)),
+                (kind: Catena, count: 5, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
+                (kind: RayedCrater, count: 2, radius_m: (6.0, 10.0), height_m: (2.5, 4.0)),
+                (kind: Bowl, count: 30, radius_m: (3.0, 9.0), height_m: (1.0, 3.0)),
+                // Skylight pits on the mare; each opens into a lava tube (caves below).
+                (kind: Sinkhole, count: 2, radius_m: (7.0, 9.0), height_m: (13.0, 16.0), on: Some(Mare)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Mountain, count: 3, radius_m: (30.0, 45.0), height_m: (14.0, 24.0)),
+                (kind: Scarp, count: 3, radius_m: (5.1, 7.6), height_m: (4.2, 6.8), length_m: (127.5, 255.0)),
+            ],
+        ),
+    ),
+    look: (
+        color_low: (0.44, 0.44, 0.46),
+        color_high: (0.72, 0.71, 0.70),
+        color_crater: (0.36, 0.36, 0.38),
+        color_rim: (0.82, 0.81, 0.79),
+        color_slope: (0.52, 0.51, 0.51),
+        shadow_tint: (0.36, 0.36, 0.62),
+        rim_color: (0.60, 0.70, 1.00),
+        rim_strength: 0.3,
+        detail_scale: 0.02,
+        grain_scale: 0.15,
+    ),
+    land_look: (
+        strata_a: (0.55, 0.54, 0.53),
+        strata_b: (0.46, 0.45, 0.45),
+        basalt: (0.22, 0.20, 0.22),
+        lava: (1.00, 0.45, 0.10),
+        lava_energy: 0.0,
+        lava_light_range_m: 0.0,
+        snow: (0.92, 0.94, 0.98),
+        wet: (0.36, 0.36, 0.38),
+        mineral: (0.90, 0.88, 0.82),
+        water_shallow: (0.25, 0.70, 0.75),
+        water_deep: (0.05, 0.22, 0.40),
+        water_foam: (0.95, 0.98, 1.00),
+        water_subdivisions: 64,
+        frozen: false,
+        mare: (0.26, 0.26, 0.29),
+        rays: (0.90, 0.89, 0.86),
+        frost: (0.62, 0.70, 0.82),
+        melt: (0.09, 0.10, 0.13),
+    ),
+    rocks: (
+        count: 450,
+        size_m: (0.4, 3.2),
+        cluster_size: (2, 6),
+        cluster_spread_m: 8.0,
+        roughness: 0.32,
+        color: (0.55, 0.53, 0.52),
+        color_dark: (0.30, 0.29, 0.29),
+        visible_m: 220.0,
+    ),
+    // Lava tubes (Moon kit): one per skylight pit, opening from the pit wall
+    // and running out under the mare to a wider end chamber.
+    caves: Some((
+        count: 2,
+        length_m: (35.0, 55.0),
+        radius_m: (3.4, 4.2),
+        height_ratio: 0.9,
+        cover_m: 2.5,
+        chamber_scale: 1.7,
+        ring_spacing_m: 1.0,
+        ring_sides: 20,
+        roughness_m: 0.35,
+        mouth_flare: 1.6,
+        rubble: 10,
+        bump_strength: 0.012,
+    )),
+    render_tiles: 8,
+    preview_subdivisions: 64,
+)

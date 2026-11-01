@@ -1,0 +1,536 @@
+//! Body surface shape: rolling hills, ridges and craters on a sphere
+//! (CLAUDE.md section 4: "hilly and fun to drive, never flat plains;
+//! varied craters, more on moons").
+//!
+//! The height function is pure and deterministic, so the mesh, the
+//! collision and the test scripts all agree on where the ground is.
+//! Phase 5 replaces this with streamed, chunked terrain and the preset
+//! feature sets; this is the slice-scope version.
+
+use godot::builtin::Vector3;
+use serde::Deserialize;
+
+use super::landforms::{LandHints, LandformData, Landforms};
+use super::noise;
+use crate::seed::SeededRng;
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct TerrainData {
+    /// Fixed per body (the body roster is fixed every run, section 4).
+    pub seed: u64,
+    /// Grid cells along each edge of each of the 6 cube faces.
+    pub subdivisions: u32,
+    pub hill_height_m: f32,
+    /// Hill features per radian of arc.
+    pub hill_frequency: f32,
+    pub hill_octaves: u32,
+    pub ridge_height_m: f32,
+    pub ridge_frequency: f32,
+    pub crater_count: u32,
+    /// Crater radius range, in metres along the surface.
+    pub crater_radius_m: (f32, f32),
+    /// Bowl depth as a fraction of crater radius.
+    pub crater_depth_ratio: f32,
+    /// Rim height as a fraction of crater depth.
+    pub crater_rim_ratio: f32,
+    /// Mountains, mesas, canyons, water and the rest (see `landforms`).
+    #[serde(default)]
+    pub landforms: LandformData,
+}
+
+#[derive(Debug, Clone)]
+struct Crater {
+    center: Vector3,
+    /// Angular radius in radians.
+    angle: f32,
+    depth: f32,
+}
+
+/// Painting hints carried per vertex to the terrain shader.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct SurfaceSample {
+    /// Height above the nominal radius, in metres.
+    pub height: f32,
+    /// 1.0 on a crater floor, fading to 0.0 at its rim.
+    pub crater_floor: f32,
+    /// 1.0 on a crater rim crest.
+    pub crater_rim: f32,
+    pub land: LandHints,
+}
+
+#[derive(Debug, Clone)]
+pub struct TerrainShape {
+    data: TerrainData,
+    radius: f32,
+    craters: Vec<Crater>,
+    landforms: Landforms,
+    seed: u32,
+    /// Graded ground (the home base): flat inside, blending back out.
+    flats: Vec<FlatSpot>,
+}
+
+/// A patch of graded ground: flat at `height` within `inner` radians of
+/// `dir`, blending back into the natural ground by `outer`.
+#[derive(Debug, Clone)]
+pub struct FlatSpot {
+    pub dir: Vector3,
+    pub inner: f32,
+    pub outer: f32,
+    pub height: f32,
+}
+
+impl TerrainShape {
+    pub fn new(data: &TerrainData, radius: f32) -> Self {
+        Self::with_run_seed(data, radius, 0)
+    }
+
+    /// The same body, with its seeded landforms placed from the run seed
+    /// (CLAUDE.md section 4: feature placement is seeded per run; fixed
+    /// landmarks and the base hills stay the same every run). 0 = the
+    /// body's own layout.
+    pub fn with_run_seed(data: &TerrainData, radius: f32, run_seed: u64) -> Self {
+        let mut rng = SeededRng::from_u64(data.seed);
+        let craters = (0..data.crater_count)
+            .map(|_| {
+                let y = rng.range_f32(-1.0, 1.0);
+                let theta = rng.range_f32(0.0, std::f32::consts::TAU);
+                let ring = (1.0 - y * y).sqrt();
+                // Small craters are more common than big ones.
+                let t = rng.next_f32().powi(2);
+                let r =
+                    data.crater_radius_m.0 + (data.crater_radius_m.1 - data.crater_radius_m.0) * t;
+                Crater {
+                    center: Vector3::new(ring * theta.cos(), y, ring * theta.sin()),
+                    angle: r / radius,
+                    depth: r * data.crater_depth_ratio,
+                }
+            })
+            .collect();
+        let landform_seed = if run_seed == 0 {
+            data.seed
+        } else {
+            SeededRng::derive(run_seed, &format!("landforms/{}", data.seed)).next_u64()
+        };
+        let landforms = Landforms::new(&data.landforms, radius, landform_seed);
+        Self {
+            data: data.clone(),
+            radius,
+            craters,
+            landforms,
+            seed: (data.seed ^ (data.seed >> 32)) as u32,
+            flats: Vec::new(),
+        }
+    }
+
+    pub fn radius(&self) -> f32 {
+        self.radius
+    }
+
+    /// Grade a patch of ground flat round `dir` (radius `inner_m`, blending
+    /// out to `outer_m`), at the average natural height under it, so a base
+    /// stands level. Kept above any water.
+    pub fn add_flat(&mut self, dir: Vector3, inner_m: f32, outer_m: f32) {
+        let d = dir.normalized();
+        let side = if d.y.abs() < 0.9 { Vector3::UP } else { Vector3::RIGHT };
+        let a = d.cross(side).normalized();
+        let b = d.cross(a).normalized();
+        let mut sum = 0.0;
+        let mut n = 0.0;
+        for ring in 0..3 {
+            let r = inner_m * ring as f32 / 2.0;
+            let steps = if ring == 0 { 1 } else { 8 };
+            for k in 0..steps {
+                let t = std::f32::consts::TAU * k as f32 / steps as f32;
+                let q = (d * self.radius + (a * t.cos() + b * t.sin()) * r).normalized();
+                sum += self.sample(q).height;
+                n += 1.0;
+            }
+        }
+        let mut height = sum / n;
+        if let Some(w) = self.water_level() {
+            height = height.max(w + 1.5);
+        }
+        let r = self.radius.max(1.0);
+        self.flats.push(FlatSpot { dir: d, inner: inner_m / r, outer: outer_m.max(inner_m + 1.0) / r, height });
+    }
+
+    /// Lowest the surface can possibly be (for out-of-world checks).
+    pub fn min_radius(&self) -> f32 {
+        let deepest = self.craters.iter().map(|c| c.depth).fold(0.0, f32::max);
+        let base = -self.data.hill_height_m - deepest;
+        self.radius + base.min(self.landforms.lowest())
+    }
+
+    pub fn landforms(&self) -> &Landforms {
+        &self.landforms
+    }
+
+    pub fn water_level(&self) -> Option<f32> {
+        self.landforms.water_level
+    }
+
+    pub fn sample(&self, dir: Vector3) -> SurfaceSample {
+        let d = dir.normalized();
+        let p = [d.x, d.y, d.z];
+        let f = self.data.hill_frequency;
+        let hills = noise::fbm3(
+            [p[0] * f, p[1] * f, p[2] * f],
+            self.data.hill_octaves,
+            0.5,
+            self.seed,
+        ) * self.data.hill_height_m;
+        let rf = self.data.ridge_frequency;
+        let ridges = (noise::ridged3(
+            [p[0] * rf + 11.0, p[1] * rf, p[2] * rf - 7.0],
+            3,
+            0.5,
+            self.seed.wrapping_add(17),
+        ) - 0.45)
+            .max(0.0)
+            * self.data.ridge_height_m;
+        let mut height = hills + ridges;
+        let (mut floor, mut rim) = (0.0f32, 0.0f32);
+        for c in &self.craters {
+            let a = d.angle_to(c.center);
+            let x = a / c.angle;
+            if x >= 1.6 {
+                continue;
+            }
+            let rim_h = c.depth * self.data.crater_rim_ratio;
+            let delta = if x < 1.0 {
+                // Bowl: a smooth dish that meets the rim at x = 1.
+                let bowl = -c.depth * (1.0 - x * x) + rim_h * x.powi(6);
+                floor = floor.max(smoothstep(0.85, 0.2, x));
+                bowl
+            } else {
+                // Rim falls off outside the crater.
+                let t = (x - 1.0) / 0.6;
+                rim_h * (1.0 - smoothstep(0.0, 1.0, t))
+            };
+            rim = rim.max(1.0 - ((x - 1.0).abs() / 0.18).min(1.0));
+            height += delta;
+        }
+        let (mut height, land) = self.landforms.apply(d, height, self.radius);
+        for f in &self.flats {
+            let a = d.angle_to(f.dir);
+            if a < f.outer {
+                let w = smoothstep(f.outer, f.inner, a);
+                height += (f.height - height) * w;
+            }
+        }
+        SurfaceSample {
+            height,
+            crater_floor: floor,
+            crater_rim: rim,
+            land,
+        }
+    }
+
+    pub fn surface_radius(&self, dir: Vector3) -> f32 {
+        self.radius + self.sample(dir).height
+    }
+
+    /// Build the surface as a subdivided cube projected onto the sphere
+    /// (more even triangles than a UV sphere, no pinched poles).
+    pub fn build_mesh(&self) -> MeshData {
+        self.build_mesh_with(self.data.subdivisions)
+    }
+
+    /// The same surface on a finer or coarser grid (for detail levels).
+    pub fn build_mesh_with(&self, subdivisions: u32) -> MeshData {
+        grid_sphere(subdivisions, |dir| {
+            let s = self.sample(dir);
+            (self.radius + s.height, s)
+        })
+    }
+}
+
+/// A plain sphere on the same cube grid (used for water).
+pub fn sphere_mesh(radius: f32, subdivisions: u32) -> MeshData {
+    grid_sphere(subdivisions, |_| (radius, SurfaceSample::default()))
+}
+
+/// Subdivided cube projected onto a sphere, with the radius and painting
+/// hints for each direction supplied by `at`. Triangles are emitted face by
+/// face, row by row, two per cell (`split_tiles` relies on that order).
+fn grid_sphere(subdivisions: u32, at: impl Fn(Vector3) -> (f32, SurfaceSample) + Sync) -> MeshData {
+    let n = subdivisions.max(2) as usize;
+    let faces: [(Vector3, Vector3, Vector3); 6] = [
+        (Vector3::RIGHT, Vector3::UP, Vector3::BACK),
+        (Vector3::LEFT, Vector3::UP, Vector3::FORWARD),
+        (Vector3::UP, Vector3::BACK, Vector3::RIGHT),
+        (Vector3::DOWN, Vector3::FORWARD, Vector3::RIGHT),
+        (Vector3::BACK, Vector3::UP, Vector3::LEFT),
+        (Vector3::FORWARD, Vector3::UP, Vector3::RIGHT),
+    ];
+    let mut dirs = Vec::with_capacity(6 * (n + 1) * (n + 1));
+    for (normal, axis_a, axis_b) in faces {
+        for j in 0..=n {
+            for i in 0..=n {
+                let u = i as f32 / n as f32 * 2.0 - 1.0;
+                let v = j as f32 / n as f32 * 2.0 - 1.0;
+                dirs.push(cube_to_sphere(normal + axis_a * v + axis_b * u));
+            }
+        }
+    }
+    // Sampling the height function is the slow part; spread it over every
+    // core. Each chunk is independent, so the result is identical however
+    // many threads run (determinism tests depend on it).
+    let threads = std::thread::available_parallelism().map_or(1, |t| t.get()).max(1);
+    let chunk = dirs.len().div_ceil(threads);
+    let mut samples: Vec<(f32, SurfaceSample)> = vec![(0.0, SurfaceSample::default()); dirs.len()];
+    std::thread::scope(|scope| {
+        for (out, input) in samples.chunks_mut(chunk).zip(dirs.chunks(chunk)) {
+            let at = &at;
+            scope.spawn(move || {
+                for (o, d) in out.iter_mut().zip(input) {
+                    *o = at(*d);
+                }
+            });
+        }
+    });
+    let mut mesh = MeshData::default();
+    mesh.positions = dirs.iter().zip(&samples).map(|(d, (r, _))| *d * *r).collect();
+    mesh.samples = samples.into_iter().map(|(_, s)| s).collect();
+    for face in 0..6 {
+        let base = (face * (n + 1) * (n + 1)) as i32;
+        let row = n as i32 + 1;
+        for j in 0..n as i32 {
+            for i in 0..n as i32 {
+                let a = base + j * row + i;
+                let (b, c, d) = (a + 1, a + row, a + row + 1);
+                // Wind so the outward side is the front face.
+                mesh.indices.extend_from_slice(&[a, b, c, b, d, c]);
+            }
+        }
+    }
+    mesh.fix_winding();
+    mesh.compute_normals(n as u32);
+    mesh
+}
+
+/// Positions, smooth normals, painting hints and triangle indices.
+#[derive(Debug, Clone, Default)]
+pub struct MeshData {
+    pub positions: Vec<Vector3>,
+    pub normals: Vec<Vector3>,
+    pub samples: Vec<SurfaceSample>,
+    pub indices: Vec<i32>,
+}
+
+impl MeshData {
+    /// Godot treats clockwise triangles (seen from outside) as front faces.
+    /// Flip any triangle that faces inward.
+    fn fix_winding(&mut self) {
+        for t in self.indices.chunks_exact_mut(3) {
+            let (a, b, c) = (
+                self.positions[t[0] as usize],
+                self.positions[t[1] as usize],
+                self.positions[t[2] as usize],
+            );
+            let n = (c - a).cross(b - a);
+            if n.dot(a + b + c) < 0.0 {
+                t.swap(1, 2);
+            }
+        }
+    }
+
+    /// Smooth normals for a `grid_sphere` mesh with `subdivisions` cells per face edge.
+    fn compute_normals(&mut self, subdivisions: u32) {
+        let mut normals = vec![Vector3::ZERO; self.positions.len()];
+        for t in self.indices.chunks_exact(3) {
+            let (a, b, c) = (
+                self.positions[t[0] as usize],
+                self.positions[t[1] as usize],
+                self.positions[t[2] as usize],
+            );
+            let n = (c - a).cross(b - a);
+            for &i in t {
+                normals[i as usize] += n;
+            }
+        }
+        // Cube-face seams share positions but not vertices; average across them.
+        let mut by_pos: std::collections::HashMap<[i32; 3], Vector3> =
+            std::collections::HashMap::new();
+        let key = |p: Vector3| {
+            [
+                (p.x * 1000.0).round() as i32,
+                (p.y * 1000.0).round() as i32,
+                (p.z * 1000.0).round() as i32,
+            ]
+        };
+        // Only vertices on a cube face's border can sit on a seam.
+        let row = (subdivisions.max(2) + 1) as usize;
+        let on_border = |i: usize| {
+            let k = i % (row * row);
+            let (x, y) = (k % row, k / row);
+            x == 0 || y == 0 || x == row - 1 || y == row - 1
+        };
+        for (i, (p, n)) in self.positions.iter().zip(&normals).enumerate() {
+            if on_border(i) {
+                *by_pos.entry(key(*p)).or_insert(Vector3::ZERO) += *n;
+            }
+        }
+        self.normals = self
+            .positions
+            .iter()
+            .zip(normals)
+            .enumerate()
+            .map(|(i, (p, n))| if on_border(i) { by_pos[&key(*p)].normalized() } else { n.normalized() })
+            .collect();
+    }
+
+    pub fn triangle_count(&self) -> usize {
+        self.indices.len() / 3
+    }
+
+    /// Split a `grid_sphere` mesh into `tiles` x `tiles` pieces per cube
+    /// face, so the renderer can skip the pieces that are out of view.
+    pub fn split_tiles(&self, subdivisions: u32, tiles: u32) -> Vec<MeshData> {
+        let n = subdivisions.max(2) as usize;
+        let tiles = tiles.clamp(1, n as u32) as usize;
+        let mut out: Vec<(MeshData, std::collections::HashMap<i32, i32>)> =
+            (0..6 * tiles * tiles).map(|_| Default::default()).collect();
+        for (k, tri) in self.indices.chunks_exact(3).enumerate() {
+            // Triangles cut away (for cave mouths) are collapsed to one vertex.
+            if tri[0] == tri[1] {
+                continue;
+            }
+            let cell = k / 2;
+            let face = cell / (n * n);
+            let (j, i) = ((cell % (n * n)) / n, cell % n);
+            let tile = face * tiles * tiles + (j * tiles / n) * tiles + i * tiles / n;
+            let (mesh, remap) = &mut out[tile];
+            for &v in tri {
+                let idx = *remap.entry(v).or_insert_with(|| {
+                    mesh.positions.push(self.positions[v as usize]);
+                    mesh.normals.push(self.normals[v as usize]);
+                    mesh.samples.push(self.samples[v as usize]);
+                    mesh.positions.len() as i32 - 1
+                });
+                mesh.indices.push(idx);
+            }
+        }
+        out.into_iter().map(|(m, _)| m).collect()
+    }
+}
+
+/// Map a point on the cube [-1,1]^3 to the unit sphere with less
+/// stretching than plain normalisation.
+fn cube_to_sphere(p: Vector3) -> Vector3 {
+    let (x2, y2, z2) = (p.x * p.x, p.y * p.y, p.z * p.z);
+    Vector3::new(
+        p.x * (1.0 - y2 / 2.0 - z2 / 2.0 + y2 * z2 / 3.0).sqrt(),
+        p.y * (1.0 - z2 / 2.0 - x2 / 2.0 + z2 * x2 / 3.0).sqrt(),
+        p.z * (1.0 - x2 / 2.0 - y2 / 2.0 + x2 * y2 / 3.0).sqrt(),
+    )
+    .normalized()
+}
+
+fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+    let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn data() -> TerrainData {
+        TerrainData {
+            seed: 42,
+            subdivisions: 16,
+            hill_height_m: 1.5,
+            hill_frequency: 3.0,
+            hill_octaves: 4,
+            ridge_height_m: 1.0,
+            ridge_frequency: 2.0,
+            crater_count: 12,
+            crater_radius_m: (3.0, 12.0),
+            crater_depth_ratio: 0.2,
+            crater_rim_ratio: 0.35,
+            landforms: Default::default(),
+        }
+    }
+
+    #[test]
+    fn determinism_same_seed_same_surface() {
+        let a = TerrainShape::new(&data(), 60.0);
+        let b = TerrainShape::new(&data(), 60.0);
+        let dir = Vector3::new(0.3, 0.8, -0.2);
+        assert_eq!(a.sample(dir), b.sample(dir));
+    }
+
+    #[test]
+    fn mesh_matches_height_function_and_is_closed() {
+        let shape = TerrainShape::new(&data(), 60.0);
+        let mesh = shape.build_mesh();
+        assert_eq!(mesh.triangle_count(), 6 * 16 * 16 * 2);
+        for p in mesh.positions.iter().step_by(37) {
+            assert!((p.length() - shape.surface_radius(*p)).abs() < 1e-3);
+            assert!(p.length() >= shape.min_radius() - 1e-3);
+        }
+        // Every triangle faces outward.
+        for t in mesh.indices.chunks_exact(3) {
+            let (a, b, c) = (
+                mesh.positions[t[0] as usize],
+                mesh.positions[t[1] as usize],
+                mesh.positions[t[2] as usize],
+            );
+            assert!((c - a).cross(b - a).dot(a + b + c) >= 0.0);
+        }
+        assert!(mesh.normals.iter().all(|n| (n.length() - 1.0).abs() < 1e-3));
+    }
+
+    #[test]
+    fn tiles_cover_every_triangle_once() {
+        let shape = TerrainShape::new(&data(), 60.0);
+        let mesh = shape.build_mesh();
+        let tiles = mesh.split_tiles(16, 4);
+        assert_eq!(tiles.len(), 6 * 16);
+        assert_eq!(
+            tiles.iter().map(|t| t.triangle_count()).sum::<usize>(),
+            mesh.triangle_count()
+        );
+        assert!(tiles.iter().all(|t| t.triangle_count() == 2 * 4 * 4));
+    }
+
+    #[test]
+    fn determinism_run_seed_moves_seeded_landforms_only() {
+        let mut d = data();
+        d.landforms.random.push(crate::procgen::landforms::RandomLandforms {
+            kind: crate::procgen::landforms::LandformKind::Bowl,
+            count: 3,
+            radius_m: (3.0, 4.0),
+            height_m: (1.0, 2.0),
+            length_m: (0.0, 0.0),
+            on: None,
+        });
+        let centres = |s: &TerrainShape| s.landforms().list.iter().map(|l| l.center).collect::<Vec<_>>();
+        let a = TerrainShape::with_run_seed(&d, 60.0, 77);
+        let b = TerrainShape::with_run_seed(&d, 60.0, 77);
+        let c = TerrainShape::with_run_seed(&d, 60.0, 78);
+        assert_eq!(centres(&a), centres(&b));
+        assert_ne!(centres(&a), centres(&c));
+        // Base hills and small craters are part of the fixed body.
+        assert_eq!(a.craters[0].center, c.craters[0].center);
+    }
+
+    #[test]
+    fn craters_dip_below_the_surroundings() {
+        let shape = TerrainShape::new(&data(), 60.0);
+        let c = shape.craters[0].clone();
+        let center = shape.sample(c.center).height;
+        let outside = shape
+            .sample(
+                (c.center + c.center.cross(Vector3::UP).normalized() * c.angle * 3.0).normalized(),
+            )
+            .height;
+        assert!(
+            center < outside,
+            "crater floor {center} vs outside {outside}"
+        );
+        assert!(shape.sample(c.center).crater_floor > 0.9);
+    }
+}
+

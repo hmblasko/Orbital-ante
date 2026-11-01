@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const REPLAY_VERSION: u32 = 1;
+pub const REPLAY_VERSION: u32 = 2;
 
 /// Gameplay actions captured each tick, in this order. Menu and debug
 /// actions are left out on purpose.
@@ -18,6 +18,11 @@ pub const RECORDED_ACTIONS: &[&str] = &[
     "look_right",
     "jump",
     "crouch",
+    "crouch_toggle",
+    "match_velocity",
+    "interact",
+    "use_oxygen_tank",
+    "tether_toggle",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

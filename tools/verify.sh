@@ -3,6 +3,8 @@
 #
 #   tools/verify.sh                 everything that can run on this machine
 #   tools/verify.sh --no-render     skip screenshots (no display / GPU)
+#   tools/verify.sh --sim           also run the balance simulator (nightly
+#                                   and phase ends; section 19.1)
 #
 # Environment:
 #   GODOT=/path/to/godot            Godot 4.7.2 editor binary (default: "godot" on PATH)
@@ -19,7 +21,13 @@ GODOT=${GODOT:-godot}
 SEED=${SEED:-7K3M-Q9TD}
 OUT=$(realpath -m "${OUT:-verify_out/latest}")
 RENDER=1
-[ "${1:-}" = "--no-render" ] && RENDER=0
+SIM=0
+for a in "$@"; do
+  case "$a" in
+    --no-render) RENDER=0 ;;
+    --sim) SIM=1 ;;
+  esac
+done
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "== Building tools and game library"
@@ -29,8 +37,9 @@ gate() { "$V" gate "$OUT" "$@"; }
 IGNORE="$ROOT/godot/data/verify/log_ignore.ron"
 
 echo "== Rust unit, determinism and data-file tests"
-run_tests() { # name filter severity
-  (cd rust && cargo test --quiet --workspace -- "$2" >"$OUT/test_$1.log" 2>&1)
+run_tests() { # name filters(space-separated) gate-title
+  # shellcheck disable=SC2086  # filters are split on purpose
+  (cd rust && cargo test --quiet --workspace -- $2 >"$OUT/test_$1.log" 2>&1)
   local ok=$?
   local passed=$(grep -ho '[0-9]* passed' "$OUT/test_$1.log" | awk '{s+=$1} END {print s+0}')
   local failed=$(grep -ho '[0-9]* failed' "$OUT/test_$1.log" | awk '{s+=$1} END {print s+0}')
@@ -41,11 +50,11 @@ run_tests() { # name filter severity
   fi
 }
 run_tests unit "" "Rust unit tests"
-run_tests determinism "seed::" "Determinism tests"
+run_tests determinism "seed:: determinism" "Determinism tests"
 run_tests data "data::" "Data-file validation"
 
 if ! command -v "$GODOT" >/dev/null 2>&1 && [ ! -x "$GODOT" ]; then
-  for g in "Smoke test" "Input replay determinism" "Screenshot regression"; do gate "$g" not_run "Godot not found; set GODOT=/path/to/godot"; done
+  for g in "Smoke test" "Feature test scenes" "Input replay determinism" "Screenshot regression"; do gate "$g" not_run "Godot not found; set GODOT=/path/to/godot"; done
 else
   echo "== Importing project"
   "$GODOT" --headless --path godot --import >"$OUT/import.log" 2>&1
@@ -64,6 +73,26 @@ else
   else
     gate "Smoke test" pass "seed $SEED, 60 s wanderer bot, no detector hits, no log errors" "" smoke
   fi
+
+  echo "== Feature test scenes"
+  mkdir -p "$OUT/features"
+  feat_ok=0; feat_fail=""; feat_checks=0
+  for t in godot/tests/*_test.gd godot/tests/*_smoke.gd; do
+    [ -f "$t" ] || continue
+    n=$(basename "$t" .gd)
+    "$GODOT" --headless --path godot --fixed-fps 60 --script "res://tests/$n.gd" >"$OUT/features/$n.log" 2>&1
+    c=$?
+    "$V" logcheck "$OUT/features/$n.log" "$OUT/features/$n.logcheck.json" "$IGNORE" 0 >/dev/null; l=$?
+    feat_checks=$((feat_checks + $(grep -c ': ok ' "$OUT/features/$n.log")))
+    if [ $c -eq 0 ] && [ $l -eq 0 ] && grep -q "PASS" "$OUT/features/$n.log"; then feat_ok=$((feat_ok + 1)); else
+      feat_fail="$feat_fail $n"
+      # Show why in the console too, so CI logs explain the failure.
+      echo "-- $n failed (exit $c, logcheck $l):"
+      grep -E "FAIL|ERROR|SCRIPT ERROR|panicked" "$OUT/features/$n.log" | head -n 15
+    fi
+  done
+  if [ -z "$feat_fail" ]; then gate "Feature test scenes" pass "$feat_ok scripts passed ($feat_checks named checks), no log errors" "" features
+  else gate "Feature test scenes" fail "failed:$feat_fail (see features/*.log)" S2 features; fi
 
   echo "== Input replay determinism"
   if [ -f "$OUT/smoke/replay.ron" ]; then
@@ -101,7 +130,21 @@ else
   fi
 fi
 
-for g in "Autoplay bots (50 seeds x 5 profiles)" "Balance simulator" "Fun proxies"; do
+if [ $SIM -eq 1 ]; then
+  echo "== Balance simulator (simulated, not player data)"
+  rm -rf "$OUT/sim"
+  (cd rust && OA_SIM_OUT="$OUT/sim" cargo test --quiet --release -p orbital_ante balance_report -- --ignored >"$OUT/sim.log" 2>&1)
+  if [ -f "$OUT/sim/balance_status.txt" ]; then
+    read -r sim_ok sim_fail <"$OUT/sim/balance_status.txt"
+    if [ "$sim_fail" = "0" ]; then gate "Balance simulator" pass "all $sim_ok checks met (simulated); see sim/balance.md" "" sim
+    else gate "Balance simulator" fail "$sim_fail of $((sim_ok + sim_fail)) checks missed (simulated): $(grep '| FAIL |' "$OUT/sim/balance.md" | cut -d'|' -f2 | paste -sd ';')" S3 sim; fi
+  else
+    gate "Balance simulator" fail "simulator did not finish; see sim.log" S2
+  fi
+else
+  gate "Balance simulator" not_run "nightly and phase ends only (--sim)"
+fi
+for g in "Autoplay bots (50 seeds x 5 profiles)" "Fun proxies"; do
   gate "$g" not_run "the systems these need arrive in later phases"
 done
 gate "Steam Deck session and rubric" not_run "needs Matthew's Deck"
