@@ -23,7 +23,7 @@
     cash_out: (per_second_t: 0.002, cap_t: 0.6, hold_s: 1.0),
     // 17.5 Wallet prices, as fractions of the current ante target T.
     prices: (
-        attribute_t: [0.30, 0.45, 0.60, 0.80, 1.00],
+        attribute_t: [0.15, 0.22, 0.30, 0.40, 0.50],
         reroll_t: 0.10,
         reroll_step_t: 0.05,
         emergency_lander_wallet: 0.25,
@@ -32,7 +32,9 @@
     // 18.7 Pace meter: score + (last window's rate x time left) vs target.
     pace: (window_s: 120.0, ahead_above: 1.15, behind_below: 0.9, min_elapsed_s: 30.0),
     // Point sources: which category each counts toward, whether it grows
-    // 15% per ante (section 17.5: enemy and contract values), and whether
+    // 15% per ante (section 17.5: enemy and contract values) or at its own
+    // `growth` rate (discovery, repairs and salvage grow 10% per ante, a
+    // Phase 7 call so fighting doesn't dominate late antes), and whether
     // repeats are exempt from diminishing returns (one-off by nature).
     // Bounty, salvage and satellite are listed for the balance simulator;
     // the game awards them from Phase 8.
@@ -43,11 +45,13 @@
         "limb_shot":     (category: Combat, grows: true, one_off: false),
         "disarm":        (category: Combat, grows: true, one_off: false),
         "base_clear":    (category: Combat, grows: true, one_off: true),
-        "discovery":     (category: Discovery, grows: false, one_off: true),
-        "first_landing": (category: Discovery, grows: false, one_off: true),
+        "discovery":     (category: Discovery, grows: false, one_off: true, growth: Some(0.10)),
+        "first_landing": (category: Discovery, grows: false, one_off: true, growth: Some(0.10)),
         "contract":      (category: Contract, grows: true, one_off: true),
         "bounty":        (category: Bounty, grows: false, one_off: true),
-        "salvage":       (category: Salvage, grows: false, one_off: false),
-        "satellite":     (category: Repair, grows: false, one_off: true),
+        "salvage":       (category: Salvage, grows: false, one_off: false, growth: Some(0.10)),
+        "satellite":     (category: Repair, grows: false, one_off: true, growth: Some(0.10)),
+        "dish":          (category: Repair, grows: false, one_off: true, growth: Some(0.10)),
+        "all_dishes":    (category: Repair, grows: false, one_off: true, growth: Some(0.10)),
     },
 )

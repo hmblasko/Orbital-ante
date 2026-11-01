@@ -97,8 +97,12 @@ pub struct PaceRules {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceRule {
     pub category: Category,
+    /// Grows with the ante at the shared rate (`value_growth_per_ante`).
     pub grows: bool,
     pub one_off: bool,
+    /// Grows at its own rate per ante instead (overrides `grows`).
+    #[serde(default)]
+    pub growth: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -210,7 +214,7 @@ impl AnteScore {
     /// ante). `growth` is the per-ante value growth for growing sources
     /// (1.15^(ante-1)). Unknown sources count as Stunt, one-off.
     pub fn award(&mut self, rules: &Rules, source: &str, base: u64, now: f64, growth: f64, perk_part: f64) -> Award {
-        let rule = rules.sources.get(source).cloned().unwrap_or(SourceRule { category: Category::Stunt, grows: false, one_off: true });
+        let rule = rules.sources.get(source).cloned().unwrap_or(SourceRule { category: Category::Stunt, grows: false, one_off: true, growth: None });
         // Chain: within the window of the last action adds a link; a gap
         // breaks it (never damage).
         match self.last_action_s {
@@ -227,7 +231,7 @@ impl AnteScore {
             *e += 1;
             k
         };
-        let grown = if rule.grows { base as f64 * growth } else { base as f64 };
+        let grown = if rule.grows || rule.growth.is_some() { base as f64 * growth } else { base as f64 };
         let base_after = (grown * rules.repeat_factor(k)).round() as u64;
         let multiplier = self.multiplier(rules, now, perk_part);
         let points = (base_after as f64 * multiplier).round() as u64;
@@ -360,15 +364,26 @@ mod tests {
         assert!((g - 1.3225).abs() < 1e-9);
         let mut a = AnteScore::default();
         assert_eq!(a.award(&r, "kill_t2", 60, 0.0, g, 0.0).base, 79);
-        assert_eq!(a.award(&r, "discovery", 60, 100.0, g, 0.0).base, 60);
+        assert_eq!(a.award(&r, "bounty", 600, 100.0, g, 0.0).base, 600);
+    }
+
+    /// Phase 7 call: discovery, repairs and salvage grow at their own 10%.
+    #[test]
+    fn own_rate_sources_grow_at_their_own_rate() {
+        let r = rules();
+        assert_eq!(r.sources["discovery"].growth, Some(0.10));
+        assert_eq!(r.sources["satellite"].growth, Some(0.10));
+        let g = value_growth(0.10, 3);
+        let mut a = AnteScore::default();
+        assert_eq!(a.award(&r, "discovery", 60, 0.0, g, 0.0).base, 73);
     }
 
     /// Section 17.5 prices, indexed to T.
     #[test]
     fn prices_follow_the_target() {
         let r = rules();
-        assert_eq!(r.attribute_price(0, 1000), Some(300));
-        assert_eq!(r.attribute_price(4, 1000), Some(1000));
+        assert_eq!(r.attribute_price(0, 1000), Some(150));
+        assert_eq!(r.attribute_price(4, 1000), Some(500));
         assert_eq!(r.attribute_price(5, 1000), None);
         assert_eq!(r.reroll_price(0, 2800), 280);
         assert_eq!(r.reroll_price(2, 2800), 560);

@@ -382,7 +382,8 @@ impl RunState {
         if self.phase != Phase::Playing {
             return None;
         }
-        let growth = value_growth(t.antes.value_growth_per_ante, self.ante);
+        let rate = t.rules.sources.get(source).and_then(|r| r.growth).unwrap_or(t.antes.value_growth_per_ante);
+        let growth = value_growth(rate, self.ante);
         let perk = self.perk_multiplier(t);
         let a = self.score.award(&t.rules, source, base, self.elapsed, growth, perk);
         self.wallet += a.points;
@@ -711,9 +712,9 @@ mod tests {
         let score = r.last_result.as_ref().unwrap().score;
         let w = r.wallet;
         assert!(r.buy_attribute("damage", &t));
-        assert_eq!(r.wallet, w - 300);
+        assert_eq!(r.wallet, w - 150);
         assert_eq!(r.attribute_level("damage"), 1);
-        assert_eq!(r.attribute_price("damage", &t), Some(450));
+        assert_eq!(r.attribute_price("damage", &t), Some(220));
         let draft_before = r.draft.clone();
         assert!(r.reroll(&t));
         assert_eq!(r.reroll_price(&t), 150);

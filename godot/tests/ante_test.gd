@@ -7,7 +7,7 @@ extends SceneTree
 ##    down or tied is a camp clear; every award shows a notification.
 ## 4. Two kinds of score raise the multiplier above x1.0.
 ## 5. Reaching the target allows cash-out, which ends the ante: the upgrade
-##    screen opens with the tally, attributes cost 0.30T, a draft of 3,
+##    screen opens with the tally, attributes cost 0.15T, a draft of 3,
 ##    a scratch-off with its odds.
 ## 6. Perks change stats (Glass Cannon, Deep Breath on suit oxygen).
 ## 7. Ante 2 re-mans the camp; running out of time ends the run with the
@@ -200,7 +200,7 @@ func _process(_d: float) -> bool:
 			var screen: Control = director.get_screen()
 			var w: int = Points.get_wallet()
 			check(screen.buy("damage"), "buy a Damage level")
-			check(w - Points.get_wallet() == 300, "the first level costs 0.30T = 300 (paid %d)" % (w - Points.get_wallet()))
+			check(w - Points.get_wallet() == 150, "the first level costs 0.15T = 150 (paid %d)" % (w - Points.get_wallet()))
 			var draft: Array = Points.get_draft()
 			check(draft.size() == 3, "the draft offers 3 perks")
 			w = Points.get_wallet()
