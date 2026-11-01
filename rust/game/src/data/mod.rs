@@ -132,4 +132,13 @@ mod tests {
         let d = parse::<crate::flight::dash::DashData>(include_str!("../../../../godot/data/ships/dash.ron")).unwrap();
         assert_eq!(d.styles.len(), 3);
     }
+
+    #[test]
+    fn rover_files_parse() {
+        let d = parse::<crate::flight::rover::RoverData>(include_str!("../../../../godot/data/vehicles/moon_buggy.ron")).unwrap();
+        assert!(!d.wheels.mounts.is_empty());
+        parse::<crate::flight::rover::SpawnsData>(include_str!("../../../../godot/data/vehicles/rovers.ron")).unwrap();
+        let h = parse::<crate::orbits::home_base::HomeData>(include_str!("../../../../godot/data/bodies/home_base.ron")).unwrap();
+        assert!(h.rover.is_some());
+    }
 }

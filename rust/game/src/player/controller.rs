@@ -150,6 +150,10 @@ pub struct PlayerController {
     /// The ship the player is in (cabin or lift), if any.
     aboard: Option<Gd<Ship>>,
     buckled: bool,
+    /// The rover being driven, if any, and how far the head is turned from
+    /// straight ahead in its seat.
+    driving: Option<Gd<crate::flight::rover::Rover>>,
+    ride_yaw: f32,
     /// Wind push from the weather (m/s^2), set each physics frame.
     wind_accel: Vector3,
     /// In water this frame (swimming physics on).
@@ -217,6 +221,8 @@ impl ICharacterBody3D for PlayerController {
             spawned: false,
             aboard: None,
             buckled: false,
+            driving: None,
+            ride_yaw: 0.0,
             wind_accel: Vector3::ZERO,
             submerged: false,
             repair_spot: None,
@@ -314,6 +320,13 @@ impl ICharacterBody3D for PlayerController {
             self.update_repair(dt);
             self.handle_actions();
         }
+        if self.driving.is_some() {
+            self.ride(dt, alive);
+            self.update_head(dt);
+            self.update_suit(dt);
+            self.update_thruster_light();
+            return;
+        }
         if self.buckled {
             self.sit(dt);
             self.update_head(dt);
@@ -404,6 +417,9 @@ impl PlayerController {
         if self.buckled {
             return "unbuckle".into();
         }
+        if self.driving.is_some() {
+            return "exit_rover".into();
+        }
         if let Some(ship) = &self.aboard {
             let p = self.base().get_global_position();
             match self.ship_action() {
@@ -414,6 +430,9 @@ impl PlayerController {
                 None => {}
             }
             let _ = p;
+        }
+        if self.aboard.is_none() && self.nearest_rover().is_some() {
+            return "drive".into();
         }
         if let Some((_, _, key, frac)) = &self.repair_spot {
             return GString::from(&format!("{}:{key}:{frac:.3}", self.repair_verb));
@@ -445,6 +464,21 @@ impl PlayerController {
     #[func]
     pub fn is_buckled(&self) -> bool {
         self.buckled
+    }
+
+    /// Driving a rover.
+    #[func]
+    pub fn is_driving(&self) -> bool {
+        self.driving.is_some()
+    }
+
+    /// In a seat of any kind (weapons are stowed).
+    pub fn is_seated(&self) -> bool {
+        self.buckled || self.driving.is_some()
+    }
+
+    pub fn driving_rover(&self) -> Option<Gd<crate::flight::rover::Rover>> {
+        self.driving.clone()
     }
 
     #[func]
@@ -630,6 +664,16 @@ impl PlayerController {
             self.unbuckle();
             return;
         }
+        if self.driving.is_some() {
+            self.leave_rover();
+            return;
+        }
+        if self.aboard.is_none()
+            && let Some(rover) = self.nearest_rover()
+        {
+            self.enter_rover(rover);
+            return;
+        }
         if let Some(mut ship) = self.aboard.clone() {
             let action = self.ship_action();
             let _ = p;
@@ -725,6 +769,97 @@ impl PlayerController {
         ship.bind_mut().add_mouse(delta);
     }
 
+    /// The nearest rover close enough to climb into.
+    fn nearest_rover(&self) -> Option<Gd<crate::flight::rover::Rover>> {
+        if self.buckled || self.driving.is_some() {
+            return None;
+        }
+        let p = self.base().get_global_position();
+        self.base()
+            .get_tree()
+            .get_nodes_in_group(crate::flight::rover::ROVER_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<crate::flight::rover::Rover>().ok())
+            .filter(|r| r.bind().can_enter(p))
+            .min_by(|a, b| a.get_global_position().distance_to(p).total_cmp(&b.get_global_position().distance_to(p)))
+    }
+
+    fn enter_rover(&mut self, mut rover: Gd<crate::flight::rover::Rover>) {
+        rover.bind_mut().set_driver(true);
+        self.tether_anchor = None;
+        self.set_shape_enabled(false);
+        self.ride_yaw = 0.0;
+        self.driving = Some(rover);
+    }
+
+    fn leave_rover(&mut self) {
+        let Some(mut rover) = self.driving.take() else { return };
+        rover.bind_mut().set_driver(false);
+        let exit = rover.bind().exit_point();
+        let v = rover.get_linear_velocity();
+        let p = exit.unwrap_or_else(|| self.base().get_global_position());
+        let g = self.total_gravity(p);
+        let up = if g.length_squared() > 1e-6 { -g.normalized() } else { rover.get_global_basis().col_b().normalized() };
+        let basis = motion::align_up(self.base().get_global_basis(), up, std::f32::consts::PI);
+        self.base_mut().set_global_transform(Transform3D::new(basis, p));
+        self.base_mut().set_velocity(v);
+        self.set_shape_enabled(true);
+    }
+
+    /// Driving: sit in the rover's seat (where it will be at the end of
+    /// this tick) and look around freely; the stick drives the rover.
+    fn ride(&mut self, dt: f32, alive: bool) {
+        let Some(rover) = self.driving.clone() else { return };
+        if !rover.is_instance_valid() {
+            self.driving = None;
+            self.set_shape_enabled(true);
+            return;
+        }
+        let Some(seat) = rover.bind().seat_transform() else { return };
+        let now = rover.get_global_transform();
+        let w = rover.get_angular_velocity();
+        let spin = if w.length() > 1e-6 { Basis::from_axis_angle(w.normalized(), w.length() * dt) } else { Basis::IDENTITY };
+        let next = Transform3D::new((spin * now.basis).orthonormalized(), now.origin + rover.get_linear_velocity() * dt);
+        let seat = next * (now.affine_inverse() * seat);
+        let (yaw, pitch_input) = self.look_input(dt, alive);
+        let limit = rover.bind().look_yaw_limit();
+        self.ride_yaw = (self.ride_yaw - yaw).clamp(-limit, limit);
+        let up = seat.basis.col_b().normalized();
+        // The rover's front is +Z; the player looks along -Z, so face it round.
+        let basis = (Basis::from_axis_angle(up, self.ride_yaw + std::f32::consts::PI) * seat.basis).orthonormalized();
+        self.base_mut().set_global_transform(Transform3D::new(basis, seat.origin));
+        self.base_mut().set_velocity(rover.get_linear_velocity());
+        let limit = self.data.pitch_limit_deg.to_radians();
+        self.pitch = (self.pitch - pitch_input).clamp(-limit, limit);
+    }
+
+    /// Look input this tick as (yaw, pitch) radians: stick with its response
+    /// curve and full-tilt turn boost, plus the mouse.
+    fn look_input(&mut self, dt: f32, alive: bool) -> (f32, f32) {
+        let input = Input::singleton();
+        let stick = if alive { input.get_vector("look_left", "look_right", "look_up", "look_down") } else { Vector2::ZERO };
+        if !alive {
+            self.mouse_delta = Vector2::ZERO;
+        }
+        if stick.length() >= self.data.stick_boost_threshold {
+            self.look_hold_s += dt;
+        } else {
+            self.look_hold_s = 0.0;
+        }
+        let curved = motion::stick_curve(stick, self.data.stick_look_curve);
+        let boost = motion::turn_boost(self.look_hold_s, self.data.stick_boost_delay_s, self.data.stick_boost_ramp_s, self.data.stick_boost_deg);
+        let yaw_speed = (self.data.stick_look_speed_deg + boost).to_radians() * dt;
+        let pitch_speed = self.data.stick_look_speed_deg.to_radians() * self.data.stick_pitch_scale * dt;
+        let mouse_scale = self.data.mouse_sensitivity_deg.to_radians();
+        let yaw = curved.x * yaw_speed + self.mouse_delta.x * mouse_scale;
+        let mut pitch_input = curved.y * pitch_speed + self.mouse_delta.y * mouse_scale;
+        if self.data.invert_y {
+            pitch_input = -pitch_input;
+        }
+        self.mouse_delta = Vector2::ZERO;
+        (yaw, pitch_input)
+    }
+
     fn total_gravity(&self, position: Vector3) -> Vector3 {
         if let Some(ship) = &self.aboard {
             let v = self.base().get_velocity();
@@ -770,28 +905,8 @@ impl PlayerController {
 
     /// Keep the body upright against gravity and apply horizontal look (yaw).
     fn update_orientation(&mut self, up: Vector3, dt: f32, alive: bool) {
-        let input = Input::singleton();
-        let stick = if alive { input.get_vector("look_left", "look_right", "look_up", "look_down") } else { Vector2::ZERO };
-        if !alive {
-            self.mouse_delta = Vector2::ZERO;
-        }
         // Response curve plus a turn boost at full tilt (yaw only).
-        if stick.length() >= self.data.stick_boost_threshold {
-            self.look_hold_s += dt;
-        } else {
-            self.look_hold_s = 0.0;
-        }
-        let curved = motion::stick_curve(stick, self.data.stick_look_curve);
-        let boost = motion::turn_boost(self.look_hold_s, self.data.stick_boost_delay_s, self.data.stick_boost_ramp_s, self.data.stick_boost_deg);
-        let yaw_speed = (self.data.stick_look_speed_deg + boost).to_radians() * dt;
-        let pitch_speed = self.data.stick_look_speed_deg.to_radians() * self.data.stick_pitch_scale * dt;
-        let mouse_scale = self.data.mouse_sensitivity_deg.to_radians();
-        let yaw = curved.x * yaw_speed + self.mouse_delta.x * mouse_scale;
-        let mut pitch_input = curved.y * pitch_speed + self.mouse_delta.y * mouse_scale;
-        if self.data.invert_y {
-            pitch_input = -pitch_input;
-        }
-        self.mouse_delta = Vector2::ZERO;
+        let (yaw, pitch_input) = self.look_input(dt, alive);
 
         // In zero-g there is no "up" to turn toward; keep the current one.
         let max_turn = if self.in_zero_g { 0.0 } else { self.data.align_speed_deg.to_radians() * dt };

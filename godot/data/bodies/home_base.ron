@@ -55,4 +55,7 @@
     // back into the hills by flat_outer_m, so the base stands level.
     flat_inner_m: 64.0,
     flat_outer_m: 105.0,
+    // A Moon buggy parked between the pad and the hangar, nose toward the
+    // start, so the first minute can include a joyride.
+    rover: Some((data: "res://data/vehicles/moon_buggy.ron", at: (-14.5, 42.0), yaw_deg: 200.0)),
 )

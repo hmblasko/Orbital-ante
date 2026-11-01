@@ -177,7 +177,7 @@ impl INode3D for Arsenal {
         let Some(player) = self.player() else { return };
         let (dead, buckled, crouched) = {
             let p = player.bind();
-            (p.is_dead(), p.is_buckled(), p.is_crouched())
+            (p.is_dead(), p.is_seated(), p.is_crouched())
         };
         let _ = crouched;
         let active = !dead && !buckled;

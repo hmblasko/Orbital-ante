@@ -462,6 +462,10 @@ impl IStaticBody3D for CelestialBody {
             for site in crate::items::sites::sites_for_body(&body_id, &shape, run_seed) {
                 self.base_mut().add_child(&site);
             }
+            // Parked rovers (vertical slice: the Moon buggy).
+            for rover in crate::flight::rover::rovers_for_body(&body_id, &shape, run_seed, data.gravity.surface_gravity) {
+                self.base_mut().add_child(&rover);
+            }
             if self.stream_detail {
                 self.build_preview(&data, &shape);
             } else {

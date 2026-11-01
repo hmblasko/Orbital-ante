@@ -62,10 +62,15 @@ func _process(_d: float) -> bool:
 		0:
 			if frame < 5: return false
 			moon = sys.get_node("moon")
+			# Go there first, or streaming releases the Moon's detail
+			# while the player is still on Earth.
+			sys.debug_place_player_on("moon", Vector3.UP * (moon.radius() + 30.0))
 			moon.request_detail()
 			step = 1
 		1:
-			if not moon.has_detail(): return false
+			if not moon.has_detail():
+				sys.debug_place_player_on("moon", Vector3.UP * (moon.radius() + 30.0))
+				return false
 			for e in moon.get_children():
 				if e.has_method("debug_set_frozen"): e.debug_set_frozen(true)
 			for n in get_nodes_in_group("repair_sites"):

@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base and your control fixes). Needs Godot 4.7.2 exactly.
+Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base, your control fixes and the Moon buggy). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -73,6 +73,13 @@ WHAT IS IN THIS BUILD
   broke off are gone. No repair sound yet.
 
 NEW IN THIS BUILD (your fixes and the Phase 8 slice)
+- Moon buggy: one is parked beside the launch pad at home, and one waits
+  near the Moon's landing area. Walk up and press X / E to climb in.
+  Left stick (WASD) drives and steers, A (Space) fires the rocket boost,
+  B (C) is the handbrake for drifts, right stick (mouse) looks around,
+  X / E climbs out. In the air the stick tilts the buggy so you can land
+  it. If it ends up on its roof, hold A (Space) to roll it back over.
+  Hard crashes hurt you (it's an open seat), and enemies hear the motor.
 - Controls: the right stick now has a response curve (small tilts aim
   finely, full tilt is full speed), up/down is a bit slower than
   left/right, and holding the stick fully over for a moment speeds the turn

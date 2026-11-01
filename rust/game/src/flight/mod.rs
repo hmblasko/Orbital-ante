@@ -7,6 +7,7 @@ pub mod damage;
 pub mod dash;
 pub mod meshes;
 pub mod model;
+pub mod rover;
 pub mod ship;
 pub mod takeoff;
 

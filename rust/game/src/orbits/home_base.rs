@@ -46,6 +46,16 @@ pub struct HomeData {
     /// Ground graded flat round the start (inner radius, blend-out radius).
     pub flat_inner_m: f32,
     pub flat_outer_m: f32,
+    /// A buggy parked beside the pad: ground point (x, z) and yaw.
+    #[serde(default)]
+    pub rover: Option<RoverPlace>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoverPlace {
+    pub data: String,
+    pub at: (f32, f32),
+    pub yaw_deg: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -439,6 +449,16 @@ pub fn build(body: &mut Gd<CelestialBody>, start_dir: Vector3, facing: Vector3) 
         // Stand on the highest ground under it; the footing reaches down.
         node.set_transform(stand(&f, b.at.0, b.at.1, b.yaw_deg, hi - data.sink_m));
         root.add_child(&node);
+    }
+
+    // A buggy parked by the pad, to try driving before launch.
+    if let Some(rp) = &data.rover
+        && let Some(rd) = crate::flight::rover::load_rover(&rp.data)
+    {
+        let ground = body.bind().surface_radius_local(f.dir(rp.at.0, rp.at.1));
+        let g = body.bind().gravity_at(body.get_global_transform() * (f.dir(rp.at.0, rp.at.1) * ground)).length();
+        let t = stand(&f, rp.at.0, rp.at.1, rp.yaw_deg, ground + rd.ride_height(g) + 0.05);
+        root.add_child(&crate::flight::rover::parked(&rp.data, "HomeRover", t));
     }
 
     // The tracking dish.

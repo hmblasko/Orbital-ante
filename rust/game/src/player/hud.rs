@@ -560,6 +560,8 @@ impl SuitHud {
             "untether" => ("PROMPT_UNTETHER", "\u{25BC}", "T"),
             "buckle" => ("PROMPT_BUCKLE", "X", "E"),
             "unbuckle" => ("PROMPT_UNBUCKLE", "X", "E"),
+            "drive" => ("PROMPT_DRIVE", "X", "E"),
+            "exit_rover" => ("PROMPT_EXIT_ROVER", "X", "E"),
             "open_hatch" => ("PROMPT_OPEN_HATCH", "X", "E"),
             "close_hatch" => ("PROMPT_CLOSE_HATCH", "X", "E"),
             _ if carry.as_deref() == Some("drop") => ("PROMPT_DROP_TARGET", "X", "E"),

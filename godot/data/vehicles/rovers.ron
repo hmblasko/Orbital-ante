@@ -1,0 +1,10 @@
+// Where rovers start each run (CLAUDE.md sections 2 and 4: "land in a
+// crater, drive a rover over hills"). The home-base buggy's spot is in
+// data/bodies/home_base.ron.
+(
+    spawns: [
+        // One buggy near the Moon's landing area, seeded per run. Degrees
+        // from the body's pole (local +Y), kept clear of the camp.
+        (body: "moon", data: "res://data/vehicles/moon_buggy.ron", angle_deg: (5.0, 11.0), clear_of_camp_deg: 6.0),
+    ],
+)
