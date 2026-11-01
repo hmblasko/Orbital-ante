@@ -31,12 +31,16 @@
                 (kind: Corona, at: (-0.30, 0.10, 0.95), radius_m: 120.0, height_m: 12.0),
             ],
             random: [
-                (kind: PancakeDome, count: 6, radius_m: (25.0, 45.0), height_m: (6.0, 10.0)),
+                (kind: PancakeDome, count: 9, radius_m: (25.0, 45.0), height_m: (6.0, 10.0)),
                 (kind: Corona, count: 2, radius_m: (50.0, 80.0), height_m: (7.0, 10.0)),
                 (kind: Rille, count: 4, radius_m: (4.0, 6.0), height_m: (2.5, 4.0), length_m: (150.0, 300.0)),
                 (kind: Ridge, count: 6, radius_m: (12.0, 18.0), height_m: (6.0, 10.0), length_m: (300.0, 600.0)),
                 (kind: Mountain, count: 4, radius_m: (60.0, 100.0), height_m: (30.0, 50.0)),
                 (kind: Crater, count: 2, radius_m: (40.0, 60.0), height_m: (8.0, 12.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Volcano, count: 3, radius_m: (53.7, 89.4), height_m: (31.3, 53.7)),
+                (kind: Canyon, count: 2, radius_m: (13.4, 19.1), height_m: (11.5, 19.1), length_m: (382.5, 764.9)),
+                (kind: Dunes, count: 2, radius_m: (88.8, 144.2), height_m: (4.4, 8.9)),
             ],
         ),
     ),

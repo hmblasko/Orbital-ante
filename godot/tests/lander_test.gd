@@ -110,7 +110,7 @@ func _physics_process(_delta: float) -> bool:
 				Input.action_press("jump")
 				next()
 		3:
-			max_seat_gap = max(max_seat_gap, player.global_position.distance_to(at_ship(Vector3(0.0, 6.75, 0.35))))
+			max_seat_gap = max(max_seat_gap, player.global_position.distance_to(at_ship(Vector3(0.0, 7.85, 0.35))))
 			if t == THRUST_FRAMES:
 				Input.action_release("jump")
 				var climb := height() - start_height

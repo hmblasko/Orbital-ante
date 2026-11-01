@@ -36,7 +36,11 @@
                 (kind: Penitentes, count: 4, radius_m: (35.0, 55.0), height_m: (7.0, 11.0)),
                 (kind: Yardangs, count: 3, radius_m: (90.0, 140.0), height_m: (5.0, 8.0)),
                 (kind: Erosion, count: 2, radius_m: (35.0, 55.0), height_m: (25.0, 35.0)),
-                (kind: Mountain, count: 6, radius_m: (80.0, 140.0), height_m: (40.0, 80.0)),
+                (kind: Mountain, count: 9, radius_m: (80.0, 140.0), height_m: (40.0, 80.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Mesa, count: 3, radius_m: (41.0, 64.5), height_m: (14.1, 21.1)),
+                (kind: Canyon, count: 1, radius_m: (17.5, 25.1), height_m: (15.0, 25.1), length_m: (501.4, 1002.9)),
+                (kind: Ridge, count: 3, radius_m: (15.7, 23.6), height_m: (7.9, 13.1), length_m: (393.3, 786.6)),
             ],
         ),
     ),

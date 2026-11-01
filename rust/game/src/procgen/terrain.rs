@@ -65,6 +65,18 @@ pub struct TerrainShape {
     craters: Vec<Crater>,
     landforms: Landforms,
     seed: u32,
+    /// Graded ground (the home base): flat inside, blending back out.
+    flats: Vec<FlatSpot>,
+}
+
+/// A patch of graded ground: flat at `height` within `inner` radians of
+/// `dir`, blending back into the natural ground by `outer`.
+#[derive(Debug, Clone)]
+pub struct FlatSpot {
+    pub dir: Vector3,
+    pub inner: f32,
+    pub outer: f32,
+    pub height: f32,
 }
 
 impl TerrainShape {
@@ -106,11 +118,40 @@ impl TerrainShape {
             craters,
             landforms,
             seed: (data.seed ^ (data.seed >> 32)) as u32,
+            flats: Vec::new(),
         }
     }
 
     pub fn radius(&self) -> f32 {
         self.radius
+    }
+
+    /// Grade a patch of ground flat round `dir` (radius `inner_m`, blending
+    /// out to `outer_m`), at the average natural height under it, so a base
+    /// stands level. Kept above any water.
+    pub fn add_flat(&mut self, dir: Vector3, inner_m: f32, outer_m: f32) {
+        let d = dir.normalized();
+        let side = if d.y.abs() < 0.9 { Vector3::UP } else { Vector3::RIGHT };
+        let a = d.cross(side).normalized();
+        let b = d.cross(a).normalized();
+        let mut sum = 0.0;
+        let mut n = 0.0;
+        for ring in 0..3 {
+            let r = inner_m * ring as f32 / 2.0;
+            let steps = if ring == 0 { 1 } else { 8 };
+            for k in 0..steps {
+                let t = std::f32::consts::TAU * k as f32 / steps as f32;
+                let q = (d * self.radius + (a * t.cos() + b * t.sin()) * r).normalized();
+                sum += self.sample(q).height;
+                n += 1.0;
+            }
+        }
+        let mut height = sum / n;
+        if let Some(w) = self.water_level() {
+            height = height.max(w + 1.5);
+        }
+        let r = self.radius.max(1.0);
+        self.flats.push(FlatSpot { dir: d, inner: inner_m / r, outer: outer_m.max(inner_m + 1.0) / r, height });
     }
 
     /// Lowest the surface can possibly be (for out-of-world checks).
@@ -169,7 +210,14 @@ impl TerrainShape {
             rim = rim.max(1.0 - ((x - 1.0).abs() / 0.18).min(1.0));
             height += delta;
         }
-        let (height, land) = self.landforms.apply(d, height, self.radius);
+        let (mut height, land) = self.landforms.apply(d, height, self.radius);
+        for f in &self.flats {
+            let a = d.angle_to(f.dir);
+            if a < f.outer {
+                let w = smoothstep(f.outer, f.inner, a);
+                height += (f.height - height) * w;
+            }
+        }
         SurfaceSample {
             height,
             crater_floor: floor,

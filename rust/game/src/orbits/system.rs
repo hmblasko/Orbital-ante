@@ -231,6 +231,9 @@ pub struct SolarSystem {
     /// Frame state of every other rider, by instance id.
     riders: HashMap<i64, Ride>,
     sun_light: Option<Gd<DirectionalLight3D>>,
+    /// Where the run starts, in the start body's own space (the home base
+    /// is graded flat there before the terrain is built).
+    start_local: Option<Vector3>,
     base: Base<Node3D>,
 }
 
@@ -248,6 +251,7 @@ impl INode3D for SolarSystem {
             co_rotating: false,
             riders: HashMap::new(),
             sun_light: None,
+            start_local: None,
             base,
         }
     }
@@ -290,9 +294,25 @@ impl INode3D for SolarSystem {
         weather.set_name("Weather");
         self.base_mut().add_child(&weather);
 
+        // Work out the start spot now, so the home base's ground can be
+        // graded before the start body builds its terrain.
+        let home = super::home_base::load_home();
+        if let Some(si) = start {
+            let basis = ephemeris.basis(&data, si, self.clock);
+            let centre = (positions[si] - self.origin).to_f32();
+            let sun = data.bodies.iter().position(|b| b.parent.is_none()).map(|k| (positions[k] - self.origin).to_f32());
+            let world = start_world_dir(&data, basis, centre, sun);
+            self.start_local = Some(basis.inverse() * world);
+        }
         for (i, b) in data.bodies.iter().enumerate() {
             let mut body = CelestialBody::new_alloc();
             body.set_name(&b.id);
+            if Some(i) == start
+                && let Some(local) = self.start_local
+                && b.id == home.body
+            {
+                body.bind_mut().add_flat_spot(local, home.flat_inner_m, home.flat_outer_m);
+            }
             // The starting body builds in full at load so you land on real
             // ground; the rest stream in as you approach.
             body.bind_mut().configure(&b.data, Some(i) != start);
@@ -416,22 +436,28 @@ impl SolarSystem {
         };
         let body = self.bodies[i].clone();
         let center = body.get_global_position();
-        let d = Vector3::new(data.start_dir.0, data.start_dir.1, data.start_dir.2);
-        let world_dir = if d.length_squared() > 1e-6 {
-            body.get_global_basis() * d.normalized()
-        } else {
-            // No fixed start: begin in daylight, with the sun part-way up the
-            // sky so the ground has readable shadows.
-            let sun = self.bodies.iter().zip(&data.bodies).find(|(_, b)| b.parent.is_none()).map(|(n, _)| n.get_global_position());
-            let to_sun = sun.map_or(Vector3::UP, |s| (s - center).normalized());
-            let side = to_sun.cross(Vector3::UP).normalized();
-            let side = if side.is_finite() && side.length_squared() > 0.5 { side } else { Vector3::RIGHT };
-            (to_sun * data.start_sun_angle_deg.to_radians().cos() + side * data.start_sun_angle_deg.to_radians().sin()).normalized()
+        let world_dir = match self.start_local {
+            // The graded home-base spot worked out at load.
+            Some(local) if body.get_name().to_string() == super::home_base::load_home().body => body.get_global_basis() * local,
+            _ => {
+                let sun = self.bodies.iter().zip(&data.bodies).find(|(_, b)| b.parent.is_none()).map(|(n, _)| n.get_global_position());
+                let dir = start_world_dir(&data, body.get_global_basis(), center, sun);
+                self.gentle_spot(&body, dir, data.start_search_deg)
+            }
         };
-        let world_dir = self.gentle_spot(&body, world_dir, data.start_search_deg);
         let ground = body.bind().surface_radius_toward(center + world_dir);
         player.set_global_position(center + world_dir * (ground + 1.2));
         player.set_velocity(Vector3::ZERO);
+        // The home base round the start, facing the player toward the pad.
+        let mut body_mut = body.clone();
+        let local_dir = body.get_global_basis().inverse() * world_dir;
+        let local_facing = body.get_global_basis().inverse() * -player.get_global_basis().col_c();
+        if let Some(pad_top) = super::home_base::build(&mut body_mut, local_dir, local_facing) {
+            let target = body.get_global_transform() * pad_top + world_dir * 4.0;
+            if let Ok(mut pc) = player.clone().try_cast::<crate::player::PlayerController>() {
+                pc.bind_mut().debug_look_at(target);
+            }
+        }
         self.frame = Some(i);
         self.co_rotating = true;
     }
@@ -777,4 +803,18 @@ mod tests {
             assert!(((p[moon] - p[earth]).length() - r).abs() < 1e-6);
         }
     }
+}
+
+/// The start direction (world space) on the start body: the fixed
+/// `start_dir` if set, else daylight with the sun part-way up the sky so
+/// the ground has readable shadows.
+fn start_world_dir(data: &SystemData, body_basis: Basis, centre: Vector3, sun: Option<Vector3>) -> Vector3 {
+    let d = Vector3::new(data.start_dir.0, data.start_dir.1, data.start_dir.2);
+    if d.length_squared() > 1e-6 {
+        return body_basis * d.normalized();
+    }
+    let to_sun = sun.map_or(Vector3::UP, |s| (s - centre).normalized());
+    let side = to_sun.cross(Vector3::UP).normalized();
+    let side = if side.is_finite() && side.length_squared() > 0.5 { side } else { Vector3::RIGHT };
+    (to_sun * data.start_sun_angle_deg.to_radians().cos() + side * data.start_sun_angle_deg.to_radians().sin()).normalized()
 }

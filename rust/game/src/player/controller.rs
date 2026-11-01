@@ -67,6 +67,27 @@ pub struct MovementData {
     pub mouse_sensitivity_deg: f32,
     pub pitch_limit_deg: f32,
     pub invert_y: bool,
+    /// Right-stick response curve (1 = linear; higher = finer small tilts).
+    #[serde(default = "one")]
+    pub stick_look_curve: f32,
+    /// Up/down look speed as a share of left/right.
+    #[serde(default = "one")]
+    pub stick_pitch_scale: f32,
+    /// Held near full tilt (past `stick_boost_threshold`) for
+    /// `stick_boost_delay_s`, turning speeds up by `stick_boost_deg` over
+    /// `stick_boost_ramp_s`, so big turns are quick and aiming stays calm.
+    #[serde(default)]
+    pub stick_boost_deg: f32,
+    #[serde(default = "one")]
+    pub stick_boost_threshold: f32,
+    #[serde(default)]
+    pub stick_boost_delay_s: f32,
+    #[serde(default = "one")]
+    pub stick_boost_ramp_s: f32,
+    /// A crouch press released within this long toggles crouch; a longer
+    /// hold crouches only while held.
+    #[serde(default)]
+    pub crouch_tap_s: f32,
     pub spawn_height: f32,
     pub field_of_view: f32,
 }
@@ -149,6 +170,13 @@ pub struct PlayerController {
     /// Holding X on it right now (tests can force it).
     repairing: bool,
     force_repair: bool,
+    /// Crouch: toggled on by a tap (or the left-stick click), and how long
+    /// the crouch button has been down.
+    crouch_toggled: bool,
+    crouch_press_s: f32,
+    crouching: bool,
+    /// How long the look stick has been held near full tilt.
+    look_hold_s: f32,
     /// Data before perks and attributes; `data` and `suit_data` are these
     /// scaled by the run's build (re-scaled when the build changes).
     base_data: MovementData,
@@ -195,6 +223,10 @@ impl ICharacterBody3D for PlayerController {
             repair_verb: "repair",
             repairing: false,
             force_repair: false,
+            crouch_toggled: false,
+            crouch_press_s: 0.0,
+            crouching: false,
+            look_hold_s: 0.0,
             buckle_t: 0.0,
             buckle_from: Transform3D::IDENTITY,
             crouched_shape: false,
@@ -290,7 +322,9 @@ impl ICharacterBody3D for PlayerController {
             return;
         }
         self.update_orientation(up, dt, alive);
-        self.update_crouch_shape(alive && Input::singleton().is_action_pressed("crouch"));
+        self.update_crouch_input(dt, alive);
+        let want = self.crouching;
+        self.update_crouch_shape(want);
         self.update_velocity(gravity, up, dt, alive);
         self.apply_tether();
         // Speed into the ground just before landing, for the landing puff.
@@ -741,10 +775,19 @@ impl PlayerController {
         if !alive {
             self.mouse_delta = Vector2::ZERO;
         }
-        let stick_speed = self.data.stick_look_speed_deg.to_radians() * dt;
+        // Response curve plus a turn boost at full tilt (yaw only).
+        if stick.length() >= self.data.stick_boost_threshold {
+            self.look_hold_s += dt;
+        } else {
+            self.look_hold_s = 0.0;
+        }
+        let curved = motion::stick_curve(stick, self.data.stick_look_curve);
+        let boost = motion::turn_boost(self.look_hold_s, self.data.stick_boost_delay_s, self.data.stick_boost_ramp_s, self.data.stick_boost_deg);
+        let yaw_speed = (self.data.stick_look_speed_deg + boost).to_radians() * dt;
+        let pitch_speed = self.data.stick_look_speed_deg.to_radians() * self.data.stick_pitch_scale * dt;
         let mouse_scale = self.data.mouse_sensitivity_deg.to_radians();
-        let yaw = stick.x * stick_speed + self.mouse_delta.x * mouse_scale;
-        let mut pitch_input = stick.y * stick_speed + self.mouse_delta.y * mouse_scale;
+        let yaw = curved.x * yaw_speed + self.mouse_delta.x * mouse_scale;
+        let mut pitch_input = curved.y * pitch_speed + self.mouse_delta.y * mouse_scale;
         if self.data.invert_y {
             pitch_input = -pitch_input;
         }
@@ -766,7 +809,7 @@ impl PlayerController {
         let input = Input::singleton();
         let on_floor = self.base().is_on_floor();
         let mut stick = if alive { input.get_vector("move_left", "move_right", "move_forward", "move_back") } else { Vector2::ZERO };
-        let crouching = alive && input.is_action_pressed("crouch");
+        let crouching = alive && self.crouching;
         let basis = self.base().get_global_basis();
         if let (Some(target), true) = (self.debug_walk, alive) {
             let to = target - self.base().get_global_position();
@@ -1069,7 +1112,7 @@ impl PlayerController {
             up,
             gravity,
             on_floor: self.base().is_on_floor(),
-            crouching: Input::singleton().is_action_pressed("crouch"),
+            crouching: self.crouching,
             ground_speed: horizontal.length(),
             fall_speed,
             thrust: self.thrust,
@@ -1082,8 +1125,39 @@ impl PlayerController {
         }
     }
 
+    /// Hold B / Ctrl to crouch while held, or tap it (or click the left
+    /// stick) to stay crouched; tap again or jump to stand. On a pad you
+    /// can't hold B and look with the right stick at once, hence the toggle.
+    fn update_crouch_input(&mut self, dt: f32, alive: bool) {
+        let input = Input::singleton();
+        if !alive || self.buckled {
+            self.crouch_toggled = false;
+            self.crouching = false;
+            return;
+        }
+        let pressed = input.is_action_pressed("crouch");
+        let released = input.is_action_just_released("crouch");
+        if input.is_action_just_pressed("crouch") {
+            self.crouch_press_s = 0.0;
+        }
+        if pressed {
+            self.crouch_press_s += dt;
+        }
+        if input.is_action_just_pressed("crouch_toggle") {
+            self.crouch_toggled = !self.crouch_toggled;
+        }
+        // Jumping, or leaving the ground, ends a toggled crouch.
+        if input.is_action_just_pressed("jump") || !self.base().is_on_floor() {
+            self.crouch_toggled = false;
+        }
+        let (toggled, crouching) = motion::crouch_state(self.crouch_toggled, pressed, released, self.crouch_press_s, self.data.crouch_tap_s);
+        // In the air B is "jetpack down", never a crouch toggle.
+        self.crouch_toggled = toggled && self.base().is_on_floor();
+        self.crouching = crouching && (self.base().is_on_floor() || pressed);
+    }
+
     fn update_head(&mut self, dt: f32) {
-        let crouching = Input::singleton().is_action_pressed("crouch");
+        let crouching = self.crouched_shape || self.crouching;
         let target = if crouching { self.data.crouch_eye_height } else { self.data.eye_height };
         let blend = (self.data.crouch_blend_speed * dt).min(1.0);
         self.eye_height += (target - self.eye_height) * blend;
@@ -1094,4 +1168,9 @@ impl PlayerController {
             head.set_rotation(Vector3::new(pitch, 0.0, 0.0));
         }
     }
+}
+
+
+fn one() -> f32 {
+    1.0
 }

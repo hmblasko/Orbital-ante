@@ -250,3 +250,4 @@ SOURCE_SATELLITE,Satellite repaired
 NOTE_PATROL_INCOMING,Signal restored. A patrol heard it and is coming down
 CONTRACT_MOON_SIGNAL,Get the Moon talking
 CONTRACT_MOON_SIGNAL_DESC,Switch on {count} dishes or fix the relay satellite on the {body}.
+BASE_LOCKER,LOCKER

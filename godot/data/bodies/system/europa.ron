@@ -29,11 +29,14 @@
                 (kind: Chaos, at: (0.50, -0.20, 0.84), radius_m: 90.0, height_m: 7.0),
             ],
             random: [
-                (kind: DoubleRidge, count: 12, radius_m: (5.0, 7.0), height_m: (5.0, 8.0), length_m: (200.0, 450.0)),
-                (kind: Chaos, count: 2, radius_m: (35.0, 55.0), height_m: (5.0, 7.0)),
-                (kind: Scarp, count: 3, radius_m: (6.0, 9.0), height_m: (5.0, 8.0), length_m: (150.0, 300.0)),
+                (kind: DoubleRidge, count: 18, radius_m: (5.0, 7.0), height_m: (5.0, 8.0), length_m: (200.0, 450.0)),
+                (kind: Chaos, count: 4, radius_m: (35.0, 55.0), height_m: (5.0, 7.0)),
+                (kind: Scarp, count: 5, radius_m: (6.0, 9.0), height_m: (5.0, 8.0), length_m: (150.0, 300.0)),
                 (kind: Lake, count: 3, radius_m: (25.0, 45.0), height_m: (2.0, 3.0)),
                 (kind: Pool, count: 4, radius_m: (4.0, 7.0), height_m: (1.0, 1.5)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Penitentes, count: 2, radius_m: (23.5, 33.5), height_m: (4.7, 6.7)),
+                (kind: Crater, count: 2, radius_m: (37.0, 74.1), height_m: (7.4, 13.0)),
             ],
         ),
     ),

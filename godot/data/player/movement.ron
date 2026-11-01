@@ -16,12 +16,24 @@
     crouch_eye_height: 0.2,
     crouch_blend_speed: 10.0,
     crouch_capsule_height: 1.2,
+    // Tap B / Ctrl (or click the left stick) to stay crouched; hold to
+    // crouch only while held.
+    crouch_tap_s: 0.25,
 
     // How fast the body turns to stay upright as gravity changes direction.
     align_speed_deg: 240.0,
 
     // Right stick look speed at full tilt, and mouse degrees per pixel.
-    stick_look_speed_deg: 160.0,
+    // Controls pass (1 Nov 2026): a response curve so small tilts aim
+    // finely, pitch a little slower than yaw, and a turn boost after a
+    // moment at full tilt for quick about-faces.
+    stick_look_speed_deg: 150.0,
+    stick_look_curve: 1.8,
+    stick_pitch_scale: 0.75,
+    stick_boost_deg: 130.0,
+    stick_boost_threshold: 0.92,
+    stick_boost_delay_s: 0.25,
+    stick_boost_ramp_s: 0.35,
     mouse_sensitivity_deg: 0.12,
     pitch_limit_deg: 89.0,
     invert_y: false,

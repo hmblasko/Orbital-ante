@@ -58,6 +58,10 @@ pub struct ShipData {
     pub model_scale: f32,
     pub model_offset: V3,
     pub engine_at: V3,
+    /// Telescoping extensions under the model's legs (taller legs, so you
+    /// can walk under the belly to the hatch).
+    #[serde(default)]
+    pub leg_extension: Option<LegExtension>,
     pub mass_kg: f32,
     /// Ship-local centre of mass; low, in the heavy descent stage, so the
     /// lander doesn't tip over on slopes.
@@ -81,6 +85,21 @@ pub struct ShipData {
     pub autopilot: model::AutopilotData,
     pub takeoff: super::takeoff::TakeoffData,
     pub damage: super::damage::DamageData,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LegExtension {
+    pub lift_m: f32,
+    /// The model's footpads (x, z), ship space.
+    pub pads: Vec<(f32, f32)>,
+    pub strut_radius_m: f32,
+    pub sleeve_radius_m: f32,
+    pub sleeve_length_m: f32,
+    pub pad_radius_m: f32,
+    pub pad_thickness_m: f32,
+    pub strut_color: (f32, f32, f32),
+    pub sleeve_color: (f32, f32, f32),
+    pub pad_color: (f32, f32, f32),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -147,6 +166,9 @@ pub struct ParkingData {
     /// Score added per step away from straight ahead, to break ties.
     pub order_penalty_m: f32,
     pub drop_height_m: f32,
+    /// A launch pad within this distance of the player is used instead.
+    #[serde(default)]
+    pub pad_search_m: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1261,7 +1283,7 @@ impl Ship {
     fn read_input(&mut self, d: &ShipData) -> PilotInput {
         let input = Input::singleton();
         let stick = input.get_vector("move_left", "move_right", "move_back", "move_forward");
-        let look = input.get_vector("look_left", "look_right", "look_down", "look_up");
+        let look = crate::player::motion::stick_curve(input.get_vector("look_left", "look_right", "look_down", "look_up"), d.flight.stick_curve);
         let rate = d.flight.mouse_turn_deg / d.flight.yaw_rate_deg.max(1.0);
         let mouse = self.mouse;
         self.mouse = Vector2::ZERO;
@@ -1291,6 +1313,27 @@ impl Ship {
         let Some(player) = self.player() else { return };
         let p = player.get_global_position();
         let tree = self.base().get_tree();
+        // A launch pad nearby (the home base): stand on it.
+        let pad = tree
+            .get_nodes_in_group(crate::orbits::home_base::PAD_GROUP)
+            .iter_shared()
+            .filter_map(|n| n.try_cast::<Node3D>().ok())
+            .filter(|n| n.get_global_position().distance_to(p) < d.parking.pad_search_m)
+            .min_by(|a, b| a.get_global_position().distance_to(p).total_cmp(&b.get_global_position().distance_to(p)));
+        if let Some(pad) = pad {
+            let t = pad.get_global_transform();
+            let up = t.basis.col_b().normalized();
+            // Hatch side (the back) toward the player.
+            let to_player = p - t.origin;
+            let tangent = (-(to_player - up * to_player.dot(up))).normalized_or_zero();
+            let tangent = if tangent.length_squared() < 0.5 { t.basis.col_c() } else { tangent };
+            let basis = model::facing_basis(up, tangent);
+            self.base_mut().set_global_transform(Transform3D::new(basis, t.origin + up * d.parking.drop_height_m));
+            self.base_mut().set_linear_velocity(Vector3::ZERO);
+            self.base_mut().set_angular_velocity(Vector3::ZERO);
+            self.previous = None;
+            return;
+        }
         let Some(body) = tree
             .get_nodes_in_group(GRAVITY_GROUP)
             .iter_shared()
@@ -1355,6 +1398,7 @@ impl Ship {
         self.clip_hull_interior(d, &model);
         // Breakable parts get their own meshes, sharing the hull's materials.
         self.part_meshes = super::breakup::split_by_part(&model, model.get_transform(), &d.damage.parts);
+        self.build_leg_extensions(d);
         self.parts = d.damage.parts.iter().map(super::damage::PartState::new).collect();
         self.hull_hp = d.damage.hull_hp;
         let mut sparks = crate::player::effects::emitter("CrashSparks", d.damage.spark_s, 40, (0.05, 0.25), (3.0, 9.0));
@@ -1370,6 +1414,38 @@ impl Ship {
         sparks.set_emitting(false);
         self.base_mut().add_child(&sparks);
         self.sparks = Some(sparks);
+    }
+
+    /// A telescoping strut under each of the model's footpads: a dark
+    /// sleeve where it leaves the old pad, a bright inner tube, and a new
+    /// gold pad on the ground. Each belongs to its leg's breakable part.
+    fn build_leg_extensions(&mut self, d: &ShipData) {
+        let Some(x) = d.leg_extension.clone() else { return };
+        use crate::orbits::landmarks::paint_lit;
+        let top = x.lift_m + 0.05;
+        for (k, (px, pz)) in x.pads.iter().enumerate() {
+            let base = Vector3::new(*px, 0.0, *pz);
+            let mut strut = meshes::Geo::default();
+            strut.append(&meshes::swept_tube(&[base + Vector3::new(0.0, x.pad_thickness_m, 0.0), base + Vector3::new(0.0, top, 0.0)], &[Vector3::RIGHT, Vector3::RIGHT], x.strut_radius_m, 14, false), Transform3D::IDENTITY);
+            let mut sleeve = meshes::Geo::default();
+            sleeve.append(&meshes::swept_tube(&[base + Vector3::new(0.0, top - x.sleeve_length_m, 0.0), base + Vector3::new(0.0, top, 0.0)], &[Vector3::RIGHT, Vector3::RIGHT], x.sleeve_radius_m, 16, false), Transform3D::IDENTITY);
+            sleeve.append(&meshes::torus(x.sleeve_radius_m, 0.035, 16, 6), Transform3D::new(Basis::IDENTITY, base + Vector3::new(0.0, top - x.sleeve_length_m, 0.0)));
+            let mut pad = meshes::Geo::default();
+            pad.append(&meshes::rounded_disc(x.pad_radius_m, x.pad_thickness_m, 24), Transform3D::new(Basis::IDENTITY, base + Vector3::new(0.0, x.pad_thickness_m * 0.5, 0.0)));
+            let part = d.damage.parts.iter().position(|p| matches!(p.kind, super::damage::PartKind::Leg) && super::damage::part_contains(p, base + Vector3::new(0.0, top * 0.5, 0.0)));
+            for (name, g, c, metal) in [("Strut", strut, x.strut_color, 0.7), ("Sleeve", sleeve, x.sleeve_color, 0.5), ("Pad", pad, x.pad_color, 0.6)] {
+                let mut mi = MeshInstance3D::new_alloc();
+                mi.set_name(&format!("LegExtension{k}{name}"));
+                mi.set_mesh(&g.to_array_mesh());
+                mi.set_surface_override_material(0, &paint_lit(c, metal));
+                self.base_mut().add_child(&mi);
+                if let Some(i) = part
+                    && let Some(list) = self.part_meshes.get_mut(i)
+                {
+                    list.push(mi);
+                }
+            }
+        }
     }
 
     /// The hull model is solid inside; hide whatever pokes into the cabin

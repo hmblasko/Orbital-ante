@@ -29,10 +29,16 @@
                 (kind: River, count: 10, radius_m: (4.0, 6.0), height_m: (0.0, 0.0), length_m: (300.0, 600.0)),
                 (kind: Canyon, count: 3, radius_m: (14.0, 20.0), height_m: (12.0, 20.0), length_m: (400.0, 800.0)),
                 // Erosion sequences (mesa, buttes, hoodoos), never lone mesas.
-                (kind: Erosion, count: 3, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
+                (kind: Erosion, count: 5, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
                 (kind: Pool, count: 6, radius_m: (5.0, 8.0), height_m: (1.2, 1.8)),
                 // Collapse pits that flood into cenotes below the water table.
                 (kind: Sinkhole, count: 3, radius_m: (8.0, 12.0), height_m: (10.0, 14.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Mesa, count: 4, radius_m: (32.7, 51.4), height_m: (11.2, 16.8)),
+                (kind: Volcano, count: 2, radius_m: (56.1, 93.5), height_m: (32.7, 56.1)),
+                (kind: Dunes, count: 2, radius_m: (92.8, 150.8), height_m: (4.6, 9.3)),
+                (kind: Ridge, count: 4, radius_m: (12.5, 18.8), height_m: (6.3, 10.5), length_m: (313.7, 627.5)),
+                (kind: Crater, count: 2, radius_m: (41.8, 62.7), height_m: (8.4, 12.5)),
             ],
         ),
     ),

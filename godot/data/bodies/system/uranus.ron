@@ -32,7 +32,11 @@
                 (kind: Corona, count: 2, radius_m: (80.0, 120.0), height_m: (10.0, 15.0)),
                 (kind: Bowl, count: 10, radius_m: (12.0, 25.0), height_m: (5.0, 9.0)),
                 (kind: Mountain, count: 6, radius_m: (50.0, 90.0), height_m: (35.0, 60.0)),
-                (kind: Penitentes, count: 2, radius_m: (35.0, 50.0), height_m: (7.0, 10.0)),
+                (kind: Penitentes, count: 4, radius_m: (35.0, 50.0), height_m: (7.0, 10.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Mesa, count: 3, radius_m: (35.0, 55.0), height_m: (12.0, 18.0)),
+                (kind: Scarp, count: 3, radius_m: (8.9, 13.4), height_m: (7.5, 11.9), length_m: (223.6, 447.2)),
+                (kind: Canyon, count: 1, radius_m: (15.0, 21.4), height_m: (12.8, 21.4), length_m: (427.6, 855.2)),
             ],
         ),
     ),

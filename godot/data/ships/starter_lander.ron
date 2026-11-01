@@ -7,14 +7,28 @@
 (
     model: "res://assets/models/nasa/apollo_lunar_module.glb",
     model_scale: 2.4,
-    // Lowers the model so the footpads sit on y = 0.
-    model_offset: (0.0, -0.24, 0.0),
+    // Raises the model so its own footpads sit 1.1 m up, on the telescoping
+    // leg extensions (leg_extension below); the new pads rest on y = 0.
+    model_offset: (0.0, 0.86, 0.0),
+    leg_extension: Some((
+        lift_m: 1.1,
+        // Where the model's footpads are (x, z), in ship space.
+        pads: [(7.1, 0.0), (-7.1, 0.0), (0.0, 7.1), (0.0, -7.1)],
+        strut_radius_m: 0.13,
+        sleeve_radius_m: 0.19,
+        sleeve_length_m: 0.45,
+        pad_radius_m: 0.62,
+        pad_thickness_m: 0.16,
+        strut_color: (0.80, 0.80, 0.78),
+        sleeve_color: (0.20, 0.21, 0.23),
+        pad_color: (0.86, 0.68, 0.25),
+    )),
     // The model's descent engine bell, for the thrust glow (ship space).
-    engine_at: (0.0, 1.1, 0.0),
+    engine_at: (0.0, 2.20, 0.0),
 
     mass_kg: 4000.0,
     // Low, in the heavy descent stage, so the lander stays upright on slopes.
-    center_of_mass: (0.0, 1.5, 0.0),
+    center_of_mass: (0.0, 2.60, 0.0),
     angular_damp: 0.5,
     // Physics material for the footpads and hull.
     friction: 1.0,
@@ -40,6 +54,8 @@
         turn_accel_deg: 260.0,
         // Mouse: degrees per second of turn per pixel moved in one tick.
         mouse_turn_deg: 1.4,
+        // Finer small corrections on the right stick; full tilt is full rate.
+        stick_curve: 1.6,
         flight_assist: true,
         // Match velocity: brakes to zero speed relative to the body you are
         // near, at this deceleration.
@@ -53,9 +69,9 @@
 
     cabin: (
         // The cabin is a rounded bowl inside the ascent stage.
-        floor_y: 6.2,
-        wall_top_y: 9.0,
-        dome_top_y: 10.0,
+        floor_y: 7.30,
+        wall_top_y: 10.10,
+        dome_top_y: 11.10,
         radius_x: 1.85,
         radius_z: 2.7,
         center_z: 0.0,
@@ -63,13 +79,14 @@
         gravity: 9.8,
         // Front windows: centre angle (0 = straight ahead, + to the right),
         // half-width in degrees at the top, bottom and top heights. Narrower
-        // at the bottom (taper 0.55 = 55% as wide), like the real LM's
-        // triangular windows.
+        // at the bottom (taper 0.7 = 70% as wide), like the real LM's
+        // triangular windows. Made bigger and lower on 1 Nov 2026 so the
+        // seated pilot sees out over the dash.
         windows: [
-            (angle_deg: -21.0, half_width_deg: 15.0, bottom_y: 7.35, top_y: 8.65, taper: 0.55),
-            (angle_deg: 21.0, half_width_deg: 15.0, bottom_y: 7.35, top_y: 8.65, taper: 0.55),
+            (angle_deg: -18.0, half_width_deg: 19.0, bottom_y: 8.10, top_y: 9.95, taper: 0.7),
+            (angle_deg: 18.0, half_width_deg: 19.0, bottom_y: 8.10, top_y: 9.95, taper: 0.7),
         ],
-        seat_at: (0.0, 6.75, 0.35),
+        seat_at: (0.0, 7.85, 0.35),
         // How close you must be to buckle in.
         seat_reach_m: 1.6,
         console_z: 1.95,
@@ -93,7 +110,7 @@
         radius: 0.65,
         collision_half: 0.5,
         // Bottom of the descent stage, where the ring is.
-        ring_y: 1.92,
+        ring_y: 3.02,
         ring_color: (0.25, 0.65, 1.0),
         ring_energy: 2.5,
         // The lift beam reaches from the ground to the cabin floor, this wide.
@@ -115,25 +132,31 @@
     // which are generated around the bowl.
     boxes: [
         // Descent stage, built around the hatch shaft.
-        (center: (-2.15, 3.755, 0.0), size: (2.9, 3.67, 7.2)),
-        (center: (2.15, 3.755, 0.0), size: (2.9, 3.67, 7.2)),
-        (center: (0.0, 3.755, -2.85), size: (1.4, 3.67, 1.5)),
-        (center: (0.0, 3.755, 1.45), size: (1.4, 3.67, 4.3)),
+        (center: (-2.15, 4.86, 0.0), size: (2.9, 3.67, 7.2)),
+        (center: (2.15, 4.86, 0.0), size: (2.9, 3.67, 7.2)),
+        (center: (0.0, 4.86, -2.85), size: (1.4, 3.67, 1.5)),
+        (center: (0.0, 4.86, 1.45), size: (1.4, 3.67, 4.3)),
         // Cabin floor slab, around the hatch opening.
-        (center: (-1.275, 5.9, 0.0), size: (1.55, 0.62, 5.6)),
-        (center: (1.275, 5.9, 0.0), size: (1.55, 0.62, 5.6)),
-        (center: (0.0, 5.9, -2.35), size: (1.0, 0.62, 0.9)),
-        (center: (0.0, 5.9, 0.95), size: (1.0, 0.62, 3.7)),
+        (center: (-1.275, 7.00, 0.0), size: (1.55, 0.62, 5.6)),
+        (center: (1.275, 7.00, 0.0), size: (1.55, 0.62, 5.6)),
+        (center: (0.0, 7.00, -2.35), size: (1.0, 0.62, 0.9)),
+        (center: (0.0, 7.00, 0.95), size: (1.0, 0.62, 3.7)),
         // Roof.
-        (center: (0.0, 10.3, 0.0), size: (5.0, 0.6, 6.4)),
+        (center: (0.0, 11.40, 0.0), size: (5.0, 0.6, 6.4)),
         // Descent engine bell.
-        (center: (0.0, 1.5, 0.0), size: (1.7, 0.85, 1.7)),
+        (center: (0.0, 2.60, 0.0), size: (1.7, 0.85, 1.7)),
     ],
     capsules: [
-        (from: (7.1, 0.35, 0.0), to: (3.5, 3.4, 0.0), radius: 0.22),
-        (from: (-7.1, 0.35, 0.0), to: (-3.5, 3.4, 0.0), radius: 0.22),
-        (from: (0.0, 0.35, 7.1), to: (0.0, 3.4, 3.5), radius: 0.22),
-        (from: (0.0, 0.35, -7.1), to: (0.0, 3.4, -3.5), radius: 0.22),
+        (from: (7.1, 1.45, 0.0), to: (3.5, 4.50, 0.0), radius: 0.22),
+        (from: (-7.1, 1.45, 0.0), to: (-3.5, 4.50, 0.0), radius: 0.22),
+        (from: (0.0, 1.45, 7.1), to: (0.0, 4.50, 3.5), radius: 0.22),
+        (from: (0.0, 1.45, -7.1), to: (0.0, 4.50, -3.5), radius: 0.22),
+        // Telescoping leg extensions (1 Nov 2026: legs 1.1 m taller so you
+        // can walk under the belly to the hatch).
+        (from: (7.1, 0.35, 0.0), to: (7.1, 1.45, 0.0), radius: 0.16),
+        (from: (-7.1, 0.35, 0.0), to: (-7.1, 1.45, 0.0), radius: 0.16),
+        (from: (0.0, 0.35, 7.1), to: (0.0, 1.45, 7.1), radius: 0.16),
+        (from: (0.0, 0.35, -7.1), to: (0.0, 1.45, -7.1), radius: 0.16),
         // Footpads (short fat capsules lying flat).
         (from: (6.6, 0.3, 0.0), to: (7.6, 0.3, 0.0), radius: 0.3),
         (from: (-6.6, 0.3, 0.0), to: (-7.6, 0.3, 0.0), radius: 0.3),
@@ -148,11 +171,11 @@
     // Cockpit parts (Phase 4 part 2): dash screen on the console, the
     // little thrust-display model, and the cameras Y cycles through.
     cockpit: (
-        // Big enough to read at a glance from the seat (about half the view
-        // wide), low enough to keep the windows clear.
-        screen_size_m: (1.9, 0.95),
-        screen_at: (0.0, 7.7, 1.85),
-        screen_tilt_deg: 24.0,
+        // Readable at a glance from the seat, lying back on the console
+        // below the windows so the view out stays clear.
+        screen_size_m: (1.5, 0.75),
+        screen_at: (0.0, 8.40, 1.75),
+        screen_tilt_deg: 52.0,
         mini_ship: (
             // Console-top space: x toward the pilot's left, z toward the windows.
             at: (1.05, 0.1, -0.3),
@@ -165,26 +188,26 @@
         cameras: [
             (
                 name_key: "CAM_LANDING",
-                at: (0.0, 1.75, 2.4),
-                look_at: (0.0, -8.0, 7.5),
+                at: (0.0, 2.85, 2.4),
+                look_at: (0.0, -6.90, 7.5),
                 up: (0.0, 0.0, 1.0),
                 fov_deg: 80.0,
             ),
             (
                 name_key: "CAM_SELFIE_LEFT",
-                at: (4.6, 11.5, -5.5),
-                look_at: (0.0, 5.0, 0.5),
+                at: (4.6, 12.60, -5.5),
+                look_at: (0.0, 6.10, 0.5),
                 up: (0.0, 1.0, 0.0),
                 fov_deg: 70.0,
-                pole_from: Some((2.0, 8.6, -1.6)),
+                pole_from: Some((2.0, 9.70, -1.6)),
             ),
             (
                 name_key: "CAM_SELFIE_RIGHT",
-                at: (-4.6, 11.5, -5.5),
-                look_at: (0.0, 5.0, 0.5),
+                at: (-4.6, 12.60, -5.5),
+                look_at: (0.0, 6.10, 0.5),
                 up: (0.0, 1.0, 0.0),
                 fov_deg: 70.0,
-                pole_from: Some((-2.0, 8.6, -1.6)),
+                pole_from: Some((-2.0, 9.70, -1.6)),
             ),
         ],
         camera_frame: (
@@ -209,6 +232,8 @@
         bearings_deg: [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0],
         order_penalty_m: 0.02,
         drop_height_m: 0.4,
+        // At the home base the lander waits on the launch pad instead.
+        pad_search_m: 120.0,
     ),
     // Target lock (D-pad up / L) and autopilot (RT / Q). The autopilot
     // turns the main engine toward where it needs to push, burns, brakes
@@ -232,7 +257,7 @@
     // Everything scales with main-engine throttle; the cloud and grit only
     // when the bell is near the ground. The rumble sound is a missing asset.
     takeoff: (
-        nozzle_at: (0.0, 0.7, 0.0),
+        nozzle_at: (0.0, 1.80, 0.0),
         nozzle_dir: (0.0, -1.0, 0.0),
         plume: (
             rate: 90.0,
@@ -299,19 +324,19 @@
             reach_m: 3.5,
             cone_deg: 40.0,
             hp_per_s: 45.0,
-            hull_at: (0.0, 3.2, 3.0),
+            hull_at: (0.0, 4.30, 3.0),
         ),
         parts: [
-            (id: "leg_right", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 0.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
-            (id: "leg_front", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
-            (id: "leg_left", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: 180.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
-            (id: "leg_back", name_key: "PART_LEG", kind: Leg, y: (-0.5, 5.5), r: (4.2, 8.5), angle_deg: -90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
-            (id: "engine", name_key: "PART_ENGINE", kind: Engine, y: (-0.2, 2.0), r: (0.0, 1.8), angle_deg: 0.0, half_width_deg: 180.0, hp: 80.0, detach_overkill: 120.0, debris_mass: 60.0),
-            (id: "rcs_front_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: 45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
-            (id: "rcs_front_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: 135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
-            (id: "rcs_back_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: -135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
-            (id: "rcs_back_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (6.3, 9.2), r: (3.3, 5.5), angle_deg: -45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
-            (id: "antenna", name_key: "PART_ANTENNA", kind: Antenna, y: (10.0, 13.5), r: (3.3, 6.5), angle_deg: 90.0, half_width_deg: 35.0, hp: 25.0, detach_overkill: 20.0, debris_mass: 5.0),
+            (id: "leg_right", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 0.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_front", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_left", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: 180.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "leg_back", name_key: "PART_LEG", kind: Leg, y: (-0.5, 6.60), r: (4.2, 8.5), angle_deg: -90.0, half_width_deg: 30.0, hp: 60.0, detach_overkill: 60.0, debris_mass: 40.0),
+            (id: "engine", name_key: "PART_ENGINE", kind: Engine, y: (0.90, 3.10), r: (0.0, 1.8), angle_deg: 0.0, half_width_deg: 180.0, hp: 80.0, detach_overkill: 120.0, debris_mass: 60.0),
+            (id: "rcs_front_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: 45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_front_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: 135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_left", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: -135.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "rcs_back_right", name_key: "PART_THRUSTERS", kind: Thrusters, y: (7.40, 10.30), r: (3.3, 5.5), angle_deg: -45.0, half_width_deg: 30.0, hp: 40.0, detach_overkill: 50.0, debris_mass: 10.0),
+            (id: "antenna", name_key: "PART_ANTENNA", kind: Antenna, y: (11.10, 14.60), r: (3.3, 6.5), angle_deg: 90.0, half_width_deg: 35.0, hp: 25.0, detach_overkill: 20.0, debris_mass: 5.0),
         ],
     ),
 )

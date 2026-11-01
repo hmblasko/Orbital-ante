@@ -18,6 +18,7 @@ pub const RECORDED_ACTIONS: &[&str] = &[
     "look_right",
     "jump",
     "crouch",
+    "crouch_toggle",
     "match_velocity",
     "interact",
     "use_oxygen_tank",

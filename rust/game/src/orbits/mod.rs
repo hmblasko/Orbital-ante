@@ -3,6 +3,7 @@
 pub mod body;
 pub mod geysers;
 pub mod gravity;
+pub mod home_base;
 pub mod landmarks;
 pub mod orbit;
 pub mod system;

@@ -183,7 +183,10 @@ func _process(_d: float) -> bool:
 			player.debug_set_oxygen(99999.0)
 			o2_base = player.get_oxygen_seconds()
 			# Reach the target and cash out.
-			check(not Points.can_cash_out(), "no cash-out below the target")
+			# A taken contract may already have paid out by now, so only
+			# check the closed cash-out while the score is still short.
+			if Points.get_score() < Points.get_target():
+				check(not Points.can_cash_out(), "no cash-out below the target")
 			Points.award("discovery", 2000, "SOURCE_DISCOVERY")
 			check(Points.can_cash_out(), "cash-out opens once the target is reached")
 			var value: int = Points.get_cash_out_value()

@@ -22,6 +22,9 @@ pub struct FlightData {
     pub roll_rate_deg: f32,
     pub turn_accel_deg: f32,
     pub mouse_turn_deg: f32,
+    /// Right-stick response curve for pitch and yaw (1 = linear).
+    #[serde(default = "linear")]
+    pub stick_curve: f32,
     pub flight_assist: bool,
     pub match_velocity_accel: f32,
     pub fuel_s: f32,
@@ -375,4 +378,9 @@ mod tests {
         assert!(w.x > 0.0 && w.y.abs() < 1e-5 && w.z == 0.0);
         assert_eq!(steer_turn_rate(&f, Vector3::UP, Vector3::UP, 2.5), Vector3::ZERO);
     }
+}
+
+
+fn linear() -> f32 {
+    1.0
 }

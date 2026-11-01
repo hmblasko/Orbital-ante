@@ -340,6 +340,9 @@ pub struct CelestialBody {
     /// approach). Off: build everything at once (test scenes).
     #[export]
     stream_detail: bool,
+    /// Ground to grade flat before the terrain is built (direction, inner
+    /// and outer radius in metres): the home base.
+    flat_spots: Vec<(Vector3, f32, f32)>,
     data: Option<BodyData>,
     shape: Option<Arc<TerrainShape>>,
     caves: Arc<Vec<Cave>>,
@@ -399,6 +402,7 @@ impl IStaticBody3D for CelestialBody {
         Self {
             data_path: GString::new(),
             stream_detail: false,
+            flat_spots: Vec::new(),
             data: None,
             shape: None,
             caves: Arc::new(Vec::new()),
@@ -421,7 +425,11 @@ impl IStaticBody3D for CelestialBody {
             return;
         };
         let run_seed = if godot::classes::Engine::singleton().has_singleton("RunSeed") { crate::seed::singleton::run_seed() } else { 0 };
-        let shape = Arc::new(TerrainShape::with_run_seed(&data.terrain, data.radius, run_seed));
+        let mut graded = TerrainShape::with_run_seed(&data.terrain, data.radius, run_seed);
+        for (dir, inner, outer) in &self.flat_spots {
+            graded.add_flat(*dir, *inner, *outer);
+        }
+        let shape = Arc::new(graded);
         self.caves = Arc::new(match &data.caves {
             Some(c) => caves_for(&shape, c, run_seed ^ data.terrain.seed),
             None => Vec::new(),
@@ -602,6 +610,12 @@ impl CelestialBody {
     }
 
     /// Set the data file before the body enters the tree (for spawning from code).
+    /// Grade ground flat round local direction `dir` (call before the body
+    /// enters the tree).
+    pub fn add_flat_spot(&mut self, dir: Vector3, inner_m: f32, outer_m: f32) {
+        self.flat_spots.push((dir, inner_m, outer_m));
+    }
+
     pub fn configure(&mut self, data_path: &str, stream_detail: bool) {
         self.data_path = GString::from(data_path);
         self.stream_detail = stream_detail;

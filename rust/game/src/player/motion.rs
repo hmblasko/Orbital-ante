@@ -4,6 +4,37 @@ use godot::builtin::{Basis, Quaternion, Vector2, Vector3};
 
 /// Rotate `basis` so its Y axis turns toward `up`, by at most `max_angle`
 /// radians. Keeps the player's heading as stable as possible.
+/// Shape a stick reading (already past its deadzone, 0..1 long) with a
+/// response curve: `exponent` > 1 makes small tilts finer for aiming
+/// while full tilt stays full speed. Direction is kept.
+pub fn stick_curve(v: Vector2, exponent: f32) -> Vector2 {
+    let len = v.length().min(1.0);
+    if len < 1e-6 {
+        return Vector2::ZERO;
+    }
+    v / v.length() * len.powf(exponent.max(0.1))
+}
+
+/// Extra turn speed after the stick is held near full tilt for a moment
+/// (so big turns are quick without making aiming twitchy). `held_s` is how
+/// long it has been held; returns degrees per second to add.
+pub fn turn_boost(held_s: f32, delay_s: f32, ramp_s: f32, boost_deg_s: f32) -> f32 {
+    ((held_s - delay_s) / ramp_s.max(0.01)).clamp(0.0, 1.0) * boost_deg_s
+}
+
+/// Hold-or-tap crouch: held, you crouch while it is down; a quick tap
+/// (released within `tap_s`) toggles a crouch that stays. Returns the new
+/// (toggled, crouching now) state. `press_s` is how long the button has
+/// been down (or was down, on the release frame).
+pub fn crouch_state(toggled: bool, pressed: bool, released: bool, press_s: f32, tap_s: f32) -> (bool, bool) {
+    let mut toggled = toggled;
+    if released {
+        // A tap flips the toggle; a long hold always ends standing.
+        toggled = if press_s <= tap_s { !toggled } else { false };
+    }
+    (toggled, pressed || toggled)
+}
+
 pub fn align_up(basis: Basis, up: Vector3, max_angle: f32) -> Basis {
     let current = basis.col_b().normalized();
     let up = up.normalized();
@@ -79,6 +110,38 @@ pub fn tether_velocity(anchor: Vector3, position: Vector3, velocity: Vector3, le
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stick_curve_is_finer_near_centre_and_full_at_the_edge() {
+        let half = stick_curve(Vector2::new(0.5, 0.0), 2.0);
+        assert!((half.x - 0.25).abs() < 1e-6);
+        let full = stick_curve(Vector2::new(0.0, 1.0), 2.0);
+        assert!((full.y - 1.0).abs() < 1e-6);
+        assert_eq!(stick_curve(Vector2::ZERO, 2.0), Vector2::ZERO);
+        let diag = stick_curve(Vector2::new(0.6, 0.8), 1.8);
+        assert!((diag.x / diag.y - 0.75).abs() < 1e-5, "direction kept");
+    }
+
+    #[test]
+    fn turn_boost_waits_then_ramps() {
+        assert_eq!(turn_boost(0.1, 0.3, 0.4, 120.0), 0.0);
+        assert!((turn_boost(0.5, 0.3, 0.4, 120.0) - 60.0).abs() < 1e-4);
+        assert_eq!(turn_boost(3.0, 0.3, 0.4, 120.0), 120.0);
+    }
+
+    #[test]
+    fn crouch_hold_and_tap() {
+        // Held: crouched while down, standing after a long hold.
+        let (t, c) = crouch_state(false, true, false, 0.1, 0.25);
+        assert!(!t && c);
+        let (t, c) = crouch_state(false, false, true, 1.0, 0.25);
+        assert!(!t && !c);
+        // Tap: stays crouched; tap again: stands.
+        let (t, c) = crouch_state(false, false, true, 0.1, 0.25);
+        assert!(t && c);
+        let (t, c) = crouch_state(true, false, true, 0.1, 0.25);
+        assert!(!t && !c);
+    }
 
     #[test]
     fn jetpack_thrusts_where_you_look_and_needs_fuel() {

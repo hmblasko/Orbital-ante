@@ -42,11 +42,15 @@
                 (kind: Erosion, count: 4, radius_m: (25.0, 40.0), height_m: (18.0, 28.0)),
                 (kind: Labyrinth, count: 1, radius_m: (40.0, 50.0), height_m: (7.0, 10.0), length_m: (40.0, 70.0)),
                 (kind: Yardangs, count: 2, radius_m: (70.0, 100.0), height_m: (3.0, 5.0)),
-                (kind: Rampart, count: 3, radius_m: (10.0, 15.0), height_m: (4.0, 6.0)),
-                (kind: Crater, count: 3, radius_m: (40.0, 70.0), height_m: (6.0, 12.0)),
-                (kind: Dunes, count: 3, radius_m: (80.0, 130.0), height_m: (4.0, 8.0)),
+                (kind: Rampart, count: 5, radius_m: (10.0, 15.0), height_m: (4.0, 6.0)),
+                (kind: Crater, count: 5, radius_m: (40.0, 70.0), height_m: (6.0, 12.0)),
+                (kind: Dunes, count: 5, radius_m: (80.0, 130.0), height_m: (4.0, 8.0)),
                 // Inverted relief: old channels left standing as low, winding ridges.
                 (kind: Ridge, count: 3, radius_m: (5.0, 8.0), height_m: (1.5, 3.0), length_m: (100.0, 200.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Canyon, count: 2, radius_m: (12.1, 17.2), height_m: (10.3, 17.2), length_m: (344.8, 689.5)),
+                (kind: Mesa, count: 4, radius_m: (22.9, 38.2), height_m: (12.7, 22.9)),
+                (kind: Volcano, count: 2, radius_m: (44.6, 76.5), height_m: (22.9, 40.8)),
             ],
         ),
     ),

@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 1 Nov 2026 from the phase-2-player branch (Phase 7, the ante loop). Needs Godot 4.7.2 exactly.
+Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base and your control fixes). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -19,9 +19,12 @@ Manager list first and delete its folder.
 
 CONTROLS (controller or mouse and keyboard)
 Move: left stick / WASD      Look: right stick / mouse
-Jump, jetpack up: A / Space  Crouch, jetpack down: B / Ctrl or C
+Jump, jetpack up: A / Space
+Crouch: tap B / Ctrl or C to stay crouched (tap again or jump to stand),
+  hold it to crouch only while held, or click the left stick to toggle.
+  In the air B / Ctrl is jetpack down.
 Interact: X / E              Map: M, zoom with PgUp/PgDn or mouse wheel
-Frame-time overlay: F3       Free the mouse cursor: Esc
+Frame-time overlay: F3 (keyboard only now)   Free the mouse cursor: Esc
 Cash out (buckled in, target reached): hold View / Enter
 
 COMBAT (on foot)
@@ -36,7 +39,8 @@ soldier: X / E while looking at it
 WHAT IS IN THIS BUILD
 - Walking on Earth with planet gravity, suit oxygen, jetpack and tether.
 - The full moving solar system with 14 bodies and a live map.
-- The starter lander, parked a short walk ahead of you. Stand under its
+- You start at the home base on Earth. The starter lander waits on the
+  launch pad beside the gantry, straight ahead up the lit path. Stand under its
   belly ring and the hatch opens and lifts you in. In the cabin, look at
   the seat and press X / E to buckle in.
     Flying: left stick / WASD thrust, A / Space up, B / Ctrl down,
@@ -67,6 +71,35 @@ WHAT IS IN THIS BUILD
 - Repair: go outside, look at a damaged leg, thruster, engine or antenna
   and hold X / E. The prompt names the part and a bar fills. Parts that
   broke off are gone. No repair sound yet.
+
+NEW IN THIS BUILD (your fixes and the Phase 8 slice)
+- Controls: the right stick now has a response curve (small tilts aim
+  finely, full tilt is full speed), up/down is a bit slower than
+  left/right, and holding the stick fully over for a moment speeds the turn
+  up for quick about-faces. Crouch is tap-to-toggle (see Controls).
+- Lander: the legs are 1.1 m taller on telescoping struts, so you can walk
+  straight under the belly to the hatch ring. The front windows are bigger
+  and lower, and the dash screen lies back on the console below them, so
+  you can see out from the seat.
+- Home base: a launch pad with the lander on it, the NASA gantry, a
+  hangar, a control tower, two crew habs, the locker building, fuel tanks,
+  a tracking dish and lamp-lit paths, on ground graded flat.
+- More terrain features on every planet and moon (mesas, volcanoes,
+  canyons, scarps, dunes, craters and more).
+- Moon dishes: two big dishes stand on the Moon. Walk to the control
+  cabinet beside one and hold X / E to switch it on (120 points; switching
+  on both adds 400).
+- Damaged satellite: a relay satellite with three sparking orange panels
+  orbits low over the Moon. Fly up, match speed, clip your tether on and
+  hold X / E on each panel (300 points when all are fixed). Its restored
+  signal brings a Venera patrol down to the surface below it.
+- Venera base: the Moon camp now has hab pods, low walls to hide behind,
+  supply crates and a radio mast with a blinking light. It moves with the
+  camp each ante.
+- New contract: "Get the Moon talking" (switch on dishes or fix the relay).
+- Balance: upgrades cost half as much, discovery/repair/salvage values grow
+  10% per ante, and later ante targets are higher (simulated, untested by
+  players).
 
 NEW IN PHASE 7 (the ante loop)
 - A run is now a set of timed antes. Each ante starts on a contract board:

@@ -70,13 +70,28 @@ func up_at(n: Node3D) -> Vector3:
 	return (n.global_position - moon.global_position).normalized()
 
 ## Stand `dist` metres from the soldier, on the Moon.
+## Stand `dist` metres from `e`, on a side with a clear line to it (the
+## camp's base walls and crates can sit in between).
 func stand_near(e: Node3D, dist: float) -> void:
 	var lp: Vector3 = moon.global_transform.affine_inverse() * e.global_position
 	var up := lp.normalized()
-	var side := up.cross(Vector3.RIGHT).normalized()
-	var dir := (lp + side * dist).normalized()
-	var ground: float = moon.surface_radius_toward(moon.global_transform * (dir * 100.0))
-	sys.debug_place_player_on("moon", dir * (ground + 1.0))
+	var side0 := up.cross(Vector3.RIGHT).normalized()
+	var space := root.get_world_3d().direct_space_state
+	var best := Vector3.ZERO
+	for i in 12:
+		var side := side0.rotated(up, TAU * i / 12.0)
+		var dir := (lp + side * dist).normalized()
+		var ground: float = moon.surface_radius_toward(moon.global_transform * (dir * 100.0))
+		var spot := dir * (ground + 1.0)
+		if best == Vector3.ZERO: best = spot
+		var from: Vector3 = moon.global_transform * (spot + dir * 0.6)
+		var q := PhysicsRayQueryParameters3D.create(from, e.global_position + (e.global_position - moon.global_position).normalized() * 1.0)
+		q.exclude = [player.get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or hit.collider == e or (hit.collider is Node and e.is_ancestor_of(hit.collider)):
+			best = spot
+			break
+	sys.debug_place_player_on("moon", best)
 
 func aim_at(e: Node3D, limb: int) -> void:
 	player.debug_look_at(e.get_limb_position(limb))

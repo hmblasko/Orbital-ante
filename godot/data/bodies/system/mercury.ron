@@ -32,11 +32,14 @@
                 (kind: ColdTrap, at: (0.0, -1.0, 0.0), radius_m: 20.0, height_m: 12.0),
             ],
             random: [
-                (kind: Crater, count: 5, radius_m: (40.0, 80.0), height_m: (8.0, 14.0)),
+                (kind: Crater, count: 8, radius_m: (40.0, 80.0), height_m: (8.0, 14.0)),
                 (kind: RayedCrater, count: 3, radius_m: (10.0, 16.0), height_m: (4.0, 6.0)),
                 (kind: Catena, count: 2, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
                 (kind: Bowl, count: 25, radius_m: (4.0, 10.0), height_m: (1.5, 3.5)),
                 (kind: Sinkhole, count: 2, radius_m: (7.0, 10.0), height_m: (10.0, 14.0)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Scarp, count: 4, radius_m: (6.5, 9.7), height_m: (5.4, 8.6), length_m: (162.0, 324.0)),
+                (kind: Mountain, count: 2, radius_m: (38.6, 67.6), height_m: (19.3, 33.8)),
             ],
         ),
     ),

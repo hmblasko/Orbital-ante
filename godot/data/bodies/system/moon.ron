@@ -38,14 +38,17 @@
                 (kind: ColdTrap, at: (0.2, 0.98, -0.12), radius_m: 11.0, height_m: 7.0),
             ],
             random: [
-                (kind: Crater, count: 3, radius_m: (28.0, 45.0), height_m: (5.0, 8.0)),
-                (kind: Rille, count: 3, radius_m: (4.5, 6.0), height_m: (3.0, 4.5), length_m: (80.0, 150.0), on: Some(Mare)),
+                (kind: Crater, count: 6, radius_m: (28.0, 45.0), height_m: (5.0, 8.0)),
+                (kind: Rille, count: 5, radius_m: (4.5, 6.0), height_m: (3.0, 4.5), length_m: (80.0, 150.0), on: Some(Mare)),
                 (kind: Ridge, count: 4, radius_m: (6.0, 9.0), height_m: (1.2, 2.2), length_m: (60.0, 120.0), on: Some(Mare)),
-                (kind: Catena, count: 3, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
+                (kind: Catena, count: 5, radius_m: (3.0, 5.0), height_m: (1.5, 2.5), length_m: (40.0, 70.0)),
                 (kind: RayedCrater, count: 2, radius_m: (6.0, 10.0), height_m: (2.5, 4.0)),
                 (kind: Bowl, count: 30, radius_m: (3.0, 9.0), height_m: (1.0, 3.0)),
                 // Skylight pits on the mare; each opens into a lava tube (caves below).
                 (kind: Sinkhole, count: 2, radius_m: (7.0, 9.0), height_m: (13.0, 16.0), on: Some(Mare)),
+                // More variety (1 Nov 2026), from the field guide's kinds.
+                (kind: Mountain, count: 3, radius_m: (30.0, 45.0), height_m: (14.0, 24.0)),
+                (kind: Scarp, count: 3, radius_m: (5.1, 7.6), height_m: (4.2, 6.8), length_m: (127.5, 255.0)),
             ],
         ),
     ),

@@ -227,6 +227,11 @@ pub(crate) fn paint_glow(c: (f32, f32, f32), energy: f32) -> Gd<godot::classes::
     m.upcast()
 }
 
+/// Paint every part of a model one colour (keeps its texture, if any).
+pub(crate) fn tint(model: &Gd<Node3D>, c: (f32, f32, f32)) {
+    set_on_painted(model, "albedo_color", &Color::from_rgb(c.0, c.1, c.2).to_variant());
+}
+
 /// Settle `amount` (0..1) of grime on a model's painted parts.
 pub(crate) fn grime(model: &Gd<Node3D>, amount: f32) {
     if amount > 0.0 {
