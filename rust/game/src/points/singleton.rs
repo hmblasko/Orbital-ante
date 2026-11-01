@@ -24,13 +24,15 @@ pub struct Points {
     mods: Mods,
     /// Bumped on every loadout change, so systems can cache scaled stats.
     rev: i64,
+    /// Between-ante screens: -1 auto (off under --script), 0 off, 1 on.
+    screens: i64,
     base: Base<Object>,
 }
 
 #[godot_api]
 impl IObject for Points {
     fn init(base: Base<Object>) -> Self {
-        Self { tables: Tables::load(), run: None, second_wind_used: false, mods: Mods::default(), rev: 0, base }
+        Self { tables: Tables::load(), run: None, second_wind_used: false, mods: Mods::default(), rev: 0, screens: -1, base }
     }
 }
 
@@ -173,21 +175,8 @@ impl Points {
     /// Notifies the HUD. Returns the points paid (0 outside play).
     #[func]
     pub fn award(&mut self, source: GString, base: i64, label_key: GString) -> i64 {
-        let Some(r) = &mut self.run else { return 0 };
-        let Some(a) = r.award(&source.to_string(), base.max(0) as u64, &self.tables) else { return 0 };
         let label = tr(&label_key);
-        let big = a.points as f64 >= 0.1 * r.target(&self.tables) as f64;
-        // Big gains show the formula so players learn it (18.7).
-        let text = if big || a.multiplier > 1.001 {
-            format!("{}  {} x {:.1} = +{}", label, a.base, a.multiplier, a.points)
-        } else {
-            format!("{}  +{}", label, a.points)
-        };
-        push(&text, if big { Kind::BigPoints } else { Kind::Points });
-        if a.new_category && r.score.categories.len() > 1 {
-            push(&format!("{} x{:.1}", tr(&GString::from("NOTE_NEW_CATEGORY")), r.score.variety(&self.tables.rules)), Kind::Info);
-        }
-        a.points as i64
+        self.award_note(&source.to_string(), base, &label, None, "")
     }
 
     /// Kills by tier (1-3) on a body.
@@ -237,12 +226,20 @@ impl Points {
         if r.phase != Phase::Playing || !r.discover(&key.to_string()) {
             return false;
         }
-        r.add_time(self.tables.antes.first_discovery_bonus_s as f64);
-        let paid = self.award(GString::from("discovery"), points, GString::from("SOURCE_DISCOVERY"));
-        push(&format!("{}: {}  (+{} s)", tr(&GString::from("NOTE_DISCOVERED")), label, self.tables.antes.first_discovery_bonus_s as i64), Kind::Discovery);
-        let _ = paid;
+        let bonus = self.tables.antes.first_discovery_bonus_s;
+        r.add_time(bonus as f64);
+        let label = format!("{}: {}", tr(&GString::from("NOTE_DISCOVERED")), label);
+        self.award_note("discovery", points, &label, Some(Kind::Discovery), &format!("  (+{} s)", bonus as i64));
         self.world(WorldEvent::Discovered { body: body.to_string() });
         true
+    }
+
+    /// Mark a place as already known without paying (the start area).
+    #[func]
+    pub fn mark_known(&mut self, key: GString) {
+        if let Some(r) = &mut self.run {
+            r.first_time(&key.to_string());
+        }
     }
 
     /// First time standing on a body this run.
@@ -253,9 +250,11 @@ impl Points {
         if r.phase != Phase::Playing || !r.discover(&key) {
             return false;
         }
-        r.add_time(self.tables.antes.first_discovery_bonus_s as f64);
+        let bonus = self.tables.antes.first_discovery_bonus_s;
+        r.add_time(bonus as f64);
         let points = self.tables.run.first_landing_points as i64;
-        self.award(GString::from("first_landing"), points, GString::from("SOURCE_FIRST_LANDING"));
+        let label = format!("{}: {}", tr(&GString::from("SOURCE_FIRST_LANDING")), tr(&GString::from(&format!("BODY_{}", body.to_string().to_uppercase()))));
+        self.award_note("first_landing", points, &label, Some(Kind::Discovery), &format!("  (+{} s)", bonus as i64));
         self.world(WorldEvent::Landed { body: body.to_string() });
         true
     }
@@ -468,6 +467,7 @@ impl Points {
         for o in &self.tables.run.scratch_odds {
             let mut d = VarDictionary::new();
             d.set("rarity_key", &GString::from(o.rarity.key()).to_variant());
+            d.set("color", &self.rarity_color(o.rarity).to_variant());
             d.set("percent", &(o.weight / total * 100.0).to_variant());
             d.set("prize", &self.prize_text(o.prize, None).to_variant());
             out.push(&d.to_variant());
@@ -538,6 +538,12 @@ impl Points {
 
     // ---- Tests ----
 
+    /// Between-ante screens: -1 auto, 0 off (bot runs), 1 on.
+    #[func]
+    pub fn set_screens_mode(&mut self, mode: i64) {
+        self.screens = mode;
+    }
+
     #[func]
     pub fn debug_set_time_left(&mut self, seconds: f64) {
         if let Some(r) = &mut self.run {
@@ -547,7 +553,9 @@ impl Points {
 
     #[func]
     pub fn debug_give_perk(&mut self, id: GString) {
-        if let Some(r) = &mut self.run {
+        if let Some(r) = &mut self.run
+            && !r.loadout.perks.iter().any(|p| *p == id.to_string())
+        {
             r.loadout.perks.push(id.to_string());
         }
         self.refresh_mods();
@@ -568,12 +576,35 @@ impl Points {
         self.rev += 1;
     }
 
+    pub fn screens_mode(&self) -> i64 {
+        self.screens
+    }
+
     pub fn tables(&self) -> &Tables {
         &self.tables
     }
 
     pub fn run(&self) -> Option<&RunState> {
         self.run.as_ref()
+    }
+
+    /// Pay an award and show one note for it. Big gains show the formula
+    /// (base x multiplier) so players learn it (18.7); small ones just the
+    /// points, so the stack stays short and readable.
+    fn award_note(&mut self, source: &str, base: i64, label: &str, kind: Option<Kind>, suffix: &str) -> i64 {
+        let Some(r) = &mut self.run else { return 0 };
+        let Some(a) = r.award(source, base.max(0) as u64, &self.tables) else { return 0 };
+        let big = a.points as f64 >= 0.1 * r.target(&self.tables) as f64;
+        let text = if big && a.multiplier > 1.001 {
+            format!("{label}  {} x {:.1} = +{}{suffix}", a.base, a.multiplier, a.points)
+        } else {
+            format!("{label}  +{}{suffix}", a.points)
+        };
+        push(&text, kind.unwrap_or(if big { Kind::BigPoints } else { Kind::Points }));
+        if a.new_category && r.score.categories.len() > 1 {
+            push(&format!("{} x{:.1}", tr(&GString::from("NOTE_NEW_CATEGORY")), r.score.variety(&self.tables.rules)), Kind::Info);
+        }
+        a.points as i64
     }
 
     fn world(&mut self, e: WorldEvent) {
@@ -617,7 +648,13 @@ impl Points {
         }
     }
 
+    fn rarity_color(&self, r: super::run::Rarity) -> Color {
+        let (cr, cg, cb) = self.tables.run.rarity_colors.get(&r).copied().unwrap_or((1.0, 1.0, 1.0));
+        Color::from_rgb(cr, cg, cb)
+    }
+
     fn ticket_into(&self, d: &mut VarDictionary, t: &super::run::Ticket) {
+        d.set("color", &self.rarity_color(t.rarity).to_variant());
         d.set("rarity_key", &GString::from(t.rarity.key()).to_variant());
         d.set("rarity", &(t.rarity as i64).to_variant());
         d.set("amount", &(t.amount as i64).to_variant());

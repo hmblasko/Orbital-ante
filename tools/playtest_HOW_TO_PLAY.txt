@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 1 Nov 2026 from the phase-2-player branch (Phase 6, combat). Needs Godot 4.7.2 exactly.
+Built 1 Nov 2026 from the phase-2-player branch (Phase 7, the ante loop). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -10,7 +10,8 @@ OPEN IT ON THE STEAM DECK (Desktop Mode)
 4. The first open imports the models and takes a minute or two. If you see a
    few red "Cannot open file ... fontdata" lines during that first import,
    they are harmless; close and reopen the project and they go away.
-5. Press F5 (or the Play button, top right) to start. Click Launch.
+5. Press F5 (or the Play button, top right) to start. Click Launch, pick
+   your contracts on the board, then press Launch.
 
 Everything is in this one folder; the compiled game code is in bin/.
 If you imported an older copy of this zip, remove it from the Project
@@ -21,6 +22,7 @@ Move: left stick / WASD      Look: right stick / mouse
 Jump, jetpack up: A / Space  Crouch, jetpack down: B / Ctrl or C
 Interact: X / E              Map: M, zoom with PgUp/PgDn or mouse wheel
 Frame-time overlay: F3       Free the mouse cursor: Esc
+Cash out (buckled in, target reached): hold View / Enter
 
 COMBAT (on foot)
 Fire: RT / left mouse        Aim down sights: LT / right mouse
@@ -65,6 +67,35 @@ WHAT IS IN THIS BUILD
 - Repair: go outside, look at a damaged leg, thruster, engine or antenna
   and hold X / E. The prompt names the part and a bar fills. Parts that
   broke off are gone. No repair sound yet.
+
+NEW IN PHASE 7 (the ante loop)
+- A run is now a set of timed antes. Each ante starts on a contract board:
+  three optional jobs (risk 1 to 3, riskier ones pay more), take up to two.
+  Press Launch and the 12-minute clock starts. Ante 1's target is 1,000.
+- Top left: the ante, the clock (turns red under 2 minutes), your Ante
+  Score against the target with a count-up and a bar, the multiplier
+  (x1.0 and up) and a pace meter (ahead / on pace / behind). Your taken
+  contracts and their progress sit under it.
+- Points: kills (grunt 25, veteran 60), limb shots +5, disarms +15, a camp
+  clear 150 (every soldier down or tied up), first landing on a body 80,
+  and first discoveries of big landforms and lava tubes (30-80 each, plus
+  20 extra seconds on the clock). Repeating the same thing pays a bit less
+  each time; mixing kinds of score raises the multiplier, and so does
+  chaining actions within 20 seconds of each other.
+- Notifications slide in top right (four at most; repeats count up).
+- Hit the target and you can keep going, or buckle into the lander and hold
+  View / Enter to cash out: every second left on the clock turns into
+  Wallet points. Run out of time below the target and the run is over.
+- Between antes: the upgrade screen. Buy attribute levels (Damage, Speed
+  and jump, Oxygen, Defense) with your Wallet, pick one of three perks
+  (reroll for a price that goes up each time), and scratch your free
+  ticket (its odds are printed on it). Unspent Wallet earns 10% interest.
+  Five perks work in this build: Deep Breath, Ghost, Glass Cannon, Second
+  Wind and Overclocked; the rest need later systems (rovers, salvage,
+  chests, bounties) and are held back.
+- Each new ante the Moon camp is manned again in a new spot.
+- The run summary shows how far you got and your local leaderboard
+  (best antes and points, with the seed). Dying also ends the run there.
 
 NEW IN PHASE 6 (combat, vertical slice)
 - A camp of four Venera Collective soldiers (working faction name) patrols

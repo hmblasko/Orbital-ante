@@ -82,6 +82,7 @@ pub struct RunData {
     pub contracts: Vec<ContractTemplate>,
     pub scratch_odds: Vec<ScratchOdds>,
     pub scratch_reveal_s: f32,
+    pub rarity_colors: BTreeMap<Rarity, (f32, f32, f32)>,
     pub discovery_points: BTreeMap<String, u32>,
     pub cave_points: u32,
     pub landmark_points: u32,

@@ -76,6 +76,8 @@ impl GameRoot {
         SaveData::singleton().bind_mut().begin_run();
         // A fresh run: ante 1's contract board opens when the slice loads.
         crate::points::Points::singleton().bind_mut().start_run();
+        // Bot and replay runs skip the between-ante screens.
+        crate::points::Points::singleton().bind_mut().set_screens_mode(if self.args.is_test_run() { 0 } else { -1 });
         if !self.args.is_test_run() {
             SaveData::singleton().bind_mut().autosave();
         }
@@ -105,11 +107,11 @@ impl GameRoot {
         self.show_menu();
     }
 
-    /// The run summary was read (won, died or out of time): leaderboard,
-    /// clear the run, autosave, back to the menu.
+    /// The run summary was read (won, died or out of time; the summary
+    /// already put it on the leaderboard and autosaved): back to the menu.
     #[func]
     pub fn on_run_over(&mut self) {
-        SaveData::singleton().bind_mut().record_run_over();
+        SaveData::singleton().bind_mut().end_run();
         crate::points::Points::singleton().bind_mut().clear_run();
         self.show_menu();
     }

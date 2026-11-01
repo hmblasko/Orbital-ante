@@ -16,7 +16,7 @@
     count_up_rate: 6.0,
     count_up_min_rate: 120.0,
     // Notifications, top right.
-    note_width_px: 330.0,
+    note_width_px: 380.0,
     note_height_px: 38.0,
     note_font_px: 17,
     note_big_font_px: 21,

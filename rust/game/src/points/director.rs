@@ -26,13 +26,12 @@ const SUMMARY_SCENE: &str = "res://scenes/ui/run_summary.tscn";
 #[derive(GodotClass)]
 #[class(base = Node)]
 pub struct AnteDirector {
-    /// Open the GDScript screens (off in some tests, which drive Points
-    /// directly).
-    #[export]
-    show_screens: bool,
     check_timer: f32,
     cash_hold_s: f32,
     death_seen: bool,
+    /// The places around the start were marked as known (no points for
+    /// being put down on top of them).
+    start_marked: bool,
     screen: Option<Gd<Control>>,
     screen_name: String,
     layer: Option<Gd<CanvasLayer>>,
@@ -42,7 +41,7 @@ pub struct AnteDirector {
 #[godot_api]
 impl INode for AnteDirector {
     fn init(base: Base<Node>) -> Self {
-        Self { show_screens: true, check_timer: 0.0, cash_hold_s: 0.0, death_seen: false, screen: None, screen_name: String::new(), layer: None, base }
+        Self { check_timer: 0.0, cash_hold_s: 0.0, death_seen: false, start_marked: false, screen: None, screen_name: String::new(), layer: None, base }
     }
 
     fn ready(&mut self) {
@@ -109,8 +108,23 @@ impl AnteDirector {
             return;
         }
         self.close_screen();
-        if want.is_empty() || !self.show_screens {
+        if want.is_empty() {
             self.set_paused(false);
+            return;
+        }
+        if !screens_enabled() {
+            // Tests and bot runs: skip the board and upgrade screens.
+            self.set_paused(false);
+            match want {
+                "board" => Points::singleton().bind_mut().start_ante(),
+                "upgrade" => {
+                    if Points::singleton().bind_mut().next_ante() {
+                        self.respawn_camps();
+                    }
+                    Points::singleton().bind_mut().start_ante();
+                }
+                _ => {}
+            }
             return;
         }
         let path = match want {
@@ -132,6 +146,8 @@ impl AnteDirector {
         if let Some(layer) = &mut self.layer {
             layer.add_child(&screen);
         }
+        // The ante's notes are done; don't leave them under the screen.
+        crate::ui_bridge::Notifications::singleton().bind_mut().clear();
         self.screen = Some(screen);
         self.screen_name = want.to_string();
         Input::singleton().set_mouse_mode(godot::classes::input::MouseMode::VISIBLE);
@@ -311,12 +327,30 @@ impl AnteDirector {
             }
         }
         let mut points = Points::singleton();
+        if !self.start_marked {
+            // Where the run starts isn't a discovery: you were put there.
+            self.start_marked = true;
+            for (key, _, _) in &found {
+                points.bind_mut().mark_known(GString::from(key));
+            }
+            return;
+        }
         if landed {
             points.bind_mut().on_landed(GString::from(&body_id));
         }
         for (key, value, label) in found {
             points.bind_mut().on_discovered(GString::from(&key), GString::from(&body_id), value, GString::from(&label));
         }
+    }
+}
+
+/// Screens on unless turned off (`Points.set_screens_mode(0)`), or, by
+/// default, when the game runs a test script (`--script`).
+fn screens_enabled() -> bool {
+    match Points::singleton().bind().screens_mode() {
+        1 => true,
+        0 => false,
+        _ => !godot::classes::Os::singleton().get_cmdline_args().as_slice().iter().any(|a| a.to_string() == "--script"),
     }
 }
 

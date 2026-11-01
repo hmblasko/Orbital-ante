@@ -86,3 +86,158 @@ HUD_INFINITE,∞
 PROMPT_CARRY_TARGET,Pick up
 PROMPT_DROP_TARGET,Put down
 HUD_ROPE,ROPE
+HUD_ANTE,Ante
+HUD_PACE_AHEAD,Ahead of pace
+HUD_PACE_ON,On pace
+HUD_PACE_BEHIND,Behind pace
+HUD_TARGET_REACHED,Target reached!
+PROMPT_CASH_OUT,Hold to cash out
+NOTE_NEW_CATEGORY,New kind of score! Variety
+NOTE_CAPTURED,Target tied up
+NOTE_DISCOVERED,Discovered
+NOTE_CONTRACT_DONE,Contract done
+NOTE_SECOND_WIND,Second Wind! Hanging on at 1 HP
+SOURCE_KILL_T1,Grunt down
+SOURCE_KILL_T2,Veteran down
+SOURCE_KILL_T3,Heavy down
+SOURCE_LIMB,Limb shot
+SOURCE_DISARM,Disarmed
+SOURCE_CAMP_CLEAR,Camp cleared
+SOURCE_DISCOVERY,Discovery
+SOURCE_FIRST_LANDING,First landing
+CONTRACT_CLEAR_CAMP,Clear the camp
+CONTRACT_CLEAR_CAMP_DESC,Take out or tie up every soldier at the camp on the {body}.
+CONTRACT_THIN_PATROL,Thin the patrol
+CONTRACT_THIN_PATROL_DESC,Take down {count} grunts anywhere.
+CONTRACT_TAKE_ALIVE,Take one alive
+CONTRACT_TAKE_ALIVE_DESC,Tie up {count} soldier with the rope gun.
+CONTRACT_SURVEY_MOON,Survey the Moon
+CONTRACT_SURVEY_MOON_DESC,Discover {count} new places on the {body}.
+CONTRACT_SURVEY_EARTH,Survey Earth
+CONTRACT_SURVEY_EARTH_DESC,Discover {count} new places on {body}.
+CONTRACT_VISIT_MARS,Boots on Mars
+CONTRACT_VISIT_MARS_DESC,Land on {body} and step outside.
+CONTRACT_VISIT_VENUS,Boots on Venus
+CONTRACT_VISIT_VENUS_DESC,Land on {body} and step outside. Mind the acid.
+CONTRACT_VISIT_MERCURY,Boots on Mercury
+CONTRACT_VISIT_MERCURY_DESC,Land on {body} and step outside. Mind the sun.
+CONTRACT_VISIT_PHOBOS,Boots on Phobos
+CONTRACT_VISIT_PHOBOS_DESC,Land on {body} and step outside.
+CONTRACT_OFFICER_HUNT,Officer hunt
+CONTRACT_OFFICER_HUNT_DESC,Take down {count} veteran.
+BOARD_TITLE,Ante %d
+BOARD_INFO,Target %s  ·  %s on the clock  ·  take up to %d contracts
+BOARD_RISK,RISK
+BOARD_TAKEN,%d of %d taken
+BOARD_LAUNCH,Launch
+UPGRADE_TITLE,Ante %d cleared
+UPGRADE_SCORE,Ante score
+UPGRADE_CASH_OUT,Cash-out
+UPGRADE_INTEREST,Interest
+UPGRADE_WALLET,Wallet
+UPGRADE_ATTRIBUTES,Attributes
+UPGRADE_DRAFT,Pick a perk
+UPGRADE_REROLL,Reroll  (%s)
+UPGRADE_PICKED,Perk taken
+UPGRADE_TICKET,Scratch-off
+UPGRADE_SCRATCH,Scratch!
+UPGRADE_SCRATCHING,Scratching...
+UPGRADE_NO_TICKET,No ticket
+UPGRADE_ODDS,Odds on this ticket:
+UPGRADE_MAXED,Max
+UPGRADE_NEXT,On to ante %d
+ATTR_DAMAGE,Damage
+ATTR_SPEED,Speed and jump
+ATTR_OXYGEN,Oxygen capacity
+ATTR_DEFENSE,Defense
+PERK_DEEP_BREATH,Deep Breath
+PERK_DEEP_BREATH_DESC,"+40% suit oxygen, -20% jetpack fuel."
+PERK_GHOST,Ghost
+PERK_GHOST_DESC,Near-silent crouching; your ship's engine is louder.
+PERK_LUCKY_CHARM,Lucky Charm
+PERK_LUCKY_CHARM_DESC,Chests roll twice and you pick; no scratch-off tickets.
+PERK_SIGNAL_JAMMER,Signal Jammer
+PERK_SIGNAL_JAMMER_DESC,Repaired satellites never draw enemies but pay 30% less.
+PERK_PACK_MULE,Pack Mule
+PERK_PACK_MULE_DESC,Carry two targets or tanks; move slower while carrying.
+PERK_GLASS_CANNON,Glass Cannon
+PERK_GLASS_CANNON_DESC,"+30% damage dealt, +30% damage taken."
+PERK_SECOND_WIND,Second Wind
+PERK_SECOND_WIND_DESC,"Once per ante, survive a lethal hit with 1 HP."
+PERK_HOT_ROD,Hot Rod
+PERK_HOT_ROD_DESC,Rover boosts recharge 2x faster; rovers take more crash damage.
+PERK_DIPLOMAT,Diplomat
+PERK_DIPLOMAT_DESC,Alive deliveries give +50% Diplomacy; kills raise Hostility 2x faster.
+PERK_OVERCLOCKED,Overclocked
+PERK_OVERCLOCKED_DESC,"Faster ship acceleration, higher fuel use."
+PERK_JUNK_MAGNET,Junk Magnet
+PERK_JUNK_MAGNET_DESC,Small salvage drifts toward you; your ship takes +10% damage.
+PERK_RAGDOLL_PHYSICIST,Ragdoll Physicist
+PERK_RAGDOLL_PHYSICIST_DESC,Flung ragdolls damage enemies they hit; gravity-gun ammo drains 2x faster.
+PERK_SILVER_TONGUE,Silver Tongue
+PERK_SILVER_TONGUE_DESC,Hostility cools over time; bounty payouts -10%.
+PERK_AFTERBURNER,Afterburner
+PERK_AFTERBURNER_DESC,Jetpack dash; oxygen drains 2x while dashing.
+TAG_SALVAGE,Salvage
+TAG_STEALTH,Stealth
+TAG_HEAT,Heat
+TAG_SPEED,Speed
+TAG_DIPLOMACY,Diplomacy
+TAG_CHAOS,Chaos
+TAG_SCAVENGER,Scavenger
+RARITY_COMMON,Common
+RARITY_UNCOMMON,Uncommon
+RARITY_RARE,Rare
+RARITY_LEGENDARY,Legendary
+RARITY_UNUSUAL,Unusual
+PRIZE_STOPWATCH,Stopwatch for next ante
+WORD_WALLET,Wallet
+WORD_OF_TARGET,of target to
+SUMMARY_WON,Run won!
+SUMMARY_DIED,Lost in space
+SUMMARY_TIME_UP,Out of time
+SUMMARY_REACHED,Reached ante %d  ·  seed %s
+SUMMARY_POINTS,Points
+SUMMARY_ANTES,Antes cleared
+SUMMARY_DISCOVERIES,Discoveries
+SUMMARY_KILLS,Takedowns
+SUMMARY_CAPTURES,Tied up
+SUMMARY_CONTRACTS,Contracts
+SUMMARY_BEST_MULT,Best multiplier
+SUMMARY_LEADERBOARD,Local leaderboard
+SUMMARY_THIS_RUN,< this run
+SUMMARY_NO_BOARD,No runs yet.
+SUMMARY_CONTINUE,Continue
+DISCOVERY_CAVE,a lava tube
+LANDFORM_MOUNTAIN,a mountain
+LANDFORM_MESA,a mesa
+LANDFORM_VOLCANO,a volcano
+LANDFORM_CANYON,a canyon
+LANDFORM_RIVER,a river
+LANDFORM_LAKE,a lake
+LANDFORM_POOL,a pool
+LANDFORM_BUTTE,a butte
+LANDFORM_DUNES,a dune field
+LANDFORM_CRATER,a great crater
+LANDFORM_RIDGE,a wrinkle ridge
+LANDFORM_SINKHOLE,a sinkhole
+LANDFORM_MARE,a lava sea
+LANDFORM_BASIN,an impact basin
+LANDFORM_RILLE,a rille
+LANDFORM_BOWL,a small crater
+LANDFORM_RAYEDCRATER,a rayed crater
+LANDFORM_COLDTRAP,a frozen crater
+LANDFORM_CATENA,a crater chain
+LANDFORM_LABYRINTH,a canyon maze
+LANDFORM_EROSION,wind-carved rocks
+LANDFORM_YARDANGS,yardangs
+LANDFORM_RAMPART,a splash crater
+LANDFORM_POLARCAP,a polar ice cap
+LANDFORM_SCARP,a cliff scarp
+LANDFORM_CORONA,a corona
+LANDFORM_PANCAKEDOME,a pancake dome
+LANDFORM_PATERA,a lava caldera
+LANDFORM_CHAOS,chaos terrain
+LANDFORM_DOUBLERIDGE,a double ridge
+LANDFORM_PENITENTES,ice spikes
+BOARD_TAKEN_MARK,Taken

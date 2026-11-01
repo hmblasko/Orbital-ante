@@ -35,6 +35,12 @@
     scratch_reveal_s: 1.0,
     // Discovery (section 3: modest, a surprise, never a price list): first
     // visit per run. Points by landform kind; anything unlisted is ignored.
+    // Rarity colours (section 10: rarity colours only for rarity), TF2-like
+    // and told apart by name and shape too, never colour alone.
+    rarity_colors: {
+        Common: (0.86, 0.86, 0.82), Uncommon: (0.45, 0.78, 0.98), Rare: (0.62, 0.48, 0.98),
+        Legendary: (1.0, 0.72, 0.22), Unusual: (0.80, 0.42, 0.98),
+    },
     discovery_points: {
         "Basin": 80, "Crater": 70, "Volcano": 80, "Mesa": 50, "Butte": 40, "Mountain": 50,
         "Sinkhole": 50, "ColdTrap": 70, "RayedCrater": 60, "Mare": 40, "Corona": 70,
