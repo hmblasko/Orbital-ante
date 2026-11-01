@@ -21,7 +21,7 @@ var _scratching := false
 
 
 func _ready() -> void:
-	var column := ScreenKit.frame(self, 1180)
+	var column := ScreenKit.frame(self, 1200)
 	var res: Dictionary = Points.get_last_result()
 	column.add_child(ScreenKit.title(tr("UPGRADE_TITLE") % int(res.get("ante", Points.get_ante()))))
 	# Tally: score vs target, cash-out bonus, interest, Wallet.
@@ -70,7 +70,7 @@ func _stat(caption: String, value: String, color: Color) -> VBoxContainer:
 
 func _attributes_panel() -> Control:
 	var p := ScreenKit.panel()
-	p.custom_minimum_size = Vector2(330, 0)
+	p.custom_minimum_size = Vector2(280, 0)
 	var v := ScreenKit.col(10)
 	p.add_child(v)
 	v.add_child(ScreenKit.label(tr("UPGRADE_ATTRIBUTES").to_upper(), 18, ScreenKit.AMBER))
@@ -84,7 +84,7 @@ func _attributes_panel() -> Control:
 		names.add_child(lvl)
 		r.add_child(names)
 		var b := ScreenKit.button("", 18)
-		b.custom_minimum_size = Vector2(120, 44)
+		b.custom_minimum_size = Vector2(104, 44)
 		b.pressed.connect(buy.bind(id))
 		r.add_child(b)
 		v.add_child(r)
@@ -109,7 +109,7 @@ func _draft_panel() -> Control:
 
 func _ticket_panel() -> Control:
 	var p := ScreenKit.panel()
-	p.custom_minimum_size = Vector2(260, 0)
+	p.custom_minimum_size = Vector2(250, 0)
 	var v := ScreenKit.col(8)
 	p.add_child(v)
 	v.add_child(ScreenKit.label(tr("UPGRADE_TICKET").to_upper(), 18, ScreenKit.AMBER))
@@ -221,7 +221,7 @@ func _refresh() -> void:
 		c.queue_free()
 	var picked: bool = Points.has_picked_perk()
 	for perk in Points.get_draft():
-		var b := ScreenKit.card(Vector2(176, 210))
+		var b := ScreenKit.card(Vector2(170, 210))
 		b.disabled = picked
 		b.pressed.connect(pick.bind(String(perk["id"])))
 		var box := ScreenKit.col(4)

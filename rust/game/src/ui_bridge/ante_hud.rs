@@ -97,6 +97,9 @@ impl IControl for AnteHud {
     fn ready(&mut self) {
         self.base_mut().set_anchors_and_offsets_preset(godot::classes::control::LayoutPreset::FULL_RECT);
         self.base_mut().set_mouse_filter(godot::classes::control::MouseFilter::IGNORE);
+        // Keep redrawing while a between-ante screen pauses the world, so
+        // the plate and old notes don't linger frozen under it.
+        self.base_mut().set_process_mode(godot::classes::node::ProcessMode::ALWAYS);
         self.numbers = try_load::<FontFile>(NUMBER_FONT).ok().map(|f| f.upcast());
         let theme = ThemeDb::singleton().get_project_theme();
         self.body = theme.and_then(|t| t.get_default_font()).or_else(|| ThemeDb::singleton().get_fallback_font());

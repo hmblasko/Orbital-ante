@@ -106,12 +106,17 @@ func _process(_d: float) -> bool:
 				var t2 := enemies.filter(func(e): return e.get_tier() == 2).size()
 				check(enemies.size() == 4 and t1 == 3 and t2 == 1, "Moon camp has 3 tier 1 and 1 tier 2 soldiers (got %d: %d/%d)" % [enemies.size(), t1, t2])
 				check(enemies.all(func(e): return e.get_state_name() == "Patrol"), "every soldier starts on patrol")
+				# Hold them still while the player settles, so the test
+				# doesn't depend on whether a patrol happens to face this way.
+				for e in enemies: e.debug_set_frozen(true)
 				stand_near(enemies[0], 14.0)
 				phase = 1; wait_until = frame + 180
 			elif frame > MAX_DETAIL_FRAMES:
 				check(false, "Moon detail loaded"); finish(); return true
 		1:
 			check(player.is_on_floor(), "player stands near the camp")
+			check(enemies.all(func(e): return e.get_state_name() == "Patrol"), "still on patrol before the shot")
+			for e in enemies: e.debug_set_frozen(false)
 			# A shot into the ground nearby: loud enough to bring them running.
 			player.debug_look_at(player.global_position - up_at(player) * 2.0 + (enemies[0].global_position - player.global_position).normalized())
 			arsenal.debug_fire_once()
