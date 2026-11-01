@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 31 Oct 2026 from the phase-2-player branch (Phase 5 in progress). Needs Godot 4.7.2 exactly.
+Built 1 Nov 2026 from the phase-2-player branch (Phase 6, combat). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -21,6 +21,15 @@ Move: left stick / WASD      Look: right stick / mouse
 Jump, jetpack up: A / Space  Crouch, jetpack down: B / Ctrl or C
 Interact: X / E              Map: M, zoom with PgUp/PgDn or mouse wheel
 Frame-time overlay: F3       Free the mouse cursor: Esc
+
+COMBAT (on foot)
+Fire: RT / left mouse        Aim down sights: LT / right mouse
+Melee (the bat if you have one, otherwise a shove): LB / F
+Rope gun: RB / B key         Swap rifle and rock: Y / Tab
+Reload: R, or X / E when there's nothing else to use
+Pick up a dropped gun (swaps yours), or pick up / put down a tied
+soldier: X / E while looking at it
+(LT still matches velocity with the jetpack when you're off the ground.)
 
 WHAT IS IN THIS BUILD
 - Walking on Earth with planet gravity, suit oxygen, jetpack and tether.
@@ -57,7 +66,32 @@ WHAT IS IN THIS BUILD
   and hold X / E. The prompt names the part and a bar fills. Parts that
   broke off are gone. No repair sound yet.
 
-NEW IN PHASE 5 (planet surfaces, work in progress)
+NEW IN PHASE 6 (combat, vertical slice)
+- A camp of four Venera Collective soldiers (working faction name) patrols
+  a short walk from where you land on the Moon: three light troopers with
+  rifles who rush you, and one bigger tier 2 with a laser double-barrel
+  who flanks. A yellow "?" means one heard or glimpsed something; a red
+  "!" means they've seen you and will open fire about 0.7 s later. Lose
+  them and they search the last place they saw you for about 45 s, then
+  go back to patrolling. Crouching makes you slower to spot.
+- You start with the rifle. Shoot an arm to disarm (the gun drops; walk
+  over a gun like yours for its ammo, or press X / E to swap guns), shoot
+  a leg off to drop them, headshots hurt double. Limbs come off as gibs,
+  and the dead become ragdolls. Disarmed soldiers run at you and punch.
+- The laser double-barrel (take it from the tier 2) gibs at close range.
+  The rock is infinite, pathetic and funny. No baseball bat is placed in
+  the world yet; it's in the game for the bounty/loot pass.
+- Rope gun: 3 shots for the whole run, and misses count. A roped soldier
+  drops its gun and is wrapped in rope. Press X / E to pick it up (it rides
+  under your arm) and again to put it down. Delivering targets is a later
+  phase.
+- HUD: weapon and ammo bottom right (with rope shots left), hit marker
+  ticks at the crosshair (white hit, orange limb off, red kill), and a red
+  arc pointing to whoever just shot you.
+- Gore is on by default; the toggle comes with the options menu. No combat
+  sounds yet.
+
+NEW IN PHASE 5 (planet surfaces)
 - The Moon has its full surface kit: two dark mare plains (smooth, fast
   driving ground), a big multi-ring basin on the far side, a complex crater
   with a craggy central peak, winding rilles and wrinkle ridges on the mare,
