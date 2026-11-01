@@ -45,6 +45,7 @@ BODY_NEPTUNE,Neptune
 PROMPT_BUCKLE,Buckle in
 PROMPT_UNBUCKLE,Unbuckle
 PROMPT_DRIVE,Drive
+NOTE_HUNTERS_INBOUND,Hunters inbound! Watch for the red flares
 HUD_BOOST,BOOST
 HUD_SPEED,SPEED
 HUD_MPS,m/s

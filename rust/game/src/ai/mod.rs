@@ -8,3 +8,4 @@ pub mod brain;
 pub mod base;
 pub mod camp;
 pub mod enemy;
+pub mod swarm;

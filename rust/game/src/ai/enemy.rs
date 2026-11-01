@@ -483,6 +483,20 @@ impl Enemy {
 }
 
 impl Enemy {
+    /// A tracker ping (hunter swarms): know where the player is right now
+    /// and go after them at once. Ignored once dead or tied up.
+    pub fn hunt(&mut self, world: Vector3) {
+        if self.limbs.dead || self.tied {
+            return;
+        }
+        let local = self.to_local_of_body(world);
+        self.shout = Some(local);
+    }
+
+    pub fn is_out(&self) -> bool {
+        self.limbs.dead || self.tied
+    }
+
     /// Which entry of enemies.ron to be (before entering the tree).
     pub fn set_id(&mut self, id: &str) {
         self.enemy_id = GString::from(id);

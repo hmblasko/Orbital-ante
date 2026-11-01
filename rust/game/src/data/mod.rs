@@ -141,4 +141,13 @@ mod tests {
         let h = parse::<crate::orbits::home_base::HomeData>(include_str!("../../../../godot/data/bodies/home_base.ron")).unwrap();
         assert!(h.rover.is_some());
     }
+
+    #[test]
+    fn swarms_parse() {
+        let d = parse::<crate::ai::swarm::SwarmData>(include_str!("../../../../godot/data/combat/swarms.ron")).unwrap();
+        let e = parse::<crate::combat::EnemiesData>(include_str!("../../../../godot/data/combat/enemies.ron")).unwrap();
+        for id in [&d.tier1, &d.tier2_id] {
+            assert!(e.enemies.iter().any(|x| &x.id == id), "swarm hunter {id} exists");
+        }
+    }
 }

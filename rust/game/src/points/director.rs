@@ -53,6 +53,10 @@ impl INode for AnteDirector {
         layer.set_layer(20);
         self.base_mut().add_child(&layer);
         self.layer = Some(layer);
+        // Hunter swarms that grow with the ante (they pause with the world).
+        let mut swarms = crate::ai::swarm::SwarmDirector::new_alloc();
+        swarms.set_name("Swarms");
+        self.base_mut().add_child(&swarms);
         let mut points = Points::singleton();
         if !points.bind().has_run() {
             points.bind_mut().start_run();

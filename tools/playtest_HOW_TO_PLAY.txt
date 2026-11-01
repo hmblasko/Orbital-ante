@@ -1,5 +1,5 @@
 ORBITAL ANTE - PLAYTEST BUILD (working title)
-Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base, your control fixes and the Moon buggy). Needs Godot 4.7.2 exactly.
+Built 1 Nov 2026 from the phase-2-player branch (Phase 8 slice, the home base, your control fixes, the Moon buggy and hunter swarms). Needs Godot 4.7.2 exactly.
 
 OPEN IT ON THE STEAM DECK (Desktop Mode)
 1. Unzip this file somewhere easy, for example ~/OrbitalAnte-playtest
@@ -73,6 +73,16 @@ WHAT IS IN THIS BUILD
   broke off are gone. No repair sound yet.
 
 NEW IN THIS BUILD (your fixes and the Phase 8 slice)
+- Hunter swarms: while you're out on a surface (on foot or in the buggy,
+  below about 60 m), packs of Venera hunters come for you. First you get a
+  "Hunters inbound!" note and red flare columns 45-70 m away where they
+  will land; 4 seconds later they drop in and run straight at you,
+  re-finding you every few seconds. Packs get bigger and come more often
+  each ante: 2-3 hunters every ~3 min at ante 1, up to 10-14 every minute
+  at ante 8 (and more in Endless), with more tier 2s later. To shake them,
+  get aboard a ship and leave, or get far away (they give up past ~320 m).
+  The home base is a safe zone, and there's a grace period at the start of
+  each ante.
 - Moon buggy: one is parked beside the launch pad at home, and one waits
   near the Moon's landing area. Walk up and press X / E to climb in.
   Left stick (WASD) drives and steers, A (Space) fires the rocket boost,
