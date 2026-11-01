@@ -60,6 +60,26 @@ pub struct HudData {
     pub glass_edge_color: Rgba,
     pub recap_input_delay_s: f32,
     pub visor_edge_darkness: f32,
+    pub weapon_plate_px: (f32, f32),
+    pub ammo_color: Rgb,
+    pub hit_marker_px: f32,
+    pub hit_colors: Vec<Rgb>,
+    pub damage_arrow_s: f32,
+    pub damage_arrow_radius_px: f32,
+}
+
+/// What the HUD shows of the weapon in hand.
+struct WeaponView {
+    name_key: String,
+    loaded: i64,
+    reserve: i64,
+    infinite: bool,
+    reload: f32,
+    marker: f32,
+    marker_kind: i64,
+    pickup: String,
+    rope_shots: i64,
+    carry: String,
 }
 
 /// Snapshot of the player for one frame, so drawing never holds a borrow.
@@ -76,6 +96,10 @@ struct View {
     at_supply: bool,
     prompt: String,
     dead_key: Option<GString>,
+    weapon: Option<WeaponView>,
+    /// Screen angle (0 = straight ahead, clockwise) of the last hit, and
+    /// how strong its arrow still is.
+    hit_dir: Option<(f32, f32)>,
 }
 
 #[derive(GodotClass)]
@@ -174,6 +198,8 @@ impl IControl for SuitHud {
         self.draw_fuel(&numbers, &body, size, s, &v);
         self.draw_health(&body, size, s, &v);
         self.draw_status(&body, size, s, &v);
+        self.draw_weapon(&numbers, &body, size, s, &v);
+        self.draw_hit_feedback(size, s, &v);
         self.draw_crosshair_and_prompt(&body, size, s, &v);
     }
 }
@@ -185,8 +211,34 @@ impl SuitHud {
 
     fn view(&self) -> Option<View> {
         let player = self.player()?;
+        let weapon = player.get_node_or_null("Head/Arsenal").and_then(|n| n.try_cast::<crate::combat::arsenal::Arsenal>().ok()).map(|a| {
+            let a = a.bind();
+            WeaponView {
+                name_key: a.get_weapon_name_key().to_string(),
+                loaded: a.get_loaded(),
+                reserve: a.get_reserve(),
+                infinite: a.has_infinite_ammo(),
+                reload: a.get_reload_fraction(),
+                marker: a.get_hit_marker(),
+                marker_kind: a.get_hit_kind(),
+                pickup: a.get_pickup_prompt().to_string(),
+                rope_shots: a.get_rope_shots(),
+                carry: a.get_carry_prompt().to_string(),
+            }
+        });
+        let camera = player.get_node_or_null("Head/Camera3D").and_then(|n| n.try_cast::<Node3D>().ok());
         let p = player.bind();
+        let hit_dir = match (p.last_hit(), camera) {
+            (Some((from, age)), Some(cam)) if age < self.data.damage_arrow_s && !p.is_dead() => {
+                let local = cam.get_global_transform().affine_inverse() * from;
+                let angle = local.x.atan2(-local.z);
+                Some((angle, 1.0 - age / self.data.damage_arrow_s.max(0.01)))
+            }
+            _ => None,
+        };
         Some(View {
+            weapon,
+            hit_dir,
             oxygen: p.get_oxygen_fraction(),
             oxygen_s: p.get_oxygen_seconds(),
             fuel: p.get_fuel_fraction(),
@@ -397,6 +449,88 @@ impl SuitHud {
         }
     }
 
+    /// The weapon in hand: name, then loaded / reserve as big numbers, with
+    /// a reload bar. Empty magazines blink in the warning colour.
+    fn draw_weapon(&mut self, numbers: &Gd<Font>, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
+        let Some(w) = &v.weapon else { return };
+        if w.name_key.is_empty() {
+            return;
+        }
+        let d = self.data.clone();
+        let (pw, ph) = (d.weapon_plate_px.0 * s, d.weapon_plate_px.1 * s);
+        let right = size.x - d.margin_px * s - d.fuel_plate_px.0 * s - 14.0 * s;
+        let rect = Rect2::new(Vector2::new(right - pw, size.y - d.margin_px * s - ph), Vector2::new(pw, ph));
+        let warn = rgb(d.warning_color);
+        let empty = !w.infinite && w.loaded == 0;
+        self.plate(rect, Some(faded(if empty { warn } else { rgb(d.ammo_color) }, 0.4)));
+        let name = self.base().tr(w.name_key.as_str()).to_string().to_uppercase();
+        let pad = 14.0 * s;
+        let inner = pw - pad * 2.0;
+        self.text(body, rect.position + Vector2::new(pad, 26.0 * s), inner, HorizontalAlignment::LEFT, &name, (d.label_font_px as f32 * s) as i32, faded(rgb(d.ammo_color), 0.85));
+        let col = if empty && self.blink() { warn } else { rgb(d.ammo_color) };
+        let base_y = rect.end().y - 22.0 * s;
+        if w.infinite {
+            let inf = self.base().tr("HUD_INFINITE").to_string();
+            self.text(numbers, Vector2::new(rect.position.x + pad, base_y), inner, HorizontalAlignment::LEFT, &inf, (d.number_font_px as f32 * s) as i32, col);
+        } else {
+            let big = (d.number_font_px as f32 * 1.15 * s) as i32;
+            let loaded = format!("{}", w.loaded);
+            let lw = numbers.get_string_size_ex(&GString::from(loaded.as_str())).font_size(big).done().x;
+            self.text(numbers, Vector2::new(rect.position.x + pad, base_y), lw + 4.0, HorizontalAlignment::LEFT, &loaded, big, col);
+            let small = (d.number_font_px as f32 * 0.62 * s) as i32;
+            let reserve = format!("/ {}", w.reserve);
+            self.text(numbers, Vector2::new(rect.position.x + pad + lw + 10.0 * s, base_y), inner - lw, HorizontalAlignment::LEFT, &reserve, small, faded(rgb(d.ammo_color), 0.7));
+        }
+        if w.reload <= 0.0 {
+            // Rope shots left this run, small, top right of the plate.
+            let rope = format!("{} {}", self.base().tr("HUD_ROPE"), w.rope_shots);
+            let col = if w.rope_shots == 0 { faded(rgb(d.ammo_color), 0.4) } else { faded(rgb(d.fuel_color), 0.9) };
+            self.text(body, rect.position + Vector2::new(pad, 26.0 * s), inner, HorizontalAlignment::RIGHT, &rope, (d.label_font_px as f32 * s) as i32, col);
+        }
+        if w.reload > 0.0 {
+            let label = self.base().tr("HUD_RELOADING").to_string();
+            self.text(body, rect.position + Vector2::new(pad, 26.0 * s), inner, HorizontalAlignment::RIGHT, &label, (d.label_font_px as f32 * s) as i32, rgb(d.fuel_color));
+            let bar = Rect2::new(Vector2::new(rect.position.x + pad, rect.end().y - 12.0 * s), Vector2::new(inner * w.reload.clamp(0.0, 1.0), 4.0 * s));
+            self.canvas().draw_rect(bar, rgb(d.fuel_color));
+        }
+    }
+
+    /// Hit marker ticks around the crosshair (white hit, orange gib, red
+    /// kill) and a red arc toward whoever just hurt you (section 12 rule 8:
+    /// no unseen hits).
+    fn draw_hit_feedback(&mut self, size: Vector2, s: f32, v: &View) {
+        let d = self.data.clone();
+        let center = size * 0.5;
+        if let Some(w) = &v.weapon
+            && w.marker > 0.0
+        {
+            let col = d.hit_colors.get(w.marker_kind.max(0) as usize).copied().unwrap_or((1.0, 1.0, 1.0));
+            let a = w.marker.clamp(0.0, 1.0);
+            let len = d.hit_marker_px * s * (if w.marker_kind >= 2 { 1.4 } else { 1.0 });
+            let gap = 7.0 * s;
+            let mut c = self.canvas();
+            for (dx, dy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+                let dir = Vector2::new(dx, dy).normalized();
+                let from = center + dir * gap;
+                let to = center + dir * (gap + len);
+                c.draw_line_ex(from, to, Color::from_rgba(0.0, 0.0, 0.0, 0.5 * a)).width(4.5 * s).antialiased(true).done();
+                c.draw_line_ex(from, to, faded(rgb(col), a)).width(2.5 * s).antialiased(true).done();
+            }
+        }
+        if let Some((angle, strength)) = v.hit_dir {
+            let r = d.damage_arrow_radius_px * s;
+            // Screen up is "ahead"; clockwise is to the right.
+            let screen = angle - std::f32::consts::FRAC_PI_2;
+            let half = 0.35;
+            self.canvas().draw_arc_ex(center, r, screen - half, screen + half, 18, faded(rgb(d.warning_color), strength.clamp(0.0, 1.0) * 0.9)).width(7.0 * s).antialiased(true).done();
+            let tip = center + Vector2::new(screen.cos(), screen.sin()) * (r + 14.0 * s);
+            let side = Vector2::new(-screen.sin(), screen.cos()) * 9.0 * s;
+            let back = center + Vector2::new(screen.cos(), screen.sin()) * (r + 2.0 * s);
+            let pts = PackedVector2Array::from(&[tip, back + side, back - side]);
+            self.canvas().draw_colored_polygon(&pts, faded(rgb(d.warning_color), strength.clamp(0.0, 1.0) * 0.9));
+        }
+    }
+
     /// A small centre dot, and a button prompt under it when something
     /// can be used (section 10: interactables read clearly).
     fn draw_crosshair_and_prompt(&mut self, body: &Gd<Font>, size: Vector2, s: f32, v: &View) {
@@ -407,6 +541,8 @@ impl SuitHud {
         c.draw_circle(center, d.crosshair_radius_px * s, Color::from_rgba(1.0, 1.0, 1.0, 0.85));
 
         // "repair:PART_KEY:0.42": hold X to fix that part; the pill fills.
+        let carry = v.weapon.as_ref().filter(|w| !w.carry.is_empty()).map(|w| w.carry.clone());
+        let pickup = v.weapon.as_ref().filter(|w| !w.pickup.is_empty()).map(|w| format!("WEAPON_{}", w.pickup.to_uppercase()));
         let mut repair: Option<(String, f32)> = None;
         if let Some(rest) = v.prompt.strip_prefix("repair:") {
             let mut it = rest.rsplitn(2, ':');
@@ -423,12 +559,19 @@ impl SuitHud {
             "unbuckle" => ("PROMPT_UNBUCKLE", "X", "E"),
             "open_hatch" => ("PROMPT_OPEN_HATCH", "X", "E"),
             "close_hatch" => ("PROMPT_CLOSE_HATCH", "X", "E"),
+            _ if carry.as_deref() == Some("drop") => ("PROMPT_DROP_TARGET", "X", "E"),
+            _ if carry.as_deref() == Some("carry") => ("PROMPT_CARRY_TARGET", "X", "E"),
+            _ if pickup.is_some() => ("PROMPT_SWAP_WEAPON", "X", "E"),
             _ => return,
         };
         let glyph = if self.using_keyboard { keyboard } else { pad };
         let mut text = self.base().tr(key).to_string();
         if let Some((part, _)) = &repair {
             text = format!("{text}: {}", self.base().tr(part.as_str()));
+        } else if key == "PROMPT_SWAP_WEAPON"
+            && let Some(name) = &pickup
+        {
+            text = format!("{text} {}", self.base().tr(name.as_str()));
         }
         let font_px = (d.prompt_font_px as f32 * s) as i32;
         let tw = body.get_string_size_ex(&GString::from(text.as_str())).font_size(font_px).done().x;

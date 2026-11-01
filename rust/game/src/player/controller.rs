@@ -129,6 +129,9 @@ pub struct PlayerController {
     buckle_from: Transform3D,
     /// The capsule is currently the short crouch one.
     crouched_shape: bool,
+    /// Where the last enemy hit came from, and seconds since.
+    last_hit_from: Option<Vector3>,
+    last_hit_s: f32,
     /// A damaged ship part in view and reach: the ship, the part's index,
     /// its name key and health 0..1 (for the prompt).
     repair_spot: Option<(Gd<Ship>, usize, String, f32)>,
@@ -175,6 +178,8 @@ impl ICharacterBody3D for PlayerController {
             buckle_t: 0.0,
             buckle_from: Transform3D::IDENTITY,
             crouched_shape: false,
+            last_hit_from: None,
+            last_hit_s: 0.0,
             base,
         }
     }
@@ -232,6 +237,7 @@ impl ICharacterBody3D for PlayerController {
 
     fn physics_process(&mut self, delta: f64) {
         let dt = delta as f32;
+        self.last_hit_s += dt;
         if !self.spawned {
             self.spawned = true;
             if self.spawn_on_nearest_body {
@@ -438,6 +444,29 @@ impl PlayerController {
         self.suit.hurt(amount, super::suit::DeathCause::Crash);
     }
 
+    /// Test hook: turn to look straight at a world point.
+    #[func]
+    pub fn debug_look_at(&mut self, point: Vector3) {
+        let t = self.base().get_global_transform();
+        let up = t.basis.col_b().normalized();
+        let eye = self.head_position();
+        let to = point - eye;
+        let vertical = to.dot(up);
+        let flat = to - up * vertical;
+        if flat.length_squared() < 1e-6 {
+            return;
+        }
+        let f = flat.normalized();
+        let x = f.cross(up).normalized();
+        self.base_mut().set_global_basis(Basis::from_cols(x, up, -f).orthonormalized());
+        self.pitch = vertical.atan2(flat.length());
+        let pitch = self.pitch;
+        if let Some(h) = &mut self.head {
+            let r = h.get_rotation();
+            h.set_rotation(Vector3::new(pitch, r.y, r.z));
+        }
+    }
+
     /// Test hook: hold (or let go of) the repair button.
     #[func]
     pub fn debug_hold_repair(&mut self, on: bool) {
@@ -481,6 +510,29 @@ impl PlayerController {
 }
 
 impl PlayerController {
+    /// Hit by an enemy for `amount` health from `from` (world position).
+    /// Remembered for the HUD's damage arrow.
+    pub fn take_hit(&mut self, amount: f32, from: Vector3) {
+        self.suit.hurt(amount, super::suit::DeathCause::Shot);
+        self.last_hit_from = Some(from);
+        self.last_hit_s = 0.0;
+    }
+
+    /// Where the last enemy hit came from and how long ago (seconds).
+    pub fn last_hit(&self) -> Option<(Vector3, f32)> {
+        self.last_hit_from.map(|p| (p, self.last_hit_s))
+    }
+
+    /// Crouching (enemies notice you more slowly).
+    pub fn is_crouched(&self) -> bool {
+        self.crouched_shape
+    }
+
+    /// The eyes (camera) in world space.
+    pub fn head_position(&self) -> Vector3 {
+        self.head.as_ref().map_or(self.base().get_global_position(), |h| h.get_global_position())
+    }
+
     pub fn aboard_ship(&self) -> Option<Gd<Ship>> {
         self.aboard.clone()
     }

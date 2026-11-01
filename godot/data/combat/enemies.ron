@@ -1,0 +1,141 @@
+// Enemies (CLAUDE.md sections 7 and 17.1). Vertical slice: the Venera
+// Collective (Faction A, working name) tiers 1 and 2. Tier 3 comes later.
+(
+    // The body model every Faction A suit is built from, and how its single
+    // mesh is cut into limbs. Each limb is a capsule in model space
+    // (metres; +Y up, the suit faces +Z): a triangle belongs to the first
+    // limb whose capsule holds its centre; the rest is the torso. Pivots are
+    // where the limb hinges (hip, shoulder, neck) for walking and aiming.
+    bodies: [
+        (
+            id: "venera_suit",
+            model: "res://assets/models/nasa/z2_spacesuit.glb",
+            limbs: [
+                (limb: Head, a: (0.0, 1.62, 0.06), b: (0.0, 1.85, 0.06), radius: 0.2, pivot: (0.0, 1.55, 0.02)),
+                (limb: ArmL, a: (0.31, 1.40, 0.06), b: (0.27, 1.12, 0.60), radius: 0.15, pivot: (0.30, 1.42, 0.04)),
+                (limb: ArmR, a: (-0.31, 1.40, 0.06), b: (-0.27, 1.12, 0.60), radius: 0.15, pivot: (-0.30, 1.42, 0.04)),
+                (limb: LegL, a: (0.17, 0.84, 0.03), b: (0.20, -0.05, 0.08), radius: 0.17, pivot: (0.15, 0.86, 0.03)),
+                (limb: LegR, a: (-0.17, 0.84, 0.03), b: (-0.20, -0.05, 0.08), radius: 0.17, pivot: (-0.15, 0.86, 0.03)),
+            ],
+            // Where the gun sits (between the hands) and the muzzle points (+Z).
+            grip: (0.0, 1.13, 0.62),
+            eye: (0.0, 1.74, 0.12),
+        ),
+    ],
+    factions: [
+        (
+            id: "venera",
+            // Working name (section 17.1); Matthew approves the final one.
+            name_key: "FACTION_VENERA",
+            // Heavy, rounded, armoured; olive and rust (section 17.1).
+            // The suit's light cloth becomes `main`, mid tones `trim`,
+            // dark parts `dark`; the visor stays dark glass.
+            main: (0.43, 0.46, 0.27),
+            trim: (0.62, 0.30, 0.15),
+            dark: (0.16, 0.15, 0.12),
+            visor: (0.95, 0.55, 0.20),
+        ),
+    ],
+    enemies: [
+        (
+            id: "venera_t1",
+            faction: "venera",
+            tier: 1,
+            body: "venera_suit",
+            // Tier 1 is small and rushes (section 7).
+            scale: 0.92,
+            health: 100.0,
+            walk_speed: 2.2,
+            run_speed: 4.6,
+            weapon: "rifle",
+            // Shots per burst, pause between bursts, aim error (degrees)
+            // at 10 m and how it grows with range and target speed.
+            burst: (3, 6),
+            burst_pause_s: (0.9, 1.6),
+            aim_error_deg: 3.5,
+            aim_error_per_10m: 1.2,
+            aim_error_per_mps: 0.6,
+            // Damage to the player per hit (enemies hit less hard than you).
+            damage_to_player: 6.0,
+            style: Rush,
+            preferred_range_m: (6.0, 14.0),
+        ),
+        (
+            id: "venera_t2",
+            faction: "venera",
+            tier: 2,
+            body: "venera_suit",
+            // Tier 2 uses cover and flanks (section 7).
+            scale: 1.06,
+            health: 160.0,
+            walk_speed: 2.0,
+            run_speed: 3.8,
+            weapon: "laser_shotgun",
+            burst: (1, 2),
+            burst_pause_s: (1.4, 2.2),
+            aim_error_deg: 2.5,
+            aim_error_per_10m: 2.0,
+            aim_error_per_mps: 0.4,
+            damage_to_player: 3.0,
+            style: Flank,
+            preferred_range_m: (5.0, 10.0),
+        ),
+    ],
+    // Limb damage (section 7: limbs shoot off easily; shooting the gun arm
+    // disarms; shooting a leg drops the enemy). Each limb's health is this
+    // share of the enemy's health; `body_share` of limb damage also hurts
+    // the whole body; `multiplier` scales damage taken there.
+    limbs: (
+        head: (health_share: 0.35, body_share: 1.0, multiplier: 2.0),
+        torso: (health_share: 1.0, body_share: 1.0, multiplier: 1.0),
+        arm: (health_share: 0.30, body_share: 0.35, multiplier: 1.0),
+        leg: (health_share: 0.40, body_share: 0.4, multiplier: 1.0),
+        // A gun-arm hit of at least this damage knocks the gun away.
+        disarm_damage: 12.0,
+    ),
+    // AI (section 7): Patrol -> Suspicious -> Alert -> Search -> Return.
+    ai: (
+        sight_m: 60.0,
+        // Half-angle of the field of view, degrees.
+        fov_deg: 65.0,
+        // Seconds of clear view to go from Patrol to Alert (Suspicious in
+        // between); crouching makes you this much slower to notice.
+        notice_s: 1.4,
+        crouch_notice_scale: 2.0,
+        // Awareness fades this fast when you are out of sight.
+        forget_per_s: 0.25,
+        // How long Search lasts before they give up (about 45 s).
+        search_s: 45.0,
+        // An alerted enemy shares the alert with friends this close.
+        shout_m: 30.0,
+        // Hearing: a gunshot is heard within the weapon's noise_m.
+        // Reaction time before the first shot after becoming Alert.
+        first_shot_delay_s: 0.7,
+        // Patrol: walk to points this far from home, pausing between.
+        patrol_radius_m: 12.0,
+        patrol_pause_s: (2.0, 5.0),
+        // Beyond this distance from the player, AI runs simplified logic
+        // (no sight checks, no shooting, slow patrol only).
+        simple_beyond_m: 250.0,
+        // Section 14 cap.
+        max_active: 40,
+    ),
+    // Gibs and ragdolls (sections 7 and 14).
+    gibs: (
+        max_gibs: 60,
+        gib_life_s: 20.0,
+        fade_s: 1.5,
+        max_ragdolls: 12,
+        ragdoll_life_s: 60.0,
+        // Gore toggle: on = dark red puffs at the stump; off = sparks and bolts.
+        gore: true,
+        // Ammo pickups: how close you walk to grab one.
+        pickup_radius_m: 1.6,
+        pickup_life_s: 90.0,
+    ),
+    // Where enemies camp in the vertical slice: a seeded spot on a body,
+    // this many degrees from the landing pole.
+    camps: [
+        (body: "moon", angle_deg: (14.0, 22.0), spread_m: 10.0, enemies: ["venera_t1", "venera_t1", "venera_t1", "venera_t2"]),
+    ],
+)

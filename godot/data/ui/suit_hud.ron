@@ -35,4 +35,14 @@
     recap_input_delay_s: 1.5,
     // Visor frame darkness at the screen edge (0 = none).
     visor_edge_darkness: 0.5,
+    // Weapon plate, bottom right beside the jetpack gauge: ammo as big
+    // numbers (loaded / reserve), unlike the oxygen dial and fuel bar.
+    weapon_plate_px: (210.0, 112.0),
+    ammo_color: (0.95, 0.93, 0.86),
+    // Hit marker ticks around the crosshair: plain hit, gib, kill.
+    hit_marker_px: 11.0,
+    hit_colors: [(1.0, 1.0, 1.0), (1.0, 0.62, 0.22), (1.0, 0.25, 0.18)],
+    // Red arc pointing to whoever just shot you; fades over this long.
+    damage_arrow_s: 1.6,
+    damage_arrow_radius_px: 120.0,
 )

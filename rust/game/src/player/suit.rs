@@ -64,6 +64,8 @@ pub enum DeathCause {
     Suffocation,
     /// Thrown about inside a crashing ship without the seatbelt on.
     Crash,
+    /// Shot or punched by an enemy.
+    Shot,
 }
 
 impl DeathCause {
@@ -72,6 +74,7 @@ impl DeathCause {
         match self {
             DeathCause::Suffocation => "DEATH_SUFFOCATION",
             DeathCause::Crash => "DEATH_CRASH",
+            DeathCause::Shot => "DEATH_SHOT",
         }
     }
 }

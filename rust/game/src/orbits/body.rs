@@ -442,6 +442,11 @@ impl IStaticBody3D for CelestialBody {
                     self.base_mut().add_child(&node);
                 }
             }
+            // Faction camps (vertical slice; full bases are Phase 8).
+            let body_id = self.base().get_name().to_string();
+            for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed) {
+                self.base_mut().add_child(&e);
+            }
             if self.stream_detail {
                 self.build_preview(&data, &shape);
             } else {
