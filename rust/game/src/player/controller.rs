@@ -138,6 +138,11 @@ pub struct PlayerController {
     /// Holding X on it right now (tests can force it).
     repairing: bool,
     force_repair: bool,
+    /// Data before perks and attributes; `data` and `suit_data` are these
+    /// scaled by the run's build (re-scaled when the build changes).
+    base_data: MovementData,
+    base_suit: SuitData,
+    build_rev: i64,
     base: Base<CharacterBody3D>,
 }
 
@@ -150,6 +155,9 @@ impl ICharacterBody3D for PlayerController {
         let data: MovementData = crate::data::load(DATA_PATH, DATA_EMBEDDED);
         let suit_data: SuitData = crate::data::load(SUIT_PATH, SUIT_EMBEDDED);
         Self {
+            base_data: data.clone(),
+            base_suit: suit_data.clone(),
+            build_rev: -1,
             spawn_on_nearest_body: true,
             eye_height: data.eye_height,
             data,
@@ -513,9 +521,29 @@ impl PlayerController {
     /// Hit by an enemy for `amount` health from `from` (world position).
     /// Remembered for the HUD's damage arrow.
     pub fn take_hit(&mut self, amount: f32, from: Vector3) {
+        // Glass Cannon and Defense scale damage taken.
+        let amount = amount * crate::points::singleton::stat("damage_taken");
+        if self.suit.dead.is_none() && self.suit.health - amount <= 0.0 {
+            // Second Wind: once per ante a lethal hit leaves 1 HP.
+            let mut saved = false;
+            crate::points::singleton::with_points(|p| saved = p.try_second_wind());
+            if saved {
+                self.suit.health = 1.0;
+                self.last_hit_from = Some(from);
+                self.last_hit_s = 0.0;
+                return;
+            }
+        }
         self.suit.hurt(amount, super::suit::DeathCause::Shot);
         self.last_hit_from = Some(from);
         self.last_hit_s = 0.0;
+    }
+
+    /// Heal by a fraction of max health (Heat at 4).
+    pub fn heal_fraction(&mut self, f: f32) {
+        if self.suit.dead.is_none() {
+            self.suit.health = (self.suit.health + f * self.suit_data.health_max).min(self.suit_data.health_max);
+        }
     }
 
     /// Where the last enemy hit came from and how long ago (seconds).
@@ -907,7 +935,30 @@ impl PlayerController {
         self.base_mut().set_velocity(velocity);
     }
 
+    /// Perks and attributes (section 3): oxygen capacity, jetpack fuel,
+    /// walking speed and jump height follow the run's build.
+    fn apply_build(&mut self) {
+        let rev = crate::points::singleton::rev();
+        if rev == self.build_rev {
+            return;
+        }
+        self.build_rev = rev;
+        let stat = crate::points::singleton::stat;
+        let mut suit = self.base_suit.clone();
+        suit.oxygen_capacity_s *= stat("oxygen_capacity");
+        suit.jetpack.fuel_capacity_s *= stat("jetpack_fuel");
+        let mut data = self.base_data.clone();
+        data.walk_speed *= stat("move_speed");
+        data.crouch_speed *= stat("move_speed");
+        data.jump_speed *= stat("jump");
+        self.suit.oxygen_s = self.suit.oxygen_s.min(suit.oxygen_capacity_s);
+        self.suit.fuel_s = self.suit.fuel_s.min(suit.jetpack.fuel_capacity_s);
+        self.suit_data = suit;
+        self.data = data;
+    }
+
     fn update_suit(&mut self, dt: f32) {
+        self.apply_build();
         let position = self.base().get_global_position();
         let tree = self.base().get_tree();
         let breathable = tree

@@ -72,7 +72,10 @@ impl GameRoot {
     /// Called by the menu's Start button.
     #[func]
     pub fn start_game(&mut self) {
+        SaveData::singleton().bind_mut().set_autosave_enabled(!self.args.is_test_run());
         SaveData::singleton().bind_mut().begin_run();
+        // A fresh run: ante 1's contract board opens when the slice loads.
+        crate::points::Points::singleton().bind_mut().start_run();
         if !self.args.is_test_run() {
             SaveData::singleton().bind_mut().autosave();
         }
@@ -88,10 +91,26 @@ impl GameRoot {
     /// it from the save, autosave, and go back to the menu.
     #[func]
     pub fn on_player_died_continue(&mut self) {
+        // With the ante loop running, the run summary comes first; it calls
+        // on_run_over when read.
+        let director = self.base().get_tree().get_first_node_in_group(crate::points::director::DIRECTOR_GROUP);
+        if let Some(mut d) = director {
+            d.call("show_summary_after_death", &[]);
+            return;
+        }
         SaveData::singleton().bind_mut().end_run();
         if !self.args.is_test_run() {
             SaveData::singleton().bind_mut().autosave();
         }
+        self.show_menu();
+    }
+
+    /// The run summary was read (won, died or out of time): leaderboard,
+    /// clear the run, autosave, back to the menu.
+    #[func]
+    pub fn on_run_over(&mut self) {
+        SaveData::singleton().bind_mut().record_run_over();
+        crate::points::Points::singleton().bind_mut().clear_run();
         self.show_menu();
     }
 

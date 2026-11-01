@@ -437,6 +437,9 @@ impl Enemy {
             return false;
         }
         self.tied = true;
+        let body = GString::from(&self.body_id());
+        crate::points::singleton::with_points(|p| p.on_captured(body.clone()));
+        self.report_camp_member_out();
         let here = self.base().get_global_position();
         if self.limbs.armed {
             self.limbs.armed = false;
@@ -483,6 +486,33 @@ impl Enemy {
     /// Which entry of enemies.ron to be (before entering the tree).
     pub fn set_id(&mut self, id: &str) {
         self.enemy_id = GString::from(id);
+    }
+
+    fn body_id(&self) -> String {
+        self.body().map_or_else(String::new, |b| b.get_name().to_string())
+    }
+
+    /// This soldier is out (dead or tied): if nobody else in its camp is
+    /// still fighting, the camp is cleared.
+    fn report_camp_member_out(&self) {
+        let Ok(key) = self.base().get_meta("camp").try_to::<GString>() else { return };
+        let me = self.base().instance_id();
+        let standing = self
+            .base()
+            .get_tree()
+            .get_nodes_in_group(&key.to_string())
+            .iter_shared()
+            .filter(|n| n.instance_id() != me && !n.is_queued_for_deletion())
+            .filter_map(|n| n.try_cast::<Enemy>().ok())
+            .filter(|e| {
+                let b = e.bind();
+                !b.limbs.dead && !b.tied
+            })
+            .count();
+        if standing == 0 {
+            let body = GString::from(&self.body_id());
+            crate::points::singleton::with_points(|p| p.on_camp_cleared(key.clone(), body.clone()));
+        }
     }
 
     fn body(&self) -> Option<Gd<CelestialBody>> {
@@ -665,6 +695,8 @@ impl Enemy {
         let head = pb.head_position();
         s.player_pos = self.to_local_of_body(p.get_global_position());
         s.player_crouched = pb.is_crouched();
+        // Stealth tag (spot_time) and Ghost (crouch_spot_time) slow noticing.
+        s.notice_mult = crate::points::singleton::stat("spot_time") * if s.player_crouched { crate::points::singleton::stat("crouch_spot_time") } else { 1.0 };
         drop(pb);
         let eye = self.eye();
         let to = head - eye;
@@ -977,12 +1009,20 @@ impl Enemy {
         let mut result = 0;
         for e in events {
             match e {
-                HitEvent::Disarmed => self.drop_gun(dir),
+                HitEvent::Disarmed => {
+                    self.drop_gun(dir);
+                    crate::points::singleton::with_points(|p| p.on_disarm());
+                }
                 HitEvent::LimbOff(l) => {
                     self.detach_limb(l, dir, impulse, gore);
                     result = result.max(1);
+                    crate::points::singleton::with_points(|p| p.on_limb_shot());
                 }
                 HitEvent::Killed => {
+                    let tier = self.data.as_ref().map_or(1, |d| d.tier as i64);
+                    let body = GString::from(&self.body_id());
+                    crate::points::singleton::with_points(|p| p.on_kill(tier, body.clone()));
+                    self.report_camp_member_out();
                     self.die(dir, impulse, gore);
                     result = 2;
                 }

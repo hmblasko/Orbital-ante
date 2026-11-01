@@ -56,6 +56,8 @@ pub struct Senses {
     pub player_pos: Vector3,
     /// The player is crouched (harder to notice).
     pub player_crouched: bool,
+    /// Perks that make the player slower to notice (1.0 or 0.0 = none).
+    pub notice_mult: f32,
     /// A gunshot or loud noise was heard at this point.
     pub heard: Option<Vector3>,
     /// Took damage this tick (always alerts; the shooter's position is known).
@@ -110,7 +112,8 @@ impl Brain {
     pub fn tick(&mut self, d: &AiData, s: &Senses, dt: f32) -> Intent {
         self.in_state_s += dt;
         if s.sees_player {
-            let scale = if s.player_crouched { d.crouch_notice_scale } else { 1.0 };
+            let perk = if s.notice_mult > 0.0 { s.notice_mult } else { 1.0 };
+            let scale = if s.player_crouched { d.crouch_notice_scale } else { 1.0 } * perk;
             self.awareness = (self.awareness + dt / (d.notice_s * scale).max(0.01)).min(1.0);
             self.last_known = Some(s.player_pos);
             self.unseen_s = 0.0;

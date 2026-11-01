@@ -20,6 +20,10 @@
     friction: 1.0,
     bounce: 0.05,
 
+    // Section 6: ships and engines draw attention. A full burn is heard
+    // this far away (Ghost makes it louder).
+    engine_noise_m: 120.0,
+    engine_noise_every_s: 0.5,
     flight: (
         // Thrust accelerations in m/s^2 (Earth's surface gravity is 9.8).
         forward: 12.0,

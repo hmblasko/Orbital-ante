@@ -3,6 +3,8 @@
 #
 #   tools/verify.sh                 everything that can run on this machine
 #   tools/verify.sh --no-render     skip screenshots (no display / GPU)
+#   tools/verify.sh --sim           also run the balance simulator (nightly
+#                                   and phase ends; section 19.1)
 #
 # Environment:
 #   GODOT=/path/to/godot            Godot 4.7.2 editor binary (default: "godot" on PATH)
@@ -19,7 +21,13 @@ GODOT=${GODOT:-godot}
 SEED=${SEED:-7K3M-Q9TD}
 OUT=$(realpath -m "${OUT:-verify_out/latest}")
 RENDER=1
-[ "${1:-}" = "--no-render" ] && RENDER=0
+SIM=0
+for a in "$@"; do
+  case "$a" in
+    --no-render) RENDER=0 ;;
+    --sim) SIM=1 ;;
+  esac
+done
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "== Building tools and game library"
@@ -122,7 +130,21 @@ else
   fi
 fi
 
-for g in "Autoplay bots (50 seeds x 5 profiles)" "Balance simulator" "Fun proxies"; do
+if [ $SIM -eq 1 ]; then
+  echo "== Balance simulator (simulated, not player data)"
+  rm -rf "$OUT/sim"
+  (cd rust && OA_SIM_OUT="$OUT/sim" cargo test --quiet --release -p orbital_ante balance_report -- --ignored >"$OUT/sim.log" 2>&1)
+  if [ -f "$OUT/sim/balance_status.txt" ]; then
+    read -r sim_ok sim_fail <"$OUT/sim/balance_status.txt"
+    if [ "$sim_fail" = "0" ]; then gate "Balance simulator" pass "all $sim_ok checks met (simulated); see sim/balance.md" "" sim
+    else gate "Balance simulator" fail "$sim_fail of $((sim_ok + sim_fail)) checks missed (simulated): $(grep '| FAIL |' "$OUT/sim/balance.md" | cut -d'|' -f2 | paste -sd ';')" S3 sim; fi
+  else
+    gate "Balance simulator" fail "simulator did not finish; see sim.log" S2
+  fi
+else
+  gate "Balance simulator" not_run "nightly and phase ends only (--sim)"
+fi
+for g in "Autoplay bots (50 seeds x 5 profiles)" "Fun proxies"; do
   gate "$g" not_run "the systems these need arrive in later phases"
 done
 gate "Steam Deck session and rubric" not_run "needs Matthew's Deck"

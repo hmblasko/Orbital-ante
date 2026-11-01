@@ -65,6 +65,10 @@ pub struct ShipData {
     pub angular_damp: f32,
     pub friction: f32,
     pub bounce: f32,
+    /// A burning engine makes a noise enemies hear this far away at full
+    /// thrust (before perks), every `engine_noise_every_s`.
+    pub engine_noise_m: f32,
+    pub engine_noise_every_s: f32,
     pub flight: FlightData,
     pub cabin: CabinData,
     pub hatch: HatchData,
@@ -237,6 +241,8 @@ pub struct Ship {
     spawn_ahead_m: f32,
     data: Option<ShipData>,
     fuel_s: f32,
+    /// Countdown to the next engine noise enemies can hear.
+    engine_noise_s: f32,
     /// Hatch openness: 0 closed, 1 open, and where it is heading.
     hatch: f32,
     hatch_wanted: bool,
@@ -294,6 +300,7 @@ impl IRigidBody3D for Ship {
             spawn_ahead_m: 0.0,
             data: None,
             fuel_s: 0.0,
+            engine_noise_s: 0.0,
             hatch: 0.0,
             hatch_wanted: false,
             hatch_held: false,
@@ -795,6 +802,14 @@ impl Ship {
         f.yaw_rate_deg *= thrusters;
         f.roll_rate_deg *= thrusters;
         f.turn_accel_deg *= thrusters;
+        // Perks (Overclocked, Speed tag): faster acceleration.
+        let accel = crate::points::singleton::stat("ship_accel");
+        f.up *= accel;
+        f.forward *= accel;
+        f.back *= accel;
+        f.strafe *= accel;
+        f.down *= accel;
+        let fuel_use = crate::points::singleton::stat("ship_fuel_use");
         let d = &ds;
         let position = self.base().get_global_position();
         let basis = self.base().get_global_basis();
@@ -863,7 +878,17 @@ impl Ship {
                 v += fix;
                 assist += fix;
             }
-            self.fuel_s = (self.fuel_s - effort * dt).max(0.0);
+            self.fuel_s = (self.fuel_s - effort * fuel_use * dt).max(0.0);
+            // A burning engine is loud (section 6: ships and engines draw
+            // attention); Ghost makes yours louder still.
+            if effort > 0.05 {
+                self.engine_noise_s -= dt;
+                if self.engine_noise_s <= 0.0 {
+                    self.engine_noise_s = d.engine_noise_every_s;
+                    let radius = d.engine_noise_m * effort * crate::points::singleton::stat("engine_noise");
+                    crate::ai::enemy::hear_noise(&self.base().get_tree(), position, radius, None);
+                }
+            }
             // Sitting still on the ground with the stick idle, let the legs
             // settle on their own; flight assist holding the attitude there
             // makes the ship skate downhill on one pad.

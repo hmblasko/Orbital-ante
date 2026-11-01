@@ -1,0 +1,53 @@
+// Points and ante maths (CLAUDE.md section 18). Starting values; tune from
+// the balance simulator (simulated) and then from playtests (real).
+(
+    // 18.3 Ante Score = base points x multiplier.
+    multiplier: (
+        // Variety part: 1 + step x (distinct categories this ante - 1).
+        variety_step: 0.2,
+        variety_max: 2.2,
+        // Actions within this many seconds of each other build a chain.
+        chain_window_s: 20.0,
+        chain_per_link: 0.05,
+        chain_max: 0.5,
+        // Each synergy tag held at 4 adds this (on top of its own bonus).
+        tag_bonus: 0.2,
+        perks_max: 0.8,
+        cap: 3.5,
+    ),
+    // 18.4 The k-th repeat of a source in one ante pays base x factor^k.
+    diminishing: (factor: 0.85, floor: 0.4),
+    // 18.5 Unspent Wallet earns this at ante end, capped at cap_t x T.
+    interest: (rate: 0.10, cap_t: 0.1),
+    // 18.6 Cash out once the target is met: each second left pays this x T.
+    cash_out: (per_second_t: 0.002, cap_t: 0.6, hold_s: 1.0),
+    // 17.5 Wallet prices, as fractions of the current ante target T.
+    prices: (
+        attribute_t: [0.30, 0.45, 0.60, 0.80, 1.00],
+        reroll_t: 0.10,
+        reroll_step_t: 0.05,
+        emergency_lander_wallet: 0.25,
+        casino_min_bet_t: 0.02,
+    ),
+    // 18.7 Pace meter: score + (last window's rate x time left) vs target.
+    pace: (window_s: 120.0, ahead_above: 1.15, behind_below: 0.9, min_elapsed_s: 30.0),
+    // Point sources: which category each counts toward, whether it grows
+    // 15% per ante (section 17.5: enemy and contract values), and whether
+    // repeats are exempt from diminishing returns (one-off by nature).
+    // Bounty, salvage and satellite are listed for the balance simulator;
+    // the game awards them from Phase 8.
+    sources: {
+        "kill_t1":       (category: Combat, grows: true, one_off: false),
+        "kill_t2":       (category: Combat, grows: true, one_off: false),
+        "kill_t3":       (category: Combat, grows: true, one_off: false),
+        "limb_shot":     (category: Combat, grows: true, one_off: false),
+        "disarm":        (category: Combat, grows: true, one_off: false),
+        "base_clear":    (category: Combat, grows: true, one_off: true),
+        "discovery":     (category: Discovery, grows: false, one_off: true),
+        "first_landing": (category: Discovery, grows: false, one_off: true),
+        "contract":      (category: Contract, grows: true, one_off: true),
+        "bounty":        (category: Bounty, grows: false, one_off: true),
+        "salvage":       (category: Salvage, grows: false, one_off: false),
+        "satellite":     (category: Repair, grows: false, one_off: true),
+    },
+)

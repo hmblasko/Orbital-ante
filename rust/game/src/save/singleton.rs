@@ -16,6 +16,8 @@ const DATA_EMBEDDED: &str = include_str!("../../../../godot/data/save/save.ron")
 pub struct SaveData {
     current: SaveFile,
     store: Option<SaveStore>,
+    /// Off in tests and test runs, so they never touch the player's saves.
+    autosave_enabled: bool,
     base: Base<Object>,
 }
 
@@ -25,6 +27,7 @@ impl IObject for SaveData {
         Self {
             current: SaveFile { version: CURRENT_VERSION, ..Default::default() },
             store: None,
+            autosave_enabled: true,
             base,
         }
     }
@@ -88,8 +91,79 @@ impl SaveData {
     }
 
     #[func]
+    pub fn set_autosave_enabled(&mut self, on: bool) {
+        self.autosave_enabled = on;
+    }
+
+    /// Ante end (section 14 autosave point): store the run's progress and
+    /// build, then autosave.
+    #[func]
+    pub fn record_ante_end(&mut self) {
+        self.copy_run_progress();
+        if self.autosave_enabled {
+            self.autosave();
+        }
+    }
+
+    /// The run is over (won, died or out of time): put it on the local
+    /// leaderboard, clear the run, autosave. Returns its rank (0 = best) or
+    /// -1 if it didn't place.
+    #[func]
+    pub fn record_run_over(&mut self) -> i64 {
+        let points = crate::points::singleton::Points::singleton();
+        let p = points.bind();
+        let rank = if let Some(run) = p.run() {
+            let entry = super::format::LeaderEntry {
+                seed_code: crate::seed::encode_seed(run.seed),
+                ante: run.ante,
+                points: run.stats.total_points,
+                outcome: p.get_outcome().to_string(),
+            };
+            let size = p.tables().run.leaderboard_size;
+            super::format::add_to_leaderboard(&mut self.current.meta.leaderboard, entry, size).map_or(-1, |r| r as i64)
+        } else {
+            -1
+        };
+        drop(p);
+        self.current.run = None;
+        if self.autosave_enabled {
+            self.autosave();
+        }
+        rank
+    }
+
+    /// The local leaderboard, best first: dictionaries with seed, ante,
+    /// points and outcome.
+    #[func]
+    pub fn get_leaderboard(&self) -> VarArray {
+        let mut out = VarArray::new();
+        for e in &self.current.meta.leaderboard {
+            let mut d = VarDictionary::new();
+            d.set("seed", &GString::from(&e.seed_code).to_variant());
+            d.set("ante", &(e.ante as i64).to_variant());
+            d.set("points", &(e.points as i64).to_variant());
+            d.set("outcome", &GString::from(&e.outcome).to_variant());
+            out.push(&d.to_variant());
+        }
+        out
+    }
+
+    #[func]
     pub fn get_save_folder(&mut self) -> GString {
         GString::from(&self.store().dir().display().to_string())
+    }
+
+    fn copy_run_progress(&mut self) {
+        let points = crate::points::singleton::Points::singleton();
+        let p = points.bind();
+        let Some(run) = p.run() else { return };
+        let save = self.current.run.get_or_insert_with(Default::default);
+        save.seed_code = crate::seed::encode_seed(run.seed);
+        save.ante = run.ante;
+        save.ante_score = run.score.score as i64;
+        save.wallet = run.wallet as i64;
+        save.perks = run.loadout.perks.clone();
+        save.attributes = run.loadout.attributes.iter().map(|(k, v)| (k.clone(), *v)).collect();
     }
 
     pub fn current(&self) -> &SaveFile {

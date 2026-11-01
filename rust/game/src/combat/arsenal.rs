@@ -556,7 +556,13 @@ impl Arsenal {
                 return None;
             }
             let shooter = self.eye().0;
+            let (damage, heal_on_kill) = self.build_damage(damage);
             let result = enemy.bind_mut().take_hit(limb as usize, damage, dir, impulse, shooter, self.gore);
+            if result == 2 && heal_on_kill > 0.0
+                && let Some(mut p) = self.player()
+            {
+                p.bind_mut().heal_fraction(heal_on_kill);
+            }
             return Some(match result {
                 2 => HitKind::Kill,
                 1 => HitKind::Gib,
@@ -569,6 +575,27 @@ impl Arsenal {
             body.apply_impulse_ex(dir * impulse * mass).position(offset).done();
         }
         None
+    }
+
+    /// Damage after the run's build (Glass Cannon, Damage attribute, Heat
+    /// at 2: more below half health), and the Heat-at-4 heal a kill gives
+    /// below a quarter health (0 when none).
+    fn build_damage(&self, damage: f32) -> (f32, f32) {
+        let mut d = damage * crate::points::singleton::stat("damage_dealt");
+        let health = self.player().map_or(1.0, |p| p.bind().get_health_fraction());
+        let mut heal = 0.0;
+        let heat_two = crate::points::singleton::flag("heat_low_health_damage");
+        let heat_four = crate::points::singleton::flag("heat_kill_heal");
+        if heat_two || heat_four {
+            let perks = crate::points::singleton::perk_numbers();
+            if heat_two && health < perks.0 {
+                d *= perks.1;
+            }
+            if heat_four && health < perks.2 {
+                heal = perks.3;
+            }
+        }
+        (d, heal)
     }
 
     fn swing(&mut self, player: &Gd<PlayerController>) {

@@ -97,9 +97,16 @@ pub struct GibData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CampData {
     pub body: String,
+    /// First ante this camp is manned (camps are re-manned every ante).
+    #[serde(default = "first_ante")]
+    pub from_ante: u32,
     pub angle_deg: (f32, f32),
     pub spread_m: f32,
     pub enemies: Vec<String>,
+}
+
+fn first_ante() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, Deserialize)]

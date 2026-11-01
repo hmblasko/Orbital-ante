@@ -444,7 +444,7 @@ impl IStaticBody3D for CelestialBody {
             }
             // Faction camps (vertical slice; full bases are Phase 8).
             let body_id = self.base().get_name().to_string();
-            for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed) {
+            for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed, 1) {
                 self.base_mut().add_child(&e);
             }
             if self.stream_detail {
@@ -482,6 +482,24 @@ impl IStaticBody3D for CelestialBody {
 impl CelestialBody {
     /// Start building full detail in the background (no effect if it is
     /// already built or building, or the body is a star).
+    /// Re-man this body's camps for `ante`: soldiers still standing (or
+    /// tied up and left behind) are replaced by a fresh seeded squad.
+    #[func]
+    pub fn respawn_camps(&mut self, ante: i64) {
+        let Some(shape) = self.shape.clone() else { return };
+        for n in self.base().get_children().iter_shared() {
+            if n.is_in_group(crate::ai::camp::CAMP_GROUP) {
+                let mut n = n;
+                n.queue_free();
+            }
+        }
+        let body_id = self.base().get_name().to_string();
+        let run_seed = if godot::classes::Engine::singleton().has_singleton("RunSeed") { crate::seed::singleton::run_seed() } else { 0 };
+        for e in crate::ai::camp::camp_enemies(&body_id, &shape, run_seed, ante.max(1) as u32) {
+            self.base_mut().add_child(&e);
+        }
+    }
+
     #[func]
     pub fn request_detail(&mut self) {
         if !matches!(self.detail, Detail::None) {

@@ -620,8 +620,12 @@ impl SuitHud {
     }
 
     fn return_to_menu(&mut self) {
-        if let Some(mut root) = self.base().get_tree().get_first_node_in_group(GAME_ROOT_GROUP) {
+        let tree = self.base().get_tree();
+        if let Some(mut root) = tree.get_first_node_in_group(GAME_ROOT_GROUP) {
             root.call_deferred("on_player_died_continue", &[]);
+        } else if let Some(mut d) = tree.get_first_node_in_group(crate::points::director::DIRECTOR_GROUP) {
+            // Scene run on its own (editor F6): straight to the run summary.
+            d.call_deferred("show_summary_after_death", &[]);
         }
     }
 }
