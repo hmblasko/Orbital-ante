@@ -1,4 +1,5 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Save;
 using OrbitalAnte.UI;
 using UnityEngine;
 
@@ -21,15 +22,19 @@ namespace OrbitalAnte.Arena
 
             UIFactory.EnsureEventSystem();
             var canvas = UIFactory.CreateCanvas("MainMenu", 0);
-            var card = UIFactory.Card("Menu", canvas.transform, new Vector2(520, 430));
+            var card = UIFactory.Card("Menu", canvas.transform, new Vector2(520, 500));
             var title = UIFactory.Label(card, "ORBITAL ANTE", 54, UITheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
             title.rectTransform.localRotation = Quaternion.Euler(0, 0, -4f);
             UIFactory.Layout(title.gameObject, 80);
             var sub = UIFactory.Label(card, "working title  ·  combat test build", UITheme.SmallSize, UITheme.TextDim, TextAnchor.MiddleCenter);
             UIFactory.Layout(sub.gameObject, 26);
+            var run = SaveSystem.Current.run;
+            UnityEngine.UI.Button first = null;
+            if (run.active)
+                first = UIFactory.Button(card, $"Continue (seed #{run.seed})", SceneFlow.ContinueRun, 56);
             var play = UIFactory.Button(card, "Play test arena (new seed)", () => SceneFlow.StartRun(newSeed: true), 56);
             UIFactory.Button(card, "Quit to desktop", SceneFlow.QuitToDesktop, 56);
-            UIFactory.Select(play.gameObject);
+            UIFactory.Select((first != null ? first : play).gameObject);
         }
     }
 }

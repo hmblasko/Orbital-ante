@@ -60,10 +60,10 @@ namespace OrbitalAnte.Fx
             }
             else
             {
-                next %= i.decals.Count;
-                p = i.decals[next].projector;
-                i.decals[next] = (p, Time.time);
-                next++;
+                i.next %= i.decals.Count;
+                p = i.decals[i.next].projector;
+                i.decals[i.next] = (p, Time.time);
+                i.next++;
             }
 
             float depth = 0.5f;

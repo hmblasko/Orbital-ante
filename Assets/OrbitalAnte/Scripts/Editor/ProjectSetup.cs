@@ -51,6 +51,7 @@ namespace OrbitalAnte.EditorTools
             !File.Exists(ConfigDir + "/MannequinConfig.asset") ||
             !File.Exists(ConfigDir + "/GameFeelConfig.asset") ||
             !File.Exists(ConfigDir + "/CombatRulesConfig.asset") ||
+            !File.Exists(ConfigDir + "/PerformanceBudgetConfig.asset") ||
             !File.Exists(WeaponsDir + "/RifleAK.asset") ||
             !File.Exists(WeaponsDir + "/TestPistol.asset") ||
             !File.Exists(MaterialsDir + "/OA_Particle.mat") ||
@@ -115,7 +116,7 @@ namespace OrbitalAnte.EditorTools
 
         static void SetupRenderPipeline()
         {
-            var existing = AssetDatabase.FindAssets("t:UniversalRenderPipelineAsset")
+            var existing = AssetDatabase.FindAssets("t:UniversalRenderPipelineAsset", new[] { "Assets" })
                 .Select(g => AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(AssetDatabase.GUIDToAssetPath(g)))
                 .FirstOrDefault(a => a != null);
 
@@ -201,7 +202,7 @@ namespace OrbitalAnte.EditorTools
         /// <summary>Blood decals need URP's Decal renderer feature on the renderer.</summary>
         static void EnsureDecalFeature()
         {
-            var data = AssetDatabase.FindAssets("t:UniversalRendererData")
+            var data = AssetDatabase.FindAssets("t:UniversalRendererData", new[] { "Assets" })
                 .Select(g => AssetDatabase.LoadAssetAtPath<UniversalRendererData>(AssetDatabase.GUIDToAssetPath(g)))
                 .FirstOrDefault(d => d != null);
             if (data == null)
@@ -209,9 +210,17 @@ namespace OrbitalAnte.EditorTools
                 Debug.LogWarning("[OA] No URP renderer found; blood decals will not show.");
                 return;
             }
-            if (data.rendererFeatures.Any(f => f is DecalRendererFeature)) return;
+            // URP's decal feature class is not public, so it is found by name.
+            var decalType = typeof(UniversalRendererData).Assembly.GetType("UnityEngine.Rendering.Universal.DecalRendererFeature");
+            if (decalType == null)
+            {
+                Debug.LogWarning("[OA] This URP version has no DecalRendererFeature; blood decals will not show.");
+                return;
+            }
+            if (data.rendererFeatures.Any(f => f != null && f.GetType() == decalType)) return;
 
-            var feature = ScriptableObject.CreateInstance<DecalRendererFeature>();
+            var feature = ScriptableObject.CreateInstance(decalType) as ScriptableRendererFeature;
+            if (feature == null) return;
             feature.name = "Decal";
             AssetDatabase.AddObjectToAsset(feature, data);
             data.rendererFeatures.Add(feature);
@@ -234,11 +243,23 @@ namespace OrbitalAnte.EditorTools
             CreateIfMissing<PlayerConfig>(ConfigDir + "/PlayerConfig.asset");
             CreateIfMissing<GameFeelConfig>(ConfigDir + "/GameFeelConfig.asset");
             CreateIfMissing<CombatRulesConfig>(ConfigDir + "/CombatRulesConfig.asset");
+            CreateIfMissing<OrbitalAnte.Perf.PerformanceBudgetConfig>(ConfigDir + "/PerformanceBudgetConfig.asset");
             // Weapons start from the code defaults; after this they are tuned in the Inspector.
             if (!File.Exists(WeaponsDir + "/RifleAK.asset"))
                 AssetDatabase.CreateAsset(WeaponDefinition.DefaultRifle(), WeaponsDir + "/RifleAK.asset");
             if (!File.Exists(WeaponsDir + "/TestPistol.asset"))
                 AssetDatabase.CreateAsset(WeaponDefinition.DefaultPistol(), WeaponsDir + "/TestPistol.asset");
+            // Weapon assets made before content ids existed get their id filled in.
+            EnsureWeaponId(WeaponsDir + "/RifleAK.asset", OrbitalAnte.Content.ContentIds.RifleAK);
+            EnsureWeaponId(WeaponsDir + "/TestPistol.asset", OrbitalAnte.Content.ContentIds.TestPistol);
+        }
+
+        static void EnsureWeaponId(string path, string id)
+        {
+            var def = AssetDatabase.LoadAssetAtPath<WeaponDefinition>(path);
+            if (def == null || !string.IsNullOrEmpty(def.id)) return;
+            def.id = id;
+            EditorUtility.SetDirty(def);
         }
 
         static void CreateIfMissing<T>(string path) where T : ScriptableObject

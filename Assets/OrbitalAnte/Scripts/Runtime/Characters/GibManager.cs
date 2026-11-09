@@ -144,7 +144,11 @@ namespace OrbitalAnte.Characters
             if (p == null) return;
             live.Remove(p);
             p.ReleaseChildJoints();
-            var stack = pool.TryGetValue(p.Id, out var s) ? s : pool[p.Id] = new Stack<BodyPart>();
+            if (!pool.TryGetValue(p.Id, out var stack))
+            {
+                stack = new Stack<BodyPart>();
+                pool[p.Id] = stack;
+            }
             int max = Mathf.Max(0, GameFeelConfig.Get().poolPerPart);
             if (instance == null || stack.Count >= max)
             {

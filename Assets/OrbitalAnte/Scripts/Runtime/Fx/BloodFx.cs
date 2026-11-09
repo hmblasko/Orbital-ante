@@ -37,6 +37,8 @@ namespace OrbitalAnte.Fx
         {
             cfg = GameFeelConfig.Get();
             burst = CreateSystem("Burst", false);
+            // Kept playing (with emission off) so particles from Emit() are always simulated.
+            burst.Play();
         }
 
         void OnDestroy()
@@ -110,7 +112,7 @@ namespace OrbitalAnte.Fx
 
             var main = ps.main;
             main.playOnAwake = false;
-            main.loop = continuous;
+            main.loop = true;
             main.duration = 1f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.9f);

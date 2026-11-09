@@ -23,11 +23,12 @@ namespace OrbitalAnte.Core
         public const int TargetWidth = 1280;
         public const int TargetHeight = 800;
 
-        /// <summary>Frame pacing defaults. Deck runs vsync at 60; everything else matches.</summary>
+        /// <summary>Frame pacing from the performance budget asset (vsync on by default).</summary>
         public static void ApplyFramePacing()
         {
-            QualitySettings.vSyncCount = 1;
-            Application.targetFrameRate = -1;
+            var budget = Perf.PerformanceBudgetConfig.Get();
+            QualitySettings.vSyncCount = budget.vSyncCount;
+            Application.targetFrameRate = budget.vSyncCount == 0 ? budget.targetFrameRate : -1;
         }
     }
 }

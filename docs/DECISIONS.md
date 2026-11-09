@@ -17,3 +17,7 @@ Anything marked **provisional** can be changed by Matthew at any time.
 | 10 | Player damage and death in the arena | Not yet. Dummies shoot back, you see a direction flash only. Player health comes with combat polish (Phase 1 step 10). | Provisional |
 | 11 | Disarm triggers | Shooting the gun hand (or anything above it on that arm) drops the gun; shooting the gun knocks it away. Dummies re-arm from loose guns within 10 m. | Provisional |
 | 12 | Dummy weapon mix | 60 % rifle, 40 % pistol in the test arena, from the run seed. | Provisional |
+| 13 | What the save holds in Phase 1 | Profile (slow-mo choice, runs started) and the current run's seed. One JSON file with a backup. Bindings stay in PlayerPrefs. | Provisional |
+| 14 | Content ids | Every content asset has an id like `weapon.rifle_ak`; saves and code use ids, never file names. Ids never change once saves exist. | Provisional |
+| 15 | Steam Deck frame budget | Target 16.7 ms (60 fps), floor 25 ms (40 fps), 1500 draw calls. Starting targets until measured on a Deck. | Provisional |
+| 16 | Quit to menu | Keeps the run so "Continue" restarts the same seed. Real mid-run saving comes with the systems that need it. | Provisional |

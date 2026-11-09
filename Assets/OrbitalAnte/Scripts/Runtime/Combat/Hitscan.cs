@@ -25,7 +25,7 @@ namespace OrbitalAnte.Combat
                 if (c == null) continue;
                 if (ignoreRoot != null && c.transform.IsChildOf(ignoreRoot)) continue;
                 if (c is CharacterController) continue;
-                if (c.isTrigger && c.GetComponent<IShootable>() == null) continue;
+                if (c.isTrigger && c.GetComponentInParent<IShootable>() == null) continue;
                 if (h.distance < bestDistance)
                 {
                     bestDistance = h.distance;

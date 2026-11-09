@@ -1,5 +1,5 @@
-using OrbitalAnte.Core;
 using System.Collections.Generic;
+using OrbitalAnte.Core;
 using OrbitalAnte.Characters;
 using OrbitalAnte.Fx;
 using OrbitalAnte.Player;
@@ -184,7 +184,7 @@ namespace OrbitalAnte.Combat
             {
                 outcome.HitSomething = true;
                 outcome.End = h.point;
-                var target = h.collider.GetComponent<IShootable>();
+                var target = h.collider.GetComponentInParent<IShootable>();
                 if (target != null)
                 {
                     float damage = target is BodyPart bp ? Def.DamageFor(bp.Id) : Def.baseDamage;

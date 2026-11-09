@@ -1,3 +1,4 @@
+using OrbitalAnte.Content;
 using OrbitalAnte.Core;
 using UnityEngine;
 
@@ -10,14 +11,15 @@ namespace OrbitalAnte.Combat
     /// </summary>
     public static class WeaponFactory
     {
-        public static WeaponDefinition LoadDefinition(string assetName, System.Func<WeaponDefinition> fallback)
-        {
-            var d = Resources.Load<WeaponDefinition>("Weapons/" + assetName);
-            return d != null ? d : fallback();
-        }
+        public static WeaponDefinition Rifle => ContentDatabase.Weapon(ContentIds.RifleAK);
+        public static WeaponDefinition Pistol => ContentDatabase.Weapon(ContentIds.TestPistol);
 
-        public static WeaponDefinition Rifle => LoadDefinition("RifleAK", WeaponDefinition.DefaultRifle);
-        public static WeaponDefinition Pistol => LoadDefinition("TestPistol", WeaponDefinition.DefaultPistol);
+        /// <summary>Builds the weapon with this content id, or returns null if there is none.</summary>
+        public static Weapon Create(string weaponId, Vector3 position, Quaternion rotation)
+        {
+            var def = ContentDatabase.Weapon(weaponId);
+            return def != null ? Create(def, position, rotation) : null;
+        }
 
         public static Weapon Create(WeaponDefinition def, Vector3 position, Quaternion rotation)
         {

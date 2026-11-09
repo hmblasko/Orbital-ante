@@ -50,7 +50,7 @@ namespace OrbitalAnte.Combat
             const int rate = 44100;
             int n = Mathf.CeilToInt(seconds * rate);
             var data = new float[n];
-            var rng = new System.Random(name.GetHashCode());
+            var rng = new System.Random((int)Core.RunSeed.StableHash(name)); // same noise every launch
             double phase = 0, ringPhase = 0;
             for (int i = 0; i < n; i++)
             {
@@ -80,7 +80,7 @@ namespace OrbitalAnte.Combat
             const int rate = 44100;
             int n = Mathf.CeilToInt(seconds * rate);
             var data = new float[n];
-            var rng = new System.Random(name.GetHashCode());
+            var rng = new System.Random((int)Core.RunSeed.StableHash(name)); // same noise every launch
             double phase = 0;
             for (int i = 0; i < n; i++)
             {

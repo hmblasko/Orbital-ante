@@ -17,7 +17,7 @@ About 30-45 minutes the first time (mostly downloads).
 1. In GitHub Desktop: **File → Clone repository → GitHub.com** tab.
 2. Pick **hmblasko/Orbital-ante**. Under *Local path* choose a folder you can find again (for example `Documents\Unity\Orbital-ante`). Click **Clone**.
 3. At the top, click **Current branch** and choose the branch named in the pull request
-   (for Milestones 0-1: `unity/m0-m1-arena-mannequin`). Once that pull request is merged you can stay on `main`.
+   (for Milestones 0-4: `unity/m0-m1-arena-mannequin`). Once that pull request is merged you can stay on `main`.
 
 ## C. Open it in Unity
 1. In Unity Hub click **Projects** → the arrow next to **Add** → **Add project from disk**.

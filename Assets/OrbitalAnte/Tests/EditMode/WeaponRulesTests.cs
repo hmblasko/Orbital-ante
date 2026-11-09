@@ -86,7 +86,7 @@ namespace OrbitalAnte.Tests
                 Assert.LessOrEqual(Vector3.Angle(forward, d), cone + 0.01f);
                 Assert.AreEqual(1f, d.magnitude, 1e-4f);
             }
-            Assert.AreEqual(0f, Vector3.Angle(forward, WeaponRules.ApplySpread(forward, 0f, 0.7f, 0.2f)), 1e-3f);
+            Assert.Less((forward - WeaponRules.ApplySpread(forward, 0f, 0.7f, 0.2f)).magnitude, 1e-5f, "no cone, no spread");
         }
 
         [Test]

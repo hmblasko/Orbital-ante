@@ -75,7 +75,7 @@ namespace OrbitalAnte.Combat
 
         void Update()
         {
-            if (PauseMenu.IsPaused) return;
+            if (PauseMenu.IsPaused || PauseMenu.JustResumed) return;
             UpdateLookedAt();
             if (GameInput.Interact.WasPressedThisFrame() && lookedAt != null) Equip(lookedAt);
             if (Current == null) return;

@@ -96,10 +96,10 @@ namespace OrbitalAnte.Player
         void Update()
         {
             if (PauseMenu.IsPaused) return;
+            UpdateLook(Time.unscaledDeltaTime); // aim never freezes during hitstop
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            UpdateLook(Time.unscaledDeltaTime); // aim never freezes during hitstop
             UpdateCrouch(dt);
             UpdateMove(dt);
         }
@@ -160,7 +160,7 @@ namespace OrbitalAnte.Player
             if (cc.isGrounded)
             {
                 if (velocity.y < 0f) velocity.y = -2f;
-                if (GameInput.Jump.WasPressedThisFrame() && !crouching)
+                if (GameInput.Jump.WasPressedThisFrame() && !crouching && !PauseMenu.JustResumed)
                     velocity.y = Mathf.Sqrt(2f * Config.jumpHeight * -Config.gravity);
             }
             velocity.y += Config.gravity * dt;

@@ -17,6 +17,13 @@ namespace OrbitalAnte.UI
     {
         public static bool IsPaused { get; private set; }
 
+        static int resumedFrame = -1;
+        /// <summary>
+        /// True on the frame the menu closes, so the button press that chose "Resume" is not
+        /// also read as a jump or a shot.
+        /// </summary>
+        public static bool JustResumed => Time.frameCount == resumedFrame;
+
         Canvas canvas;
         GameObject backdrop;
         readonly Stack<GameObject> pages = new Stack<GameObject>();
@@ -93,6 +100,7 @@ namespace OrbitalAnte.UI
             while (pages.Count > 0) Destroy(pages.Pop());
             backdrop.SetActive(false);
             IsPaused = false;
+            resumedFrame = Time.frameCount;
             Time.timeScale = 1f; // GameFeel re-applies any hitstop or slow-mo next frame
             AudioListener.pause = false;
             FirstPersonController.SetCursorLocked(true);
@@ -166,9 +174,9 @@ namespace OrbitalAnte.UI
             var card = NewPage("QuitPage", new Vector2(480, 330));
             UIFactory.Header(card, "QUIT");
             UIFactory.Button(card, "Quit to main menu", () => Push(BuildConfirm("Quit to the main menu?",
-                "This run will end.", "Yes, main menu", SceneFlow.ToMainMenu)));
+                "You can continue this seed from the main menu.", "Yes, main menu", SceneFlow.ToMainMenu)));
             UIFactory.Button(card, "Quit to desktop", () => Push(BuildConfirm("Quit to desktop?",
-                "This run will end and the game will close.", "Yes, quit game", SceneFlow.QuitToDesktop)));
+                "The game will close. You can continue this seed next time.", "Yes, quit game", SceneFlow.QuitToDesktop)));
             UIFactory.Button(card, "Back", GoBack);
             return card.parent.gameObject;
         }
@@ -370,25 +378,24 @@ namespace OrbitalAnte.UI
                     string keyName = InputGlyphs.BindingLabel(action, index, group);
                     string otherName = GameInput.DisplayName(other) + (other.bindings[otherIndex].isPartOfComposite
                         ? " " + other.bindings[otherIndex].name.ToLowerInvariant() : "");
+                    // Put the old binding back straight away, so backing out of the prompt any
+                    // way at all (Cancel, Esc, B) leaves the controls as they were.
+                    if (string.IsNullOrEmpty(previousOverride)) action.RemoveBindingOverride(index);
+                    else action.ApplyBindingOverride(index, previousOverride);
                     EndRebind(button, refresh: false);
+                    RefreshRows();
                     Push(BuildConfirm("Already in use",
                         $"{keyName} is already used by {otherName}. Swap the two?",
                         "Swap them",
                         () =>
                         {
+                            action.ApplyBindingOverride(index, newPath);
                             other.ApplyBindingOverride(otherIndex, previousEffective);
                             GameInput.SaveOverrides();
                             GoBack();
                             RefreshRows();
                         },
-                        "Cancel",
-                        () =>
-                        {
-                            if (string.IsNullOrEmpty(previousOverride)) action.RemoveBindingOverride(index);
-                            else action.ApplyBindingOverride(index, previousOverride);
-                            GameInput.SaveOverrides();
-                            RefreshRows();
-                        }));
+                        "Cancel"));
                     return;
                 }
                 GameInput.SaveOverrides();

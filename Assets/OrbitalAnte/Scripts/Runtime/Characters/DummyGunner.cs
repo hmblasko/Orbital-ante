@@ -126,6 +126,9 @@ namespace OrbitalAnte.Characters
 
             int hands = m.UsableHands;
             if (!WeaponRules.CanFire(hands) || to.magnitude > rules.dummyRange) return;
+            // Only shoot once roughly facing the target, so shots never leave sideways from the gun.
+            Vector3 flatTo = new Vector3(to.x, 0f, to.z);
+            if (Vector3.Angle(transform.forward, flatTo) > rules.dummyFireConeDegrees) return;
 
             if (Weapon.Empty)
             {

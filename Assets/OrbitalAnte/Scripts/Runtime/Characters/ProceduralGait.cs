@@ -20,6 +20,8 @@ namespace OrbitalAnte.Characters
         float desire;
         float headRoll;
         float smoothedDesire;
+        /// <summary>0 = arms follow the gait, 1 = aiming upright, 2 = aiming while crawling.</summary>
+        int aimState;
 
         /// <summary>Arm holding a gun points it forward (set by DummyGunner).</summary>
         public bool AimMain;
@@ -55,6 +57,7 @@ namespace OrbitalAnte.Characters
             if (phase > 1000f) phase -= Mathf.PI * 200f;
             float k = 1f - Mathf.Exp(-poseBlend * dt);
             float a = smoothedDesire;
+            aimState = AimMain ? (state == LocomotionState.Crawl ? 2 : state == LocomotionState.Normal || state == LocomotionState.Limp ? 1 : 0) : 0;
 
             switch (state)
             {
@@ -198,6 +201,9 @@ namespace OrbitalAnte.Characters
         /// </summary>
         void Arm(int side, float down, float forward, float elbow, float k)
         {
+            // An arm that is aiming a gun is posed by ApplyAim instead; blending both would leave
+            // it halfway between the two poses.
+            if (aimState != 0 && (side == AimSide || (aimState == 1 && AimSupport))) return;
             float sign = side == 0 ? 1f : -1f;
             Set(rig.UpperArm[side], Quaternion.Euler(-forward, 0, 0) * Quaternion.Euler(0, 0, sign * down), k);
             Set(rig.Forearm[side], Quaternion.Euler(0, sign * elbow, 0), k);

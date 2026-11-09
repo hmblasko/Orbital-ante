@@ -80,7 +80,7 @@ namespace OrbitalAnte.Combat
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = ps.main;
             main.playOnAwake = false;
-            main.loop = false;
+            main.loop = true;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.35f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 6f);
@@ -97,6 +97,8 @@ namespace OrbitalAnte.Combat
             var r = go.GetComponent<ParticleSystemRenderer>();
             r.sharedMaterial = MaterialLibrary.Particle(OrbitalAnte.Fx.FxTextures.Dot);
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // Kept playing (with emission off) so particles from Emit() are always simulated.
+            ps.Play();
             return ps;
         }
     }

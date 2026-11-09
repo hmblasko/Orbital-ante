@@ -22,6 +22,19 @@ namespace OrbitalAnte.Core
             SceneManager.LoadScene(TestArenaScene);
         }
 
+        /// <summary>Picks the saved run back up (same seed). Falls back to a new run if there is none.</summary>
+        public static void ContinueRun()
+        {
+            var run = Save.SaveSystem.Current.run;
+            if (!run.active)
+            {
+                StartRun(newSeed: true);
+                return;
+            }
+            RunSeed.Set(run.seed);
+            StartRun(newSeed: false);
+        }
+
         public static void ToMainMenu()
         {
             ResetTime();

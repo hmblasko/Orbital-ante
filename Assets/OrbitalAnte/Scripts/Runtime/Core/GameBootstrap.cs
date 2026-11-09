@@ -21,8 +21,13 @@ namespace OrbitalAnte.Core
         void Awake()
         {
             DeckPlatform.ApplyFramePacing();
+            Perf.PerfMonitor.EnsureCreated();
             GameInput.EnsureCreated();
             RunSeed.EnsureInitialized();
+
+            // Preferences the player has chosen carry over between sessions.
+            var profile = Save.SaveSystem.Current.profile;
+            if (profile.headshotSlowMoChosen) Feel.GameFeel.HeadshotSlowMo = profile.headshotSlowMo;
 
             switch (Mode)
             {

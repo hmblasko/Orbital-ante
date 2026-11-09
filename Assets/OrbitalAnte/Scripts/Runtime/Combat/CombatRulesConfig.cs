@@ -32,6 +32,8 @@ namespace OrbitalAnte.Combat
         [Tooltip("How far an unarmed dummy will go to pick up a dropped gun (m).")]
         public float dummyPickupRadius = 10f;
         public float dummyAttackStopDistance = 9f;
+        [Tooltip("A dummy only fires when the target is within this many degrees of where it faces.")]
+        public float dummyFireConeDegrees = 30f;
 
         static CombatRulesConfig cached;
 

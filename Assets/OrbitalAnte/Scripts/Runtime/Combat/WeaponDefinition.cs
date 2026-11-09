@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using OrbitalAnte.Characters;
+using OrbitalAnte.Content;
 using UnityEngine;
 
 namespace OrbitalAnte.Combat
@@ -10,7 +12,7 @@ namespace OrbitalAnte.Combat
     /// Damage numbers are per hit; the per-region multipliers turn them into per-part damage.
     /// </summary>
     [CreateAssetMenu(menuName = "Orbital Ante/Weapon Definition", fileName = "Weapon")]
-    public class WeaponDefinition : ScriptableObject
+    public class WeaponDefinition : ContentDefinition
     {
         [Header("Identity")]
         public string displayName = "Weapon";
@@ -63,7 +65,8 @@ namespace OrbitalAnte.Combat
         public float aimFieldOfView = 62f;
         public float aimLookScale = 0.75f;
         public Vector3 hipViewOffset = new Vector3(0.2f, -0.2f, 0.42f);
-        public Vector3 aimViewOffset = new Vector3(0f, -0.105f, 0.3f);
+        [Tooltip("Gun position while aiming. Y should put the front sight tip just under the screen centre.")]
+        public Vector3 aimViewOffset = new Vector3(0f, -0.138f, 0.3f);
 
         [Header("Feel")]
         public bool heavySound = true;
@@ -86,12 +89,26 @@ namespace OrbitalAnte.Combat
             return baseDamage * m;
         }
 
+        public override void Validate(List<string> problems)
+        {
+            if (string.IsNullOrWhiteSpace(displayName)) problems.Add("displayName is empty.");
+            if (roundsPerMinute <= 0f) problems.Add("roundsPerMinute must be above 0.");
+            if (magazineSize <= 0) problems.Add("magazineSize must be above 0.");
+            if (reloadSeconds <= 0f) problems.Add("reloadSeconds must be above 0.");
+            if (baseDamage <= 0f) problems.Add("baseDamage must be above 0.");
+            if (range <= 0f) problems.Add("range must be above 0.");
+            if (aimSpread > hipSpread) problems.Add("aimSpread is wider than hipSpread, so aiming would be worse than hip fire.");
+            if (oneHandSpreadMultiplier < 1f || oneHandRecoilMultiplier < 1f || oneHandReloadMultiplier < 1f)
+                problems.Add("one-hand multipliers below 1 would make one hand better than two.");
+        }
+
         public float SecondsPerShot => 60f / Mathf.Max(1f, roundsPerMinute);
 
         public static WeaponDefinition DefaultRifle()
         {
             var d = CreateInstance<WeaponDefinition>();
             d.name = "RifleAK";
+            d.id = ContentIds.RifleAK;
             d.displayName = "AK Spoof (working name)";
             d.placeholderShape = WeaponShape.Rifle;
             return d;
@@ -101,6 +118,7 @@ namespace OrbitalAnte.Combat
         {
             var d = CreateInstance<WeaponDefinition>();
             d.name = "TestPistol";
+            d.id = ContentIds.TestPistol;
             d.displayName = "Test Pistol";
             d.testOnly = true;
             d.placeholderShape = WeaponShape.Pistol;
@@ -123,7 +141,7 @@ namespace OrbitalAnte.Combat
             d.oneHandReloadMultiplier = 1.5f;
             d.aimFieldOfView = 68f;
             d.hipViewOffset = new Vector3(0.18f, -0.17f, 0.36f);
-            d.aimViewOffset = new Vector3(0f, -0.085f, 0.3f);
+            d.aimViewOffset = new Vector3(0f, -0.1f, 0.3f);
             d.heavySound = false;
             d.flashSize = 0.11f;
             return d;

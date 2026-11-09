@@ -18,6 +18,12 @@ only; do not port its rules or content without asking.
   **Orbital Ante > Run Project Setup** creates the URP asset, config assets, materials and scenes.
 - All randomness goes through `RunSeed.CreateStream("name")` (SplitMix64), never `UnityEngine.Random`,
   except for purely cosmetic effects such as gib spin.
+- Content assets derive from `ContentDefinition` and have a stable `id` (`weapon.rifle_ak`). Look content up with
+  `ContentDatabase`, never by file name. Saves store ids and plain data only (`Scripts/Runtime/Save`); renaming or
+  removing a saved field needs a `SaveCodec.CurrentVersion` bump and an upgrade step.
+- Performance targets live in `PerformanceBudgetConfig`; `PerfMonitor` measures against them.
+- URP's `DecalRendererFeature` (and several other URP feature classes) are internal: reach them by reflection.
+- Files with `using System;` must write `UnityEngine.Random` / `UnityEngine.Object` in full (ambiguous otherwise).
 - Every script, folder and asmdef under `Assets/` needs a committed `.meta` file with a stable GUID.
   When adding files from outside Unity, write the `.meta` too (see existing ones for the format).
 

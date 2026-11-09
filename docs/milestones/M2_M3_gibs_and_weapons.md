@@ -74,7 +74,8 @@
   send me the Console list.
 - Gun feel numbers (spread, recoil, damage, fire rate) are first guesses.
 - Dummy gun aim: the gun is parented to the hand and the arm pose is procedural, so the gun might point
-  slightly off where the shots go (shots are aimed from the muzzle at you, not along the barrel).
+  slightly off where the shots go (shots are aimed from the muzzle at you, not along the barrel). A dummy only
+  fires when you are within 30 degrees of where it faces.
 - URP decals need the Decal renderer feature; setup adds it via reflection. If no splats appear, send me the log.
 - If you ran setup before this change, your `MannequinConfig` keeps bounciness 0.35; set it to 0.5 in the Inspector.
   An old `DebugGunConfig.asset` can be deleted.

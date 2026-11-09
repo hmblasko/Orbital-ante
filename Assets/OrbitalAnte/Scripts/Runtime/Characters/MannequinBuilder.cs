@@ -70,7 +70,7 @@ namespace OrbitalAnte.Characters
                 Add(CapsulePart(left ? BodyPartId.ForearmL : BodyPartId.ForearmR, rig.Forearm[side], Vector3.zero,
                     new Vector3(x * ForearmLen, 0, 0), 0.05f, null, body, cfg));
                 Add(CapsulePart(left ? BodyPartId.HandL : BodyPartId.HandR, rig.Hand[side], Vector3.zero,
-                    new Vector3(x * HandLen, 0, 0), 0.047f, new Vector2(0.11f, 0.06f), joint, cfg));
+                    new Vector3(x * HandLen, 0, 0), 0.047f, new Vector2(0.06f, 0.11f), joint, cfg)); // flat, palm down
                 Add(CapsulePart(left ? BodyPartId.ThighL : BodyPartId.ThighR, rig.Thigh[side], Vector3.zero,
                     new Vector3(0, -ThighLen, 0), 0.078f, null, body, cfg));
                 Add(CapsulePart(left ? BodyPartId.ShinL : BodyPartId.ShinR, rig.Shin[side], Vector3.zero,

@@ -4,8 +4,11 @@ using OrbitalAnte.Characters;
 using OrbitalAnte.Combat;
 using OrbitalAnte.Core;
 using OrbitalAnte.Feel;
+using OrbitalAnte.Fx;
 using OrbitalAnte.Input;
+using OrbitalAnte.Perf;
 using OrbitalAnte.Player;
+using OrbitalAnte.Save;
 using OrbitalAnte.UI;
 using UnityEngine;
 
@@ -29,6 +32,9 @@ namespace OrbitalAnte.Arena
         void Start()
         {
             mannequinConfig = MannequinConfig.Load();
+            SaveSystem.RecordRunStarted(RunSeed.Current);
+            PerfMonitor.DescribeLoad = () =>
+                $"dummies {Mannequin.Alive.Count}   gib bodies {GibManager.ActiveCount}   decals {DecalFx.ActiveCount}";
             GameFeel.EnsureCreated();
             TestArenaBuilder.Build();
             BuildWeaponTable();
@@ -66,7 +72,7 @@ namespace OrbitalAnte.Arena
                 if (w != null && w.IsLoose) Destroy(w.gameObject);
             var top = TablePos + new Vector3(0, 0.95f, 0);
             WeaponFactory.Create(WeaponFactory.Pistol, top + new Vector3(-0.5f, 0, 0), Quaternion.Euler(0, 90, 90));
-            WeaponFactory.Create(WeaponFactory.Rifle, top + new Vector3(0.45f, 0, 0), Quaternion.Euler(0, 90, 90));
+            WeaponFactory.Create(WeaponFactory.Rifle, top + new Vector3(0.2f, 0, 0), Quaternion.Euler(0, 90, 90));
         }
 
         void SpawnDummies()
@@ -126,6 +132,10 @@ namespace OrbitalAnte.Arena
             if (GameInput.DebugSlowMo.WasPressedThisFrame())
             {
                 GameFeel.HeadshotSlowMo = !GameFeel.HeadshotSlowMo;
+                var profile = SaveSystem.Current.profile;
+                profile.headshotSlowMoChosen = true;
+                profile.headshotSlowMo = GameFeel.HeadshotSlowMo;
+                SaveSystem.Save();
                 Hud.Instance?.Notify("Headshot slow-mo: " + (GameFeel.HeadshotSlowMo ? "ON" : "OFF"), NoticeKind.Info);
             }
             if (GameInput.DebugOneHand.WasPressedThisFrame() && playerWeapons != null)
