@@ -1,166 +1,54 @@
-# Setup: Orbital Ante dev environment
+# Setup: from nothing to playing the test arena
 
-Checked on 30 Oct 2026.
+About 30-45 minutes the first time (mostly downloads).
 
-| Piece | Version | Why this one |
-|---|---|---|
-| Godot | **4.7.2-stable** (standard build, not .NET) | Latest stable 4.x. 4.8 is still in beta. |
-| godot-rust (gdext) | **`godot` crate 0.5.5**, feature `api-4-7` | Latest gdext release. It has an `api-4-7` feature, so it is built against the Godot 4.7 API. |
-| Rust | **1.94 or newer** (stable) | gdext 0.5.5 needs at least 1.94. I built and tested with 1.97. |
-| Physics | Jolt (built into Godot 4.7) | Already set in `project.godot` under Physics > 3D > Physics Engine. |
+## A. Install the tools (once)
+1. Go to **unity.com/download**, download **Unity Hub**, install it and open it.
+2. Sign in (or create a free Unity account). When asked about a licence, choose **Personal** (free).
+3. In Unity Hub click **Installs** (left side) → **Install Editor**.
+4. Under **Unity 6** pick the newest version labelled **LTS** → **Install**.
+5. On the modules screen tick:
+   - **Linux Build Support (Mono)** (for the Steam Deck build later)
+   - **Microsoft Visual Studio Community** (Windows) so you can open scripts
+   Then click **Install** / **Continue** and wait.
+6. Go to **desktop.github.com**, install **GitHub Desktop**, open it and sign in with your GitHub account (hmblasko).
 
-Compatibility check: I loaded the extension in Godot 4.7.2 and it printed
-`Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.official)`.
-If you pick up a newer 4.7.x patch, nothing needs to change. If you move to 4.8 later, first update the
-`godot` crate and change `api-4-7` to the matching feature in `rust/Cargo.toml`.
+## B. Get the project
+1. In GitHub Desktop: **File → Clone repository → GitHub.com** tab.
+2. Pick **hmblasko/Orbital-ante**. Under *Local path* choose a folder you can find again (for example `Documents\Unity\Orbital-ante`). Click **Clone**.
+3. At the top, click **Current branch** and choose the branch named in the pull request
+   (for Milestones 0-4: `unity/m0-m1-arena-mannequin`). Once that pull request is merged you can stay on `main`.
 
-Rust note: a **crate** is a Rust package (ours is `rust/`), and **cargo** is the tool that builds it and downloads its dependencies.
+## C. Open it in Unity
+1. In Unity Hub click **Projects** → the arrow next to **Add** → **Add project from disk**.
+2. Select the cloned **Orbital-ante** folder (the one that contains `Assets`, `Packages` and `ProjectSettings`) → **Add Project**.
+3. If Hub shows a warning next to the project about the editor version, click the version number and pick
+   the Unity 6 LTS you installed. If a box says the project will be upgraded, click **Continue**.
+4. Click the project to open it. The first open takes several minutes while Unity downloads packages.
+5. If Unity asks **"Enable the new Input System backends? Unity will restart"**, click **Yes**.
+6. When the **Orbital Ante setup** box appears, click **Run setup**.
+   (If it doesn't appear: top menu bar → **Orbital Ante → Run Project Setup**.)
+7. If it asks to restart, click **Restart**.
 
----
+## D. Play
+1. Top menu → **Orbital Ante → Open Test Arena**.
+2. Click the **Game** tab. In the dropdown that says *Free Aspect*, click **+**, set *Type* to **Fixed Resolution**,
+   Width **1280**, Height **800**, label it "Steam Deck", click **OK** and select it.
+3. Press the **Play** button (triangle, top middle). Click inside the Game view so it captures the mouse.
+4. Press **Esc** (or **Start** on a controller) for the pause menu. Press **Play** again to stop.
 
-## 1. Install Rust
+## E. Run the automated tests
+1. Top menu → **Window → General → Test Runner**.
+2. Click the **EditMode** tab → **Run All**. Every test should get a green tick. Send me any red ones.
 
-**Windows**
-1. Go to https://rustup.rs and download `rustup-init.exe`.
-2. Run it. If it says you need the Visual Studio C++ build tools, accept the option to install them. In the Visual Studio installer, tick **Desktop development with C++** and click **Install**.
-3. When rustup asks, pick **1) Proceed with standard installation**.
-4. Close the terminal and open a new **PowerShell**, then check it worked:
-   ```
-   rustc --version
-   cargo --version
-   ```
-   The rustc version must be 1.94 or newer. If it is older, run `rustup update stable`.
+## F. Save the generated files back to GitHub (important, once)
+Setup creates the scenes, the render pipeline asset and the tunable config files. Commit them so we stay in sync:
+1. Switch to GitHub Desktop. The left panel lists changed files.
+2. In *Summary* (bottom left) type `Run project setup`, click **Commit to unity/m0-m1-arena-mannequin**.
+3. Click **Push origin** (top).
 
-**Linux (or Steam Deck desktop mode, see section 6)**
-1. In a terminal:
-   ```
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-2. Choose **1) Proceed with standard installation**, then run `source ~/.cargo/env`.
-3. Check: `rustc --version`. You also need a C linker: on Ubuntu/Debian run `sudo apt install build-essential`.
-
-## 2. Install Godot 4.7.2
-
-1. Go to https://godotengine.org/download/archive/4.7.2-stable/ (or the main download page if 4.7.2 is still the newest).
-2. Download **Godot Engine, standard**, not the .NET version, for your OS (Windows 64-bit or Linux x86_64).
-3. Unzip it somewhere permanent, such as `C:\Tools\Godot\` or `~/Tools/Godot/`. Godot doesn't need installing, the .exe or .x86_64 file is the whole editor.
-4. Optional: pin it to your taskbar.
-
-## 3. Install Git and Git LFS
-
-**Windows**
-1. Download Git from https://git-scm.com/download/win and run the installer. The defaults are fine and include Git LFS.
-2. Open a new PowerShell and run:
-   ```
-   git --version
-   git lfs install
-   ```
-   `git lfs install` only needs running once per computer. It should say "Git LFS initialized".
-3. Tell Git who you are (once):
-   ```
-   git config --global user.name "Your Name"
-   git config --global user.email "you@example.com"
-   ```
-
-**Linux**: `sudo apt install git git-lfs`, then `git lfs install` and the two `git config` lines above.
-
-The repo's `.gitattributes` already routes models, textures and audio under `godot/assets/` through LFS.
-
-## 4. Get the project and build the Rust library
-
-This is the "gdext project template" step. The repo already follows the standard gdext layout, so there is nothing to generate:
-
-```
-orbital-ante/
-  CLAUDE.md                 master build prompt
-  godot/                    the Godot project (open this in the editor)
-    project.godot
-    orbital_ante.gdextension   tells Godot where the Rust library is
-    assets/  data/  scenes/  tests/
-  rust/                     the Rust crate (all game code)
-    Cargo.toml
-    src/  orbits/ flight/ player/ combat/ ai/ procgen/ points/ items/
-          horror/ audio/ save/ ui_bridge/ data/
-  docs/  reports/  tools/
-```
-
-1. Put the project folder somewhere without spaces in the path, such as `C:\dev\orbital-ante` or `~/dev/orbital-ante`.
-   - If it's on GitHub: `git clone https://github.com/<you>/orbital-ante.git`
-   - If you got the zip from me: unzip it there.
-2. Build the Rust library:
-   ```
-   cd orbital-ante/rust
-   cargo build
-   ```
-   The first build downloads dependencies and takes a few minutes. It produces
-   `rust/target/debug/orbital_ante.dll` (Windows) or `liborbital_ante.so` (Linux).
-3. Run the unit tests:
-   ```
-   cargo test
-   ```
-   Expect `test result: ok. 15 passed`.
-
-## 5. Open and run the test scene on PC
-
-1. Start Godot. In the **Project Manager**, click **Import**.
-2. Browse to `orbital-ante/godot/project.godot`, select it, and click **Import** (in some versions **Import & Edit**).
-3. Wait for the first import to finish. The **Output** panel at the bottom should show
-   `Initialize godot-rust (API v4.7...)`. If it says it can't find the library instead, re-run `cargo build` (step 4.2) and restart Godot.
-4. Press **F5** (or the ▶ **Run Project** button, top right). The sphere-walk test scene starts.
-5. Controls:
-   | Action | Controller | Keyboard / mouse |
-   |---|---|---|
-   | Move | Left stick | W A S D |
-   | Look | Right stick | Mouse (or arrow keys) |
-   | Jump | A | Space |
-   | Crouch (hold) | B | Ctrl or C |
-   | Frame-time overlay on/off | L3 (click left stick) | F3 |
-   | Free / recapture mouse | | Esc / click |
-6. To stop, press **F8** or close the game window.
-
-Whenever you change Rust code: run `cargo build` again. Godot hot-reloads the library while the editor is open; if something looks stale, close and reopen the project.
-Whenever you change a `.ron` file in `godot/data/`: just run the scene again, no rebuild needed.
-
-## 6. Steam Deck test build route
-
-The Deck runs Linux, so it needs the **Linux** version of the Rust library (`liborbital_ante.so`).
-For Phase 0 there are two routes. Phase 1 adds GitHub Actions, which will build the Linux version
-for you on every push, and that becomes the main route.
-
-### Route A (recommended now): export a Linux build from your PC
-
-1. **Get a Linux build of the Rust library.**
-   - If your PC runs Linux: `cd rust && cargo build --release`.
-   - If your PC runs Windows: install WSL (open PowerShell as admin, run `wsl --install`, reboot, create a user).
-     In the Ubuntu window: `sudo apt install build-essential`, install Rust with the Linux steps in section 1, then
-     `cd /mnt/c/dev/orbital-ante/rust && cargo build --release`.
-     That puts `liborbital_ante.so` in `rust/target/release/`, where `orbital_ante.gdextension` expects it.
-2. **Install export templates (once).** In Godot: **Editor** menu > **Manage Export Templates…** > **Download and Install**.
-3. **Add a Linux preset (once).** **Project** menu > **Export…** > **Add…** > **Linux**. Leave the defaults, but check that
-   **Architecture** is `x86_64`. Close the window; Godot saves `export_presets.cfg`.
-4. **Export.** **Project** > **Export…** > select the Linux preset > **Export Project…**. Untick **Export With Debug**
-   for a release build, or leave it ticked to see errors on the Deck. Save as `builds/linux/OrbitalAnte.x86_64`.
-   Godot copies `liborbital_ante.so` next to it. Check that the folder holds `OrbitalAnte.x86_64`, `OrbitalAnte.pck` and `liborbital_ante.so`.
-5. **Copy to the Deck.** Any of these:
-   - USB stick or microSD card: copy the whole `builds/linux` folder.
-   - Network: on the Deck in Desktop Mode, open Konsole, run `passwd` to set a password, then `sudo systemctl start sshd`;
-     on the PC run `scp -r builds/linux deck@steamdeck:~/OrbitalAnte`.
-   Put it in `/home/deck/OrbitalAnte/`.
-6. **Make it launchable (Desktop Mode, once).**
-   1. Open Dolphin (file manager), go to `OrbitalAnte`, right-click `OrbitalAnte.x86_64` > **Properties** > **Permissions** > tick **Is executable** > **OK**.
-   2. Open Steam > **Games** menu > **Add a Non-Steam Game to My Library…** > **Browse…** > pick `OrbitalAnte.x86_64` > **Add Selected Programs**.
-7. **Switch back to Gaming Mode** and launch Orbital Ante from your library (it's under Non-Steam).
-8. **Controller layout:** on the game's page, press the controller icon and pick the **Gamepad with Mouse Trackpad** template.
-   That makes the right trackpad act as a mouse, which the game already uses for looking.
-
-### Route B: run the editor on the Deck
-
-Possible, but SteamOS has no C compiler by default, so building Rust there needs a container (Distrobox).
-I'd skip this for now; Route A plus CI in Phase 1 is simpler.
-
-### Measuring frame times on the Deck
-
-- The in-game overlay (L3 / F3) shows average, worst-1% and max frame time, render CPU/GPU time, physics time and draw calls.
-- Every 5 seconds it adds a row to `frametime_log.csv`. On the Deck that file is at
-  `/home/deck/.local/share/godot/app_userdata/Orbital Ante/frametime_log.csv`. Copy it off and send it to me; that is a real measurement I can report.
-- Steam's own overlay: press **…** (Quick Access) > battery icon > **Performance Overlay Level** 3 or 4 for a frame-time graph.
+## If something goes wrong
+- **Red errors:** top menu → **Window → General → Console**. Click an error, copy the text at the bottom and send it to me.
+- **Everything is pink/magenta:** the render pipeline didn't get set. Run **Orbital Ante → Run Project Setup** again.
+- **Controller does nothing:** make sure the Game view has focus (click it), and that Unity restarted after the Input System prompt.
+- **Mouse is stuck to the window:** press Esc to open the pause menu, which frees the cursor.
