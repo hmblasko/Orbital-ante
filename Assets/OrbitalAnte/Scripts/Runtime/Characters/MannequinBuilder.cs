@@ -183,56 +183,81 @@ namespace OrbitalAnte.Characters
             Vector3 seg = b - a;
             float len = seg.magnitude;
             float height = Mathf.Max(len + radius * 0.6f, radius * 2f);
+            Vector2 xs = crossSection ?? new Vector2(radius * 2f, radius * 2f);
 
-            var go = new GameObject(id.ToString());
+            var part = GibManager.TakePooled(id);
+            GameObject go = part != null ? part.gameObject : new GameObject(id.ToString());
             go.transform.SetParent(bone, false);
             go.transform.localPosition = (a + b) * 0.5f;
             go.transform.localRotation = Quaternion.FromToRotation(Vector3.up, seg);
+            go.transform.localScale = Vector3.one;
 
-            var col = go.AddComponent<CapsuleCollider>();
+            var col = go.GetComponent<CapsuleCollider>();
+            if (col == null) col = go.AddComponent<CapsuleCollider>();
             col.direction = 1;
             col.radius = crossSection.HasValue ? Mathf.Max(crossSection.Value.x, crossSection.Value.y) * 0.5f : radius;
             col.height = Mathf.Max(height, col.radius * 2f);
             col.isTrigger = true;
 
-            Vector2 xs = crossSection ?? new Vector2(radius * 2f, radius * 2f);
-            PrimitiveMeshes.CreateVisual("Mesh", PrimitiveType.Capsule, go.transform, mat, Vector3.zero, Quaternion.identity,
-                new Vector3(xs.x, height * 0.5f, xs.y));
+            var mesh = go.transform.Find("Mesh");
+            if (mesh == null)
+                PrimitiveMeshes.CreateVisual("Mesh", PrimitiveType.Capsule, go.transform, mat, Vector3.zero, Quaternion.identity,
+                    new Vector3(xs.x, height * 0.5f, xs.y));
+            else
+                mesh.GetComponent<MeshRenderer>().sharedMaterial = mat;
 
-            var part = go.AddComponent<BodyPart>();
+            if (part == null) part = go.AddComponent<BodyPart>();
             part.Init(id, cfg.Tuning(id), Mathf.Max(xs.x, xs.y) * 0.5f, col, cfg);
             part.ProximalLocal = new Vector3(0, -len * 0.5f, 0);
+            go.SetActive(true);
             return part;
         }
 
         static BodyPart HeadPart(Transform headBone, Material skin, Material visor, MannequinConfig cfg)
         {
-            var go = new GameObject(BodyPartId.Head.ToString());
+            var part = GibManager.TakePooled(BodyPartId.Head);
+            GameObject go = part != null ? part.gameObject : new GameObject(BodyPartId.Head.ToString());
             go.transform.SetParent(headBone, false);
             go.transform.localPosition = new Vector3(0, HeadCentreUp, 0);
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
 
-            var col = go.AddComponent<SphereCollider>();
+            var col = go.GetComponent<SphereCollider>();
+            if (col == null) col = go.AddComponent<SphereCollider>();
             col.radius = HeadRadius;
             col.isTrigger = true;
 
-            PrimitiveMeshes.CreateVisual("Mesh", PrimitiveType.Sphere, go.transform, skin, Vector3.zero, Quaternion.identity,
-                new Vector3(HeadRadius * 2f, HeadRadius * 2.15f, HeadRadius * 2f));
-            // Neck stub and a visor stripe so you can tell which way the dummy faces.
-            PrimitiveMeshes.CreateVisual("Neck", PrimitiveType.Capsule, go.transform, skin, new Vector3(0, -0.13f, 0),
-                Quaternion.identity, new Vector3(0.09f, 0.07f, 0.09f));
-            PrimitiveMeshes.CreateVisual("Visor", PrimitiveType.Capsule, go.transform, visor, new Vector3(0, 0.02f, 0.105f),
-                Quaternion.Euler(0, 0, 90), new Vector3(0.07f, 0.09f, 0.05f));
+            if (go.transform.Find("Mesh") == null)
+            {
+                PrimitiveMeshes.CreateVisual("Mesh", PrimitiveType.Sphere, go.transform, skin, Vector3.zero, Quaternion.identity,
+                    new Vector3(HeadRadius * 2f, HeadRadius * 2.15f, HeadRadius * 2f));
+                // Neck stub and a visor stripe so you can tell which way the dummy faces.
+                PrimitiveMeshes.CreateVisual("Neck", PrimitiveType.Capsule, go.transform, skin, new Vector3(0, -0.13f, 0),
+                    Quaternion.identity, new Vector3(0.09f, 0.07f, 0.09f));
+                PrimitiveMeshes.CreateVisual("Visor", PrimitiveType.Capsule, go.transform, visor, new Vector3(0, 0.02f, 0.105f),
+                    Quaternion.Euler(0, 0, 90), new Vector3(0.07f, 0.09f, 0.05f));
+            }
+            else
+            {
+                go.transform.Find("Mesh").GetComponent<MeshRenderer>().sharedMaterial = skin;
+                go.transform.Find("Neck").GetComponent<MeshRenderer>().sharedMaterial = skin;
+            }
 
-            var part = go.AddComponent<BodyPart>();
+            if (part == null) part = go.AddComponent<BodyPart>();
             part.Init(BodyPartId.Head, cfg.Tuning(BodyPartId.Head), HeadRadius * 0.6f, col, cfg);
             part.ProximalLocal = new Vector3(0, -0.17f, 0);
+            go.SetActive(true);
             return part;
         }
 
+        /// <summary>Stump cap (reused if a pooled part already has one with this name).</summary>
         static GameObject Cap(string name, Transform parent, Vector3 worldPos, Quaternion worldRot, float radius, Material mat)
         {
-            var cap = PrimitiveMeshes.CreateVisual(name, PrimitiveType.Sphere, parent, mat, Vector3.zero, Quaternion.identity,
-                new Vector3(radius * 2.15f, radius * 0.55f, radius * 2.15f));
+            var existing = parent.Find(name);
+            GameObject cap = existing != null
+                ? existing.gameObject
+                : PrimitiveMeshes.CreateVisual(name, PrimitiveType.Sphere, parent, mat, Vector3.zero, Quaternion.identity, Vector3.one);
+            cap.transform.localScale = new Vector3(radius * 2.15f, radius * 0.55f, radius * 2.15f);
             cap.transform.SetPositionAndRotation(worldPos, worldRot);
             cap.SetActive(false);
             return cap;

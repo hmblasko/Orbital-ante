@@ -16,6 +16,8 @@ namespace OrbitalAnte.Player
         public PlayerConfig Config;
         public Camera Camera { get; private set; }
         public Transform Head { get; private set; }
+        /// <summary>Between the head and the camera; camera shake moves only this.</summary>
+        public Transform ShakeRig { get; private set; }
 
         CharacterController cc;
         Vector3 velocity;
@@ -47,9 +49,14 @@ namespace OrbitalAnte.Player
             head.localPosition = new Vector3(0, config.standHeight - config.eyeBelowTop, 0);
             fpc.Head = head;
 
+            var shake = new GameObject("ShakeRig").transform;
+            shake.SetParent(head, false);
+            fpc.ShakeRig = shake;
+            OrbitalAnte.Feel.GameFeel.ShakeTarget = shake;
+
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
-            camGo.transform.SetParent(head, false);
+            camGo.transform.SetParent(shake, false);
             var cam = camGo.AddComponent<Camera>();
             cam.nearClipPlane = 0.03f;
             cam.farClipPlane = 2000f;
@@ -78,7 +85,7 @@ namespace OrbitalAnte.Player
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            UpdateLook(dt);
+            UpdateLook(Time.unscaledDeltaTime); // aim never freezes during hitstop
             UpdateCrouch(dt);
             UpdateMove(dt);
         }

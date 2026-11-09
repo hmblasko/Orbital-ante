@@ -70,6 +70,44 @@ namespace OrbitalAnte.Core
             return m;
         }
 
+        static Material particle;
+        static Material decal;
+        static bool warnedDecal;
+
+        /// <summary>Alpha-clipped particle material (template OA_Particle from setup).</summary>
+        public static Material Particle(Texture2D tex)
+        {
+            if (particle != null) return particle;
+            var template = Resources.Load<Material>("Materials/OA_Particle");
+            if (template == null)
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+                if (shader == null) shader = Shader.Find("Sprites/Default");
+                template = new Material(shader);
+                Debug.LogWarning("[OA] OA_Particle template missing. Run Orbital Ante > Run Project Setup.");
+            }
+            particle = new Material(template) { name = "OA_Particle_Runtime" };
+            particle.mainTexture = tex;
+            return particle;
+        }
+
+        /// <summary>URP decal material with the given texture, or null if decals are not set up.</summary>
+        public static Material Decal(Texture2D tex)
+        {
+            if (decal != null) return decal;
+            var template = Resources.Load<Material>("Materials/OA_Decal");
+            if (template == null)
+            {
+                if (!warnedDecal) Debug.LogWarning("[OA] OA_Decal template missing, blood decals are off. Run Orbital Ante > Run Project Setup.");
+                warnedDecal = true;
+                return null;
+            }
+            decal = new Material(template) { name = "OA_Decal_Runtime" };
+            if (decal.HasProperty("Base_Map")) decal.SetTexture("Base_Map", tex);
+            else decal.mainTexture = tex;
+            return decal;
+        }
+
         /// <summary>Lit material with a texture, not cached (used for the arena floor).</summary>
         public static Material LitTextured(Texture2D tex, Vector2 tiling, float smoothness = 0.15f)
         {

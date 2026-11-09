@@ -37,7 +37,7 @@ namespace OrbitalAnte.UI
             var rt = bg.rectTransform;
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, 1);
             rt.anchoredPosition = new Vector2(12, -12);
-            rt.sizeDelta = new Vector2(300, 150);
+            rt.sizeDelta = new Vector2(340, 150);
             panel = bg.gameObject;
             text = UIFactory.Label(bg.transform, "", 16, Color.white, TextAnchor.UpperLeft);
             UIFactory.Stretch(text.rectTransform, 8f);
@@ -85,7 +85,7 @@ namespace OrbitalAnte.UI
                 $"<b>{1000f / Mathf.Max(0.01f, avg):0} fps</b>  avg {Colour(avg)}\n" +
                 $"worst 1% {Colour(worst1)}  max {Colour(max)}\n" +
                 $"main thread {mt}   draw calls {dc}\n" +
-                $"dummies {Mannequin.Alive.Count}   gib bodies {GibManager.ActiveCount}\n" +
+                $"dummies {Mannequin.Alive.Count}   gib bodies {GibManager.ActiveCount}   decals {OrbitalAnte.Fx.DecalFx.ActiveCount}\n" +
                 $"<size=13>budget 16.7 ms (60) / floor 25 ms (40)</size>";
         }
 

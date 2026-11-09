@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using OrbitalAnte.Combat;
+using OrbitalAnte.Feel;
+using OrbitalAnte.Fx;
 using UnityEngine;
 
 namespace OrbitalAnte.Characters
@@ -7,7 +9,7 @@ namespace OrbitalAnte.Characters
     /// <summary>
     /// One breakable piece of a character. While attached it is a trigger hitbox parented to
     /// its bone. Once it comes off it becomes a rigidbody joined to the rest of its chain, and
-    /// it can be shot again to split the chain further.
+    /// it can be shot again to split the chain further. Retired gibs are pooled and reused.
     /// </summary>
     public class BodyPart : MonoBehaviour
     {
@@ -31,7 +33,7 @@ namespace OrbitalAnte.Characters
 
         public Rigidbody Body { get; private set; }
         public CharacterJoint Joint { get; private set; }
-        public bool IsGib => Body != null;
+        public bool IsGib => Body != null && !Body.isKinematic;
         public float GibBornTime { get; private set; }
         MannequinConfig config;
 
@@ -43,6 +45,18 @@ namespace OrbitalAnte.Characters
             Radius = radius;
             Collider = col;
             config = cfg;
+            Owner = null;
+            Parent = null;
+            Children.Clear();
+            Joint = null;
+            Body = GetComponent<Rigidbody>();
+            if (Body != null)
+            {
+                Body.isKinematic = true;
+                Body.interpolation = RigidbodyInterpolation.None;
+            }
+            if (Collider != null) Collider.isTrigger = true;
+            transform.localScale = Vector3.one;
         }
 
         public HitResult TakeHit(in HitInfo hit)
@@ -51,6 +65,7 @@ namespace OrbitalAnte.Characters
             Hp -= hit.Damage;
             if (Hp > 0f)
             {
+                BloodFx.Burst(hit.Point, -hit.Direction, GameFeelConfig.Get().burstParticlesOnHit);
                 if (IsGib) Body.AddForceAtPosition(hit.Direction * hit.ForceScale * 1.5f, hit.Point, ForceMode.VelocityChange);
                 return HitResult.Damaged;
             }
@@ -69,11 +84,17 @@ namespace OrbitalAnte.Characters
             Hp = MaxHp * config.gibHpFactor;
         }
 
+        public void ShowSeverCaps()
+        {
+            if (StumpCapOnParent != null) StumpCapOnParent.SetActive(true);
+            if (ProximalCap != null) ProximalCap.SetActive(true);
+        }
+
         /// <summary>
-        /// Safely destroys this gib. Joints of children hanging off it are released first,
-        /// otherwise Unity would pin those children to a fixed point in the world.
+        /// Frees every child jointed to this part. Unity pins a joint to the world if its
+        /// connected body disappears, so this must run before a part is removed.
         /// </summary>
-        public void DestroyGib()
+        public void ReleaseChildJoints()
         {
             foreach (var c in Children)
             {
@@ -82,18 +103,43 @@ namespace OrbitalAnte.Characters
                 c.Joint = null;
                 c.ShowSeverCaps();
             }
-            Destroy(gameObject);
         }
 
-        public void ShowSeverCaps()
+        /// <summary>Back to a clean, inactive state for the pool. The builder re-inits it.</summary>
+        public void ResetForPool()
         {
-            if (StumpCapOnParent != null) StumpCapOnParent.SetActive(true);
-            if (ProximalCap != null) ProximalCap.SetActive(true);
+            if (Joint != null) Destroy(Joint);
+            Joint = null;
+            if (Body != null)
+            {
+                Body.linearVelocity = Vector3.zero;
+                Body.angularVelocity = Vector3.zero;
+                Body.interpolation = RigidbodyInterpolation.None;
+                Body.isKinematic = true;
+            }
+            var fx = GetComponent<GibImpactFx>();
+            if (fx != null) fx.enabled = false;
+            if (Collider != null) Collider.isTrigger = true;
+            if (ProximalCap != null) ProximalCap.SetActive(false);
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var child = transform.GetChild(i);
+                if (child.name.StartsWith("StumpCap_")) child.gameObject.SetActive(false);
+            }
+            transform.localScale = Vector3.one;
+            Owner = null;
+            Parent = null;
+            Children.Clear();
+            gameObject.SetActive(false);
         }
 
         void BreakWhileGib(in HitInfo hit)
         {
+            var feel = GameFeelConfig.Get();
             Vector3 kick = hit.Direction * config.gibSplitImpulse * hit.ForceScale + Vector3.up * config.detachLift * 0.5f;
+            AudioFx.PlayAt(ProceduralAudio.PopFor(Id), hit.Point, 0.8f, Random.Range(1.05f, 1.25f));
+            BloodFx.Burst(hit.Point, -hit.Direction + Vector3.up * 0.5f, feel.burstParticlesOnPop / 2);
+
             if (Joint != null)
             {
                 // Split the chain here: this part and its children fly off on their own.
@@ -103,6 +149,7 @@ namespace OrbitalAnte.Characters
                 Hp = MaxHp * config.gibHpFactor;
                 Body.AddForceAtPosition(kick, hit.Point, ForceMode.VelocityChange);
                 Body.angularVelocity += Random.insideUnitSphere * config.detachSpin * 0.5f;
+                BloodFx.TrailOn(transform);
                 return;
             }
 
@@ -112,9 +159,10 @@ namespace OrbitalAnte.Characters
             {
                 if (c == null || !c.IsGib || c.Joint == null || c.Joint.connectedBody != Body) continue;
                 c.Body.AddForce(kick * 0.6f, ForceMode.VelocityChange);
+                BloodFx.TrailOn(c.transform);
             }
-            GibManager.Unregister(this);
-            DestroyGib();
+            BloodFx.Burst(transform.position, Vector3.up, feel.burstParticlesOnPop);
+            GibManager.Recycle(this);
         }
     }
 }

@@ -20,7 +20,6 @@ namespace OrbitalAnte.UI
         Canvas canvas;
         GameObject backdrop;
         readonly Stack<GameObject> pages = new Stack<GameObject>();
-        float savedTimeScale = 1f;
         bool rebinding;
 
         // Controls page
@@ -82,7 +81,6 @@ namespace OrbitalAnte.UI
         {
             if (IsPaused) return;
             IsPaused = true;
-            savedTimeScale = Time.timeScale;
             Time.timeScale = 0f;
             AudioListener.pause = true;
             FirstPersonController.SetCursorLocked(false);
@@ -95,7 +93,7 @@ namespace OrbitalAnte.UI
             while (pages.Count > 0) Destroy(pages.Pop());
             backdrop.SetActive(false);
             IsPaused = false;
-            Time.timeScale = savedTimeScale <= 0f ? 1f : savedTimeScale;
+            Time.timeScale = 1f; // GameFeel re-applies any hitstop or slow-mo next frame
             AudioListener.pause = false;
             FirstPersonController.SetCursorLocked(true);
             UIFactory.Select(null);

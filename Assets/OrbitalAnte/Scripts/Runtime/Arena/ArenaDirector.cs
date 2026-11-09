@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using OrbitalAnte.Characters;
 using OrbitalAnte.Combat;
 using OrbitalAnte.Core;
+using OrbitalAnte.Feel;
 using OrbitalAnte.Input;
 using OrbitalAnte.Player;
 using OrbitalAnte.UI;
@@ -21,6 +22,7 @@ namespace OrbitalAnte.Arena
         void Start()
         {
             mannequinConfig = MannequinConfig.Load();
+            GameFeel.EnsureCreated();
             TestArenaBuilder.Build();
 
             var player = FirstPersonController.Create(PlayerConfig.Load(), new Vector3(0, 0.05f, -12f), 0f);
@@ -84,6 +86,11 @@ namespace OrbitalAnte.Arena
             {
                 SpawnDummies();
                 Hud.Instance?.Notify("Fresh dummies!", NoticeKind.Info);
+            }
+            if (GameInput.DebugSlowMo.WasPressedThisFrame())
+            {
+                GameFeel.HeadshotSlowMo = !GameFeel.HeadshotSlowMo;
+                Hud.Instance?.Notify("Headshot slow-mo: " + (GameFeel.HeadshotSlowMo ? "ON" : "OFF"), NoticeKind.Info);
             }
             if (GameInput.DebugWalkMode.WasPressedThisFrame())
             {

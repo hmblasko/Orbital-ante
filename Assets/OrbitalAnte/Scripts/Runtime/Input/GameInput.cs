@@ -42,6 +42,7 @@ namespace OrbitalAnte.Input
         public static InputAction DebugRespawn { get; private set; }
         public static InputAction DebugWalkMode { get; private set; }
         public static InputAction DebugOverlay { get; private set; }
+        public static InputAction DebugSlowMo { get; private set; }
 
         /// <summary>Actions the player can see but not rebind (mouse look is an axis, not a key).</summary>
         public static readonly HashSet<InputAction> Locked = new HashSet<InputAction>();
@@ -54,6 +55,7 @@ namespace OrbitalAnte.Input
             { "Pause", "Pause menu" }, { "Back", "Menu back" }, { "UpgradeScreen", "Upgrade screen" },
             { "DebugRespawn", "[Test] Respawn dummies" }, { "DebugWalkMode", "[Test] Dummy walk mode" },
             { "DebugOverlay", "[Test] Frame-time overlay" },
+            { "DebugSlowMo", "[Test] Headshot slow-mo on/off" },
         };
 
         public static InputActionAsset Asset
@@ -111,6 +113,7 @@ namespace OrbitalAnte.Input
             DebugRespawn = Button(DebugMap, "DebugRespawn", "<Keyboard>/t", "<Gamepad>/dpad/up");
             DebugWalkMode = Button(DebugMap, "DebugWalkMode", "<Keyboard>/g", "<Gamepad>/dpad/left");
             DebugOverlay = Button(DebugMap, "DebugOverlay", "<Keyboard>/f3", "<Gamepad>/dpad/down");
+            DebugSlowMo = Button(DebugMap, "DebugSlowMo", "<Keyboard>/m", "<Gamepad>/dpad/right");
 
             LoadOverrides();
             asset.Enable();

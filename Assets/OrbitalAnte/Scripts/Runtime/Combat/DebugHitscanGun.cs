@@ -91,14 +91,6 @@ namespace OrbitalAnte.Combat
             tracerTimer = 0.04f;
         }
 
-        void OnHitResult(HitResult result)
-        {
-            if (result == HitResult.None) return;
-            bool big = result == HitResult.Severed || result == HitResult.Killed;
-            Hud.Instance?.ShowHitMarker(big);
-            audioSource.PlayOneShot(ProceduralAudio.HitPing, 0.5f);
-            if (big || result == HitResult.GibSplit) audioSource.PlayOneShot(ProceduralAudio.LimbPop, 0.8f);
-            if (result == HitResult.Killed) Hud.Instance?.Notify("Headshot! Dummy down.", NoticeKind.Combat);
-        }
+        void OnHitResult(HitResult result) => CombatFeedback.PlayerShotLanded(result);
     }
 }

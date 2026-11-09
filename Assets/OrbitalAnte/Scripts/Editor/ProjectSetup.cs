@@ -1,8 +1,11 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using OrbitalAnte.Characters;
 using OrbitalAnte.Combat;
 using OrbitalAnte.Core;
+using OrbitalAnte.Feel;
 using OrbitalAnte.Player;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -44,7 +47,10 @@ namespace OrbitalAnte.EditorTools
         static bool NeedsSetup() =>
             GraphicsSettings.defaultRenderPipeline == null ||
             !File.Exists(ArenaPath) || !File.Exists(MainMenuPath) ||
-            !File.Exists(ConfigDir + "/MannequinConfig.asset");
+            !File.Exists(ConfigDir + "/MannequinConfig.asset") ||
+            !File.Exists(ConfigDir + "/GameFeelConfig.asset") ||
+            !File.Exists(MaterialsDir + "/OA_Particle.mat") ||
+            !File.Exists(MaterialsDir + "/OA_Decal.mat");
 
         [MenuItem("Orbital Ante/Run Project Setup", priority = 0)]
         public static void RunSetup()
@@ -129,6 +135,7 @@ namespace OrbitalAnte.EditorTools
                 EditorUtility.SetDirty(urp);
             }
 
+            EnsureDecalFeature();
             GraphicsSettings.defaultRenderPipeline = urp;
             int current = QualitySettings.GetQualityLevel();
             for (int i = 0; i < QualitySettings.names.Length; i++)
@@ -156,18 +163,64 @@ namespace OrbitalAnte.EditorTools
         {
             CreateMaterialIfMissing(MaterialsDir + "/OA_Lit.mat", "Universal Render Pipeline/Lit");
             CreateMaterialIfMissing(MaterialsDir + "/OA_Unlit.mat", "Universal Render Pipeline/Unlit");
+
+            // Blood droplets: opaque with alpha clipping, so the round texture cuts out cleanly and
+            // the clipped shader variant is kept in builds.
+            var particle = CreateMaterialIfMissing(MaterialsDir + "/OA_Particle.mat", "Universal Render Pipeline/Particles/Unlit");
+            if (particle != null)
+            {
+                particle.SetFloat("_AlphaClip", 1f);
+                particle.SetFloat("_Cutoff", 0.5f);
+                particle.EnableKeyword("_ALPHATEST_ON");
+                EditorUtility.SetDirty(particle);
+            }
+            // Blood splats: URP's built-in decal shader.
+            CreateMaterialIfMissing(MaterialsDir + "/OA_Decal.mat", "Shader Graphs/Decal");
         }
 
-        static void CreateMaterialIfMissing(string path, string shaderName)
+        /// <summary>Creates the material if missing. Returns it only when newly created.</summary>
+        static Material CreateMaterialIfMissing(string path, string shaderName)
         {
-            if (File.Exists(path)) return;
+            if (File.Exists(path)) return null;
             var shader = Shader.Find(shaderName);
             if (shader == null)
             {
                 Debug.LogError("[OA] Shader not found: " + shaderName + ". Is the URP package installed?");
+                return null;
+            }
+            var mat = new Material(shader);
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
+        /// <summary>Blood decals need URP's Decal renderer feature on the renderer.</summary>
+        static void EnsureDecalFeature()
+        {
+            var data = AssetDatabase.FindAssets("t:UniversalRendererData")
+                .Select(g => AssetDatabase.LoadAssetAtPath<UniversalRendererData>(AssetDatabase.GUIDToAssetPath(g)))
+                .FirstOrDefault(d => d != null);
+            if (data == null)
+            {
+                Debug.LogWarning("[OA] No URP renderer found; blood decals will not show.");
                 return;
             }
-            AssetDatabase.CreateAsset(new Material(shader), path);
+            if (data.rendererFeatures.Any(f => f is DecalRendererFeature)) return;
+
+            var feature = ScriptableObject.CreateInstance<DecalRendererFeature>();
+            feature.name = "Decal";
+            AssetDatabase.AddObjectToAsset(feature, data);
+            data.rendererFeatures.Add(feature);
+
+            // URP keeps a private list of feature file IDs next to the list; keep it in sync so the
+            // renderer Inspector doesn't report a missing feature.
+            var mapField = typeof(ScriptableRendererData).GetField("m_RendererFeatureMap", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (mapField != null && mapField.GetValue(data) is List<long> map &&
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out string _, out long localId))
+                map.Add(localId);
+
+            data.SetDirty();
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
         }
 
         static void SetupConfigs()
@@ -175,6 +228,7 @@ namespace OrbitalAnte.EditorTools
             CreateIfMissing<MannequinConfig>(ConfigDir + "/MannequinConfig.asset");
             CreateIfMissing<PlayerConfig>(ConfigDir + "/PlayerConfig.asset");
             CreateIfMissing<DebugGunConfig>(ConfigDir + "/DebugGunConfig.asset");
+            CreateIfMissing<GameFeelConfig>(ConfigDir + "/GameFeelConfig.asset");
         }
 
         static void CreateIfMissing<T>(string path) where T : ScriptableObject

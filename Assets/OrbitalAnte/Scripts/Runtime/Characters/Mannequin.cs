@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Combat;
+using OrbitalAnte.Feel;
+using OrbitalAnte.Fx;
 using UnityEngine;
 
 namespace OrbitalAnte.Characters
@@ -73,6 +75,7 @@ namespace OrbitalAnte.Characters
                 part.ShowSeverCaps();
 
             DetachAsGib(lost, hit, 1f);
+            WoundFx(part, hit);
             foreach (var id in lost) PartLost?.Invoke(this, id);
             RefreshState();
             return HitResult.Severed;
@@ -85,6 +88,7 @@ namespace OrbitalAnte.Characters
             var headHit = hit;
             headHit.ForceScale *= Config.headshotImpulseMultiplier;
             DetachAsGib(new List<BodyPartId> { BodyPartId.Head }, headHit, 1f);
+            WoundFx(head, hit);
 
             // Whatever body is left collapses as one ragdoll chain, keeping its momentum.
             var rest = MannequinAnatomy.AttachedSubtree(BodyPartId.Torso, Attached);
@@ -109,6 +113,18 @@ namespace OrbitalAnte.Characters
             Attached = set;
             Vector3 inherit = cc != null ? cc.velocity : Vector3.zero;
             GibManager.SpawnChain(chain, hit, inherit, Config, impulseShare);
+        }
+
+        /// <summary>Blood burst at the wound, a spray trailing the gib, a splat below and the pop.</summary>
+        void WoundFx(BodyPart part, in HitInfo hit)
+        {
+            var feel = GameFeelConfig.Get();
+            Vector3 outward = (-hit.Direction + Vector3.up * 0.6f).normalized;
+            BloodFx.Burst(hit.Point, outward, feel.burstParticlesOnPop);
+            BloodFx.Burst(hit.Point, hit.Direction, feel.burstParticlesOnPop / 2); // exit spray
+            BloodFx.TrailOn(part.transform);
+            DecalFx.SplatBelow(hit.Point, Mathf.Lerp(feel.decalMinSize, feel.decalMaxSize, 0.5f), 4f);
+            AudioFx.PlayAt(ProceduralAudio.PopFor(part.Id), hit.Point, 1f, UnityEngine.Random.Range(0.92f, 1.1f));
         }
 
         void RefreshState()

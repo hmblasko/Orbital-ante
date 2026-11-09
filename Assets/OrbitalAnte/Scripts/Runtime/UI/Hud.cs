@@ -73,7 +73,7 @@ namespace OrbitalAnte.UI
             var hr = hintText.rectTransform;
             hr.anchorMin = hr.anchorMax = hr.pivot = new Vector2(0, 0);
             hr.anchoredPosition = new Vector2(18, 16);
-            hr.sizeDelta = new Vector2(620, 120);
+            hr.sizeDelta = new Vector2(680, 140);
 
             stateText = UIFactory.Label(root, "", UITheme.SmallSize, UITheme.Accent, TextAnchor.LowerRight, FontStyle.Bold);
             var sr = stateText.rectTransform;
@@ -148,7 +148,9 @@ namespace OrbitalAnte.UI
                     $"<b>TEST ARENA</b>  shoot dummies with [{InputGlyphs.HintFor(GameInput.Fire)}]\n" +
                     $"[{InputGlyphs.HintFor(GameInput.DebugRespawn)}] respawn dummies   " +
                     $"[{InputGlyphs.HintFor(GameInput.DebugWalkMode)}] walk mode: <b>{MannequinBrain.GlobalMode}</b>\n" +
-                    $"[{InputGlyphs.HintFor(GameInput.DebugOverlay)}] frame times   [{InputGlyphs.HintFor(GameInput.Pause)}] pause / controls";
+                    $"[{InputGlyphs.HintFor(GameInput.DebugOverlay)}] frame times   " +
+                    $"[{InputGlyphs.HintFor(GameInput.DebugSlowMo)}] headshot slow-mo: <b>{(OrbitalAnte.Feel.GameFeel.HeadshotSlowMo ? "on" : "off")}</b>\n" +
+                    $"[{InputGlyphs.HintFor(GameInput.Pause)}] pause / controls";
             }
         }
     }
