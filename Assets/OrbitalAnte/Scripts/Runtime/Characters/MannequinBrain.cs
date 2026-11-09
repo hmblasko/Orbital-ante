@@ -9,6 +9,8 @@ namespace OrbitalAnte.Characters
         Stand,
         Wander,
         Approach,
+        /// <summary>Approach to a firing distance and shoot at the player.</summary>
+        Attack,
     }
 
     /// <summary>
@@ -22,6 +24,8 @@ namespace OrbitalAnte.Characters
 
         public int SpawnIndex;
         public Vector3 HomePosition;
+        /// <summary>Set each frame by other components (e.g. walk to a dropped gun). Wins over the mode.</summary>
+        public Vector3? MoveOverride;
 
         Mannequin m;
         CharacterController cc;
@@ -52,7 +56,11 @@ namespace OrbitalAnte.Characters
             if (dt <= 0f) return;
 
             Vector3 desired = Vector3.zero;
-            switch (GlobalMode)
+            if (MoveOverride.HasValue)
+            {
+                desired = Flat(MoveOverride.Value - transform.position);
+            }
+            else switch (GlobalMode)
             {
                 case DummyWalkMode.Wander:
                     repathTimer -= dt;
@@ -67,6 +75,16 @@ namespace OrbitalAnte.Characters
                         Vector3 toPlayer = Flat(player.transform.position - transform.position);
                         if (toPlayer.magnitude > m.Config.approachStopDistance) desired = toPlayer;
                         else FaceTowards(toPlayer, dt);
+                    }
+                    break;
+                case DummyWalkMode.Attack:
+                    var target = FirstPersonController.Instance;
+                    if (target != null)
+                    {
+                        Vector3 toTarget = Flat(target.transform.position - transform.position);
+                        float stop = Combat.CombatRulesConfig.Get().dummyAttackStopDistance;
+                        if (toTarget.magnitude > stop) desired = toTarget;
+                        else FaceTowards(toTarget, dt);
                     }
                     break;
             }

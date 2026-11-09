@@ -58,7 +58,7 @@ namespace OrbitalAnte.Characters
         public int maxGibBodies = 120;
         public float jointTwistLimit = 35f;
         public float jointSwingLimit = 60f;
-        public float gibBounciness = 0.35f;
+        public float gibBounciness = 0.5f;
         public float gibFriction = 0.6f;
 
         [Header("Look")]

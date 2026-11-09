@@ -28,6 +28,20 @@ namespace OrbitalAnte.Player
 
         public Vector3 Velocity => velocity;
 
+        /// <summary>Set by the weapon each frame while aiming; null = config FOV.</summary>
+        public float? FovOverride;
+        /// <summary>Look sensitivity multiplier (lower while aiming down sights).</summary>
+        public float LookScale = 1f;
+
+        float recoilPitch;
+
+        /// <summary>Kicks the view up (recovers on its own) and nudges yaw (stays).</summary>
+        public void AddRecoil(float pitchUp, float yawKick)
+        {
+            recoilPitch += pitchUp;
+            yaw += yawKick;
+        }
+
         public static FirstPersonController Create(PlayerConfig config, Vector3 position, float yawDegrees)
         {
             var go = new GameObject("Player");
@@ -100,12 +114,15 @@ namespace OrbitalAnte.Player
                 float curved = Mathf.Pow(Mathf.Clamp01(mag), Config.stickResponseExponent);
                 stick = stick / mag * curved * Config.stickSensitivity * dt;
             }
-            Vector2 look = mouse + stick;
+            Vector2 look = (mouse + stick) * LookScale;
             yaw += look.x;
             pitch += (Config.invertY ? 1f : -1f) * look.y;
             pitch = Mathf.Clamp(pitch, -89f, 89f);
+            recoilPitch = Mathf.MoveTowards(recoilPitch, 0f, (7f + recoilPitch * 6f) * dt);
             transform.rotation = Quaternion.Euler(0, yaw, 0);
-            Head.localRotation = Quaternion.Euler(pitch, 0, 0);
+            Head.localRotation = Quaternion.Euler(Mathf.Clamp(pitch - recoilPitch, -89f, 89f), 0, 0);
+            float targetFov = FovOverride ?? Config.fieldOfView;
+            Camera.fieldOfView = Mathf.Lerp(Camera.fieldOfView, targetFov, 1f - Mathf.Exp(-14f * dt));
         }
 
         void UpdateCrouch(float dt)

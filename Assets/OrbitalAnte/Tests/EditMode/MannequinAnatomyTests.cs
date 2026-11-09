@@ -111,7 +111,7 @@ namespace OrbitalAnte.Tests
         [Test]
         public void LimbsPopInOneToThreeRifleHits()
         {
-            const float rifleDamage = 34f; // DebugGunConfig default, mirrors the AK spoof target
+            const float rifleDamage = 34f; // WeaponDefinition.baseDamage default for the rifle
             var cfg = ScriptableObject.CreateInstance<MannequinConfig>();
             foreach (var id in MannequinAnatomy.AllParts)
             {

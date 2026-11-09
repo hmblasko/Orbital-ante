@@ -1,4 +1,3 @@
-using OrbitalAnte.Characters;
 using UnityEngine;
 
 namespace OrbitalAnte.Combat
@@ -10,7 +9,7 @@ namespace OrbitalAnte.Combat
         /// <summary>
         /// Nearest thing a bullet would hit. Attached body parts are trigger hitboxes, so
         /// triggers are queried, but only body-part triggers count. Character capsules are
-        /// skipped so shots reach the hitboxes inside them.
+        /// skipped so shots reach the hitboxes inside them. Held weapons are trigger targets too.
         /// </summary>
         public static bool Cast(Ray ray, float range, Transform ignoreRoot, out RaycastHit best)
         {
@@ -26,7 +25,7 @@ namespace OrbitalAnte.Combat
                 if (c == null) continue;
                 if (ignoreRoot != null && c.transform.IsChildOf(ignoreRoot)) continue;
                 if (c is CharacterController) continue;
-                if (c.isTrigger && c.GetComponent<BodyPart>() == null) continue;
+                if (c.isTrigger && c.GetComponent<IShootable>() == null) continue;
                 if (h.distance < bestDistance)
                 {
                     bestDistance = h.distance;

@@ -25,6 +25,7 @@ namespace OrbitalAnte.EditorTools
         const string Root = "Assets/OrbitalAnte";
         const string SettingsDir = Root + "/Settings";
         const string ConfigDir = Root + "/Resources/Config";
+        const string WeaponsDir = Root + "/Resources/Weapons";
         const string MaterialsDir = Root + "/Resources/Materials";
         const string ScenesDir = Root + "/Scenes";
         const string MainMenuPath = ScenesDir + "/MainMenu.unity";
@@ -49,6 +50,9 @@ namespace OrbitalAnte.EditorTools
             !File.Exists(ArenaPath) || !File.Exists(MainMenuPath) ||
             !File.Exists(ConfigDir + "/MannequinConfig.asset") ||
             !File.Exists(ConfigDir + "/GameFeelConfig.asset") ||
+            !File.Exists(ConfigDir + "/CombatRulesConfig.asset") ||
+            !File.Exists(WeaponsDir + "/RifleAK.asset") ||
+            !File.Exists(WeaponsDir + "/TestPistol.asset") ||
             !File.Exists(MaterialsDir + "/OA_Particle.mat") ||
             !File.Exists(MaterialsDir + "/OA_Decal.mat");
 
@@ -59,6 +63,7 @@ namespace OrbitalAnte.EditorTools
 
             EnsureFolder(SettingsDir);
             EnsureFolder(ConfigDir);
+            EnsureFolder(WeaponsDir);
             EnsureFolder(MaterialsDir);
             EnsureFolder(ScenesDir);
 
@@ -227,8 +232,13 @@ namespace OrbitalAnte.EditorTools
         {
             CreateIfMissing<MannequinConfig>(ConfigDir + "/MannequinConfig.asset");
             CreateIfMissing<PlayerConfig>(ConfigDir + "/PlayerConfig.asset");
-            CreateIfMissing<DebugGunConfig>(ConfigDir + "/DebugGunConfig.asset");
             CreateIfMissing<GameFeelConfig>(ConfigDir + "/GameFeelConfig.asset");
+            CreateIfMissing<CombatRulesConfig>(ConfigDir + "/CombatRulesConfig.asset");
+            // Weapons start from the code defaults; after this they are tuned in the Inspector.
+            if (!File.Exists(WeaponsDir + "/RifleAK.asset"))
+                AssetDatabase.CreateAsset(WeaponDefinition.DefaultRifle(), WeaponsDir + "/RifleAK.asset");
+            if (!File.Exists(WeaponsDir + "/TestPistol.asset"))
+                AssetDatabase.CreateAsset(WeaponDefinition.DefaultPistol(), WeaponsDir + "/TestPistol.asset");
         }
 
         static void CreateIfMissing<T>(string path) where T : ScriptableObject

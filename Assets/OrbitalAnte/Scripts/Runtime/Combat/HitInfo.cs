@@ -20,5 +20,7 @@ namespace OrbitalAnte.Combat
         Severed,
         Killed,
         GibSplit,
+        /// <summary>The shot knocked a weapon out of someone's hands.</summary>
+        Disarmed,
     }
 }

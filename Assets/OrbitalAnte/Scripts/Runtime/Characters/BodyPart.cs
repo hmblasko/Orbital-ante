@@ -11,7 +11,7 @@ namespace OrbitalAnte.Characters
     /// its bone. Once it comes off it becomes a rigidbody joined to the rest of its chain, and
     /// it can be shot again to split the chain further. Retired gibs are pooled and reused.
     /// </summary>
-    public class BodyPart : MonoBehaviour
+    public class BodyPart : MonoBehaviour, IShootable
     {
         public BodyPartId Id;
         public float MaxHp;

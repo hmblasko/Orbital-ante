@@ -21,6 +21,15 @@ namespace OrbitalAnte.Characters
         float headRoll;
         float smoothedDesire;
 
+        /// <summary>Arm holding a gun points it forward (set by DummyGunner).</summary>
+        public bool AimMain;
+        /// <summary>0 = left hand holds the gun, 1 = right.</summary>
+        public int AimSide = 1;
+        /// <summary>The other hand reaches in to support the gun.</summary>
+        public bool AimSupport;
+        /// <summary>Degrees up (+) or down (-) toward the target.</summary>
+        public float AimPitch;
+
         /// <summary>Speed multiplier for this frame: 1 = steady walk, surges for hops and crawls.</summary>
         public float MovePulse { get; private set; } = 1f;
 
@@ -49,9 +58,9 @@ namespace OrbitalAnte.Characters
 
             switch (state)
             {
-                case LocomotionState.Normal: Walk(a, k); MovePulse = 1f; break;
-                case LocomotionState.Limp: Limp(a, k); break;
-                case LocomotionState.Crawl: Crawl(a, k); break;
+                case LocomotionState.Normal: Walk(a, k); MovePulse = 1f; ApplyAim(k, false); break;
+                case LocomotionState.Limp: Limp(a, k); ApplyAim(k, false); break;
+                case LocomotionState.Crawl: Crawl(a, k); ApplyAim(k, true); break;
                 case LocomotionState.Wriggle: Wriggle(a, k); break;
                 case LocomotionState.HeadOnly: HeadHop(a, k, dt); break;
             }
@@ -140,6 +149,34 @@ namespace OrbitalAnte.Characters
             Set(rig.Chest, Quaternion.identity, 1f);
             Set(rig.Neck, Quaternion.identity, 1f);
             rig.Head.localRotation = Quaternion.Euler(headRoll, 0, 8f * Mathf.Sin(phase * 0.5f));
+        }
+
+        /// <summary>Gun arm points at the target; support arm reaches across to the gun.</summary>
+        void ApplyAim(float k, bool prone)
+        {
+            if (!AimMain) return;
+            int main = AimSide;
+            float sign = main == 0 ? 1f : -1f;
+            if (prone)
+            {
+                // Lying face down: reach the gun out ahead, overhead in body space.
+                Set(rig.UpperArm[main], Quaternion.Euler(0, 0, sign * -82f), k);
+                Set(rig.Forearm[main], Quaternion.identity, k);
+                Set(rig.Hand[main], Quaternion.identity, k);
+                return;
+            }
+            float pitch = Mathf.Clamp(AimPitch, -60f, 60f);
+            Set(rig.UpperArm[main], Quaternion.Euler(-pitch, 0, 0) * Quaternion.Euler(0, sign * 88f, 0), k);
+            Set(rig.Forearm[main], Quaternion.identity, k);
+            Set(rig.Hand[main], Quaternion.identity, k);
+            if (AimSupport)
+            {
+                int other = 1 - main;
+                float os = other == 0 ? 1f : -1f;
+                Set(rig.UpperArm[other], Quaternion.Euler(-pitch, 0, 0) * Quaternion.Euler(0, os * 112f, os * 8f), k);
+                Set(rig.Forearm[other], Quaternion.Euler(0, os * 38f, 0), k);
+                Set(rig.Hand[other], Quaternion.identity, k);
+            }
         }
 
         // ---- helpers -----------------------------------------------------------------------

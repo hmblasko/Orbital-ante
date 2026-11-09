@@ -14,3 +14,6 @@ Anything marked **provisional** can be changed by Matthew at any time.
 | 7 | Mannequin animation source | Humanoid rig is real; clips (e.g. Mixamo walk/crawl) can drop in later. Until then a procedural gait animates every state. | Provisional |
 | 8 | Repo layout | Unity replaces Godot on `main`; Godot archived on `archive/godot-rust`. | Decided by Matthew |
 | 9 | Test-only pistol vs one-gun rule | The pistol exists only in the test arena so the two can be compared. In the real game you carry one gun + melee + rope gun. | Provisional |
+| 10 | Player damage and death in the arena | Not yet. Dummies shoot back, you see a direction flash only. Player health comes with combat polish (Phase 1 step 10). | Provisional |
+| 11 | Disarm triggers | Shooting the gun hand (or anything above it on that arm) drops the gun; shooting the gun knocks it away. Dummies re-arm from loose guns within 10 m. | Provisional |
+| 12 | Dummy weapon mix | 60 % rifle, 40 % pistol in the test arena, from the run seed. | Provisional |

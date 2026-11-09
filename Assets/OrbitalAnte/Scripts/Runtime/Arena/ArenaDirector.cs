@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using OrbitalAnte.Characters;
 using OrbitalAnte.Combat;
 using OrbitalAnte.Core;
@@ -10,23 +11,31 @@ using UnityEngine;
 
 namespace OrbitalAnte.Arena
 {
-    /// <summary>Runs the test arena: spawns the player and seeded dummies, handles playtest keys.</summary>
+    /// <summary>
+    /// Runs the test arena: spawns the player with the rifle, seeded armed dummies and a weapon
+    /// table, and handles the playtest keys.
+    /// </summary>
     public class ArenaDirector : MonoBehaviour
     {
         public int DummyCount = 6;
 
+        static readonly Vector3 TablePos = new Vector3(4.5f, 0f, -12f);
+
         MannequinConfig mannequinConfig;
         readonly List<Mannequin> spawned = new List<Mannequin>();
         Transform dummyRoot;
+        PlayerWeapons playerWeapons;
 
         void Start()
         {
             mannequinConfig = MannequinConfig.Load();
             GameFeel.EnsureCreated();
             TestArenaBuilder.Build();
+            BuildWeaponTable();
 
             var player = FirstPersonController.Create(PlayerConfig.Load(), new Vector3(0, 0.05f, -12f), 0f);
-            player.gameObject.AddComponent<DebugHitscanGun>();
+            playerWeapons = player.gameObject.AddComponent<PlayerWeapons>();
+            playerWeapons.Equip(WeaponFactory.Create(WeaponFactory.Rifle, player.transform.position, Quaternion.identity));
             FirstPersonController.SetCursorLocked(true);
 
             Hud.Create();
@@ -35,8 +44,29 @@ namespace OrbitalAnte.Arena
 
             dummyRoot = new GameObject("Dummies").transform;
             SpawnDummies();
+            SpawnTableWeapons();
             Hud.Instance.Notify($"Test arena  ·  seed #{RunSeed.Current}", NoticeKind.System);
             UpdateStateLabel();
+        }
+
+        void BuildWeaponTable()
+        {
+            var table = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            table.name = "WeaponTable";
+            table.transform.position = TablePos + new Vector3(0, 0.45f, 0);
+            table.transform.localScale = new Vector3(2.2f, 0.9f, 0.9f);
+            table.GetComponent<MeshRenderer>().sharedMaterial = MaterialLibrary.Lit(new Color(0.35f, 0.4f, 0.5f));
+            table.isStatic = true;
+        }
+
+        void SpawnTableWeapons()
+        {
+            // Loose guns not held by anyone get cleared and the table restocked.
+            foreach (var w in Weapon.All.ToArray())
+                if (w != null && w.IsLoose) Destroy(w.gameObject);
+            var top = TablePos + new Vector3(0, 0.95f, 0);
+            WeaponFactory.Create(WeaponFactory.Pistol, top + new Vector3(-0.5f, 0, 0), Quaternion.Euler(0, 90, 90));
+            WeaponFactory.Create(WeaponFactory.Rifle, top + new Vector3(0.45f, 0, 0), Quaternion.Euler(0, 90, 90));
         }
 
         void SpawnDummies()
@@ -45,7 +75,7 @@ namespace OrbitalAnte.Arena
                 if (m != null) Destroy(m.gameObject);
             spawned.Clear();
 
-            // Same seed, same line-up: positions, facing and colour all come from the run seed.
+            // Same seed, same line-up: positions, facing, colour and gun all come from the run seed.
             var rng = RunSeed.CreateStream("arena.dummies");
             for (int i = 0; i < DummyCount; i++)
             {
@@ -62,6 +92,11 @@ namespace OrbitalAnte.Arena
                 m.name = "Dummy_" + i;
                 m.GetComponent<MannequinBrain>().SpawnIndex = i;
                 m.StateChanged += OnDummyState;
+
+                var gunner = m.gameObject.AddComponent<DummyGunner>();
+                bool pistol = rng.NextFloat() < 0.4f;
+                var w = WeaponFactory.Create(pistol ? WeaponFactory.Pistol : WeaponFactory.Rifle, m.transform.position, Quaternion.identity);
+                if (!gunner.Equip(w)) Destroy(w.gameObject);
                 spawned.Add(m);
             }
         }
@@ -85,6 +120,7 @@ namespace OrbitalAnte.Arena
             if (GameInput.DebugRespawn.WasPressedThisFrame())
             {
                 SpawnDummies();
+                SpawnTableWeapons();
                 Hud.Instance?.Notify("Fresh dummies!", NoticeKind.Info);
             }
             if (GameInput.DebugSlowMo.WasPressedThisFrame())
@@ -92,10 +128,16 @@ namespace OrbitalAnte.Arena
                 GameFeel.HeadshotSlowMo = !GameFeel.HeadshotSlowMo;
                 Hud.Instance?.Notify("Headshot slow-mo: " + (GameFeel.HeadshotSlowMo ? "ON" : "OFF"), NoticeKind.Info);
             }
+            if (GameInput.DebugOneHand.WasPressedThisFrame() && playerWeapons != null)
+            {
+                playerWeapons.OneHandedTest = !playerWeapons.OneHandedTest;
+                Hud.Instance?.Notify(playerWeapons.OneHandedTest ? "One-handed: more spread and kick" : "Two hands again", NoticeKind.Info);
+            }
             if (GameInput.DebugWalkMode.WasPressedThisFrame())
             {
-                MannequinBrain.GlobalMode = (DummyWalkMode)(((int)MannequinBrain.GlobalMode + 1) % 3);
-                Hud.Instance?.Notify("Dummies: " + MannequinBrain.GlobalMode, NoticeKind.Info);
+                MannequinBrain.GlobalMode = (DummyWalkMode)(((int)MannequinBrain.GlobalMode + 1) % 4);
+                string extra = MannequinBrain.GlobalMode == DummyWalkMode.Attack ? " (they shoot back!)" : "";
+                Hud.Instance?.Notify("Dummies: " + MannequinBrain.GlobalMode + extra, NoticeKind.Info);
                 UpdateStateLabel();
             }
         }
