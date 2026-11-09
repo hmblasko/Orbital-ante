@@ -1,26 +1,37 @@
-# Large binary game assets go through Git LFS (CLAUDE.md section 14).
-godot/assets/**/*.glb  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.gltf filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.bin  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.fbx  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.obj  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.blend filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.png  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.webp filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.exr  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.hdr  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.ktx2 filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.wav  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.ogg  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
-godot/assets/**/*.flac filter=lfs diff=lfs merge=lfs -text
+# Unity text assets: keep LF and let Git merge them as text.
+*.cs        text eol=lf diff=csharp
+*.asmdef    text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.meta      text eol=lf
+*.unity     text eol=lf merge=unityyamlmerge
+*.prefab    text eol=lf merge=unityyamlmerge
+*.asset     text eol=lf merge=unityyamlmerge
+*.mat       text eol=lf merge=unityyamlmerge
+*.anim      text eol=lf merge=unityyamlmerge
+*.controller text eol=lf merge=unityyamlmerge
+*.inputactions text eol=lf
+*.uss       text eol=lf
+*.uxml      text eol=lf
 
-# Text files keep Unix line endings so Godot and Rust see the same bytes.
-*.rs   text eol=lf
-*.ron  text eol=lf
-*.gd   text eol=lf
-*.tscn text eol=lf
-*.tres text eol=lf
-*.godot text eol=lf
+# Large binary assets go through Git LFS (GitHub Desktop installs LFS for you).
+*.fbx   filter=lfs diff=lfs merge=lfs -text
+*.FBX   filter=lfs diff=lfs merge=lfs -text
+*.obj   filter=lfs diff=lfs merge=lfs -text
+*.glb   filter=lfs diff=lfs merge=lfs -text
+*.gltf  filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+*.png   filter=lfs diff=lfs merge=lfs -text
+*.jpg   filter=lfs diff=lfs merge=lfs -text
+*.jpeg  filter=lfs diff=lfs merge=lfs -text
+*.tga   filter=lfs diff=lfs merge=lfs -text
+*.psd   filter=lfs diff=lfs merge=lfs -text
+*.exr   filter=lfs diff=lfs merge=lfs -text
+*.hdr   filter=lfs diff=lfs merge=lfs -text
+*.tif   filter=lfs diff=lfs merge=lfs -text
+*.wav   filter=lfs diff=lfs merge=lfs -text
+*.ogg   filter=lfs diff=lfs merge=lfs -text
+*.mp3   filter=lfs diff=lfs merge=lfs -text
+*.flac  filter=lfs diff=lfs merge=lfs -text
+*.ttf   filter=lfs diff=lfs merge=lfs -text
+*.otf   filter=lfs diff=lfs merge=lfs -text
