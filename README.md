@@ -1,21 +1,14 @@
 # Orbital Ante (working title)
 
-First-person space-exploration roguelite for Steam Deck. Godot 4.7 + Rust (gdext 0.5).
+First-person space-exploration roguelite for Steam, Steam Deck first. Unity 6 LTS, URP, C#.
 
-- `CLAUDE.md` is the master build prompt and the single source of truth.
-- `docs/SETUP.md` has the toolchain setup, how to run, and the Steam Deck build route.
-- `reports/` holds the verification report for each phase.
+- `CLAUDE.md` holds the build prompt (the source of truth for the design) and notes on how this repo works.
+- `docs/SETUP.md` has step-by-step setup: installing Unity, opening the project, playing, running the tests.
+- `docs/reports/` has one report per milestone, each with a playtest checklist.
+- `unity/` is the Unity project. Open that folder from Unity Hub.
 
-Quick start (after setup):
+The earlier Godot + Rust version is kept on the `godot-archive` branch.
 
-```
-cd rust && cargo build && cargo test
-```
+## Where the build is
 
-Then open `godot/project.godot` in Godot 4.7.2 and press F5.
-
-Scripted smoke test (from `godot/`):
-
-```
-godot --headless --path . --fixed-fps 60 --script res://tests/sphere_walk_smoke.gd
-```
+Phase 1, Milestone 1: breakable playtest characters in a combat test arena. See `docs/reports/milestone-1.md`.

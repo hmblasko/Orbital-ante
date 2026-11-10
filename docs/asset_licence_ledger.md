@@ -1,7 +1,7 @@
 # Asset licence ledger
 
-CLAUDE.md section 15: log every asset, texture, sound and track with its source and licence.
+Log every asset, texture, sound and track with its source and licence before it goes into `unity/Assets`.
 
 | Asset | Path | Source / URL | Licence | AI-generated? | Added | Notes |
 |---|---|---|---|---|---|---|
-| (none yet) | | | | | | Phase 0 test scene uses only Godot built-in meshes and generated noise. |
+| (none yet) | | | | | | Milestone 1 uses only Unity built-in primitives, Unity's built-in font and textures generated in code. |

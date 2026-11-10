@@ -1,0 +1,43 @@
+using System;
+using UnityEngine;
+
+namespace OrbitalAnte.Core
+{
+    /// <summary>Everything a target needs to know about one bullet hit.</summary>
+    public struct HitInfo
+    {
+        public float Damage;
+        public Vector3 Point;
+        /// <summary>Normalised travel direction of the bullet.</summary>
+        public Vector3 Direction;
+        public Vector3 Normal;
+    }
+
+    /// <summary>What happened when something was hit, so the shooter can give feedback.</summary>
+    public struct HitOutcome
+    {
+        public bool Hit;
+        /// <summary>A part came off.</summary>
+        public bool Severed;
+        public bool Killed;
+        /// <summary>Short label for the debug readout, for example "Left Shin".</summary>
+        public string Label;
+    }
+
+    public interface IHittable
+    {
+        HitOutcome Hit(in HitInfo hit);
+        /// <summary>Text for the "what am I aiming at" debug readout.</summary>
+        string DescribeForDebug();
+    }
+
+    /// <summary>Loose coupling between combat and feedback (HUD now; sound, hitstop and shake in Milestone 2).</summary>
+    public static class CombatEvents
+    {
+        public static event Action<HitOutcome> PlayerHitSomething;
+
+        public static void RaisePlayerHit(HitOutcome outcome) => PlayerHitSomething?.Invoke(outcome);
+
+        public static void ResetStatics() => PlayerHitSomething = null;
+    }
+}
