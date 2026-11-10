@@ -27,11 +27,13 @@ namespace OrbitalAnte.Core
         AudioListener _menuListener;
         GameObject _world;
         TestArena _arena;
+        Space.SolarSystemWorld _space;
         TimeFx _timeFx;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
 
         public TestArena Arena => _arena;
+        public Space.SolarSystemWorld Space => _space;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -49,6 +51,7 @@ namespace OrbitalAnte.Core
             Content.ContentDatabase.ResetStatics();
             Save.SaveSystem.ResetStatics();
             Perf.PerfMonitor.ResetStatics();
+            OrbitalAnte.Space.SolarSystem.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -142,7 +145,7 @@ namespace OrbitalAnte.Core
             menuGo.transform.SetParent(_uiRoot, false);
             _mainMenu = menuGo.AddComponent<MainMenu>();
             _mainMenu.Build(_uiRoot);
-            _mainMenu.PlayRequested = () => StartRun(GameSession.NewRandomSeed());
+            _mainMenu.PlayRequested = scenario => StartRun(GameSession.NewRandomSeed(), scenario);
             _mainMenu.ReplayRequested = StartRun;
             _mainMenu.QuitRequested = QuitToDesktop;
 
@@ -168,7 +171,7 @@ namespace OrbitalAnte.Core
             }
             GameSession.SetPaused(false);
             GameSession.SetMode(GameMode.MainMenu);
-            GameInput.Gameplay.Disable();
+            GameInput.Play.Disable();
 
             _menuCamera.gameObject.SetActive(true);
             _menuListener.enabled = true;
@@ -177,16 +180,23 @@ namespace OrbitalAnte.Core
             SetCursorLocked(false);
         }
 
+        /// <summary>Restarts in the same test world.</summary>
+        public void StartRun(int seed) => StartRun(seed, GameSession.Scenario);
+
         /// <summary>Tears down whatever is running and starts a fresh run from a seed.</summary>
-        public void StartRun(int seed)
+        public void StartRun(int seed, Scenario scenario)
         {
             DestroyWorld();
+            GameInput.Play.Disable();
+            GameSession.SetScenario(scenario);
+            GameInput.SetFlying(scenario == Scenario.SolarSystem);
             GameSession.SetSeed(seed);
             GameSession.SetPaused(false);
 
             Save.SaveData save = Save.SaveSystem.Data;
             save.hasLastSeed = true;
             save.lastSeed = seed;
+            save.lastScenario = (int)scenario;
             save.runsStarted++;
             BankPlayTime();
             Save.SaveSystem.Save();
@@ -197,15 +207,25 @@ namespace OrbitalAnte.Core
             _mainMenu.SetVisible(false);
 
             _world = new GameObject("World");
-            _arena = _world.AddComponent<TestArena>();
-            _arena.Build(seed);
-
-            _hud.Weapons = _arena.Weapons;
-            _hud.Health = _arena.Health;
+            if (scenario == Scenario.SolarSystem)
+            {
+                _space = _world.AddComponent<Space.SolarSystemWorld>();
+                _space.Build(seed);
+                _hud.SetArenaMode(false);
+                _hud.ExtraDebug = _space.DescribeForDebug;
+            }
+            else
+            {
+                _arena = _world.AddComponent<TestArena>();
+                _arena.Build(seed);
+                _hud.SetArenaMode(true);
+                _hud.Weapons = _arena.Weapons;
+                _hud.Health = _arena.Health;
+            }
             _hud.SetVisible(true);
 
             GameSession.SetMode(GameMode.Playing);
-            GameInput.Gameplay.Enable();
+            GameInput.Play.Enable();
             SetCursorLocked(true);
         }
 
@@ -219,8 +239,10 @@ namespace OrbitalAnte.Core
             Destroy(_world);
             _world = null;
             _arena = null;
+            _space = null;
             if (_hud != null)
             {
+                _hud.ExtraDebug = null;
                 _hud.Weapons = null;
                 _hud.Health = null;
             }
@@ -248,8 +270,8 @@ namespace OrbitalAnte.Core
         void OnPauseChanged(bool paused)
         {
             if (GameSession.Mode != GameMode.Playing) return;
-            if (paused) GameInput.Gameplay.Disable();
-            else GameInput.Gameplay.Enable();
+            if (paused) GameInput.Play.Disable();
+            else GameInput.Play.Enable();
             SetCursorLocked(!paused);
         }
 

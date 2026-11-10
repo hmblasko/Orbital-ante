@@ -165,6 +165,7 @@ namespace OrbitalAnte.Arena
             RenderSettings.ambientEquatorColor = new Color(0.52f, 0.50f, 0.50f);
             RenderSettings.ambientGroundColor = new Color(0.30f, 0.26f, 0.24f);
             RenderSettings.fog = false;
+            RenderSettings.reflectionIntensity = 1f;
         }
 
         void BuildGeometry()

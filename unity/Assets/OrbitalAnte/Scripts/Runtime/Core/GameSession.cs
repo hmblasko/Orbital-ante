@@ -9,14 +9,26 @@ namespace OrbitalAnte.Core
         Playing,
     }
 
+    /// <summary>Which test world a run takes place in.</summary>
+    public enum Scenario
+    {
+        /// <summary>The combat test arena from Milestones 1 to 3.</summary>
+        CombatArena = 0,
+        /// <summary>Flying the solar system (Milestone 5 onward).</summary>
+        SolarSystem = 1,
+    }
+
     /// <summary>Run-wide state: the seed, whether we are in the menu or playing, and whether the game is paused.</summary>
     public static class GameSession
     {
-        public const string BuildLabel = "Milestone 4 - foundation";
+        public const string BuildLabel = "Milestone 5 - solar system";
 
         public static GameMode Mode { get; private set; } = GameMode.MainMenu;
         public static int Seed { get; private set; }
         public static bool Paused { get; private set; }
+        public static Scenario Scenario { get; private set; } = Scenario.SolarSystem;
+
+        public static void SetScenario(Scenario scenario) => Scenario = scenario;
 
         /// <summary>Raised after the pause state changes.</summary>
         public static event Action<bool> PauseChanged;

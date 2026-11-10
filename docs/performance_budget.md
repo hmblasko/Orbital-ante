@@ -43,6 +43,25 @@ Caps already enforced by code (set in `GoreConfig`):
 
 Every new system from here on gets a line in this file: what it may cost and what caps it.
 
+## Solar system (Milestone 5): estimates from reading the code, not measured
+
+| | Cap or expected cost |
+|---|---|
+| Bodies moved each physics step | 150 at most (today 130: Sun, 8 planets, 11 moons, 110 asteroids) |
+| Asteroids | 110 (`Asteroid Belt > Count` on the SolarSystem asset) |
+| Surface textures | 9 at 384 x 192, 11 moons at 192 x 96, about 5 MB in all |
+| Building those textures when a run starts | a pause of under half a second on Deck is the target. Estimated 0.15 to 0.5 s in a build, longer in the editor. Not measured. No loading screen yet. |
+| Draw calls with everything in view | about 140 (estimate) against the 1,500 budget |
+| Triangles with everything in view | under 150,000 (estimate). Each ball drops to a simpler mesh when it is small on screen. |
+| Stars | 1,680 squares in 3 meshes (3 draw calls) |
+| Solar system script time per physics step | 0.2 ms (estimate) |
+| Flight readouts | words refreshed 8 times a second, not every frame |
+| Map, while open | 1 ms per frame (estimate), redrawn every frame |
+| Shadows | off in the solar system for now: nothing casts one yet |
+| Camera far limit | 300 km (the system is about 240 km across) |
+
+Numbers to read off in Unity for this section are listed in `docs/reports/milestone-5.md`.
+
 ## What the game checks by itself
 
 While you play, the top-left readout has a line like:

@@ -129,5 +129,17 @@ namespace OrbitalAnte.Tests
             Assert.IsFalse(SaveMigrations.Upgrade(new SaveData { version = 0 }));
             Assert.IsFalse(SaveMigrations.Upgrade(null));
         }
+
+        [Test]
+        public void AnOlderSaveIsBroughtUpToDateWithoutLosingAnything()
+        {
+            // What a save from the Milestone 4 build looks like once read: version 1, no idea about test worlds.
+            var old = new SaveData { version = 1, hasLastSeed = true, lastSeed = 4242, runsStarted = 9, secondsPlayed = 100 };
+            Assert.IsTrue(SaveMigrations.Upgrade(old));
+            Assert.AreEqual(SaveData.CurrentVersion, old.version);
+            Assert.AreEqual(4242, old.lastSeed);
+            Assert.AreEqual(9, old.runsStarted);
+            Assert.AreEqual(0, old.lastScenario, "Older builds only had the combat arena.");
+        }
     }
 }

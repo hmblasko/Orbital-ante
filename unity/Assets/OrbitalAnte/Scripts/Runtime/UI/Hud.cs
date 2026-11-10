@@ -44,16 +44,30 @@ namespace OrbitalAnte.UI
         Image _hurtFlash;
         static readonly Color DisarmColor = new Color(0.45f, 0.85f, 1f);
 
+        /// <summary>Extra line for the debug readout, supplied by whichever test world is running.</summary>
+        public System.Func<string> ExtraDebug;
+
+        /// <summary>Everything that only makes sense in the combat arena (crosshair, ammo, health) lives under this.</summary>
+        RectTransform _arenaOnly;
+
+        /// <summary>Shows or hides the combat parts. The frame-time readout stays either way.</summary>
+        public void SetArenaMode(bool arena)
+        {
+            if (_arenaOnly != null) _arenaOnly.gameObject.SetActive(arena);
+        }
+
         public void Build(Transform uiRoot)
         {
             _canvas = UiKit.CreateCanvas("HUD", uiRoot, 10);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
+            _arenaOnly = UiKit.NewRect("ArenaOnly", _canvas.transform);
+            UiKit.Stretch(_arenaOnly);
 
             // Crosshair: a small dot with a dark outline so it reads against any background.
-            var outline = UiKit.NewRect("CrosshairOutline", _canvas.transform);
+            var outline = UiKit.NewRect("CrosshairOutline", _arenaOnly);
             UiKit.Pin(outline, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 10f));
             UiKit.AddImage(outline, new Color(0f, 0f, 0f, 0.7f), UiKit.Circle);
-            var dot = UiKit.NewRect("CrosshairDot", _canvas.transform);
+            var dot = UiKit.NewRect("CrosshairDot", _arenaOnly);
             UiKit.Pin(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
             UiKit.AddImage(dot, UiKit.Cream, UiKit.Circle);
 
@@ -61,7 +75,7 @@ namespace OrbitalAnte.UI
             _hitMarker = new Image[4];
             for (int i = 0; i < 4; i++)
             {
-                var tick = UiKit.NewRect("HitTick", _canvas.transform);
+                var tick = UiKit.NewRect("HitTick", _arenaOnly);
                 float angle = 45f + 90f * i;
                 Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
                 tick.anchorMin = tick.anchorMax = tick.pivot = new Vector2(0.5f, 0.5f);
@@ -72,35 +86,35 @@ namespace OrbitalAnte.UI
                 _hitMarker[i].enabled = false;
             }
 
-            _aimText = UiKit.Label(_canvas.transform, string.Empty, 20, UiKit.Cream);
+            _aimText = UiKit.Label(_arenaOnly, string.Empty, 20, UiKit.Cream);
             UiKit.Pin((RectTransform)_aimText.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(500f, 30f));
             AddShadow(_aimText);
 
             _frameText = UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperLeft);
-            UiKit.Pin((RectTransform)_frameText.transform, new Vector2(0f, 1f), new Vector2(14f, -10f), new Vector2(760f, 84f));
+            UiKit.Pin((RectTransform)_frameText.transform, new Vector2(0f, 1f), new Vector2(14f, -10f), new Vector2(900f, 108f));
             AddShadow(_frameText);
 
-            _helpText = UiKit.Label(_canvas.transform, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
+            _helpText = UiKit.Label(_arenaOnly, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
             UiKit.Pin((RectTransform)_helpText.transform, new Vector2(0f, 0f), new Vector2(14f, 10f), new Vector2(700f, 54f));
             AddShadow(_helpText);
             _helpText.text = "Respawn dummies: T or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start     Debug readout: F3";
 
             // Full-screen red flash when the player is hit. Drawn first so everything else sits on top of it.
-            var flash = UiKit.NewRect("HurtFlash", _canvas.transform);
+            var flash = UiKit.NewRect("HurtFlash", _arenaOnly);
             UiKit.Stretch(flash);
             flash.SetAsFirstSibling();
             _hurtFlash = UiKit.AddImage(flash, new Color(0.8f, 0.05f, 0.05f, 0f));
 
             // Ammo, bottom right: a big number for the magazine, the gun's name above it.
-            _ammoText = UiKit.Label(_canvas.transform, string.Empty, 54, UiKit.Cream, TextAnchor.LowerRight);
+            _ammoText = UiKit.Label(_arenaOnly, string.Empty, 54, UiKit.Cream, TextAnchor.LowerRight);
             UiKit.Pin((RectTransform)_ammoText.transform, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(420f, 70f));
             AddShadow(_ammoText);
-            _weaponText = UiKit.Label(_canvas.transform, string.Empty, 20, UiKit.PanelEdge, TextAnchor.LowerRight);
+            _weaponText = UiKit.Label(_arenaOnly, string.Empty, 20, UiKit.PanelEdge, TextAnchor.LowerRight);
             UiKit.Pin((RectTransform)_weaponText.transform, new Vector2(1f, 0f), new Vector2(-26f, 84f), new Vector2(420f, 28f));
             AddShadow(_weaponText);
 
             // Health, bottom centre: a chunky bar.
-            _healthBar = UiKit.NewRect("HealthBar", _canvas.transform);
+            _healthBar = UiKit.NewRect("HealthBar", _arenaOnly);
             UiKit.Pin(_healthBar, new Vector2(0.5f, 0f), new Vector2(0f, 78f), new Vector2(288f, 22f));
             UiKit.AddImage(_healthBar, new Color(0f, 0f, 0f, 0.6f), UiKit.Rounded);
             var fill = UiKit.NewRect("Fill", _healthBar);
@@ -113,10 +127,10 @@ namespace OrbitalAnte.UI
             _healthFill = UiKit.AddImage(fill, UiKit.Cream);
 
             // "Pick up" prompt under the crosshair, and a banner at the top for arena state.
-            _promptText = UiKit.Label(_canvas.transform, string.Empty, 22, UiKit.Cream);
+            _promptText = UiKit.Label(_arenaOnly, string.Empty, 22, UiKit.Cream);
             UiKit.Pin((RectTransform)_promptText.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -92f), new Vector2(760f, 30f));
             AddShadow(_promptText);
-            _bannerText = UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge);
+            _bannerText = UiKit.Label(_arenaOnly, string.Empty, 24, UiKit.PanelEdge);
             UiKit.Pin((RectTransform)_bannerText.transform, new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(900f, 34f));
             AddShadow(_bannerText);
 
@@ -252,7 +266,8 @@ namespace OrbitalAnte.UI
                     (average * 1000f).ToString("0.0") + " ms avg   " +
                     (_worstFrame * 1000f).ToString("0.0") + " ms worst   " +
                     Mathf.RoundToInt(1f / Mathf.Max(0.0001f, average)) + " fps\n" +
-                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout();
+                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout() +
+                    (ExtraDebug != null ? "\n" + ExtraDebug() : string.Empty);
             }
             _frameAccumulator = 0f;
             _frameCount = 0;

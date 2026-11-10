@@ -44,6 +44,8 @@ namespace OrbitalAnte.EditorTools
             EditorApplication.delayCall += AutoRun;
         }
 
+        const string SolarSystemPath = "Assets/OrbitalAnte/Resources/SolarSystem/SolarSystem.asset";
+
         static void AutoRun()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
@@ -61,6 +63,8 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -94,7 +98,7 @@ namespace OrbitalAnte.EditorTools
             var problems = OrbitalAnte.Content.ContentDatabase.Problems;
             int guns = OrbitalAnte.Content.ContentDatabase.All<WeaponData>().Count;
             string message = problems.Count == 0
-                ? "All content is fine (" + guns + " weapons checked)."
+                ? "All content is fine (" + guns + " weapons and the solar system checked)."
                 : problems.Count + " problem(s) found:\n\n - " + string.Join("\n - ", problems);
             if (problems.Count == 0) Debug.Log("Orbital Ante: " + message);
             EditorUtility.DisplayDialog("Orbital Ante content check", message, "OK");
@@ -272,6 +276,10 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset");
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
             CreateAssetIfMissing<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset");
+            CreateAssetIfMissing<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset");
+            // The solar system's numbers: every body's size, gravity, orbit and spin.
+            EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
+            CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);
         }
 
         /// <summary>

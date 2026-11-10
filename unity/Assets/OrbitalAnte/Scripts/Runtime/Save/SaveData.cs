@@ -13,7 +13,7 @@ namespace OrbitalAnte.Save
     [Serializable]
     public sealed class SaveData
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         /// <summary>Which layout of this file was written. 0 means "not a save".</summary>
         public int version = CurrentVersion;
@@ -21,6 +21,8 @@ namespace OrbitalAnte.Save
         /// <summary>The seed of the most recent run, so it can be played again.</summary>
         public bool hasLastSeed;
         public int lastSeed;
+        /// <summary>Which test world that run was in: 0 combat arena, 1 solar system. (Added in version 2.)</summary>
+        public int lastScenario;
 
         public int runsStarted;
         /// <summary>Total time spent in runs, in seconds.</summary>
@@ -36,8 +38,13 @@ namespace OrbitalAnte.Save
             if (data == null || data.version <= 0) return false;
             if (data.version > SaveData.CurrentVersion) return false;
 
-            // Each future change adds one step here, for example:
-            // if (data.version == 1) { ...fill in the new fields...; data.version = 2; }
+            // One step per change to the layout, oldest first.
+            if (data.version == 1)
+            {
+                // Version 1 only knew the combat arena.
+                data.lastScenario = 0;
+                data.version = 2;
+            }
 
             return data.version == SaveData.CurrentVersion;
         }

@@ -1,0 +1,369 @@
+using System;
+using System.Collections.Generic;
+using OrbitalAnte.Core;
+using UnityEngine;
+
+namespace OrbitalAnte.Space
+{
+    /// <summary>
+    /// The living solar system. Every physics step it moves each body to where the rules say it is, pulls every
+    /// loose object with gravity, and keeps the point of view (see <see cref="ReferenceFrame"/>) on whichever
+    /// body the player is near, so the ground under them stands still.
+    ///
+    /// Runs before other scripts each physics step, so everyone else sees this step's positions.
+    /// </summary>
+    [DefaultExecutionOrder(-500)]
+    public sealed class SolarSystem : MonoBehaviour
+    {
+        /// <summary>The player is brought back to Unity's zero point after drifting this far from it (metres).</summary>
+        public const float RecenterDistance = 2000f;
+        const float StarDistance = 285000f;
+        public const float FarClip = 300000f;
+
+        struct Snapshot
+        {
+            public Vec3d Position;
+            public Vec3d Velocity;
+            public Vec3d Spin;
+        }
+
+        public static SolarSystem Instance { get; private set; }
+
+        public SolarSystemModel Model { get; private set; }
+        public ReferenceFrame Frame { get; private set; }
+        /// <summary>Every body's true state at <see cref="SimTime"/>.</summary>
+        public BodyState[] States { get; private set; }
+        public CelestialBody[] Bodies { get; private set; }
+        /// <summary>Seconds since the run began, in simulation time.</summary>
+        public double SimTime { get; private set; }
+        /// <summary>The object the point of view follows: the ship, or the player on foot.</summary>
+        public GravityBody Focus { get; set; }
+        /// <summary>The camera the sky and sunlight are arranged around.</summary>
+        public Camera ViewCamera { get; set; }
+        public Light SunLight { get; private set; }
+        /// <summary>How many times the player has been brought back to Unity's zero point. For the debug readout.</summary>
+        public int RecenterCount { get; private set; }
+
+        /// <summary>
+        /// Raised when everything in the world is slid sideways to bring the player back near zero. The argument
+        /// is how far everything moved. Effects that leave things behind in the world (trails, smoke) listen
+        /// for this so they slide along too.
+        /// </summary>
+        public event Action<Vector3> WorldShifted;
+
+        readonly List<GravityBody> _movers = new List<GravityBody>();
+        readonly List<Snapshot> _snapshots = new List<Snapshot>();
+        Transform _stars;
+
+        public static void ResetStatics() => Instance = null;
+
+        public IReadOnlyList<GravityBody> Movers => _movers;
+
+        // ------------------------------------------------------------------ building
+
+        public void Build(SolarSystemData data, int seed)
+        {
+            Instance = this;
+            Model = new SolarSystemModel(data.BuildBodies(seed), seed);
+            Frame = new ReferenceFrame(Model);
+            States = Model.NewStateBuffer();
+            SimTime = 0;
+            Model.Evaluate(SimTime, States);
+
+            var bodyRoot = new GameObject("Bodies").transform;
+            bodyRoot.SetParent(transform, false);
+            Bodies = new CelestialBody[Model.Count];
+            for (int i = 0; i < Model.Count; i++) Bodies[i] = CelestialBody.Create(bodyRoot, i, Model.Spec(i));
+
+            BuildSky();
+            PlaceBodies(true);
+        }
+
+        void BuildSky()
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            // A little fill light, so the night side of a planet is dark but not a black hole.
+            RenderSettings.ambientLight = new Color(0.07f, 0.075f, 0.1f);
+            RenderSettings.fog = false;
+            // Space has no sky to reflect. Left on, planets would pick up a bluish sheen on their night sides.
+            _oldSkybox = RenderSettings.skybox;
+            _oldReflection = RenderSettings.reflectionIntensity;
+            _changedSky = true;
+            RenderSettings.skybox = null;
+            RenderSettings.reflectionIntensity = 0f;
+
+            var lightGo = new GameObject("Sunlight");
+            lightGo.transform.SetParent(transform, false);
+            SunLight = lightGo.AddComponent<Light>();
+            SunLight.type = LightType.Directional;
+            SunLight.color = new Color(1f, 0.96f, 0.88f);
+            SunLight.intensity = 1.35f;
+            // Nothing casts a shadow yet, so do not pay for looking them up. Milestone 6 and the ship turn this on.
+            SunLight.shadows = LightShadows.None;
+
+            _stars = new GameObject("Stars").transform;
+            _stars.SetParent(transform, false);
+            AddStarLayer("WhiteStars", 1100, new Color(0.92f, 0.94f, 1f), 4101);
+            AddStarLayer("WarmStars", 320, new Color(1f, 0.82f, 0.62f), 4102);
+            AddStarLayer("BlueStars", 260, new Color(0.65f, 0.78f, 1f), 4103);
+        }
+
+        void AddStarLayer(string layerName, int count, Color color, int seed)
+        {
+            var go = new GameObject(layerName);
+            go.transform.SetParent(_stars, false);
+            // Sizes chosen to be about one and a half to three pixels across on a Steam Deck screen. Any smaller and the
+            // faint ones blink as you turn.
+            go.AddComponent<MeshFilter>().sharedMesh = SpaceMeshes.StarField(count, StarDistance, 760f, 1500f, seed);
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = Mat.Unlit(color);
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
+        Material _oldSkybox;
+        float _oldReflection;
+        bool _changedSky;
+
+        void OnDestroy()
+        {
+            // Put the sky settings back, so the combat arena looks the same whichever test world ran first.
+            if (_changedSky)
+            {
+                RenderSettings.skybox = _oldSkybox;
+                RenderSettings.reflectionIntensity = _oldReflection;
+            }
+            if (Instance == this) Instance = null;
+        }
+
+        // ------------------------------------------------------------------ loose objects
+
+        public void Register(GravityBody mover)
+        {
+            if (mover != null && !_movers.Contains(mover)) _movers.Add(mover);
+        }
+
+        public void Unregister(GravityBody mover)
+        {
+            _movers.Remove(mover);
+            if (Focus == mover) Focus = null;
+        }
+
+        /// <summary>Puts a loose object at a true position with a true velocity (both measured from the Sun).</summary>
+        public void Place(GravityBody mover, Vec3d truePosition, Vec3d trueVelocity)
+        {
+            Register(mover);
+            Vector3 position = SpaceConvert.ToVector3(Frame.ToLocalPosition(truePosition, States));
+            mover.transform.position = position;
+            mover.Body.position = position;
+            mover.Body.linearVelocity = SpaceConvert.ToVector3(Frame.ToLocalVelocity(truePosition, trueVelocity, States));
+        }
+
+        /// <summary>
+        /// Puts a loose object in a circular orbit round a body, <paramref name="altitude"/> metres above its
+        /// surface, on the side given by <paramref name="direction"/> (a true direction from the body's centre).
+        /// </summary>
+        public void PlaceInOrbit(GravityBody mover, int body, double altitude, Vec3d direction)
+        {
+            double distance = Model.Spec(body).radius + altitude;
+            Vec3d axis = Model.SpinAxis(body);
+            Vec3d outward = (direction - axis * Vec3d.Dot(direction, axis)).Normalized;
+            if (outward.SqrMagnitude < 0.5) outward = axis.AnyPerpendicular();
+            Vec3d along = Vec3d.Cross(axis, outward);
+            Vec3d position = States[body].Position + outward * distance;
+            Vec3d velocity = States[body].Velocity + along * Model.CircularOrbitSpeed(body, distance);
+            Place(mover, position, velocity);
+
+            // Face the way it is going, feet toward the body.
+            Vector3 forward = SpaceConvert.ToVector3(Frame.ToLocalDirection(along, States));
+            Vector3 up = SpaceConvert.ToVector3(Frame.ToLocalDirection(outward, States));
+            Quaternion rotation = Quaternion.LookRotation(forward, up);
+            mover.transform.rotation = rotation;
+            mover.Body.rotation = rotation;
+        }
+
+        /// <summary>Makes the point of view follow the focus right now and puts it at Unity's zero point.</summary>
+        public void SnapToFocus()
+        {
+            if (Focus == null) return;
+            UpdateFrame(true);
+            PlaceBodies(true);
+            Physics.SyncTransforms();
+        }
+
+        // ------------------------------------------------------------------ the step
+
+        void FixedUpdate()
+        {
+            if (Model == null) return;
+            Step(Time.fixedDeltaTime);
+        }
+
+        /// <summary>Advances the solar system by one physics step. Public so tests can drive it directly.</summary>
+        public void Step(float dt)
+        {
+            // States holds this moment (the start of the step), which is also where the loose objects are.
+            if (Focus != null && UpdateFrame(false)) PlaceBodies(true);
+            ApplyGravity(dt);
+
+            // Then the bodies are sent to where they will be when the step ends, as the loose objects will be.
+            SimTime += dt;
+            Model.Evaluate(SimTime, States);
+            PlaceBodies(false);
+        }
+
+        /// <summary>
+        /// Chooses the anchor for the focus and recentres if it has wandered far from zero.
+        /// Returns true if bodies must be re-placed immediately (the world was slid).
+        /// </summary>
+        bool UpdateFrame(bool forceRecenter)
+        {
+            // Note where everything truly is and how it is truly moving, before the point of view changes.
+            _snapshots.Clear();
+            for (int i = 0; i < _movers.Count; i++)
+            {
+                Rigidbody rb = _movers[i].Body;
+                Vec3d local = SpaceConvert.ToVec3d(rb.position);
+                _snapshots.Add(new Snapshot
+                {
+                    Position = Frame.ToTruePosition(local, States),
+                    Velocity = Frame.ToTrueVelocity(local, SpaceConvert.ToVec3d(rb.linearVelocity), States),
+                    Spin = Frame.ToTrueSpin(SpaceConvert.ToVec3d(rb.angularVelocity), States),
+                });
+            }
+
+            Vector3 focusLocal = Focus.Body.position;
+            Vec3d focusTrue = Frame.ToTruePosition(SpaceConvert.ToVec3d(focusLocal), States);
+            bool changed = Frame.Follow(focusTrue, States);
+            bool recenter = forceRecenter || focusLocal.sqrMagnitude > RecenterDistance * RecenterDistance;
+            if (recenter) Frame.Recenter(SpaceConvert.ToVec3d(focusLocal));
+            if (!changed && !recenter) return false;
+
+            // Same true motion, described from the new point of view.
+            for (int i = 0; i < _movers.Count; i++)
+            {
+                Rigidbody rb = _movers[i].Body;
+                Snapshot s = _snapshots[i];
+                if (recenter)
+                {
+                    Vector3 position = SpaceConvert.ToVector3(Frame.ToLocalPosition(s.Position, States));
+                    // Setting both stops the renderer from smearing the object across the jump.
+                    _movers[i].transform.position = position;
+                    rb.position = position;
+                }
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = SpaceConvert.ToVector3(Frame.ToLocalVelocity(s.Position, s.Velocity, States));
+                    rb.angularVelocity = SpaceConvert.ToVector3(Frame.ToLocalSpin(s.Spin, States));
+                }
+            }
+
+            if (recenter)
+            {
+                RecenterCount++;
+                WorldShifted?.Invoke(-focusLocal);
+            }
+            return recenter;
+        }
+
+        void ApplyGravity(float dt)
+        {
+            for (int i = 0; i < _movers.Count; i++)
+            {
+                GravityBody mover = _movers[i];
+                Rigidbody rb = mover.Body;
+                if (rb == null || rb.isKinematic) continue;
+                Vec3d local = SpaceConvert.ToVec3d(rb.position);
+                Vec3d velocity = SpaceConvert.ToVec3d(rb.linearVelocity);
+                Vec3d truePosition = Frame.ToTruePosition(local, States);
+                // The focus's neighbourhood is the anchor by definition; other objects work out their own.
+                mover.Neighbourhood = mover == Focus
+                    ? Frame.Anchor
+                    : Model.NeighbourhoodOf(truePosition, States, mover.Neighbourhood);
+                Vec3d pull = Model.AccelerationAt(truePosition, States, mover.Neighbourhood);
+                Vector3 felt = SpaceConvert.ToVector3(Frame.ToLocalAccelerationForStep(local, velocity, pull, States, dt));
+                mover.FeltGravity = felt;
+                rb.AddForce(felt, ForceMode.Acceleration);
+            }
+        }
+
+        /// <summary>
+        /// Puts every body where it belongs. <paramref name="teleport"/> jumps them there (used when the point of
+        /// view changes); otherwise they glide, so they draw smoothly between physics steps.
+        /// </summary>
+        void PlaceBodies(bool teleport)
+        {
+            QuatD inverse = Frame.Orientation(States).Inverse;
+            Vec3d anchor = States[Frame.Anchor].Position;
+            Vec3d origin = Frame.Origin;
+            for (int i = 0; i < Bodies.Length; i++)
+            {
+                Vector3 position = SpaceConvert.ToVector3(inverse.Rotate(States[i].Position - anchor) - origin);
+                Quaternion rotation = SpaceConvert.ToQuaternion((inverse * Model.Orientation(i, States[i])).Normalized);
+                Rigidbody rb = Bodies[i].Body;
+                if (teleport)
+                {
+                    Bodies[i].transform.SetPositionAndRotation(position, rotation);
+                    rb.position = position;
+                    rb.rotation = rotation;
+                }
+                else
+                {
+                    rb.MovePosition(position);
+                    rb.MoveRotation(rotation);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ sky and sunlight
+
+        void LateUpdate()
+        {
+            if (Model == null) return;
+            Camera cam = ViewCamera;
+            Vector3 eye = cam != null ? cam.transform.position : Vector3.zero;
+
+            // The stars never move in truth, so in Unity's coordinates they turn opposite to the point of view.
+            _stars.SetPositionAndRotation(eye, SpaceConvert.ToQuaternion(Frame.Orientation(States).Inverse));
+
+            if (cam != null)
+            {
+                float pixelsPerRadian = cam.pixelHeight / (cam.fieldOfView * Mathf.Deg2Rad);
+                for (int i = 0; i < Bodies.Length; i++)
+                {
+                    if (Bodies[i].Spec.kind == BodyKind.Asteroid) continue;
+                    float distance = Vector3.Distance(eye, Bodies[i].transform.position);
+                    float radius = (float)Bodies[i].Spec.radius;
+                    Bodies[i].SetDetailFor(distance > radius ? Mathf.Asin(radius / distance) * pixelsPerRadian : 100000f);
+                }
+            }
+
+            Vector3 fromSun = eye - Bodies[0].transform.position;
+            if (fromSun.sqrMagnitude > 1f) SunLight.transform.rotation = Quaternion.LookRotation(fromSun.normalized);
+        }
+
+        // ------------------------------------------------------------------ questions other scripts ask
+
+        /// <summary>Where a point in Unity's coordinates truly is, measured from the Sun.</summary>
+        public Vec3d TruePosition(Vector3 local) => Frame.ToTruePosition(SpaceConvert.ToVec3d(local), States);
+
+        /// <summary>Height above a body's surface for a point in Unity's coordinates.</summary>
+        public double AltitudeAbove(int body, Vector3 local)
+        {
+            return Vec3d.Distance(TruePosition(local), States[body].Position) - Model.Spec(body).radius;
+        }
+
+        /// <summary>How fast a body is moving in Unity's coordinates right now.</summary>
+        public Vector3 LocalVelocityOf(int body)
+        {
+            return SpaceConvert.ToVector3(Frame.ToLocalVelocity(States[body].Position, States[body].Velocity, States));
+        }
+
+        /// <summary>The planet-level body a body belongs to: itself for a planet, its planet for a moon.</summary>
+        public int PlanetOf(int body)
+        {
+            while (body > 0 && Model.ParentOf(body) > 0) body = Model.ParentOf(body);
+            return body;
+        }
+    }
+}

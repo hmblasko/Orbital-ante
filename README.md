@@ -11,4 +11,6 @@ The earlier Godot + Rust version is kept on the `godot-archive` branch.
 
 ## Where the build is
 
-Phase 1, Milestones 1 to 4: breakable playtest characters in a combat test arena, gib juice (blood, splats, hitstop, camera shake, pop sounds, pooled gibs), data-driven weapons with disarming, and the foundation (seeded random streams, save system, content database, Steam Deck performance budget in `docs/performance_budget.md`). Not yet run in Unity. See `docs/reports/milestone-1.md` to `milestone-4.md`.
+Phase 1, Milestones 1 to 5: breakable playtest characters in a combat test arena, gib juice (blood, splats, hitstop, camera shake, pop sounds, pooled gibs), data-driven weapons with disarming, the foundation (seeded random streams, save system, content database, Steam Deck performance budget in `docs/performance_budget.md`), and the moving solar system with a stand-in test craft and live map. Not yet run in Unity. See `docs/reports/milestone-1.md` to `milestone-5.md`.
+
+Specialist agents that help build the game are described in `.claude/agents/README.md`.

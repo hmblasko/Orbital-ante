@@ -35,6 +35,52 @@ namespace OrbitalAnte.Core
         public static InputAction RespawnDummies { get; private set; }
         public static InputAction HoldFire { get; private set; }
 
+        /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
+        public static InputActionMap Flight { get; private set; }
+        public static InputAction FlyMove { get; private set; }
+        public static InputAction FlyLook { get; private set; }
+        public static InputAction FlyUp { get; private set; }
+        public static InputAction FlyDown { get; private set; }
+        public static InputAction RollLeft { get; private set; }
+        public static InputAction RollRight { get; private set; }
+        public static InputAction MatchVelocity { get; private set; }
+        public static InputAction Boost { get; private set; }
+        public static InputAction ToggleMap { get; private set; }
+
+        /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
+        public static InputActionMap Play { get; private set; }
+
+        /// <summary>Chooses which set of play controls is live. The other set is switched off.</summary>
+        public static void SetFlying(bool flying)
+        {
+            if (Asset == null) return;
+            bool wasOn = Play != null && Play.enabled;
+            if (Play != null) Play.Disable();
+            Play = flying ? Flight : Gameplay;
+            if (wasOn) Play.Enable();
+        }
+
+        /// <summary>True when the controller was touched more recently than the keyboard or mouse.</summary>
+        public static bool UsingGamepad
+        {
+            get
+            {
+                Gamepad pad = Gamepad.current;
+                if (pad == null) return false;
+                double other = 0;
+                if (Keyboard.current != null) other = Keyboard.current.lastUpdateTime;
+                if (Mouse.current != null && Mouse.current.lastUpdateTime > other) other = Mouse.current.lastUpdateTime;
+                return pad.lastUpdateTime > other;
+            }
+        }
+
+        /// <summary>The name of the key or button for a simple (one key, one button) action, for whichever device is in use.</summary>
+        public static string Describe(InputAction action)
+        {
+            int index = UsingGamepad && action.bindings.Count > 1 ? 1 : 0;
+            return action.GetBindingDisplayString(index);
+        }
+
         public static InputAction Pause { get; private set; }
         public static InputAction ToggleDebug { get; private set; }
 
@@ -85,6 +131,27 @@ namespace OrbitalAnte.Core
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
 
+            // ---------- Flight (rebindable) ----------
+            Flight = Asset.AddActionMap("Flight");
+            FlyMove = Flight.AddAction("Thrust", InputActionType.Value, expectedControlLayout: "Vector2");
+            FlyMove.AddCompositeBinding("2DVector")
+                .With("Up", "<Keyboard>/w", KeyboardMouseGroup)
+                .With("Down", "<Keyboard>/s", KeyboardMouseGroup)
+                .With("Left", "<Keyboard>/a", KeyboardMouseGroup)
+                .With("Right", "<Keyboard>/d", KeyboardMouseGroup);
+            FlyMove.AddBinding("<Gamepad>/leftStick", groups: GamepadGroup);
+            FlyLook = Flight.AddAction("Steer", InputActionType.Value, expectedControlLayout: "Vector2");
+            FlyLook.AddBinding("<Mouse>/delta", groups: KeyboardMouseGroup);
+            FlyLook.AddBinding("<Gamepad>/rightStick", groups: GamepadGroup);
+            FlyUp = AddButton(Flight, "Thrust Up", "<Keyboard>/space", "<Gamepad>/rightTrigger");
+            FlyDown = AddButton(Flight, "Thrust Down", "<Keyboard>/leftCtrl", "<Gamepad>/leftTrigger");
+            RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", "<Gamepad>/leftShoulder");
+            RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", "<Gamepad>/rightShoulder");
+            MatchVelocity = AddButton(Flight, "Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/buttonSouth");
+            Boost = AddButton(Flight, "Boost (hold)", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
+            ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
+            Play = Gameplay;
+
             // ---------- System (fixed) ----------
             SystemMap = Asset.AddActionMap("System");
             Pause = SystemMap.AddAction("Pause", InputActionType.Button);
@@ -131,7 +198,7 @@ namespace OrbitalAnte.Core
 
             SystemMap.Enable();
             UI.Enable();
-            // Gameplay is switched on by the game when a run starts and off while paused.
+            // The play controls are switched on by the game when a run starts and off while paused.
         }
 
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
@@ -142,13 +209,13 @@ namespace OrbitalAnte.Core
             return action;
         }
 
-        /// <summary>Every binding in the Gameplay map that belongs to one device group, in menu order.</summary>
+        /// <summary>Every binding of the current play controls that belongs to one device group, in menu order.</summary>
         public static List<BindingEntry> GetEntries(string group)
         {
             var entries = new List<BindingEntry>();
-            if (Gameplay == null) return entries;
+            if (Play == null) return entries;
 
-            foreach (var action in Gameplay.actions)
+            foreach (var action in Play.actions)
             {
                 var bindings = action.bindings;
                 for (int i = 0; i < bindings.Count; i++)
@@ -186,11 +253,11 @@ namespace OrbitalAnte.Core
             return false;
         }
 
-        /// <summary>Puts every Gameplay binding of one device group back to its default.</summary>
+        /// <summary>Puts every binding of the current play controls, for one device group, back to its default.</summary>
         public static void ResetGroupToDefaults(string group)
         {
-            if (Gameplay == null) return;
-            foreach (var action in Gameplay.actions)
+            if (Play == null) return;
+            foreach (var action in Play.actions)
             {
                 var bindings = action.bindings;
                 for (int i = 0; i < bindings.Count; i++)

@@ -14,6 +14,7 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - `unity/Assets/OrbitalAnte/Scripts/Editor/` editor tools (assembly `OrbitalAnte.Editor`). `ProjectSetup.cs` creates the URP assets, config assets, layer names and the test scene, so nothing is wired by hand.
 - `unity/Assets/OrbitalAnte/Tests/EditMode/` rule tests with no Unity objects. `Tests/PlayMode/` tests on real GameObjects.
 - `unity/Assets/ThirdParty/` assets Matthew adds (CC0 weapon packs and so on). Log each in `docs/asset_licence_ledger.md`.
+- `.claude/agents/` six specialist agents (unity-reviewer, gameplay-engineer, game-designer, qa-tester, technical-artist, deck-performance). Matthew asked for these on 10 Nov 2026. After building engine-facing code, send it to unity-reviewer, game-designer and deck-performance before committing, and summarise what they found under "Agent review" in the milestone report.
 - `docs/SETUP.md` step-by-step setup for Matthew. `docs/reports/` one report per milestone.
 
 ## Conventions
@@ -25,6 +26,8 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - Data-defined content inherits `ContentDefinition` and is looked up through `ContentDatabase` (file name = id). New content kinds add a folder to `ContentDatabase.Folders` and a `Validate` method.
 - Persistent data goes in `SaveData` (bump `CurrentVersion` and add a step to `SaveMigrations` when its layout changes); write with `SaveSystem.Save()`.
 - New systems add a line to `docs/performance_budget.md` (cost and cap). `PerfMonitor` shows the verdict on the HUD.
+- Solar system (`Scripts/Runtime/Space/`): `SolarSystemModel` (orbits on rails, gravity) and `ReferenceFrame` (the anchor body and turning point of view) are plain C# in double precision (`Vec3d`). `SolarSystem` moves the bodies and pulls every `GravityBody`. Loose objects in space need a `GravityBody`; never use Unity's global gravity there. "Up" is away from the anchor body, not +Y. Unity positions are only valid near the player: ask `SolarSystem` for true positions. The combat arena (`Scenario.CombatArena`) still uses flat Y-up gravity.
+- Two rebindable input maps: `GameInput.Gameplay` (on foot) and `GameInput.Flight`. `GameInput.Play` is whichever is live.
 - Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody, 12 Item (dropped weapons).
 - Use Unity 6 API names (`linearVelocity`, `FindFirstObjectByType`, `PhysicsMaterial`).
 - Namespace root is `OrbitalAnte`.

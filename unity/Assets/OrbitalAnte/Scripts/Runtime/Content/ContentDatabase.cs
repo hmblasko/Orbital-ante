@@ -16,7 +16,7 @@ namespace OrbitalAnte.Content
     public static class ContentDatabase
     {
         /// <summary>Resources sub-folders that hold content assets. New kinds of content add a line here.</summary>
-        static readonly string[] Folders = { WeaponData.ResourceFolder };
+        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder };
 
         static readonly Dictionary<Type, Dictionary<string, ContentDefinition>> ByType =
             new Dictionary<Type, Dictionary<string, ContentDefinition>>();
@@ -61,6 +61,8 @@ namespace OrbitalAnte.Content
             // The two Milestone 3 guns must always exist.
             if (Find<WeaponData>(WeaponData.RifleId) == null) Register(WeaponData.CreateRifleDefaults(), "built-in");
             if (Find<WeaponData>(WeaponData.PistolId) == null) Register(WeaponData.CreatePistolDefaults(), "built-in");
+            // ...and so must the solar system.
+            if (Find<Space.SolarSystemData>(Space.SolarSystemData.DefaultId) == null) Register(Space.SolarSystemData.CreateDefaults(), "built-in");
 
             if (ProblemList.Count > 0)
             {

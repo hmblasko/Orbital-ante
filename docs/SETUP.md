@@ -32,12 +32,34 @@ The setup tool creates the render pipeline settings, the tunable config files an
 
 1. Menu: **Orbital Ante > Open Test Arena** (or double-click `Assets/Scenes/TestArena` in the Project window).
 2. Press the **Play** button (the triangle at the top centre).
-3. Click **Enter the test arena**. Click once inside the Game view if the mouse is not captured.
+3. Click **Fly the solar system** (the newest work) or **Combat test arena**. Click once inside the Game view if the mouse is not captured.
 4. Press **Play** again to stop.
 
 Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution dropdown (it says "Free Aspect"), click **+**, and add a fixed resolution of 1280 x 800.
 
-### Controls
+### Flying controls (solar system)
+
+| Action | Keyboard and mouse | Controller |
+|---|---|---|
+| Thrust forward, back, sideways | W A S D | Left stick |
+| Steer | Mouse | Right stick |
+| Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
+| Roll left / right | Q / E | Left bumper / Right bumper |
+| Boost (hold) | Left Shift | Click left stick |
+| Match velocity with what you aim at (hold) | F | A / Cross |
+| Map | M | D-pad up |
+| Pause menu | Esc | Start / Menu |
+
+All but the last can be changed in **Pause > Controls** while flying (the page shows whichever set you are using).
+
+How to fly it, in five lines:
+1. You start in orbit round Earth. Nothing slows you down in space: to stop, you thrust the other way.
+2. Point at a planet's name and its label gets [ brackets ]. The bottom-left readout then shows how fast you are closing on it.
+3. Thrust toward it (hold Boost for long trips). The green ring on screen shows which way you are really drifting.
+4. When the screen says **BRAKE NOW**, keep aiming at the planet and hold **F**. That matches your speed with it, however fast it is moving.
+5. Ease down with small pushes. Hold **F** near the ground to hover. **M** opens the live map; in it, W / S zoom and F changes what it is centred on.
+
+### On-foot controls (combat arena)
 
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
@@ -60,8 +82,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file and the frame-time sums (61 tests).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving and the content database (42 tests). The editor will flicker into Play mode for about a minute.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums (102 tests).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database and the solar system (53 tests). The editor will flicker into Play mode for about a minute.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -76,6 +98,8 @@ In the **Project** window open `Assets/OrbitalAnte/Resources/Config`.
 Click one, change numbers in the **Inspector**, press Play. Changes are kept.
 
 Guns have their own folder: `Assets/OrbitalAnte/Resources/Weapons`. **Rifle** and **Pistol** each hold damage per body part, fire rate, spread, recoil, magazine size, reload time and the one-handed penalties. How enemies fight (reaction time, aim error, burst length, the one-handed reload toggle) is under **Combat** on MannequinConfig.
+
+The solar system has its own asset: `Assets/OrbitalAnte/Resources/SolarSystem/SolarSystem`. Open **Bodies** to change any world's radius, surface gravity, orbit distance, day length, tilt and colours, and **Asteroid Belt** for the rocks. Orbit speed is not listed because it follows from the Sun's gravity and the distance. **TestCraftConfig** (in `Resources/Config`) holds the test craft's thrust, boost, turn speeds and which planet you start at. After changing the solar system, run **Orbital Ante > Check Content**: it tells you if, say, a moon now orbits inside its planet.
 
 To add a gun: select one in that folder, press **Ctrl+D** to duplicate it, rename the copy (the file name is the gun's id), and change its numbers. Then menu **Orbital Ante > Check Content** tells you in plain words if any value is wrong.
 
