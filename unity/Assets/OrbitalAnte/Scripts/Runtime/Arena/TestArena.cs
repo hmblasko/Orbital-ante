@@ -319,7 +319,8 @@ namespace OrbitalAnte.Arena
             _mannequinRoot.SetParent(transform, false);
 
             MannequinConfig config = MannequinConfig.Load();
-            var rng = new System.Random(_seed);
+            // Its own named stream: other seeded systems can come and go without moving these mannequins.
+            SeededRandom rng = SeededRandom.ForStream(_seed, "arena.mannequins");
             float inner = HalfSize - 4f;
             var wanderArea = new Bounds(Vector3.zero, new Vector3(inner * 2f, 0.1f, inner * 2f));
 

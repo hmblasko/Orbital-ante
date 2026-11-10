@@ -60,8 +60,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules and the gun rules (33 tests).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons and disarming (33 tests). The editor will flicker into Play mode for about a minute.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file and the frame-time sums (61 tests).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving and the content database (42 tests). The editor will flicker into Play mode for about a minute.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -70,11 +70,19 @@ In the **Project** window open `Assets/OrbitalAnte/Resources/Config`.
 
 - **MannequinConfig**: hit points per body part, movement speeds for each damage state, how hard gibs launch, colours.
 - **GoreConfig**: everything from Milestone 2. Most loose chunks at once, how long they last, bounciness, blood amount and colour, splat size and count, hitstop lengths, camera shake strength, headshot slow-mo, sound volumes.
-- **PlayerConfig**: move speed, jump, mouse and stick sensitivity, field of view, test rifle damage and fire rate.
+- **PlayerConfig**: move speed, jump, mouse and stick sensitivity, field of view, health and pickup reach.
+- **PerformanceBudget**: the Steam Deck frame-time targets the top-left readout checks against, and the V Sync switch. Explained in `docs/performance_budget.md`.
 
 Click one, change numbers in the **Inspector**, press Play. Changes are kept.
 
 Guns have their own folder: `Assets/OrbitalAnte/Resources/Weapons`. **Rifle** and **Pistol** each hold damage per body part, fire rate, spread, recoil, magazine size, reload time and the one-handed penalties. How enemies fight (reaction time, aim error, burst length, the one-handed reload toggle) is under **Combat** on MannequinConfig.
+
+To add a gun: select one in that folder, press **Ctrl+D** to duplicate it, rename the copy (the file name is the gun's id), and change its numbers. Then menu **Orbital Ante > Check Content** tells you in plain words if any value is wrong.
+
+### Saves and seeds
+
+- After your first run the main menu shows **Play seed N again**. The same seed gives the same starting layout.
+- The save file is small and readable. Menu **Orbital Ante > Show Save Folder** opens where it lives (`orbital_ante_save.json`, plus a `.bak` backup). Deleting both resets it.
 
 ## G. Blood decals (only if the top-left readout says "splats ... (flat)")
 

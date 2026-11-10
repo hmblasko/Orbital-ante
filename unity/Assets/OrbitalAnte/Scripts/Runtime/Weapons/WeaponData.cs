@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using OrbitalAnte.Content;
 using OrbitalAnte.Dismemberment;
 using UnityEngine;
 
@@ -14,7 +16,7 @@ namespace OrbitalAnte.Weapons
     /// in the Inspector. New guns are new assets, not new code.
     /// </summary>
     [CreateAssetMenu(menuName = "Orbital Ante/Weapon", fileName = "Weapon")]
-    public sealed class WeaponData : ScriptableObject
+    public sealed class WeaponData : ContentDefinition
     {
         public const string ResourceFolder = "Weapons";
         public const string RifleId = "Rifle";
@@ -95,6 +97,28 @@ namespace OrbitalAnte.Weapons
 
         [Header("Physics when dropped")]
         public float mass = 3.5f;
+
+        public override string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;
+
+        public override void Validate(List<string> problems)
+        {
+            if (string.IsNullOrEmpty(displayName)) problems.Add("has no display name.");
+            if (shotsPerSecond <= 0f) problems.Add("fire rate must be above zero.");
+            if (magazineSize < 1) problems.Add("magazine size must be at least 1.");
+            if (range <= 0f) problems.Add("range must be above zero.");
+            if (reloadSeconds < 0f) problems.Add("reload time cannot be negative.");
+            if (headDamage <= 0f || torsoDamage <= 0f || upperArmDamage <= 0f || forearmDamage <= 0f
+                || handDamage <= 0f || thighDamage <= 0f || shinDamage <= 0f || footDamage <= 0f)
+            {
+                problems.Add("every body part needs damage above zero, or that part can never be shot off.");
+            }
+            if (oneHandSpreadMultiplier < 1f || oneHandRecoilMultiplier < 1f || oneHandReloadMultiplier < 1f)
+            {
+                problems.Add("one-handed multipliers below 1 would make one hand better than two.");
+            }
+            if (recoilReturn < 0f || recoilReturn > 1f) problems.Add("recoil return must be between 0 and 1.");
+            if (mass <= 0f) problems.Add("mass must be above zero.");
+        }
 
         public float DamageFor(BodyPartId id)
         {
@@ -195,28 +219,9 @@ namespace OrbitalAnte.Weapons
             return w;
         }
 
-        static WeaponData _rifle;
-        static WeaponData _pistol;
+        /// <summary>The rifle from the content database (the asset if it exists, otherwise built-in defaults).</summary>
+        public static WeaponData Rifle => ContentDatabase.Get<WeaponData>(RifleId);
 
-        /// <summary>The rifle asset if it exists, otherwise built-in defaults.</summary>
-        public static WeaponData Rifle
-        {
-            get
-            {
-                if (_rifle == null) _rifle = Resources.Load<WeaponData>(ResourceFolder + "/" + RifleId);
-                if (_rifle == null) _rifle = CreateRifleDefaults();
-                return _rifle;
-            }
-        }
-
-        public static WeaponData Pistol
-        {
-            get
-            {
-                if (_pistol == null) _pistol = Resources.Load<WeaponData>(ResourceFolder + "/" + PistolId);
-                if (_pistol == null) _pistol = CreatePistolDefaults();
-                return _pistol;
-            }
-        }
+        public static WeaponData Pistol => ContentDatabase.Get<WeaponData>(PistolId);
     }
 }

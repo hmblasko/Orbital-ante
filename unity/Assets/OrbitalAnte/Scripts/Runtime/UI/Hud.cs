@@ -77,7 +77,7 @@ namespace OrbitalAnte.UI
             AddShadow(_aimText);
 
             _frameText = UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperLeft);
-            UiKit.Pin((RectTransform)_frameText.transform, new Vector2(0f, 1f), new Vector2(14f, -10f), new Vector2(520f, 60f));
+            UiKit.Pin((RectTransform)_frameText.transform, new Vector2(0f, 1f), new Vector2(14f, -10f), new Vector2(760f, 84f));
             AddShadow(_frameText);
 
             _helpText = UiKit.Label(_canvas.transform, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
@@ -252,11 +252,18 @@ namespace OrbitalAnte.UI
                     (average * 1000f).ToString("0.0") + " ms avg   " +
                     (_worstFrame * 1000f).ToString("0.0") + " ms worst   " +
                     Mathf.RoundToInt(1f / Mathf.Max(0.0001f, average)) + " fps\n" +
-                    "Seed " + GameSession.Seed + GoreReadout();
+                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout();
             }
             _frameAccumulator = 0f;
             _frameCount = 0;
             _worstFrame = 0f;
+        }
+
+        /// <summary>How the last ten seconds compare with the Steam Deck frame budget.</summary>
+        static string BudgetReadout()
+        {
+            var perf = OrbitalAnte.Perf.PerfMonitor.Instance;
+            return perf != null ? "\n" + perf.Describe() : string.Empty;
         }
 
         /// <summary>Live counts for the performance budget: loose chunks, blood droplets and splats.</summary>

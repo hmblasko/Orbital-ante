@@ -24,7 +24,7 @@ namespace OrbitalAnte.Weapons
     public static class Ballistics
     {
         /// <summary>A direction picked evenly from a cone around <paramref name="forward"/>.</summary>
-        public static Vector3 SpreadDirection(Vector3 forward, float coneDegrees, System.Random rng)
+        public static Vector3 SpreadDirection(Vector3 forward, float coneDegrees, SeededRandom rng)
         {
             if (coneDegrees <= 0f || forward.sqrMagnitude < 0.0001f) return forward.normalized;
             // Square root keeps shots evenly spread over the circle instead of bunched in the middle.

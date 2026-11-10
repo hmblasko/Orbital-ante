@@ -28,6 +28,8 @@ namespace OrbitalAnte.Core
         GameObject _world;
         TestArena _arena;
         TimeFx _timeFx;
+        Perf.PerfMonitor _perf;
+        double _unsavedSeconds;
 
         public TestArena Arena => _arena;
 
@@ -44,6 +46,9 @@ namespace OrbitalAnte.Core
             Weapons.Weapon.ResetStatics();
             Weapons.WeaponFx.ResetStatics();
             AI.CombatWorld.Reset();
+            Content.ContentDatabase.ResetStatics();
+            Save.SaveSystem.ResetStatics();
+            Perf.PerfMonitor.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -65,9 +70,12 @@ namespace OrbitalAnte.Core
             }
             Instance = this;
 
-            Application.targetFrameRate = -1;
+            Perf.PerformanceBudget.Load().Apply();
             Layers.Configure();
             GameInput.Initialize();
+            Save.SaveSystem.Load();
+            Content.ContentDatabase.Load();
+            _perf = gameObject.AddComponent<Perf.PerfMonitor>();
             SilenceSceneLeftovers();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
@@ -135,6 +143,7 @@ namespace OrbitalAnte.Core
             _mainMenu = menuGo.AddComponent<MainMenu>();
             _mainMenu.Build(_uiRoot);
             _mainMenu.PlayRequested = () => StartRun(GameSession.NewRandomSeed());
+            _mainMenu.ReplayRequested = StartRun;
             _mainMenu.QuitRequested = QuitToDesktop;
 
             var pauseGo = new GameObject("PauseMenuController");
@@ -150,7 +159,13 @@ namespace OrbitalAnte.Core
 
         public void ShowMainMenu()
         {
+            bool wasPlaying = _world != null;
             DestroyWorld();
+            if (wasPlaying)
+            {
+                BankPlayTime();
+                Save.SaveSystem.Save();
+            }
             GameSession.SetPaused(false);
             GameSession.SetMode(GameMode.MainMenu);
             GameInput.Gameplay.Disable();
@@ -168,6 +183,13 @@ namespace OrbitalAnte.Core
             DestroyWorld();
             GameSession.SetSeed(seed);
             GameSession.SetPaused(false);
+
+            Save.SaveData save = Save.SaveSystem.Data;
+            save.hasLastSeed = true;
+            save.lastSeed = seed;
+            save.runsStarted++;
+            BankPlayTime();
+            Save.SaveSystem.Save();
 
             // The menu camera and its listener go off first, so there is only ever one audio listener.
             _menuListener.enabled = false;
@@ -191,6 +213,7 @@ namespace OrbitalAnte.Core
         {
             if (_timeFx != null) _timeFx.Clear();
             if (_world == null) return;
+            if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
             _world.SetActive(false);
             Destroy(_world);
@@ -201,6 +224,25 @@ namespace OrbitalAnte.Core
                 _hud.Weapons = null;
                 _hud.Health = null;
             }
+        }
+
+        void Update()
+        {
+            if (GameSession.Mode == GameMode.Playing && !GameSession.Paused) _unsavedSeconds += Time.unscaledDeltaTime;
+        }
+
+        /// <summary>Moves time played since the last save into the save data.</summary>
+        void BankPlayTime()
+        {
+            Save.SaveSystem.Data.secondsPlayed += _unsavedSeconds;
+            _unsavedSeconds = 0;
+        }
+
+        void OnApplicationQuit()
+        {
+            if (_perf != null && _world != null) _perf.LogAndReset("seed " + GameSession.Seed);
+            BankPlayTime();
+            Save.SaveSystem.Save();
         }
 
         void OnPauseChanged(bool paused)

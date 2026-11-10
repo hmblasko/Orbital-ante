@@ -17,7 +17,7 @@ namespace OrbitalAnte.Dismemberment
         MannequinConfig _cfg;
         CapsuleCollider _blocker;
 
-        System.Random _rng = new System.Random(1);
+        SeededRandom _rng = new SeededRandom(1);
         Bounds _wanderArea = new Bounds(Vector3.zero, new Vector3(20f, 0f, 20f));
         Vector3 _target;
         float _repathTimer;
@@ -58,7 +58,7 @@ namespace OrbitalAnte.Dismemberment
         public void SetWander(Bounds area, int seed)
         {
             _wanderArea = area;
-            _rng = new System.Random(seed);
+            _rng = new SeededRandom(seed);
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
             PickTarget();
         }

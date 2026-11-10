@@ -1,5 +1,6 @@
 using System;
 using OrbitalAnte.Core;
+using OrbitalAnte.Save;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -14,6 +15,10 @@ namespace OrbitalAnte.UI
     {
         public Action PlayRequested;
         public Action QuitRequested;
+        /// <summary>Play the most recent seed again. The argument is that seed.</summary>
+        public Action<int> ReplayRequested;
+
+        Button _replayButton;
 
         Canvas _canvas;
         GameObject _playButton;
@@ -28,6 +33,10 @@ namespace OrbitalAnte.UI
             UiKit.LayoutLabel(card, "working title", 18, UiKit.Muted, 22f, TextAnchor.MiddleCenter, FontStyle.Italic);
             UiKit.LayoutLabel(card, GameSession.BuildLabel, 20, UiKit.Cream, 40f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _playButton = UiKit.Button(card, "Enter the test arena", () => PlayRequested?.Invoke(), 64f, 28).gameObject;
+            _replayButton = UiKit.Button(card, "Play the last seed again", () =>
+            {
+                if (SaveSystem.Data.hasLastSeed) ReplayRequested?.Invoke(SaveSystem.Data.lastSeed);
+            });
             UiKit.Button(card, "Quit to desktop", () => QuitRequested?.Invoke());
             UiKit.LayoutLabel(card, "Esc or Start pauses. Controls can be changed from the pause menu.", 16, UiKit.Muted, 26f,
                 TextAnchor.MiddleCenter, FontStyle.Normal);
@@ -36,6 +45,13 @@ namespace OrbitalAnte.UI
         public void SetVisible(bool visible)
         {
             _canvas.gameObject.SetActive(visible);
+            if (visible)
+            {
+                // Only offered once there is a seed to go back to (it is remembered between sessions).
+                bool has = SaveSystem.Data.hasLastSeed;
+                _replayButton.gameObject.SetActive(has);
+                if (has) UiKit.ButtonText(_replayButton).text = "Play seed " + SaveSystem.Data.lastSeed + " again";
+            }
             if (visible && EventSystem.current != null)
             {
                 EventSystem.current.SetSelectedGameObject(_playButton);

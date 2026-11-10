@@ -24,7 +24,7 @@ namespace OrbitalAnte.AI
         MannequinLocomotion _loco;
         MannequinRig _rig;
         MannequinConfig _cfg;
-        System.Random _rng = new System.Random(7);
+        SeededRandom _rng = new SeededRandom(7);
 
         int _gunSide = MannequinRig.Right;
         float _thinkTimer;
@@ -66,7 +66,7 @@ namespace OrbitalAnte.AI
 
         public void SetSeed(int seed)
         {
-            _rng = new System.Random(seed);
+            _rng = new SeededRandom(seed);
             _thinkTimer = (float)_rng.NextDouble() * 0.3f;
         }
 

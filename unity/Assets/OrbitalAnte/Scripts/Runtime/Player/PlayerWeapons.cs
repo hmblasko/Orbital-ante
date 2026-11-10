@@ -18,7 +18,7 @@ namespace OrbitalAnte.Player
         PlayerHealth _health;
         Transform _holder;
         Transform _dropParent;
-        readonly System.Random _rng = new System.Random(12345);
+        readonly SeededRandom _rng = new SeededRandom(12345);
 
         float _kick;
         bool _magazineOut;

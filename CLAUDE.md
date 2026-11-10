@@ -21,6 +21,10 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - Scenes, prefabs and materials are built from code where practical. Hand-written `.unity`/`.prefab` YAML is avoided because it cannot be checked without the editor.
 - Rules live in plain C# classes with no Unity types (for example `BodyModel`) so they can be unit tested anywhere; MonoBehaviours turn rule results into objects, physics and effects.
 - Tunable numbers live in ScriptableObjects (`MannequinConfig`, `GoreConfig`, `PlayerConfig`), loaded from `Resources/Config`, with code defaults if the asset is missing. Each gun is a `WeaponData` asset in `Resources/Weapons`.
+- Anything that should repeat for a seed draws from `SeededRandom` through a named stream (`GameSession.Stream("mars.rocks")`), never `System.Random` or `UnityEngine.Random`. Unity's random is for visual scatter only.
+- Data-defined content inherits `ContentDefinition` and is looked up through `ContentDatabase` (file name = id). New content kinds add a folder to `ContentDatabase.Folders` and a `Validate` method.
+- Persistent data goes in `SaveData` (bump `CurrentVersion` and add a step to `SaveMigrations` when its layout changes); write with `SaveSystem.Save()`.
+- New systems add a line to `docs/performance_budget.md` (cost and cap). `PerfMonitor` shows the verdict on the HUD.
 - Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody, 12 Item (dropped weapons).
 - Use Unity 6 API names (`linearVelocity`, `FindFirstObjectByType`, `PhysicsMaterial`).
 - Namespace root is `OrbitalAnte`.

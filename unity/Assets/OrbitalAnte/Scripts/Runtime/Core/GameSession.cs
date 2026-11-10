@@ -12,7 +12,7 @@ namespace OrbitalAnte.Core
     /// <summary>Run-wide state: the seed, whether we are in the menu or playing, and whether the game is paused.</summary>
     public static class GameSession
     {
-        public const string BuildLabel = "Milestone 3 - weapons and disarming";
+        public const string BuildLabel = "Milestone 4 - foundation";
 
         public static GameMode Mode { get; private set; } = GameMode.MainMenu;
         public static int Seed { get; private set; }
@@ -32,6 +32,12 @@ namespace OrbitalAnte.Core
         }
 
         public static void SetSeed(int seed) => Seed = seed;
+
+        /// <summary>
+        /// The named random stream for the current run. The same seed and name always give the same numbers,
+        /// whatever else is going on. Ask for a stream once and keep it; asking again starts it over.
+        /// </summary>
+        public static SeededRandom Stream(string name) => SeededRandom.ForStream(Seed, name);
 
         public static void SetMode(GameMode mode)
         {

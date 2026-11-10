@@ -60,6 +60,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath) == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -83,6 +84,28 @@ namespace OrbitalAnte.EditorTools
             {
                 EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             }
+        }
+
+        /// <summary>Checks every content asset (guns for now) and says what is wrong in plain language.</summary>
+        [MenuItem("Orbital Ante/Check Content", priority = 20)]
+        static void CheckContent()
+        {
+            OrbitalAnte.Content.ContentDatabase.Load();
+            var problems = OrbitalAnte.Content.ContentDatabase.Problems;
+            int guns = OrbitalAnte.Content.ContentDatabase.All<WeaponData>().Count;
+            string message = problems.Count == 0
+                ? "All content is fine (" + guns + " weapons checked)."
+                : problems.Count + " problem(s) found:\n\n - " + string.Join("\n - ", problems);
+            if (problems.Count == 0) Debug.Log("Orbital Ante: " + message);
+            EditorUtility.DisplayDialog("Orbital Ante content check", message, "OK");
+        }
+
+        /// <summary>Opens the folder that holds the save file, its backup and the Player.log.</summary>
+        [MenuItem("Orbital Ante/Show Save Folder", priority = 21)]
+        static void ShowSaveFolder()
+        {
+            Directory.CreateDirectory(Application.persistentDataPath);
+            EditorUtility.RevealInFinder(Application.persistentDataPath);
         }
 
         static void Run(bool interactive)
@@ -248,6 +271,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset");
             CreateAssetIfMissing<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset");
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
+            CreateAssetIfMissing<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset");
         }
 
         /// <summary>
