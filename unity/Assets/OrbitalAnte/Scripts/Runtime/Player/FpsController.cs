@@ -13,6 +13,8 @@ namespace OrbitalAnte.Player
     {
         public Camera Eye { get; private set; }
         public PlayerConfig Config { get; private set; }
+        /// <summary>Optional camera shake to layer on top of the view.</summary>
+        public CameraShake Shake { get; set; }
 
         CharacterController _controller;
         Vector3 _horizontalVelocity;
@@ -64,7 +66,14 @@ namespace OrbitalAnte.Player
 
             _pitch = Mathf.Clamp(_pitch, -88f, 88f);
             transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
-            if (Eye != null) Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+        }
+
+        void LateUpdate()
+        {
+            if (Eye == null || GameSession.Paused) return;
+            // Applied every frame so camera shake can ride on top of where the player is looking.
+            Quaternion shake = Shake != null ? Shake.Offset : Quaternion.identity;
+            Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f) * shake;
         }
 
         void Move(float dt)

@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// The pause menu: Resume, Controls (rebinding), Restart (same seed or new seed) and Quit (menu or desktop).
+    /// The pause menu: Resume, Controls (rebinding), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
     /// Esc on keyboard or Start/Menu on a controller opens it. It pauses game time and audio, and every page
     /// works with keyboard, mouse or controller.
     /// </summary>
@@ -19,6 +19,7 @@ namespace OrbitalAnte.UI
             None,
             Main,
             Controls,
+            Feel,
             Restart,
             Quit,
             Confirm,
@@ -52,6 +53,7 @@ namespace OrbitalAnte.UI
             UiKit.AddImage(dim, new Color(0.05f, 0.04f, 0.04f, 0.72f), null, true);
 
             BuildMain();
+            BuildFeel();
             BuildRestart();
             BuildQuit();
             BuildConfirm();
@@ -81,9 +83,33 @@ namespace OrbitalAnte.UI
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
+            UiKit.Button(card, "Feel", () => Show(Page.Feel));
             UiKit.Button(card, "Restart", () => Show(Page.Restart));
             UiKit.Button(card, "Quit", () => Show(Page.Quit));
             _seedLabel = UiKit.LayoutLabel(card, string.Empty, 17, UiKit.Muted, 26f, TextAnchor.MiddleCenter, FontStyle.Normal);
+        }
+
+        /// <summary>Comfort toggles for the punchy stuff. Each button flips one setting and shows its state.</summary>
+        void BuildFeel()
+        {
+            var card = NewPage(Page.Feel, "FEEL", 560f);
+            UiKit.LayoutLabel(card, "Turn off anything that bothers you. Saved between sessions.", 18, UiKit.Cream, 30f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _defaults[Page.Feel] = Toggle(card, "Hitstop on limb pops", () => FeelSettings.Hitstop, v => FeelSettings.Hitstop = v).gameObject;
+            Toggle(card, "Camera shake", () => FeelSettings.CameraShake, v => FeelSettings.CameraShake = v);
+            Toggle(card, "Slow-mo on headshot kills", () => FeelSettings.HeadshotSlowMo, v => FeelSettings.HeadshotSlowMo = v);
+            UiKit.Button(card, "Back", () => Show(Page.Main));
+        }
+
+        static Button Toggle(Transform parent, string label, Func<bool> get, Action<bool> set)
+        {
+            Button button = null;
+            button = UiKit.Button(parent, string.Empty, () =>
+            {
+                set(!get());
+                UiKit.ButtonText(button).text = label + ": " + (get() ? "ON" : "OFF");
+            });
+            UiKit.ButtonText(button).text = label + ": " + (get() ? "ON" : "OFF");
+            return button;
         }
 
         void BuildRestart()

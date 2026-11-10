@@ -38,6 +38,8 @@ namespace OrbitalAnte.Tests
         [TearDown]
         public void TearDown()
         {
+            // Loose chunks live in a shared pool outside the test root, so clear that too.
+            GibManager.DestroyInstance();
             if (_root != null) Object.Destroy(_root);
         }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
+using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -30,6 +31,8 @@ namespace OrbitalAnte.EditorTools
         const string ResourcesFolder = "Assets/OrbitalAnte/Resources";
         const string ConfigFolder = ResourcesFolder + "/Config";
         const string MaterialsFolder = ResourcesFolder + "/Materials";
+        const string GoreConfigPath = ConfigFolder + "/GoreConfig.asset";
+        const string DecalMaterialPath = MaterialsFolder + "/OA_Decal.mat";
         const string TriedThisSessionKey = "OrbitalAnte.SetupTriedThisSession";
 
         static ProjectSetup()
@@ -52,7 +55,9 @@ namespace OrbitalAnte.EditorTools
             return !File.Exists(ScenePath)
                    || GraphicsSettings.defaultRenderPipeline == null
                    || AssetDatabase.LoadAssetAtPath<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset") == null
-                   || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null;
+                   || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath) == null
+                   || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
         }
 
         [MenuItem("Orbital Ante/Set Up Project", priority = 0)]
@@ -83,6 +88,7 @@ namespace OrbitalAnte.EditorTools
             Step("render pipeline (URP)", problems, SetUpRenderPipeline);
             Step("base materials", problems, SetUpMaterials);
             Step("config assets", problems, SetUpConfigAssets);
+            Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
             Step("test arena scene", problems, () => SetUpScene(interactive));
@@ -235,6 +241,106 @@ namespace OrbitalAnte.EditorTools
             EnsureFolder(ConfigFolder);
             CreateAssetIfMissing<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset");
             CreateAssetIfMissing<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset");
+            CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
+        }
+
+        /// <summary>
+        /// Blood splats use URP Decal Projectors. Those need two things: the "Decal" feature switched on in the
+        /// renderer, and a material that uses the decal shader. If either cannot be set up, the game keeps
+        /// working and draws flat splat meshes instead.
+        /// </summary>
+        static void SetUpDecals()
+        {
+            var config = AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath);
+            bool ready = false;
+            try
+            {
+                if (GraphicsSettings.defaultRenderPipeline == null)
+                {
+                    throw new InvalidOperationException("URP is not the active render pipeline.");
+                }
+
+                bool featureOn = EnsureDecalFeature();
+
+                Shader shader = Shader.Find("Shader Graphs/Decal");
+                if (shader == null) throw new InvalidOperationException("URP's decal shader (Shader Graphs/Decal) was not found.");
+                EnsureFolder(MaterialsFolder);
+                var material = AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath);
+                if (material == null)
+                {
+                    material = new Material(shader) { enableInstancing = true };
+                    AssetDatabase.CreateAsset(material, DecalMaterialPath);
+                }
+                else if (material.shader != shader)
+                {
+                    material.shader = shader;
+                    EditorUtility.SetDirty(material);
+                }
+
+                ready = featureOn;
+            }
+            finally
+            {
+                if (config != null && config.decalProjectorsReady != ready)
+                {
+                    config.decalProjectorsReady = ready;
+                    EditorUtility.SetDirty(config);
+                }
+            }
+        }
+
+        /// <summary>Adds URP's Decal renderer feature to the renderer the project uses, if it is not there yet.</summary>
+        static bool EnsureDecalFeature()
+        {
+            Type featureType = UrpType("DecalRendererFeature");
+            Type rendererType = UrpType("UniversalRendererData");
+
+            var rendererData = AssetDatabase.LoadAssetAtPath(RendererPath, rendererType) as ScriptableObject;
+            if (rendererData == null)
+            {
+                // The project is using a pipeline asset this tool did not create; ask it for its renderer.
+                RenderPipelineAsset pipeline = GraphicsSettings.defaultRenderPipeline;
+                PropertyInfo dataProp = pipeline.GetType().GetProperty("scriptableRendererData",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                rendererData = dataProp != null ? dataProp.GetValue(pipeline) as ScriptableObject : null;
+            }
+            if (rendererData == null || string.IsNullOrEmpty(AssetDatabase.GetAssetPath(rendererData)))
+            {
+                throw new InvalidOperationException(
+                    "Could not find the URP renderer asset to add the Decal feature to. See docs/SETUP.md, \"Blood decals\".");
+            }
+
+            var serialized = new SerializedObject(rendererData);
+            SerializedProperty features = serialized.FindProperty("m_RendererFeatures");
+            SerializedProperty map = serialized.FindProperty("m_RendererFeatureMap");
+            if (features == null || !features.isArray)
+            {
+                throw new InvalidOperationException("This URP version stores renderer features differently. See docs/SETUP.md, \"Blood decals\".");
+            }
+
+            for (int i = 0; i < features.arraySize; i++)
+            {
+                UnityEngine.Object existing = features.GetArrayElementAtIndex(i).objectReferenceValue;
+                if (existing != null && featureType.IsInstanceOfType(existing)) return true;
+            }
+
+            // The same steps the "Add Renderer Feature" button performs.
+            ScriptableObject feature = ScriptableObject.CreateInstance(featureType);
+            if (feature == null) throw new InvalidOperationException("Could not create the Decal renderer feature.");
+            feature.name = "Decal";
+            AssetDatabase.AddObjectToAsset(feature, rendererData);
+            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out string _, out long localId);
+
+            features.arraySize++;
+            features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = feature;
+            if (map != null && map.isArray)
+            {
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+            }
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(rendererData);
+            return true;
         }
 
         static void CreateAssetIfMissing<T>(string path) where T : ScriptableObject

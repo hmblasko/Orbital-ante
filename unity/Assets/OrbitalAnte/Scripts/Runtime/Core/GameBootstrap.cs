@@ -27,6 +27,7 @@ namespace OrbitalAnte.Core
         AudioListener _menuListener;
         GameObject _world;
         TestArena _arena;
+        TimeFx _timeFx;
 
         public TestArena Arena => _arena;
 
@@ -37,6 +38,9 @@ namespace OrbitalAnte.Core
             Instance = null;
             GameSession.ResetStatics();
             CombatEvents.ResetStatics();
+            Dismemberment.Mannequin.ResetStatics();
+            Dismemberment.GibManager.ResetStatics();
+            Gore.GoreFx.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -63,6 +67,7 @@ namespace OrbitalAnte.Core
             GameInput.Initialize();
             SilenceSceneLeftovers();
             BuildUi();
+            _timeFx = gameObject.AddComponent<TimeFx>();
 
             GameSession.PauseChanged += OnPauseChanged;
             ShowMainMenu();
@@ -180,6 +185,7 @@ namespace OrbitalAnte.Core
 
         void DestroyWorld()
         {
+            if (_timeFx != null) _timeFx.Clear();
             if (_world == null) return;
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
             _world.SetActive(false);

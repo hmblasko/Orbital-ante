@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
+using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
 using UnityEngine;
 
@@ -23,6 +24,8 @@ namespace OrbitalAnte.Arena
 
         int _seed;
         Transform _mannequinRoot;
+        GibManager _gibs;
+        GoreFx _gore;
         readonly List<Mannequin> _mannequins = new List<Mannequin>();
         readonly List<Bounds> _obstacles = new List<Bounds>();
 
@@ -32,6 +35,7 @@ namespace OrbitalAnte.Arena
             BuildLighting();
             BuildGeometry();
             BuildPlayer();
+            BuildGore();
             SpawnMannequins();
         }
 
@@ -160,9 +164,20 @@ namespace OrbitalAnte.Arena
 
             Player = playerGo.AddComponent<FpsController>();
             Player.Initialize(config, PlayerCamera);
+            Player.Shake = eyeGo.AddComponent<CameraShake>();
 
             Gun = eyeGo.AddComponent<TestGun>();
             Gun.Initialize(config, PlayerCamera);
+        }
+
+        // ------------------------------------------------------------------ gore
+
+        /// <summary>The pooled loose chunks and the blood, splats and pop sounds that go with them.</summary>
+        void BuildGore()
+        {
+            GoreConfig gore = GoreConfig.Load();
+            _gibs = GibManager.Create(transform, gore);
+            _gore = GoreFx.Create(transform, gore);
         }
 
         // ------------------------------------------------------------------ mannequins
@@ -170,6 +185,10 @@ namespace OrbitalAnte.Arena
         /// <summary>Removes every mannequin and loose part, then spawns a fresh set from the seed.</summary>
         public void SpawnMannequins()
         {
+            // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
+            if (_gibs != null) _gibs.ReleaseAll();
+            if (_gore != null) _gore.Clear();
+
             if (_mannequinRoot != null)
             {
                 _mannequinRoot.gameObject.SetActive(false);

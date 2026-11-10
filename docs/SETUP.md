@@ -13,7 +13,7 @@ Everything here is done once, except "Play" and "Run the tests".
 
 1. Install **GitHub Desktop** from https://desktop.github.com if you do not already have the repo on your computer.
 2. In GitHub Desktop choose **File > Clone repository**, pick `hmblasko/Orbital-ante`, choose a folder, click **Clone**.
-3. To try a milestone before it is merged: click **Current Branch** at the top, and pick the branch named in the pull request (for Milestone 1: `claude/unity-milestone-1`).
+3. To try a milestone before it is merged: click **Current Branch** at the top, and pick the branch named in the pull request (Milestones 1 and 2 are both on `claude/unity-milestone-1`).
 
 ## C. Open it in Unity (first time takes a few minutes)
 
@@ -56,7 +56,7 @@ Everything in the first six rows can be changed in **Pause > Controls**.
 
 1. Menu: **Window > General > Test Runner**.
 2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules (19 tests).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it (10 tests). The editor will flicker into Play mode for about 15 seconds.
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats and hitstop (19 tests). The editor will flicker into Play mode for about 30 seconds.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -64,9 +64,23 @@ Everything in the first six rows can be changed in **Pause > Controls**.
 In the **Project** window open `Assets/OrbitalAnte/Resources/Config`.
 
 - **MannequinConfig**: hit points per body part, movement speeds for each damage state, how hard gibs launch, colours.
+- **GoreConfig**: everything from Milestone 2. Most loose chunks at once, how long they last, bounciness, blood amount and colour, splat size and count, hitstop lengths, camera shake strength, headshot slow-mo, sound volumes.
 - **PlayerConfig**: move speed, jump, mouse and stick sensitivity, field of view, test rifle damage and fire rate.
 
 Click one, change numbers in the **Inspector**, press Play. Changes are kept.
+
+## G. Blood decals (only if the top-left readout says "splats ... (flat)")
+
+Blood splats are meant to use URP Decal Projectors, which wrap over walls and corners. The setup tool switches these on for you. If the readout at the top left of the screen ends in **(flat)** instead of **(projectors)**, the automatic step did not work and the game is using simple flat splats instead. The game is fully playable like that. To switch projectors on by hand:
+
+1. Menu: **Orbital Ante > Set Up Project**. Press Play and check the readout again. If it now says **(projectors)**, stop here.
+2. In the **Project** window open `Assets/Settings` and click **OA_UniversalRenderer**.
+3. In the **Inspector**, click **Add Renderer Feature** at the bottom and choose **Decal**.
+4. In the **Project** window open `Assets/OrbitalAnte/Resources/Config` and click **GoreConfig**.
+5. In the **Inspector**, tick **Decal Projectors Ready**.
+6. Press Play. Then tell me the automatic step failed, and paste any yellow "blood decals" line from the Console so I can fix it.
+
+To compare the two looks at any time, set **Decal Mode** on GoreConfig to **Mesh Only** or **Projector Only**.
 
 ## If something goes wrong
 

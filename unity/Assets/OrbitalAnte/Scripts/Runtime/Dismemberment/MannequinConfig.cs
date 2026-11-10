@@ -34,17 +34,15 @@ namespace OrbitalAnte.Dismemberment
 
         [Header("Gib launch (deliberately exaggerated)")]
         [Tooltip("Speed added along the bullet direction, in metres per second.")]
-        public float gibLaunchSpeed = 7.5f;
+        public float gibLaunchSpeed = 9f;
         [Tooltip("Extra upward speed so parts arc instead of skidding.")]
-        public float gibLift = 3.2f;
+        public float gibLift = 4f;
         [Tooltip("Random spin, in radians per second.")]
-        public float gibSpin = 16f;
+        public float gibSpin = 22f;
         [Tooltip("How hard a bullet shoves a gib that is already loose.")]
         public float gibPushSpeed = 3.5f;
         [Tooltip("Outward speed for limbs when the torso is destroyed.")]
         public float torsoBurstSpeed = 5f;
-        [Tooltip("Seconds before a loose part is cleaned up. Milestone 2 replaces this with pooling and a fade.")]
-        public float gibLifetime = 30f;
 
         [Header("Colours")]
         public Color torsoColor = new Color(0.93f, 0.45f, 0.13f);

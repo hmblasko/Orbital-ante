@@ -11,4 +11,4 @@ The earlier Godot + Rust version is kept on the `godot-archive` branch.
 
 ## Where the build is
 
-Phase 1, Milestone 1: breakable playtest characters in a combat test arena. See `docs/reports/milestone-1.md`.
+Phase 1, Milestones 1 and 2: breakable playtest characters in a combat test arena, with gib juice (blood, splats, hitstop, camera shake, pop sounds, pooled gibs). Not yet run in Unity. See `docs/reports/milestone-1.md` and `docs/reports/milestone-2.md`.

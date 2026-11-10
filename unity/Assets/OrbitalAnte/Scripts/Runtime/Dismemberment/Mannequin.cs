@@ -26,6 +26,11 @@ namespace OrbitalAnte.Dismemberment
         public event Action<Mannequin, MovementState> StateChanged;
         public event Action<Mannequin> Died;
 
+        /// <summary>Raised for every chunk that comes off any character. Effects (blood, sound) listen here.</summary>
+        public static event Action<Mannequin, Detachment, Gib, HitInfo> AnyPartDetached;
+
+        public static void ResetStatics() => AnyPartDetached = null;
+
         readonly BodyPart[] _parts = new BodyPart[BodyLayout.Count];
         readonly Dictionary<int, Gib> _gibs = new Dictionary<int, Gib>();
         Collider _bodyBlocker;
@@ -70,6 +75,7 @@ namespace OrbitalAnte.Dismemberment
 
             MovementState before = Model.State;
             int groupBefore = Model.Group(part.Id);
+            bool torsoWasOnBody = Model.OnBody(BodyPartId.Torso);
             DamageResult result = Model.ApplyDamage(part.Id, hit.Damage);
 
             for (int i = 0; i < result.Detachments.Count; i++)
@@ -77,6 +83,7 @@ namespace OrbitalAnte.Dismemberment
                 var detachment = result.Detachments[i];
                 Gib gib = SpawnGib(detachment, hit);
                 PartDetached?.Invoke(this, detachment, gib, hit);
+                AnyPartDetached?.Invoke(this, detachment, gib, hit);
             }
 
             if (result.Detachments.Count > 0)
@@ -107,8 +114,37 @@ namespace OrbitalAnte.Dismemberment
                 Hit = true,
                 Severed = result.Detachments.Count > 0,
                 Killed = result.Killed,
+                HeadshotKill = result.Killed && torsoWasOnBody,
+                Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
             };
+        }
+
+        /// <summary>How big a moment a hit was, for hitstop and camera shake. 0 when nothing came off.</summary>
+        static float JuiceFor(DamageResult result, int groupBefore)
+        {
+            if (result.Killed) return 1f;
+            if (result.Detachments.Count == 0) return 0f;
+            // Splitting a chunk that is already loose is a smaller moment than taking a limb off a body.
+            if (groupBefore != 0) return 0.3f;
+
+            switch (result.Detachments[result.Detachments.Count - 1].Root)
+            {
+                case BodyPartId.Torso:
+                    return 0.9f;
+                case BodyPartId.LeftThigh:
+                case BodyPartId.RightThigh:
+                case BodyPartId.LeftUpperArm:
+                case BodyPartId.RightUpperArm:
+                    return 0.7f;
+                case BodyPartId.LeftShin:
+                case BodyPartId.RightShin:
+                case BodyPartId.LeftForearm:
+                case BodyPartId.RightForearm:
+                    return 0.55f;
+                default:
+                    return 0.4f;
+            }
         }
 
         Gib SpawnGib(Detachment detachment, in HitInfo hit)
@@ -128,26 +164,16 @@ namespace OrbitalAnte.Dismemberment
                 ? _parts[(int)BodyPartId.Torso].transform.position
                 : transform.position;
 
-            var go = new GameObject(name + " gib (" + BodyLayout.DisplayName(detachment.Root) + ")");
-            go.layer = Layers.Gib;
-            go.transform.SetParent(transform.parent, false);
-            go.transform.SetPositionAndRotation(rootPart.transform.position, rootPart.transform.rotation);
-
-            var body = go.AddComponent<Rigidbody>();
-            body.interpolation = RigidbodyInterpolation.Interpolate;
-            body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
-            body.maxAngularVelocity = 40f;
-            body.angularDamping = 0.2f;
-
-            var gib = go.AddComponent<Gib>();
-            gib.Setup(this, detachment.Group, body, Config.gibLifetime);
+            GibManager manager = GibManager.GetOrCreate();
+            Gib gib = manager.Spawn(this, detachment.Group, rootPart.transform.position, rootPart.transform.rotation);
+            Rigidbody body = gib.Body;
 
             for (int i = 0; i < detachment.Members.Length; i++)
             {
                 BodyPart member = _parts[(int)detachment.Members[i]];
                 if (member == null) continue;
-                member.transform.SetParent(go.transform, true);
-                Layers.SetLayerRecursively(member.gameObject, Layers.Gib);
+                member.transform.SetParent(gib.transform, true);
+                manager.PreparePart(member);
                 gib.Parts.Add(member);
                 if (source != null) source.Parts.Remove(member);
             }
@@ -207,15 +233,15 @@ namespace OrbitalAnte.Dismemberment
             }
         }
 
-        public void NotifyGibGone(Gib gib)
+        /// <summary>Called by the gib pool when one of this character's loose chunks has been cleaned up.</summary>
+        public void NotifyGibGone(int group, Gib gib)
         {
-            if (gib == null) return;
-            if (_gibs.TryGetValue(gib.Group, out var known) && ReferenceEquals(known, gib))
+            if (_gibs.TryGetValue(group, out var known) && ReferenceEquals(known, gib))
             {
-                _gibs.Remove(gib.Group);
+                _gibs.Remove(group);
             }
             // Once a dead character's last loose part has been cleaned up, nothing of it is left.
-            if (Model != null && !Model.Alive && _gibs.Count == 0 && this != null && gameObject != null)
+            if (Model != null && !Model.Alive && _gibs.Count == 0 && this != null)
             {
                 Destroy(gameObject);
             }

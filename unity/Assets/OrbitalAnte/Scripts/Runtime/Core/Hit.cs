@@ -20,6 +20,12 @@ namespace OrbitalAnte.Core
         /// <summary>A part came off.</summary>
         public bool Severed;
         public bool Killed;
+        /// <summary>The kill came from destroying a head that was still on its body.</summary>
+        public bool HeadshotKill;
+        /// <summary>
+        /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
+        /// </summary>
+        public float Juice;
         /// <summary>Short label for the debug readout, for example "Left Shin".</summary>
         public string Label;
     }
@@ -31,7 +37,7 @@ namespace OrbitalAnte.Core
         string DescribeForDebug();
     }
 
-    /// <summary>Loose coupling between combat and feedback (HUD now; sound, hitstop and shake in Milestone 2).</summary>
+    /// <summary>Loose coupling between combat and feedback (HUD, hitstop, camera shake).</summary>
     public static class CombatEvents
     {
         public static event Action<HitOutcome> PlayerHitSomething;

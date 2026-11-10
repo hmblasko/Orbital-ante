@@ -146,11 +146,23 @@ namespace OrbitalAnte.UI
                     (average * 1000f).ToString("0.0") + " ms avg   " +
                     (_worstFrame * 1000f).ToString("0.0") + " ms worst   " +
                     Mathf.RoundToInt(1f / Mathf.Max(0.0001f, average)) + " fps\n" +
-                    "Seed " + GameSession.Seed;
+                    "Seed " + GameSession.Seed + GoreReadout();
             }
             _frameAccumulator = 0f;
             _frameCount = 0;
             _worstFrame = 0f;
+        }
+
+        /// <summary>Live counts for the performance budget: loose chunks, blood droplets and splats.</summary>
+        static string GoreReadout()
+        {
+            var gibs = OrbitalAnte.Dismemberment.GibManager.Instance;
+            var gore = OrbitalAnte.Gore.GoreFx.Instance;
+            if (gibs == null || gore == null) return string.Empty;
+            return "   gibs " + gibs.ActiveCount + "/" + gibs.Config.maxActiveGibs +
+                   "   blood " + gore.LiveDroplets + "/" + gore.Config.maxBloodParticles +
+                   "   splats " + gore.Decals.LiveCount + "/" + gore.Config.maxDecals +
+                   (gore.Decals.UsingProjectors ? " (projectors)" : " (flat)");
         }
     }
 }
