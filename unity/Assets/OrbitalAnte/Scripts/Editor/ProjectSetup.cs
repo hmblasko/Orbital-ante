@@ -6,6 +6,7 @@ using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
 using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
+using OrbitalAnte.Weapons;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -33,6 +34,8 @@ namespace OrbitalAnte.EditorTools
         const string MaterialsFolder = ResourcesFolder + "/Materials";
         const string GoreConfigPath = ConfigFolder + "/GoreConfig.asset";
         const string DecalMaterialPath = MaterialsFolder + "/OA_Decal.mat";
+        const string WeaponsFolder = ResourcesFolder + "/Weapons";
+        const string ThirdPartyWeaponsFolder = "Assets/ThirdParty/Weapons";
         const string TriedThisSessionKey = "OrbitalAnte.SetupTriedThisSession";
 
         static ProjectSetup()
@@ -57,6 +60,8 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath) == null
+                   || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
+                   || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
         }
 
@@ -88,6 +93,7 @@ namespace OrbitalAnte.EditorTools
             Step("render pipeline (URP)", problems, SetUpRenderPipeline);
             Step("base materials", problems, SetUpMaterials);
             Step("config assets", problems, SetUpConfigAssets);
+            Step("weapon data", problems, SetUpWeapons);
             Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
@@ -242,6 +248,26 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset");
             CreateAssetIfMissing<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset");
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
+        }
+
+        /// <summary>
+        /// One data asset per gun, plus the folder where downloaded CC0 gun models go.
+        /// </summary>
+        static void SetUpWeapons()
+        {
+            EnsureFolder(WeaponsFolder);
+            EnsureFolder(ThirdPartyWeaponsFolder);
+
+            string riflePath = WeaponsFolder + "/" + WeaponData.RifleId + ".asset";
+            if (AssetDatabase.LoadAssetAtPath<WeaponData>(riflePath) == null)
+            {
+                AssetDatabase.CreateAsset(WeaponData.CreateRifleDefaults(), riflePath);
+            }
+            string pistolPath = WeaponsFolder + "/" + WeaponData.PistolId + ".asset";
+            if (AssetDatabase.LoadAssetAtPath<WeaponData>(pistolPath) == null)
+            {
+                AssetDatabase.CreateAsset(WeaponData.CreatePistolDefaults(), pistolPath);
+            }
         }
 
         /// <summary>

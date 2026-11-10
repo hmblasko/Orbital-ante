@@ -44,6 +44,26 @@ namespace OrbitalAnte.Dismemberment
         [Tooltip("Outward speed for limbs when the torso is destroyed.")]
         public float torsoBurstSpeed = 5f;
 
+        [Header("Combat (how armed characters fight)")]
+        [Tooltip("How far away a character will start shooting at the player, in metres.")]
+        public float engageRange = 45f;
+        [Tooltip("Seconds between first seeing the player and the first shot. Never instant.")]
+        public float reactionTime = 0.6f;
+        [Tooltip("Aim error added on top of the gun's own spread, in degrees. Higher is kinder to the player.")]
+        public float aimError = 3f;
+        [Tooltip("Shortest and longest burst from an automatic gun, in seconds.")]
+        public Vector2 burstSeconds = new Vector2(0.45f, 0.9f);
+        [Tooltip("Shortest and longest pause between bursts or single shots, in seconds.")]
+        public Vector2 burstPause = new Vector2(0.6f, 1.3f);
+        [Tooltip("How far an unarmed character will go to fetch a dropped gun, in metres.")]
+        public float weaponSeekRange = 30f;
+        [Tooltip("How close it must get to pick the gun up, in metres.")]
+        public float pickupReach = 1.1f;
+        [Tooltip("The toggle from the design: can a gun be reloaded with only one hand? Off means a one-handed character is stuck once the magazine is empty.")]
+        public bool oneHandedReloadAllowed = true;
+        [Tooltip("How fast a gun flies when it is shot out of someone's hands, in metres per second.")]
+        public float disarmKnockSpeed = 6f;
+
         [Header("Colours")]
         public Color torsoColor = new Color(0.93f, 0.45f, 0.13f);
         public Color headColor = new Color(0.96f, 0.93f, 0.85f);

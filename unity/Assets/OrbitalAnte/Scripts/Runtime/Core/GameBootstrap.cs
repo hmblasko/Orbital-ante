@@ -41,6 +41,9 @@ namespace OrbitalAnte.Core
             Dismemberment.Mannequin.ResetStatics();
             Dismemberment.GibManager.ResetStatics();
             Gore.GoreFx.ResetStatics();
+            Weapons.Weapon.ResetStatics();
+            Weapons.WeaponFx.ResetStatics();
+            AI.CombatWorld.Reset();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -175,7 +178,8 @@ namespace OrbitalAnte.Core
             _arena = _world.AddComponent<TestArena>();
             _arena.Build(seed);
 
-            _hud.Gun = _arena.Gun;
+            _hud.Weapons = _arena.Weapons;
+            _hud.Health = _arena.Health;
             _hud.SetVisible(true);
 
             GameSession.SetMode(GameMode.Playing);
@@ -192,7 +196,11 @@ namespace OrbitalAnte.Core
             Destroy(_world);
             _world = null;
             _arena = null;
-            if (_hud != null) _hud.Gun = null;
+            if (_hud != null)
+            {
+                _hud.Weapons = null;
+                _hud.Health = null;
+            }
         }
 
         void OnPauseChanged(bool paused)

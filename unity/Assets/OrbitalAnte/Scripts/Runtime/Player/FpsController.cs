@@ -22,6 +22,14 @@ namespace OrbitalAnte.Player
         float _yaw;
         float _pitch;
         float _lastGroundedTime = -10f;
+        float _recoilReturnPitch;
+        float _recoilReturnYaw;
+        float _recoilRecovery = 14f;
+
+        /// <summary>When true the player cannot move or look (used for the moment after being shot down).</summary>
+        public bool Frozen { get; set; }
+        /// <summary>Current movement in metres per second. Things the player drops inherit it.</summary>
+        public Vector3 Velocity => _horizontalVelocity + Vector3.up * _verticalVelocity;
 
         public void Initialize(PlayerConfig config, Camera eye)
         {
@@ -37,9 +45,70 @@ namespace OrbitalAnte.Player
             if (Config == null || GameSession.Paused) return;
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
+            if (Frozen)
+            {
+                _horizontalVelocity = Vector3.zero;
+                return;
+            }
 
             Look(dt);
+            SettleRecoil(dt);
+            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
             Move(dt);
+        }
+
+        /// <summary>
+        /// Kicks the view, the way a gun does. Part of each kick settles back by itself; the rest stays, so
+        /// holding the trigger makes the gun climb and the player has to pull it back down.
+        /// </summary>
+        /// <param name="pitchUp">Degrees the view jumps upward.</param>
+        /// <param name="yaw">Degrees sideways (positive is right).</param>
+        /// <param name="returnFraction">0 to 1: how much of the kick comes back by itself.</param>
+        /// <param name="recoverySpeed">How fast it comes back, in degrees per second.</param>
+        public void AddRecoil(float pitchUp, float yaw, float returnFraction, float recoverySpeed)
+        {
+            float before = _pitch;
+            _pitch = Mathf.Clamp(_pitch - pitchUp, -88f, 88f);
+            float applied = before - _pitch;
+            _yaw += yaw;
+
+            returnFraction = Mathf.Clamp01(returnFraction);
+            _recoilReturnPitch += applied * returnFraction;
+            _recoilReturnYaw += yaw * returnFraction;
+            _recoilRecovery = Mathf.Max(1f, recoverySpeed);
+        }
+
+        void SettleRecoil(float dt)
+        {
+            float step = _recoilRecovery * dt;
+            if (_recoilReturnPitch != 0f)
+            {
+                float next = Mathf.MoveTowards(_recoilReturnPitch, 0f, step);
+                _pitch = Mathf.Clamp(_pitch + (_recoilReturnPitch - next), -88f, 88f);
+                _recoilReturnPitch = next;
+            }
+            if (_recoilReturnYaw != 0f)
+            {
+                float next = Mathf.MoveTowards(_recoilReturnYaw, 0f, step);
+                _yaw -= _recoilReturnYaw - next;
+                _recoilReturnYaw = next;
+            }
+        }
+
+        /// <summary>Moves the player somewhere else in one go and stops them dead (used when respawning).</summary>
+        public void Teleport(Vector3 position, float yawDegrees)
+        {
+            // A CharacterController ignores direct position changes unless it is switched off first.
+            _controller.enabled = false;
+            transform.position = position;
+            _controller.enabled = true;
+            _yaw = yawDegrees;
+            _pitch = 0f;
+            _recoilReturnPitch = 0f;
+            _recoilReturnYaw = 0f;
+            _horizontalVelocity = Vector3.zero;
+            _verticalVelocity = 0f;
+            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
         }
 
         void Look(float dt)
@@ -65,7 +134,6 @@ namespace OrbitalAnte.Player
             }
 
             _pitch = Mathf.Clamp(_pitch, -88f, 88f);
-            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
         }
 
         void LateUpdate()

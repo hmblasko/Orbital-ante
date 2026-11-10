@@ -22,6 +22,8 @@ namespace OrbitalAnte.Core
         public bool Killed;
         /// <summary>The kill came from destroying a head that was still on its body.</summary>
         public bool HeadshotKill;
+        /// <summary>A weapon was knocked out of someone's hands by this hit.</summary>
+        public bool Disarmed;
         /// <summary>
         /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
         /// </summary>

@@ -106,12 +106,11 @@ namespace OrbitalAnte.Tests
         {
             yield return null;
             MannequinConfig config = MannequinConfig.Load();
-            float rifle = PlayerConfig.Load().testRifleDamage;
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
                 if (id == BodyPartId.Head || id == BodyPartId.Torso) continue;
-                int hits = Mathf.CeilToInt(config.HpFor(id) / rifle);
+                int hits = Mathf.CeilToInt(config.HpFor(id) / OrbitalAnte.Weapons.WeaponData.Rifle.DamageFor(id));
                 Assert.That(hits, Is.InRange(1, 3), id + " takes " + hits + " hits");
             }
         }

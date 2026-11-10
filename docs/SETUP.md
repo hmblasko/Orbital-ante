@@ -46,17 +46,22 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Jump | Space | A / Cross |
 | Sprint | Left Shift | Click left stick |
 | Fire | Left mouse button | Right trigger |
+| Reload | R | X / Square |
+| Pick up / swap weapon | E | Y / Triangle |
 | Respawn dummies | T | D-pad up |
+| Enemies hold fire on/off | H | D-pad down |
 | Pause menu | Esc | Start / Menu |
 | Debug readout on/off | F3 | (none) |
 
-Everything in the first six rows can be changed in **Pause > Controls**.
+Everything except the last two rows can be changed in **Pause > Controls**.
+
+The arena starts with the enemies **holding fire**, so you can look around. Press **H** (or D-pad down) to start the fight, and again to calm things down.
 
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules (19 tests).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats and hitstop (19 tests). The editor will flicker into Play mode for about 30 seconds.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules and the gun rules (33 tests).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons and disarming (33 tests). The editor will flicker into Play mode for about a minute.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -68,6 +73,8 @@ In the **Project** window open `Assets/OrbitalAnte/Resources/Config`.
 - **PlayerConfig**: move speed, jump, mouse and stick sensitivity, field of view, test rifle damage and fire rate.
 
 Click one, change numbers in the **Inspector**, press Play. Changes are kept.
+
+Guns have their own folder: `Assets/OrbitalAnte/Resources/Weapons`. **Rifle** and **Pistol** each hold damage per body part, fire rate, spread, recoil, magazine size, reload time and the one-handed penalties. How enemies fight (reaction time, aim error, burst length, the one-handed reload toggle) is under **Combat** on MannequinConfig.
 
 ## G. Blood decals (only if the top-left readout says "splats ... (flat)")
 
@@ -81,6 +88,20 @@ Blood splats are meant to use URP Decal Projectors, which wrap over walls and co
 6. Press Play. Then tell me the automatic step failed, and paste any yellow "blood decals" line from the Console so I can fix it.
 
 To compare the two looks at any time, set **Decal Mode** on GoreConfig to **Mesh Only** or **Projector Only**.
+
+## H. Using a real gun model instead of the placeholder (optional)
+
+The guns are placeholder shapes until you add models. To swap one in:
+
+1. Download a CC0 pack, for example the Quaternius "Ultimate Gun Pack". Unzip it.
+2. In Unity's **Project** window, open `Assets/ThirdParty/Weapons`.
+3. Drag the model files you want (usually `.fbx`) from your file explorer into that folder. Wait for the import.
+4. In the **Project** window open `Assets/OrbitalAnte/Resources/Weapons` and click **Rifle** (or **Pistol**).
+5. In the **Inspector**, find **Model Prefab** under **Look**. Drag the imported model from `Assets/ThirdParty/Weapons` onto that box.
+6. Set **Model Length** to the real length in metres (about `0.87` for the rifle, `0.2` for the pistol).
+7. Press Play. If the gun points sideways, up or backwards, stop, change **Model Rotation** by 90 on one axis (try Y first), and press Play again.
+8. The hand, muzzle and magazine positions are estimated from the model's size. If the muzzle flash or the hands are in the wrong place, tell me which model you used and I will set them exactly.
+9. Add a line for the pack to `docs/asset_licence_ledger.md` (name, author, licence, link), or tell me and I will.
 
 ## If something goes wrong
 

@@ -32,12 +32,19 @@ namespace OrbitalAnte.Player
         public float stickCurve = 1.6f;
         public float fieldOfView = 80f;
 
-        [Header("Test rifle (replaced by real weapon data in Milestone 3)")]
-        public float testRifleDamage = 34f;
-        public float testRifleShotsPerSecond = 10f;
-        public float testRifleRange = 250f;
-        [Tooltip("Random aim error in degrees.")]
-        public float testRifleSpread = 0.35f;
+        [Header("Health (bare minimum so enemies shooting back can be tested)")]
+        public float maxHealth = 100f;
+        [Tooltip("Seconds without being hit before health starts coming back.")]
+        public float regenDelay = 4f;
+        public float regenPerSecond = 18f;
+        [Tooltip("Seconds on the floor before getting back up.")]
+        public float respawnDelay = 2.2f;
+
+        [Header("Weapons")]
+        [Tooltip("How close a dropped weapon must be to pick it up, in metres.")]
+        public float pickupRange = 2.6f;
+        [Tooltip("How hard a swapped-out weapon is tossed forward, in metres per second.")]
+        public float dropTossSpeed = 3.5f;
 
         static PlayerConfig _cached;
 

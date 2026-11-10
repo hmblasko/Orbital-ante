@@ -61,6 +61,10 @@ namespace OrbitalAnte.Dismemberment
 
             var locomotion = root.AddComponent<MannequinLocomotion>();
             locomotion.Initialize(mannequin, blocker);
+
+            // The fighting brain: holds a gun, shoots, fetches dropped guns, takes cover.
+            var combat = root.AddComponent<AI.MannequinCombat>();
+            combat.Initialize(mannequin, locomotion);
             return mannequin;
         }
 

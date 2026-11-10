@@ -7,7 +7,8 @@ namespace OrbitalAnte.Dismemberment
     /// Moves and animates a mannequin procedurally. How it moves depends only on which parts are left:
     /// walk/sprint, one-legged hop, arm crawl, torso wriggle, or a rolling head.
     ///
-    /// For Milestone 1 the "AI" is just wandering between random points so the movement states can be judged.
+    /// Left alone it wanders between random points. The combat brain (MannequinCombat) can instead give it
+    /// somewhere to go (Destination) or something to stand and face (FacePoint).
     /// </summary>
     public sealed class MannequinLocomotion : MonoBehaviour
     {
@@ -29,6 +30,16 @@ namespace OrbitalAnte.Dismemberment
 
         /// <summary>Set false to keep the character on the spot (used by tests and for target practice).</summary>
         public bool Wander = true;
+
+        /// <summary>When set, walk here instead of wandering, and stop on arrival.</summary>
+        public Vector3? Destination;
+        /// <summary>When set, stand still and turn to face this point (used to aim). Wins over Destination.</summary>
+        public Vector3? FacePoint;
+        /// <summary>Sprint to the destination if the legs allow it.</summary>
+        public bool Hurry;
+
+        float _avoidUntil;
+        float _avoidSign = 1f;
 
         /// <summary>Current forward speed in metres per second, averaged over the gait.</summary>
         public float CurrentSpeed { get; private set; }
@@ -90,8 +101,20 @@ namespace OrbitalAnte.Dismemberment
             float speed = 0f;
             if (Wander)
             {
-                Steer(state, dt);
-                speed = SpeedFor(state, _sprinting);
+                if (FacePoint.HasValue)
+                {
+                    _sprinting = false;
+                    TurnToward(FacePoint.Value - transform.position, state, dt);
+                }
+                else if (Destination.HasValue)
+                {
+                    speed = SteerTo(Destination.Value, state, dt);
+                }
+                else
+                {
+                    Steer(state, dt);
+                    speed = SpeedFor(state, _sprinting);
+                }
             }
             CurrentSpeed = speed;
 
@@ -142,6 +165,47 @@ namespace OrbitalAnte.Dismemberment
                 float turn = _cfg.turnSpeed * TurnScaleFor(state);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
             }
+        }
+
+        /// <summary>Heads for a point, stepping around walls. Returns the speed to move at (0 on arrival).</summary>
+        float SteerTo(Vector3 destination, MovementState state, float dt)
+        {
+            Vector3 to = destination - transform.position;
+            to.y = 0f;
+            if (to.sqrMagnitude < 0.45f * 0.45f)
+            {
+                _sprinting = false;
+                return 0f;
+            }
+
+            float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
+            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 1.0f,
+                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            if (blocked && Time.time >= _avoidUntil)
+            {
+                // Something in the way: veer to one side for a moment, then try again.
+                _avoidSign = _rng.NextDouble() < 0.5 ? -1f : 1f;
+                _avoidUntil = Time.time + 0.9f;
+            }
+
+            Vector3 heading = to.normalized;
+            if (Time.time < _avoidUntil) heading = Quaternion.Euler(0f, 80f * _avoidSign, 0f) * heading;
+            TurnToward(heading, state, dt);
+
+            _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > 4f * 4f;
+            float speed = SpeedFor(state, _sprinting);
+            // Do not march off sideways while still turning to face the way.
+            if (Vector3.Angle(transform.forward, heading) > 70f) speed *= 0.25f;
+            return speed;
+        }
+
+        void TurnToward(Vector3 direction, MovementState state, float dt)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f) return;
+            Quaternion want = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            float turn = _cfg.turnSpeed * TurnScaleFor(state);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
         }
 
         void PickTarget()

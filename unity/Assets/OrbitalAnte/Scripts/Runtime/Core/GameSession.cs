@@ -12,7 +12,7 @@ namespace OrbitalAnte.Core
     /// <summary>Run-wide state: the seed, whether we are in the menu or playing, and whether the game is paused.</summary>
     public static class GameSession
     {
-        public const string BuildLabel = "Milestone 2 - gibs with juice";
+        public const string BuildLabel = "Milestone 3 - weapons and disarming";
 
         public static GameMode Mode { get; private set; } = GameMode.MainMenu;
         public static int Seed { get; private set; }

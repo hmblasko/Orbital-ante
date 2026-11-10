@@ -20,8 +20,8 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - Matthew is still learning Unity. Anything he must do by hand gets numbered, click-by-click steps. Prefer doing it in code or in `ProjectSetup.cs` so there is nothing for him to click.
 - Scenes, prefabs and materials are built from code where practical. Hand-written `.unity`/`.prefab` YAML is avoided because it cannot be checked without the editor.
 - Rules live in plain C# classes with no Unity types (for example `BodyModel`) so they can be unit tested anywhere; MonoBehaviours turn rule results into objects, physics and effects.
-- Tunable numbers live in ScriptableObjects (`MannequinConfig`, `GoreConfig`, `PlayerConfig`, later weapon data), loaded from `Resources/Config`, with code defaults if the asset is missing.
-- Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody.
+- Tunable numbers live in ScriptableObjects (`MannequinConfig`, `GoreConfig`, `PlayerConfig`), loaded from `Resources/Config`, with code defaults if the asset is missing. Each gun is a `WeaponData` asset in `Resources/Weapons`.
+- Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody, 12 Item (dropped weapons).
 - Use Unity 6 API names (`linearVelocity`, `FindFirstObjectByType`, `PhysicsMaterial`).
 - Namespace root is `OrbitalAnte`.
 - Never invent faction names (Faction A, B, C) or playtest results.

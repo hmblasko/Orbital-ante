@@ -143,6 +143,9 @@ namespace OrbitalAnte.Dismemberment
                 : OnBody(BodyPartId.RightUpperArm) && OnBody(BodyPartId.RightForearm) && OnBody(BodyPartId.RightHand);
         }
 
+        /// <summary>How many hands can still hold things: 0, 1 or 2.</summary>
+        public int UsableHands => (HandUsable(true) ? 1 : 0) + (HandUsable(false) ? 1 : 0);
+
         public MovementState State
         {
             get

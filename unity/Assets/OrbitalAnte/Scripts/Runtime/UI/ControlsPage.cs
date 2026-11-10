@@ -82,7 +82,8 @@ namespace OrbitalAnte.UI
             _hint = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 26f, TextAnchor.MiddleCenter, FontStyle.Normal);
 
             _list = UiKit.NewRect("Bindings", card);
-            var listGroup = UiKit.VStack(_list, 6f, 0);
+            // Tight rows: twelve of them have to fit on a Steam Deck screen.
+            var listGroup = UiKit.VStack(_list, 4f, 0);
             listGroup.childForceExpandHeight = false;
 
             var footer = UiKit.NewRect("Footer", card);
@@ -193,14 +194,14 @@ namespace OrbitalAnte.UI
         {
             var rowRect = UiKit.NewRect("Row " + entry.Label, _list);
             UiKit.HStack(rowRect, 12f);
-            UiKit.SetLayout(rowRect.gameObject, 44f);
+            UiKit.SetLayout(rowRect.gameObject, 36f);
 
-            var label = UiKit.Label(rowRect, entry.Label, 22, UiKit.Cream, TextAnchor.MiddleLeft);
-            UiKit.SetLayout(label.gameObject, 44f, -1f, 1f);
+            var label = UiKit.Label(rowRect, entry.Label, 20, UiKit.Cream, TextAnchor.MiddleLeft);
+            UiKit.SetLayout(label.gameObject, 36f, -1f, 1f);
 
             var row = new Row { Entry = entry };
-            row.Button = UiKit.Button(rowRect, string.Empty, null, 44f, 21);
-            UiKit.SetLayout(row.Button.gameObject, 44f, 340f, 0f);
+            row.Button = UiKit.Button(rowRect, string.Empty, null, 36f, 19);
+            UiKit.SetLayout(row.Button.gameObject, 36f, 340f, 0f);
             row.Text = UiKit.ButtonText(row.Button);
             row.Button.interactable = entry.Rebindable;
             row.Button.onClick.AddListener(() => StartRebind(row));
@@ -209,7 +210,7 @@ namespace OrbitalAnte.UI
             disc.anchorMin = disc.anchorMax = new Vector2(0f, 0.5f);
             disc.pivot = new Vector2(0f, 0.5f);
             disc.anchoredPosition = new Vector2(12f, 0f);
-            disc.sizeDelta = new Vector2(26f, 26f);
+            disc.sizeDelta = new Vector2(22f, 22f);
             row.Disc = UiKit.AddImage(disc, Color.white, UiKit.Circle);
             row.Disc.gameObject.SetActive(false);
             return row;

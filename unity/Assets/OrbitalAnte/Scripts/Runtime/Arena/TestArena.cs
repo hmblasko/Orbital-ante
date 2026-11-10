@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using OrbitalAnte.AI;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
 using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
+using OrbitalAnte.Weapons;
 using UnityEngine;
 
 namespace OrbitalAnte.Arena
@@ -18,14 +20,23 @@ namespace OrbitalAnte.Arena
         const int MannequinCount = 8;
 
         public FpsController Player { get; private set; }
-        public TestGun Gun { get; private set; }
+        public PlayerWeapons Weapons { get; private set; }
+        public PlayerHealth Health { get; private set; }
         public Camera PlayerCamera { get; private set; }
         public IReadOnlyList<Mannequin> Mannequins => _mannequins;
 
         int _seed;
         Transform _mannequinRoot;
+        Transform _weaponRoot;
+        Transform _eye;
         GibManager _gibs;
         GoreFx _gore;
+        WeaponFx _weaponFx;
+        PlayerConfig _playerConfig;
+        float _respawnAt = -1f;
+
+        static readonly Vector3 PlayerStart = new Vector3(0f, 0.1f, -HalfSize + 5f);
+        const float EyeHeight = 1.65f;
         readonly List<Mannequin> _mannequins = new List<Mannequin>();
         readonly List<Bounds> _obstacles = new List<Bounds>();
 
@@ -34,18 +45,106 @@ namespace OrbitalAnte.Arena
             _seed = seed;
             BuildLighting();
             BuildGeometry();
-            BuildPlayer();
             BuildGore();
+            BuildPlayer();
+
+            CombatWorld.Reset();
+            CombatWorld.PlayerEye = _eye;
+            CombatWorld.Player = Health;
+            CombatWorld.FindCover = FindCover;
+            // The arena starts calm so there is time to look around. H (or D-pad down) starts the fight.
+            CombatWorld.EnemiesHoldFire = true;
+
             SpawnMannequins();
+            Weapons.Equip(Weapon.Create(WeaponData.Rifle, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed));
+            PlaceSpareWeapon();
+        }
+
+        void OnDestroy()
+        {
+            if (CombatWorld.PlayerEye == _eye) CombatWorld.Reset();
         }
 
         void Update()
         {
             if (GameSession.Paused || GameInput.Asset == null) return;
+
+            if (_respawnAt >= 0f)
+            {
+                UpdateKnockedDown();
+                return;
+            }
+
             if (GameInput.RespawnDummies.WasPressedThisFrame())
             {
                 SpawnMannequins();
+                PlaceSpareWeapon();
             }
+            if (GameInput.HoldFire.WasPressedThisFrame())
+            {
+                CombatWorld.EnemiesHoldFire = !CombatWorld.EnemiesHoldFire;
+            }
+        }
+
+        // ------------------------------------------------------------------ being shot down
+
+        void OnPlayerDied()
+        {
+            _respawnAt = Time.time + Mathf.Max(0.5f, _playerConfig.respawnDelay);
+            Player.Frozen = true;
+        }
+
+        /// <summary>
+        /// First person the whole way: the view sinks to the floor, then the player is put back at the start
+        /// with a fresh set of mannequins. (A stand-in for real death, which arrives with the ante loop.)
+        /// </summary>
+        void UpdateKnockedDown()
+        {
+            Vector3 eye = _eye.localPosition;
+            eye.y = Mathf.MoveTowards(eye.y, 0.3f, Time.deltaTime * 3.5f);
+            _eye.localPosition = eye;
+
+            if (Time.time < _respawnAt) return;
+            _respawnAt = -1f;
+            _eye.localPosition = new Vector3(0f, EyeHeight, 0f);
+            Player.Teleport(PlayerStart, 0f);
+            Player.Frozen = false;
+            Health.Revive();
+            CombatWorld.EnemiesHoldFire = true;
+            SpawnMannequins();
+            PlaceSpareWeapon();
+        }
+
+        // ------------------------------------------------------------------ cover
+
+        /// <summary>A spot behind the nearest piece of cover, on the far side from the threat.</summary>
+        Vector3? FindCover(Vector3 from, Vector3 threat)
+        {
+            Vector3? best = null;
+            float bestSqr = float.MaxValue;
+            for (int i = 0; i < _obstacles.Count; i++)
+            {
+                Bounds b = _obstacles[i];
+                // Low walls and crates do not hide a standing character well, but they are better than nothing.
+                Vector3 away = b.center - threat;
+                away.y = 0f;
+                if (away.sqrMagnitude < 0.01f) continue;
+                away.Normalize();
+                // Far enough behind the obstacle to clear its thickest side.
+                float reach = Mathf.Abs(away.x) * b.extents.x + Mathf.Abs(away.z) * b.extents.z + 0.9f;
+                Vector3 spot = new Vector3(b.center.x, 0f, b.center.z) + away * reach;
+                if (Mathf.Abs(spot.x) > HalfSize - 1f || Mathf.Abs(spot.z) > HalfSize - 1f) continue;
+
+                float sqr = (spot - from).sqrMagnitude;
+                // Prefer tall cover by treating low cover as if it were further away.
+                if (b.size.y < 1.6f) sqr += 8f * 8f;
+                if (sqr < bestSqr)
+                {
+                    bestSqr = sqr;
+                    best = spot;
+                }
+            }
+            return best;
         }
 
         // ------------------------------------------------------------------ world
@@ -137,11 +236,12 @@ namespace OrbitalAnte.Arena
         void BuildPlayer()
         {
             PlayerConfig config = PlayerConfig.Load();
+            _playerConfig = config;
 
             var playerGo = new GameObject("Player");
             playerGo.layer = Layers.Player;
             playerGo.transform.SetParent(transform, false);
-            playerGo.transform.SetPositionAndRotation(new Vector3(0f, 0.1f, -HalfSize + 5f), Quaternion.identity);
+            playerGo.transform.SetPositionAndRotation(PlayerStart, Quaternion.identity);
 
             var controller = playerGo.AddComponent<CharacterController>();
             controller.height = 1.8f;
@@ -153,7 +253,8 @@ namespace OrbitalAnte.Arena
             var eyeGo = new GameObject("Eye");
             eyeGo.layer = Layers.Player;
             eyeGo.transform.SetParent(playerGo.transform, false);
-            eyeGo.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            eyeGo.transform.localPosition = new Vector3(0f, EyeHeight, 0f);
+            _eye = eyeGo.transform;
             PlayerCamera = eyeGo.AddComponent<Camera>();
             PlayerCamera.fieldOfView = config.fieldOfView;
             PlayerCamera.nearClipPlane = 0.05f;
@@ -166,8 +267,13 @@ namespace OrbitalAnte.Arena
             Player.Initialize(config, PlayerCamera);
             Player.Shake = eyeGo.AddComponent<CameraShake>();
 
-            Gun = eyeGo.AddComponent<TestGun>();
-            Gun.Initialize(config, PlayerCamera);
+            Health = playerGo.AddComponent<PlayerHealth>();
+            Health.Initialize(config);
+            Health.Died += OnPlayerDied;
+
+            Weapons = eyeGo.AddComponent<PlayerWeapons>();
+            // Dropped guns are parented to the arena's weapon folder, which is (re)made with the mannequins.
+            Weapons.Initialize(config, PlayerCamera, Player, Health, null);
         }
 
         // ------------------------------------------------------------------ gore
@@ -178,6 +284,7 @@ namespace OrbitalAnte.Arena
             GoreConfig gore = GoreConfig.Load();
             _gibs = GibManager.Create(transform, gore);
             _gore = GoreFx.Create(transform, gore);
+            _weaponFx = WeaponFx.Create(transform);
         }
 
         // ------------------------------------------------------------------ mannequins
@@ -188,6 +295,18 @@ namespace OrbitalAnte.Arena
             // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
             if (_gibs != null) _gibs.ReleaseAll();
             if (_gore != null) _gore.Clear();
+            if (_weaponFx != null) _weaponFx.Clear();
+
+            // Guns lying around go too. The one in the player's hands is not in this folder, so it stays.
+            if (_weaponRoot != null)
+            {
+                _weaponRoot.gameObject.SetActive(false);
+                Destroy(_weaponRoot.gameObject);
+            }
+            _weaponRoot = new GameObject("Weapons").transform;
+            _weaponRoot.SetParent(transform, false);
+            CombatWorld.DropParent = _weaponRoot;
+            if (Weapons != null) Weapons.SetDropParent(_weaponRoot);
 
             if (_mannequinRoot != null)
             {
@@ -220,8 +339,29 @@ namespace OrbitalAnte.Arena
                 Mannequin mannequin = MannequinFactory.Create(position, rotation, _mannequinRoot, config, "Mannequin " + (i + 1));
                 var locomotion = mannequin.GetComponent<MannequinLocomotion>();
                 locomotion.SetWander(wanderArea, rng.Next());
+
+                // Everyone starts armed: mostly rifles, a couple of pistols.
+                var combat = mannequin.GetComponent<MannequinCombat>();
+                combat.SetSeed(rng.Next());
+                WeaponData data = (i % 4 == 3) ? WeaponData.Pistol : WeaponData.Rifle;
+                Weapon weapon = Weapon.Create(data, _weaponRoot, config.oneHandedReloadAllowed);
+                weapon.transform.position = position + Vector3.up * 1.2f;
+                combat.TryPickUp(weapon);
+
                 _mannequins.Add(mannequin);
             }
+        }
+
+        /// <summary>
+        /// Leaves the gun the player is not holding on the ground near the start, so swapping can be tried.
+        /// </summary>
+        void PlaceSpareWeapon()
+        {
+            bool holdingPistol = Weapons != null && Weapons.Current != null
+                                 && Weapons.Current.Data.placeholderShape == WeaponShape.Pistol;
+            WeaponData spare = holdingPistol ? WeaponData.Rifle : WeaponData.Pistol;
+            Weapon weapon = Weapon.Create(spare, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed);
+            weapon.transform.SetPositionAndRotation(PlayerStart + new Vector3(1.6f, 0.4f, 2.5f), Quaternion.Euler(0f, 60f, 90f));
         }
 
         bool IsClear(Vector3 position, float margin)

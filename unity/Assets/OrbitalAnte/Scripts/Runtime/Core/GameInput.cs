@@ -30,7 +30,10 @@ namespace OrbitalAnte.Core
         public static InputAction Jump { get; private set; }
         public static InputAction Sprint { get; private set; }
         public static InputAction Fire { get; private set; }
+        public static InputAction Reload { get; private set; }
+        public static InputAction Interact { get; private set; }
         public static InputAction RespawnDummies { get; private set; }
+        public static InputAction HoldFire { get; private set; }
 
         public static InputAction Pause { get; private set; }
         public static InputAction ToggleDebug { get; private set; }
@@ -77,7 +80,10 @@ namespace OrbitalAnte.Core
             Jump = AddButton(Gameplay, "Jump", "<Keyboard>/space", "<Gamepad>/buttonSouth");
             Sprint = AddButton(Gameplay, "Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             Fire = AddButton(Gameplay, "Fire", "<Mouse>/leftButton", "<Gamepad>/rightTrigger");
+            Reload = AddButton(Gameplay, "Reload", "<Keyboard>/r", "<Gamepad>/buttonWest");
+            Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
+            HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
 
             // ---------- System (fixed) ----------
             SystemMap = Asset.AddActionMap("System");
