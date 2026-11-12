@@ -52,6 +52,12 @@ namespace OrbitalAnte.Core
             Save.SaveSystem.ResetStatics();
             Perf.PerfMonitor.ResetStatics();
             OrbitalAnte.Space.SolarSystem.ResetStatics();
+            OrbitalAnte.Space.CelestialBody.ResetStatics();
+            Planets.PlanetWorld.ResetStatics();
+            Planets.PlanetJobs.ResetStatics();
+            Planets.PlanetMaterials.ResetStatics();
+            Planets.PlanetSurface.ResetStatics();
+            Planets.FeatureMeshes.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

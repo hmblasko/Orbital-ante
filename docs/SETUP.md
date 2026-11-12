@@ -82,8 +82,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums (102 tests).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database and the solar system (53 tests). The editor will flicker into Play mode for about a minute.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather (733 tests; they take a few seconds).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms (63 tests). The editor will flicker into Play mode for a few minutes.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -100,6 +100,12 @@ Click one, change numbers in the **Inspector**, press Play. Changes are kept.
 Guns have their own folder: `Assets/OrbitalAnte/Resources/Weapons`. **Rifle** and **Pistol** each hold damage per body part, fire rate, spread, recoil, magazine size, reload time and the one-handed penalties. How enemies fight (reaction time, aim error, burst length, the one-handed reload toggle) is under **Combat** on MannequinConfig.
 
 The solar system has its own asset: `Assets/OrbitalAnte/Resources/SolarSystem/SolarSystem`. Open **Bodies** to change any world's radius, surface gravity, orbit distance, day length, tilt and colours, and **Asteroid Belt** for the rocks. Orbit speed is not listed because it follows from the Sun's gravity and the distance. **TestCraftConfig** (in `Resources/Config`) holds the test craft's thrust, boost, turn speeds and which planet you start at. After changing the solar system, run **Orbital Ante > Check Content**: it tells you if, say, a moon now orbits inside its planet.
+
+Planets have their own asset too: `Assets/OrbitalAnte/Resources/Planets/Planets`.
+
+- **Settings** at the top: how fine the ground is (**Finest Cell**, **Split Distance**), how many rocks may exist (**Feature Cap**), how much water holds the ship up (**Buoyancy**), how hard storm wind pushes (**Wind Push**), the lamp, weather amounts, and the **Simple Shaders** box (see "If something goes wrong").
+- **Planets**: one entry per body. Each has the heights of its continents, hills and mountains, its colours, its sea, its sky and haze colours, how far you can see, its weather, and the list of **Formations** it has. Formation ids are listed with descriptions in `docs/formation_index.md`. To give Mars more hoodoos, find the `hoodoo_field` line under Mars and raise its **Count**.
+- After changing it, run **Orbital Ante > Check Content**. It tells you if a formation id is misspelt.
 
 To add a gun: select one in that folder, press **Ctrl+D** to duplicate it, rename the copy (the file name is the gun's id), and change its numbers. Then menu **Orbital Ante > Check Content** tells you in plain words if any value is wrong.
 
@@ -139,5 +145,6 @@ The guns are placeholder shapes until you add models. To swap one in:
 
 - **Red errors in the Console and Play is greyed out or refuses to start**: copy the first red line and send it to me. One typo-level error stops everything, and I could not compile inside Unity itself.
 - **Everything is bright pink**: run **Orbital Ante > Set Up Project** once more, then press Play.
+- **Planets (and only planets) are bright pink, or the ground is black**: one of the game's own planet shaders did not compile on your machine. Please copy the red shader error from the Console and send it to me. To keep playing meanwhile: in the Project window open `Assets/OrbitalAnte/Resources/Planets`, click **Planets**, and in the Inspector tick **Settings > Simple Shaders**. Press Play again. Skies and far-off planets look plainer, but everything works. The debug readout (F3) then says SIMPLE SHADERS.
 - **Keyboard and controller do nothing**: menu **Edit > Project Settings > Player > Other Settings > Active Input Handling**, choose **Input System Package (New)**, and let Unity restart.
 - **Package errors on first open** (something like "cannot find package version"): menu **Window > Package Manager**, select the package named in the error, and click **Update** or **Install**. Then tell me which one so I can fix the version number.

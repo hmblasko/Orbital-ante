@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Planets;
 using UnityEngine;
 
 namespace OrbitalAnte.Space
@@ -61,7 +62,11 @@ namespace OrbitalAnte.Space
 
         // ------------------------------------------------------------------ building
 
-        public void Build(SolarSystemData data, int seed)
+        /// <param name="paintedLater">
+        /// Ids of bodies whose far-away picture will be painted in the background (see PlanetSurface). They start
+        /// as plain-coloured balls. Null for none.
+        /// </param>
+        public void Build(SolarSystemData data, int seed, ICollection<string> paintedLater = null)
         {
             Instance = this;
             Model = new SolarSystemModel(data.BuildBodies(seed), seed);
@@ -73,7 +78,11 @@ namespace OrbitalAnte.Space
             var bodyRoot = new GameObject("Bodies").transform;
             bodyRoot.SetParent(transform, false);
             Bodies = new CelestialBody[Model.Count];
-            for (int i = 0; i < Model.Count; i++) Bodies[i] = CelestialBody.Create(bodyRoot, i, Model.Spec(i));
+            for (int i = 0; i < Model.Count; i++)
+            {
+                BodySpec spec = Model.Spec(i);
+                Bodies[i] = CelestialBody.Create(bodyRoot, i, spec, paintedLater != null && paintedLater.Contains(spec.id));
+            }
 
             BuildSky();
             PlaceBodies(true);
@@ -83,11 +92,19 @@ namespace OrbitalAnte.Space
         {
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             // A little fill light, so the night side of a planet is dark but not a black hole.
-            RenderSettings.ambientLight = new Color(0.07f, 0.075f, 0.1f);
+            RenderSettings.ambientLight = SkyGlobals.SpaceAmbient;
+            // Remembered once only: on a restart the new solar system is built while the old one still exists,
+            // and what it would see here is the old one's space settings, not the originals.
+            if (!_skySaved)
+            {
+                _oldFog = RenderSettings.fog;
+                _oldSkybox = RenderSettings.skybox;
+                _oldReflection = RenderSettings.reflectionIntensity;
+                _skySaved = true;
+            }
             RenderSettings.fog = false;
+            SkyGlobals.Reset();
             // Space has no sky to reflect. Left on, planets would pick up a bluish sheen on their night sides.
-            _oldSkybox = RenderSettings.skybox;
-            _oldReflection = RenderSettings.reflectionIntensity;
             _changedSky = true;
             RenderSettings.skybox = null;
             RenderSettings.reflectionIntensity = 0f;
@@ -96,9 +113,10 @@ namespace OrbitalAnte.Space
             lightGo.transform.SetParent(transform, false);
             SunLight = lightGo.AddComponent<Light>();
             SunLight.type = LightType.Directional;
-            SunLight.color = new Color(1f, 0.96f, 0.88f);
-            SunLight.intensity = 1.35f;
-            // Nothing casts a shadow yet, so do not pay for looking them up. Milestone 6 and the ship turn this on.
+            SunLight.color = SkyGlobals.SunColor;
+            SunLight.intensity = SkyGlobals.SunIntensity;
+            // No shadow maps yet: hills and night come from which way the ground faces the Sun. The ship
+            // milestone decides whether its interior needs real shadows.
             SunLight.shadows = LightShadows.None;
 
             _stars = new GameObject("Stars").transform;
@@ -116,22 +134,38 @@ namespace OrbitalAnte.Space
             // faint ones blink as you turn.
             go.AddComponent<MeshFilter>().sharedMesh = SpaceMeshes.StarField(count, StarDistance, 760f, 1500f, seed);
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = Mat.Unlit(color);
+            // With the game's own shader, stars fade into a daytime sky by themselves (the sky veil).
+            renderer.sharedMaterial = PlanetMaterials.OwnBody ? PlanetMaterials.Body(layerName, null, color, 1f, 1f) : Mat.Unlit(color);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
         }
 
-        Material _oldSkybox;
-        float _oldReflection;
+        /// <summary>
+        /// Shows or hides the stars. Only needed when Unity's standard shaders are standing in for the game's
+        /// own: those cannot fade stars into a daytime sky, so the stars are simply switched off there.
+        /// </summary>
+        public void SetStarsVisible(bool visible)
+        {
+            if (_stars != null && _stars.gameObject.activeSelf != visible) _stars.gameObject.SetActive(visible);
+        }
+
+        static Material _oldSkybox;
+        static bool _oldFog;
+        static float _oldReflection;
+        static bool _skySaved;
         bool _changedSky;
 
         void OnDestroy()
         {
             // Put the sky settings back, so the combat arena looks the same whichever test world ran first.
-            if (_changedSky)
+            // Only the last solar system standing puts things back; a newer one is still using them.
+            if (_changedSky && _skySaved && (Instance == this || Instance == null))
             {
                 RenderSettings.skybox = _oldSkybox;
                 RenderSettings.reflectionIntensity = _oldReflection;
+                RenderSettings.fog = _oldFog;
+                _skySaved = false;
+                _oldSkybox = null;
             }
             if (Instance == this) Instance = null;
         }
@@ -340,6 +374,7 @@ namespace OrbitalAnte.Space
 
             Vector3 fromSun = eye - Bodies[0].transform.position;
             if (fromSun.sqrMagnitude > 1f) SunLight.transform.rotation = Quaternion.LookRotation(fromSun.normalized);
+            SkyGlobals.SetSun(Bodies[0].transform.position);
         }
 
         // ------------------------------------------------------------------ questions other scripts ask
@@ -351,6 +386,25 @@ namespace OrbitalAnte.Space
         public double AltitudeAbove(int body, Vector3 local)
         {
             return Vec3d.Distance(TruePosition(local), States[body].Position) - Model.Spec(body).radius;
+        }
+
+        /// <summary>A point in Unity's coordinates measured from a body's centre in the body's own turning frame (its north pole is +Y).</summary>
+        public Vec3d BodyLocal(int body, Vector3 local)
+        {
+            Vec3d offset = TruePosition(local) - States[body].Position;
+            return Model.Orientation(body, States[body]).Inverse.Rotate(offset);
+        }
+
+        /// <summary>
+        /// How fast the ground (or air) of a body is moving at a point, in Unity's coordinates: the body's own
+        /// travel plus its spin. Standing still on a planet means moving at exactly this velocity.
+        /// </summary>
+        public Vector3 GroundVelocityAt(int body, Vector3 local)
+        {
+            Vec3d truePosition = TruePosition(local);
+            Vec3d spin = Model.SpinAxis(body) * Model.SpinRate(body);
+            Vec3d trueVelocity = States[body].Velocity + Vec3d.Cross(spin, truePosition - States[body].Position);
+            return SpaceConvert.ToVector3(Frame.ToLocalVelocity(truePosition, trueVelocity, States));
         }
 
         /// <summary>How fast a body is moving in Unity's coordinates right now.</summary>

@@ -45,6 +45,7 @@ namespace OrbitalAnte.EditorTools
         }
 
         const string SolarSystemPath = "Assets/OrbitalAnte/Resources/SolarSystem/SolarSystem.asset";
+        const string PlanetsPath = "Assets/OrbitalAnte/Resources/Planets/Planets.asset";
 
         static void AutoRun()
         {
@@ -65,6 +66,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Planets.PlanetData>(PlanetsPath) == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -124,6 +126,7 @@ namespace OrbitalAnte.EditorTools
             Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
+            Step("fog in builds", problems, SetUpFogInBuilds);
             Step("test arena scene", problems, () => SetUpScene(interactive));
             Step("input system", problems, () => needsRestart = SetUpInputHandling());
 
@@ -248,6 +251,10 @@ namespace OrbitalAnte.EditorTools
             bool urp = GraphicsSettings.defaultRenderPipeline != null;
             CreateMaterialIfMissing(MaterialsFolder + "/OA_Lit.mat", urp ? "Universal Render Pipeline/Lit" : "Standard");
             CreateMaterialIfMissing(MaterialsFolder + "/OA_Unlit.mat", urp ? "Universal Render Pipeline/Unlit" : "Unlit/Color");
+            // Stand-ins for the planet shaders (used if "simple shaders" is ticked on the Planets asset). Unity's
+            // particle shaders are the standard ones that show the colours stored in a mesh.
+            CreateMaterialIfMissing(MaterialsFolder + "/OA_VertexLit.mat", urp ? "Universal Render Pipeline/Particles/Lit" : "Particles/Standard Surface");
+            CreateMaterialIfMissing(MaterialsFolder + "/OA_VertexUnlit.mat", urp ? "Universal Render Pipeline/Particles/Unlit" : "Particles/Standard Unlit");
         }
 
         static void CreateMaterialIfMissing(string path, string shaderName)
@@ -280,6 +287,9 @@ namespace OrbitalAnte.EditorTools
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);
+            // What each planet's surface is like: ground shape, colours, sea, sky, weather and formations.
+            EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Planets.PlanetData.ResourceFolder);
+            CreateAssetIfMissing<OrbitalAnte.Planets.PlanetData>(PlanetsPath);
         }
 
         /// <summary>
@@ -428,6 +438,27 @@ namespace OrbitalAnte.EditorTools
                 }
             }
             if (changed) tagManager.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// The game switches fog on from code (haze, cloud decks, murky water), never in a saved scene. Unity
+        /// only keeps the fog parts of shaders in a build if it sees fog used in a scene, so without this a built
+        /// game would have no haze at all while the editor looked fine. This tells it to always keep them.
+        /// </summary>
+        static void SetUpFogInBuilds()
+        {
+            var settings = new SerializedObject(GraphicsSettings.GetGraphicsSettings());
+            SerializedProperty mode = settings.FindProperty("m_FogStripping");
+            SerializedProperty exp2 = settings.FindProperty("m_FogKeepExp2");
+            if (mode == null || exp2 == null)
+            {
+                throw new InvalidOperationException(
+                    "Could not find the fog setting. Set it by hand: Edit > Project Settings > Graphics > Shader Stripping > Fog Modes > Custom, then tick Exponential Squared.");
+            }
+            if (mode.intValue == 1 && exp2.boolValue) return;
+            mode.intValue = 1; // Custom
+            exp2.boolValue = true;
+            settings.ApplyModifiedPropertiesWithoutUndo();
         }
 
         static void SetUpPlayerSettings()

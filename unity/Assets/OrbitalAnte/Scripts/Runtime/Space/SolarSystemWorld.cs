@@ -1,4 +1,5 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Planets;
 using OrbitalAnte.UI;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ namespace OrbitalAnte.Space
         public TestCraft Craft { get; private set; }
         public FlightHud Hud { get; private set; }
         public SystemMap Map { get; private set; }
+        public PlanetWorld Planets { get; private set; }
 
         public void Build(int seed)
         {
@@ -23,7 +25,14 @@ namespace OrbitalAnte.Space
             var systemGo = new GameObject("SolarSystem");
             systemGo.transform.SetParent(transform, false);
             System = systemGo.AddComponent<SolarSystem>();
-            System.Build(data, seed);
+            PlanetData planets = PlanetData.Load();
+            PlanetMaterials.Configure(planets.settings.simpleShaders);
+            System.Build(data, seed, PlanetWorld.PaintedLater(planets));
+
+            var planetsGo = new GameObject("Planets");
+            planetsGo.transform.SetParent(transform, false);
+            Planets = planetsGo.AddComponent<PlanetWorld>();
+            Planets.Build(System, planets, seed);
 
             Craft = TestCraft.Create(transform, config);
             Craft.System = System;
@@ -38,6 +47,8 @@ namespace OrbitalAnte.Space
             double altitude = Mathf.Max(20f, config.startAltitude);
             System.PlaceInOrbit(Craft.Gravity, start, altitude, toSun);
             System.SnapToFocus();
+            // The planet below gets its ground now; the rest are worked out in the background.
+            Planets.Begin();
 
             var hudGo = new GameObject("FlightHudController");
             hudGo.transform.SetParent(transform, false);
@@ -57,7 +68,8 @@ namespace OrbitalAnte.Space
             ReferenceFrame frame = System.Frame;
             return "Anchored to " + System.Model.Spec(frame.Anchor).displayName + (frame.Rotating ? " (turning with it)" : string.Empty) +
                    "   bodies " + System.Model.Count + "   recentres " + System.RecenterCount +
-                   "   time " + System.SimTime.ToString("0") + " s";
+                   "   time " + System.SimTime.ToString("0") + " s" +
+                   (Planets != null ? "\n" + Planets.DescribeForDebug() : string.Empty);
         }
     }
 }

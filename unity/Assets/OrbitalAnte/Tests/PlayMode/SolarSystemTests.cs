@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using OrbitalAnte.Content;
 using OrbitalAnte.Core;
+using OrbitalAnte.Planets;
 using OrbitalAnte.Space;
 using OrbitalAnte.UI;
 using UnityEngine;
@@ -27,6 +28,7 @@ namespace OrbitalAnte.Tests
             GameInput.Initialize();
             ContentDatabase.ResetStatics();
             SolarSystem.ResetStatics();
+            PlanetSurface.PictureWidthForTests = 64;
             _root = new GameObject("SolarSystemTestRoot");
             _world = _root.AddComponent<SolarSystemWorld>();
             _world.Build(4242);
@@ -37,9 +39,10 @@ namespace OrbitalAnte.Tests
         {
             // Switched off at once: Destroy only happens at the end of the frame, and the next test must not share
             // the physics world with this one's planets.
-            _root.SetActive(false);
-            Object.Destroy(_root);
+            // Removed at once, not at the end of the frame, so nothing of this world is left when the next test builds its own.
+            Object.DestroyImmediate(_root);
             SolarSystem.ResetStatics();
+            PlanetSurface.ResetStatics();
             ContentDatabase.ResetStatics();
         }
 
@@ -127,30 +130,19 @@ namespace OrbitalAnte.Tests
         {
             SolarSystem system = _world.System;
             int earth = system.Model.IndexOf("Earth");
-            Vec3d above = system.States[earth].Position + system.Model.SpinAxis(earth).AnyPerpendicular() * (system.Model.Spec(earth).radius + 30);
+            // 200 m up: clear of every mountain, and still close enough that the world turns with the planet.
+            double distance = system.Model.Spec(earth).radius + 200;
+            Vec3d above = system.States[earth].Position + system.Model.SpinAxis(earth).AnyPerpendicular() * distance;
             system.Place(_world.Craft.Gravity, above, system.States[earth].Velocity);
             yield return Steps(3);
             Assert.IsTrue(system.Frame.Rotating, "This close to the ground the world should turn with the planet.");
-            Assert.AreEqual(9.8f, _world.Craft.Gravity.FeltGravity.magnitude, 1.5f);
+            float expected = (float)(9.8 * system.Model.Spec(earth).radius * system.Model.Spec(earth).radius / (distance * distance));
+            Assert.AreEqual(expected, _world.Craft.Gravity.FeltGravity.magnitude, 1.5f);
             Vector3 down = (system.Bodies[earth].transform.position - _world.Craft.transform.position).normalized;
             Assert.Greater(Vector3.Dot(_world.Craft.Gravity.FeltGravity.normalized, down), 0.98f, "Down should be toward the centre.");
         }
 
-        [UnityTest]
-        public IEnumerator TheCraftLandsAndRestsOnTheGround()
-        {
-            SolarSystem system = _world.System;
-            int moon = system.Model.IndexOf("Moon");
-            Vec3d spot = system.Model.SpinAxis(moon).AnyPerpendicular();
-            Vec3d above = system.States[moon].Position + spot * (system.Model.Spec(moon).radius + 6);
-            system.Place(_world.Craft.Gravity, above, system.States[moon].Velocity);
-            yield return Steps(400);   // eight seconds: fall a few metres, bounce, settle
-            Assert.AreEqual(moon, system.Frame.Anchor);
-            Assert.IsTrue(system.Frame.Rotating);
-            double altitude = system.AltitudeAbove(moon, _world.Craft.Body.position);
-            Assert.AreEqual(1.6, altitude, 0.5, "Resting on its hull (a ball 1.6 m in radius).");
-            Assert.Less(_world.Craft.Body.linearVelocity.magnitude, 0.3f, "A landed craft should sit still, although the Moon is hurtling along.");
-        }
+        // Landing on real ground is checked in PlanetTests (Milestone 6 replaced the smooth ball with terrain).
 
         [UnityTest]
         public IEnumerator FarFromEverythingThePlayerIsBroughtBackToZero()

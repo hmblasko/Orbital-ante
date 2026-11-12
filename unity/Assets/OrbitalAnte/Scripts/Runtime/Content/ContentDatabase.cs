@@ -16,7 +16,7 @@ namespace OrbitalAnte.Content
     public static class ContentDatabase
     {
         /// <summary>Resources sub-folders that hold content assets. New kinds of content add a line here.</summary>
-        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder };
+        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder, Planets.PlanetData.ResourceFolder };
 
         static readonly Dictionary<Type, Dictionary<string, ContentDefinition>> ByType =
             new Dictionary<Type, Dictionary<string, ContentDefinition>>();
@@ -63,6 +63,8 @@ namespace OrbitalAnte.Content
             if (Find<WeaponData>(WeaponData.PistolId) == null) Register(WeaponData.CreatePistolDefaults(), "built-in");
             // ...and so must the solar system.
             if (Find<Space.SolarSystemData>(Space.SolarSystemData.DefaultId) == null) Register(Space.SolarSystemData.CreateDefaults(), "built-in");
+            // ...and what each planet's surface is like.
+            if (Find<Planets.PlanetData>(Planets.PlanetData.DefaultId) == null) Register(Planets.PlanetData.CreateDefaults(), "built-in");
 
             if (ProblemList.Count > 0)
             {

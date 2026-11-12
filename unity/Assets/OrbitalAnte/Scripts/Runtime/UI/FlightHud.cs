@@ -119,6 +119,28 @@ namespace OrbitalAnte.UI
             UpdateBodyMarkers();
         }
 
+        /// <summary>
+        /// Height in plain words. Over real ground it is the height above the ground straight below (or above
+        /// the sea), which is the number you need for landing; otherwise the height above the body's round surface.
+        /// </summary>
+        string DescribeHeight(int anchor, Vector3 position)
+        {
+            Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
+            if (planets != null)
+            {
+                Planets.GroundReading ground = planets.Read(anchor, position);
+                if (ground.Known)
+                {
+                    if (ground.Underwater) return SpaceConvert.Distance(-ground.AboveSea) + " under water   " + SpaceConvert.Distance(System.Math.Max(0, ground.AboveGround)) + " above the sea bed";
+                    if (ground.InCave) return "in a cave";
+                    string label = ground.OverSea ? " above the sea" : " above the ground";
+                    double height = System.Math.Max(0, ground.OverSea ? ground.AboveSea : ground.AboveGround);
+                    return SpaceConvert.Distance(height) + label + (ground.InsideClouds ? "   (inside the clouds)" : ground.UnderClouds ? "   (under the clouds)" : string.Empty);
+                }
+            }
+            return SpaceConvert.Distance(_system.AltitudeAbove(anchor, position)) + " up";
+        }
+
         void UpdateReadouts()
         {
             SolarSystemModel model = _system.Model;
@@ -134,8 +156,7 @@ namespace OrbitalAnte.UI
             }
             else
             {
-                double altitude = _system.AltitudeAbove(anchor, position);
-                _where.text = model.Spec(anchor).displayName.ToUpperInvariant() + "   " + SpaceConvert.Distance(altitude) + " up";
+                _where.text = model.Spec(anchor).displayName.ToUpperInvariant() + "   " + DescribeHeight(anchor, position);
             }
 
             string against = anchor == 0 ? "the Sun" : model.Spec(anchor).displayName + (_system.Frame.Rotating ? "'s ground" : string.Empty);
@@ -147,6 +168,15 @@ namespace OrbitalAnte.UI
                 float closing = _craft.ClosingSpeed;
                 text += "\nAimed at " + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
                         (closing >= 0f ? "closing " : "pulling away ") + FormatSpeed(Mathf.Abs(closing));
+            }
+            // What the surroundings are doing to you, so nothing slows or pushes the craft without saying so.
+            Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
+            if (planets != null && planets.Sky != null && planets.Sky.Surface != null)
+            {
+                Planets.PlanetSky sky = planets.Sky;
+                if (sky.Air.Underwater) text += "\nUnder water: it slows you and holds you up";
+                else if (sky.Air.Drag > 0.005) text += "\nThick air: it slows you down";
+                if (sky.Weather.Intensity > 0.05) text += "\nWind   " + FormatSpeed((float)sky.Weather.Wind.Magnitude) + "   it carries you sideways";
             }
             _readout.text = text;
 
