@@ -1,15 +1,28 @@
-# Rust build output
-/rust/target/
+# Unity (project lives in /unity)
+/unity/[Ll]ibrary/
+/unity/[Tt]emp/
+/unity/[Oo]bj/
+/unity/[Bb]uild/
+/unity/[Bb]uilds/
+/unity/[Ll]ogs/
+/unity/[Uu]ser[Ss]ettings/
+/unity/[Mm]emoryCaptures/
+/unity/[Rr]ecordings/
+/unity/*.csproj
+/unity/*.sln
+/unity/*.slnx
+/unity/*.user
+/unity/.vs/
+/unity/.utmp/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+crashlytics-build.properties
 
-# Godot cache and imports (regenerated on open)
-/godot/.godot/
-*.import.tmp
-
-# Exports and local builds
+# Local builds
 /builds/
 *.x86_64
 *.exe
-*.pck
 
 # Editors / OS
 .vscode/
