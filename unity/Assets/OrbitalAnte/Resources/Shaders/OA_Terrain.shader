@@ -11,6 +11,7 @@ Shader "OrbitalAnte/Terrain"
         _SunAmount ("Sunlight reaching it", Range(0, 1)) = 1
         _Glow ("Glows by itself", Range(0, 2)) = 0
         _Outdoors ("Lit by sky, lamp and fog (0 for baked interiors)", Range(0, 1)) = 1
+        _VertexGlow ("Glow where the mesh says so (strength)", Range(0, 8)) = 0
     }
 
     SubShader
@@ -27,6 +28,7 @@ Shader "OrbitalAnte/Terrain"
             half _SunAmount;
             half _Glow;
             half _Outdoors;
+            half _VertexGlow;
         CBUFFER_END
 
         TEXTURE2D(_FarMap);
@@ -111,7 +113,8 @@ Shader "OrbitalAnte/Terrain"
                 light += _OA_LampColor.rgb * lamp;
 
                 // Baked interiors carry their own light in the mesh colours: no sky, lamp or fog on top.
-                half3 color = albedo * light * _Outdoors + albedo * _Glow;
+                // Lamps and lit windows on built things: the mesh marks them (in the colour's fourth number).
+                half3 color = albedo * light * _Outdoors + albedo * (_Glow + _VertexGlow * (1.0 - input.color.a));
                 color = lerp(color, MixFog(color, input.directionAndFog.w), _Outdoors);
                 return half4(color, 1.0);
             }

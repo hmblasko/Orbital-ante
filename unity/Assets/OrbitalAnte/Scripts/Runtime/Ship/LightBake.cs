@@ -338,6 +338,52 @@ namespace OrbitalAnte.Ship
         }
 
         /// <summary>
+        /// How open to the sky each corner is: 1 with nothing overhead, toward 0 tucked under or between things.
+        /// For things that stand outdoors under a moving Sun, where the Sun itself cannot be baked but the soft
+        /// shade in nooks and under platforms can. One number per corner, one array per mesh. Always the same answer.
+        /// </summary>
+        /// <param name="rays">Directions tried per corner.</param>
+        /// <param name="reach">Things further away than this (metres) cast no shade.</param>
+        public List<float[]> SkyShade(int rays = 24, float reach = 12f, ulong seed = 8)
+        {
+            Prepare();
+            var result = new List<float[]>();
+            for (int m = 0; m < _meshes.Count; m++)
+            {
+                ShipMesh mesh = _meshes[m];
+                var n = new P3[mesh.VertexCount];
+                for (int k = 0; k < mesh.Triangles.Length; k += 3)
+                {
+                    int i0 = mesh.Triangles[k], i1 = mesh.Triangles[k + 1], i2 = mesh.Triangles[k + 2];
+                    P3 cross = P3.Cross(mesh.Position(i1) - mesh.Position(i0), mesh.Position(i2) - mesh.Position(i0));
+                    n[i0] += cross; n[i1] += cross; n[i2] += cross;
+                }
+                var open = new float[mesh.VertexCount];
+                for (int i = 0; i < mesh.VertexCount; i++)
+                {
+                    P3 normal = n[i].Unit();
+                    P3 side = P3.Cross(normal, Math.Abs(normal.Y) < 0.9f ? P3.Up : new P3(1, 0, 0)).Unit();
+                    P3 other = P3.Cross(normal, side);
+                    P3 from = mesh.Position(i) + normal * 0.02f;
+                    var rng = new Rng(seed + (ulong)m * 104729UL + (ulong)i * 7919UL);
+                    int clear = 0;
+                    for (int r = 0; r < rays; r++)
+                    {
+                        // More rays near straight out than along the surface, as light itself arrives.
+                        float u = rng.Next(), v = rng.Next();
+                        float radius = (float)Math.Sqrt(u);
+                        double angle = 2.0 * Math.PI * v;
+                        P3 dir = side * (radius * (float)Math.Cos(angle)) + other * (radius * (float)Math.Sin(angle)) + normal * (float)Math.Sqrt(Math.Max(0f, 1f - u));
+                        if (Trace(from, dir, reach, out _, any: true) < 0) clear++;
+                    }
+                    open[i] = clear / (float)Math.Max(1, rays);
+                }
+                result.Add(open);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Works out the baked colour of every corner of every mesh added, in the order they were added.
         /// The colours are linear light, 0 to 1, already including each surface's own paint.
         /// </summary>
