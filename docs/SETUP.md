@@ -59,6 +59,23 @@ How to fly it, in five lines:
 4. When the screen says **BRAKE NOW**, keep aiming at the planet and hold **F**. That matches your speed with it, however fast it is moving.
 5. Ease down with small pushes. Hold **F** near the ground to hover. **M** opens the live map; in it, W / S zoom and F changes what it is centred on.
 
+### In and around the ship (solar system)
+
+You start strapped into the pilot's seat. The flying controls above only work while you are buckled in.
+
+| What | Keyboard | Controller |
+|---|---|---|
+| Unbuckle and stand up | B | Y / Triangle |
+| Walk, look, jump | W A S D, mouse, Space | Left stick, right stick, A / Cross |
+| Buckle in | Look at the seat from close by, press E | Look at the seat, press Y / Triangle |
+| Open or close the belly hatch | G (anywhere near the ship, even in flight), or E on the lever | D-pad left, or Y / Triangle on the lever |
+| Ride the lift down | Walk onto the open hatch | The same |
+| Ride the lift up | Stand under the blue ring with the hatch open | The same |
+| Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
+| Shoot (test pistol, on foot only) | Left mouse | Right trigger |
+
+The lift will not lower you unless there is ground within about 4 m below the ship, because there is no jetpack until Milestone 11. Land first.
+
 ### On-foot controls (combat arena)
 
 | Action | Keyboard and mouse | Controller |
@@ -82,8 +99,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather (733 tests; they take a few seconds).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms (63 tests). The editor will flicker into Play mode for a few minutes.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light (871 tests; they take a few seconds).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch and the map (73 tests). The editor will flicker into Play mode for a few minutes.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 
 ## F. Tuning without code
@@ -108,6 +125,8 @@ Planets have their own asset too: `Assets/OrbitalAnte/Resources/Planets/Planets`
 - After changing it, run **Orbital Ante > Check Content**. It tells you if a formation id is misspelt.
 
 To add a gun: select one in that folder, press **Ctrl+D** to duplicate it, rename the copy (the file name is the gun's id), and change its numbers. Then menu **Orbital Ante > Check Content** tells you in plain words if any value is wrong.
+
+The ship has its own asset: `Assets/OrbitalAnte/Resources/Config/ShipConfig`. It holds the ship's weight, how much damage each part takes, how fast repairs go, walking speed in the cabin, the seat belt and hatch timings, and a **Test Pistol** tick box (untick it to walk about unarmed).
 
 ### Saves and seeds
 

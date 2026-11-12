@@ -34,6 +34,8 @@ namespace OrbitalAnte.Core
         public static InputAction Interact { get; private set; }
         public static InputAction RespawnDummies { get; private set; }
         public static InputAction HoldFire { get; private set; }
+        /// <summary>Opens or closes the ship's belly hatch, from inside or from nearby outside.</summary>
+        public static InputAction Hatch { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -46,6 +48,8 @@ namespace OrbitalAnte.Core
         public static InputAction MatchVelocity { get; private set; }
         public static InputAction Boost { get; private set; }
         public static InputAction ToggleMap { get; private set; }
+        public static InputAction Unbuckle { get; private set; }
+        public static InputAction FlyHatch { get; private set; }
 
         /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
         public static InputActionMap Play { get; private set; }
@@ -130,6 +134,7 @@ namespace OrbitalAnte.Core
             Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
+            Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -150,6 +155,8 @@ namespace OrbitalAnte.Core
             MatchVelocity = AddButton(Flight, "Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/buttonSouth");
             Boost = AddButton(Flight, "Boost (hold)", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
+            Unbuckle = AddButton(Flight, "Unbuckle", "<Keyboard>/b", "<Gamepad>/buttonNorth");
+            FlyHatch = AddButton(Flight, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
             Play = Gameplay;
 
             // ---------- System (fixed) ----------

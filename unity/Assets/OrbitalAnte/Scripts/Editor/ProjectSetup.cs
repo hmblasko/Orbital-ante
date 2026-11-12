@@ -67,6 +67,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Planets.PlanetData>(PlanetsPath) == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -290,6 +291,26 @@ namespace OrbitalAnte.EditorTools
             // What each planet's surface is like: ground shape, colours, sea, sky, weather and formations.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Planets.PlanetData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Planets.PlanetData>(PlanetsPath);
+            // The ship: weight, damage and repair numbers, the seat, hatch and lift.
+            CreateAssetIfMissing<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset");
+            SetUpGlassMaterial();
+        }
+
+        /// <summary>
+        /// The stand-in window glass, used only if the game's own glass shader cannot be used. It has to be saved
+        /// as an asset: a see-through material made while the game runs loses its settings in a built game.
+        /// </summary>
+        static void SetUpGlassMaterial()
+        {
+            const string folder = "Assets/OrbitalAnte/Resources/Materials";
+            const string path = folder + "/OA_Glass.mat";
+            EnsureFolder(folder);
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) return;
+            var glass = new Material(shader);
+            OrbitalAnte.Ship.ShipMeshes.MakeSeeThrough(glass);
+            AssetDatabase.CreateAsset(glass, path);
         }
 
         /// <summary>

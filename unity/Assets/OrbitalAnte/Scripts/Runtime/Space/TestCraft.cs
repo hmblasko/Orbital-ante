@@ -14,7 +14,8 @@ namespace OrbitalAnte.Space
     {
         public Rigidbody Body { get; private set; }
         public GravityBody Gravity { get; private set; }
-        public Camera Eye { get; private set; }
+        /// <summary>The camera used to work out what the nose is pointing at. The ship sets this to the pilot's eyes.</summary>
+        public Camera Eye { get; set; }
         public TestCraftConfig Config { get; private set; }
 
         /// <summary>The push being asked for right now, in the craft's own axes, each from -1 to 1.</summary>
@@ -23,6 +24,13 @@ namespace OrbitalAnte.Space
         public bool MatchingVelocity { get; private set; }
         /// <summary>Set by the map while it is open, so flying controls do nothing behind it.</summary>
         public bool ControlsLocked { get; set; }
+        /// <summary>Set by the ship while nobody is buckled into the seat: the controls do nothing.</summary>
+        public bool Unmanned { get; set; }
+        /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
+        public float LiftScale { get; set; } = 1f;
+        /// <summary>How much of full turning and sideways thrust is available (damaged thrusters give less). 0 to 1.</summary>
+        public float SideScale { get; set; } = 1f;
+        bool Locked => ControlsLocked || Unmanned;
 
         /// <summary>Set by whoever builds the craft, so it can ask where bodies are and how they are moving.</summary>
         public SolarSystem System { get; set; }
@@ -84,6 +92,21 @@ namespace OrbitalAnte.Space
             return craft;
         }
 
+        /// <summary>
+        /// Adds the flying controls to something that already has a body and its own shape (the ship). It brings
+        /// no camera or collider of its own.
+        /// </summary>
+        public static TestCraft Attach(GameObject go, TestCraftConfig config)
+        {
+            var craft = go.AddComponent<TestCraft>();
+            craft.Config = config;
+            craft.Body = go.GetComponent<Rigidbody>();
+            craft.Gravity = go.GetComponent<GravityBody>();
+            if (craft.Gravity == null) craft.Gravity = go.AddComponent<GravityBody>();
+            craft.BuildSound();
+            return craft;
+        }
+
         void BuildSound()
         {
             // A soft rumble made from filtered noise, as a placeholder for the real thruster sound.
@@ -119,9 +142,10 @@ namespace OrbitalAnte.Space
         {
             if (GameInput.Asset == null || GameSession.Paused) return;
 
-            if (ControlsLocked)
+            if (Locked)
             {
                 ThrustInput = Vector3.zero;
+                _lookPending = Vector2.zero;
                 Boosting = false;
                 MatchingVelocity = false;
             }
@@ -141,7 +165,7 @@ namespace OrbitalAnte.Space
                 else _lookPending += look * (Config.stickTurnSpeed * Time.unscaledDeltaTime);
             }
 
-            if (!ControlsLocked) UpdateTarget();
+            if (!Locked) UpdateTarget();
 
             float target = ThrustInput.magnitude * (Boosting ? 1f : 0.55f);
             if (MatchingVelocity && RelativeVelocity().sqrMagnitude > 0.04f) target = Mathf.Max(target, 0.8f);
@@ -165,7 +189,7 @@ namespace OrbitalAnte.Space
         void UpdateTarget()
         {
             Target = -1;
-            if (System == null || System.Model == null) return;
+            if (System == null || System.Model == null || Eye == null) return;
             Vector3 eye = Eye.transform.position;
             Vector3 forward = Eye.transform.forward;
             float best = TargetCone;
@@ -209,11 +233,12 @@ namespace OrbitalAnte.Space
 
             // Turning is direct: the nose goes where you point it. Any spin picked up from a bump is steadied.
             float roll = 0f;
-            if (!ControlsLocked && GameInput.Asset != null)
+            if (!Locked && GameInput.Asset != null)
             {
                 roll = (GameInput.RollLeft.IsPressed() ? 1f : 0f) - (GameInput.RollRight.IsPressed() ? 1f : 0f);
             }
-            Quaternion turn = Quaternion.Euler(-_lookPending.y, _lookPending.x, roll * Config.rollSpeed * dt);
+            float turning = Mathf.Clamp01(SideScale);
+            Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
             _lookPending = Vector2.zero;
             Body.MoveRotation(Body.rotation * turn);
             Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
@@ -221,7 +246,9 @@ namespace OrbitalAnte.Space
             float power = Config.thrust * (Boosting ? Config.boostMultiplier : 1f);
             if (ThrustInput.sqrMagnitude > 0.0001f)
             {
-                Body.AddRelativeForce(ThrustInput * power, ForceMode.Acceleration);
+                // The main engines lift; the small thrusters push sideways and fore and aft.
+                Vector3 push = new Vector3(ThrustInput.x * SideScale, ThrustInput.y * LiftScale, ThrustInput.z * SideScale);
+                Body.AddRelativeForce(push * power, ForceMode.Acceleration);
             }
 
             if (MatchingVelocity)
@@ -232,7 +259,7 @@ namespace OrbitalAnte.Space
                 float speed = velocity.magnitude;
                 if (speed > 0.02f)
                 {
-                    float brake = Mathf.Min(Config.matchVelocityThrust, speed / dt);
+                    float brake = Mathf.Min(Config.matchVelocityThrust * Mathf.Min(LiftScale, SideScale), speed / dt);
                     Body.AddForce(-velocity / speed * brake, ForceMode.Acceleration);
                 }
             }

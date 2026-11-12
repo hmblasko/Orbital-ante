@@ -91,12 +91,28 @@ Numbers to read off in Unity for this section are listed in `docs/reports/milest
 
 Known follow-up: making ground solid (`Physics.BakeMesh`) could move to a background thread. I left it on the main thread, one piece a frame, until we can see in the Profiler whether it actually hitches.
 
+## Ship (Milestone 7): estimates from reading the code, not measured
+
+| System | Cost | Cap |
+|---|---|---|
+| Ship outside (hull, base, 4 legs, engines, 4 thruster clusters, dish, details, ring) | about 13,000 triangles, about 15 draw calls, one shared material | one ship in Phase 1 |
+| Cabin (shell, floor, seat, desk, lockers, lamps, hatch doors, lever) | about 11,800 triangles in 11 pieces, one shared material, vertex colours only, no textures, no lights | fixed |
+| Glass | 5 see-through panes, drawn both sides; crack lines are a small mesh per pane, rebuilt only when a pane is hit | 5 panes, 6 remembered hits a pane |
+| Physics | 1 rigidbody; 2 convex shapes (cabin, base), 4 leg capsules, 4 footpad spheres, engine, thruster and dish shapes, 5 window boxes: about 25 colliders | fixed |
+| The player aboard | no physics at all (moved by rules in the ship's own space) | - |
+| The player outside | 1 rigidbody, 1 capsule, 1 sphere cast per physics step | - |
+| Wreckage (torn-off parts) | 1 rigidbody each | at most 10 parts can ever come off one ship (4 legs, engines, 4 thruster clusters, dish) |
+| Sounds | 15 short clips made at start (about 0.5 MB), 2 audio sources | fixed |
+| Baked light | 31 KB file read once at start; fallback bake uses 2 background threads for a few seconds | - |
+| Ship HUD | text rebuilt 4 times a second at most, only when something changed | - |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:
 
 - **No real-time ray tracing.** The Steam Deck cannot afford it at 60 frames a second.
-- **Fixed places get baked light**: the ship's interior (Milestone 7) and the launch base (Milestone 8). Unity's lightmapper traces light paths once, in the editor, and stores the result in textures, so soft bounced light costs almost nothing while playing. Budget: at most 2 lightmap textures of 1024 x 1024 per place (about 5 MB each), baked by one menu click.
+- **Fixed places get baked light.** The ship's interior (Milestone 7) is done: the game's own path tracer follows light from the cabin lamps round the room once and stores the result as a colour at every corner of the cabin's meshes. It is shipped as one small file (`Resources/Ship/LanderBake`, about 31 KB) and costs nothing while playing: no lights, no shadows, no lightmap textures. There is nothing for Matthew to click. If the cabin's shape changes and the file no longer fits, the game notices (fingerprint), lights the cabin flatly, and re-bakes on background threads in a few seconds. The launch base (Milestone 8) will be done the same way, or with Unity's lightmapper if it needs finer shadows than corners can hold (budget then: at most 2 lightmap textures of 1024 x 1024).
+- **Not baked:** sunlight coming in through the ship's windows, because the Sun moves. The cabin is lit by its own lamps only.
 - **Planets cannot be baked in the editor**, because their ground is made from the run's seed when the run starts and the Sun moves all the time. They are lit directly from the Sun's true position, which is cheap, and anything that can be worked out once when the ground is made (the shading of slopes in the far pictures, the darkness inside caves) is worked out then, not every frame.
 
 ## What the game checks by itself

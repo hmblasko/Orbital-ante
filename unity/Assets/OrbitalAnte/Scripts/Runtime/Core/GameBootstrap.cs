@@ -58,6 +58,8 @@ namespace OrbitalAnte.Core
             Planets.PlanetMaterials.ResetStatics();
             Planets.PlanetSurface.ResetStatics();
             Planets.FeatureMeshes.ResetStatics();
+            OrbitalAnte.Ship.ShipConfig.ResetStatics();
+            OrbitalAnte.Ship.ShipMeshes.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
