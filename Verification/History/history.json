@@ -1,0 +1,16 @@
+[
+  {
+    "reviewId": "R-20261112-mannequin-01",
+    "date": "2026-11-12",
+    "buildId": "20261112-cloud-08e6003",
+    "commit": "08e6003",
+    "milestone": "M1-M6",
+    "target": "mannequin",
+    "level": 2,
+    "score": null,
+    "unresolvedErrors": 0,
+    "openP0P1": 1,
+    "verdict": "BLOCKED",
+    "previousReviewId": ""
+  }
+]

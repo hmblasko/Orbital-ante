@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "about": "The review targets the capture suites know how to photograph. Each target is reviewed and must pass by itself. To add one, write a capture test in unity/Assets/OrbitalAnte/Verification/Capture and list it here.",
+  "targets": [
+    {
+      "id": "mannequin",
+      "name": "Playtest mannequin (character, movement states, limb loss)",
+      "kind": "character",
+      "tier": "hero",
+      "captureTest": "CharacterCaptures.MannequinStudio",
+      "milestones": ["M1", "M2", "M12"],
+      "requiredInspections": ["views.standard", "distances.three", "animation.sequences", "technical.sceneChecks", "technical.tests"],
+      "gameplayContextFrom": "combat-arena"
+    },
+    {
+      "id": "weapons",
+      "name": "Rifle and pistol",
+      "kind": "prop",
+      "tier": "background",
+      "captureTest": "CharacterCaptures.WeaponsStudio",
+      "milestones": ["M3"],
+      "requiredInspections": ["views.standard", "technical.sceneChecks", "technical.tests"],
+      "gameplayContextFrom": "combat-arena"
+    },
+    {
+      "id": "combat-arena",
+      "name": "Combat as the player sees it (arena, enemies, gore, HUD)",
+      "kind": "gameplay",
+      "tier": "hero",
+      "captureTest": "GameplayCaptures.CombatArenaGameplay",
+      "milestones": ["M1", "M2", "M3", "M12"],
+      "requiredInspections": ["views.gameplay", "animation.sequences", "resolution.deck", "resolution.desktop", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "planets",
+      "name": "Every world from space, and the flight readouts",
+      "kind": "environment",
+      "tier": "hero",
+      "captureTest": "WorldCaptures.PlanetsFromSpace",
+      "milestones": ["M5", "M6"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "planet-surface",
+      "name": "Standing on the ground of seven worlds",
+      "kind": "environment",
+      "tier": "hero",
+      "captureTest": "WorldCaptures.PlanetSurfaces",
+      "milestones": ["M6"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "menus",
+      "name": "Main menu, flight start, system map, pause menu",
+      "kind": "interface",
+      "tier": "background",
+      "captureTest": "GameplayCaptures.MenusAndFlight",
+      "milestones": ["M1", "M5"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    }
+  ],
+  "notYetCapturable": [
+    { "id": "ship", "why": "Milestone 7 (the starter ship, its interior, damage and glass) is not on main yet. Add a ship capture (hero set outside, interior views, seat, hatch, damage states) when it lands." },
+    { "id": "launch", "why": "Milestone 8." },
+    { "id": "cockpit", "why": "Milestone 9." },
+    { "id": "jetpack", "why": "Milestone 11 (zero-gravity movement)." }
+  ],
+  "inspections": {
+    "views.standard": "The principal studio viewpoints: front, rear, left, right, front three-quarter, rear three-quarter, elevated three-quarter.",
+    "views.gameplay": "Pictures through the game's own camera, as the player sees it.",
+    "distances.three": "Close, medium and wide.",
+    "animation.sequences": "Motion judged from frame sequences (contact sheets) or live playback, never from one still.",
+    "resolution.deck": "1280x800.",
+    "resolution.desktop": "1920x1080.",
+    "technical.sceneChecks": "The mechanical scene checks in the capture manifest were read and each error classified.",
+    "technical.tests": "EditMode and PlayMode tests ran in Unity and their results were read."
+  }
+}

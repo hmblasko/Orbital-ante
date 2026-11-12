@@ -29,3 +29,13 @@ crashlytics-build.properties
 .idea/
 .DS_Store
 Thumbs.db
+
+# Verification tooling build output
+/Verification/Tools/**/bin/
+/Verification/Tools/**/obj/
+
+# Lossless screenshots stay on the machine that captured them; the .jpg review copies are committed.
+# Approved baselines are kept as .png.
+/Verification/Reports/**/*.png
+/Verification/Reports/.current-run.json
+/Verification/Reports/.last-run

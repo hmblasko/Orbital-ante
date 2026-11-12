@@ -16,6 +16,7 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - `unity/Assets/ThirdParty/` assets Matthew adds (CC0 weapon packs and so on). Log each in `docs/asset_licence_ledger.md`.
 - `.claude/agents/` six specialist agents (unity-reviewer, gameplay-engineer, game-designer, qa-tester, technical-artist, deck-performance). Matthew asked for these on 10 Nov 2026. After building engine-facing code, send it to unity-reviewer, game-designer and deck-performance before committing, and summarise what they found under "Agent review" in the milestone report.
 - `docs/SETUP.md` step-by-step setup for Matthew. `docs/reports/` one report per milestone.
+- `unity/Assets/OrbitalAnte/Verification/` the quality gate's code (rules, capture suites, editor runner, tests). `Verification/` at the repository root holds its config, tools, baselines, reports and history.
 
 ## Conventions
 - Matthew is still learning Unity. Anything he must do by hand gets numbered, click-by-click steps. Prefer doing it in code or in `ProjectSetup.cs` so there is nothing for him to click.
@@ -40,6 +41,16 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 
 ## Reporting (after each piece of work)
 What changed, why, which constitution principle it serves, what was tested (and how), and what is still unverified. Say plainly when something was not run in Unity.
+
+## Visual quality gate (Builder / Critic / Orchestrator)
+Matthew asked on 12 Nov 2026 for an independent quality gate on all visual work. The full procedure is `Verification/README.md`; read it before any review. In short:
+- Three roles. The **Builder** (`orbital-builder`, or the session building a milestone) changes the game and never scores it. The **Critic** (`orbital-critic`, always a separate agent) judges the real game from Unity captures and writes only inside `Verification/Reports/[Build-ID]/`. The main session is the **Orchestrator**: it scopes reviews, checks the Critic's file with the gate tool, hands ranked issues to the Builder, records history, and never changes a score.
+- **PASS = score at least 8.5/10 AND zero unresolved verified errors AND required inspections done AND tests run and passed AND no open regression.** Each target passes by itself; nothing is averaged. If real verification could not happen the verdict is **BLOCKED**, and BLOCKED is reported as such, never as done.
+- Level 1 (quick check) after routine visible changes. Level 2 (full Critic review) after substantial character, animation, spacecraft, interior, environment, planet, lighting, material or destruction work, and at the end of every milestone from now on. A milestone report gains a "Quality gate" section: each target's verdict, score, open issues, and what was blocked.
+- Captures need the Unity editor with a graphics device, so they run on Matthew's machine (**Orbital Ante > Verification** in the editor, or the command line in the README). Evidence is only ever pictures taken by Unity cameras from this project.
+- When a new visible thing is built (the ship, the launch base, the cockpit, an enemy), add a capture test for it in `unity/Assets/OrbitalAnte/Verification/Capture/` and an entry in `Verification/Config/targets.json` in the same piece of work.
+- After three failed refinement cycles on one target, stop and reassess the approach before a fourth, and tell Matthew.
+- The rubric (`Verification/Rules/Rubric.cs`), the pass mark and the capture cameras and lighting are fixed between comparable reviews. Only Matthew changes them or waives an issue.
 
 ## Verifying without the editor
 Cloud sessions have no Unity Editor. What can be done there: compile the C# against reference assemblies, and run the EditMode rule tests with `dotnet test`. Anything that needs the engine (PlayMode tests, feel, frame times) must be run on Matthew's machine and reported as unverified until then.
