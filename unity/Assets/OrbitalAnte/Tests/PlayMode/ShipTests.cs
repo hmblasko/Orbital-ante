@@ -62,8 +62,10 @@ namespace OrbitalAnte.Tests
             foreach (ShipPart part in parts)
             {
                 Assert.AreSame(_ship, part.Ship);
-                Assert.IsNotNull(part.GetComponent<Collider>(), _ship.Model.Parts[part.Index].Name + " has a part marker with nothing to hit.");
                 seen[part.Index] = true;
+                // The hatch is hit through the base it sits in; everything else has a shape of its own, sometimes on a child.
+                if (_ship.Model.Parts[part.Index].Kind == PartKind.Hatch) continue;
+                Assert.IsNotNull(part.GetComponentInChildren<Collider>(true), _ship.Model.Parts[part.Index].Name + " has a part marker with nothing to hit.");
             }
             for (int i = 0; i < seen.Length; i++) Assert.IsTrue(seen[i], _ship.Model.Parts[i].Name + " cannot be hit.");
             Assert.AreSame(_ship.Flight, _world.Craft);

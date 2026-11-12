@@ -16,6 +16,16 @@ namespace OrbitalAnte.Ship
         public AudioClip BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone;
         public AudioClip GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever;
 
+        /// <summary>Frees the clips. They are made afresh for every run.</summary>
+        public void Dispose()
+        {
+            AudioClip[] all = { BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone, GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever };
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (all[i] != null) UnityEngine.Object.Destroy(all[i]);
+            }
+        }
+
         public static ShipAudio Build()
         {
             var a = new ShipAudio();

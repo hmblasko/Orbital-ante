@@ -164,12 +164,45 @@ namespace OrbitalAnte.Tests.EditMode
             for (int i = 0; i < model.Count; i++)
             {
                 PartSpec p = model.Parts[i];
-                if (p.Kind != PartKind.Window && p.Id != "cabin" && p.Id != "base" && p.Kind != PartKind.Hatch) continue;
+                if (p.Kind != PartKind.Window && p.Id != "cabin" && p.Id != "base" && p.Kind != PartKind.Hatch && p.Kind != PartKind.Dish) continue;
                 model.Damage(i, p.MaxHealth * 50f);
                 Assert.AreEqual(PartState.Broken, model.State(i), p.Id);
                 Assert.IsTrue(model.NeedsRepair(i), p.Id + " must stay mendable");
             }
             Assert.IsFalse(model.CabinIntact);
+        }
+
+        [Test]
+        public void ThereIsRoomBetweenBrokenAndLost()
+        {
+            // "Repairable until heavy damage": a landing that breaks a leg must be well short of one that tears it off.
+            var model = new ShipModel();
+            float legHealth = model.Parts[model.Find(PartKind.Leg, 0)].MaxHealth;
+            float breaks = 0f, tears = 0f;
+            for (float v = 0f; v < 40f; v += 0.05f)
+            {
+                float d = model.ImpactDamage(v);
+                if (breaks == 0f && d >= legHealth) breaks = v;
+                if (tears == 0f && d >= legHealth * model.Rules.tearOffBlow) { tears = v; break; }
+            }
+            Assert.Greater(breaks, model.Rules.safeImpactSpeed + 4f, "a leg breaks too easily");
+            Assert.Greater(tears - breaks, 3f, "broken at " + breaks + " m/s, torn off at " + tears + " m/s");
+        }
+
+        [Test]
+        public void ABrokenPartShowsHowCloseItIsToComingOff()
+        {
+            var model = new ShipModel();
+            int leg = model.Find(PartKind.Leg, 0);
+            float max = model.Parts[leg].MaxHealth;
+            model.Damage(leg, max);
+            Assert.AreEqual(0f, model.TearProgress(leg), 1e-4f);
+            model.Damage(leg, max * 0.6f);
+            Assert.Greater(model.TearProgress(leg), 0.5f);
+            Assert.AreEqual(PartState.Broken, model.State(leg));
+            while (!model.Repair(leg, 0.1f)) { }
+            Assert.AreEqual(0f, model.TearProgress(leg), "mending puts it firmly back on");
+            Assert.AreEqual(0f, model.TearProgress(model.Find(PartKind.Window, 0)));
         }
 
         [Test]

@@ -26,6 +26,7 @@ namespace OrbitalAnte.Ship
         string _shipNotice = string.Empty;
         float _shipNoticeTime = -100f;
         bool _shipNoticeBad;
+        int _shipNoticeRank;
         float _nextList;
         bool _flightShown = true;
         readonly StringBuilder _text = new StringBuilder(256);
@@ -60,8 +61,8 @@ namespace OrbitalAnte.Ship
             _notice = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 28, UiKit.PanelEdge));
             UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(1000f, 36f));
 
-            _damage = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 20, UiKit.Cream, TextAnchor.UpperRight));
-            UiKit.Pin((RectTransform)_damage.transform, new Vector2(1f, 1f), new Vector2(-22f, -110f), new Vector2(420f, 260f));
+            _damage = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperRight));
+            UiKit.Pin((RectTransform)_damage.transform, new Vector2(1f, 1f), new Vector2(-22f, -110f), new Vector2(420f, 440f));
 
             ship.PartDamaged += OnPartDamaged;
             ship.PartRepaired += OnPartRepaired;
@@ -98,6 +99,10 @@ namespace OrbitalAnte.Ship
 
         void Raise(string words, bool bad)
         {
+            // In a crash several things happen at once. The worst news stays on screen.
+            int rank = !bad ? 0 : words.Contains("torn off") ? 3 : words.Contains("broken") ? 2 : 1;
+            if (Time.unscaledTime - _shipNoticeTime < 1.5f && rank < _shipNoticeRank) return;
+            _shipNoticeRank = rank;
             _shipNotice = words;
             _shipNoticeTime = Time.unscaledTime;
             _shipNoticeBad = bad;
@@ -158,10 +163,11 @@ namespace OrbitalAnte.Ship
             for (int i = 0; i < model.Count; i++)
             {
                 PartState state = model.State(i);
-                if (state == PartState.Sound) continue;
+                // Anything short of perfect is listed, so there is no hidden damage.
+                if (state == PartState.Sound && !model.NeedsRepair(i)) continue;
                 _text.Append(model.Parts[i].Name).Append(": ");
                 if (state == PartState.Lost) _text.Append("GONE");
-                else if (state == PartState.Broken) _text.Append("BROKEN");
+                else if (state == PartState.Broken) _text.Append(model.TearProgress(i) > 0.5f ? "BROKEN, COMING LOOSE" : "BROKEN");
                 else _text.Append(Mathf.RoundToInt(model.Fraction(i) * 100f)).Append('%');
                 _text.Append('\n');
             }

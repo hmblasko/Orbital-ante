@@ -70,7 +70,7 @@ namespace OrbitalAnte.Space
             Map.Build(System, Craft);
             // The map is drawn from what the dish hears, and you read it from the seat.
             Map.CanOpen = () => Ship.Belt.Buckled && Ship.Model.DishWorks;
-            Map.WhyNot = () => !Ship.Belt.Buckled ? "The map is at the pilot's seat." : "No map: the dish is broken. Mend it from outside.";
+            Map.WhyNot = () => !Ship.Belt.Buckled ? "The map is at the pilot's seat." : "No map: the dish is broken. Go outside, look up at it and mend it.";
 
             var shipHudGo = new GameObject("ShipHudController");
             shipHudGo.transform.SetParent(transform, false);

@@ -240,8 +240,12 @@ namespace OrbitalAnte.Space
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
             _lookPending = Vector2.zero;
-            Body.MoveRotation(Body.rotation * turn);
-            Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
+            if (!Locked)
+            {
+                // Only a pilot steadies the ship. Left alone it tumbles, tips and comes to rest like any other object.
+                Body.MoveRotation(Body.rotation * turn);
+                Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
+            }
 
             float power = Config.thrust * (Boosting ? Config.boostMultiplier : 1f);
             if (ThrustInput.sqrMagnitude > 0.0001f)
@@ -263,6 +267,12 @@ namespace OrbitalAnte.Space
                     Body.AddForce(-velocity / speed * brake, ForceMode.Acceleration);
                 }
             }
+        }
+    
+        void OnDestroy()
+        {
+            // The rumble is made afresh for every run.
+            if (_thrusterSound != null && _thrusterSound.clip != null) Destroy(_thrusterSound.clip);
         }
     }
 }

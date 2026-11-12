@@ -47,12 +47,12 @@ namespace OrbitalAnte.Ship
         public float hatchHealth = 200f;
 
         /// <summary>A single blow this many times a part's full health tears it straight off.</summary>
-        public float tearOffBlow = 1.5f;
+        public float tearOffBlow = 2.5f;
         /// <summary>Once a part is broken, this many times its full health in further damage tears it off.</summary>
         public float tearOffAfterBroken = 1f;
 
         /// <summary>Touching down slower than this (metres per second) does no damage at all.</summary>
-        public float safeImpactSpeed = 3f;
+        public float safeImpactSpeed = 4f;
         /// <summary>Damage for each (metre per second above the safe speed) squared.</summary>
         public float impactDamage = 6f;
 
@@ -106,7 +106,7 @@ namespace OrbitalAnte.Ship
             {
                 parts.Add(new PartSpec { Id = "thruster_" + i, Name = corner[i] + " thrusters", Kind = PartKind.Thruster, MaxHealth = Rules.thrusterHealth, CanFallOff = true, Index = i });
             }
-            parts.Add(new PartSpec { Id = "dish", Name = "Dish", Kind = PartKind.Dish, MaxHealth = Rules.dishHealth, CanFallOff = true });
+            parts.Add(new PartSpec { Id = "dish", Name = "Dish", Kind = PartKind.Dish, MaxHealth = Rules.dishHealth, CanFallOff = false });
             for (int i = 0; i < ShipLayout.Windows.Length; i++)
             {
                 parts.Add(new PartSpec { Id = ShipLayout.Windows[i].Id, Name = ShipLayout.Windows[i].Name, Kind = PartKind.Window, MaxHealth = Rules.windowHealth, Index = i });
@@ -144,6 +144,16 @@ namespace OrbitalAnte.Ship
             if (_lost[part]) return PartState.Lost;
             if (_health[part] <= 0f) return PartState.Broken;
             return Fraction(part) < Rules.damagedBelow ? PartState.Damaged : PartState.Sound;
+        }
+
+        /// <summary>
+        /// How close a broken part is to coming off for good, 0 to 1. Always 0 for parts that cannot come off.
+        /// Shown to the player, so that "broken" and "about to be lost" do not look the same.
+        /// </summary>
+        public float TearProgress(int part)
+        {
+            if (!Parts[part].CanFallOff || _lost[part]) return 0f;
+            return Math.Min(1f, _overkill[part] / (Parts[part].MaxHealth * Rules.tearOffAfterBroken));
         }
 
         /// <summary>True when the part has any damage that mending would put right.</summary>
@@ -235,8 +245,8 @@ namespace OrbitalAnte.Ship
             }
         }
 
-        /// <summary>How much of full thrust the engines give, never less than 0.3.</summary>
-        public float ThrustFactor => Working(State(Find(PartKind.Engine)), 0.8f, 0.45f, 0.3f);
+        /// <summary>How much of full thrust the engines give, never less than 0.4.</summary>
+        public float ThrustFactor => Working(State(Find(PartKind.Engine)), 0.8f, 0.5f, 0.4f);
 
         /// <summary>How much of full turning and sideways push the four thruster clusters give, never less than 0.2.</summary>
         public float TurnFactor
@@ -249,7 +259,7 @@ namespace OrbitalAnte.Ship
             }
         }
 
-        /// <summary>The dish feeds the map. Broken or lost, the map goes dark until it is mended (or for good).</summary>
+        /// <summary>The dish feeds the map. Broken, the map goes dark until it is mended. It can never be torn off, so the map is never lost for a whole run.</summary>
         public bool DishWorks
         {
             get

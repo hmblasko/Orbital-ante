@@ -20,6 +20,7 @@ namespace OrbitalAnte.Planets
         static readonly int FarBlendId = Shader.PropertyToID("_FarBlend");
         static readonly int SunAmountId = Shader.PropertyToID("_SunAmount");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
+        static readonly int OutdoorsId = Shader.PropertyToID("_Outdoors");
         static readonly int EmissionId = Shader.PropertyToID("_Emission");
         static readonly int VeilId = Shader.PropertyToID("_Veil");
         static readonly int TwoSidedId = Shader.PropertyToID("_TwoSided");
@@ -123,6 +124,18 @@ namespace OrbitalAnte.Planets
         /// A shared material that shows a mesh's own colours multiplied by <paramref name="tint"/>. Used for rocks,
         /// trees and cave walls. <paramref name="sunlight"/> 0 is for things the Sun never reaches (cave walls).
         /// </summary>
+        /// <summary>
+        /// For surfaces whose light was worked out beforehand and stored in the mesh colours (the ship's cabin):
+        /// shows those colours times <paramref name="brightness"/> and nothing else. No sky light, lamp or fog.
+        /// </summary>
+        public static Material Baked(float brightness = 1f)
+        {
+            Material m = new Material(VertexColour(Color.white, 0f, Mathf.Clamp(brightness, 0f, 2f)));
+            m.name = "OA_Baked";
+            if (m.HasProperty(OutdoorsId)) m.SetFloat(OutdoorsId, 0f);
+            return m;
+        }
+
         public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f)
         {
             Look();

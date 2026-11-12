@@ -93,18 +93,28 @@ Known follow-up: making ground solid (`Physics.BakeMesh`) could move to a backgr
 
 ## Ship (Milestone 7): estimates from reading the code, not measured
 
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Its guess is that the Deck under Unity is 3 to 6 times slower. Nothing here looked like a threat to the 16.7 ms frame in steady play; the costs are spikes.
+
 | System | Cost | Cap |
 |---|---|---|
-| Ship outside (hull, base, 4 legs, engines, 4 thruster clusters, dish, details, ring) | about 13,000 triangles, about 15 draw calls, one shared material | one ship in Phase 1 |
-| Cabin (shell, floor, seat, desk, lockers, lamps, hatch doors, lever) | about 11,800 triangles in 11 pieces, one shared material, vertex colours only, no textures, no lights | fixed |
-| Glass | 5 see-through panes, drawn both sides; crack lines are a small mesh per pane, rebuilt only when a pane is hit | 5 panes, 6 remembered hits a pane |
-| Physics | 1 rigidbody; 2 convex shapes (cabin, base), 4 leg capsules, 4 footpad spheres, engine, thruster and dish shapes, 5 window boxes: about 25 colliders | fixed |
-| The player aboard | no physics at all (moved by rules in the ship's own space) | - |
+| Ship outside | about 11,000 triangles, about 15 draw calls, one shader | one ship in Phase 1 |
+| Cabin | 11,758 triangles in 11 pieces, vertex colours only, no textures, no lights | fixed |
+| Glass | 5 panes, one see-through layer each | 5 |
+| Crack lines | up to about 4,850 triangles a pane (about 24,000 if all 5 are badly cracked); rebuilt only when a new hit is recorded or the crack stage changes, guessed 3 to 8 ms each time on Deck | 6 recorded hits a pane |
+| Lift beam | one see-through layer, full screen while riding | 1 |
+| Physics | 1 rigidbody, 23 colliders (2 convex, 8 capsules, 8 spheres, 5 boxes), speculative fast-collision checking | fixed; cost in a crash unknown until measured |
+| The player aboard | no physics at all | - |
 | The player outside | 1 rigidbody, 1 capsule, 1 sphere cast per physics step | - |
-| Wreckage (torn-off parts) | 1 rigidbody each | at most 10 parts can ever come off one ship (4 legs, engines, 4 thruster clusters, dish) |
-| Sounds | 15 short clips made at start (about 0.5 MB), 2 audio sources | fixed |
-| Baked light | 31 KB file read once at start; fallback bake uses 2 background threads for a few seconds | - |
-| Ship HUD | text rebuilt 4 times a second at most, only when something changed | - |
+| Wreckage (torn-off parts) | 1 rigidbody each, pulled by gravity every step | 9 pieces (4 legs, engines, 4 thruster clusters); removed once 400 m from both you and the ship |
+| Building the ship at run start | guessed 100 to 250 ms on Deck, on the main thread (20 ms for meshes and 9 ms for the bake file on a desktop; sounds not timed) | once per run |
+| Sounds | 15 short clips, about 0.64 MB, 2 audio sources; freed on restart | fixed |
+| Baked light | 31 KB file, read once at start | - |
+| Fallback bake | 1 background thread; 3.9 s on a desktop at 48 paths, guessed 10 to 20 s on Deck | only if the shipped file is stale |
+| Ship HUD | list refreshed 4 times a second; prompt words rebuilt at most once a second | target: 0 bytes of garbage per frame when idle |
+
+Known follow-ups, to do only if the Profiler says so: halve the crack triangles by drawing them double-sided in the shader; build the sounds and mesh data on background threads at run start; fold the four engine colliders into the base.
+
+What to read off in Unity (see "How to measure"): Batches and Tris seated in orbit and again standing outside the landed ship; GC Alloc per frame seated and idle; the worst frame while shooting one window until it breaks; the Physics row during a hard landing.
 
 ## Lighting (asked for on 11 Nov 2026)
 

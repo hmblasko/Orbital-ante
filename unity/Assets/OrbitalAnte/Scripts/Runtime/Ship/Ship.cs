@@ -53,6 +53,7 @@ namespace OrbitalAnte.Ship
             public MeshFilter Cracks;
             public readonly List<P3> Hits = new List<P3>();
             public int ShownStage = -1;
+            public int ShownHits = -1;
         }
         Pane[] _panes;
 
@@ -67,9 +68,10 @@ namespace OrbitalAnte.Ship
         Mesh[] _pieceMeshes;
         PlanetJobs.Handle _bakeJob;
 
-        AudioSource _voice, _hum;
+        AudioSource _voice, _hum, _tick;
         float _nextSpark;
         readonly RaycastHit[] _rayHits = new RaycastHit[8];
+        static readonly int GlowId = Shader.PropertyToID("_Glow");
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
 
         // ------------------------------------------------------------------ building
@@ -118,8 +120,10 @@ namespace OrbitalAnte.Ship
             _partRenderers = new Renderer[count][];
 
             Material outside = PlanetMaterials.VertexColour(Color.white, 1f, 0f);
-            Material baked = PlanetMaterials.VertexColour(Color.white, 0f, 1f);
-            Material glowing = PlanetMaterials.VertexColour(Color.white, 0f, 1.6f);
+            Material baked = PlanetMaterials.Baked(1f);
+            Material glowing = PlanetMaterials.Baked(1.6f);
+            _owned.Add(baked);
+            _owned.Add(glowing);
             var grip = new PhysicsMaterial("ShipHull") { bounciness = Config.bounce, dynamicFriction = Config.grip, staticFriction = Config.grip };
             _owned.Add(grip);
 
@@ -300,6 +304,10 @@ namespace OrbitalAnte.Ship
             _beam.enabled = false;
 
             // ---- sound
+            // Its own source, because its pitch climbs as a repair goes and must not bend other sounds.
+            _tick = gameObject.AddComponent<AudioSource>();
+            _tick.playOnAwake = false;
+            _tick.spatialBlend = 0f;
             _voice = gameObject.AddComponent<AudioSource>();
             _voice.playOnAwake = false;
             _voice.spatialBlend = 1f;
@@ -401,7 +409,7 @@ namespace OrbitalAnte.Ship
             Debug.LogWarning("Orbital Ante: the ship's baked lighting file is missing or out of date, so the cabin's light is being worked out now. " +
                              "It looks flat for a few seconds, then correct. Tell Claude so the file can be rebuilt.");
             List<ShipPiece> pieces = _pieces;
-            var settings = new LightBake.Settings { Paths = Mathf.Clamp(Config.fallbackBakePaths, 8, 512), Threads = 2 };
+            var settings = new LightBake.Settings { Paths = Mathf.Clamp(Config.fallbackBakePaths, 8, 512), Threads = 1 };
             _bakeJob = PlanetJobs.Run(() => ShipAssembly.Bake(pieces, settings), ApplyBakedLight, () => -5e5f, true);
         }
 
@@ -417,6 +425,10 @@ namespace OrbitalAnte.Ship
         /// <summary>A bullet (or anything else that says how hard it hits) struck a part.</summary>
         public HitOutcome HitPart(int index, in HitInfo hit)
         {
+            // A shot fired in the cabin that misses the glass has hit the cabin wall, whatever the physics says:
+            // the hull's collision shape is solid, so from inside a ray leaves it without touching it and would
+            // otherwise strike your own legs or dish.
+            if (CrewAboard && Model.Parts[index].Kind != PartKind.Window) index = Model.IndexOf("cabin");
             DamageResult result = Model.Damage(index, hit.Damage);
             ShowDamage(index, result, hit.Point, hit.Normal, bullet: true);
             return new HitOutcome
@@ -496,9 +508,11 @@ namespace OrbitalAnte.Ship
                 pane.Collider.enabled = !gone;
                 ShipMeshes.SetFrost(pane.Material, stage >= 3 ? 1f : stage == 2 ? 0.5f : stage == 1 ? 0.15f : 0f);
                 if (stage == 0) pane.Hits.Clear();
-                if (stage != pane.ShownStage || (stage > 0 && stage < 4))
+                // Only when what would be drawn has changed: the crack lines are thousands of triangles.
+                if (stage != pane.ShownStage || pane.Hits.Count != pane.ShownHits)
                 {
                     pane.ShownStage = stage;
+                    pane.ShownHits = pane.Hits.Count;
                     Mesh old = pane.Cracks.sharedMesh;
                     if (old != null) Destroy(old);
                     pane.Cracks.sharedMesh = null;
@@ -552,6 +566,13 @@ namespace OrbitalAnte.Ship
             Vector3 outward = transform.TransformDirection(_pivot[index].sqrMagnitude > 0.01f ? _pivot[index].normalized : Vector3.down);
             go.transform.SetParent(transform.parent, true);
             Layers.SetLayerRecursively(go, Layers.Gib);
+            // It starts touching the ship; without this the physics would fling it away like a cannon shot.
+            Collider[] loose = go.GetComponentsInChildren<Collider>(true);
+            Collider[] mine = GetComponentsInChildren<Collider>(true);
+            for (int a = 0; a < loose.Length; a++)
+            {
+                for (int b = 0; b < mine.Length; b++) Physics.IgnoreCollision(loose[a], mine[b], true);
+            }
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 60f;
             rb.useGravity = false;
@@ -560,7 +581,11 @@ namespace OrbitalAnte.Ship
             rb.linearVelocity = velocity + outward * 2.5f;
             rb.angularVelocity = UnityEngine.Random.insideUnitSphere * 2.5f;
             go.AddComponent<GravityBody>();
+            // Left far behind, it is tidied away: the ground is only solid near you, so it would fall for ever.
+            go.AddComponent<Wreckage>().Home = this;
         }
+
+        float _lastCrash = -10f, _lastCrashSpeed;
 
         void OnCollisionEnter(Collision collision)
         {
@@ -569,9 +594,13 @@ namespace OrbitalAnte.Ship
             Rigidbody other = collision.rigidbody;
             if (other != null && !other.isKinematic && other.mass < 300f) return;
 
-            float speed = collision.relativeVelocity.magnitude;
-            float damage = Model.ImpactDamage(speed);
+            // Only the speed straight into the surface counts. Sliding along the ground is not a crash.
             ContactPoint contact = collision.GetContact(0);
+            float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+            // The same knock often arrives as several touches (four footpads, two pieces of ground). Count it once.
+            if (Time.time - _lastCrash < 0.2f && speed <= _lastCrashSpeed) speed = 0f;
+            float damage = Model.ImpactDamage(speed);
+            if (damage > 0f) { _lastCrash = Time.time; _lastCrashSpeed = speed; }
             if (damage <= 0f)
             {
                 if (speed > 0.8f) Play(Sounds.Thud, Mathf.Clamp01(speed / 4f) * 0.5f);
@@ -600,19 +629,29 @@ namespace OrbitalAnte.Ship
         /// <summary>
         /// The damaged part someone at <paramref name="eye"/> is looking at and close enough to mend, or -1.
         /// </summary>
-        public int FindRepairTarget(Vector3 eye, Vector3 forward)
+        /// <param name="inside">
+        /// True when the mender is standing in the cabin. From there you can reach the windows, the hatch and the
+        /// cabin wall, and nothing else: the legs, engines, thrusters and dish are on the other side of the hull.
+        /// </param>
+        public int FindRepairTarget(Vector3 eye, Vector3 forward, bool inside = false)
         {
             int best = -1;
+            float reach = inside ? Config.repairReach : Config.outsideRepairReach;
             float bestAngle = Config.repairAim;
             for (int i = 0; i < Model.Count; i++)
             {
                 if (!Model.NeedsRepair(i)) continue;
+                if (inside)
+                {
+                    PartSpec spec = Model.Parts[i];
+                    if (spec.Kind != PartKind.Window && spec.Kind != PartKind.Hatch && spec.Id != "cabin") continue;
+                }
                 List<Vector3> anchors = _anchors[i];
                 for (int k = 0; k < anchors.Count; k++)
                 {
                     Vector3 to = transform.TransformPoint(anchors[k]) - eye;
                     float distance = to.magnitude;
-                    if (distance > Config.repairReach) continue;
+                    if (distance > reach) continue;
                     // Right up against it, anywhere roughly in front counts.
                     float angle = distance < 0.4f ? 0f : Vector3.Angle(forward, to);
                     if (angle < bestAngle) { bestAngle = angle; best = i; }
@@ -633,11 +672,10 @@ namespace OrbitalAnte.Ship
             if (Time.time - _lastTick > 0.16f)
             {
                 _lastTick = Time.time;
-                _voice.pitch = 0.9f + Model.RepairProgress(index) * 0.5f;
-                _voice.PlayOneShot(Sounds.RepairTick, 0.5f * Config.volume);
+                _tick.pitch = 0.9f + Model.RepairProgress(index) * 0.5f;
+                _tick.PlayOneShot(Sounds.RepairTick, 0.5f * Config.volume);
             }
             if (!Model.Repair(index, dt)) return false;
-            _voice.pitch = 1f;
             Play(Sounds.RepairDone, 1f);
             RefreshPart(index);
             PartRepaired?.Invoke(index);
@@ -695,7 +733,7 @@ namespace OrbitalAnte.Ship
             {
                 // The ring is always lit, so you can find the way in; brighter while the lift is on.
                 float glow = Mathf.Lerp(0.9f, 1.7f, eased) * (Model.HatchWorks ? 1f : 0.35f + 0.3f * Mathf.Abs(Mathf.Sin(Time.time * 9f)));
-                _ringMaterial.SetFloat("_Glow", glow);
+                _ringMaterial.SetFloat(GlowId, glow);
             }
             if (_beam != null) _beam.enabled = open > 0.5f;
         }
@@ -755,6 +793,9 @@ namespace OrbitalAnte.Ship
         /// <summary>Set by whoever is mending, each frame they mend, so that part's progress does not slip back.</summary>
         public int RepairingPart { get; set; } = -1;
 
+        /// <summary>True while the player is on their feet in the cabin. Set by the astronaut.</summary>
+        public bool CrewAboard { get; set; }
+
         /// <summary>The lift ride that finished during this frame's update, if any.</summary>
         public LiftRide LastRideFinished { get; private set; }
 
@@ -791,6 +832,31 @@ namespace OrbitalAnte.Ship
             {
                 if (_owned[i] != null) Destroy(_owned[i]);
             }
+            if (Sounds != null) Sounds.Dispose();
+        }
+    }
+
+    /// <summary>A part that has come off the ship. Removed once it is far from both the ship and the player.</summary>
+    public sealed class Wreckage : MonoBehaviour
+    {
+        const float FarAway = 400f;
+        public Ship Home { get; set; }
+        float _nextCheck;
+
+        void Update()
+        {
+            if (Time.time < _nextCheck) return;
+            _nextCheck = Time.time + 2f;
+            Vector3 here = transform.position;
+            Camera eye = Home != null && Home.Flight != null ? Home.Flight.Eye : null;
+            bool nearShip = Home != null && (Home.transform.position - here).sqrMagnitude < FarAway * FarAway;
+            bool nearYou = eye != null && (eye.transform.position - here).sqrMagnitude < FarAway * FarAway;
+            if (!nearShip && !nearYou) Destroy(gameObject);
+        }
+
+        void OnDestroy()
+        {
+            // The meshes belong to the ship and are freed with it.
         }
     }
 }

@@ -62,6 +62,7 @@ namespace OrbitalAnte.Ship
         bool _grounded;
 
         Transform _strapLeft, _strapRight, _strapLap, _buckle;
+        Material _webbing;
         static readonly Vector3 ShoulderLeft = new Vector3(-0.2f, 1.06f, 1.02f);
         static readonly Vector3 ShoulderRight = new Vector3(0.2f, 1.06f, 1.02f);
         static readonly Vector3 HipLeft = new Vector3(-0.3f, 0.52f, 1.22f);
@@ -131,7 +132,8 @@ namespace OrbitalAnte.Ship
 
         void BuildBelt()
         {
-            Material webbing = Planets.PlanetMaterials.VertexColour(new Color(0.55f, 0.55f, 0.55f), 0f, 1f);
+            Material webbing = Planets.PlanetMaterials.Baked(0.55f);
+            _webbing = webbing;
             Mesh strap = ShipMeshes.ToMesh(ShipProps.BeltStrap(), "BeltStrap");
             Mesh buckle = ShipMeshes.ToMesh(ShipProps.BeltBuckle(), "BeltBuckle");
             _strapLeft = BeltPiece("StrapLeft", strap, webbing);
@@ -165,6 +167,7 @@ namespace OrbitalAnte.Ship
         {
             Mode = mode;
             bool outside = mode == AstronautMode.Outside;
+            Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
             if (_system != null) _system.Focus = outside ? _suitGravity : Ship.Gravity;
 
@@ -282,7 +285,7 @@ namespace OrbitalAnte.Ship
             }
             if (belt.Buckled)
             {
-                Prompt = GameInput.Describe(GameInput.Unbuckle) + ": unbuckle";
+                Prompt = Words(1, null, GameInput.Unbuckle, ": unbuckle");
                 if (GameInput.FlyHatch.WasPressedThisFrame()) ToggleHatch();
                 if (GameInput.Unbuckle.WasPressedThisFrame() && belt.Release())
                 {
@@ -363,12 +366,12 @@ namespace OrbitalAnte.Ship
             }
 
             if (GameInput.Hatch.WasPressedThisFrame()) ToggleHatch();
-            if (Mending(dt)) return;
 
+            // The lever and the seat come first, so a cracked window nearby never swallows the button.
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
             if (LookingAt(V(ShipLayout.HatchLever), 1.8f, 26f, eye, forward))
             {
-                Prompt = Key(GameInput.Interact) + ": " + (Ship.Hatch.WantOpen ? "close the hatch" : "open the hatch");
+                Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
                 return;
             }
@@ -376,9 +379,11 @@ namespace OrbitalAnte.Ship
             float toSeat = new Vector2(_walker.X - seat.x, _walker.Z - seat.z).magnitude;
             if (toSeat < _config.seatReach && LookingAt(seat + Vector3.up * 0.75f, 3f, 42f, eye, forward))
             {
-                Prompt = Key(GameInput.Interact) + ": buckle in";
+                Prompt = Words(4, null, GameInput.Interact, ": buckle in");
                 if (GameInput.Interact.WasPressedThisFrame()) EnterSeat(instant: false);
+                return;
             }
+            Mending(dt);
         }
 
         void PoseAboard()
@@ -403,7 +408,17 @@ namespace OrbitalAnte.Ship
             }
             else if (finished == LiftRide.Down)
             {
-                Vector3 feet = Ship.transform.TransformPoint(V(Ship.Hatch.Rider));
+                // Measured again now: the ship may have settled or slid while you rode down.
+                float bottom = Ship.FindLiftBottom();
+                if (float.IsNaN(bottom))
+                {
+                    // The ground has gone (the ship lifted or rolled). Back up into the cabin.
+                    Ship.Hatch.BeginUp(Ship.Hatch.Rider);
+                    return;
+                }
+                Vector3 local = V(Ship.Hatch.Rider);
+                local.y = Mathf.Max(local.y, bottom);
+                Vector3 feet = Ship.Body.position + Ship.Body.rotation * local;
                 GoOutside(feet, Ship.Body.GetPointVelocity(feet));
             }
         }
@@ -419,12 +434,14 @@ namespace OrbitalAnte.Ship
         void UpdateOutside(float dt)
         {
             ReadLook(dt, out float yawDelta);
+            // Turning is applied to the view at once. The suit's body only keeps you upright.
             _pendingYaw += yawDelta;
+            transform.localRotation = Quaternion.Euler(0f, _pendingYaw, 0f);
             if (GameInput.Jump.WasPressedThisFrame()) _jumpQueued = true;
             Eye.transform.localPosition = new Vector3(0f, ShipLayout.EyeHeight, 0f);
             Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
 
-            Vector3 feetInShip = Ship.transform.InverseTransformPoint(Suit.position);
+            Vector3 feetInShip = Quaternion.Inverse(Ship.Body.rotation) * (Suit.position - Ship.Body.position);
             if (Ship.Hatch.CanPickUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
             {
                 BoardLift(feetInShip);
@@ -441,21 +458,21 @@ namespace OrbitalAnte.Ship
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
             if (LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
-                Prompt = Key(GameInput.Interact) + ": " + (Ship.Hatch.WantOpen ? "close the hatch" : "open the hatch");
+                Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
             }
             else if (away < _config.remoteHatchRange)
             {
-                Prompt = Ship.Hatch.WantOpen ? "Stand under the blue ring to go aboard" : Key(GameInput.Hatch) + ": open the hatch";
+                Prompt = Ship.Hatch.WantOpen ? "Stand under the blue ring to go aboard" : Words(5, null, GameInput.Hatch, ": open the hatch");
             }
         }
 
         /// <summary>Looks for a damaged part in front of the player and mends it while the button is held.</summary>
         bool Mending(float dt)
         {
-            int part = Ship.FindRepairTarget(Eye.transform.position, Eye.transform.forward);
+            int part = Ship.FindRepairTarget(Eye.transform.position, Eye.transform.forward, Mode == AstronautMode.Aboard);
             if (part < 0) return false;
-            Prompt = "Hold " + Key(GameInput.Interact) + ": mend the " + Ship.Model.Parts[part].Name.ToLowerInvariant();
+            Prompt = Words(100 + part, "Hold ", GameInput.Interact, ": mend the ", Ship.Model.Parts[part].Name);
             PromptProgress = Ship.Model.RepairProgress(part);
             if (GameInput.Interact.IsPressed())
             {
@@ -474,6 +491,24 @@ namespace OrbitalAnte.Ship
 
         static string Key(InputAction action) => GameInput.Describe(action);
 
+        // Prompts are shown every frame but only change when a key is rebound or the controller is picked up,
+        // so the finished words are kept for a second at a time and no text is built on most frames.
+        readonly System.Collections.Generic.Dictionary<int, string> _words = new System.Collections.Generic.Dictionary<int, string>();
+        float _wordsUntil;
+
+        string Words(int id, string before, InputAction action, string after, string name = null)
+        {
+            if (Time.unscaledTime > _wordsUntil)
+            {
+                _words.Clear();
+                _wordsUntil = Time.unscaledTime + 1f;
+            }
+            if (_words.TryGetValue(id, out string words)) return words;
+            words = before + Key(action) + after + (name != null ? name.ToLowerInvariant() : string.Empty);
+            _words[id] = words;
+            return words;
+        }
+
         // ------------------------------------------------------------------ on foot outside
 
         void FixedUpdate()
@@ -488,9 +523,9 @@ namespace OrbitalAnte.Ship
 
             Quaternion rotation = Suit.rotation;
             rotation = Quaternion.FromToRotation(rotation * Vector3.up, _up) * rotation;
-            rotation = Quaternion.AngleAxis(_pendingYaw, _up) * rotation;
-            _pendingYaw = 0f;
             Suit.MoveRotation(rotation);
+            // Walk the way you are looking.
+            rotation = rotation * Quaternion.Euler(0f, _pendingYaw, 0f);
 
             // What is underfoot, and how it is moving.
             Vector3 groundVelocity = Vector3.zero;
@@ -575,7 +610,15 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
-            if (Suit != null) Destroy(Suit.gameObject);
+            if (Suit != null)
+            {
+                var capsule = Suit.GetComponent<CapsuleCollider>();
+                if (capsule != null && capsule.sharedMaterial != null) Destroy(capsule.sharedMaterial);
+                Destroy(Suit.gameObject);
+            }
+            if (_webbing != null) Destroy(_webbing);
+            if (_strapLeft != null) Destroy(_strapLeft.GetComponent<MeshFilter>().sharedMesh);
+            if (_buckle != null) Destroy(_buckle.GetComponent<MeshFilter>().sharedMesh);
         }
     }
 }

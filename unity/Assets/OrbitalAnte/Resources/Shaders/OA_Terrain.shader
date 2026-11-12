@@ -10,6 +10,7 @@ Shader "OrbitalAnte/Terrain"
         _FarBlend ("Far blend: start, end, on (0 or 1), picture width", Vector) = (150, 600, 0, 1024)
         _SunAmount ("Sunlight reaching it", Range(0, 1)) = 1
         _Glow ("Glows by itself", Range(0, 2)) = 0
+        _Outdoors ("Lit by sky, lamp and fog (0 for baked interiors)", Range(0, 1)) = 1
     }
 
     SubShader
@@ -25,6 +26,7 @@ Shader "OrbitalAnte/Terrain"
             float4 _FarBlend;
             half _SunAmount;
             half _Glow;
+            half _Outdoors;
         CBUFFER_END
 
         TEXTURE2D(_FarMap);
@@ -108,8 +110,9 @@ Shader "OrbitalAnte/Terrain"
                 lamp = lamp * lamp * saturate(dot(normal, toLamp / lampDistance) * 0.7 + 0.3);
                 light += _OA_LampColor.rgb * lamp;
 
-                half3 color = albedo * light + albedo * _Glow;
-                color = MixFog(color, input.directionAndFog.w);
+                // Baked interiors carry their own light in the mesh colours: no sky, lamp or fog on top.
+                half3 color = albedo * light * _Outdoors + albedo * _Glow;
+                color = lerp(color, MixFog(color, input.directionAndFog.w), _Outdoors);
                 return half4(color, 1.0);
             }
             ENDHLSL
