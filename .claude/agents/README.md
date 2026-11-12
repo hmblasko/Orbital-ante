@@ -11,6 +11,17 @@ Six specialist agents that Claude can hand work to while building Orbital Ante. 
 | `technical-artist` | Builds looks in code (meshes, textures, materials, effects) and writes exact asset requests. |
 | `deck-performance` | Audits code for Steam Deck cost before anything is measured. Read-only. |
 
+## Quality gate agents
+
+Added 12 Nov 2026 with the visual quality gate (`Verification/README.md`).
+
+| Agent | What it is for |
+|---|---|
+| `orbital-builder` | Takes the Critic's ranked issues for one target, chooses and implements the fixes, hands back for review. Never scores its own work. |
+| `orbital-critic` | Independent review of the real game from captured Unity evidence: scorecard, ranked issues, PASS / FAIL / BLOCKED. Never edits game code or assets. |
+
+The main session is the Quality Orchestrator: it decides when work is ready, starts the Critic, checks the Critic's file with the gate tool, hands issues to the Builder, and keeps the history. It never changes a score.
+
 How they are used: during a milestone the main session builds the core, then sends the result to the reviewers (usually `unity-reviewer`, `game-designer` and `deck-performance` side by side), fixes what they find, and has `qa-tester` extend the tests. Their findings are summarised in the milestone report under "Agent review".
 
 What they cannot do: none of them can run Unity. They reduce the number of problems waiting behind the first press of Play; they do not replace it.
