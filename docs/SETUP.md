@@ -13,7 +13,7 @@ Everything here is done once, except "Play" and "Run the tests".
 
 1. Install **GitHub Desktop** from https://desktop.github.com if you do not already have the repo on your computer.
 2. In GitHub Desktop choose **File > Clone repository**, pick `hmblasko/Orbital-ante`, choose a folder, click **Clone**.
-3. To try a milestone before it is merged: click **Current Branch** at the top, and pick the branch named in the pull request (Milestones 1 and 2 are both on `claude/unity-milestone-1`).
+3. To try a milestone before it is merged: click **Current Branch** at the top, and pick the branch named in the pull request (Milestone 7, the ship, is on `claude/milestone-7-ship`).
 
 ## C. Open it in Unity (first time takes a few minutes)
 
