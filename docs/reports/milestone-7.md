@@ -2,7 +2,7 @@
 
 Status: **built, not yet run in Unity.** Same position as Milestones 1 to 6. The ship's rules (walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, every shape, the baked light) are plain maths and are tested here: 871 rule tests run and pass outside Unity. Everything you would see, hear or feel compiles but has never been run. The glass shader has been checked for syntax only.
 
-Pull request #4 (Milestones 1 to 6) was merged, so this is a new pull request on the same branch name, `claude/unity-milestone-1`.
+Pull request #4 (Milestones 1 to 6) was merged, so this is a new pull request on a new branch, `claude/milestone-7-ship`.
 
 The picture `milestone-7-ship-previews.png` shows the cabin and the outside of the ship. It was drawn here by a small test program from the game's real meshes and the real baked light. It is **not a Unity screenshot**: in Unity the shading, glass and colours will differ a little.
 
