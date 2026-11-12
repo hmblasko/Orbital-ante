@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "rubricVersion": 1,
+  "reviewId": "R-20261112-mannequin-01",
+  "buildId": "20261112-cloud-08e6003",
+  "commit": "08e6003",
+  "milestone": "M1-M6",
+  "unityVersion": "none used. The project declares 6000.0.23f1 (unity/ProjectSettings/ProjectVersion.txt); no Unity editor exists on the reviewing machine.",
+  "critic": "orbital-critic (claude-fable-5-2, separate agent started by the Quality Orchestrator, Linux cloud container)",
+  "builder": "Milestone 1-3 build sessions (authors of docs/reports/milestone-1.md to milestone-3.md)",
+  "reviewLevel": 2,
+  "inspectionMethod": "No inspection of the game was possible. The Critic looked for a Unity editor on this Linux cloud container (which Unity / unity-editor / unityhub: nothing; ~/Unity: does not exist; /opt: no Unity; no DISPLAY, no GPU tooling) and for an existing capture run (Verification/Reports did not exist before this review; no test-results.json or capture-manifest.json anywhere in the repository). No capture run was started, no picture was opened, no test ran in Unity. Only repository documents and the capture suite's source were read, to establish what is missing; none of that is evidence of how the mannequin looks or moves.",
+  "target": {
+    "id": "mannequin",
+    "name": "Playtest mannequin (character, movement states, limb loss)",
+    "scenes": []
+  },
+  "inspections": [
+    { "id": "views.standard", "required": true, "status": "blocked", "note": "No studio pictures exist. CharacterCaptures.MannequinStudio has never run: no Unity editor on this machine and no capture run under Verification/Reports for commit 08e6003." },
+    { "id": "distances.three", "required": true, "status": "blocked", "note": "No close, medium or wide pictures exist, for the same reason as views.standard." },
+    { "id": "animation.sequences", "required": true, "status": "blocked", "note": "No contact sheets exist under Screenshots/sequences/ and live playback is impossible without Unity. Idle, walk, run, turn, limb-pop, one-leg, crawl, wriggle and head-only motion are all uninspected." },
+    { "id": "technical.sceneChecks", "required": true, "status": "blocked", "note": "No capture-manifest.json exists, so there are no sceneChecks, errors, warnings or picture flags to read and classify." },
+    { "id": "technical.tests", "required": true, "status": "blocked", "note": "No test-results.json, editmode-results.xml or playmode-results.xml exists. EditMode and PlayMode tests have never run in Unity for this build (the milestone reports say the same)." },
+    { "id": "views.gameplay", "required": false, "status": "blocked", "note": "Not in this target's requiredInspections, but the Critic's instructions ask for the mannequin through the game's own camera (targets.json: gameplayContextFrom combat-arena). No combat-arena capture exists either." },
+    { "id": "comparison.baseline", "required": false, "status": "not_applicable", "note": "First review of this target: no previous review and no baseline pictures exist." },
+    { "id": "performance", "required": false, "status": "not_applicable", "note": "Not measured. No profiler numbers exist; none can be produced without Unity." }
+  ],
+  "technical": {
+    "testsRun": false,
+    "testsPassed": false,
+    "coverage": "Nothing was tested in Unity. The Critic ran no game tests. The milestone reports claim rule tests were run with dotnet outside Unity; that is a Builder claim, was not re-run by the Critic, and would not count as the Unity test run this target requires.",
+    "verifiedErrors": [],
+    "unresolvedErrorCount": 0,
+    "regressions": [],
+    "warningsReviewed": "None available: no Unity log, no capture manifest, no test results. Zero verified errors here means nothing could be checked, not that the build is clean.",
+    "performance": "not measured"
+  },
+  "evidence": {
+    "screenshotCount": 0,
+    "captureManifests": [],
+    "animationEvidence": [],
+    "comparisons": []
+  },
+  "categories": [],
+  "overallScore": null,
+  "strengths": [],
+  "issues": [
+    {
+      "id": "MAN-001",
+      "target": "mannequin",
+      "category": "technical",
+      "severity": "P0",
+      "kind": "verified_defect",
+      "title": "No Unity capture run exists for this build, so the mannequin cannot be verified at all",
+      "description": "There is no evidence of any kind for commit 08e6003: no test-results.json, no capture-manifest.json, no screenshots, no contact sheets. Verification/Reports did not exist before this review. The reviewing machine has no Unity editor and no graphics device, so the Critic could not start a run. The project has never been opened in Unity according to its own milestone reports, so it is not even known whether the scripts compile in the editor or whether the capture suite (also never run) works. What is verified is the absence of evidence, not any defect in the mannequin itself.",
+      "evidence": [
+        "Verification/README.md",
+        "docs/reports/milestone-1.md",
+        "quality-report.md"
+      ],
+      "reproduction": "On the cloud container: `which Unity unity-editor unityhub` prints nothing; `ls ~/Unity` fails; `ls Verification/Reports` failed before this review created its own folder; `find . -name capture-manifest.json -o -name test-results.json` finds nothing.",
+      "expected": "A Level 2 capture run for the commit under review exists under Verification/Reports/[Build-ID]/ with test-results.json, mannequin/capture-manifest.json, the studio pictures and the motion contact sheets, produced by the Unity editor with a graphics device.",
+      "rootCause": "Cloud sessions have no Unity editor (stated in CLAUDE.md and Verification/README.md). The first capture has not yet been run on a machine that has one.",
+      "recommendedFixes": [
+        "Run 'Orbital Ante > Verification > Level 2 - Full Capture' in the Unity editor on Matthew's machine at this commit (README 'For Matthew, by hand'), commit the new files under Verification/Reports and push, then start a new Critic review against that Build-ID.",
+        "Or run the README command line on a machine with Unity 6000.0.23f1 and a graphics device (without -nographics): -executeMethod OrbitalAnte.Verification.EditorTools.VerificationRunner.RunFromCommandLine -oaLevel 2 -oaTargets mannequin.",
+        "If the first run fails (compile errors, runner or capture suite faults, which the README says to expect), fix those first and treat each as its own P0 until a run completes."
+      ],
+      "expectedBenefit": "high",
+      "effort": "small",
+      "regressionRisk": "low",
+      "confidence": 1.0,
+      "alsoAffects": ["weapons", "combat-arena", "planets", "planet-surface", "menus"],
+      "acceptanceCriteria": [
+        "Verification/Reports/[Build-ID]/test-results.json exists for the commit under review and shows EditMode and PlayMode tests ran.",
+        "Verification/Reports/[Build-ID]/mannequin/capture-manifest.json exists and lists the seven standard views at close, medium and wide for the intact mannequin.",
+        "Contact sheets exist under mannequin/Screenshots/sequences/ for idle, walk, run, turn, limb-pop, one-leg, crawl, wriggle and head-only.",
+        "No picture the review relies on is flagged blank, pink or almost all black, or each such flag is explained."
+      ],
+      "status": "open",
+      "firstSeenIn": "R-20261112-mannequin-01"
+    },
+    {
+      "id": "MAN-002",
+      "target": "mannequin",
+      "category": "modeling",
+      "severity": "P2",
+      "kind": "suspected_defect",
+      "title": "Design question: the approved mannequin is a primitive placeholder, but the gate treats it as a hero asset that must reach 8.5",
+      "description": "This is a conflict between documents, raised before any picture exists; it is not an observation of the model. CLAUDE.md Part B Milestone 1 asks for 'a placeholder humanoid (mannequin) from primitives' and Milestone 12 replaces it with a proper enemy model. Verification/Config/targets.json lists the mannequin as tier 'hero' for M1, M2 and M12, and the gate passes a target only at 8.5. The Critic's instructions state that placeholder primitives belong in the 3 to 6 range however cleanly built. If the mannequin turns out to be what the design asked for, it probably cannot pass on modeling, cohesion and materials, and M1/M2 could not close their visual gate until M12. The Critic will not lower the standard or guess a score; Matthew should decide how the gate applies to an intended placeholder.",
+      "evidence": [
+        "CLAUDE.md",
+        "Verification/Config/targets.json",
+        ".claude/agents/orbital-critic.md"
+      ],
+      "reproduction": "Read CLAUDE.md Part B section 15 (Milestones 1 and 12), the 'mannequin' entry in targets.json, and the 'Anchors' paragraph of orbital-critic.md side by side.",
+      "expected": "One stated rule for how a deliberately placeholder character is judged, decided by Matthew, before the first scored review.",
+      "rootCause": "The quality gate was added after Milestones 1-3 were designed around a placeholder character.",
+      "recommendedFixes": [
+        "Matthew decides: keep the mannequin a hero target at 8.5 (so the placeholder must be replaced or lifted well above primitive shapes before M1/M2 can pass), or",
+        "Matthew decides: judge the mannequin until M12 only on animation, readability and technical soundness, with its art gate deferred to the M12 enemy model (a rubric or targets.json change only Matthew can make), or",
+        "Bring a real character model from the asset pipeline forward so the dismemberment system is reviewed on real art."
+      ],
+      "expectedBenefit": "medium",
+      "effort": "small",
+      "regressionRisk": "low",
+      "confidence": 0.7,
+      "alsoAffects": ["combat-arena", "weapons"],
+      "acceptanceCriteria": [
+        "Matthew's decision is written down (CLAUDE.md or targets.json) and the next review of this target cites it."
+      ],
+      "status": "open",
+      "firstSeenIn": "R-20261112-mannequin-01",
+      "needsDesignDecision": true
+    }
+  ],
+  "rankedIssueIds": ["MAN-001", "MAN-002"],
+  "regressionChecks": [],
+  "acceptanceCriteria": [
+    "A Level 2 capture run exists under Verification/Reports/[new Build-ID]/ whose commit matches the build under review, produced by the Unity editor with a graphics device.",
+    "test-results.json shows the EditMode and PlayMode tests ran; every failure and every manifest error is classified.",
+    "mannequin/capture-manifest.json and its pictures cover front, rear, left, right, front three-quarter, rear three-quarter and elevated three-quarter at close, medium and wide.",
+    "Motion contact sheets exist for idle, walk, run, turn, limb-pop and the four damaged movement states (one leg, crawl, wriggle, head only).",
+    "The Critic opens every picture and sheet it relies on and scores all seven rubric categories from them.",
+    "The mannequin is also seen through the game camera in a combat-arena capture at 1280x800 and 1920x1080.",
+    "MAN-002 has an answer from Matthew."
+  ],
+  "comparison": null,
+  "untested": [
+    "Everything visual about the mannequin: shape, proportions, silhouette, joints, seams, clipping, stump caps, materials, lighting.",
+    "All motion: idle, walk, run, turn, limb loss, hop, crawl, wriggle, head roll; equipment (rifle) moving with the body.",
+    "Whether the project compiles and opens in Unity 6000.0.23f1 at all.",
+    "Whether the capture suite, runner and baseline tool work (they have never run in Unity).",
+    "EditMode and PlayMode tests in Unity.",
+    "The mannequin in gameplay context (combat arena, HUD, gore).",
+    "Performance of any kind; no profiler numbers exist.",
+    "Steam Deck hardware. No Deck was used, and no 1280x800 pictures exist either."
+  ],
+  "recommendPlaytest": [
+    "Once it runs: do limb pops, disarms and leg shots read instantly and feel satisfying in play? Only a person playing can say.",
+    "Are the degraded movement states (hop, crawl, wriggle, head roll) funny and fair to fight, or just awkward?"
+  ],
+  "verdict": "BLOCKED",
+  "verdictReason": "No real evidence exists. There is no Unity editor or graphics device on the reviewing machine and no capture run for commit 08e6003, so all five required inspections are blocked, no tests ran in Unity, no picture was opened and nothing was scored."
+}

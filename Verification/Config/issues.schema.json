@@ -78,7 +78,7 @@
     },
     "categories": {
       "type": "array",
-      "description": "All seven rubric categories. A category that truly does not apply gets applicable: false and a reason; it is left out of the sum, not given a 10.",
+      "description": "All seven rubric categories. A category that truly does not apply gets applicable: false and a reason; it is left out of the sum, not given a 10. On a BLOCKED review where nothing was seen, leave this list empty rather than marking categories not applicable.",
       "items": {
         "type": "object",
         "required": ["id", "justification"],
@@ -103,7 +103,7 @@
           "target": { "type": "string" },
           "category": { "type": "string", "description": "A rubric category id, or 'technical'." },
           "severity": { "enum": ["P0", "P1", "P2", "P3"] },
-          "kind": { "enum": ["verified_defect", "suspected_defect", "aesthetic_judgment"], "description": "Keeps confirmed technical findings apart from suspicions and from visual judgment." },
+          "kind": { "enum": ["verified_defect", "suspected_defect", "aesthetic_judgment", "verification_gap", "design_question"], "description": "Keeps confirmed technical findings apart from suspicions and from visual judgment. verification_gap = something that could not be inspected; design_question = a decision for Matthew." },
           "title": { "type": "string" },
           "description": { "type": "string" },
           "evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } },

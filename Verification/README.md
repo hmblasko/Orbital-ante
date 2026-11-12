@@ -117,6 +117,15 @@ dotnet test Verification/Tools/oa-verify.tests
 10. **Milestone gate.** A milestone's visual work is done when every one of its required targets has passed by itself (`oa-verify status M7`). Scores are never averaged across targets.
 11. **Escalate to Matthew**: issues marked `needsDesignDecision`, disagreements between the Critic's standard and the approved design, anything that needs a human playtest, and stalled work.
 
+## Conventions for review files
+
+- **A BLOCKED review with nothing seen**: `categories` is an empty list, `overallScore` is null, `strengths` is empty, and `technical.unresolvedErrorCount` 0 means "nothing could be checked", not "clean". The thing that blocked it is an issue of kind `verification_gap` whose evidence is the document or log that shows the gap (and the review's own `quality-report.md`).
+- **Evidence paths** are written from the repository root. Paths relative to the review's own folder are also accepted.
+- **`milestone`** is the single milestone whose gate the review counts toward (for example `M7`), because cycle counting and `oa-verify status M7` match it exactly. Reviews of older work done before the gate existed use `M1-M6`.
+- **Inspections beyond the required list** (gameplay context, baseline comparison, performance) are recorded with `required: false` and the ids `views.gameplay`, `comparison.baseline`, `performance`.
+- **Pictures** are opened with the Read tool, one file at a time.
+- **No Unity on the machine**: that is BLOCKED. Do not try to install Unity.
+
 ## Honesty rules (all roles)
 
 1. Never fabricate screenshots or observations. Pictures come from Unity cameras only; never from an image model, never from the non-Unity preview pictures.

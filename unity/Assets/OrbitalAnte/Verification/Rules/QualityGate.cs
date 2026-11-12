@@ -163,8 +163,8 @@ namespace OrbitalAnte.Verification
                 string severity = MiniJson.Str(issue, "severity");
                 if (Array.IndexOf(Severities, severity) < 0) r.Problems.Add("Issue '" + id + "' severity must be P0, P1, P2 or P3.");
                 string kind = MiniJson.Str(issue, "kind");
-                if (kind != "verified_defect" && kind != "suspected_defect" && kind != "aesthetic_judgment")
-                    r.Problems.Add("Issue '" + id + "' kind must be verified_defect, suspected_defect or aesthetic_judgment.");
+                if (kind != "verified_defect" && kind != "suspected_defect" && kind != "aesthetic_judgment" && kind != "verification_gap" && kind != "design_question")
+                    r.Problems.Add("Issue '" + id + "' kind must be verified_defect, suspected_defect, aesthetic_judgment, verification_gap or design_question.");
                 double? confidence = MiniJson.Num(issue, "confidence");
                 if (confidence == null || confidence < 0 || confidence > 1) r.Problems.Add("Issue '" + id + "' needs a confidence from 0 to 1.");
                 List<object> ev = MiniJson.Items(issue, "evidence");
