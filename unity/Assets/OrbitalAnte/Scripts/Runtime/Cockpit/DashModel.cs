@@ -82,11 +82,16 @@ namespace OrbitalAnte.Cockpit
             if (r.Moving)
             {
                 // The dot glides too, but along the ball, so it never cuts through the middle.
-                float x = r.DriftX + (input.DriftX / length - r.DriftX) * ease;
-                float y = r.DriftY + (input.DriftY / length - r.DriftY) * ease;
-                float z = r.DriftZ + (input.DriftZ / length - r.DriftZ) * ease;
+                float tx = input.DriftX / length, ty = input.DriftY / length, tz = input.DriftZ / length;
+                float x = r.DriftX + (tx - r.DriftX) * ease;
+                float y = r.DriftY + (ty - r.DriftY) * ease;
+                float z = r.DriftZ + (tz - r.DriftZ) * ease;
                 float n = (float)Math.Sqrt(x * x + y * y + z * z);
-                if (n < 1e-4f) { x = input.DriftX / length; y = input.DriftY / length; z = input.DriftZ / length; n = 1f; }
+                // Straight to the new direction when there is nothing to glide from, and when the motion has
+                // turned right round: gliding between opposite points only shrinks the dot toward the middle
+                // and is then stretched back to where it was, so it would never get there.
+                bool turnedRound = r.DriftX * tx + r.DriftY * ty + r.DriftZ * tz < -0.9f;
+                if (n < 1e-4f || turnedRound) { x = tx; y = ty; z = tz; n = 1f; }
                 r.DriftX = x / n; r.DriftY = y / n; r.DriftZ = z / n;
             }
             else { r.DriftX = 0f; r.DriftY = 0f; r.DriftZ = 0f; }

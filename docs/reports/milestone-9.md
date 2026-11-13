@@ -64,7 +64,7 @@ All four show the same facts in the same places on purpose, so choosing one is a
 ## Still unverified (needs Unity on your machine)
 
 - Whether the panel sits well on the desk, and is readable on the Deck's screen from the seat. This is the biggest unknown.
-- The 3 new PlayMode tests (81 in all) have not been run.
+- The 4 new PlayMode tests (82 in all) have not been run.
 - The camera pictures: framing from the poles, whether the boom is out of shot, the landing view.
 - The cost of the little camera screen on a Deck (see "Cockpit" in `docs/performance_budget.md` for what to read off).
 - Whether 7 minutes of fuel feels right.
@@ -80,4 +80,6 @@ All four show the same facts in the same places on purpose, so choosing one is a
 
 ## Codex (ChatGPT) work checked
 
-None new in this milestone. A Codex review of this pull request is requested in a comment; what it finds, and what is used or rejected, will be added here.
+Codex reviewed this pull request on request and raised two points. Both were real and both are fixed.
+- **The direction dot could stick pointing the wrong way** if your motion turned right round in one step. Fixed in `DashModel`, with a rule test.
+- **Glancing down at the camera screen could change what the ship was aimed at**, and so what Match Velocity matched, because the target was picked from the pilot's eyes. It is now picked from the ship's nose, so a glance, a launch shake or a knock cannot change it. Fixed in `TestCraft`, with a PlayMode test.

@@ -86,6 +86,32 @@ namespace OrbitalAnte.Tests
         }
 
         [UnityTest]
+        public IEnumerator GlancingDown_NeverChangesWhatTheShipIsAimedAt()
+        {
+            yield return Frames(8);
+            TestCraft craft = _world.Craft;
+            // Aim the nose at the Moon.
+            int moon = -1;
+            for (int i = 0; i < craft.System.Bodies.Length; i++)
+            {
+                if (craft.System.Bodies[i].Spec.id == "Moon") moon = i;
+            }
+            Assert.GreaterOrEqual(moon, 0);
+            Vector3 to = craft.System.Bodies[moon].transform.position - craft.Body.position;
+            craft.Body.rotation = Quaternion.LookRotation(to.normalized, craft.Body.rotation * Vector3.up);
+            yield return new WaitForFixedUpdate();
+            yield return Frames(3);
+            Assert.AreEqual(moon, craft.Target, "the Moon should be the target with the nose on it");
+
+            // The pilot's head tips right down (the camera-screen glance, a launch shake, a knock): same target.
+            _world.Astronaut.ScreenGlance = 60f;
+            yield return Frames(3);
+            Assert.Greater(Vector3.Angle(_world.Astronaut.Eye.transform.forward, craft.transform.forward), 30f, "the test did not move the eyes");
+            Assert.AreEqual(moon, craft.Target, "looking down changed what Match Velocity would match");
+            _world.Astronaut.ScreenGlance = 0f;
+        }
+
+        [UnityTest]
         public IEnumerator ADryTank_WeakensThePush_ButNeverRemovesIt()
         {
             yield return Frames(4);

@@ -120,6 +120,11 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(3f / 13f, r.DriftX, 0.01f);
             Assert.AreEqual(-4f / 13f, r.DriftY, 0.01f);
 
+            // Turned right round in one step (a bounce, a hard brake through zero): the dot must follow.
+            for (int i = 0; i < 100; i++) m.Tick(0.02f, new DashInputs { Speed = 50f, DriftX = -3f, DriftY = 4f, DriftZ = -12f, Altitude = -1f });
+            Assert.AreEqual(-12f / 13f, m.Readings.DriftZ, 0.01f, "the dot stayed pointing the old way after the motion reversed");
+            Assert.AreEqual(-3f / 13f, m.Readings.DriftX, 0.01f);
+
             m.Tick(0.02f, new DashInputs { Speed = 0.1f, DriftZ = 0.1f, Altitude = -1f });
             Assert.IsFalse(m.Readings.Moving, "a crawl should read as holding still");
         }

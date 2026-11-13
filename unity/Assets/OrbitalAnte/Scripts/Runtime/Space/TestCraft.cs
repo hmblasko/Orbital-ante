@@ -205,7 +205,9 @@ namespace OrbitalAnte.Space
             Target = -1;
             if (System == null || System.Model == null || Eye == null) return;
             Vector3 eye = Eye.transform.position;
-            Vector3 forward = Eye.transform.forward;
+            // The ship's nose, not the pilot's eyes: a glance down at the camera screen, a launch shake or a knock
+            // to the head must never change what the ship is aimed at or what Match Velocity matches.
+            Vector3 forward = transform.forward;
             float best = TargetCone;
             for (int i = 0; i < System.Bodies.Length; i++)
             {
