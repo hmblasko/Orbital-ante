@@ -68,6 +68,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Planets.PlanetData>(PlanetsPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -320,6 +321,8 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Planets.PlanetData>(PlanetsPath);
             // The ship: weight, damage and repair numbers, the seat, hatch and lift.
             CreateAssetIfMissing<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset");
+            // The look: bloom, tone mapping, colour grade, smoothed edges and the strength of the painted style.
+            CreateAssetIfMissing<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset");
             SetUpGlassMaterial();
         }
 

@@ -130,7 +130,7 @@ namespace OrbitalAnte.Ship
             // ---- cabin
             int cabin = Model.IndexOf("cabin");
             GameObject cabinGo = NewPart(cabin, new Vector3(0f, 1.2f, 0f));
-            AddVisual(cabinGo, ShipShell.Hull(), "Hull", outside);
+            AddVisual(cabinGo, ShipShell.Hull(), "Hull", outside, HullRoundDegrees);
             AddVisual(cabinGo, ShipProps.HullDetails(), "HullDetails", outside);
             AddConvex(cabinGo, ShipShell.CabinCollision(), "CabinCollision", grip);
             _anchors[cabin].Add(new Vector3(0f, 1.25f, -2.3f));
@@ -142,7 +142,7 @@ namespace OrbitalAnte.Ship
             // ---- base
             int baseIndex = Model.IndexOf("base");
             GameObject baseGo = NewPart(baseIndex, new Vector3(0f, -0.9f, 0f));
-            AddVisual(baseGo, ShipProps.Base(), "Base", outside);
+            AddFitting(baseGo, "base", ShipProps.Base, "Base", outside);
             AddConvex(baseGo, ShipShell.BaseCollision(), "BaseCollision", grip);
             for (int i = 0; i < 4; i++)
             {
@@ -156,7 +156,8 @@ namespace OrbitalAnte.Ship
                 int part = Model.Find(PartKind.Leg, i);
                 Vector3 root = V(ShipLayout.LegRoot(i)), foot = V(ShipLayout.Footpad(i));
                 GameObject leg = NewPart(part, root);
-                AddVisual(leg, ShipProps.Leg(i), "Leg", outside);
+                int legIndex = i;
+                AddFitting(leg, "leg" + i, () => ShipProps.Leg(legIndex), "Leg", outside);
                 AddCapsule(leg, root, foot + Vector3.up * 0.35f, 0.14f, grip);
                 var pad = leg.AddComponent<SphereCollider>();
                 pad.center = foot + Vector3.up * ShipLayout.FootpadRadius;
@@ -168,7 +169,7 @@ namespace OrbitalAnte.Ship
             // ---- engines
             int engines = Model.Find(PartKind.Engine);
             GameObject enginesGo = NewPart(engines, new Vector3(0f, ShipLayout.BellyY, 0f));
-            AddVisual(enginesGo, ShipProps.Engines(), "Engines", outside);
+            AddFitting(enginesGo, "engines", ShipProps.Engines, "Engines", outside);
             for (int i = 0; i < 4; i++)
             {
                 Vector3 top = V(ShipLayout.Engine(i));
@@ -183,7 +184,8 @@ namespace OrbitalAnte.Ship
                 int part = Model.Find(PartKind.Thruster, i);
                 Vector3 at = V(ShipLayout.Thruster(i));
                 GameObject go = NewPart(part, at * 0.88f);
-                AddVisual(go, ShipProps.Thruster(i), "Thruster", outside);
+                int thrusterIndex = i;
+                AddFitting(go, "thruster" + i, () => ShipProps.Thruster(thrusterIndex), "Thruster", outside);
                 var ball = go.AddComponent<SphereCollider>();
                 ball.center = at;
                 ball.radius = 0.3f;
@@ -194,7 +196,7 @@ namespace OrbitalAnte.Ship
             // ---- dish
             int dish = Model.Find(PartKind.Dish);
             GameObject dishGo = NewPart(dish, V(ShipLayout.DishMastFoot));
-            AddVisual(dishGo, ShipProps.Dish(), "Dish", outside);
+            AddFitting(dishGo, "dish", ShipProps.Dish, "Dish", outside);
             var dishBall = dishGo.AddComponent<SphereCollider>();
             dishBall.center = V(ShipLayout.DishCentre);
             dishBall.radius = ShipLayout.DishRadius * 0.9f;
@@ -342,13 +344,35 @@ namespace OrbitalAnte.Ship
             return go;
         }
 
-        GameObject AddVisual(GameObject parent, ShipMesh data, string name, Material material)
+        /// <summary>The model file holding the Blender-made outside fittings (tools/blender/build_ship.py).</summary>
+        public const string FittingsModel = "Lander";
+        /// <summary>The cabin's panelled dome shades round; edges sharper than this stay crisp.</summary>
+        const float HullRoundDegrees = 42f;
+
+        /// <summary>
+        /// An outside fitting: the Blender-made piece if the model file has it, otherwise the shape the game
+        /// builds itself. Both are in ship space and fit the same colliders.
+        /// </summary>
+        GameObject AddFitting(GameObject parent, string piece, System.Func<ShipMesh> standIn, string name, Material material)
+        {
+            Mesh shared = OrbitalAnte.Look.ModelLibrary.PartMesh(FittingsModel, piece);
+            if (shared == null) return AddVisual(parent, standIn(), name, material);
+            // The library owns this mesh (wreckage and a restarted run use it too), so it is not added to _owned.
+            return AddRenderer(parent, shared, name, material);
+        }
+
+        GameObject AddVisual(GameObject parent, ShipMesh data, string name, Material material, float roundDegrees = 0f)
+        {
+            Mesh mesh = ShipMeshes.ToMesh(data, name, null, roundDegrees);
+            _owned.Add(mesh);
+            return AddRenderer(parent, mesh, name, material);
+        }
+
+        GameObject AddRenderer(GameObject parent, Mesh mesh, string name, Material material)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent.transform, false);
             go.layer = Layers.Default;
-            Mesh mesh = ShipMeshes.ToMesh(data, name);
-            _owned.Add(mesh);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
@@ -898,7 +922,8 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
-            // The meshes belong to the ship and are freed with it.
+            // Shapes the ship built itself belong to the ship and are freed with it; Blender-made fittings
+            // belong to the model library and outlive it.
         }
     }
 }

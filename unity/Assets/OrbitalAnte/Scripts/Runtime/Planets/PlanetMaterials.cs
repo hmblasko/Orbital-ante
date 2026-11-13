@@ -29,10 +29,15 @@ namespace OrbitalAnte.Planets
         static readonly int StrengthId = Shader.PropertyToID("_Strength");
         static readonly int LimbId = Shader.PropertyToID("_Limb");
         static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
+        static readonly int BoostId = Shader.PropertyToID("_Boost");
+        static readonly int PaintId = Shader.PropertyToID("_Paint");
+        static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
+        static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
+        static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
 
         static bool _looked;
         static bool _simple;
-        static Shader _terrain, _body, _atmosphere, _water;
+        static Shader _terrain, _body, _atmosphere, _water, _sky;
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
 
@@ -54,7 +59,7 @@ namespace OrbitalAnte.Planets
         {
             _simple = false;
             _looked = false;
-            _terrain = _body = _atmosphere = _water = null;
+            _terrain = _body = _atmosphere = _water = _sky = null;
             _vertexLit = _vertexUnlit = null;
             ClearVertexCache();
         }
@@ -81,10 +86,15 @@ namespace OrbitalAnte.Planets
             _body = _simple ? null : Find("OA_Body", "OrbitalAnte/Body");
             _atmosphere = _simple ? null : Find("OA_Atmosphere", "OrbitalAnte/Atmosphere");
             _water = _simple ? null : Find("OA_Water", "OrbitalAnte/Water");
+            _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
             if (!_simple && (_terrain == null || _body == null || _atmosphere == null || _water == null))
             {
                 Debug.LogWarning("Orbital Ante: one or more planet shaders could not be used on this machine, so Unity's standard shaders are standing in for them. " +
                                  "Ground " + Describe(_terrain) + ", far bodies " + Describe(_body) + ", air rim " + Describe(_atmosphere) + ", water " + Describe(_water) + ".");
+            }
+            if (!_simple && _sky == null)
+            {
+                Debug.LogWarning("Orbital Ante: the sky shader could not be used on this machine, so the sky is a plain colour.");
             }
         }
 
@@ -136,11 +146,13 @@ namespace OrbitalAnte.Planets
             return m;
         }
 
-        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f)
+        /// <param name="paintScale">1 for ground and rocks. Larger makes the painted patches smaller, for things held in the hand.</param>
+        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f, bool painted = true, float paintScale = 1f)
         {
             Look();
             Color32 c = tint;
-            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) | (painted ? 0L : 1L << 50) | ((long)scaleKey << 52);
             if (VertexCache.TryGetValue(key, out Material cached) && cached != null) return cached;
 
             Material m;
@@ -150,6 +162,8 @@ namespace OrbitalAnte.Planets
                 m.SetColor(BaseColorId, tint);
                 m.SetFloat(SunAmountId, sunlight);
                 m.SetFloat(GlowId, glow);
+                m.SetFloat(PaintId, painted ? 1f : 0f);
+                m.SetFloat(PaintScaleId, scaleKey);
             }
             else if (sunlight < 0.5f || glow > 0.3f)
             {
@@ -202,7 +216,8 @@ namespace OrbitalAnte.Planets
         /// A material for a whole body seen from afar. <paramref name="emission"/> 1 is for the Sun;
         /// <paramref name="veil"/> is how completely a daytime sky hides it.
         /// </summary>
-        public static Material Body(string name, Texture picture, Color tint, float emission = 0f, float veil = 1f, bool twoSided = false)
+        /// <param name="boost">For things that shine by themselves: how much brighter than white, so they bloom.</param>
+        public static Material Body(string name, Texture picture, Color tint, float emission = 0f, float veil = 1f, bool twoSided = false, float boost = 1f)
         {
             Look();
             Material m;
@@ -213,6 +228,7 @@ namespace OrbitalAnte.Planets
                 m.SetFloat(EmissionId, emission);
                 m.SetFloat(VeilId, veil);
                 m.SetFloat(TwoSidedId, twoSided ? 1f : 0f);
+                m.SetFloat(BoostId, Mathf.Clamp(boost, 1f, 12f));
             }
             else
             {
@@ -235,6 +251,21 @@ namespace OrbitalAnte.Planets
             if (material == null) return;
             if (material.HasProperty(BaseColorId)) material.SetColor(BaseColorId, color);
             if (material.HasProperty(ColorId)) material.SetColor(ColorId, color);
+        }
+
+        /// <summary>The sky ball's material, or null if the sky shader is not available (the camera's plain background stands in).</summary>
+        public static Material Sky(float backdropStrength)
+        {
+            Look();
+            if (_sky == null) return null;
+            var m = new Material(_sky) { name = "OA_Sky (runtime)" };
+            m.SetFloat(BackdropStrengthId, backdropStrength);
+            return m;
+        }
+
+        public static void SetBackdrop(Material sky, Texture picture)
+        {
+            if (sky != null && picture != null && sky.HasProperty(BackdropId)) sky.SetTexture(BackdropId, picture);
         }
 
         /// <summary>The glowing rim of air seen from space, or null if the shader for it is not available.</summary>
