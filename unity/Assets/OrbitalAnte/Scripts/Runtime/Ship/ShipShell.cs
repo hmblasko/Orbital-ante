@@ -167,9 +167,81 @@ namespace OrbitalAnte.Ship
         {
             var b = new MeshBuilder();
             b.Color("#A8D8E8");
-            // One layer: the glass material draws both of its sides.
-            b.Fan(GlassLoop(w, 0.55f), flip: false);
+            // One layer: the glass material draws both of its sides. The pane is built in rings from its middle
+            // out to its edge, each ring lying on the curve of the wall, so a wide window bends round with the
+            // cabin and does not cut straight across the inside of it.
+            var edge = new List<KeyValuePair<float, float>>();
+            foreach (var uv in EdgeSteps(w))
+            {
+                ShipLayout.GlassPoint(w, uv.Key, uv.Value, out float u, out float v);
+                edge.Add(new KeyValuePair<float, float>(u, v));
+            }
+            int rings = Math.Max(1, Math.Max(w.Columns, w.Rows) / 3);
+            int n = edge.Count;
+            int centre = b.Add(ShipLayout.SurfacePoint(w.Column + 0.5f * w.Columns, w.Row + 0.5f * w.Rows, GlassDepth));
+            int before = -1;
+            for (int r = 1; r <= rings; r++)
+            {
+                float f = r / (float)rings;
+                int first = b.VertexCount;
+                for (int i = 0; i < n; i++)
+                {
+                    float u = 0.5f + (edge[i].Key - 0.5f) * f, v = 0.5f + (edge[i].Value - 0.5f) * f;
+                    b.Add(ShipLayout.SurfacePoint(w.Column + u * w.Columns, w.Row + v * w.Rows, GlassDepth));
+                }
+                for (int i = 0; i < n; i++)
+                {
+                    int j = (i + 1) % n;
+                    if (r == 1) b.Tri(centre, first + i, first + j);
+                    else { b.Tri(before + i, first + i, first + j); b.Tri(before + i, first + j, before + j); }
+                }
+                before = first;
+            }
             return b.Finish();
+        }
+
+        /// <summary>How far through the hull's thickness the glass sits (0 inside face, 1 outside face).</summary>
+        public const float GlassDepth = 0.55f;
+
+        /// <summary>
+        /// How many boxes it takes to cover a window's glass for bullets and repair. A small window needs one;
+        /// a wide one bends round the cabin, and a single box round it would stick out into the cabin and into
+        /// space, so it gets one box for every few columns.
+        /// </summary>
+        public static int GlassBoxCount(WindowSpec w) => Math.Max(1, (w.Columns + 3) / 4);
+
+        /// <summary>One of the boxes that cover a window's glass: see <see cref="GlassBoxCount"/>.</summary>
+        public static void GlassBox(WindowSpec w, int index, out P3 centre, out P3 right, out P3 up, out P3 outward, out P3 half)
+        {
+            int count = GlassBoxCount(w);
+            if (count == 1) { GlassBox(w, out centre, out right, out up, out outward, out half); return; }
+            float from = index / (float)count, to = (index + 1) / (float)count;
+            float midColumn = w.Column + (from + to) * 0.5f * w.Columns, midRow = w.Row + 0.5f * w.Rows;
+            P3 inner = ShipLayout.SurfacePoint(midColumn, midRow, 0f), outer = ShipLayout.SurfacePoint(midColumn, midRow, 1f);
+            P3 middle = P3.Lerp(inner, outer, 0.5f);
+            outward = (outer - inner).Unit();
+            right = P3.Cross(P3.Up, outward).Unit();
+            up = P3.Cross(outward, right).Unit();
+            float maxR = 0f, maxU = 0f, minO = float.MaxValue, maxO = float.MinValue;
+            const int steps = 16;
+            for (int i = 0; i <= steps; i++)
+            {
+                for (int j = 0; j <= steps; j++)
+                {
+                    float u = from + (to - from) * i / steps, v = j / (float)steps;
+                    if (!ShipLayout.OnGlass(w, u, v)) continue;
+                    P3 d = ShipLayout.SurfacePoint(w.Column + u * w.Columns, w.Row + v * w.Rows, GlassDepth) - middle;
+                    maxR = Math.Max(maxR, Math.Abs(P3.Dot(d, right)));
+                    maxU = Math.Max(maxU, Math.Abs(P3.Dot(d, up)));
+                    float o = P3.Dot(d, outward);
+                    minO = Math.Min(minO, o);
+                    maxO = Math.Max(maxO, o);
+                }
+            }
+            float innerFace = Math.Min(minO, -ShipLayout.HullThickness * 0.5f);
+            float outerFace = Math.Max(maxO, ShipLayout.HullThickness * 0.5f) + 0.05f;
+            centre = middle + outward * ((innerFace + outerFace) * 0.5f);
+            half = new P3(maxR, maxU, (outerFace - innerFace) * 0.5f);
         }
 
         /// <summary>
@@ -311,7 +383,7 @@ namespace OrbitalAnte.Ship
         static List<P3> PanelEdge(WindowSpec w, float through)
         {
             var loop = new List<P3>();
-            foreach (var uv in EdgeSteps(w)) loop.Add(ShipLayout.SurfacePoint(w.Column + uv.Key * w.Columns, w.Row + uv.Value * w.Rows, through));
+            foreach (var uv in EdgeSteps(w)) loop.Add(PanelPoint(w, uv.Key, uv.Value, through));
             return loop;
         }
 
@@ -327,12 +399,31 @@ namespace OrbitalAnte.Ship
             return loop;
         }
 
+        /// <summary>
+        /// A point on the edge of a window's panel. The wall is made of flat pieces, one per grid square, so a
+        /// point part way along a square's side is placed on the straight line between its corners: it then
+        /// lies exactly on the wall's own edge and no crack can open between wall and frame.
+        /// </summary>
+        static P3 PanelPoint(WindowSpec w, float u, float v, float through)
+        {
+            float c = u * w.Columns, r = v * w.Rows;
+            int c0 = Math.Min(w.Columns - 1, (int)Math.Floor(c + 1e-4f)), r0 = Math.Min(w.Rows - 1, (int)Math.Floor(r + 1e-4f));
+            float fc = c - c0, fr = r - r0;
+            P3 a = ShipLayout.SurfacePoint(w.Column + c0, w.Row + r0, through), b = ShipLayout.SurfacePoint(w.Column + c0 + 1, w.Row + r0, through);
+            P3 d = ShipLayout.SurfacePoint(w.Column + c0, w.Row + r0 + 1, through), e = ShipLayout.SurfacePoint(w.Column + c0 + 1, w.Row + r0 + 1, through);
+            return P3.Lerp(P3.Lerp(a, b, fc), P3.Lerp(d, e, fc), fr);
+        }
+
+        /// <summary>Points round the edge of a window's panel. Several to each grid square, so the glass's outline is a smooth curve and not a string of straight facets.</summary>
+        const int EdgeDetail = 3;
+
         static IEnumerable<KeyValuePair<float, float>> EdgeSteps(WindowSpec w)
         {
-            for (int i = 0; i < w.Columns; i++) yield return new KeyValuePair<float, float>(i / (float)w.Columns, 0f);
-            for (int j = 0; j < w.Rows; j++) yield return new KeyValuePair<float, float>(1f, j / (float)w.Rows);
-            for (int i = w.Columns; i > 0; i--) yield return new KeyValuePair<float, float>(i / (float)w.Columns, 1f);
-            for (int j = w.Rows; j > 0; j--) yield return new KeyValuePair<float, float>(0f, j / (float)w.Rows);
+            int across = w.Columns * EdgeDetail, upward = w.Rows * EdgeDetail;
+            for (int i = 0; i < across; i++) yield return new KeyValuePair<float, float>(i / (float)across, 0f);
+            for (int j = 0; j < upward; j++) yield return new KeyValuePair<float, float>(1f, j / (float)upward);
+            for (int i = across; i > 0; i--) yield return new KeyValuePair<float, float>(i / (float)across, 1f);
+            for (int j = upward; j > 0; j--) yield return new KeyValuePair<float, float>(0f, j / (float)upward);
         }
 
         static void BandSeenFrom(MeshBuilder b, List<P3> outer, List<P3> inner, P3 eye, bool away)

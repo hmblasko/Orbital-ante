@@ -483,16 +483,62 @@ namespace OrbitalAnte.Tests.EditMode
         [Test]
         public void Windows_AreWhereThePilotCanSeeThroughThem()
         {
-            // The two front windows are ahead of the seat and within a comfortable glance.
+            // One wide front window, dead ahead of the seat (Matthew, 13 Nov 2026: one large window, not two).
             int ahead = 0;
             foreach (WindowSpec w in ShipLayout.Windows)
             {
                 ShipLayout.WindowCentre(w, out P3 centre, out P3 _);
                 P3 to = (centre - ShipLayout.SeatedEye).Unit();
-                if (to.Z > 0.6f) ahead++;
+                if (to.Z > 0.6f && w.Row < 12) ahead++;
             }
-            Assert.GreaterOrEqual(ahead, 2);
-            Assert.AreEqual(5, ShipLayout.Windows.Length);
+            Assert.AreEqual(1, ahead);
+            Assert.AreEqual(4, ShipLayout.Windows.Length);
+        }
+
+        [Test]
+        public void TheFrontWindow_IsOneWideClearView()
+        {
+            WindowSpec front = ShipLayout.Windows[0];
+            Assert.AreEqual("window_front", front.Id);
+            var bake = new LightBake();
+            bake.Add(ShipShell.Interior());
+            foreach (var kv in ShipProps.Interior()) bake.Add(kv.Value);
+            bake.PrepareForRays();
+            P3 eye = ShipLayout.SeatedEye;
+            // Straight ahead, and a long way to each side and up, the pilot's eye meets glass and nothing else:
+            // no pillar up the middle, no furniture in the way.
+            int clear = 0, tried = 0;
+            for (int yaw = -50; yaw <= 50; yaw += 10)
+            {
+                for (int pitch = -5; pitch <= 35; pitch += 10)
+                {
+                    double a = yaw * Math.PI / 180.0, e = pitch * Math.PI / 180.0;
+                    var dir = new P3(Math.Sin(a) * Math.Cos(e), Math.Sin(e), Math.Cos(a) * Math.Cos(e));
+                    Assert.IsTrue(ShipLayout.CabinExit(eye, dir, out float far, out _, out ShipLayout.CabinExitKind kind, out int window));
+                    if (kind != ShipLayout.CabinExitKind.Window || window != 0) continue;
+                    tried++;
+                    if (bake.Trace(eye, dir, far - 0.02f, out float _) < 0) clear++;
+                }
+            }
+            Assert.GreaterOrEqual(tried, 50, "the front window should fill the view ahead: 100 degrees across, 40 up");
+            Assert.AreEqual(tried, clear, "something stands between the pilot and the front window");
+
+            // The glass bends round with the wall: no part of the pane cuts across the inside of the cabin.
+            ShipMesh glass = ShipShell.Glass(front);
+            for (int i = 0; i < glass.Positions.Length / 3; i++)
+            {
+                P3 p = glass.Position(i);
+                float fromAxis = (float)Math.Sqrt(p.X * p.X + p.Z * p.Z);
+                Assert.GreaterOrEqual(fromAxis, ShipLayout.InnerRadiusAt(p.Y) - 0.02f, "the glass dips into the cabin");
+            }
+
+            // Its boxes for bullets hug it too: none sticks out far into the cabin or into space.
+            Assert.Greater(ShipShell.GlassBoxCount(front), 1);
+            for (int c = 0; c < ShipShell.GlassBoxCount(front); c++)
+            {
+                ShipShell.GlassBox(front, c, out _, out _, out _, out _, out P3 half);
+                Assert.Less(half.Z, 0.2f, "box " + c + " is too deep");
+            }
         }
 
         // ------------------------------------------------------------------ baked light

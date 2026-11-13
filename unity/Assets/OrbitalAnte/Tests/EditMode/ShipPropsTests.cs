@@ -609,23 +609,18 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void Desk_StaysLow_ExceptItsCentreColumn()
+        public void Desk_StaysBelowTheFrontWindow()
         {
             ShipMesh m = Meshes["desk"];
-            float columnTop = 0f, lowTop = 0f;
+            float lowTop = 0f;
             int green = 0, amber = 0;
             for (int i = 0; i < m.VertexCount; i++)
             {
                 P3 p = m.Position(i);
                 Assert.GreaterOrEqual(p.Z, ShipLayout.DeskZ, "desk comes back past its line at " + p);
-                if (p.Y > 0.8f)
-                {
-                    double degrees = Math.Abs(Math.Atan2(p.X, p.Z)) * 180.0 / Math.PI;
-                    Assert.Less(degrees, 5.0, "desk rises above 0.8 away from the centre column at " + p);
-                    Assert.LessOrEqual(p.Y, 1.85f + 1e-4f);
-                    columnTop = Math.Max(columnTop, p.Y);
-                }
-                else lowTop = Math.Max(lowTop, p.Y);
+                // Nothing on the desk may stand up into the front window, whose sill is at 0.85.
+                Assert.LessOrEqual(p.Y, 0.84f, "the desk stands up into the front window at " + p);
+                lowTop = Math.Max(lowTop, p.Y);
                 if (m.Glow[i] > 0f)
                 {
                     Assert.That(m.Glow[i], Is.InRange(1f, 1.5f));
@@ -633,7 +628,6 @@ namespace OrbitalAnte.Tests
                     if (P3.Distance(m.Color(i), MeshBuilder.Web("#FFB347")) < 1e-3f) amber++;
                 }
             }
-            Assert.AreEqual(1.85f, columnTop, 1e-3f);
             Assert.Greater(lowTop, 0.7f);
             Assert.Greater(green, 0);
             Assert.Greater(amber, 0);

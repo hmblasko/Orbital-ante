@@ -415,9 +415,9 @@ namespace OrbitalAnte.Ship
                 Blob(b, tip, new P3(0.028f, 0.028f, 0.028f), 6, 4);
             }
 
-            // --- Grab rails: one up the nose between the front windows, one under each porthole, two on the roof.
+            // --- Grab rails: one along the nose under the front window, one under each porthole, two on the roof.
             b.Color(Silver);
-            Rail(b, 64f, 5.3f, 64f, 10.5f, 8);
+            Rail(b, 60f, 4.72f, 68f, 4.72f, 10);
             Rail(b, 13.6f, 4.72f, 18.4f, 4.72f, 6);
             Rail(b, 45.6f, 4.72f, 50.4f, 4.72f, 6);
             Rail(b, 16f, 15f, 16f, 18.3f, 5);
@@ -674,7 +674,7 @@ namespace OrbitalAnte.Ship
         const float DeskFront = ShipLayout.DeskZ + 0.03f;
         const float DeskHalfWidth = 1.62f;
         const float DeskTopFrontY = 0.675f, DeskTopBackY = 0.745f, DeskUnderY = 0.4f;
-        const float ColumnDepth = 0.14f, ColumnTop = 1.85f;
+        
 
         static float DeskBack(float x, float y)
         {
@@ -713,8 +713,8 @@ namespace OrbitalAnte.Ship
         }
 
         /// <summary>
-        /// The instrument desk across the nose, its back following the wall, with a slim instrument column up
-        /// the middle between the two front windows. The screens and switches are stand-ins for the real dash.
+        /// The instrument desk across the nose, its back following the wall, under the front window. Its middle
+        /// is kept clear for the real dash; the small screens and switches out to the sides are dressing.
         /// </summary>
         public static ShipMesh Desk()
         {
@@ -738,17 +738,16 @@ namespace OrbitalAnte.Ship
             }
 
             // Screens: a dark bezel with a glowing face.
-            DeskScreen(b, -0.58f, 0.58f, 0.17f, 0.105f, ScreenGreen, 1.2);
-            DeskScreen(b, 0.58f, 0.58f, 0.17f, 0.105f, ScreenAmber, 1.2);
-            DeskScreen(b, -1.08f, 0.5f, 0.1f, 0.07f, ScreenAmber, 1.0);
-            DeskScreen(b, 1.08f, 0.5f, 0.1f, 0.07f, ScreenGreen, 1.0);
+            // The middle of the desk is left clear for the real dash (CockpitDash), which stands on it.
+            DeskScreen(b, -1.3f, 0.5f, 0.1f, 0.07f, ScreenAmber, 1.0);
+            DeskScreen(b, 1.3f, 0.5f, 0.1f, 0.07f, ScreenGreen, 1.0);
 
             // Chunky toggle rows either side.
             string[] caps = { Silver, Silver, Red, Silver, Yellow };
             for (int side = -1; side <= 1; side += 2)
             {
-                P3 plateAt = DeskTopPoint(0.58f * side, 0.14f);
-                DeskFrame(0.58f * side, out P3 up, out P3 normal);
+                P3 plateAt = DeskTopPoint(0.9f * side, 0.3f);
+                DeskFrame(0.9f * side, out P3 up, out P3 normal);
                 b.Color(DarkMetal);
                 Pad(b, plateAt + normal * 0.001f, new P3(1f, 0f, 0f), up, normal, 0.24f, 0.04f, 0.006f, 0.01f, 2, 1);
                 for (int k = 0; k < caps.Length; k++)
@@ -757,17 +756,6 @@ namespace OrbitalAnte.Ship
                     b.Color(caps[k]);
                     Rod(b, at, at + (normal + up * (k % 2 == 0 ? 0.35f : -0.35f)).Unit() * 0.04f, 0.013f, 0.018f, 6, false, true);
                 }
-            }
-
-            // Big friendly buttons in the middle.
-            string[] buttons = { Orange, Cream, Cream, Cream, Blue, Cream };
-            for (int k = 0; k < buttons.Length; k++)
-            {
-                float x = (k % 3 - 1) * 0.11f;
-                float back01 = 0.3f + (k / 3) * 0.2f;
-                DeskFrame(x, out P3 up, out P3 normal);
-                b.Color(buttons[k], buttons[k] == Blue ? 1.0 : 0.0);
-                Pad(b, DeskTopPoint(x, back01) + normal * 0.001f, new P3(1f, 0f, 0f), up, normal, 0.04f, 0.035f, 0.016f, 0.012f);
             }
 
             // A hand controller either side of the seat line.
@@ -781,37 +769,6 @@ namespace OrbitalAnte.Ship
                 Blob(b, foot + new P3(0f, 0.07f, 0f), new P3(0.026f, 0.03f, 0.026f), 8, 4);
             }
 
-            // The centre column, hugging the wall as it leans in.
-            float[] offsetDegrees = { -4.4f, -3.6f, 0f, 3.6f, 4.4f };
-            float[] depth = { 0.004f, ColumnDepth - 0.01f, ColumnDepth, ColumnDepth - 0.01f, 0.004f };
-            const int columnRows = 11;
-            const float columnFoot = 0.7f;
-            Func<int, int, P3> columnAt = (i, j) =>
-            {
-                float y = Lerp(columnFoot, ColumnTop, j / (float)(columnRows - 1));
-                double a = offsetDegrees[i] * Math.PI / 180.0;
-                float r = WallRadius(y) - depth[i];
-                return new P3(Math.Sin(a) * r, y, Math.Cos(a) * r);
-            };
-            b.Color(DeskTop);
-            Skin(b, 5, columnRows, columnAt, Facing(new P3(0f, 0f, -1f)));
-            var cap = new List<P3>();
-            for (int i = 0; i < 5; i++) cap.Add(columnAt(i, columnRows - 1));
-            cap.Add(P3.Lerp(cap[4], cap[0], 0.5f));
-            FlatFan(b, cap, P3.Up);
-
-            ColumnScreen(b, 1.02f, 0.09f, 0.07f, ScreenGreen, 1.3);
-            ColumnScreen(b, 1.3f, 0.09f, 0.06f, ScreenAmber, 1.3);
-            string[] lights = { Red, ScreenGreen, Blue };
-            for (int k = 0; k < lights.Length; k++)
-            {
-                ColumnFrame(1.52f, out P3 at, out P3 up, out P3 normal);
-                b.Color(lights[k], 1.5);
-                Pad(b, at + new P3((k - 1) * 0.06f, 0f, 0f), new P3(1f, 0f, 0f), up, normal, 0.02f, 0.02f, 0.012f, 0.008f);
-            }
-            ColumnFrame(1.7f, out P3 dialAt, out P3 dialUp, out P3 dialNormal);
-            b.Color(Cream);
-            Pad(b, dialAt, new P3(1f, 0f, 0f), dialUp, dialNormal, 0.07f, 0.045f, 0.01f, 0.012f);
             return b.Finish();
         }
 
@@ -832,25 +789,6 @@ namespace OrbitalAnte.Ship
             Pad(b, at, right, up, normal, halfWidth + 0.02f, halfHeight + 0.02f, 0.012f, 0.014f, 2, 1);
             b.Color(colour, glow);
             Pad(b, at + normal * 0.012f, right, up, normal, halfWidth, halfHeight, 0.006f, 0.01f, 2, 1);
-        }
-
-        /// <summary>The middle of the centre column's face at a height, with the directions up it and out of it.</summary>
-        static void ColumnFrame(float y, out P3 at, out P3 up, out P3 normal)
-        {
-            Func<float, P3> face = h => new P3(0f, h, WallRadius(h) - ColumnDepth - 0.003f);
-            at = face(y);
-            up = (face(y + 0.04f) - face(y - 0.04f)).Unit();
-            normal = P3.Cross(up, new P3(1f, 0f, 0f)).Unit();
-        }
-
-        static void ColumnScreen(MeshBuilder b, float y, float halfWidth, float halfHeight, string colour, double glow)
-        {
-            ColumnFrame(y, out P3 at, out P3 up, out P3 normal);
-            P3 right = new P3(1f, 0f, 0f);
-            b.Color(Black);
-            Pad(b, at, right, up, normal, halfWidth + 0.015f, halfHeight + 0.015f, 0.01f, 0.012f);
-            b.Color(colour, glow);
-            Pad(b, at + normal * 0.01f, right, up, normal, halfWidth, halfHeight, 0.005f, 0.008f);
         }
 
         /// <summary>The floor post that carries the hatch lever, beside the lift well.</summary>

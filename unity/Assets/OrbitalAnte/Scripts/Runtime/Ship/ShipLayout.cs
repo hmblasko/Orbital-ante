@@ -112,8 +112,10 @@ namespace OrbitalAnte.Ship
         // ---------------------------------------------------------------- windows
         public static readonly WindowSpec[] Windows =
         {
-            new WindowSpec { Id = "window_front_left", Name = "Front left window", Column = 57, Columns = 6, Row = 5, Rows = 6, Shape = WindowShape.LanderTriangle, Mirror = true },
-            new WindowSpec { Id = "window_front_right", Name = "Front right window", Column = 1, Columns = 6, Row = 5, Rows = 6, Shape = WindowShape.LanderTriangle },
+            // One wide windscreen across the nose (Matthew, 13 Nov 2026: two small windows were hard to see out
+            // of). It runs from just inside one front thruster to just inside the other (they sit at columns 56
+            // and 8, with a wall lamp behind each), and from desk height up to where the roof window starts.
+            new WindowSpec { Id = "window_front", Name = "Front window", Column = 58, Columns = 12, Row = 5, Rows = 7, Shape = WindowShape.RoundedBox },
             new WindowSpec { Id = "window_overhead", Name = "Overhead window", Column = 61, Columns = 6, Row = 13, Rows = 4, Shape = WindowShape.RoundedBox },
             new WindowSpec { Id = "window_right", Name = "Right porthole", Column = 13, Columns = 6, Row = 5, Rows = 5, Shape = WindowShape.Round },
             new WindowSpec { Id = "window_left", Name = "Left porthole", Column = 45, Columns = 6, Row = 5, Rows = 5, Shape = WindowShape.Round },

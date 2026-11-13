@@ -165,8 +165,8 @@ namespace OrbitalAnte.Tests
             Assert.Less(_ship.Model.Health(cabin), before, "the cabin took no damage");
 
             // Out through the glass is still the glass's business, not the wall's.
-            int front = _ship.Model.IndexOf(ShipLayout.Windows[1].Id);
-            ShipLayout.WindowCentre(ShipLayout.Windows[1], out P3 centre, out _);
+            int front = _ship.Model.IndexOf(ShipLayout.Windows[0].Id);
+            ShipLayout.WindowCentre(ShipLayout.Windows[0], out P3 centre, out _);
             Vector3 from = _ship.transform.TransformPoint(new Vector3(0f, 1.3f, 0f));
             Vector3 to = _ship.transform.TransformPoint(new Vector3(centre.X, centre.Y, centre.Z));
             float glassBefore = _ship.Model.Health(front);

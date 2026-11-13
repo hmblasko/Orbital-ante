@@ -48,7 +48,7 @@ namespace OrbitalAnte.Ship
             public WindowSpec Spec;
             public int Part;
             public GameObject Glass;
-            public Collider Collider;
+            public Collider[] Colliders;
             public Material Material;
             public MeshFilter Cracks;
             public readonly List<P3> Hits = new List<P3>();
@@ -210,7 +210,7 @@ namespace OrbitalAnte.Ship
             {
                 WindowSpec spec = ShipLayout.Windows[i];
                 int part = Model.IndexOf(spec.Id);
-                ShipShell.GlassBox(spec, out P3 centre, out P3 right, out P3 up, out P3 outward, out P3 half);
+                ShipLayout.WindowCentre(spec, out P3 centre, out _);
                 GameObject go = NewPart(part, V(centre));
 
                 var pane = new Pane { Spec = spec, Part = part };
@@ -218,14 +218,20 @@ namespace OrbitalAnte.Ship
                 _owned.Add(pane.Material);
                 pane.Glass = AddVisual(go, ShipShell.Glass(spec), "Glass", pane.Material);
 
-                var boxGo = new GameObject("GlassBox");
-                boxGo.transform.SetParent(go.transform, false);
-                boxGo.transform.localPosition = V(centre);
-                boxGo.transform.localRotation = Quaternion.LookRotation(V(outward), V(up));
-                boxGo.layer = Layers.Default;
-                var box = boxGo.AddComponent<BoxCollider>();
-                box.size = new Vector3(half.X * 2f, half.Y * 2f, half.Z * 2f);
-                pane.Collider = box;
+                // A wide window bends round the cabin, so its glass is covered by a row of boxes, not one.
+                pane.Colliders = new Collider[ShipShell.GlassBoxCount(spec)];
+                for (int c = 0; c < pane.Colliders.Length; c++)
+                {
+                    ShipShell.GlassBox(spec, c, out P3 boxCentre, out _, out P3 up, out P3 outward, out P3 half);
+                    var boxGo = new GameObject("GlassBox");
+                    boxGo.transform.SetParent(go.transform, false);
+                    boxGo.transform.localPosition = V(boxCentre);
+                    boxGo.transform.localRotation = Quaternion.LookRotation(V(outward), V(up));
+                    boxGo.layer = Layers.Default;
+                    var box = boxGo.AddComponent<BoxCollider>();
+                    box.size = new Vector3(half.X * 2f, half.Y * 2f, half.Z * 2f);
+                    pane.Colliders[c] = box;
+                }
 
                 var cracks = new GameObject("Cracks");
                 cracks.transform.SetParent(go.transform, false);
@@ -529,7 +535,7 @@ namespace OrbitalAnte.Ship
                 bool gone = stage >= 4;
                 pane.Glass.SetActive(!gone);
                 // With the glass gone, shots and everything else pass straight through the hole.
-                pane.Collider.enabled = !gone;
+                for (int c = 0; c < pane.Colliders.Length; c++) pane.Colliders[c].enabled = !gone;
                 ShipMeshes.SetFrost(pane.Material, stage >= 3 ? 1f : stage == 2 ? 0.5f : stage == 1 ? 0.15f : 0f);
                 if (stage == 0) pane.Hits.Clear();
                 // Only when what would be drawn has changed: the crack lines are thousands of triangles.

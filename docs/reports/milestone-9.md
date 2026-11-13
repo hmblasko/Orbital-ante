@@ -31,6 +31,14 @@ All four show the same facts in the same places on purpose, so choosing one is a
 - The pad refills in 6 seconds. Standing still anywhere else refills slowly (45 seconds), so you cannot be stranded.
 - Air only runs down if a window is broken (about 7 minutes with one window out). A sealed cabin keeps its air for now, because there is nothing you could do about it until the suit exists in Milestone 11.
 
+**One large front window (added 13 Nov 2026 after your feedback that two windows were hard to see out of).**
+- The two small triangular front windows are replaced by one wide windscreen across the nose. From the seat it gives a clear view about 100 degrees across and from desk height up to the roof window.
+- The glass bends round with the cabin wall (it is built in rings, not as one flat sheet), and is covered by three boxes for bullets and repair so none sticks out.
+- The instrument column that ran up the middle of the nose is gone, and the middle of the desk is cleared for the dash. The grab rail outside that ran up between the windows now runs along under the window.
+- The cabin's baked light was redone for the new shape. Pictures: `docs/art/previews/front-window-seat.png` and `front-window-outside.png` (offline renders, not Unity screenshots).
+- The window is still one breakable, repairable part with the same strength as any other window, although it is about three times the area. Say if you want it tougher.
+- The side portholes and the roof window are unchanged. The window stops just inside the two front thrusters, which is what limits its width.
+
 ## Why, and which principles it serves
 
 - **Fun core first (1) and cognitive load (7):** one notice at a time, by urgency; numbers are eased and rounded so they do not flicker; every gauge has its own shape, so you know which is which without reading.
@@ -49,7 +57,7 @@ All four show the same facts in the same places on purpose, so choosing one is a
 
 ## What was tested
 
-- **1,035 rule tests pass** outside Unity (5 skipped, as before). New for this milestone: fuel and air sums, refilling, the reserve push, reading rounding and easing, notice priority, every design staying on its panel and under its triangle and word caps, every design showing the same facts, no word smaller than 14 units, a warning blink changing at most 3 words, the picture fingerprint, the camera ring, the look-down timing.
+- **1,036 rule tests pass** outside Unity (5 skipped, as before). New for this milestone: fuel and air sums, refilling, the reserve push, reading rounding and easing, notice priority, every design staying on its panel and under its triangle and word caps, every design showing the same facts, no word smaller than 14 units, a warning blink changing at most 3 words, the picture fingerprint, the camera ring, the look-down timing.
 - **The game code and all PlayMode tests compile** against stand-in Unity libraries. (The one known gap there is unrelated: the stand-in editor library has no `AssetPostprocessor`, which the audio import rule uses.)
 - **The four designs were drawn offline** in four situations (on the pad, climbing, cruising, in trouble) and looked at. Fixes made from that: stacked height label, larger text, warning banner clear of the fuel percent.
 
