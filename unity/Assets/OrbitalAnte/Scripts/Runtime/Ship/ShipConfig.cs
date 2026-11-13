@@ -47,7 +47,7 @@ namespace OrbitalAnte.Ship
         public float doorSeconds = 0.5f;
         [Tooltip("Speed of the gravity lift, in metres per second.")]
         public float liftSpeed = 2.6f;
-        [Tooltip("How far below the belly the lift can reach, in metres.")]
+        [Tooltip("How far below the belly the lift can reach, in metres. Shorter settings are raised enough for the whole suit to clear the hull and still reboard.")]
         public float liftReach = 4f;
         [Tooltip("How far from the ship (metres) the hatch button on your suit still works.")]
         public float remoteHatchRange = 12f;

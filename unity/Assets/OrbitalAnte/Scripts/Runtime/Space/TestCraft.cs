@@ -26,7 +26,21 @@ namespace OrbitalAnte.Space
         /// <summary>Set by the map while it is open, so flying controls do nothing behind it.</summary>
         public bool ControlsLocked { get; set; }
         /// <summary>Set by the ship while nobody is buckled into the seat: the controls do nothing.</summary>
-        public bool Unmanned { get; set; }
+        public bool Unmanned
+        {
+            get => _unmanned;
+            set
+            {
+                _unmanned = value;
+                if (!value) return;
+                if (PilotOn) StopPilot(PilotStop.Unbuckled);
+                ThrustInput = Vector3.zero;
+                _lookPending = Vector2.zero;
+                Boosting = false;
+                MatchingVelocity = false;
+            }
+        }
+        bool _unmanned;
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
         public float LiftScale { get; set; } = 1f;
         /// <summary>The share of all push (and of the match-velocity brake) that fuel allows, 0 to 1. Turning is not touched: you can always steer.</summary>
@@ -112,6 +126,14 @@ namespace OrbitalAnte.Space
 
         public void StopPilot(PilotStop why, int blocker = -1)
         {
+            // The displayed jet request belongs to the autopilot. Automatic stops must discard it before
+            // another physics step; a manual takeover has already sampled the pilot's real input in Update.
+            if (PilotOn && why != PilotStop.PilotTookOver)
+            {
+                ThrustInput = Vector3.zero;
+                Boosting = false;
+                MatchingVelocity = false;
+            }
             PilotOn = false;
             PilotPushShare = 0f;
             Order = default;
@@ -121,8 +143,9 @@ namespace OrbitalAnte.Space
             LastStopWords = Autopilot.Describe(why, name);
         }
 
-        int FindBlocker()
+        int FindBlocker(BodyState[] states = null)
         {
+            if (states == null) states = System.States;
             int count = System.Bodies.Length;
             if (_pathPositions == null || _pathPositions.Length != count)
             {
@@ -132,7 +155,7 @@ namespace OrbitalAnte.Space
             Vector3 here = Body.position;
             for (int i = 0; i < count; i++)
             {
-                _pathPositions[i] = SpaceConvert.ToVec3d(System.Bodies[i].transform.position - here);
+                _pathPositions[i] = System.Frame.ToLocalPosition(states[i].Position, states) - SpaceConvert.ToVec3d(here);
                 // Rocks are small and drift; the autopilot does not plan round them. Watch the window.
                 _pathRadii[i] = System.Bodies[i].Spec.kind == BodyKind.Asteroid ? 0.0 : System.Bodies[i].Spec.radius;
             }
@@ -303,18 +326,37 @@ namespace OrbitalAnte.Space
         /// <summary>The craft's velocity measured against the body Match Velocity would match.</summary>
         public Vector3 RelativeVelocity()
         {
-            Vector3 velocity = Body.linearVelocity;
-            AgainstGround = false;
+            Vector3 velocity = MatchVelocityAt(System != null ? System.States : null, out bool ground);
+            AgainstGround = ground;
+            return velocity;
+        }
+
+        Vector3 MatchVelocityAt(BodyState[] states, out bool ground)
+        {
+            ground = false;
             if (System != null && Target >= 0)
             {
                 // Close above a body, what matters is the ground beneath, which a spinning body carries round
                 // with it. Matching that is what lets you set down on a spinning moon without skidding.
                 BodySpec spec = System.Bodies[Target].Spec;
-                double height = System.AltitudeAbove(Target, Body.position);
-                AgainstGround = height < global::System.Math.Max(GroundMatchLeast, spec.radius * GroundMatchShare);
-                velocity -= AgainstGround ? System.GroundVelocityAt(Target, Body.position) : System.LocalVelocityOf(Target);
+                Vec3d position = System.Frame.ToTruePosition(SpaceConvert.ToVec3d(Body.position), states);
+                double height = Vec3d.Distance(position, states[Target].Position) - spec.radius;
+                ground = height < global::System.Math.Max(GroundMatchLeast, spec.radius * GroundMatchShare);
+                return RelativeVelocityAt(Body.position, Target, states, ground);
             }
-            return velocity;
+            return Body.linearVelocity;
+        }
+
+        Vector3 RelativeVelocityAt(Vector3 point, int body, BodyState[] states, bool ground = false)
+        {
+            if (ground && states == System.States) return Body.linearVelocity - System.GroundVelocityAt(body, point);
+            Vec3d position = System.Frame.ToTruePosition(SpaceConvert.ToVec3d(point), states);
+            Vec3d reference = states[body].Velocity;
+            if (ground) reference += Vec3d.Cross(System.Model.SpinAxis(body) * System.Model.SpinRate(body), position - states[body].Position);
+            // Both velocities must be evaluated at the craft's point. A body's centre has a different
+            // apparent velocity in a rotating frame, even when their true translational velocities match.
+            Vector3 local = SpaceConvert.ToVector3(System.Frame.ToLocalVelocity(position, reference, states));
+            return Body.linearVelocity - local;
         }
 
         /// <summary>
@@ -378,7 +420,11 @@ namespace OrbitalAnte.Space
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
             _lookPending = Vector2.zero;
-            if (PilotOn && !Unmanned) FlyByPilot(dt);
+            if (PilotOn && !Unmanned)
+            {
+                FlyByPilot(dt);
+                return;
+            }
             else if (!Locked)
             {
                 // Only a pilot steadies the ship. Left alone it tumbles, tips and comes to rest like any other object.
@@ -386,6 +432,7 @@ namespace OrbitalAnte.Space
                 Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
             }
 
+            if (Locked) return;
             float power = Config.thrust * (Boosting ? Config.boostMultiplier : 1f);
             if (PilotOn) return;
             if (ThrustInput.sqrMagnitude > 0.0001f)
@@ -399,7 +446,7 @@ namespace OrbitalAnte.Space
             {
                 // Matches the body under the nose. With nothing under the nose, velocity here is already measured
                 // against the nearby body (see ReferenceFrame), so matching it is simply coming to a stop.
-                Vector3 velocity = RelativeVelocity();
+                Vector3 velocity = MatchVelocityAt(System != null ? System.PhysicsStates : null, out _);
                 float speed = velocity.magnitude;
                 if (speed > 0.02f)
                 {
@@ -413,19 +460,20 @@ namespace OrbitalAnte.Space
         {
             if (System == null || LockedTarget < 0) { StopPilot(PilotStop.NoTarget); return; }
             if (PushScale < 0.5f) { StopPilot(PilotStop.NoFuel); return; }
+            BodyState[] states = System.PhysicsStates;
             _nextPathCheck -= dt;
             if (_nextPathCheck <= 0f)
             {
                 _nextPathCheck = 0.5f;
-                int blocker = FindBlocker();
+                int blocker = FindBlocker(states);
                 if (blocker >= 0) { StopPilot(PilotStop.Blocked, blocker); return; }
             }
 
             // Whatever weakens the ship in the pilot's hands weakens it in the autopilot's: damage and an empty tank.
             float share = Mathf.Clamp01(PushScale) * Mathf.Clamp01(Mathf.Min(LiftScale, SideScale));
             CelestialBody body = System.Bodies[LockedTarget];
-            Vector3 to = body.transform.position - Body.position;
-            Vector3 relative = Body.linearVelocity - System.LocalVelocityOf(LockedTarget);
+            Vector3 to = SpaceConvert.ToVector3(System.Frame.ToLocalPosition(states[LockedTarget].Position, states)) - Body.position;
+            Vector3 relative = RelativeVelocityAt(Body.position, LockedTarget, states);
             PilotOrder order = Autopilot.Fly(PilotRules, SpaceConvert.ToVec3d(to), SpaceConvert.ToVec3d(relative), body.Spec.radius,
                 SpaceConvert.ToVec3d(Gravity != null ? Gravity.FeltGravity : Vector3.zero), share);
             // What is shown is steadier than what is flown: the time only counts down, and the word for what it

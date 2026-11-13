@@ -47,7 +47,7 @@ Every new system from here on gets a line in this file: what it may cost and wha
 
 | | Cap or expected cost |
 |---|---|
-| Bodies moved each physics step | 150 at most (today 130: Sun, 8 planets, 11 moons, 110 asteroids) |
+| Bodies moved each physics step | Configured body count (documented default 130); 150 is not an enforced runtime cap. |
 | Asteroids | 110 (`Asteroid Belt > Count` on the SolarSystem asset) |
 | Surface textures | 9 at 384 x 192, 11 moons at 192 x 96, about 5 MB in all |
 | Building those textures when a run starts | a pause of under half a second on Deck is the target. Estimated 0.15 to 0.5 s in a build, longer in the editor. Not measured. No loading screen yet. |
@@ -234,7 +234,7 @@ Read by the deck-performance agent. Nothing here has been run in Unity; Deck fig
 |---|---|---|
 | Autopilot steering | a few square roots per physics step, no garbage. Guessed under 5 microseconds on Deck. | one ship |
 | Autopilot path check | all 130 bodies, twice a second, only while the autopilot is on. Two small lists (about 4 KB) made once. | 2 checks a second |
-| Finding what the nose points at | all 130 bodies every frame (older code, now also feeds the lock). Guessed 15 to 40 microseconds on Deck. | 150 bodies |
+| Finding what the nose points at | all configured bodies every frame (older code, now also feeds the lock). Existing 15 to 40 microsecond Deck estimate remains unmeasured. | configured body count; no enforced 150-body cap |
 | Autopilot words (dash and HUD) | remade when the shown word or whole second changes: about 0.6 KB of garbage a second while it flies, 0 when off. The shown time only counts down and the word holds for 0.3 s, so it cannot flicker. | 1 remake a second each |
 | Words for why it let go | fixed strings; one small string when a body is in the way | once per stop |
 | Knocks on the pilot | a few sums per touch, no garbage. One string when a knock kills. | - |
@@ -250,6 +250,21 @@ What to read off in Unity:
 4. Fly into the ground at about 20 m/s. Click the tallest spike. Note the total ms, then search `Ship.OnCollisionEnter` and note **Calls**, **Time ms** and **GC Alloc**.
 5. Click the **Audio** row in the Profiler and repeat the crash. Note the highest **Playing Audio Sources** and **Audio Voices**.
 6. **Edit > Project Settings > Physics**: note whether **Reuse Collision Callbacks** is ticked. Then **Edit > Project Settings > Time**: note the **Fixed Timestep** number.
+
+### M10 support follow-up: EVA and navigation correctness
+
+No follow-up Deck timings have been measured. The start-of-step fix retains one `BodyState[]` sized to the
+configured system and copies it once per solar-system physics step, without a per-copy allocation. Navigation
+reuses that snapshot instead of reevaluating orbital states. Target-reference conversions add value-type math;
+the existing half-second autopilot path check keeps its cadence and configured-body-count scaling.
+
+Exit adds one `CheckCapsule` when releasing the physical suit. Existing lift rays use the same eight-hit
+buffer and outside movement the same six-hit spherecast buffer. The follow-up creates no renderer, texture,
+camera, particle emitter or new physics body. Fuel/input cancellation fixes add scalar decisions.
+
+Profile CPU/GC around frame changes, map-open autopilot, automatic stops, unbuckling/death and exit/reboard.
+Confirm collision clearance and the existing cockpit-camera cost on Deck. See
+[the follow-up report](reviews/eva-navigation-followup.md) for source/check limits.
 
 ## Lighting (asked for on 11 Nov 2026)
 

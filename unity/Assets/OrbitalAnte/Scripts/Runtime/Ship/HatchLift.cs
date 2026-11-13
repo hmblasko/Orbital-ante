@@ -21,6 +21,17 @@ namespace OrbitalAnte.Ship
         public float LiftSpeed = 2.6f;
         /// <summary>How far below the belly the lift can reach to pick someone up.</summary>
         public float Reach = 4f;
+        const float ExitClearance = 0.1f;
+        const float PickupInset = 0.1f;
+        /// <summary>The working reach always leaves room for a whole suit and a reboarding margin.</summary>
+        public float EffectiveReach => float.IsNaN(Reach) || float.IsInfinity(Reach)
+            ? ShipLayout.PersonHeight + ExitClearance + PickupInset
+            : Math.Max(Reach, ShipLayout.PersonHeight + ExitClearance + PickupInset);
+        /// <summary>Feet position for release into space: clear of the hull but still inside pickup reach.</summary>
+        public float SpaceExitY => ShipLayout.BellyY - EffectiveReach + PickupInset;
+
+        /// <summary>The physical suit must be below the convex base before it is switched on.</summary>
+        public bool HasExitClearance(float feetY) => feetY <= ShipLayout.BellyY - ShipLayout.PersonHeight - ExitClearance + 1e-4f;
 
         /// <summary>0 shut, 1 fully open.</summary>
         public float Openness { get; private set; }
@@ -51,17 +62,21 @@ namespace OrbitalAnte.Ship
         /// True when someone standing with their feet at <paramref name="feet"/> (ship space) is where the lift
         /// would pick them up: under the ring, within reach, with the doors open.
         /// </summary>
-        public bool CanPickUp(P3 feet)
+        public bool CanPickUp(P3 feet, bool requested = false)
         {
             float d = (float)Math.Sqrt(feet.X * feet.X + feet.Z * feet.Z);
-            bool under = d < ShipLayout.ShaftRadius - 0.1f && feet.Y < ShipLayout.BellyY + 0.3f && feet.Y > ShipLayout.BellyY - Reach;
+            float bottom = ShipLayout.BellyY - EffectiveReach;
+            bool withinReach = requested ? feet.Y >= bottom - 1e-4f : feet.Y > bottom;
+            bool under = d < ShipLayout.ShaftRadius - 0.1f && feet.Y < ShipLayout.BellyY + 0.3f && withinReach;
             if (!under)
             {
                 // Having been set down, you have to step out from under the ring before it will take you again.
-                if (d > ShipLayout.ShaftRadius + 0.15f || feet.Y < ShipLayout.BellyY - Reach) _mustStepAway = false;
+                if (d > ShipLayout.ShaftRadius + 0.15f || feet.Y < ShipLayout.BellyY - EffectiveReach) _mustStepAway = false;
                 return false;
             }
-            return Open && Ride == LiftRide.None && !_mustStepAway;
+            // Leaving the lift must not immediately pull you back in, but an explicit request can reboard
+            // without first having to walk (or use a jetpack) out of the beam.
+            return Open && WantOpen && Ride == LiftRide.None && (!_mustStepAway || requested);
         }
 
         public void BeginUp(P3 feet)
@@ -70,12 +85,14 @@ namespace OrbitalAnte.Ship
             Rider = feet;
         }
 
-        /// <param name="bottomY">How far down (ship space) the lift should set the rider down: the ground, or as far as it reaches.</param>
+        /// <param name="bottomY">Ground height in ship space; NaN means release into space below the whole suit.</param>
         public void BeginDown(P3 feet, float bottomY)
         {
             Ride = LiftRide.Down;
-            Rider = new P3(feet.X, 0f, feet.Z);
-            _rideBottom = Math.Max(ShipLayout.BellyY - Reach, Math.Min(bottomY, ShipLayout.BellyY - 0.2f));
+            // Preserve a partly completed descent if the ground goes away while the ship is moving.
+            Rider = new P3(feet.X, Math.Min(0f, feet.Y), feet.Z);
+            if (float.IsNaN(bottomY) || float.IsInfinity(bottomY)) bottomY = SpaceExitY;
+            _rideBottom = Math.Max(ShipLayout.BellyY - EffectiveReach, Math.Min(bottomY, ShipLayout.BellyY - 0.2f));
         }
 
         /// <summary>

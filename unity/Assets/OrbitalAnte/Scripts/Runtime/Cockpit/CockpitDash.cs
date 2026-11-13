@@ -218,13 +218,14 @@ namespace OrbitalAnte.Cockpit
             _frame++;
 
             bool inCabin = _crew.Mode == AstronautMode.Seated || _crew.Mode == AstronautMode.Aboard;
-            bool flying = _crew.Mode == AstronautMode.Seated && _ship.Belt.Buckled && !_craft.ControlsLocked && !_crew.Dead;
+            bool seated = _crew.Mode == AstronautMode.Seated && _ship.Belt.Buckled && !_crew.Dead;
+            bool flying = seated && !_craft.ControlsLocked;
 
             // Fuel and air.
             LaunchFx engines = _ship.Launch;
             bool onPad = engines != null && engines.Settled && _world.Base != null && _world.Base.OverPad(_ship.transform.position);
             // The autopilot pushes harder than a pilot's ordinary push, and pays for it.
-            float push = !flying ? 0f : _craft.PilotOn ? _craft.PilotPushShare : Mathf.Clamp01(_craft.ThrustInput.magnitude);
+            float push = seated && _craft.PilotOn ? _craft.PilotPushShare : flying ? Mathf.Clamp01(_craft.ThrustInput.magnitude) : 0f;
             // Braking to match speed burns fuel like any other push. Nothing the engines do is free.
             Braking = flying && _craft.MatchingVelocity && _craft.RelativeVelocity().sqrMagnitude > 0.25f;
             // It brakes twice as hard as an ordinary push, and is charged for it.
