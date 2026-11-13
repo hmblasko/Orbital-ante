@@ -84,7 +84,7 @@ The full first report is kept as written in `docs/audio/critic_report_1.md`. Sco
 | 22 | Style bible said things that were not true | **Fixed.** |
 | 14, 19, 21, 23 | Cave, facility, cabin and two music layers lack mid-range; the combat riser's drum roll clashes with flight's tempo; energy weapons have no mechanical layer; music is compressed twice | **Not done.** |
 
-**Second critic pass:** see the end of this report.
+**There has been no second critic pass yet.** One was started on the fixed version and stopped part-way when the session ran out of its usage allowance, so it produced no verdict. The 6.1 is therefore the score of the version *before* these fixes, and nobody independent has yet checked that the fixes did what the table says. That re-check is the first job of the next round.
 
 ### The main open problem
 
@@ -115,7 +115,7 @@ The bass, drums, brass, strings, choir and electric piano are played from FluidR
 | 4 to 6 compositions | Done (5), never heard |
 | 30 to 40 sound effects | Done (68 events), never heard |
 | Adaptive music demo and five-minute sequence | Done in code and as an offline render; not run in Unity |
-| Critic pass and fixes | Done twice over; score below the 8.5 target |
+| Critic pass and fixes | One full pass (6.1, below the 8.5 target) and one round of fixes. The re-score of the fixed version has not been done. |
 | AudioMixer groups and snapshots | **Partial.** The eight buses exist in code with levels and sliders. A real AudioMixer asset (needed for a limiter and for snapshots) is not made: it cannot be created or checked without the editor. There is an experimental menu item, Orbital Ante > Audio, for it. |
 | Sourced recordings (real guns, real engines, real instruments) | **Blocked** from the cloud: sound-library sites are not reachable. |
 | Steam Deck findings | **Blocked** until it runs on the Deck. Estimates only, in `docs/performance_budget.md`. |
@@ -128,7 +128,7 @@ The quick way, no Unity: play the attached `orbital_ante_audio_showcase.ogg` (fi
 
 In the game:
 
-1. Open Konsole and run `cd ~/Orbital-ante && git fetch && git checkout claude/audio-slice && git pull`.
+1. Open Konsole and run `cd ~/Orbital-ante && git checkout main && git pull`.
 2. Open the project in Unity Hub as usual. The first open takes a few extra minutes while Unity imports about 160 audio files.
 3. In the top menu choose **Orbital Ante > Audio > Check Audio Files**. The Console should say how many events and pieces it found and list no errors. If it lists errors, copy them to me.
 4. Press Play. Menu music should start within a second or two.
