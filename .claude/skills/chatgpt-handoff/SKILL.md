@@ -12,7 +12,8 @@ Matthew asked on 13 Nov 2026 for ChatGPT to take tasks that save Fable tokens wh
 **Send work to Codex** by posting a PR comment (`gh api repos/hmblasko/Orbital-ante/issues/<n>/comments -f body=...`), as part of the work Matthew asked for:
 - Review: `@codex review <focus>. Comment only.` on your own PR, once it is ready for review. One per PR, plus one `@codex review the latest commits only` after a round of fixes.
 - Task: `@codex <task>. Follow AGENTS.md: open one new PR into main, touch only <path>.` for audits, rule-test drafts, checklists or doc rewrites. Matthew can also start these from https://chatgpt.com/codex using the prompts in the "ChatGPT and Codex task menu" doc.
-- Codex posts under Matthew's GitHub login, so tell its comments apart by their content, not by who posted them.
+- Tested 13 Nov 2026: `@codex review` posted from a Claude session works (the bot is `chatgpt-codex-connector[bot]`). A non-review `@codex <task>` comment was answered "create an environment for this repo", so until Matthew sets one up at chatgpt.com/codex/cloud/settings/environments, ask him to start tasks from chatgpt.com/codex.
+- Codex's earlier cloud-task output was posted under Matthew's GitHub login, so tell its comments apart by their content, not by who posted them.
 
 **Good Codex work:** PR reviews; audits (seeds, Unity 6 traps, Deck cost, hard-coded feel numbers); EditMode rule-test drafts for plain C# rules; playtest checklists; design questions (never answers); turning Matthew's play notes into issues; rewording docs into numbered steps; critiquing Blender previews against a brief.
 **Never Codex:** making models, animations or audio; tuning values; feel passes; cockpit or dash designs; design decisions; quality-gate scores; anything Phase 2.
