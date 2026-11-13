@@ -10,7 +10,7 @@ using UnityEngine;
 namespace OrbitalAnte.Arena
 {
     /// <summary>
-    /// The simple combat test arena: flat ground, a few walls, the player and a handful of wandering mannequins.
+    /// The simple combat test arena: flat ground, a few walls, the player and a coordinated mannequin squad.
     /// Everything is built in code from the run seed, so restarting with the same seed gives the same layout.
     /// </summary>
     public sealed class TestArena : MonoBehaviour
@@ -34,6 +34,7 @@ namespace OrbitalAnte.Arena
         WeaponFx _weaponFx;
         PlayerConfig _playerConfig;
         float _respawnAt = -1f;
+        SquadCoordinator _squad;
 
         static readonly Vector3 PlayerStart = new Vector3(0f, 0.1f, -HalfSize + 5f);
         const float EyeHeight = 1.65f;
@@ -51,9 +52,10 @@ namespace OrbitalAnte.Arena
             CombatWorld.Reset();
             CombatWorld.PlayerEye = _eye;
             CombatWorld.Player = Health;
-            CombatWorld.FindCover = FindCover;
             // The arena starts calm so there is time to look around. H (or D-pad down) starts the fight.
             CombatWorld.EnemiesHoldFire = true;
+
+            BuildTactics();
 
             SpawnMannequins();
             Weapons.Equip(Weapon.Create(WeaponData.Rifle, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed));
@@ -117,34 +119,20 @@ namespace OrbitalAnte.Arena
 
         // ------------------------------------------------------------------ cover
 
-        /// <summary>A spot behind the nearest piece of cover, on the far side from the threat.</summary>
-        Vector3? FindCover(Vector3 from, Vector3 threat)
+        void BuildTactics()
         {
-            Vector3? best = null;
-            float bestSqr = float.MaxValue;
-            for (int i = 0; i < _obstacles.Count; i++)
+            TacticalAIConfig cfg = TacticalAIConfig.Load();
+            var footprints = new TacticalObstacle[_obstacles.Count];
+            for (int i = 0; i < footprints.Length; i++)
             {
                 Bounds b = _obstacles[i];
-                // Low walls and crates do not hide a standing character well, but they are better than nothing.
-                Vector3 away = b.center - threat;
-                away.y = 0f;
-                if (away.sqrMagnitude < 0.01f) continue;
-                away.Normalize();
-                // Far enough behind the obstacle to clear its thickest side.
-                float reach = Mathf.Abs(away.x) * b.extents.x + Mathf.Abs(away.z) * b.extents.z + 0.9f;
-                Vector3 spot = new Vector3(b.center.x, 0f, b.center.z) + away * reach;
-                if (Mathf.Abs(spot.x) > HalfSize - 1f || Mathf.Abs(spot.z) > HalfSize - 1f) continue;
-
-                float sqr = (spot - from).sqrMagnitude;
-                // Prefer tall cover by treating low cover as if it were further away.
-                if (b.size.y < 1.6f) sqr += 8f * 8f;
-                if (sqr < bestSqr)
-                {
-                    bestSqr = sqr;
-                    best = spot;
-                }
+                footprints[i] = new TacticalObstacle(b.min.x, b.min.z, b.max.x, b.max.z);
             }
-            return best;
+            _squad = gameObject.AddComponent<SquadCoordinator>();
+            float clearance = Mathf.Clamp(cfg.navigationClearance, 0.7f, 1f);
+            var grid = new TacticalGrid(-HalfSize + clearance, -HalfSize + clearance,
+                HalfSize - clearance, HalfSize - clearance, Mathf.Clamp(cfg.gridSpacing, 1f, 4f), clearance, footprints);
+            _squad.Initialize(cfg, grid);
         }
 
         // ------------------------------------------------------------------ world
@@ -293,6 +281,7 @@ namespace OrbitalAnte.Arena
         /// <summary>Removes every mannequin and loose part, then spawns a fresh set from the seed.</summary>
         public void SpawnMannequins()
         {
+            if (_squad != null) _squad.ClearMembers();
             // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
             if (_gibs != null) _gibs.ReleaseAll();
             if (_gore != null) _gore.Clear();
@@ -341,14 +330,17 @@ namespace OrbitalAnte.Arena
                 Mannequin mannequin = MannequinFactory.Create(position, rotation, _mannequinRoot, config, "Mannequin " + (i + 1));
                 var locomotion = mannequin.GetComponent<MannequinLocomotion>();
                 locomotion.SetWander(wanderArea, rng.Next());
+                locomotion.SuppressIdleWander = true;
 
                 // Everyone starts armed: mostly rifles, a couple of pistols.
                 var combat = mannequin.GetComponent<MannequinCombat>();
+                combat.RequireSquad = true;
                 combat.SetSeed(rng.Next());
                 WeaponData data = (i % 4 == 3) ? WeaponData.Pistol : WeaponData.Rifle;
                 Weapon weapon = Weapon.Create(data, _weaponRoot, config.oneHandedReloadAllowed);
                 weapon.transform.position = position + Vector3.up * 1.2f;
                 combat.TryPickUp(weapon);
+                if (_squad != null) _squad.Register(combat, locomotion, i);
 
                 _mannequins.Add(mannequin);
             }
@@ -374,6 +366,8 @@ namespace OrbitalAnte.Arena
                 b.Expand(margin * 2f);
                 if (position.x > b.min.x && position.x < b.max.x && position.z > b.min.z && position.z < b.max.z) return false;
             }
+            for (int i = 0; i < _mannequins.Count; i++)
+                if ((_mannequins[i].transform.position - position).sqrMagnitude < margin * margin * 4) return false;
             return true;
         }
     }

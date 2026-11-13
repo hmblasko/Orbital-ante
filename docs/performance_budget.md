@@ -43,6 +43,31 @@ Caps already enforced by code (set in `GoreConfig`):
 
 Every new system from here on gets a line in this file: what it may cost and what caps it.
 
+## Coordinated arena tactics: source limits, not measurements
+
+The arena still spawns eight enemies. Tactical coordination defaults to 32 participants and clamps to a hard
+maximum of 64; rejected registrations hold rather than bypass coordination. One tactical plan, including a
+weapon-recovery plan, runs per rendered frame. These bounds do not establish a supported crowd size on Deck.
+
+| Work | Enforced bound / initial setting |
+|---|---|
+| Static navigation | At most 4,096 grid cells and 64 obstacle footprints. Four-way links and inflated footprint checks are built once for this flat arena. |
+| Dynamic teammate occupancy | At most 63 other members tested against each cell per plan: up to 258,048 analytic distance checks at the hard limits. Current default grid/group is about 11,200 checks. This work is outside the A* expansion count. |
+| Candidate selection | At most 32 candidate positions (default 24); current nearest-cell searches inspect at most 25 cells each. |
+| Route search | At most four attempts, sharing one 4,096-node expansion limit (default 2,048). Reusable-buffer initialization occurs for each attempt and is additional work. |
+| Sensing | Default four, at most 16, range-filtered LOS probes per frame; round-robin scheduling. |
+| Planning LOS | Default 24, at most 32, probes per frame. Unknown/denied queries cannot authorize a firing or cover position. |
+| Shot clearance | Default eight, at most 32, clearance probes per frame. These tokens are separate from actual ballistic damage rays and weapon effects. |
+| Movement safety | Default 128, at most 256, probe claims per frame; a moving step requires two claims and otherwise waits. |
+| Fire pressure | Default three, at most eight, concurrent attack leases, also limited by participant capacity and current eligibility. This is a tuning constraint, not a physics-query budget. |
+| Blocked/recovery paths | Stuck retries and exact-gun approaches use the same single-plan lane; they cannot start an extra uncapped search. |
+
+Member searches, reservations and firing-lane checks are capped but can be quadratic in participant count.
+Route lists retain capacity and can grow toward the grid-cell cap; first use can allocate. There is no zero-GC,
+frame-time, GPU or 60 fps claim. In a Deck Development build compare CPU/GC, path expansions, probe use,
+physics and locomotion while blocked, recovering a gun and resetting the arena. See
+[the implementation report](reviews/swarm-tactics-implementation.md) for scope and checks.
+
 ## Solar system (Milestone 5): estimates from reading the code, not measured
 
 | | Cap or expected cost |

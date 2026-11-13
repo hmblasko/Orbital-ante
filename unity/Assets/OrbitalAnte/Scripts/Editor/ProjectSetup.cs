@@ -61,6 +61,7 @@ namespace OrbitalAnte.EditorTools
             return !File.Exists(ScenePath)
                    || GraphicsSettings.defaultRenderPipeline == null
                    || AssetDatabase.LoadAssetAtPath<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.AI.TacticalAIConfig>(ConfigFolder + "/TacticalAIConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<GoreConfig>(GoreConfigPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset") == null
@@ -280,6 +281,7 @@ namespace OrbitalAnte.EditorTools
         {
             EnsureFolder(ConfigFolder);
             CreateAssetIfMissing<MannequinConfig>(ConfigFolder + "/MannequinConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.AI.TacticalAIConfig>(ConfigFolder + "/TacticalAIConfig.asset");
             CreateAssetIfMissing<PlayerConfig>(ConfigFolder + "/PlayerConfig.asset");
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
             CreateAssetIfMissing<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset");

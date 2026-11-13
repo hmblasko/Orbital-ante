@@ -15,6 +15,7 @@ namespace OrbitalAnte.AI
     ///
     /// It also poses the gun and bends the arms to hold it.
     /// </summary>
+    [DefaultExecutionOrder(-40)]
     public sealed class MannequinCombat : MonoBehaviour, IWeaponHolder
     {
         const float PalmLength = 0.07f;
@@ -29,10 +30,11 @@ namespace OrbitalAnte.AI
         int _gunSide = MannequinRig.Right;
         float _thinkTimer;
         bool _seesPlayer;
-        float _reactAt;
-        bool _shootPhase = true;
-        float _phaseEnd;
-        Vector3 _movePoint;
+        readonly SightReaction _reaction = new SightReaction();
+        SquadCoordinator _squad;
+        int _squadId = -1;
+        Vector3 _seenTarget;
+        float _seenAt = float.NegativeInfinity;
         bool _triggerHeld;
         bool _triggerPressed;
         float _triggerUntil;
@@ -52,6 +54,34 @@ namespace OrbitalAnte.AI
         public bool CanFire => Weapon != null && Hands > 0 && _owner.Alive;
         /// <summary>Shots fired so far (for tests and tuning).</summary>
         public int ShotsFired { get; private set; }
+        /// <summary>Arena members denied by the configured capacity hold safely instead of bypassing the squad.</summary>
+        public bool RequireSquad;
+        public Vector3 ObservationOrigin => HeadPosition;
+        public float EngageRange => _cfg.engageRange;
+        public float TacticalBodyHeight => _owner.State == MovementState.Intact || _owner.State == MovementState.OneLeg ? 1.8f : 0.6f;
+        public SquadMemberState TacticalState
+        {
+            get
+            {
+                bool alive = _owner != null && _owner.Alive && isActiveAndEnabled;
+                MovementState state = alive ? _owner.State : MovementState.Dead;
+                bool armed = alive && CanFire && state != MovementState.HeadOnly;
+                Vector3 p = transform.position;
+                return new SquadMemberState { Alive = alive, Armed = armed,
+                    ReadyToFire = armed && Weapon.State.Ammo > 0 && !Weapon.State.Reloading && _seesPlayer
+                        && _reaction.Ready(Time.time) && _loco.FacePoint.HasValue && !_loco.Destination.HasValue,
+                    CanMove = alive && state != MovementState.HeadOnly,
+                    CanFlank = armed && state == MovementState.Intact,
+                    Position = new Vec3d(p.x, p.y, p.z) };
+            }
+        }
+        public void JoinSquad(SquadCoordinator squad, int id) { _squad = squad; _squadId = id; }
+        public void ObserveTarget(Vector3 point, float now)
+        {
+            _reaction.ConfirmVisible(now, _cfg.reactionTime);
+            _seenTarget = point; _seenAt = now; _seesPlayer = true;
+        }
+        public void LoseTarget() { _seesPlayer = false; _reaction.ConfirmHidden(); }
 
         public void Initialize(Mannequin owner, MannequinLocomotion locomotion)
         {
@@ -72,10 +102,25 @@ namespace OrbitalAnte.AI
 
         void OnDestroy()
         {
+            if (_squad != null) _squad.Remove(_squadId, this);
             if (_owner != null)
             {
                 _owner.PartDetached -= OnPartDetached;
                 _owner.Died -= OnDied;
+            }
+        }
+        void OnDisable()
+        {
+            if (_squad != null) _squad.Remove(_squadId, this, true);
+            _triggerHeld = false;
+            if (_loco != null) ClearGoals();
+        }
+        void OnEnable()
+        {
+            if (_squad != null && _loco != null && !_squad.Register(this, _loco, _squadId))
+            {
+                // A replacement may now own that ID. A stale affiliation must never borrow its lease.
+                JoinSquad(null, -1); RequireSquad = true; _triggerHeld = false; ClearGoals();
             }
         }
 
@@ -93,6 +138,7 @@ namespace OrbitalAnte.AI
             // Right hand if it works, otherwise whatever hand is left.
             _gunSide = _owner.Model.HandUsable(false) ? MannequinRig.Right : MannequinRig.Left;
             Weapon = weapon;
+            if (_squad != null) _squad.ClearRecoveryDestination(_squadId);
             weapon.TakeByCharacter(this);
             weapon.transform.SetParent(transform, true);
             weapon.transform.localScale = Vector3.one;
@@ -100,6 +146,8 @@ namespace OrbitalAnte.AI
             _magazineOut = false;
             _aimedAtTarget = false;
             _seesPlayer = false;
+            _reaction.ConfirmHidden();
+            if (_loco != null) _loco.SuppressIdleWander = true;
             _aimDirection = LowReadyDirection();
             PoseWeapon(0f, true);
             return true;
@@ -113,6 +161,7 @@ namespace OrbitalAnte.AI
             Weapon = null;
             _triggerHeld = false;
             _aimedAtTarget = false;
+            if (_squad != null) _squad.RefreshMember(_squadId);
 
             Transform parent = CombatWorld.DropParent != null ? CombatWorld.DropParent : transform.parent;
             Vector3 velocity = (_owner != null ? _owner.Velocity : Vector3.zero) + extraVelocity;
@@ -141,10 +190,12 @@ namespace OrbitalAnte.AI
 
             // Losing the other hand keeps the gun, but everything gets harder (and a reload may be abandoned).
             Weapon.State.HandsChanged(Hands);
+            if (_squad != null) _squad.RefreshMember(_squadId);
         }
 
         void OnDied(Mannequin mannequin)
         {
+            if (_squad != null) _squad.Remove(_squadId, this);
             DropWeapon(Vector3.up * 1.5f, 5f);
             if (_loco != null)
             {
@@ -162,6 +213,8 @@ namespace OrbitalAnte.AI
             if (dt <= 0f) return;
 
             if (Weapon != null) TickReload(dt);
+            if (_squad != null) _squad.RefreshMember(_squadId);
+            if (_squad != null) _seesPlayer = _squad.Sees(_squadId);
 
             _thinkTimer -= dt;
             if (_thinkTimer <= 0f)
@@ -170,6 +223,7 @@ namespace OrbitalAnte.AI
                 Think();
             }
 
+            if (_squad != null && _owner.State != MovementState.HeadOnly) _squad.Drive(_squadId);
             if (Weapon != null) UpdateShooting();
         }
 
@@ -182,10 +236,9 @@ namespace OrbitalAnte.AI
             }
         }
 
-        static Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position + Vector3.down * 0.3f;
-
         void Think()
         {
+            if (RequireSquad && _squad == null) { ClearGoals(); return; }
             MovementState state = _owner.State;
             if (state == MovementState.HeadOnly)
             {
@@ -203,7 +256,7 @@ namespace OrbitalAnte.AI
             _loco.Destination = null;
             _loco.FacePoint = null;
             _loco.Hurry = false;
-            _seesPlayer = false;
+            LoseTarget();
         }
 
         void ThinkArmed(MovementState state)
@@ -214,63 +267,15 @@ namespace OrbitalAnte.AI
                 return;
             }
 
-            Vector3 target = PlayerAimPoint;
-            Vector3 head = HeadPosition;
-            float distance = Vector3.Distance(head, target);
-            bool sees = distance <= _cfg.engageRange
-                        && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
-
-            if (!sees)
-            {
-                // Lost sight: walk toward where the player is until there is a clear line again.
-                _seesPlayer = false;
-                _loco.FacePoint = null;
-                _loco.Destination = CombatWorld.PlayerEye.position;
-                _loco.Hurry = false;
-                return;
-            }
-
-            float now = Time.time;
-            if (!_seesPlayer)
-            {
-                // Never an instant shot: there is always a beat between spotting the player and firing.
-                _seesPlayer = true;
-                _reactAt = now + _cfg.reactionTime;
-                _shootPhase = true;
-                _phaseEnd = now + Rand(1.5f, 2.6f);
-            }
-
-            bool onFeet = state == MovementState.Intact || state == MovementState.OneLeg;
-            if (onFeet && now >= _phaseEnd)
-            {
-                // Alternate between standing to shoot and shifting position, so nobody is a statue.
-                _shootPhase = !_shootPhase;
-                _phaseEnd = now + (_shootPhase ? Rand(1.4f, 2.6f) : Rand(0.9f, 1.8f));
-                if (!_shootPhase) _movePoint = PickMovePoint(distance);
-            }
-
-            if (_shootPhase || !onFeet)
-            {
-                _loco.FacePoint = CombatWorld.PlayerEye.position;
-                _loco.Destination = null;
-            }
-            else
-            {
-                _loco.FacePoint = null;
-                _loco.Destination = _movePoint;
-                _loco.Hurry = false;
-            }
-        }
-
-        /// <summary>A few steps sideways, drifting toward a comfortable fighting distance.</summary>
-        Vector3 PickMovePoint(float distance)
-        {
-            Vector3 toPlayer = CombatWorld.PlayerEye.position - transform.position;
-            toPlayer.y = 0f;
-            toPlayer = toPlayer.sqrMagnitude > 0.01f ? toPlayer.normalized : transform.forward;
-            Vector3 side = Vector3.Cross(Vector3.up, toPlayer) * (_rng.NextDouble() < 0.5 ? -1f : 1f);
-            float along = distance > 18f ? 3f : distance < 7f ? -3f : 0f;
-            return transform.position + side * Rand(2.5f, 5f) + toPlayer * along;
+            if (_squad != null) { _squad.ClearRecoveryDestination(_squadId); return; }
+            // A standalone mannequin (weapon fixtures / target practice) only observes and holds.
+            // The arena always registers enemies with the bounded squad adapter.
+            Vector3 target = CombatWorld.PlayerEye.position + Vector3.down * 0.3f;
+            bool sees = (target - HeadPosition).sqrMagnitude <= _cfg.engageRange * _cfg.engageRange
+                && !Physics.Linecast(HeadPosition, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            if (!sees) { ClearGoals(); return; }
+            ObserveTarget(target, Time.time);
+            _loco.Destination = null; _loco.FacePoint = _seenTarget;
         }
 
         void ThinkUnarmed()
@@ -286,23 +291,15 @@ namespace OrbitalAnte.AI
                     Vector3 to = nearest.transform.position - transform.position;
                     to.y = 0f;
                     if (to.magnitude <= _cfg.pickupReach && TryPickUp(nearest)) return;
-                    _loco.Destination = nearest.transform.position;
+                    if (_squad != null) _squad.RouteToRecovery(_squadId, nearest.transform.position);
+                    else _loco.Destination = nearest.transform.position;
                     _loco.Hurry = true;
                     return;
                 }
             }
 
             // Nothing to shoot with: get out of the line of fire.
-            if (CombatWorld.PlayerPresent && CombatWorld.FindCover != null)
-            {
-                Vector3? cover = CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position);
-                if (cover.HasValue)
-                {
-                    _loco.Destination = cover.Value;
-                    _loco.Hurry = true;
-                    return;
-                }
-            }
+            if (_squad != null) { _squad.ClearRecoveryDestination(_squadId); return; }
             _loco.Destination = null;
             _loco.Hurry = false;
         }
@@ -363,7 +360,8 @@ namespace OrbitalAnte.AI
         {
             int hands = Hands;
             bool wantsToShoot = hands > 0 && _seesPlayer && _aimedAtTarget && _loco.FacePoint.HasValue
-                                && Time.time >= _reactAt && CombatWorld.PlayerPresent && !CombatWorld.EnemiesHoldFire;
+                                && _reaction.Ready(Time.time) && CombatWorld.PlayerPresent && !CombatWorld.EnemiesHoldFire
+                                && (!RequireSquad || _squad != null);
 
             float now = Time.time;
             _triggerPressed = false;
@@ -387,11 +385,18 @@ namespace OrbitalAnte.AI
                 _triggerUntil = now + (Weapon.Data.automatic ? Rand(_cfg.burstSeconds) : 0.05f);
             }
 
+            if (_triggerHeld && Weapon.State.Cooldown <= 0 && !Weapon.State.Reloading && Weapon.State.Ammo > 0)
+            {
+                bool clear = _squad != null ? _squad.MayShoot(_squadId, Weapon.Muzzle.position, _seenTarget)
+                    : Time.time - _seenAt <= 0.3f && !Physics.Linecast(Weapon.Muzzle.position, _seenTarget,
+                        Layers.WorldMask, QueryTriggerInteraction.Ignore);
+                if (!clear) { _triggerHeld = false; _triggerPressed = false; return; }
+            }
             FireResult shot = Weapon.State.TryFire(hands, _triggerHeld, _triggerPressed);
             if (!shot.Fired) return;
 
             Vector3 muzzle = Weapon.Muzzle.position;
-            Vector3 toTarget = PlayerAimPoint - muzzle;
+            Vector3 toTarget = _seenTarget - muzzle;
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
             Vector3 direction = Ballistics.SpreadDirection(toTarget, shot.SpreadDegrees + _cfg.aimError, _rng);
 
@@ -426,9 +431,9 @@ namespace OrbitalAnte.AI
             // Aim at the player only when asked to face them and they are roughly in front.
             Vector3 want = LowReadyDirection();
             bool aiming = false;
-            if (_loco != null && _loco.FacePoint.HasValue && CombatWorld.PlayerEye != null)
+            if (_loco != null && _loco.FacePoint.HasValue && _seesPlayer)
             {
-                Vector3 toTarget = PlayerAimPoint - shoulder;
+                Vector3 toTarget = _seenTarget - shoulder;
                 Vector3 flat = new Vector3(toTarget.x, 0f, toTarget.z);
                 if (flat.sqrMagnitude > 0.01f && Vector3.Angle(flat, transform.forward) <= AimConeDegrees)
                 {
