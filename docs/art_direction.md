@@ -88,7 +88,7 @@ How Blender models are made: each is built by a script in `tools/blender/` (so i
 ## Rules for anyone adding to the look
 - New shaders include `OA_Look.hlsl` and take their sky, light and haze from it. Do not write a second lighting model.
 - Never fade to a flat fog colour. Use `OA_ApplyHaze`.
-- Colours are picked by eye and converted to linear in one place (`SkyGlobals.Linear`).
+- Colours are picked by eye (as seen on screen) and converted to linear once, where they are handed to the graphics card: shader settings in `SkyGlobals.Linear`; mesh colours when the mesh is made (`ShipMeshes.ToMesh`, `ModelLibrary.ToMesh`). Model files (`.bytes`) store colours as seen on screen. The baked cabin light is the exception: it is stored already linear. Never convert twice.
 - Anything that shines by itself is drawn brighter than white so it blooms, rather than given a glow sprite.
 - Every new cost goes in `docs/performance_budget.md`.
 - Nothing is called finished on looks until it has passed the visual quality gate on real captures.

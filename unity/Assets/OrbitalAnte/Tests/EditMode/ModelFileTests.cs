@@ -84,6 +84,15 @@ namespace OrbitalAnte.Tests
             ModelFile bad = Triangle();
             bad.Parts[0].Triangles[2] = 7;
             Assert.IsNull(ModelFile.Parse(bad.ToBytes(), out string p4)); Assert.IsNotNull(p4);
+            ModelFile lostMuzzle = Triangle();
+            lostMuzzle.Sockets[0].Z = float.NaN;
+            Assert.IsNull(ModelFile.Parse(lostMuzzle.ToBytes(), out string p6)); Assert.IsNotNull(p6);
+            ModelFile farMuzzle = Triangle();
+            farMuzzle.Sockets[0].X = float.PositiveInfinity;
+            Assert.IsNull(ModelFile.Parse(farMuzzle.ToBytes(), out string p7)); Assert.IsNotNull(p7);
+            ModelFile noFacing = Triangle();
+            noFacing.Parts[0].Normals[4] = float.NaN;
+            Assert.IsNull(ModelFile.Parse(noFacing.ToBytes(), out string p8)); Assert.IsNotNull(p8);
             byte[] hugeCount = (byte[])good.Clone(); hugeCount[7] = 0x7f;
             Assert.IsNull(ModelFile.Parse(hugeCount, out string p5)); Assert.IsNotNull(p5);
         }

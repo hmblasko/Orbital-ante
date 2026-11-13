@@ -133,6 +133,15 @@ namespace OrbitalAnte.Look
                                 return null;
                             }
                         }
+                        for (int i = 0; i < part.Normals.Length; i++)
+                        {
+                            float v = part.Normals[i];
+                            if (float.IsNaN(v) || float.IsInfinity(v) || Math.Abs(v) > 2f)
+                            {
+                                problem = "piece '" + part.Name + "' has a corner whose facing is not a sensible direction";
+                                return null;
+                            }
+                        }
                         model.Parts[p] = part;
                     }
                     int socketCount = reader.ReadInt32();
@@ -145,6 +154,12 @@ namespace OrbitalAnte.Look
                     for (int s = 0; s < socketCount; s++)
                     {
                         model.Sockets[s] = new ModelSocket { Name = ReadName(reader), X = reader.ReadSingle(), Y = reader.ReadSingle(), Z = reader.ReadSingle() };
+                        ModelSocket read = model.Sockets[s];
+                        if (!Sensible(read.X) || !Sensible(read.Y) || !Sensible(read.Z))
+                        {
+                            problem = "attachment point '" + read.Name + "' is not at a sensible position";
+                            return null;
+                        }
                     }
                     return model;
                 }
@@ -202,6 +217,8 @@ namespace OrbitalAnte.Look
                 }
             }
         }
+
+        static bool Sensible(float v) => !float.IsNaN(v) && !float.IsInfinity(v) && Math.Abs(v) <= 1000f;
 
         static float[] ReadFloats(BinaryReader reader, int count)
         {
