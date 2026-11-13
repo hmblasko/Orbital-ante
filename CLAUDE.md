@@ -35,7 +35,7 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - Lighting: Matthew asked on 11 Nov 2026 for lighting to be baked in. No real-time ray tracing (Deck budget). Fixed places get baked light: the ship's cabin is path traced by the game's own `LightBake` into vertex colours (no lightmap textures, nothing to click); planets are generated per seed under a moving Sun, so they are lit from `SkyGlobals` and anything that can be precomputed is computed when the ground is built. See "Lighting" in `docs/performance_budget.md`.
 - Two rebindable input maps: `GameInput.Gameplay` (on foot) and `GameInput.Flight`. `GameInput.Play` is whichever is live.
 - Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody, 12 Item (dropped weapons).
-- Use Unity 6 API names (`linearVelocity`, `FindFirstObjectByType`, `PhysicsMaterial`).
+- Use Unity 6 API names (`linearVelocity`, `FindAnyObjectByType`, `PhysicsMaterial`). Never call `GetInstanceID()` (a compile error in newer Unity 6 releases); `FindObjectsSortMode` is only a warning there and is kept so 6000.0 still compiles.
 - Namespace root is `OrbitalAnte`.
 - Never invent faction names (Faction A, B, C) or playtest results.
 - Phase 1 rule: refine before expanding. No Phase 2 features while Phase 1 is in progress.
@@ -45,6 +45,9 @@ What changed, why, which constitution principle it serves, what was tested (and 
 
 ## Verifying without the editor
 Cloud sessions have no Unity Editor. What can be done there: compile the C# against reference assemblies, and run the EditMode rule tests with `dotnet test`. Anything that needs the engine (PlayMode tests, feel, frame times) must be run on Matthew's machine and reported as unverified until then.
+
+## Running on Matthew's machine
+`tools/check-in-unity.ps1` (Windows) and `tools/check-in-unity.sh` (macOS/Linux) run setup (`ProjectSetup.SetUpFromCommandLine`), the EditMode tests and the PlayMode tests in batch mode and write `unity/Logs/oa-check/summary.txt`. A local Claude Code session uses the `unity-refine` skill (`.claude/skills/unity-refine/`) to run them, fix failures and report real counts. Matthew's guide: `docs/CLAUDE_CODE_LOCAL.md`. Models, assets (Blender), feel passes, cockpit dash designs and design calls are kept for Fable 5.2.
 
 ---
 

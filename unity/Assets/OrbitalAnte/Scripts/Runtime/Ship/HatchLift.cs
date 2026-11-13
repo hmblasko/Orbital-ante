@@ -82,20 +82,25 @@ namespace OrbitalAnte.Ship
         /// Moves the doors and anyone riding. Returns the ride that finished this step (Up: now standing in the
         /// cabin; Down: now outside under the ship), or None.
         /// </summary>
-        public LiftRide Tick(float dt)
+        /// <param name="hatchWorks">False while the hatch is broken: the doors then stay exactly where they are,
+        /// even halfway through opening or closing, until it is mended (then they carry on to where they were going).</param>
+        public LiftRide Tick(float dt, bool hatchWorks = true)
         {
-            LastFinished = TickInner(dt);
+            LastFinished = TickInner(dt, hatchWorks);
             return LastFinished;
         }
 
         /// <summary>What the most recent <see cref="Tick"/> returned.</summary>
         public LiftRide LastFinished { get; private set; }
 
-        LiftRide TickInner(float dt)
+        LiftRide TickInner(float dt, bool hatchWorks)
         {
-            float target = WantOpen ? 1f : 0f;
-            float step = dt / Math.Max(0.05f, DoorSeconds);
-            Openness = Openness < target ? Math.Min(target, Openness + step) : Math.Max(target, Openness - step);
+            if (hatchWorks)
+            {
+                float target = WantOpen ? 1f : 0f;
+                float step = dt / Math.Max(0.05f, DoorSeconds);
+                Openness = Openness < target ? Math.Min(target, Openness + step) : Math.Max(target, Openness - step);
+            }
 
             if (Ride == LiftRide.None) return LiftRide.None;
 

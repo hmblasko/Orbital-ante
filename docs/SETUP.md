@@ -15,6 +15,8 @@ Everything here is done once, except "Play" and "Run the tests".
 2. In GitHub Desktop choose **File > Clone repository**, pick `hmblasko/Orbital-ante`, choose a folder, click **Clone**.
 3. To try a milestone before it is merged: click **Current Branch** at the top, and pick the branch named in the pull request (Milestone 7, the ship, is on `claude/milestone-7-ship`).
 
+No GitHub Desktop? Download a zip instead: https://github.com/hmblasko/Orbital-ante/archive/refs/heads/claude/milestone-7-ship.zip . Right-click it, **Extract All**, and use the extracted folder in step C. (A zip does not update itself: download it again for newer work.)
+
 ## C. Open it in Unity (first time takes a few minutes)
 
 1. In Unity Hub click **Projects**, then **Add** (or **Add project from disk**).
@@ -99,9 +101,10 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light (873 tests; they take a few seconds).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch and the map (73 tests). The editor will flicker into Play mode for a few minutes.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light (877 tests; they take a few seconds).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch, shots fired inside the cabin and the map (74 tests). The editor will flicker into Play mode for a few minutes.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
+5. Or run everything without opening the editor: close Unity, then right-click `tools/check-in-unity.ps1` > **Run with PowerShell** (Mac: `bash tools/check-in-unity.sh`). It ends with `Overall: PASS` or `FAIL` and saves `unity/Logs/oa-check/summary.txt`, which you can send me. Claude Code on your own computer can run this loop and fix what fails: see `docs/CLAUDE_CODE_LOCAL.md`.
 
 ## F. Tuning without code
 

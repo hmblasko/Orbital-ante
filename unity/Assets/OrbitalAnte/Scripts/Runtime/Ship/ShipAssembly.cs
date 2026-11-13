@@ -91,7 +91,7 @@ namespace OrbitalAnte.Ship
             return result;
         }
 
-        /// <summary>A fingerprint of the cabin's shape and paint. A baked file only fits the cabin it was baked for.</summary>
+        /// <summary>A fingerprint of the cabin's shape, paint and the placing of each piece. A baked file only fits the cabin it was baked for.</summary>
         public static uint Fingerprint(List<ShipPiece> pieces)
         {
             uint h = 2166136261;
@@ -106,6 +106,10 @@ namespace OrbitalAnte.Ship
             for (int p = 0; p < pieces.Count; p++)
             {
                 ShipMesh m = pieces[p].Mesh;
+                // Where the piece sits counts too: the light is baked with it in place.
+                Mix((int)Math.Round(pieces[p].Offset.X * 1000.0));
+                Mix((int)Math.Round(pieces[p].Offset.Y * 1000.0));
+                Mix((int)Math.Round(pieces[p].Offset.Z * 1000.0));
                 Mix(m.VertexCount);
                 Mix(m.Triangles.Length);
                 for (int i = 0; i < m.Positions.Length; i++) Mix((int)Math.Round(m.Positions[i] * 1000.0));

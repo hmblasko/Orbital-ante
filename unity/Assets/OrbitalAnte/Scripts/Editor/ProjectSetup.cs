@@ -79,6 +79,27 @@ namespace OrbitalAnte.EditorTools
             Run(true);
         }
 
+        static int _lastProblems;
+
+        /// <summary>
+        /// For the command line (tools/check-in-unity): sets the project up with no windows to click, then quits
+        /// Unity with exit code 0 when everything worked and 1 when something did not.
+        /// </summary>
+        public static void SetUpFromCommandLine()
+        {
+            int code = 1;
+            try
+            {
+                Run(false);
+                code = _lastProblems == 0 ? 0 : 1;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Orbital Ante: setup failed: " + e);
+            }
+            EditorApplication.Exit(code);
+        }
+
         [MenuItem("Orbital Ante/Open Test Arena", priority = 1)]
         static void OpenTestArena()
         {
@@ -133,6 +154,7 @@ namespace OrbitalAnte.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            _lastProblems = problems.Count;
 
             if (problems.Count == 0)
             {
@@ -144,7 +166,12 @@ namespace OrbitalAnte.EditorTools
                                  "\nYou can run it again from the menu: Orbital Ante > Set Up Project.");
             }
 
-            if (needsRestart)
+            if (needsRestart && Application.isBatchMode)
+            {
+                // No one to ask. The new setting takes effect the next time Unity starts, which the check script does.
+                Debug.Log("Orbital Ante: the Input System setting was changed; it takes effect next time Unity starts.");
+            }
+            else if (needsRestart)
             {
                 bool restart = EditorUtility.DisplayDialog(
                     "Orbital Ante",

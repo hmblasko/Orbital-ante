@@ -5,6 +5,7 @@ using OrbitalAnte.Core;
 using OrbitalAnte.Planets;
 using OrbitalAnte.Ship;
 using OrbitalAnte.Space;
+using OrbitalAnte.Weapons;
 using UnityEngine;
 using UnityEngine.TestTools;
 
@@ -143,6 +144,36 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1, mended);
             Assert.AreEqual(PartState.Sound, _ship.Model.State(window));
             Assert.IsTrue(_ship.Model.CabinIntact);
+        }
+
+        [UnityTest]
+        public IEnumerator AShotFromInside_StopsAtTheSolidHull()
+        {
+            yield return null;
+            _ship.CrewAboard = true;
+            Assert.AreSame(_ship, Ship.Ship.Boarded);
+            int cabin = _ship.CabinPart;
+            float before = _ship.Model.Health(cabin);
+            // Straight back from behind the seat: plain hull there, and nothing of the ship beyond it.
+            Vector3 eye = _ship.transform.TransformPoint(new Vector3(0f, 1.62f, -1.15f));
+            Vector3 aim = -_ship.transform.forward;
+            WeaponData pistol = ContentDatabase.Get<WeaponData>(WeaponData.PistolId);
+            ShotResult shot = Ballistics.FireFromPlayer(pistol, eye, aim);
+            Assert.IsTrue(shot.HitAnything, "the bullet went through the cabin wall");
+            Vector3 wall = _ship.transform.TransformPoint(new Vector3(0f, 1.62f, -ShipLayout.InnerRadiusAt(1.62f)));
+            Assert.Less(Vector3.Distance(shot.End, wall), 0.05f);
+            Assert.Less(_ship.Model.Health(cabin), before, "the cabin took no damage");
+
+            // Out through the glass is still the glass's business, not the wall's.
+            int front = _ship.Model.IndexOf(ShipLayout.Windows[1].Id);
+            ShipLayout.WindowCentre(ShipLayout.Windows[1], out P3 centre, out _);
+            Vector3 from = _ship.transform.TransformPoint(new Vector3(0f, 1.3f, 0f));
+            Vector3 to = _ship.transform.TransformPoint(new Vector3(centre.X, centre.Y, centre.Z));
+            float glassBefore = _ship.Model.Health(front);
+            Ballistics.FireFromPlayer(pistol, from, (to - from).normalized);
+            Assert.Less(_ship.Model.Health(front), glassBefore, "a shot at the window should hit the glass");
+            _ship.CrewAboard = false;
+            Assert.IsNull(Ship.Ship.Boarded);
         }
 
         [UnityTest]
