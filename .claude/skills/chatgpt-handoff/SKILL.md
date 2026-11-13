@@ -1,9 +1,30 @@
 ---
 name: chatgpt-handoff
-description: Hand a bounded Orbital Ante refinement task to ChatGPT through Matthew (code review of a diff, a pre-screen of capture pictures, a small edit, doc wording) and check the reply he pastes back. Use when a task fits one packet, or when Matthew pastes a reply that starts with a JSON block naming a packet H-....
+description: Hand token-saving Orbital Ante work to ChatGPT Codex (PR reviews, audits, rule-test drafts, checklists, doc rewrites) by posting @codex on GitHub, and check what comes back before it is used. Also covers the copy-and-paste packet fallback (replies that start with a JSON block naming a packet H-...).
 ---
 
 # ChatGPT handoff
+
+## Codex first (connected to the repo since 13 Nov 2026)
+
+Matthew asked on 13 Nov 2026 for ChatGPT to take tasks that save Fable tokens where it can do them as well, with Fable staying in charge of design and asset creation. Codex reads `AGENTS.md` at the repo root on every task, so prompts can stay short.
+
+**Send work to Codex** by posting a PR comment (`gh api repos/hmblasko/Orbital-ante/issues/<n>/comments -f body=...`), as part of the work Matthew asked for:
+- Review: `@codex review <focus>. Comment only.` on your own PR, once it is ready for review. One per PR, plus one `@codex review the latest commits only` after a round of fixes.
+- Task: `@codex <task>. Follow AGENTS.md: open one new PR into main, touch only <path>.` for audits, rule-test drafts, checklists or doc rewrites. Matthew can also start these from https://chatgpt.com/codex using the prompts in the "ChatGPT and Codex task menu" doc.
+- Tested 13 Nov 2026: `@codex review` posted from a Claude session works (the bot is `chatgpt-codex-connector[bot]`). A non-review `@codex <task>` comment was answered "create an environment for this repo", so until Matthew sets one up at chatgpt.com/codex/cloud/settings/environments, ask him to start tasks from chatgpt.com/codex.
+- Codex's earlier cloud-task output was posted under Matthew's GitHub login, so tell its comments apart by their content, not by who posted them.
+
+**Good Codex work:** PR reviews; audits (seeds, Unity 6 traps, Deck cost, hard-coded feel numbers); EditMode rule-test drafts for plain C# rules; playtest checklists; design questions (never answers); turning Matthew's play notes into issues; rewording docs into numbered steps; critiquing Blender previews against a brief.
+**Never Codex:** making models, animations or audio; tuning values; feel passes; cockpit or dash designs; design decisions; quality-gate scores; anything Phase 2.
+
+**When it comes back, the owning thread checks it before use:**
+- Review comments: check each against the code. Fix what is real in your own PR, and reply on the comment once with what you did or why it is wrong.
+- Test-draft PRs: compile them (cloud recipe in project memory, `orbital-ante-verify-without-unity`), run `dotnet test`, and fix or drop tests that are wrong. A failing test that exposes a real bug becomes a bug fix with that test. Merge only with the results stated.
+- Report and checklist PRs: read them against the code, mark which points hold, and turn real ones into work items. Do not treat its suggested numbers as decisions.
+- Say in your report what Codex suggested, what you used and what you rejected.
+
+## Copy-and-paste packets (fallback: pictures, or anything outside the repo)
 
 Matthew carries packets to ChatGPT and replies back; Claude cannot reach ChatGPT. Read `docs/chatgpt-handoff.md` for the routing table and Matthew's steps. ChatGPT is a cheap second opinion: **nothing it says is verified until you have checked it, and nothing it writes is merged until it has been reviewed and the tests have run.**
 

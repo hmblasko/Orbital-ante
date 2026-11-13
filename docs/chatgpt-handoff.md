@@ -1,5 +1,7 @@
 # Handing refinement work to ChatGPT
 
+> **Update, 13 Nov 2026: Codex is connected to the repo, and it is now the main route.** Codex follows `AGENTS.md`. Claude asks it for work by commenting `@codex ...` on a pull request, and Matthew can start tasks at https://chatgpt.com/codex using the "ChatGPT and Codex task menu" doc. Codex opens its own pull requests into `main` or leaves review comments, and the thread that owns the work checks everything before it is used. The copy-and-paste packets below are still there for screenshots or anything outside the repo. The procedure is in `.claude/skills/chatgpt-handoff/SKILL.md`.
+
 Matthew asked on 12 Nov 2026 for a way to hand refinement tasks to ChatGPT and bring its thoughts or edits back, while Fable 5.2 keeps the heavy lifting and Opus and ChatGPT time is used efficiently.
 
 Claude cannot call ChatGPT, so Matthew is the courier. Claude packs one self-contained **packet**, Matthew pastes it into ChatGPT, copies the reply back, and Claude checks it with a tool before anything is used. A round trip should take Matthew about two minutes.
