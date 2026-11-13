@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -50,6 +51,9 @@ namespace OrbitalAnte.Core
         /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
         public static InputActionMap Play { get; private set; }
 
+        /// <summary>Changes when the controls menu saves or resets bindings, so cached hints refresh on resume.</summary>
+        public static int BindingRevision { get; private set; }
+
         /// <summary>Chooses which set of play controls is live. The other set is switched off.</summary>
         public static void SetFlying(bool flying)
         {
@@ -74,11 +78,35 @@ namespace OrbitalAnte.Core
             }
         }
 
-        /// <summary>The name of the key or button for a simple (one key, one button) action, for whichever device is in use.</summary>
-        public static string Describe(InputAction action)
+        /// <summary>
+        /// Effective keys or buttons for the device in use. Optional part names limit a composite to an axis
+        /// (for example Up/Down for map zoom); a directly bound stick is still described as a whole.
+        /// </summary>
+        public static string Describe(InputAction action, string firstPart = null, string secondPart = null)
         {
-            int index = UsingGamepad && action.bindings.Count > 1 ? 1 : 0;
-            return action.GetBindingDisplayString(index);
+            return DescribeForGroup(action, UsingGamepad ? GamepadGroup : KeyboardMouseGroup, firstPart, secondPart);
+        }
+
+        /// <summary>Explicit-group form for hints that apply to a particular device, such as the fixed F3 debug key.</summary>
+        public static string DescribeForGroup(InputAction action, string group, string firstPart = null, string secondPart = null)
+        {
+            if (action == null) return "Unbound";
+            string result = string.Empty;
+            var bindings = action.bindings;
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                InputBinding binding = bindings[i];
+                // Composite headers have no device group. Their parts do, and can each be rebound.
+                if (binding.isComposite || !InGroup(binding, group)) continue;
+                if (binding.isPartOfComposite && firstPart != null
+                    && !string.Equals(binding.name, firstPart, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(binding.name, secondPart, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string text = action.GetBindingDisplayString(i);
+                if (string.IsNullOrEmpty(text)) text = "Unbound";
+                result = result.Length == 0 ? text : result + " / " + text;
+            }
+            return result.Length == 0 ? "Unbound" : result;
         }
 
         public static InputAction Pause { get; private set; }
@@ -273,6 +301,7 @@ namespace OrbitalAnte.Core
         public static void SaveBindings()
         {
             if (Asset == null) return;
+            unchecked { BindingRevision++; }
             PlayerPrefs.SetString(PrefsKey, Asset.SaveBindingOverridesAsJson());
             PlayerPrefs.Save();
         }

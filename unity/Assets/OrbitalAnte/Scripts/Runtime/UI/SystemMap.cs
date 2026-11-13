@@ -48,7 +48,7 @@ namespace OrbitalAnte.UI
         float _metresAcross = 270000f;
         float _scaleBarMetres;
         float _shownScaleBar = -1f;
-        float _nextHelp;
+        readonly InputHintRefresh _helpRefresh = new InputHintRefresh();
         int _titleFor = int.MinValue;
 
         public bool IsOpen => _canvas != null && _canvas.gameObject.activeSelf;
@@ -98,7 +98,7 @@ namespace OrbitalAnte.UI
             if (_craft != null) _craft.ControlsLocked = open;
             if (open)
             {
-                _nextHelp = 0f;
+                _helpRefresh.Invalidate();
                 // Open on wherever is most useful: the planet you are at, or the whole system if you are between.
                 int home = _system.PlanetOf(_system.Frame.Anchor);
                 Centre(home);
@@ -153,11 +153,10 @@ namespace OrbitalAnte.UI
                 _titleFor = _centre;
                 _title.text = "MAP   centred on " + (_centre < 0 ? "you" : _system.Model.Spec(_centre).displayName);
             }
-            if (Time.unscaledTime >= _nextHelp)
+            bool pad = GameInput.UsingGamepad;
+            if (_helpRefresh.TryRefresh(Time.unscaledTimeAsDouble, GameInput.BindingRevision, pad))
             {
-                // Looked up now and then, not every frame: it only changes when a control is rebound.
-                _nextHelp = Time.unscaledTime + 2f;
-                _help.text = "Zoom: " + (GameInput.UsingGamepad ? "left stick up / down" : "W / S") + "     Centre: " + Key(GameInput.MatchVelocity) + "     Close: " + Key(GameInput.ToggleMap) +
+                _help.text = (pad ? "Zoom (up / down): " : "Zoom: ") + GameInput.Describe(GameInput.FlyMove, "Up", "Down") + "     Centre: " + Key(GameInput.MatchVelocity) + "     Close: " + Key(GameInput.ToggleMap) +
                              "     Green ring: the neighbourhood you are in";
             }
             UpdateLabels();

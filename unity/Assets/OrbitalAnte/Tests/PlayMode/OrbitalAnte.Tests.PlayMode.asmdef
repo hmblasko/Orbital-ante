@@ -3,6 +3,7 @@
   "rootNamespace": "OrbitalAnte.Tests",
   "references": [
     "OrbitalAnte.Runtime",
+    "Unity.InputSystem",
     "UnityEngine.TestRunner"
   ],
   "includePlatforms": [],
