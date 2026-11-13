@@ -242,6 +242,43 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ShipModelFile_DashHousing_FramesThePanelAndLeavesTheScreenOpen()
+        {
+            // The cockpit's desk panel (CockpitConfig's defaults): 1.1 m by 0.33 m, leaned back 24 degrees.
+            const float cx = 0f, cy = 0.9f, cz = 1.94f, halfWidth = 0.55f, halfHeight = 0.165f;
+            double lean = 24.0 * System.Math.PI / 180.0;
+            float c = (float)System.Math.Cos(lean), s = (float)System.Math.Sin(lean);
+            ModelFile model = LoadReal("Lander");
+            ModelPart housing = model.Part("dashhousing");
+            Assert.IsNotNull(housing, "missing piece dashhousing");
+            Assert.LessOrEqual(housing.TriangleCount, 1800, "the housing is a small thing: keep it near 1,500 triangles");
+            Assert.IsTrue(model.TrySocket("Dash", out ModelSocket dash), "missing socket Dash");
+            Assert.AreEqual(cx, dash.X, 0.001f);
+            Assert.AreEqual(cy, dash.Y, 0.001f);
+            Assert.AreEqual(cz, dash.Z, 0.001f);
+
+            float left = 0f, right = 0f, top = 0f, bottom = 0f, lowest = float.MaxValue;
+            for (int v = 0; v < housing.VertexCount; v++)
+            {
+                float x = housing.Positions[v * 3] - cx, y = housing.Positions[v * 3 + 1] - cy, z = housing.Positions[v * 3 + 2] - cz;
+                float up = y * c + z * s;              // up the panel
+                float towardPilot = y * s - z * c;     // out of the panel's face
+                left = System.Math.Min(left, x); right = System.Math.Max(right, x);
+                top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up);
+                lowest = System.Math.Min(lowest, housing.Positions[v * 3 + 1]);
+                bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
+                if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the housing may stand in front of the screen");
+                Assert.IsTrue(ShipLayout.InsideCabin(new P3(housing.Positions[v * 3], System.Math.Max(0.01f, housing.Positions[v * 3 + 1]), housing.Positions[v * 3 + 2])),
+                    "the housing stays inside the cabin");
+            }
+            Assert.Less(left, -halfWidth - 0.03f, "the bezel frames the left edge");
+            Assert.Greater(right, halfWidth + 0.03f, "the bezel frames the right edge");
+            Assert.Greater(top, halfHeight + 0.03f, "the bezel and hood frame the top edge");
+            Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
+            Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
+        }
+
+        [Test]
         public void ShipModelFile_PiecesStayWhereTheirCollidersAre()
         {
             ModelFile model = LoadReal("Lander");
@@ -252,7 +289,8 @@ namespace OrbitalAnte.Tests
             foreach (ModelPart part in model.Parts)
             {
                 // The cockpit's cameras (and their record lamps) are extra hardware with no stand-in shape and no collider.
-                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam")) continue;
+                // Nor has the dash's housing, which stands on the desk inside the cabin.
+                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam") || part.Name == "dashhousing") continue;
                 Assert.IsTrue(standIns.ContainsKey(part.Name), "no stand-in for " + part.Name);
                 ShipMesh old = standIns[part.Name];
                 float[] lo = { float.MaxValue, float.MaxValue, float.MaxValue }, hi = { float.MinValue, float.MinValue, float.MinValue };
