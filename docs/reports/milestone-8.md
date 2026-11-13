@@ -21,6 +21,8 @@ Everything follows three things: how hard the engines push, how near the ground 
 
 **Sounds** are made by the game (placeholders, like the other sounds so far): a deep roar loop, a crackle loop that needs air and ground, an ignition rush and a release thump.
 
+**Update, later on 13 Nov:** the proper base model has arrived from the visual style work and is merged in (`LaunchPad`, about 31,600 triangles, built by `tools/blender/build_launchpad.py`; previews in `docs/art/previews/launchpad_wide.jpg` and `launchpad_tower.jpg`). The game now draws it in place of the stand-ins, with its lamps, tower beacon and hut window glowing. A new rule test ties the model to the layout numbers and caps it at 36,000 triangles. The new enemy model and animation from the same work are merged too. Rule tests are now 956, all passing; still nothing run in Unity. The base triangle figure in the budget table is for the stand-ins.
+
 ## Why, and which principles it serves
 
 - **Fun core first (1)** and the refinement bar "every launch gives a little rush, even the tenth time": a short build-up you cause, then a release.

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using NUnit.Framework;
 using OrbitalAnte.Look;
@@ -196,6 +197,42 @@ namespace OrbitalAnte.Tests
                 Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
             }
             Assert.LessOrEqual(model.TriangleCount, 34000, "docs/performance_budget.md caps the lander's fittings at 34,000 triangles");
+        }
+
+        [Test]
+        public void LaunchPadModelFile_MatchesTheLaunchLayout()
+        {
+            // The Blender script carries its own copy of these numbers. If LaunchLayout changes, this fails until
+            // tools/blender/build_launchpad.py is changed to match and run again.
+            ModelFile model = LoadReal(OrbitalAnte.Launch.LaunchLayout.Model);
+            AssertSocket(model, "TowerFoot", OrbitalAnte.Launch.LaunchLayout.TowerFoot);
+            AssertSocket(model, "WaterTowerFoot", OrbitalAnte.Launch.LaunchLayout.WaterTowerFoot);
+            AssertSocket(model, "HutCentre", OrbitalAnte.Launch.LaunchLayout.HutCentre);
+            AssertSocket(model, "ArmPivot", OrbitalAnte.Launch.LaunchLayout.ArmPivot);
+            for (int i = 0; i < 4; i++) AssertSocket(model, "Mast" + i, OrbitalAnte.Launch.LaunchLayout.Mast(i));
+            foreach (string piece in OrbitalAnte.Launch.LaunchLayout.Pieces)
+            {
+                Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            }
+            // Whatever shines must belong to a piece the game knows, or it would never be drawn.
+            foreach (ModelPart part in model.Parts)
+            {
+                string name = part.Name;
+                if (name.EndsWith(OrbitalAnte.Launch.LaunchLayout.GlowSuffix))
+                    name = name.Substring(0, name.Length - OrbitalAnte.Launch.LaunchLayout.GlowSuffix.Length);
+                CollectionAssert.Contains(OrbitalAnte.Launch.LaunchLayout.Pieces, name, "the game does not know the piece " + part.Name);
+            }
+            // The arm is modelled with its hinge at its own origin, reaching along +X.
+            ModelPart arm = model.Part(OrbitalAnte.Launch.LaunchLayout.Arm);
+            float reach = 0f, back = 0f;
+            for (int i = 0; i < arm.Positions.Length; i += 3)
+            {
+                reach = Math.Max(reach, arm.Positions[i]);
+                back = Math.Min(back, arm.Positions[i]);
+            }
+            Assert.AreEqual(OrbitalAnte.Launch.LaunchLayout.ArmLength, reach, 0.6f, "the arm does not reach the ship");
+            Assert.Greater(back, -1.2f, "the arm is not hinged at its own origin");
+            Assert.LessOrEqual(model.TriangleCount, 36000, "docs/performance_budget.md caps the launch base at 36,000 triangles");
         }
 
         [Test]
