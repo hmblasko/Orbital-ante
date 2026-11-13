@@ -1,13 +1,14 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Navigation;
 using UnityEngine;
 
 namespace OrbitalAnte.Space
 {
     /// <summary>
-    /// A bare first-person flying test craft, here only so the solar system can be flown through and judged.
-    /// It is not the ship: no cockpit, no damage, no fuel, no autopilot. Those are Milestones 7 to 10.
-    /// What it does have is the part that matters for judging the solar system: real inertia. Nothing slows you
-    /// down unless you thrust the other way (or hold Match Velocity, which does that for you).
+    /// How the ship flies: real inertia (nothing slows you down unless you thrust the other way), Match
+    /// Velocity, target lock and the autopilot. It began as a bare test craft for judging the solar system and
+    /// kept the name; it is attached to the ship and only answers a pilot who is buckled in. The rules it
+    /// follows for the lock and the autopilot are plain C# in <c>Navigation/Autopilot.cs</c>.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public sealed class TestCraft : MonoBehaviour
@@ -38,6 +39,28 @@ namespace OrbitalAnte.Space
         public SolarSystem System { get; set; }
         /// <summary>The body the nose is pointing at, or -1. Match Velocity matches this body when there is one.</summary>
         public int Target { get; private set; } = -1;
+        /// <summary>The body under the nose right now, or -1.</summary>
+        public int UnderNose { get; private set; } = -1;
+        /// <summary>The body the pilot has locked on to, or -1. A lock stays wherever the nose points.</summary>
+        public int LockedTarget { get; private set; } = -1;
+
+        // ---- autopilot
+        public AutopilotRules PilotRules => Config != null && Config.autopilot != null ? Config.autopilot : _fallbackRules;
+        readonly AutopilotRules _fallbackRules = new AutopilotRules();
+        public bool PilotOn { get; private set; }
+        public PilotOrder Order { get; private set; }
+        /// <summary>Why the autopilot last let go, and when (unscaled time), so the dash and HUD can say so.</summary>
+        public PilotStop LastStop { get; private set; }
+        public float LastStopTime { get; private set; } = -100f;
+        public string LastStopWords { get; private set; } = string.Empty;
+        /// <summary>The push the autopilot is using as a multiple of the ship's ordinary push, for the fuel sums. 0 when off.</summary>
+        public float PilotPushShare { get; private set; }
+        /// <summary>Set by the ship: standing still on the ground. The autopilot will not start from there.</summary>
+        public bool Landed { get; set; }
+        float _nextPathCheck, _shownSeconds = -1f, _phaseHeld;
+        PilotPhase _shownPhase;
+        Vec3d[] _pathPositions;
+        double[] _pathRadii;
         /// <summary>Speed toward the target in metres per second. Negative when moving apart.</summary>
         public float ClosingSpeed { get; private set; }
         /// <summary>Distance to the target's surface in metres.</summary>
@@ -47,6 +70,74 @@ namespace OrbitalAnte.Space
 
         /// <summary>The body Match Velocity is measured against: the target if there is one, otherwise the nearby body.</summary>
         public int MatchBody => Target >= 0 ? Target : System != null ? System.Frame.Anchor : 0;
+
+        /// <summary>True when speed is being measured against the ground beneath (close above a body), not the body's centre.</summary>
+        public bool AgainstGround { get; private set; }
+        /// <summary>Below this height above a body (metres, or this share of its radius if that is more) speed is measured against its ground.</summary>
+        public const float GroundMatchLeast = 300f, GroundMatchShare = 0.5f;
+
+        /// <summary>Locks on to what is under the nose, or lets go (see <see cref="TargetLock.Press"/>).</summary>
+        public void PressLock()
+        {
+            int before = LockedTarget;
+            LockedTarget = TargetLock.Press(LockedTarget, UnderNose);
+            if (PilotOn && LockedTarget != before) StopPilot(PilotStop.PilotTookOver);
+        }
+
+        /// <summary>Starts the autopilot toward the locked body, or says plainly why it will not.</summary>
+        public bool StartPilot()
+        {
+            if (PilotOn) return true;
+            if (Unmanned) return Refuse(PilotStop.Unbuckled);
+            if (LockedTarget < 0 || System == null) return Refuse(PilotStop.NoTarget);
+            if (Landed) return Refuse(PilotStop.OnGround);
+            if (PushScale < 0.5f) return Refuse(PilotStop.NoFuel);
+            int blocker = FindBlocker();
+            if (blocker >= 0) return Refuse(PilotStop.Blocked, blocker);
+            PilotOn = true;
+            _shownSeconds = -1f;
+            _shownPhase = PilotPhase.Burning;
+            _phaseHeld = 1f;
+            LastStop = PilotStop.None;
+            LastStopWords = string.Empty;
+            _nextPathCheck = 0.5f;
+            return true;
+        }
+
+        bool Refuse(PilotStop why, int blocker = -1)
+        {
+            StopPilot(why, blocker);
+            return false;
+        }
+
+        public void StopPilot(PilotStop why, int blocker = -1)
+        {
+            PilotOn = false;
+            PilotPushShare = 0f;
+            Order = default;
+            LastStop = why;
+            LastStopTime = Time.unscaledTime;
+            string name = blocker >= 0 && System != null ? System.Model.Spec(blocker).displayName.ToUpperInvariant() : null;
+            LastStopWords = Autopilot.Describe(why, name);
+        }
+
+        int FindBlocker()
+        {
+            int count = System.Bodies.Length;
+            if (_pathPositions == null || _pathPositions.Length != count)
+            {
+                _pathPositions = new Vec3d[count];
+                _pathRadii = new double[count];
+            }
+            Vector3 here = Body.position;
+            for (int i = 0; i < count; i++)
+            {
+                _pathPositions[i] = SpaceConvert.ToVec3d(System.Bodies[i].transform.position - here);
+                // Rocks are small and drift; the autopilot does not plan round them. Watch the window.
+                _pathRadii[i] = System.Bodies[i].Spec.kind == BodyKind.Asteroid ? 0.0 : System.Bodies[i].Spec.radius;
+            }
+            return Autopilot.Blocker(PilotRules, _pathPositions, _pathRadii, count, LockedTarget);
+        }
 
         const float TargetCone = 7f;
 
@@ -162,6 +253,8 @@ namespace OrbitalAnte.Space
                 _lookPending = Vector2.zero;
                 Boosting = false;
                 MatchingVelocity = false;
+                // Nobody in the seat ends the autopilot. Reading the map does not: it flies on while you look.
+                if (PilotOn && Unmanned) StopPilot(PilotStop.Unbuckled);
             }
             else
             {
@@ -170,6 +263,25 @@ namespace OrbitalAnte.Space
                 ThrustInput = Vector3.ClampMagnitude(new Vector3(move.x, lift, move.y), 1f);
                 Boosting = GameInput.Boost.IsPressed();
                 MatchingVelocity = GameInput.MatchVelocity.IsPressed();
+
+                if (GameInput.LockTarget != null && GameInput.LockTarget.WasPressedThisFrame()) PressLock();
+                if (GameInput.Autopilot != null && GameInput.Autopilot.WasPressedThisFrame())
+                {
+                    if (PilotOn) StopPilot(PilotStop.PilotTookOver);
+                    else StartPilot();
+                }
+                else if (PilotOn && (ThrustInput.sqrMagnitude > 0.04f || MatchingVelocity))
+                {
+                    // Any push from the pilot and the ship is theirs again, at once.
+                    StopPilot(PilotStop.PilotTookOver);
+                }
+                if (PilotOn)
+                {
+                    // Shown on the dash as the jets the autopilot is firing.
+                    Vector3 shown = transform.InverseTransformDirection(SpaceConvert.ToVector3(Order.Push));
+                    ThrustInput = shown.sqrMagnitude > 1e-6f ? shown.normalized * Order.Effort : Vector3.zero;
+                    Boosting = false;
+                }
 
                 // Mouse movement arrives as "how far since last frame"; a stick arrives as "how far it is pushed".
                 Vector2 look = GameInput.FlyLook.ReadValue<Vector2>();
@@ -181,7 +293,7 @@ namespace OrbitalAnte.Space
 
             if (!Locked) UpdateTarget();
 
-            float target = ThrustInput.magnitude * (Boosting ? 1f : 0.55f);
+            float target = ThrustInput.magnitude * (Boosting || PilotOn ? 1f : 0.55f);
             if (MatchingVelocity && RelativeVelocity().sqrMagnitude > 0.04f) target = Mathf.Max(target, 0.8f);
             _thrusterLevel = Mathf.MoveTowards(_thrusterLevel, target, Time.unscaledDeltaTime * 5f);
             _thrusterSound.volume = _thrusterLevel * Config.thrusterVolume;
@@ -192,7 +304,16 @@ namespace OrbitalAnte.Space
         public Vector3 RelativeVelocity()
         {
             Vector3 velocity = Body.linearVelocity;
-            if (System != null && Target >= 0) velocity -= System.LocalVelocityOf(Target);
+            AgainstGround = false;
+            if (System != null && Target >= 0)
+            {
+                // Close above a body, what matters is the ground beneath, which a spinning body carries round
+                // with it. Matching that is what lets you set down on a spinning moon without skidding.
+                BodySpec spec = System.Bodies[Target].Spec;
+                double height = System.AltitudeAbove(Target, Body.position);
+                AgainstGround = height < global::System.Math.Max(GroundMatchLeast, spec.radius * GroundMatchShare);
+                velocity -= AgainstGround ? System.GroundVelocityAt(Target, Body.position) : System.LocalVelocityOf(Target);
+            }
             return velocity;
         }
 
@@ -203,6 +324,7 @@ namespace OrbitalAnte.Space
         void UpdateTarget()
         {
             Target = -1;
+            UnderNose = -1;
             if (System == null || System.Model == null || Eye == null) return;
             Vector3 eye = Eye.transform.position;
             // The ship's nose, not the pilot's eyes: a glance down at the camera screen, a launch shake or a knock
@@ -218,16 +340,16 @@ namespace OrbitalAnte.Space
                 if (distance <= radius) continue;
                 // Rocks only count when close; otherwise the belt would steal the target from the planet behind it.
                 if (spec.kind == BodyKind.Asteroid && distance - radius > 4000f) continue;
-                float off = Vector3.Angle(forward, to) - Mathf.Asin(radius / distance) * Mathf.Rad2Deg;
-                if (off < 0f) off = 0f;
                 // Among bodies under the nose, the nearer one wins.
-                float score = off + distance * 1e-7f;
+                float score = (float)TargetLock.Score(Vector3.Angle(forward, to), distance, radius);
                 if (score < best)
                 {
                     best = score;
-                    Target = i;
+                    UnderNose = i;
                 }
             }
+            if (LockedTarget >= System.Bodies.Length) LockedTarget = -1;
+            Target = TargetLock.Target(LockedTarget, UnderNose);
 
             if (Target < 0)
             {
@@ -256,7 +378,8 @@ namespace OrbitalAnte.Space
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
             _lookPending = Vector2.zero;
-            if (!Locked)
+            if (PilotOn && !Unmanned) FlyByPilot(dt);
+            else if (!Locked)
             {
                 // Only a pilot steadies the ship. Left alone it tumbles, tips and comes to rest like any other object.
                 Body.MoveRotation(Body.rotation * turn);
@@ -264,6 +387,7 @@ namespace OrbitalAnte.Space
             }
 
             float power = Config.thrust * (Boosting ? Config.boostMultiplier : 1f);
+            if (PilotOn) return;
             if (ThrustInput.sqrMagnitude > 0.0001f)
             {
                 // The main engines lift; the small thrusters push sideways and fore and aft.
@@ -285,6 +409,48 @@ namespace OrbitalAnte.Space
             }
         }
     
+        void FlyByPilot(float dt)
+        {
+            if (System == null || LockedTarget < 0) { StopPilot(PilotStop.NoTarget); return; }
+            if (PushScale < 0.5f) { StopPilot(PilotStop.NoFuel); return; }
+            _nextPathCheck -= dt;
+            if (_nextPathCheck <= 0f)
+            {
+                _nextPathCheck = 0.5f;
+                int blocker = FindBlocker();
+                if (blocker >= 0) { StopPilot(PilotStop.Blocked, blocker); return; }
+            }
+
+            // Whatever weakens the ship in the pilot's hands weakens it in the autopilot's: damage and an empty tank.
+            float share = Mathf.Clamp01(PushScale) * Mathf.Clamp01(Mathf.Min(LiftScale, SideScale));
+            CelestialBody body = System.Bodies[LockedTarget];
+            Vector3 to = body.transform.position - Body.position;
+            Vector3 relative = Body.linearVelocity - System.LocalVelocityOf(LockedTarget);
+            PilotOrder order = Autopilot.Fly(PilotRules, SpaceConvert.ToVec3d(to), SpaceConvert.ToVec3d(relative), body.Spec.radius,
+                SpaceConvert.ToVec3d(Gravity != null ? Gravity.FeltGravity : Vector3.zero), share);
+            // What is shown is steadier than what is flown: the time only counts down, and the word for what it
+            // is doing holds for a moment, so the dash and HUD are not rewritten every frame.
+            if (order.SecondsLeft > _shownSeconds && _shownSeconds >= 0f) order.SecondsLeft = _shownSeconds;
+            _shownSeconds = order.SecondsLeft;
+            _phaseHeld += dt;
+            if (order.Phase != _shownPhase && _phaseHeld >= 0.3f) { _shownPhase = order.Phase; _phaseHeld = 0f; }
+            order.Phase = _shownPhase;
+            Order = order;
+            if (order.Arrived) { StopPilot(PilotStop.Arrived); return; }
+
+            Body.AddForce(SpaceConvert.ToVector3(order.Push), ForceMode.Acceleration);
+            PilotPushShare = order.Effort * PilotRules.push * share * Mathf.Max(1f, PilotRules.fuelSurcharge) / Mathf.Max(1f, Config.thrust);
+
+            // The nose swings round to the target, so you watch it come up through the window. Bumps are steadied.
+            if (to.sqrMagnitude > 1f)
+            {
+                Quaternion want = Quaternion.LookRotation(to.normalized, Body.rotation * Vector3.up);
+                Body.MoveRotation(Quaternion.RotateTowards(Body.rotation, want, PilotRules.turnSpeed * Mathf.Clamp01(SideScale) * dt));
+            }
+            Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
+            _lookPending = Vector2.zero;
+        }
+
         void OnDestroy()
         {
             // The rumble is made afresh for every run.

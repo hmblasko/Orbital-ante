@@ -68,7 +68,7 @@ namespace OrbitalAnte.Ship
         Mesh[] _pieceMeshes;
         PlanetJobs.Handle _bakeJob;
 
-        AudioSource _voice, _hum, _tick;
+        AudioSource _voice, _thump, _hum, _tick;
         float _nextSpark;
         readonly RaycastHit[] _rayHits = new RaycastHit[8];
         static readonly int GlowId = Shader.PropertyToID("_Glow");
@@ -322,6 +322,13 @@ namespace OrbitalAnte.Ship
             _voice.rolloffMode = AudioRolloffMode.Linear;
             _voice.minDistance = 5f;
             _voice.maxDistance = 70f;
+            // Knocks are pitched by how hard they are, so they get their own source and bend nothing else.
+            _thump = gameObject.AddComponent<AudioSource>();
+            _thump.playOnAwake = false;
+            _thump.spatialBlend = 1f;
+            _thump.rolloffMode = AudioRolloffMode.Linear;
+            _thump.minDistance = 5f;
+            _thump.maxDistance = 70f;
             _hum = gameObject.AddComponent<AudioSource>();
             _hum.playOnAwake = false;
             _hum.clip = Sounds.LiftHum;
@@ -331,6 +338,15 @@ namespace OrbitalAnte.Ship
             _hum.minDistance = 4f;
             _hum.maxDistance = 40f;
             _hum.volume = 0f;
+            _scrape = gameObject.AddComponent<AudioSource>();
+            _scrape.playOnAwake = false;
+            _scrape.clip = Sounds.Scrape;
+            _scrape.loop = true;
+            _scrape.spatialBlend = 1f;
+            _scrape.rolloffMode = AudioRolloffMode.Linear;
+            _scrape.minDistance = 5f;
+            _scrape.maxDistance = 70f;
+            _scrape.volume = 0f;
 
             for (int i = 0; i < count; i++) RefreshPart(i);
             PoseHatch();
@@ -615,7 +631,77 @@ namespace OrbitalAnte.Ship
             go.AddComponent<Wreckage>().Home = this;
         }
 
-        float _lastCrash = -10f, _lastCrashSpeed;
+        float _lastCrash = -10f, _lastCrashSpeed, _lastGroan = -10f, _slide, _stopHeard = -100f;
+        AudioSource _scrape;
+
+        /// <summary>How fast the hull is sliding over what it touches, metres per second. Drives the scrape.</summary>
+        public float SlideSpeed => _slide;
+
+        // The ship's velocity at the end of the last physics step, and whether this step's knock is already told.
+        Vector3 _velocityBefore;
+        bool _knockTold;
+
+        void FixedUpdate()
+        {
+            // Runs before the physics step, so in the collision messages that follow it this is "just before".
+            if (Body != null) _velocityBefore = Body.linearVelocity;
+            _knockTold = false;
+        }
+
+        /// <summary>
+        /// What the person inside feels: how much the ship's own velocity changed across this physics step,
+        /// measured straight into the surface. Told once per step however many things were touched.
+        /// A ship resting on spinning ground changes velocity a little every step; that is not a knock.
+        /// </summary>
+        void FeelKnock(Collision collision)
+        {
+            if (_knockTold || Body == null || collision.contactCount == 0) return;
+            Vector3 normal = collision.GetContact(0).normal;
+            float knock = Mathf.Abs(Vector3.Dot(Body.linearVelocity - _velocityBefore, normal)) - 0.5f;
+            if (knock <= 0f) return;
+            _knockTold = true;
+            if (knock > HardestKnock) HardestKnock = knock;
+            // The surface pushes the ship along its normal, so the blow came from the other way.
+            if (Crew != null) Crew.Knock(knock, transform.InverseTransformDirection(-normal));
+        }
+
+        void OnCollisionStay(Collision collision)
+        {
+            if (collision.contactCount == 0) return;
+            Rigidbody other = collision.rigidbody;
+            if (other != null && !other.isKinematic && other.mass < 300f) return;
+            FeelKnock(collision);
+            Vector3 normal = collision.GetContact(0).normal;
+            Vector3 along = collision.relativeVelocity - normal * Vector3.Dot(collision.relativeVelocity, normal);
+            float speed = along.magnitude;
+            if (speed > _slide) _slide = speed;
+        }
+
+        /// <summary>The sounds that follow from flying, not from a single event: the scrape of a skid, and the autopilot letting go.</summary>
+        void FlightSounds(float dt)
+        {
+            if (_scrape != null)
+            {
+                // Metal dragged over ground: louder and a little higher the faster it slides. Fades in a moment.
+                float want = Mathf.Clamp01((_slide - 1.5f) / 16f);
+                _scrape.volume = Mathf.MoveTowards(_scrape.volume, want * Config.volume, dt * 4f);
+                _scrape.pitch = 0.8f + 0.5f * want;
+                if (_scrape.volume > 0.001f && !_scrape.isPlaying) _scrape.Play();
+                else if (_scrape.volume <= 0.001f && _scrape.isPlaying) _scrape.Stop();
+                _slide = Mathf.MoveTowards(_slide, 0f, dt * 60f);
+            }
+            if (Flight != null && Flight.LastStopTime != _stopHeard)
+            {
+                _stopHeard = Flight.LastStopTime;
+                // Letting go on its own in mid-flight is heard as well as read; finishing is a quiet click.
+                if (OrbitalAnte.Navigation.Autopilot.IsAlarm(Flight.LastStop)) Play(Sounds.Deny, 1f);
+                else if (Flight.LastStop == OrbitalAnte.Navigation.PilotStop.Arrived) Play(Sounds.Lever, 0.8f);
+            }
+        }
+        /// <summary>The player, when they belong to this ship. Told about every knock.</summary>
+        public Astronaut Crew { get; set; }
+        /// <summary>The hardest knock so far (change in the ship's velocity, metres per second), for tests and the debug line.</summary>
+        public float HardestKnock { get; private set; }
 
         void OnCollisionEnter(Collision collision)
         {
@@ -629,14 +715,22 @@ namespace OrbitalAnte.Ship
             float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
             // The same knock often arrives as several touches (four footpads, two pieces of ground). Count it once.
             if (Time.time - _lastCrash < 0.2f && speed <= _lastCrashSpeed) speed = 0f;
+            FeelKnock(collision);
+
             float damage = Model.ImpactDamage(speed);
             if (damage > 0f) { _lastCrash = Time.time; _lastCrashSpeed = speed; }
-            if (damage <= 0f)
+            // The sound of a knock: a dull thump through the hull, deeper and louder the harder it is, and the
+            // structure groaning afterwards if it was a real blow. No stings, no music.
+            float loud = OrbitalAnte.Navigation.CrashModel.Loudness(speed);
+            if (loud > 0.02f) Play(Sounds.Thud, damage > 0f ? 1f : loud * 0.6f, OrbitalAnte.Navigation.CrashModel.Pitch(speed));
+            if (damage <= 0f) return;
+            // One groan at a time: a tumbling crash must not pile them up.
+            if (speed > Model.Rules.safeImpactSpeed * 2f && Time.time - _lastGroan > 1f)
             {
-                if (speed > 0.8f) Play(Sounds.Thud, Mathf.Clamp01(speed / 4f) * 0.5f);
-                return;
+                _lastGroan = Time.time;
+                Play(Sounds.Groan, Mathf.Clamp01(speed / 25f), 1f);
             }
-            Play(Sounds.Thud, 1f);
+            if (Flight != null && Flight.PilotOn) Flight.StopPilot(OrbitalAnte.Navigation.PilotStop.Knocked);
 
             ShipPart struck = contact.thisCollider != null ? contact.thisCollider.GetComponentInParent<ShipPart>() : null;
             int index = struck != null && struck.Ship == this ? struck.Index : Model.IndexOf("base");
@@ -790,9 +884,10 @@ namespace OrbitalAnte.Ship
             if (_hum.volume > 0.001f && !_hum.isPlaying) _hum.Play();
             else if (_hum.volume <= 0.001f && _hum.isPlaying) _hum.Stop();
 
+            FlightSounds(Time.deltaTime);
             if (Flight != null)
             {
-                Flight.Unmanned = !Belt.Buckled;
+                Flight.Unmanned = !Belt.Buckled || (Crew != null && Crew.Dead);
                 Flight.LiftScale = Model.ThrustFactor * Mathf.Clamp01(LiftGate);
                 Flight.SideScale = Model.TurnFactor;
                 Flight.PushScale = Mathf.Clamp01(FuelGate);
@@ -881,11 +976,13 @@ namespace OrbitalAnte.Ship
         /// <summary>The lift ride that finished during this frame's update, if any.</summary>
         public LiftRide LastRideFinished { get; private set; }
 
-        void Play(AudioClip clip, float volume)
+        void Play(AudioClip clip, float volume, float pitch = 1f)
         {
-            if (clip == null || _voice == null) return;
-            _voice.pitch = 1f;
-            _voice.PlayOneShot(clip, volume * Config.volume);
+            // Anything pitched goes to the knock source, so the ordinary voice always plays at its true pitch.
+            AudioSource source = pitch != 1f ? _thump : _voice;
+            if (clip == null || source == null) return;
+            source.pitch = pitch;
+            source.PlayOneShot(clip, volume * Config.volume);
         }
 
         /// <summary>Plays one of the ship's sounds from the ship (for the seat and belt, which the player drives).</summary>

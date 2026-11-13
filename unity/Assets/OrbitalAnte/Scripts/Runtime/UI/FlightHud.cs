@@ -166,7 +166,7 @@ namespace OrbitalAnte.UI
             if (target >= 0)
             {
                 float closing = _craft.ClosingSpeed;
-                text += "\nAimed at " + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
+                text += (_craft.LockedTarget >= 0 ? "\nLOCKED ON " : "\nAimed at ") + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
                         (closing >= 0f ? "closing " : "pulling away ") + FormatSpeed(Mathf.Abs(closing));
             }
             // What the surroundings are doing to you, so nothing slows or pushes the craft without saying so.
@@ -182,7 +182,23 @@ namespace OrbitalAnte.UI
 
             // One line of plain advice, most urgent first.
             bool mustBrake = target >= 0 && _craft.ClosingSpeed > 30f && _craft.StoppingDistance > _craft.TargetDistance * 0.8f;
-            if (_craft.MatchingVelocity)
+            if (_craft.PilotOn)
+            {
+                int key = (int)_craft.Order.Phase * 10000 + (int)Mathf.Clamp(_craft.Order.SecondsLeft, 0f, 5999f);
+                if (key != _pilotKey)
+                {
+                    _pilotKey = key;
+                    _pilotWords = Navigation.Autopilot.Words(_craft.Order.Phase, _craft.Order.SecondsLeft) + "     touch the thrust to take over";
+                }
+                _state.text = _pilotWords;
+                _state.color = UiKit.PanelEdge;
+            }
+            else if (Time.unscaledTime - _craft.LastStopTime < 4f && _craft.LastStopWords.Length > 0)
+            {
+                _state.text = _craft.LastStopWords;
+                _state.color = _craft.LastStop == Navigation.PilotStop.Arrived || _craft.LastStop == Navigation.PilotStop.PilotTookOver ? UiKit.PanelEdge : UiKit.Danger;
+            }
+            else if (_craft.MatchingVelocity)
             {
                 string who = model.Spec(_craft.MatchBody).displayName;
                 _state.text = _craft.RelativeVelocity().magnitude > 0.5f ? "MATCHING VELOCITY WITH " + who.ToUpperInvariant() : "VELOCITY MATCHED WITH " + who.ToUpperInvariant();
@@ -215,10 +231,14 @@ namespace OrbitalAnte.UI
                 bool pad = GameInput.UsingGamepad;
                 _help.text = "Thrust: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     Roll: " +
                              Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) + "     Boost: " + Key(GameInput.Boost) +
-                             "     Match velocity with what you aim at: hold " + Key(GameInput.MatchVelocity) + "     Map: " + Key(GameInput.ToggleMap) +
+                             "     Match velocity with what you aim at: hold " + Key(GameInput.MatchVelocity) +
+                             "     Lock: " + Key(GameInput.LockTarget) + "     Autopilot: " + Key(GameInput.Autopilot) + "     Map: " + Key(GameInput.ToggleMap) +
                              "     Pause: " + (pad ? "Start" : "Esc");
             }
         }
+
+        int _pilotKey = -1;
+        string _pilotWords = string.Empty;
 
         static string Key(UnityEngine.InputSystem.InputAction action) => GameInput.Describe(action);
 

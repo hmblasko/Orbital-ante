@@ -14,7 +14,7 @@ namespace OrbitalAnte.Ship
         [Header("Body")]
         [Tooltip("Weight in kilograms. Affects how hard it hits things, not how it flies.")]
         public float mass = 3200f;
-        [Range(0f, 1f)] public float bounce = 0.12f;
+        [Range(0f, 1f)] public float bounce = 0.28f;
         [Range(0f, 1.5f)] public float grip = 0.9f;
 
         [Header("Damage and repair")]
@@ -70,6 +70,9 @@ namespace OrbitalAnte.Ship
 
         [Header("Sound")]
         [Range(0f, 1f)] public float volume = 0.7f;
+
+        [Header("Crashes: what a knock does to the person inside")]
+        public OrbitalAnte.Navigation.CrashRules crash = new OrbitalAnte.Navigation.CrashRules();
 
         static ShipConfig _cached;
 

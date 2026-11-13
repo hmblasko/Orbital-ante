@@ -116,7 +116,7 @@ namespace OrbitalAnte.Cockpit
 
             // The notice is always the last word, and always there (blank when there is nothing to say), so a
             // blinking warning changes one word on the real dash and not every word after it.
-            bool urgent = r.FuelOut || r.OxygenLow || r.FuelLow;
+            bool urgent = r.FuelOut || r.OxygenLow || r.FuelLow || r.SinkTooFast || r.Notice == "NOT BUCKLED IN";
             float noticeSize = r.Notice.Length > 24 ? 16f : 20f;
             if (r.Notice.Length > 0 && style == DashStyle.GreenScreen && urgent && r.Blink)
             {

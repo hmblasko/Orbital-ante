@@ -77,6 +77,8 @@ namespace OrbitalAnte.Cockpit
         float _nextDraw, _overlayUntil;
         /// <summary>Unity's built-in "UI" layer. The dash lives on it so the ship's own cameras can leave it out.</summary>
         public const int DashLayer = 5;
+        int _pilotKey = -1;
+        string _pilotWords = string.Empty;
         int _feedCamera = -1, _frame, _lastPicture;
         bool _drawnOnce;
         // 0 not told yet, 1 drawn plain (the little screen), 2 drawn with the full finish (the whole view).
@@ -216,15 +218,17 @@ namespace OrbitalAnte.Cockpit
             _frame++;
 
             bool inCabin = _crew.Mode == AstronautMode.Seated || _crew.Mode == AstronautMode.Aboard;
-            bool flying = _crew.Mode == AstronautMode.Seated && _ship.Belt.Buckled && !_craft.ControlsLocked;
+            bool flying = _crew.Mode == AstronautMode.Seated && _ship.Belt.Buckled && !_craft.ControlsLocked && !_crew.Dead;
 
             // Fuel and air.
             LaunchFx engines = _ship.Launch;
             bool onPad = engines != null && engines.Settled && _world.Base != null && _world.Base.OverPad(_ship.transform.position);
-            float push = flying ? Mathf.Clamp01(_craft.ThrustInput.magnitude) : 0f;
+            // The autopilot pushes harder than a pilot's ordinary push, and pays for it.
+            float push = !flying ? 0f : _craft.PilotOn ? _craft.PilotPushShare : Mathf.Clamp01(_craft.ThrustInput.magnitude);
             // Braking to match speed burns fuel like any other push. Nothing the engines do is free.
             Braking = flying && _craft.MatchingVelocity && _craft.RelativeVelocity().sqrMagnitude > 0.25f;
-            if (Braking) push = Mathf.Max(push, Mathf.Clamp01(_craft.Config.matchVelocityThrust / Mathf.Max(1f, _craft.Config.thrust)));
+            // It brakes twice as hard as an ordinary push, and is charged for it.
+            if (Braking) push = Mathf.Max(push, _craft.Config.matchVelocityThrust / Mathf.Max(1f, _craft.Config.thrust));
             bool landed = engines != null && engines.Settled;
             int broken = 0;
             ShipModel parts = _ship.Model;
@@ -239,7 +243,7 @@ namespace OrbitalAnte.Cockpit
             // A hard knock while a camera fills the view puts you straight back behind your own eyes: a crash is
             // lived from the seat, never watched from outside.
             Vector3 velocity = _craft.Body.linearVelocity;
-            bool knocked = (velocity - _lastVelocity).magnitude > 6f;
+            bool knocked = (velocity - _lastVelocity).magnitude > 6f || _crew.Dead;
             _lastVelocity = velocity;
             _ship.FuelGate = Supplies.PushFactor;
 
@@ -319,13 +323,21 @@ namespace OrbitalAnte.Cockpit
                 if (key != _hintKey) { _hintKey = key; _hint = key.ToUpperInvariant() + ": LOOK DOWN"; }
             }
             input.ScreenHint = _hint;
+            input.Loose = !_ship.Belt.Buckled;
+            if (_craft.PilotOn)
+            {
+                int key = (int)_craft.Order.Phase * 10000 + (int)Mathf.Clamp(_craft.Order.SecondsLeft, 0f, 5999f);
+                if (key != _pilotKey) { _pilotKey = key; _pilotWords = OrbitalAnte.Navigation.Autopilot.Words(_craft.Order.Phase, _craft.Order.SecondsLeft); }
+                input.Note = _pilotWords;
+            }
+            else if (Time.unscaledTime - _craft.LastStopTime < 4f) input.Note = _craft.LastStopWords;
 
             input.Altitude = -1f;
             SolarSystem system = _craft.System;
             if (system != null && system.Model != null)
             {
                 int target = _craft.Target;
-                input.Against = UpperName(_craft.MatchBody);
+                input.Against = _craft.AgainstGround ? GroundName(_craft.MatchBody) : UpperName(_craft.MatchBody);
                 int anchor = system.Frame.Anchor;
                 PlanetWorld planets = PlanetWorld.Instance;
                 if (anchor > 0 && planets != null)
@@ -339,6 +351,7 @@ namespace OrbitalAnte.Cockpit
                         input.Altitude = Mathf.Max(0f, (float)height + ShipLayout.GroundY);
                         Vector3 up = (_ship.transform.position - system.Bodies[anchor].transform.position).normalized;
                         input.Vertical = Vector3.Dot(_craft.Body.linearVelocity, up);
+                        input.SafeSink = _ship.Model.Rules.safeImpactSpeed;
                     }
                 }
             }
@@ -353,6 +366,16 @@ namespace OrbitalAnte.Cockpit
 
         // Names in capitals, made once each.
         string[] _upperNames;
+
+        string[] _groundNames;
+
+        string GroundName(int body)
+        {
+            SolarSystemModel model = _craft.System.Model;
+            if (_groundNames == null || _groundNames.Length != model.Count) _groundNames = new string[model.Count];
+            if (body < 0 || body >= _groundNames.Length) return string.Empty;
+            return _groundNames[body] ?? (_groundNames[body] = UpperName(body) + " GROUND");
+        }
 
         string UpperName(int body)
         {

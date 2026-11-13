@@ -14,12 +14,12 @@ namespace OrbitalAnte.Ship
         const int Rate = 22050;
 
         public AudioClip BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone;
-        public AudioClip GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever;
+        public AudioClip GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever, Groan, Scrape;
 
         /// <summary>Frees the clips. They are made afresh for every run.</summary>
         public void Dispose()
         {
-            AudioClip[] all = { BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone, GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever };
+            AudioClip[] all = { BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone, GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever, Groan, Scrape };
             for (int i = 0; i < all.Length; i++)
             {
                 if (all[i] != null) UnityEngine.Object.Destroy(all[i]);
@@ -78,6 +78,22 @@ namespace OrbitalAnte.Ship
                 return screech + r * Mathf.Exp(-t * 6f) * 0.5f + Mathf.Sin(2f * Mathf.PI * 55f * t) * Mathf.Exp(-t * 9f) * 0.6f;
             }, lowPass: 0.5f);
             a.Deny = Make("Deny", 0.22f, 14, (t, r) => (Mathf.Sin(2f * Mathf.PI * 180f * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * 190f * t)) * Mathf.Clamp01((0.22f - t) / 0.05f) * 0.3f);
+            // The frame settling after a real blow: two low notes rubbing against each other, sagging in pitch,
+            // with a few ticks of metal taking up the strain. Heard through the hull, so it is dull, not bright.
+            a.Groan = Make("Groan", 1.6f, 16, (t, r) =>
+            {
+                float sag = 1f - 0.18f * t;
+                float body = Mathf.Sin(2f * Mathf.PI * 71f * sag * t) + 0.7f * Mathf.Sin(2f * Mathf.PI * 74.5f * sag * t) + 0.35f * Mathf.Sin(2f * Mathf.PI * 143f * sag * t);
+                float swell = Mathf.Clamp01(t / 0.15f) * Mathf.Exp(-t * 2.2f);
+                float ticks = Click(t, 0.22f, 420f, 30f) * 0.35f + Click(t, 0.61f, 360f, 28f) * 0.28f + Click(t, 1.02f, 300f, 26f) * 0.2f;
+                return body * swell * 0.33f + ticks + r * swell * 0.05f;
+            }, lowPass: 0.3f);
+            // A skid: grit dragged under metal, shuddering as the hull catches and lets go. Loops.
+            a.Scrape = Make("Scrape", 1.2f, 17, (t, r) =>
+            {
+                float shudder = 0.55f + 0.45f * Mathf.Sin(2f * Mathf.PI * (10f / 1.2f) * t) * Mathf.Sin(2f * Mathf.PI * (3f / 1.2f) * t);
+                return r * shudder * 0.5f + Mathf.Sin(2f * Mathf.PI * (60f / 1.2f * 1f) * t) * 0.12f;
+            }, lowPass: 0.35f, loop: true);
             a.Lever = Make("Lever", 0.2f, 15, (t, r) => Click(t, 0f, 900f, 40f) + Click(t, 0.09f, 600f, 35f) * 0.9f, lowPass: 0.5f);
             return a;
         }

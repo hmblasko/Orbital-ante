@@ -69,6 +69,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Look.ModelLibrary.ResetStatics();
             OrbitalAnte.Launch.LaunchConfig.ResetStatics();
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
+            OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -188,6 +189,7 @@ namespace OrbitalAnte.Core
             _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
+            OrbitalAnte.Ship.Astronaut.OnDeath = cause => _pauseMenu.ShowDeath(cause);
         }
 
         // ------------------------------------------------------------------ state changes

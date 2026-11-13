@@ -28,6 +28,12 @@ namespace OrbitalAnte.Cockpit
         public string CameraName;
         /// <summary>What to press to look down at the camera screen, already in words ("C: LOOK DOWN").</summary>
         public string ScreenHint;
+        /// <summary>A line from another system (the autopilot), shown when nothing more urgent is.</summary>
+        public string Note;
+        /// <summary>The fastest the ship can touch down without damage, metres per second. 0 if unknown.</summary>
+        public float SafeSink;
+        /// <summary>Nobody is strapped into the seat.</summary>
+        public bool Loose;
     }
 
     /// <summary>What the dash shows: the inputs, settled so needles glide and words do not flicker.</summary>
@@ -43,6 +49,8 @@ namespace OrbitalAnte.Cockpit
         public string SpeedText = "0", SpeedUnit = "m/s", AltitudeText = "", VerticalText = "", FuelText = "100", OxygenText = "100";
         public string FuelLabel = "100%", OxygenLabel = "100%";
         public string Against = "", SpeedLabel = "SPEED", CameraName = "", ScreenHint = "", Notice = "";
+        /// <summary>Coming down too fast to land safely, close to the ground.</summary>
+        public bool SinkTooFast;
         /// <summary>On for half of every second: for warnings.</summary>
         public bool Blink => Clock % 1f < 0.5f;
     }
@@ -56,6 +64,12 @@ namespace OrbitalAnte.Cockpit
     {
         public readonly DashReadings Readings = new DashReadings();
         /// <summary>Seconds between rewrites of the words.</summary>
+        /// <summary>The landing warning speaks when you would reach the ground within this many seconds at your present sink rate.</summary>
+        public const float LandingWarningSeconds = 6f;
+        /// <summary>Moving faster than this with nobody strapped in, the dash says so.</summary>
+        public const float LooseWarningSpeed = 5f;
+        float _safeShown = -1f;
+        string _tooFastWords = string.Empty;
         public float TextInterval = 0.125f;
         /// <summary>Below this speed the direction ball shows no dot: you are as good as still.</summary>
         public float StillSpeed = 0.3f;
@@ -150,9 +164,22 @@ namespace OrbitalAnte.Cockpit
             if (oxygen != _oxygenShown) { _oxygenShown = oxygen; r.OxygenText = oxygen.ToString(Commas); r.OxygenLabel = r.OxygenText + "%"; }
 
             // One notice at a time, the most urgent first.
-            r.Notice = input.FuelOut ? "FUEL OUT: WEAK PUSH. LAND TO REFILL"
+            // Too fast to land: close to the ground and coming down faster than the legs can take. The nearer the
+            // ground, the sooner it speaks, and it names the number so the limit is learned, not guessed.
+            bool tooFast = input.SafeSink > 0f && input.Altitude >= 0f && input.Vertical < -input.SafeSink
+                && input.Altitude < -input.Vertical * LandingWarningSeconds;
+            if (tooFast && input.SafeSink != _safeShown)
+            {
+                _safeShown = input.SafeSink;
+                _tooFastWords = "TOO FAST TO LAND: OVER " + Math.Round(input.SafeSink).ToString(Commas) + " m/s";
+            }
+            r.SinkTooFast = tooFast;
+            r.Notice = input.Loose && input.Speed > LooseWarningSpeed ? "NOT BUCKLED IN"
+                : tooFast ? _tooFastWords
+                : input.FuelOut ? "FUEL OUT: WEAK PUSH. LAND TO REFILL"
                 : input.FuelLow ? "FUEL LOW"
                 : input.OxygenLow ? "AIR LOW"
+                : !string.IsNullOrEmpty(input.Note) ? input.Note
                 : input.Filling ? "FILLING TANKS"
                 : input.Igniting ? "ENGINES BUILDING"
                 : input.Matching ? "MATCHING SPEED"

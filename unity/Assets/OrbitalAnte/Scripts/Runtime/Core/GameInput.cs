@@ -54,6 +54,8 @@ namespace OrbitalAnte.Core
         public static InputAction CockpitScreen { get; private set; }
         public static InputAction NextCamera { get; private set; }
         public static InputAction NextDash { get; private set; }
+        public static InputAction LockTarget { get; private set; }
+        public static InputAction Autopilot { get; private set; }
 
         /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
         public static InputActionMap Play { get; private set; }
@@ -164,6 +166,8 @@ namespace OrbitalAnte.Core
             CockpitScreen = AddButton(Flight, "Look Down At Camera Screen", "<Keyboard>/c", "<Gamepad>/dpad/down");
             NextCamera = AddButton(Flight, "Next Ship Camera", "<Keyboard>/v", "<Gamepad>/dpad/right");
             NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", "<Gamepad>/rightStickPress");
+            LockTarget = AddButton(Flight, "Lock Target", "<Keyboard>/t", "<Gamepad>/buttonWest");
+            Autopilot = AddButton(Flight, "Autopilot To Locked Target", "<Keyboard>/r", "<Gamepad>/buttonEast");
             Play = Gameplay;
 
             // ---------- System (fixed) ----------

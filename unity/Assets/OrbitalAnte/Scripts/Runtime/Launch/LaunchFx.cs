@@ -293,6 +293,7 @@ namespace OrbitalAnte.Launch
             // The ship copied last frame's gate into the controls before this ran. Set it again now, so not one
             // physics step of full push slips out at the start of a build-up.
             flight.LiftScale = Ship.Model.ThrustFactor * Mathf.Clamp01(Model.LiftGate);
+            flight.Landed = Settled;
 
             if (Model.JustIgnited)
             {

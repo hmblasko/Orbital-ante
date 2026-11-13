@@ -1,3 +1,4 @@
+using System;
 using OrbitalAnte.Core;
 using OrbitalAnte.Player;
 using OrbitalAnte.Space;
@@ -58,6 +59,19 @@ namespace OrbitalAnte.Ship
         float _yaw, _pitch;
         Vector3 _standFrom;
         float _yawFrom, _pitchFrom;
+
+        // ---- knocks
+        /// <summary>What knocks do to the view and to the person. Rules in <c>Navigation/CrashRules.cs</c>.</summary>
+        public OrbitalAnte.Navigation.CrashModel Crash { get; private set; }
+        public bool Dead { get; private set; }
+        public string DeathCause { get; private set; } = string.Empty;
+        /// <summary>True for a moment after being thrown about the cabin: you cannot act.</summary>
+        public bool Dazed => _dazed > 0f;
+        /// <summary>Called once, a moment after the pilot dies, with the cause in plain words. Set by whoever shows the screen.</summary>
+        public static Action<string> OnDeath;
+        public static void ResetStatics() => OnDeath = null;
+        float _dazed, _deadFor;
+        bool _posed, _deathTold;
         float _pendingYaw;
         bool _jumpQueued;
         Vector3 _up = Vector3.up;
@@ -128,6 +142,8 @@ namespace OrbitalAnte.Ship
 
             // A run starts strapped in, as if you had just finished your checks.
             ship.Belt.StartBuckled();
+            ship.Crew = a;
+            a.Crash = new OrbitalAnte.Navigation.CrashModel(config.crash);
             a.EnterSeat(instant: true);
             return a;
         }
@@ -245,6 +261,61 @@ namespace OrbitalAnte.Ship
 
         // ------------------------------------------------------------------ every frame
 
+        /// <summary>
+        /// The ship took a knock. <paramref name="knock"/> is how much its velocity changed (metres per
+        /// second); <paramref name="from"/> is the direction the blow came from, in the ship's own directions.
+        /// </summary>
+        public void Knock(float knock, Vector3 from)
+        {
+            if (Dead || Crash == null || Mode == AstronautMode.Outside) return;
+            bool buckled = Mode == AstronautMode.Seated && Ship.Belt.Buckled;
+            // A blow from below or from ahead throws the head forward; from the side, sideways.
+            var fate = Crash.Hit(knock, buckled, from.x, Mathf.Clamp(from.z - from.y, -1f, 1f));
+            if (fate == OrbitalAnte.Navigation.PilotFate.Thrown) _dazed = Mathf.Max(_dazed, Crash.Rules.dazedSeconds);
+            else if (fate == OrbitalAnte.Navigation.PilotFate.Killed) Die(OrbitalAnte.Navigation.CrashModel.Cause(Crash.LastKnock, buckled));
+        }
+
+        /// <summary>Ends the run. Always first person: the view slumps where you were, then the screen says why.</summary>
+        public void Die(string cause)
+        {
+            if (Dead) return;
+            Dead = true;
+            DeathCause = cause ?? string.Empty;
+            _deadFor = 0f;
+            Prompt = string.Empty;
+            PromptProgress = -1f;
+        }
+
+        void PoseOnly()
+        {
+            switch (Mode)
+            {
+                case AstronautMode.Seated: PoseSeated(); break;
+                case AstronautMode.Aboard: PoseAboard(); break;
+                case AstronautMode.Lift: PoseLift(); break;
+            }
+        }
+
+        void LateUpdate()
+        {
+            // Only ever on top of a pose made this frame, or the kick would pile up on itself.
+            if (!_posed || Eye == null || Crash == null) return;
+            _posed = false;
+            bool shake = FeelSettings.CameraShake;
+            float pitch = shake ? Crash.KickPitch : 0f, roll = shake ? Crash.KickRoll : 0f;
+            float slump = 0f;
+            if (Dead) slump = Mathf.SmoothStep(0f, 1f, _deadFor / 1.1f);
+            else if (_dazed > 0f) slump = 0.35f * Mathf.Sin(Mathf.Clamp01(_dazed / Mathf.Max(0.1f, Crash.Rules.dazedSeconds)) * Mathf.PI);
+            if (slump > 0f)
+            {
+                // Going down: the head drops and rolls to one side. Not a comfort setting; it is what happened.
+                pitch += 38f * slump;
+                roll += 62f * slump;
+                Eye.transform.localPosition += Vector3.down * (0.55f * slump);
+            }
+            if (pitch != 0f || roll != 0f) Eye.transform.localRotation *= Quaternion.Euler(pitch, 0f, roll);
+        }
+
         void Update()
         {
             if (Ship == null || GameInput.Asset == null || GameSession.Paused) return;
@@ -252,6 +323,34 @@ namespace OrbitalAnte.Ship
             if (dt <= 0f) return;
             Prompt = string.Empty;
             PromptProgress = -1f;
+
+            if (Crash != null) Crash.Tick(dt);
+            if (Dead)
+            {
+                _deadFor += dt;
+                if (Mode != AstronautMode.Outside) { PoseOnly(); _posed = true; }
+                if (!_deathTold && _deadFor > 1.8f)
+                {
+                    _deathTold = true;
+                    OnDeath?.Invoke(DeathCause);
+                }
+                return;
+            }
+            if (_dazed > 0f)
+            {
+                _dazed -= dt;
+                if (Mode == AstronautMode.Aboard)
+                {
+                    // Thrown about the cabin: for a moment you can do nothing but watch.
+                    PoseOnly();
+                    _posed = true;
+                    PoseBelt();
+                    return;
+                }
+                // In the seat or the lift the daze is only felt (the slump): the belt and the lift ride must
+                // keep running, or a knock half way through either would leave you stuck there.
+            }
+            _posed = Mode != AstronautMode.Outside;
 
             switch (Mode)
             {

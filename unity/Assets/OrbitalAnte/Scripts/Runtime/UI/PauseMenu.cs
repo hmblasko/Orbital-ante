@@ -24,6 +24,7 @@ namespace OrbitalAnte.UI
             Restart,
             Quit,
             Confirm,
+            Died,
         }
 
         /// <summary>Restart the run. The argument is true to keep the current seed.</summary>
@@ -58,6 +59,7 @@ namespace OrbitalAnte.UI
             BuildAudio();
             BuildRestart();
             BuildQuit();
+            BuildDied();
             BuildConfirm();
 
             _controls = new ControlsPage();
@@ -155,6 +157,42 @@ namespace OrbitalAnte.UI
             _defaults[Page.Restart] = UiKit.Button(card, "Cancel", () => Show(Page.Main)).gameObject;
         }
 
+        Text _diedCause;
+        Button _diedSameSeed;
+
+        /// <summary>
+        /// Shown when the pilot dies. Says what killed them in plain words, so the lesson is never hidden, and
+        /// offers the same choices as Restart. There is no way back into a run that has ended.
+        /// </summary>
+        void BuildDied()
+        {
+            var card = NewPage(Page.Died, "THAT WAS FATAL", 620f);
+            _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
+            _defaults[Page.Died] = _diedSameSeed.gameObject;
+            UiKit.Button(card, "Try again with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
+            UiKit.Button(card, "Quit to main menu", () => { Close(); QuitToMenuRequested?.Invoke(); });
+        }
+
+        /// <summary>Opens the menu on the page for a run that has ended in the pilot's death.</summary>
+        public void ShowDeath(string cause)
+        {
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            _diedCause.text = cause ?? string.Empty;
+            UiKit.ButtonText(_diedSameSeed).text = "Try again with the same seed (" + GameSession.Seed + ")";
+            Show(Page.Died);
+            // Nothing is chosen for a moment, so a button still held from the crash cannot skip the page.
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            _diedAt = Time.unscaledTime;
+        }
+
+        float _diedAt = -10f;
+        const float DiedHold = 0.8f;
+
         void BuildQuit()
         {
             var card = NewPage(Page.Quit, "QUIT?", 560f);
@@ -248,6 +286,9 @@ namespace OrbitalAnte.UI
                 case Page.Confirm:
                     Show(_confirmReturn);
                     break;
+                case Page.Died:
+                    // The run is over: there is nothing to go back to.
+                    break;
                 default:
                     Show(Page.Main);
                     break;
@@ -287,6 +328,7 @@ namespace OrbitalAnte.UI
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
             if (selected != null && selected.activeInHierarchy) return;
+            if (_current == Page.Died && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();

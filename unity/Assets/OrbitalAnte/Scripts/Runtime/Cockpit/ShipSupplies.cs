@@ -62,7 +62,8 @@ namespace OrbitalAnte.Cockpit
         {
             Filling = false;
             if (dt <= 0f) return;
-            push = Clamp01(push);
+            // More than 1 is allowed: the autopilot pushes harder than a pilot's ordinary push and pays for it.
+            push = push < 0f ? 0f : push > 3f ? 3f : push;
             if (push > 0.01f)
             {
                 float use = push * (boost ? Math.Max(1f, Rules.boostCost) : 1f) / Math.Max(1f, Rules.fuelSeconds);

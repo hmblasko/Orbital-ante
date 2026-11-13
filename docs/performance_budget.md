@@ -226,6 +226,31 @@ What to read off in Unity, seated on the pad on Earth:
 5. **Window > Analysis > Frame Debugger > Enable**. Under the ShipCamera group, note how many events there are and whether Bloom, UberPost or a depth pre-pass appear (none should).
 6. Burn fuel below 20% and note whether the Profiler graph spikes twice a second (it should not).
 
+## Navigation (Milestone 10): estimates from reading the code, not measured
+
+Read by the deck-performance agent. Nothing here has been run in Unity; Deck figures are guesses. The one timing is from a desktop processor outside Unity.
+
+| System | Cost | Cap |
+|---|---|---|
+| Autopilot steering | a few square roots per physics step, no garbage. Guessed under 5 microseconds on Deck. | one ship |
+| Autopilot path check | all 130 bodies, twice a second, only while the autopilot is on. Two small lists (about 4 KB) made once. | 2 checks a second |
+| Finding what the nose points at | all 130 bodies every frame (older code, now also feeds the lock). Guessed 15 to 40 microseconds on Deck. | 150 bodies |
+| Autopilot words (dash and HUD) | remade when the shown word or whole second changes: about 0.6 KB of garbage a second while it flies, 0 when off. The shown time only counts down and the word holds for 0.3 s, so it cannot flicker. | 1 remake a second each |
+| Words for why it let go | fixed strings; one small string when a body is in the way | once per stop |
+| Knocks on the pilot | a few sums per touch, no garbage. One string when a knock kills. | - |
+| View kick | 4 small spring steps a frame, always running | - |
+| Crash sounds | a thump per rising touch, a 1.6 s groan per damaging blow, on the ship's one-shot source | one groan a second |
+| Skid scrape | one looping source on the ship, silent unless sliding; one small sum per touch per physics step while anything touches the hull | 1 source |
+| Groan and scrape clips | made at run start: the groan took 4 to 6 ms on a desktop, guessed 12 to 36 ms on Deck; the scrape is a little shorter. About 0.13 MB kept. | once per run |
+
+What to read off in Unity:
+1. Open **Window > Analysis > Profiler**. Click the **CPU Usage** row. In the lower panel's drop-down choose **Hierarchy**.
+2. Press Play, take off, lock a far planet (**T**) and start the autopilot (**R**). Type `TestCraft` in the search box. Note **Time ms** and **GC Alloc** for `TestCraft.FixedUpdate` and `TestCraft.Update` (expect 0 B).
+3. Search `CockpitDash.Update`, then `FlightHud.LateUpdate`. Note **GC Alloc** on ten frames in a row: it should be above 0 B on about one frame a second, not most frames.
+4. Fly into the ground at about 20 m/s. Click the tallest spike. Note the total ms, then search `Ship.OnCollisionEnter` and note **Calls**, **Time ms** and **GC Alloc**.
+5. Click the **Audio** row in the Profiler and repeat the crash. Note the highest **Playing Audio Sources** and **Audio Voices**.
+6. **Edit > Project Settings > Physics**: note whether **Reuse Collision Callbacks** is ticked. Then **Edit > Project Settings > Time**: note the **Fixed Timestep** number.
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:
