@@ -84,6 +84,9 @@ namespace OrbitalAnte.Look
 
         static Material Outdoor() => PlanetMaterials.VertexColour(Color.white, 1f, 0f, true, PropPaintScale);
 
+        /// <summary>The one material every library model is drawn with in the open. Shared: never change or destroy it.</summary>
+        public static Material SharedMaterial() => Outdoor();
+
         /// <summary>For inside a hull: no sunlight, an even glow in its place (the cabin's own light is baked, so there is none to borrow).</summary>
         static Material Indoor() => PlanetMaterials.VertexColour(Color.white, 0f, IndoorGlow, true, PropPaintScale);
 

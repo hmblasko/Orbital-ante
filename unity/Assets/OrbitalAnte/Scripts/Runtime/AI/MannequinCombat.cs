@@ -400,6 +400,7 @@ namespace OrbitalAnte.AI
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
             _kick = Mathf.Min(2.5f, shot.RecoilScale);
+            if (_loco != null) _loco.Kick(_kick, _gunSide);
             ShotsFired++;
         }
 

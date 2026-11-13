@@ -2,6 +2,7 @@ using System.IO;
 using NUnit.Framework;
 using OrbitalAnte.Look;
 using OrbitalAnte.Ship;
+using OrbitalAnte.Dismemberment;
 
 namespace OrbitalAnte.Tests
 {
@@ -301,6 +302,69 @@ namespace OrbitalAnte.Tests
             }
             Assert.Greater(outward, count * 0.9f);
             Assert.Greater(changed, count / 4, "round shading changed almost nothing");
+        }
+
+        [Test]
+        public void EnemyModelFile_MatchesTheSkeleton()
+        {
+            // The Blender script carries its own copy of the joint positions. If BodySkeleton changes, this fails
+            // until tools/blender/build_enemy.py is changed to match and run again.
+            ModelFile model = LoadReal("Enemy");
+            for (int i = 0; i < BodyLayout.Count; i++)
+            {
+                var id = (BodyPartId)i;
+                Assert.IsNotNull(model.Part(id.ToString()), "missing piece " + id);
+                Assert.IsTrue(model.TrySocket(id.ToString(), out ModelSocket s), "missing socket " + id);
+                OrbitalAnte.Core.Vec3d origin = BodySkeleton.PartOrigin(id);
+                Assert.AreEqual(origin.X, s.X, 0.002, id + " x");
+                Assert.AreEqual(origin.Y, s.Y, 0.002, id + " y");
+                Assert.AreEqual(origin.Z, s.Z, 0.002, id + " z");
+            }
+            Assert.IsNotNull(model.Part("Stump"), "missing the wound stump");
+            Assert.LessOrEqual(model.TriangleCount, 16000, "docs/performance_budget.md caps one enemy at 16,000 triangles");
+        }
+
+        [Test]
+        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint()
+        {
+            // Each piece is measured from its joint, so it must start there and reach the way the part points.
+            ModelFile model = LoadReal("Enemy");
+            for (int i = 0; i < BodyLayout.Count; i++)
+            {
+                var id = (BodyPartId)i;
+                ModelPart piece = model.Part(id.ToString());
+                float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue, maxZ = float.MinValue;
+                for (int v = 0; v < piece.VertexCount; v++)
+                {
+                    float x = piece.Positions[v * 3], y = piece.Positions[v * 3 + 1], z = piece.Positions[v * 3 + 2];
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                }
+                Assert.Less(maxX - minX, 0.75f, id + " is too wide");
+                Assert.Less(maxY - minY, 0.75f, id + " is too tall");
+                Assert.Less(maxZ - minZ, 0.75f, id + " is too deep");
+                if (id == BodyPartId.Head || id == BodyPartId.Torso) continue;
+                OrbitalAnte.Core.Vec3d d = BodySkeleton.PartDirection(id);
+                float along = (float)(d.X * (d.X > 0 ? maxX : minX) + d.Y * (d.Y > 0 ? maxY : minY));
+                float behind = (float)(-d.X * (d.X > 0 ? minX : maxX) - d.Y * (d.Y > 0 ? minY : maxY));
+                Assert.Greater(along, 0.085f, id + " does not reach away from its joint");
+                Assert.Less(behind, 0.13f, id + " sticks out behind its joint");
+                Assert.Greater(behind, 0.03f, id + " has no ball over its joint, so a gap would open when it bends");
+            }
+        }
+
+        [Test]
+        public void EnemyModelFile_BootsStandOnTheGround()
+        {
+            ModelFile model = LoadReal("Enemy");
+            foreach (BodyPartId id in new[] { BodyPartId.LeftFoot, BodyPartId.RightFoot })
+            {
+                ModelPart piece = model.Part(id.ToString());
+                float lowest = float.MaxValue;
+                for (int v = 0; v < piece.VertexCount; v++) lowest = System.Math.Min(lowest, piece.Positions[v * 3 + 1]);
+                Assert.AreEqual(-BodySkeleton.AnkleY, lowest, 0.012f, id + " sole against the ground");
+            }
         }
     }
 }

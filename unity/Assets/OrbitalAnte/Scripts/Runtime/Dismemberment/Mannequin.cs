@@ -24,6 +24,8 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>A chunk of parts just came off (from the body or from an older gib).</summary>
         public event Action<Mannequin, Detachment, Gib, HitInfo> PartDetached;
         public event Action<Mannequin, MovementState> StateChanged;
+        /// <summary>A part still on the body was hit. The last value is true if the hit took something off.</summary>
+        public event Action<Mannequin, BodyPartId, HitInfo, bool> Struck;
         public event Action<Mannequin> Died;
 
         /// <summary>Raised for every chunk that comes off any character. Effects (blood, sound) listen here.</summary>
@@ -99,6 +101,8 @@ namespace OrbitalAnte.Dismemberment
                     loose.Body.AddForceAtPosition(hit.Direction * Config.gibPushSpeed, hit.Point, ForceMode.VelocityChange);
                 }
             }
+
+            if (groupBefore == 0) Struck?.Invoke(this, part.Id, hit, result.Detachments.Count > 0);
 
             if (result.Killed)
             {
