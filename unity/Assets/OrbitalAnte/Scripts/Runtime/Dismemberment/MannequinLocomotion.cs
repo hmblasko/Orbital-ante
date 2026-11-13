@@ -30,6 +30,10 @@ namespace OrbitalAnte.Dismemberment
 
         /// <summary>Set false to keep the character on the spot (used by tests and for target practice).</summary>
         public bool Wander = true;
+        /// <summary>Combat waits deliberately when there is no goal. Standalone gait fixtures may still wander.</summary>
+        public bool SuppressIdleWander;
+        /// <summary>A coordinated arena's shared query allowance. A denied step waits for the next frame.</summary>
+        public System.Func<bool> MovementProbe;
 
         /// <summary>When set, walk here instead of wandering, and stop on arrival.</summary>
         public Vector3? Destination;
@@ -37,9 +41,6 @@ namespace OrbitalAnte.Dismemberment
         public Vector3? FacePoint;
         /// <summary>Sprint to the destination if the legs allow it.</summary>
         public bool Hurry;
-
-        float _avoidUntil;
-        float _avoidSign = 1f;
 
         /// <summary>Current forward speed in metres per second, averaged over the gait.</summary>
         public float CurrentSpeed { get; private set; }
@@ -110,7 +111,7 @@ namespace OrbitalAnte.Dismemberment
                 {
                     speed = SteerTo(Destination.Value, state, dt);
                 }
-                else
+                else if (!SuppressIdleWander)
                 {
                     Steer(state, dt);
                     speed = SpeedFor(state, _sprinting);
@@ -125,14 +126,21 @@ namespace OrbitalAnte.Dismemberment
 
             float pulse = PulseFor(state);
             Vector3 step = transform.forward * (speed * pulse * dt);
+            if (Destination.HasValue)
+            {
+                Vector3 to = Destination.Value - transform.position; to.y = 0;
+                step = Vector3.ClampMagnitude(step, to.magnitude);
+            }
+            if (step.sqrMagnitude > 0.000001f && !StepClear(step)) step = Vector3.zero;
             Vector3 position = transform.position + step;
 
             // Stay on the ground.
-            if (Physics.Raycast(position + Vector3.up * 2f, Vector3.down, out RaycastHit ground, 6f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            if (step.sqrMagnitude > 0.000001f && Physics.Raycast(position + Vector3.up * 2f, Vector3.down, out RaycastHit ground, 6f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
             {
                 position.y = ground.point.y;
             }
             transform.position = position;
+            if (step.sqrMagnitude < 0.000001f) { CurrentSpeed = 0; speed = 0; }
 
             _owner.Velocity = (position - _lastPosition) / dt;
             _lastPosition = position;
@@ -167,29 +175,18 @@ namespace OrbitalAnte.Dismemberment
             }
         }
 
-        /// <summary>Heads for a point, stepping around walls. Returns the speed to move at (0 on arrival).</summary>
+        /// <summary>Follows an assigned waypoint; the actual capsule sweep stops blocked steps.</summary>
         float SteerTo(Vector3 destination, MovementState state, float dt)
         {
             Vector3 to = destination - transform.position;
             to.y = 0f;
-            if (to.sqrMagnitude < 0.45f * 0.45f)
+            if (to.sqrMagnitude < 0.15f * 0.15f)
             {
                 _sprinting = false;
                 return 0f;
             }
 
-            float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 1.0f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
-            if (blocked && Time.time >= _avoidUntil)
-            {
-                // Something in the way: veer to one side for a moment, then try again.
-                _avoidSign = _rng.NextDouble() < 0.5 ? -1f : 1f;
-                _avoidUntil = Time.time + 0.9f;
-            }
-
             Vector3 heading = to.normalized;
-            if (Time.time < _avoidUntil) heading = Quaternion.Euler(0f, 80f * _avoidSign, 0f) * heading;
             TurnToward(heading, state, dt);
 
             _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > 4f * 4f;
@@ -197,6 +194,22 @@ namespace OrbitalAnte.Dismemberment
             // Do not march off sideways while still turning to face the way.
             if (Vector3.Angle(transform.forward, heading) > 70f) speed *= 0.25f;
             return speed;
+        }
+
+        bool StepClear(Vector3 step)
+        {
+            // Claim both the sweep and ground ray before doing either. Budget exhaustion never bypasses collision.
+            if (MovementProbe != null && (!MovementProbe() || !MovementProbe())) return false;
+            if (_blocker == null || !_blocker.enabled) return false;
+            Vector3 axis = _blocker.direction == 0 ? Vector3.right : _blocker.direction == 1 ? Vector3.up : Vector3.forward;
+            axis = _blocker.transform.TransformDirection(axis);
+            Vector3 centre = _blocker.transform.TransformPoint(_blocker.center);
+            float radius = _blocker.radius;
+            float half = Mathf.Max(0, _blocker.height * 0.5f - radius);
+            int mask = Layers.WorldMask | (1 << Layers.CharacterBody) | (1 << Layers.Player);
+            // A small inward skin prevents the supporting floor registering as a horizontal obstruction.
+            return !Physics.CapsuleCast(centre + axis * half, centre - axis * half, Mathf.Max(0.01f, radius - 0.01f),
+                step.normalized, step.magnitude + 0.02f, mask, QueryTriggerInteraction.Ignore);
         }
 
         void TurnToward(Vector3 direction, MovementState state, float dt)
