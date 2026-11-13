@@ -1,32 +1,70 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Look;
 using UnityEngine;
 
 namespace OrbitalAnte.Dismemberment
 {
     /// <summary>
-    /// Builds the placeholder test humanoid entirely from primitives: one mesh per body part, each parented to
-    /// the matching bone of a Unity Humanoid skeleton. Because the skeleton has a valid Humanoid avatar, any
-    /// Humanoid animation clip can drive it later; for now the motion is procedural (see MannequinLocomotion).
+    /// Builds a breakable humanoid: one piece per body part, each parented to the matching bone of a Unity
+    /// Humanoid skeleton. The pieces are the game's own enemy model (Resources/Models/Enemy, made in Blender by
+    /// tools/blender/build_enemy.py); if that file is missing the old primitive shapes are used instead.
+    /// Because the skeleton has a valid Humanoid avatar, any Humanoid animation clip could drive it later; for now
+    /// the motion is worked out every frame (see BodyAnimator and MannequinLocomotion).
     /// </summary>
     public static class MannequinFactory
     {
+        /// <summary>The model the pieces come from. Its pieces are named after <see cref="BodyPartId"/>, plus "Stump".</summary>
+        public const string ModelId = "Enemy";
+        public const string StumpPiece = "Stump";
+
         // Rest-pose joint positions in metres, character standing at the origin facing +Z. Left side is -X.
-        const float HipsY = 0.95f;
-        const float SpineY = 1.05f;
-        const float NeckY = 1.50f;
-        const float ShoulderX = 0.24f;
-        const float ShoulderY = 1.40f;
-        const float UpperArmLength = 0.28f;
-        const float ForearmLength = 0.26f;
-        const float HipX = 0.105f;
-        const float HipJointY = 0.92f;
-        const float KneeY = 0.50f;
-        const float AnkleY = 0.09f;
+        const float HipsY = BodySkeleton.HipsY;
+        const float SpineY = BodySkeleton.SpineY;
+        const float NeckY = BodySkeleton.NeckY;
+        const float ShoulderX = BodySkeleton.ShoulderX;
+        const float ShoulderY = BodySkeleton.ShoulderY;
+        const float UpperArmLength = BodySkeleton.UpperArmLength;
+        const float ForearmLength = BodySkeleton.ForearmLength;
+        const float HipX = BodySkeleton.HipX;
+        const float HipJointY = BodySkeleton.HipJointY;
+        const float KneeY = BodySkeleton.KneeY;
+        const float AnkleY = BodySkeleton.AnkleY;
         const float HeadRadius = 0.15f;
-        const float HeadCentreAboveNeck = 0.19f;
-        const float TorsoCentreAboveSpine = 0.14f;
+        /// <summary>The model's helmet is a little bigger than the stand-in ball, and so is its hitbox.</summary>
+        const float ModelHeadRadius = 0.17f;
+        const float HeadCentreAboveNeck = BodySkeleton.HeadCentreAboveNeck;
+        const float TorsoCentreAboveSpine = BodySkeleton.TorsoCentreAboveSpine;
         const float TorsoHalfDepth = 0.15f;
+
+        // Only while one character is being built.
+        static bool _shadowCopies;
+
+        /// <summary>
+        /// True if a sun in the scene casts real shadows (the combat arena). Planets and space are lit by the
+        /// game's own shaders with Unity's shadows off, so shadow copies there would be drawn for nothing.
+        /// </summary>
+        static bool SceneCastsShadows()
+        {
+            Light[] lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
+            for (int i = 0; i < lights.Length; i++)
+            {
+                Light light = lights[i];
+                if (light != null && light.isActiveAndEnabled && light.type == LightType.Directional && light.shadows != LightShadows.None) return true;
+            }
+            return false;
+        }
+
+        /// <summary>True when every piece of the enemy model is there to use.</summary>
+        public static bool ModelAvailable()
+        {
+            if (ModelLibrary.PartMesh(ModelId, StumpPiece) == null) return false;
+            for (int i = 0; i < BodyLayout.Count; i++)
+            {
+                if (ModelLibrary.PartMesh(ModelId, ((BodyPartId)i).ToString()) == null) return false;
+            }
+            return true;
+        }
 
         public static Mannequin Create(Vector3 position, Quaternion rotation, Transform parent, MannequinConfig config, string name = "Mannequin")
         {
@@ -42,10 +80,12 @@ namespace OrbitalAnte.Dismemberment
             rootBody.isKinematic = true;
             rootBody.useGravity = false;
 
-            var rig = BuildSkeleton(root.transform);
+            bool modelled = ModelAvailable();
+            _shadowCopies = modelled && SceneCastsShadows();
+            var rig = BuildSkeleton(root.transform, modelled);
 
             var mannequin = root.AddComponent<Mannequin>();
-            var parts = BuildParts(mannequin, rig, config);
+            var parts = BuildParts(mannequin, rig, config, modelled);
 
             // Simple capsule that stops the character and the player walking through each other.
             var blockerGo = new GameObject("BodyBlocker");
@@ -70,11 +110,12 @@ namespace OrbitalAnte.Dismemberment
 
         // ------------------------------------------------------------------ skeleton
 
-        static MannequinRig BuildSkeleton(Transform root)
+        static MannequinRig BuildSkeleton(Transform root, bool modelled)
         {
             var rig = new MannequinRig
             {
-                HeadRadius = HeadRadius,
+                HeadRadius = modelled ? ModelHeadRadius : HeadRadius,
+                Modelled = modelled,
                 HeadCentreHeight = NeckY + HeadCentreAboveNeck,
                 TorsoCentreHeight = SpineY + TorsoCentreAboveSpine,
                 TorsoHalfDepth = TorsoHalfDepth,
@@ -199,28 +240,43 @@ namespace OrbitalAnte.Dismemberment
 
         // ------------------------------------------------------------------ parts
 
-        static BodyPart[] BuildParts(Mannequin owner, MannequinRig rig, MannequinConfig cfg)
+        static BodyPart[] BuildParts(Mannequin owner, MannequinRig rig, MannequinConfig cfg, bool modelled)
         {
             var parts = new BodyPart[BodyLayout.Count];
+            var capRadius = new float[BodyLayout.Count];
             Material wound = Mat.Lit(cfg.woundColor, 0.55f);
+            // The model is chunkier than the stand-in shapes, so its hitboxes are fitted to it: what looks hit is hit.
 
             // Torso: a chunky rounded barrel, wider than it is deep.
             {
                 var go = NewPartObject("Torso", rig.Spine, Vector3.zero);
                 var centre = new Vector3(0f, TorsoCentreAboveSpine, 0f);
-                AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.44f, 0.335f, TorsoHalfDepth * 2f), Mat.Lit(cfg.torsoColor));
-                var col = AddCapsule(go, 1, 0.19f, 0.67f, centre);
+                if (!AddModel(go, BodyPartId.Torso, modelled))
+                    AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.44f, 0.335f, TorsoHalfDepth * 2f), Mat.Lit(cfg.torsoColor));
+                var col = AddCapsule(go, 1, modelled ? 0.215f : 0.19f, 0.67f, centre);
                 parts[(int)BodyPartId.Torso] = Finish(go, BodyPartId.Torso, owner, col, 30f, null);
             }
 
             // Head: slightly oversized, with a dark visor so you can tell which way it is facing.
             {
                 var go = NewPartObject("Head", rig.Head, new Vector3(0f, HeadCentreAboveNeck, 0f));
-                AddMesh(go, PrimitiveType.Sphere, Vector3.zero, Quaternion.identity, Vector3.one * (HeadRadius * 2f), Mat.Lit(cfg.headColor));
-                AddMesh(go, PrimitiveType.Sphere, new Vector3(0f, 0.012f, 0.085f), Quaternion.identity, new Vector3(0.21f, 0.10f, 0.14f), Mat.Lit(cfg.visorColor, 0.8f));
                 var col = go.AddComponent<SphereCollider>();
-                col.radius = HeadRadius;
-                var cap = AddCap(go, new Vector3(0f, -HeadRadius + 0.03f, 0f), 0.075f, wound);
+                float neck;
+                if (AddModel(go, BodyPartId.Head, modelled))
+                {
+                    col.radius = ModelHeadRadius;
+                    col.center = new Vector3(0f, 0.015f, 0f);
+                    neck = 0.165f;
+                }
+                else
+                {
+                    AddMesh(go, PrimitiveType.Sphere, Vector3.zero, Quaternion.identity, Vector3.one * (HeadRadius * 2f), Mat.Lit(cfg.headColor));
+                    AddMesh(go, PrimitiveType.Sphere, new Vector3(0f, 0.012f, 0.085f), Quaternion.identity, new Vector3(0.21f, 0.10f, 0.14f), Mat.Lit(cfg.visorColor, 0.8f));
+                    col.radius = HeadRadius;
+                    neck = HeadRadius - 0.03f;
+                }
+                capRadius[(int)BodyPartId.Head] = 0.075f;
+                var cap = AddCap(go, new Vector3(0f, -neck, 0f), 0.075f, Vector3.down, wound, modelled);
                 parts[(int)BodyPartId.Head] = Finish(go, BodyPartId.Head, owner, col, 5f, cap);
             }
 
@@ -229,80 +285,146 @@ namespace OrbitalAnte.Dismemberment
                 bool left = s == MannequinRig.Left;
                 float sx = left ? -1f : 1f;
                 Quaternion alongX = Quaternion.Euler(0f, 0f, 90f);
+                Vector3 inward = new Vector3(-sx, 0f, 0f);
 
                 // Upper arm
                 {
                     var id = left ? BodyPartId.LeftUpperArm : BodyPartId.RightUpperArm;
                     var go = NewPartObject(id.ToString(), rig.UpperArm[s], Vector3.zero);
                     var centre = new Vector3(sx * UpperArmLength * 0.5f, 0f, 0f);
-                    AddMesh(go, PrimitiveType.Capsule, centre, alongX, new Vector3(0.125f, 0.17f, 0.125f), Mat.Lit(cfg.upperLimbColor));
-                    var col = AddCapsule(go, 0, 0.0625f, 0.34f, centre);
-                    parts[(int)id] = Finish(go, id, owner, col, 3f, AddCap(go, Vector3.zero, 0.07f, wound));
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Capsule, centre, alongX, new Vector3(0.125f, 0.17f, 0.125f), Mat.Lit(cfg.upperLimbColor));
+                    var col = AddCapsule(go, 0, modelled ? 0.085f : 0.0625f, 0.34f, centre);
+                    capRadius[(int)id] = 0.07f;
+                    parts[(int)id] = Finish(go, id, owner, col, 3f, AddCap(go, ProximalCapPosition(inward, 0.07f, modelled), 0.07f, inward, wound, modelled));
                 }
                 // Forearm
                 {
                     var id = left ? BodyPartId.LeftForearm : BodyPartId.RightForearm;
                     var go = NewPartObject(id.ToString(), rig.Forearm[s], Vector3.zero);
                     var centre = new Vector3(sx * ForearmLength * 0.5f, 0f, 0f);
-                    AddMesh(go, PrimitiveType.Capsule, centre, alongX, new Vector3(0.105f, 0.16f, 0.105f), Mat.Lit(cfg.lowerLimbColor));
-                    var col = AddCapsule(go, 0, 0.0525f, 0.32f, centre);
-                    parts[(int)id] = Finish(go, id, owner, col, 2f, AddCap(go, Vector3.zero, 0.06f, wound));
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Capsule, centre, alongX, new Vector3(0.105f, 0.16f, 0.105f), Mat.Lit(cfg.lowerLimbColor));
+                    var col = AddCapsule(go, 0, modelled ? 0.066f : 0.0525f, 0.32f, centre);
+                    capRadius[(int)id] = 0.06f;
+                    parts[(int)id] = Finish(go, id, owner, col, 2f, AddCap(go, ProximalCapPosition(inward, 0.06f, modelled), 0.06f, inward, wound, modelled));
                 }
                 // Hand: a chunky mitt.
                 {
                     var id = left ? BodyPartId.LeftHand : BodyPartId.RightHand;
                     var go = NewPartObject(id.ToString(), rig.Hand[s], Vector3.zero);
-                    var centre = new Vector3(sx * 0.07f, 0f, 0f);
-                    AddMesh(go, PrimitiveType.Sphere, centre, Quaternion.identity, new Vector3(0.16f, 0.12f, 0.13f), Mat.Lit(cfg.extremityColor));
+                    var centre = new Vector3(sx * (modelled ? 0.08f : 0.07f), 0f, 0f);
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Sphere, centre, Quaternion.identity, new Vector3(0.16f, 0.12f, 0.13f), Mat.Lit(cfg.extremityColor));
                     var col = go.AddComponent<SphereCollider>();
                     col.center = centre;
-                    col.radius = 0.07f;
-                    parts[(int)id] = Finish(go, id, owner, col, 1f, AddCap(go, Vector3.zero, 0.052f, wound));
+                    col.radius = modelled ? 0.082f : 0.07f;
+                    capRadius[(int)id] = 0.052f;
+                    parts[(int)id] = Finish(go, id, owner, col, 1f, AddCap(go, ProximalCapPosition(inward, 0.052f, modelled), 0.052f, inward, wound, modelled));
                 }
                 // Thigh
                 {
                     var id = left ? BodyPartId.LeftThigh : BodyPartId.RightThigh;
                     var go = NewPartObject(id.ToString(), rig.Thigh[s], Vector3.zero);
                     var centre = new Vector3(0f, -(HipJointY - KneeY) * 0.5f, 0f);
-                    AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.165f, 0.25f, 0.165f), Mat.Lit(cfg.upperLimbColor));
-                    var col = AddCapsule(go, 1, 0.0825f, 0.50f, centre);
-                    parts[(int)id] = Finish(go, id, owner, col, 8f, AddCap(go, Vector3.zero, 0.09f, wound));
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.165f, 0.25f, 0.165f), Mat.Lit(cfg.upperLimbColor));
+                    var col = AddCapsule(go, 1, modelled ? 0.10f : 0.0825f, 0.50f, centre);
+                    capRadius[(int)id] = 0.09f;
+                    parts[(int)id] = Finish(go, id, owner, col, 8f, AddCap(go, ProximalCapPosition(Vector3.up, 0.09f, modelled), 0.09f, Vector3.up, wound, modelled));
                 }
                 // Shin
                 {
                     var id = left ? BodyPartId.LeftShin : BodyPartId.RightShin;
                     var go = NewPartObject(id.ToString(), rig.Shin[s], Vector3.zero);
                     var centre = new Vector3(0f, -(KneeY - AnkleY) * 0.5f, 0f);
-                    AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.13f, 0.24f, 0.13f), Mat.Lit(cfg.lowerLimbColor));
-                    var col = AddCapsule(go, 1, 0.065f, 0.48f, centre);
-                    parts[(int)id] = Finish(go, id, owner, col, 5f, AddCap(go, Vector3.zero, 0.072f, wound));
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.identity, new Vector3(0.13f, 0.24f, 0.13f), Mat.Lit(cfg.lowerLimbColor));
+                    var col = AddCapsule(go, 1, modelled ? 0.076f : 0.065f, 0.48f, centre);
+                    capRadius[(int)id] = 0.072f;
+                    parts[(int)id] = Finish(go, id, owner, col, 5f, AddCap(go, ProximalCapPosition(Vector3.up, 0.072f, modelled), 0.072f, Vector3.up, wound, modelled));
                 }
                 // Foot: a rounded boot pointing forward.
                 {
                     var id = left ? BodyPartId.LeftFoot : BodyPartId.RightFoot;
                     var go = NewPartObject(id.ToString(), rig.Foot[s], Vector3.zero);
                     var centre = new Vector3(0f, -0.04f, 0.06f);
-                    AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.Euler(90f, 0f, 0f), new Vector3(0.11f, 0.14f, 0.10f), Mat.Lit(cfg.extremityColor));
-                    var col = AddCapsule(go, 2, 0.05f, 0.28f, centre);
-                    parts[(int)id] = Finish(go, id, owner, col, 1.5f, AddCap(go, Vector3.zero, 0.058f, wound));
+                    if (!AddModel(go, id, modelled))
+                        AddMesh(go, PrimitiveType.Capsule, centre, Quaternion.Euler(90f, 0f, 0f), new Vector3(0.11f, 0.14f, 0.10f), Mat.Lit(cfg.extremityColor));
+                    var col = AddCapsule(go, 2, modelled ? 0.058f : 0.05f, modelled ? 0.32f : 0.28f, centre);
+                    capRadius[(int)id] = 0.058f;
+                    parts[(int)id] = Finish(go, id, owner, col, 1.5f, AddCap(go, ProximalCapPosition(Vector3.up, 0.058f, modelled), 0.058f, Vector3.up, wound, modelled));
                 }
             }
 
-            // A wound cap on each parent, exactly where each child joins it.
+            // A wound on each parent, exactly where each child joined it, facing the way the child pointed.
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
                 if (!BodyLayout.HasParent(id)) continue;
-                BodyPart child = parts[i];
                 BodyPart parent = parts[(int)BodyLayout.Parent(id)];
 
-                Vector3 jointWorld = child.ProximalCap != null ? child.ProximalCap.transform.position : child.transform.position;
-                Vector3 local = parent.transform.InverseTransformPoint(jointWorld);
-                float radius = child.ProximalCap != null ? child.ProximalCap.transform.localScale.x * 0.5f : 0.06f;
-                parent.SetChildCap(id, AddCap(parent.gameObject, local, radius, wound));
+                Core.Vec3d joint = BodySkeleton.RestPosition(BodySkeleton.BoneOf(id));
+                Core.Vec3d origin = BodySkeleton.PartOrigin(BodyLayout.Parent(id));
+                Core.Vec3d pointing = BodySkeleton.PartDirection(id);
+                var direction = new Vector3((float)pointing.X, (float)pointing.Y, (float)pointing.Z);
+                var local = new Vector3((float)(joint.X - origin.X), (float)(joint.Y - origin.Y), (float)(joint.Z - origin.Z));
+                // The hips and neck are buried inside the torso piece, so their wounds are pushed out to its skin.
+                if (modelled && BodyLayout.Parent(id) == BodyPartId.Torso)
+                {
+                    if (id == BodyPartId.LeftThigh || id == BodyPartId.RightThigh) local += direction * 0.07f;
+                    else if (id == BodyPartId.Head) local += direction * 0.025f;
+                }
+                parent.SetChildCap(id, AddCap(parent.gameObject, local, capRadius[i], direction, wound, modelled));
             }
 
             return parts;
+        }
+
+        /// <summary>
+        /// Where the wound on a severed piece sits. A model piece begins with a ball at its joint, so the wound is
+        /// pushed out of the ball toward where the parent was; the stand-in shapes keep it on the joint.
+        /// </summary>
+        static Vector3 ProximalCapPosition(Vector3 towardParent, float radius, bool modelled)
+        {
+            return modelled ? towardParent * (radius * 0.55f) : Vector3.zero;
+        }
+
+        /// <summary>Hangs the model's piece for a body part on its object. Returns false if the model is not being used.</summary>
+        static bool AddModel(GameObject parent, BodyPartId id, bool modelled)
+        {
+            if (!modelled) return false;
+            Mesh mesh = ModelLibrary.PartMesh(ModelId, id.ToString());
+            if (mesh == null) return false;
+            AddModelMesh(parent, mesh, "Mesh", true);
+            return true;
+        }
+
+        static GameObject AddModelMesh(GameObject parent, Mesh mesh, string name, bool castsShadow)
+        {
+            var go = new GameObject(name);
+            go.layer = parent.layer;
+            go.transform.SetParent(parent.transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = ModelLibrary.SharedMaterial();
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            // The game's own shader draws no shadow, so a second, unseen copy casts it where a scene has real lights.
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            if (castsShadow && _shadowCopies)
+            {
+                var shadow = new GameObject("Shadow");
+                shadow.layer = parent.layer;
+                shadow.transform.SetParent(go.transform, false);
+                shadow.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var caster = shadow.AddComponent<MeshRenderer>();
+                caster.sharedMaterial = Mat.Lit(Color.grey);
+                caster.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                caster.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                caster.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            }
+            return go;
         }
 
         static GameObject NewPartObject(string name, Transform bone, Vector3 localPosition)
@@ -338,10 +460,24 @@ namespace OrbitalAnte.Dismemberment
             return mesh;
         }
 
-        static GameObject AddCap(GameObject parent, Vector3 localPosition, float radius, Material material)
+        /// <summary>
+        /// A wound, hidden until the joint it covers is cut. With the model it is a torn stump with a bone end,
+        /// pointing out of the piece; otherwise a plain red ball.
+        /// </summary>
+        static GameObject AddCap(GameObject parent, Vector3 localPosition, float radius, Vector3 facing, Material material, bool modelled)
         {
-            var cap = AddMesh(parent, PrimitiveType.Sphere, localPosition, Quaternion.identity, Vector3.one * (radius * 2f), material);
-            cap.name = "WoundCap";
+            Mesh stump = modelled ? ModelLibrary.PartMesh(ModelId, StumpPiece) : null;
+            if (stump == null)
+            {
+                var ball = AddMesh(parent, PrimitiveType.Sphere, localPosition, Quaternion.identity, Vector3.one * (radius * 2f), material);
+                ball.name = "WoundCap";
+                return ball;
+            }
+            // The stump is modelled with a radius of one unit, pointing up.
+            GameObject cap = AddModelMesh(parent, stump, "WoundCap", false);
+            cap.transform.localPosition = localPosition;
+            cap.transform.localRotation = Quaternion.FromToRotation(Vector3.up, facing);
+            cap.transform.localScale = Vector3.one * radius;
             return cap;
         }
 

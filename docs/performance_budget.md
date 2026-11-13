@@ -177,6 +177,21 @@ What to read off in Unity, standing on Earth at noon, then at a coast, then seat
 | Rifle | about 7,800 triangles, 2 pieces | 9,000 triangles a gun (a rule test fails above it) |
 | Pistol | about 3,900 triangles, 2 pieces | 9,000 triangles a gun |
 | Guns at once | 10 in the arena (8 mannequins, yours, 1 spare), 1 in the solar system | 12, until dropped and enemy guns get a simpler copy of about 1,500 triangles (needed before Phase 2 enemy counts) |
+
+### Launch base model (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| `Resources/Models/LaunchPad.bytes` | About 31,600 triangles in 17 pieces (10 solid, 7 that shine), one base in the world | 36,000 triangles |
+
+### Enemies (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| Enemy model (`Resources/Models/Enemy.bytes`) | About 14,850 triangles in 14 pieces (one per breakable part), one shared material, 14 draw calls. In the arena, where the sun casts real shadows, an unseen copy of each piece casts the shadow, so the triangles are drawn again per shadow cascade. No shadow copies on planets or in space. | 16,000 triangles (the rule test `EnemyModelFile_MatchesTheSkeleton` enforces it) |
+| Enemies at full detail | About 119,000 triangles per pass for the arena's 8 | 12, until a far copy of about 3,000 triangles exists (needed before Phase 2 enemy counts); then 30 with at most 8 at full detail |
+| Enemy animation (`BodyAnimator`) | Worked out per enemy per frame, no stored clips, no garbage. 45 microseconds for 30 enemies on a desktop outside Unity; not measured on the Deck | 30 |
+| Objects per enemy | About 87 (17 bones, 14 parts, 14 meshes, 14 shadow copies in the arena, 26 hidden wound stumps) | - |
 | Triangles, all guns | about 65,000; twice that if a depth pass runs | 100,000 |
 | Draw calls | 20 (2 a gun, one shared material), down from about 100 with the box guns | - |
 | Paint on the held gun | guessed 0.1 to 0.4 ms in the arena, about nil on planets | `Paint` 0 on the Look asset |
