@@ -82,7 +82,7 @@ How Blender models are made: each is built by a script in `tools/blender/` (so i
 **Pass 3: depth.**
 1. Soft shadows from the Sun for things near the player (ship, rocks, characters), within the Deck budget.
 2. Clouds: a painted cloud layer on worlds with weather, and proper cloud tops on the gas giants.
-3. The same lighting on characters and weapons, which still use Unity's standard material.
+3. The same lighting on characters and the arena, which still use Unity's standard material (the Blender-made guns already use the shared look).
 4. Ground detail close to the feet: pebbles, tufts, cracks.
 
 ## Rules for anyone adding to the look

@@ -20,7 +20,7 @@ On 13 Nov 2026 Matthew said the game must not look PS2, "including the guns and 
 
 **The cabin dome shades round.** Its panels used to be lit as separate flat facets. Corners that sit in the same place now share their facing, so the dome reads as one curved shell, while the window frames and the skirt stay crisp. The dome's shape, panels and colours are unchanged, so the inside and the baked cabin light are untouched.
 
-**Nothing about how the ship works changed.** Every new piece sits where the old one sat. The 21 breakable parts, their colliders, repair points, tear-off and wreckage, the belly entry and lift, the glass and the cabin are as they were. If the model file is missing or damaged, the ship builds the old shapes.
+**Nothing about how the ship works changed.** Every new piece sits where the old one sat. The 18 breakable parts (the four engine bells count as one), their colliders, repair points, tear-off and wreckage, the belly entry and lift, the glass and the cabin are as they were. If the model file is missing or damaged, the ship builds the old shapes.
 
 All colour is stored at the corners of the models (worn edges, grime in creases, patchy paint). No texture files.
 
@@ -46,6 +46,11 @@ All colour is stored at the corners of the models (worn edges, grime in creases,
 - **Frame time on the Deck.** Estimates only (`docs/performance_budget.md`, "Ship outside").
 - **PlayMode tests** have not been run with this change. No PlayMode test covers the new fittings yet.
 - **The visual quality gate:** still BLOCKED until a capture runs in Unity.
+
+## Also fixed in this part (found by the outside review of pass 1, confirmed in the code)
+- **The ship stayed sunlit on a planet's night side.** Panels that happened to face the Sun were lit through the planet. Sunlight now fades out for everything once the Sun is below the horizon where you stand. Not fixed: a ship in orbit inside a planet's shadow is still lit.
+- The tip on the bloom threshold dial described the wrong units; it now says to tune by eye.
+- Changing a Look dial during Play does nothing (the finish is set up once at the start). The steps in the performance notes now say to stop and press Play again.
 
 ## Agent review
 

@@ -144,7 +144,12 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     grazing = grazing * grazing;
     half3 rim = (_OA_SkyHorizon.rgb * 0.6 + _OA_SunColor.rgb * 0.1) * (grazing * saturate(facing * 0.7 + 0.5) * _OA_Haze.z);
 
-    light += (sun + bounce + rim) * sunAmount;
+    // On a planet's night side the planet itself is in the way: nothing down here is sunlit, whichever way it
+    // faces (a ship's panels would otherwise catch the Sun through the ground). In open space "up" is zero.
+    half sunUp = dot(up, toSun);
+    half reached = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, sunUp) : 1.0;
+
+    light += (sun + bounce + rim) * (sunAmount * reached);
 
     float3 toLamp = _OA_LampPosition.xyz - positionWS;
     float lampDistance = max(0.001, length(toLamp));

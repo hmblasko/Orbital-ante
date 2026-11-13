@@ -86,6 +86,6 @@ Three reviews read the work before it was committed. None of them ran anything i
 3. Run the rule tests. Commit the script and the two `.bytes` files together.
 
 ## What comes next
-1. The outside of the ship, made the same way, keeping its 21 breakable parts, belly entry and baked cabin.
+1. The outside of the ship, made the same way, keeping all its breakable parts, belly entry and baked cabin.
 2. Your eyes on the guns, and changes from what you say.
 3. ChatGPT's confirmed notes on the guns and the ship brief, when they arrive.

@@ -21,7 +21,7 @@ namespace OrbitalAnte.Look
         public bool finish = true;
         [Tooltip("Bright things (the Sun, engine glow, the entry ring, glitter on water) spill a soft glow. 0 switches it off.")]
         [Range(0f, 2f)] public float bloom = 0.55f;
-        [Tooltip("Only things brighter than this glow. Pale ground in full sun reaches about 1.2, so this sits just above it.")]
+        [Tooltip("Only things brighter than this glow. Unity measures this its own way (not in the same units as the game's light), with a soft start, so tune it by eye: raise it if pale sunlit ground glows, lower it if the Sun and lamps do not.")]
         [Range(0.5f, 3f)] public float bloomThreshold = 1.25f;
         [Tooltip("How very bright light is squeezed onto the screen. Neutral keeps colours true; Filmic is punchier and a little darker.")]
         public ToneMapping toneMapping = ToneMapping.Neutral;

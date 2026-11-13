@@ -135,7 +135,7 @@ Nothing here has been timed. The figures are estimates for a Steam Deck at 1280 
 | Lights and shadows | None added. | - |
 
 What to read off in Unity, standing on Earth at noon, then at a coast, then seated in orbit:
-1. The Budget line on the readout, with `Finish` ticked and then unticked on the Look asset (the difference is the cost of the finish).
+1. The Budget line on the readout, with `Finish` ticked and then unticked on the Look asset (the difference is the cost of the finish). Stop Play, change the dial, and press Play again each time: the finish is set up once when Play starts, so a change made during Play does nothing.
 2. The same with `Edge Smoothing` at Multisample4, Multisample2 and Off.
 3. The same with `Paint` at 1 and at 0.
 4. Batches and Tris in the Stats panel (they should be within a handful of what they were before this pass).
