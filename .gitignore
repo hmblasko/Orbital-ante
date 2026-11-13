@@ -33,3 +33,15 @@ Thumbs.db
 # ChatGPT handoff packets (tools/chatgpt/oa_handoff.py)
 /handoff/
 __pycache__/
+
+# Audio pipeline: rendered scratch files (the measurements the QA report quotes are kept)
+/tools/audio/build/*
+!/tools/audio/build/measurements.json
+!/tools/audio/build/demo/
+/tools/audio/build/demo/*
+!/tools/audio/build/demo/showcase_measurements.json
+!/tools/audio/build/demo/showcase.png
+!/tools/audio/build/demo/schedule.json
+__pycache__/
+tools/audio/sim/obj/
+tools/audio/sim/bin/
