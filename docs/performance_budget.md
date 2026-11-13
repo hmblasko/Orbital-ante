@@ -137,6 +137,22 @@ What to read off in Unity, standing on Earth at noon, then at a coast, then seat
 3. The same with `Paint` at 1 and at 0.
 4. Batches and Tris in the Stats panel (they should be within a handful of what they were before this pass).
 
+## Guns (Blender models, 13 Nov 2026): estimates from reading the code, not measured
+
+| | Cost | Cap |
+|---|---|---|
+| Rifle | about 7,800 triangles, 2 pieces | 9,000 triangles a gun (a rule test fails above it) |
+| Pistol | about 3,900 triangles, 2 pieces | 9,000 triangles a gun |
+| Guns at once | 10 in the arena (8 mannequins, yours, 1 spare), 1 in the solar system | 12, until dropped and enemy guns get a simpler copy of about 1,500 triangles (needed before Phase 2 enemy counts) |
+| Triangles, all guns | about 65,000; twice that if a depth pass runs | 100,000 |
+| Draw calls | 20 (2 a gun, one shared material), down from about 100 with the box guns | - |
+| Paint on the held gun | guessed 0.1 to 0.4 ms in the arena, about nil on planets | `Paint` 0 on the Look asset |
+| Reading the models | 0.6 ms measured on a desktop outside Unity; guessed under 15 ms on a Deck, once | - |
+| Memory | about 0.4 MB on the graphics card, 0.4 MB of kept file data | - |
+| Shadows | guns cast none: their shader has no shadow pass | - |
+
+What to read off in Unity, in the arena: Tris, Batches and SetPass calls in the Stats panel looking at the guns and then away from them (expect a difference of about 65,000 or 130,000 triangles); the Budget line with `Paint` at 1 and at 0.
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

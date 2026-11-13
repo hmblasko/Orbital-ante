@@ -13,6 +13,7 @@ Shader "OrbitalAnte/Terrain"
         _Glow ("Glows by itself", Range(0, 2)) = 0
         _Outdoors ("Lit by sky, lamp and fog (0 for baked interiors)", Range(0, 1)) = 1
         _Paint ("Painted break-up of colour", Range(0, 1)) = 1
+        _PaintScale ("Paint patch size: 1 for ground, larger for small things", Range(1, 63)) = 1
     }
 
     SubShader
@@ -30,6 +31,7 @@ Shader "OrbitalAnte/Terrain"
             half _Glow;
             half _Outdoors;
             half _Paint;
+            half _PaintScale;
         CBUFFER_END
 
         TEXTURE2D(_FarMap);
@@ -67,7 +69,7 @@ Shader "OrbitalAnte/Terrain"
             output.direction = input.direction;
             // Painted in the object's own space and size, so the paint stays put on a turning planet.
             float3 scale = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
-            output.positionOS = input.positionOS.xyz * scale;
+            output.positionOS = input.positionOS.xyz * scale * _PaintScale;
             // Ground knows which way is up at every corner (planets are small, so "up" changes quickly). Rocks,
             // the ship and anything else without that information use "up" where the viewer is.
             float3 upWS = TransformObjectToWorldDir(input.direction, false);
@@ -110,7 +112,8 @@ Shader "OrbitalAnte/Terrain"
                     blend = saturate((range - _FarBlend.x) / max(1.0, _FarBlend.y - _FarBlend.x));
                 }
                 // Paint only where the ground's own colour still shows.
-                albedo = OA_Paint(albedo, input.positionOS, range, _OA_Haze.y * _Paint * (1.0 - blend));
+                // Smaller patches (things held in the hand) fade out sooner, so they never shimmer at a distance.
+                albedo = OA_Paint(albedo, input.positionOS, range * _PaintScale, _OA_Haze.y * _Paint * (1.0 - blend));
                 albedo = lerp(albedo, farColor, blend);
 
                 half3 normal = normalize(input.normalWS);

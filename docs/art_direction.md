@@ -70,12 +70,14 @@ Every dial is on one asset, `Assets/OrbitalAnte/Resources/Config/LookConfig`, so
 
 **Pass 1: the foundation, all in code (this pull request).** Sky, light, haze, paint, water, deep space, the finish. Changes every planet and the outside of the ship at once.
 
-**Pass 2: assets made in Blender.** In rough order of how much of the screen they fill:
-1. The ship's outside: panel lines, painted wear, chunkier legs, engines and dish.
-2. Rocks, trees and landmarks: a small hand-shaped set per planet family to replace the generated lumps nearest the player.
-3. The suit's gloves and tools (what is on screen all the time on foot).
-4. Weapons.
+**Pass 2: assets made in Blender.** On 13 Nov 2026 Matthew asked that the guns and the ship in particular stop looking PS2, so they come first:
+1. Weapons: the rifle and the test pistol (first versions built, see `docs/reports/look-pass-2-guns.md`).
+2. The ship's outside: panel lines, painted wear, chunkier legs, engines and dish.
+3. Rocks, trees and landmarks: a small hand-shaped set per planet family to replace the generated lumps nearest the player.
+4. The suit's gloves and tools (what is on screen all the time on foot).
 5. The mannequin's replacement (Milestone 12 asks for one proper enemy model).
+
+How Blender models are made: each is built by a script in `tools/blender/` (so it can be rebuilt and changed without clicking), coloured per corner with painted wear and grime (no texture files), and written to a small file in `Resources/Models` that the game reads itself. They are drawn with the same shared look as the ground and the ship.
 
 **Pass 3: depth.**
 1. Soft shadows from the Sun for things near the player (ship, rocks, characters), within the Deck budget.

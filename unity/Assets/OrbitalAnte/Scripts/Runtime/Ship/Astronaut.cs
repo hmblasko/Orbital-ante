@@ -175,7 +175,13 @@ namespace OrbitalAnte.Ship
             if (Weapons != null)
             {
                 Weapons.enabled = armed;
-                if (Weapons.Current != null) Weapons.Current.gameObject.SetActive(armed);
+                if (Weapons.Current != null)
+                {
+                    Weapons.Current.gameObject.SetActive(armed);
+                    // Inside the hull the Sun cannot reach the gun: it takes the cabin's even light instead.
+                    OrbitalAnte.Look.ModelLibrary.SetIndoors(Weapons.Current.gameObject, !outside);
+                }
+
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
         }

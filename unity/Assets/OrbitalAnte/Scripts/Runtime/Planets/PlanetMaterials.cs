@@ -31,6 +31,7 @@ namespace OrbitalAnte.Planets
         static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
         static readonly int BoostId = Shader.PropertyToID("_Boost");
         static readonly int PaintId = Shader.PropertyToID("_Paint");
+        static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
 
@@ -145,11 +146,13 @@ namespace OrbitalAnte.Planets
             return m;
         }
 
-        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f, bool painted = true)
+        /// <param name="paintScale">1 for ground and rocks. Larger makes the painted patches smaller, for things held in the hand.</param>
+        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f, bool painted = true, float paintScale = 1f)
         {
             Look();
             Color32 c = tint;
-            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) | (painted ? 0L : 1L << 50);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) | (painted ? 0L : 1L << 50) | ((long)scaleKey << 52);
             if (VertexCache.TryGetValue(key, out Material cached) && cached != null) return cached;
 
             Material m;
@@ -160,6 +163,7 @@ namespace OrbitalAnte.Planets
                 m.SetFloat(SunAmountId, sunlight);
                 m.SetFloat(GlowId, glow);
                 m.SetFloat(PaintId, painted ? 1f : 0f);
+                m.SetFloat(PaintScaleId, scaleKey);
             }
             else if (sunlight < 0.5f || glow > 0.3f)
             {
