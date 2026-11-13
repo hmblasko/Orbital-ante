@@ -80,7 +80,7 @@ namespace OrbitalAnte.Planets
             _bolt.receiveShadows = false;
             // The game's own shader ignores haze, so a bolt shows through the murk of the storm it belongs to.
             _boltMaterial = PlanetMaterials.OwnBody
-                ? PlanetMaterials.Body("Lightning", null, Color.white, 1f, 0f)
+                ? PlanetMaterials.Body("Lightning", null, Color.white, 1f, 0f, false, 3f)
                 : new Material(Mat.Unlit(Color.white)) { name = "Lightning" };
             _bolt.sharedMaterial = _boltMaterial;
             _bolt.enabled = false;

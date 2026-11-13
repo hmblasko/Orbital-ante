@@ -32,8 +32,7 @@ Shader "OrbitalAnte/Glass"
                 half _Frost;
             CBUFFER_END
 
-            float4 _OA_SunPosition;
-            half4 _OA_SunColor;
+            #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
             struct Attributes
             {
@@ -69,7 +68,7 @@ Shader "OrbitalAnte/Glass"
                 // The Sun's reflection, whichever side of the glass you are on.
                 float3 mirrored = reflect(-toSun, normal);
                 half glint = pow(saturate(abs(dot(mirrored, toEye))), 90.0);
-                half3 color = lerp(_BaseColor.rgb, half3(0.93, 0.96, 1.0), _Frost * 0.6) + _OA_SunColor.rgb * glint;
+                half3 color = lerp(_BaseColor.rgb, half3(0.93, 0.96, 1.0), _Frost * 0.6) + _OA_SunColor.rgb * (glint * 2.0);
                 half alpha = saturate(_BaseColor.a + _Rim * slant + _Frost * 0.22 + glint);
                 return half4(color, alpha);
             }

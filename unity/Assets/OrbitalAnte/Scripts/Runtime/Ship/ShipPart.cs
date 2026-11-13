@@ -36,7 +36,8 @@ namespace OrbitalAnte.Ship
         public static bool LinearColours => QualitySettings.activeColorSpace == ColorSpace.Linear;
 
         /// <param name="bakedLinear">Baked colours (linear light) to use in place of the mesh's paint, or null.</param>
-        public static Mesh ToMesh(ShipMesh data, string name, float[] bakedLinear = null)
+        /// <param name="roundDegrees">Above zero, corners in the same place share their facing unless the surfaces meet at more than this angle, so a panelled curve shades round. Zero keeps every panel flat-edged.</param>
+        public static Mesh ToMesh(ShipMesh data, string name, float[] bakedLinear = null, float roundDegrees = 0f)
         {
             int count = data.VertexCount;
             var vertices = new Vector3[count];
@@ -64,7 +65,17 @@ namespace OrbitalAnte.Ship
             mesh.SetVertices(vertices);
             mesh.SetColors(colors);
             mesh.SetTriangles(data.Triangles, 0);
-            mesh.RecalculateNormals();
+            if (roundDegrees > 0f)
+            {
+                float[] facing = OrbitalAnte.Look.MeshSmoothing.Normals(data.Positions, data.Triangles, roundDegrees);
+                var normals = new Vector3[count];
+                for (int i = 0; i < count; i++) normals[i] = new Vector3(facing[i * 3], facing[i * 3 + 1], facing[i * 3 + 2]);
+                mesh.SetNormals(normals);
+            }
+            else
+            {
+                mesh.RecalculateNormals();
+            }
             mesh.RecalculateBounds();
             return mesh;
         }

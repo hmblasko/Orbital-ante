@@ -97,7 +97,10 @@ Counted and timed by the deck-performance agent on a desktop processor outside U
 
 | System | Cost | Cap |
 |---|---|---|
-| Ship outside | about 11,000 triangles, about 15 draw calls, one shader | one ship in Phase 1 |
+| Ship outside | about 38,400 triangles (fittings about 35,400 from `Models/Lander`, of which the two camera booms and the landing camera are about 4,200 and the dash housing inside the cabin about 1,400, counted from the file; hull and details about 3,000), about 15 draw calls, one shader. Estimate, not measured in Unity. | fittings 36,000 triangles (a rule test fails above it); one ship in Phase 1. First trim if needed: one bevel step fewer on the base's foil panels. |
+| Reading the lander model | 914 KB, once per launch on the main thread; 4 ms warm, 19 ms cold measured on a desktop outside Unity, guessed 20 to 80 ms on a Deck | once per launch |
+| Lander model memory | about 1.1 MB kept, about 1.0 MB on the graphics card (estimate) | - |
+| Round shading of the cabin dome | worked out once when the ship is built: under 5 ms on a desktop outside Unity | - |
 | Cabin | 11,758 triangles in 11 pieces, vertex colours only, no textures, no lights | fixed |
 | Glass | 5 panes, one see-through layer each | 5 |
 | Crack lines | up to about 4,850 triangles a pane (about 24,000 if all 5 are badly cracked); rebuilt only when a new hit is recorded or the crack stage changes, guessed 3 to 8 ms each time on Deck | 6 recorded hits a pane |
@@ -115,6 +118,58 @@ Counted and timed by the deck-performance agent on a desktop processor outside U
 Known follow-ups, to do only if the Profiler says so: halve the crack triangles by drawing them double-sided in the shader; build the sounds and mesh data on background threads at run start; fold the four engine colliders into the base.
 
 What to read off in Unity (see "How to measure"): Batches and Tris seated in orbit and again standing outside the landed ship; GC Alloc per frame seated and idle; the worst frame while shooting one window until it breaks; the Physics row during a hard landing.
+
+## The look (pass 1, 13 Nov 2026): estimates from reading the code, not measured
+
+Nothing here has been timed. The figures are estimates for a Steam Deck at 1280 x 800 from the Deck performance review of the code. The first run on a Deck replaces them.
+
+| | Estimated cost | Cap, and what to turn down first |
+|---|---|---|
+| Smoothed edges | 0.5 to 1 ms at the default (2 samples). 4 samples: 1 to 2.5 ms. | `Edge Smoothing` on the Look asset. **First thing to lower**: `Fast` or `Off`. |
+| Bloom | 0.5 to 1 ms. Starts from a half-size picture, 4 halvings, cheap filtering. | `Bloom` on the Look asset; 0 switches it off. **Second thing to lower.** |
+| Tone mapping, colour grade, warmth, split tone | about 0.3 to 0.5 ms with the vignette. They are folded into one colour table, so switching one of them off saves nothing by itself. | `Finish` on the Look asset switches the whole finish off. |
+| Ground shader (ground, rocks, outside of the ship) | 1.5 to 3.5 ms with ground filling the screen. Soft light, sky fill, bounce, rim, haze into the sky colour, and up to three lookups of painted noise. | Small dabs of paint are only worked out within 320 m and the finest within 45 m; none where the far-away picture has taken over; none for the baked cabin. `Paint` 0 on the Look asset removes the rest. |
+| Sky ball | 0.2 to 0.5 ms. One draw call, about 1,000 triangles, one texture lookup. | Known follow-up: draw it after the ground instead of before, so covered sky is not paid for. |
+| Water | 0.3 to 0.8 ms when it fills the view. | - |
+| Picture of deep space | No cost per frame. 512 x 256 (0.5 MB), painted once on a background thread when a run starts: 0.2 s measured on a desktop, guessed about 1 s on a Deck. Space is plain black until it arrives. | `Space Backdrop` 0 on the Look asset skips it. |
+| Lights and shadows | None added. | - |
+
+What to read off in Unity, standing on Earth at noon, then at a coast, then seated in orbit:
+1. The Budget line on the readout, with `Finish` ticked and then unticked on the Look asset (the difference is the cost of the finish). Stop Play, change the dial, and press Play again each time: the finish is set up once when Play starts, so a change made during Play does nothing.
+2. The same with `Edge Smoothing` at Multisample4, Multisample2 and Off.
+3. The same with `Paint` at 1 and at 0.
+4. Batches and Tris in the Stats panel (they should be within a handful of what they were before this pass).
+
+## Guns (Blender models, 13 Nov 2026): estimates from reading the code, not measured
+
+| | Cost | Cap |
+|---|---|---|
+| Rifle | about 7,800 triangles, 2 pieces | 9,000 triangles a gun (a rule test fails above it) |
+| Pistol | about 3,900 triangles, 2 pieces | 9,000 triangles a gun |
+| Guns at once | 10 in the arena (8 mannequins, yours, 1 spare), 1 in the solar system | 12, until dropped and enemy guns get a simpler copy of about 1,500 triangles (needed before Phase 2 enemy counts) |
+
+### Launch base model (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| `Resources/Models/LaunchPad.bytes` | About 31,600 triangles in 17 pieces (10 solid, 7 that shine), one base in the world | 36,000 triangles |
+
+### Enemies (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| Enemy model (`Resources/Models/Enemy.bytes`) | About 14,850 triangles in 14 pieces (one per breakable part), one shared material, 14 draw calls. In the arena, where the sun casts real shadows, an unseen copy of each piece casts the shadow, so the triangles are drawn again per shadow cascade. No shadow copies on planets or in space. | 16,000 triangles (the rule test `EnemyModelFile_MatchesTheSkeleton` enforces it) |
+| Enemies at full detail | About 119,000 triangles per pass for the arena's 8 | 12, until a far copy of about 3,000 triangles exists (needed before Phase 2 enemy counts); then 30 with at most 8 at full detail |
+| Enemy animation (`BodyAnimator`) | Worked out per enemy per frame, no stored clips, no garbage. 45 microseconds for 30 enemies on a desktop outside Unity; not measured on the Deck | 30 |
+| Objects per enemy | About 87 (17 bones, 14 parts, 14 meshes, 14 shadow copies in the arena, 26 hidden wound stumps) | - |
+| Triangles, all guns | about 65,000; twice that if a depth pass runs | 100,000 |
+| Draw calls | 20 (2 a gun, one shared material), down from about 100 with the box guns | - |
+| Paint on the held gun | guessed 0.1 to 0.4 ms in the arena, about nil on planets | `Paint` 0 on the Look asset |
+| Reading the models | 0.6 ms measured on a desktop outside Unity; guessed under 15 ms on a Deck, once | - |
+| Memory | about 0.4 MB on the graphics card, 0.4 MB of kept file data | - |
+| Shadows | guns cast none: their shader has no shadow pass | - |
+
+What to read off in Unity, in the arena: Tris, Batches and SetPass calls in the Stats panel looking at the guns and then away from them (expect a difference of about 65,000 or 130,000 triangles); the Budget line with `Paint` at 1 and at 0.
 
 ## Lighting (asked for on 11 Nov 2026)
 
