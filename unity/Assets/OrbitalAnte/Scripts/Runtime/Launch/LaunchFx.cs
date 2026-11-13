@@ -69,6 +69,7 @@ namespace OrbitalAnte.Launch
         {
             var fx = ship.gameObject.AddComponent<LaunchFx>();
             fx.Ship = ship;
+            ship.Launch = fx;
             fx.Config = config;
             fx.Model = new LaunchModel(config.rules);
             fx.Build();

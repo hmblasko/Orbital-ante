@@ -99,6 +99,7 @@ namespace OrbitalAnte.Tests
             yield return Steps(60);
             LaunchFx engines = _world.Engines;
             Assert.IsTrue(engines.Settled, "the ship is not standing still on the pad");
+            Assert.AreSame(engines, _world.Ship.Launch, "the ship does not know its own engine effects, so the seat cannot say how to lift off");
             Assert.AreEqual(EngineState.Off, engines.Model.State);
             Assert.AreEqual(0f, _world.Base.ArmSwing, 0.001f);
             Assert.AreEqual(1f, _world.Ship.LiftGate, 0.001f);
