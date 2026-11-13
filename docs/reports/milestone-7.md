@@ -1,6 +1,6 @@
 # Milestone 7 report - Ship design
 
-Status: **built, not yet run in Unity.** Same position as Milestones 1 to 6. The ship's rules (walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, every shape, the baked light) are plain maths and are tested here: 873 rule tests run and pass outside Unity. Everything you would see, hear or feel compiles but has never been run. The glass shader has been checked for syntax only.
+Status: **built, not yet run in Unity.** Same position as Milestones 1 to 6. The ship's rules (walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, every shape, the baked light) are plain maths and are tested here: 877 rule tests run and pass outside Unity. Everything you would see, hear or feel compiles but has never been run. The glass shader has been checked for syntax only.
 
 Pull request #4 (Milestones 1 to 6) was merged, so this is a new pull request on a new branch, `claude/milestone-7-ship`.
 
@@ -20,7 +20,7 @@ The picture `milestone-7-ship-previews.png` shows the cabin and the outside of t
 
 **The seat.** Look at the seat and press the button: you sit, glance down while the strap comes across your lap, it clicks, the seat hisses, and you have the controls. The ship only answers a buckled-in pilot. One button unbuckles.
 
-**Damage, repair and glass.** The ship is 21 parts: cabin hull, descent stage, 4 legs, engines, 4 thruster clusters, dish, 5 windows, hatch. Each goes sound, damaged, broken. Damaged engines and thrusters still work, more weakly; a broken dish takes the map away; a broken hatch will not move. Hard landings hurt whatever hit the ground. Legs, engines and thrusters can be **torn off for good** by one huge blow or by being battered after they break, and fly off as wreckage. Windows crack in stages where they were hit and then shatter (about 8 rifle rounds, from inside or outside). Anything not torn off is mended by looking at it from close by and holding the button for 1 to 2 seconds.
+**Damage, repair and glass.** The ship is 18 parts: cabin hull, descent stage, 4 legs, engines, 4 thruster clusters, dish, 5 windows, hatch. Each goes sound, damaged, broken. Damaged engines and thrusters still work, more weakly; a broken dish takes the map away; a broken hatch stops where it is, even halfway open, until mended. Hard landings hurt whatever hit the ground. Legs, engines and thrusters can be **torn off for good** by one huge blow or by being battered after they break, and fly off as wreckage. Windows crack in stages where they were hit and then shatter (about 8 rifle rounds, from inside or outside). Anything not torn off is mended by looking at it from close by and holding the button for 1 to 2 seconds.
 
 **Small things.** A short readout only when there is something to say: what the button in front of you does, a repair bar, a list of hurt parts, and one notice when something breaks, falls off or is mended. 15 new sounds, all made in code.
 
@@ -53,8 +53,8 @@ I am still working from my reading of your request (baked light for fixed places
 
 ## What was tested
 
-- **873 rule tests pass** (`dotnet test`, outside Unity); 140 are new for the ship. They check, among other things: 20,000 random steps never leave the cabin's floor plan or put your head through the ceiling; you slide along walls; the lift never drops you going up, keeps your shoulders clear of the shaft, closes the hatch behind you, and will not snatch you straight back after setting you down; the belt takes its stated time and clicks once; damage goes sound, damaged, broken; heavy damage tears parts off and those cannot be mended; the cabin, windows and hatch never fall off; glass takes between 4 and 14 rifle rounds (8 as set); repairs take at most 2.2 seconds; the cabin wall faces into the room and leaves every window open; every outside part sits where the layout says and faces outward; the bake gives the same result every time and a bake for a different cabin is refused.
-- **The whole project compiles** against Unity reference assemblies, including 73 PlayMode tests (10 new for the ship). PlayMode tests **have not been run**.
+- **877 rule tests pass** (`dotnet test`, outside Unity); 144 are new for the ship. They check, among other things: 20,000 random steps never leave the cabin's floor plan or put your head through the ceiling; you slide along walls; the lift never drops you going up, keeps your shoulders clear of the shaft, closes the hatch behind you, and will not snatch you straight back after setting you down; the belt takes its stated time and clicks once; damage goes sound, damaged, broken; heavy damage tears parts off and those cannot be mended; the cabin, windows and hatch never fall off; glass takes between 4 and 14 rifle rounds (8 as set); repairs take at most 2.2 seconds; the cabin wall faces into the room and leaves every window open; every outside part sits where the layout says and faces outward; the bake gives the same result every time and a bake for a different cabin is refused.
+- **The whole project compiles** against Unity reference assemblies, including 74 PlayMode tests (11 new for the ship). PlayMode tests **have not been run**.
 - **Glass shader**: syntax check only.
 - **Previews** of the cabin (4 views) and outside (4 views) were rendered from the real meshes and bake, and looked at. Two bugs were found this way and fixed (a floor facing down, blotchy light).
 
@@ -139,7 +139,7 @@ None blocks anything. I have gone with the recommended option each time.
 14. Break the dish and try the map (**M**).
 15. In orbit, unbuckle, open the hatch and step on it. It should hold you and say why.
 16. **Pause > Restart** and check step 2 again.
-17. Run the tests: EditMode should show 873 passing, PlayMode 73.
+17. Run the tests: EditMode should show 877 passing, PlayMode 74.
 
 ## Assets I will need
 
@@ -148,3 +148,12 @@ Nothing is required for this milestone; the ship is built in code. To move past 
 1. **NASA 3D Resources "Apollo Lunar Module"** model (free download from the NASA 3D Resources site), dropped in `Assets/ThirdParty/NASA/`. I will use it as the reference for proportions and, simplified, for the outside.
 2. A **concept turnaround** (front, side, back, top) of the starter ship in the game's style from ChatGPT, if you want a look that departs from the real lander.
 3. For Milestone 8: the **NASA launch pad** model (Launch Complex 39 or the mobile launcher) from the same site.
+
+## Review fixes (13 Nov 2026)
+
+Matthew's source review of this pull request found three edge cases. All three are fixed; none has been run in Unity.
+1. **A hatch that breaks mid-swing kept moving.** Broken doors now stop exactly where they are, even halfway, and carry on to where they were going once mended (`HatchLift.Tick(dt, hatchWorks)`). Two new rule tests break it halfway open and halfway shut. Whether an occupied lift should be an exception is left open. Principle 3 (consistent, learnable rules).
+2. **A shot fired inside the cabin into plain wall could pass through it** when nothing of the ship lay beyond, because the hull's collision shape is solid and a ray starting inside it never touches it. The shot itself now finds where it meets the inside of the hull (`ShipLayout.CabinExit`, used by `Ballistics.FireFromPlayer` through `Ship.Boarded`/`Ship.InteriorWall`): plain wall, floor or shut hatch stop the bullet and hurt the cabin; glass and an open hatch well are still left to the colliders. One rule test covers the wall, every window, the floor and the well; one new PlayMode test fires at the back wall and at a front window. Principles 3 and 5.
+3. **Moving a baked piece did not invalidate the baked light.** Each piece's placing is now part of the fingerprint, with a rule test that moves only one piece. `LanderBake.bytes` was re-baked (768 paths): only the 4 fingerprint bytes changed, the light is identical. Principle 10.
+
+The ship has 18 damage parts (the four engine bells share one), not 21 as this report first said.

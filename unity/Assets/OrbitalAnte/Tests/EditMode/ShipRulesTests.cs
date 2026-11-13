@@ -538,5 +538,74 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.IsNull(ShipAssembly.Unpack(new byte[] { 1, 2, 3 }, ShipAssembly.InteriorPieces()));
             Assert.IsNull(ShipAssembly.Unpack(null, ShipAssembly.InteriorPieces()));
         }
+
+        [Test]
+        public void Bake_IsRefusedWhenOnlyAPieceHasMoved()
+        {
+            List<ShipPiece> pieces = ShipAssembly.InteriorPieces();
+            byte[] bytes = ShipAssembly.Pack(pieces, ShipAssembly.FlatLight(pieces));
+            Assert.IsNotNull(ShipAssembly.Unpack(bytes, pieces));
+            int moved = pieces.FindIndex(p => p.Offset.X != 0f || p.Offset.Y != 0f || p.Offset.Z != 0f);
+            if (moved < 0) moved = 0;
+            P3 o = pieces[moved].Offset;
+            pieces[moved].Offset = new P3(o.X, o.Y + 0.05f, o.Z);
+            Assert.IsNull(ShipAssembly.Unpack(bytes, pieces), "a bake made with " + pieces[moved].Name + " elsewhere must not be used");
+        }
+
+        [Test]
+        public void ABrokenHatch_StopsWhereItIs_EvenHalfwayOpen()
+        {
+            var hatch = new HatchLift { DoorSeconds = 0.5f };
+            hatch.Set(true, true);
+            for (int i = 0; i < 25; i++) hatch.Tick(0.01f);
+            float half = hatch.Openness;
+            Assert.That(half, Is.InRange(0.3f, 0.7f));
+            for (int i = 0; i < 200; i++) hatch.Tick(0.01f, hatchWorks: false);
+            Assert.AreEqual(half, hatch.Openness, 1e-5f, "a broken hatch kept opening");
+            // Mended, it carries on to where it was going.
+            for (int i = 0; i < 100; i++) hatch.Tick(0.01f);
+            Assert.IsTrue(hatch.Open);
+        }
+
+        [Test]
+        public void ABrokenHatch_StopsWhereItIs_EvenHalfwayShut()
+        {
+            HatchLift hatch = OpenHatch();
+            hatch.Set(false, true);
+            for (int i = 0; i < 2; i++) hatch.Tick(0.125f);
+            float half = hatch.Openness;
+            Assert.That(half, Is.InRange(0.3f, 0.7f));
+            for (int i = 0; i < 200; i++) hatch.Tick(0.01f, hatchWorks: false);
+            Assert.AreEqual(half, hatch.Openness, 1e-5f, "a broken hatch kept closing");
+            Assert.IsFalse(hatch.Set(true, hatchWorks: false));
+        }
+
+        [Test]
+        public void AShotInsideTheCabin_MeetsTheWall_TheGlass_TheFloor_OrTheWell()
+        {
+            var back = new P3(0f, 1.62f, -1.15f);
+            Assert.IsTrue(ShipLayout.CabinExit(back, new P3(0f, 0f, -1f), out float d, out P3 at, out ShipLayout.CabinExitKind kind, out int window));
+            Assert.AreEqual(ShipLayout.CabinExitKind.Wall, kind);
+            Assert.AreEqual(-1, window);
+            Assert.AreEqual(ShipLayout.InnerRadiusAt(1.62f) - 1.15f, d, 0.01f);
+            Assert.AreEqual(-ShipLayout.InnerRadiusAt(1.62f), at.Z, 0.01f);
+
+            for (int w = 0; w < ShipLayout.Windows.Length; w++)
+            {
+                ShipLayout.WindowCentre(ShipLayout.Windows[w], out P3 centre, out _);
+                var from = new P3(0f, 1.3f, 0f);
+                Assert.IsTrue(ShipLayout.CabinExit(from, centre - from, out _, out _, out kind, out window));
+                Assert.AreEqual(ShipLayout.CabinExitKind.Window, kind, ShipLayout.Windows[w].Name);
+                Assert.AreEqual(w, window, ShipLayout.Windows[w].Name);
+            }
+
+            Assert.IsTrue(ShipLayout.CabinExit(new P3(1.3f, 1f, 0f), new P3(0f, -1f, 0f), out d, out _, out kind, out _));
+            Assert.AreEqual(ShipLayout.CabinExitKind.Floor, kind);
+            Assert.AreEqual(1f, d, 0.01f);
+            Assert.IsTrue(ShipLayout.CabinExit(new P3(0f, 1f, 0f), new P3(0f, -1f, 0f), out _, out _, out kind, out _));
+            Assert.AreEqual(ShipLayout.CabinExitKind.Shaft, kind);
+
+            Assert.IsFalse(ShipLayout.CabinExit(new P3(0f, 4f, 0f), new P3(0f, -1f, 0f), out _, out _, out _, out _), "outside the cabin");
+        }
     }
 }

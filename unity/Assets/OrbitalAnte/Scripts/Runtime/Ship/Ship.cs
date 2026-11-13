@@ -770,7 +770,7 @@ namespace OrbitalAnte.Ship
             if (dt <= 0f || Model == null) return;
 
             Belt.Tick(dt);
-            Hatch.Tick(dt);
+            Hatch.Tick(dt, Model.HatchWorks);
             LastRideFinished = Hatch.LastFinished;
             PoseHatch();
 
@@ -818,7 +818,48 @@ namespace OrbitalAnte.Ship
         public int RepairingPart { get; set; } = -1;
 
         /// <summary>True while the player is on their feet in the cabin. Set by the astronaut.</summary>
-        public bool CrewAboard { get; set; }
+        public bool CrewAboard
+        {
+            get => _crewAboard;
+            set
+            {
+                _crewAboard = value;
+                if (value) Boarded = this;
+                else if (Boarded == this) Boarded = null;
+            }
+        }
+        bool _crewAboard;
+
+        /// <summary>The ship the player is standing in, if any (for shots fired inside it).</summary>
+        public static Ship Boarded { get; private set; }
+
+        /// <summary>
+        /// For a shot fired from inside the cabin: where it meets the solid hull, unless it leaves through glass
+        /// (the window's own collider decides that) or down the open hatch well. The hull's collision shape is
+        /// solid, so a ray starting inside it would otherwise pass through the wall as if it were not there.
+        /// </summary>
+        public bool InteriorWall(Vector3 origin, Vector3 direction, out float distance, out Vector3 point, out Vector3 normal)
+        {
+            distance = 0f; point = origin; normal = -direction;
+            if (Model == null) return false;
+            Vector3 o = transform.InverseTransformPoint(origin);
+            Vector3 d = transform.InverseTransformDirection(direction);
+            if (!ShipLayout.CabinExit(new P3(o.x, o.y, o.z), new P3(d.x, d.y, d.z), out float along, out P3 at,
+                    out ShipLayout.CabinExitKind kind, out int window)) return false;
+            if (kind == ShipLayout.CabinExitKind.Window) return false;
+            if (kind == ShipLayout.CabinExitKind.Shaft && !Hatch.Shut) return false;
+            point = transform.TransformPoint(V(at));
+            distance = Vector3.Distance(origin, point);
+            Vector3 inward = kind == ShipLayout.CabinExitKind.Wall
+                ? -new Vector3((float)at.X, 0f, (float)at.Z).normalized
+                : Vector3.up;
+            if (kind == ShipLayout.CabinExitKind.Wall && at.Y > ShipLayout.WallTop) inward = -V(at).normalized;
+            normal = transform.TransformDirection(inward);
+            return true;
+        }
+
+        /// <summary>The cabin's part, for hits on the inside of the hull.</summary>
+        public int CabinPart => Model.IndexOf("cabin");
 
         /// <summary>The lift ride that finished during this frame's update, if any.</summary>
         public LiftRide LastRideFinished { get; private set; }
@@ -844,6 +885,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            if (Boarded == this) Boarded = null;
             if (_bakeJob != null) _bakeJob.Cancel();
             if (_panes != null)
             {
