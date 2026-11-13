@@ -97,7 +97,10 @@ Counted and timed by the deck-performance agent on a desktop processor outside U
 
 | System | Cost | Cap |
 |---|---|---|
-| Ship outside | about 11,000 triangles, about 15 draw calls, one shader | one ship in Phase 1 |
+| Ship outside | about 32,000 triangles (fittings about 30,000 from `Models/Lander`, counted from the file; hull and details about 3,000), about 15 draw calls, one shader. Estimate, not measured in Unity. | fittings 34,000 triangles (a rule test fails above it); one ship in Phase 1. First trim if needed: one bevel step fewer on the base's foil panels. |
+| Reading the lander model | 914 KB, once per launch on the main thread; 4 ms warm, 19 ms cold measured on a desktop outside Unity, guessed 20 to 80 ms on a Deck | once per launch |
+| Lander model memory | about 1.1 MB kept, about 1.0 MB on the graphics card (estimate) | - |
+| Round shading of the cabin dome | worked out once when the ship is built: under 5 ms on a desktop outside Unity | - |
 | Cabin | 11,758 triangles in 11 pieces, vertex colours only, no textures, no lights | fixed |
 | Glass | 5 panes, one see-through layer each | 5 |
 | Crack lines | up to about 4,850 triangles a pane (about 24,000 if all 5 are badly cracked); rebuilt only when a new hit is recorded or the crack stage changes, guessed 3 to 8 ms each time on Deck | 6 recorded hits a pane |

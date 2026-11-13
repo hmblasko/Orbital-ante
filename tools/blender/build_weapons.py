@@ -89,12 +89,12 @@ def rifle():
     body.append(metal(oa.lathe("brake", (0, 0.632, 0.045), (0, 1, 0), [(0.0, 0.0135), (0.006, 0.0215), (0.036, 0.0215), (0.058, 0.0175), (0.058, 0.0095), (0.03, 0.0095)], GUNMETAL, segments=16), 18))
     body.append(metal(oa.box("brake fin", (0, 0.655, 0.068), (0.012, 0.030, 0.012), GUNMETAL, bevel=0.003, rot=(-18, 0, 0)), 19))
     # Wooden furniture: lower and upper handguard, grip and stock.
-    body.append(wood(oa.slab("handguard", [(0.272, 0.004), (0.44, 0.012), (0.452, 0.03), (0.452, 0.058), (0.272, 0.062)], 0.064, WOOD, bevel=0.012, segments=3), 20))
+    body.append(wood(oa.slab("handguard", [(0.272, 0.004), (0.452, 0.014), (0.452, 0.058), (0.272, 0.062)], 0.064, WOOD, bevel=0.012, segments=3), 20))
     body.append(wood(oa.cylinder("upper handguard", (0, 0.278, 0.079), (0, 0.44, 0.079), 0.0215, WOOD, segments=16, bevel=0.006), 21))
     for y in (0.283, 0.435):
         body.append(metal(oa.box("handguard band", (0, y, 0.05), (0.068, 0.012, 0.098), GUNMETAL, bevel=0.005), 22))
     body.append(wood(oa.slab("grip", [(0.020, 0.014), (-0.034, 0.014), (-0.066, -0.100), (-0.020, -0.112), (0.006, -0.030)], 0.040, WOOD_DARK, bevel=0.011, segments=3), 23))
-    body.append(wood(oa.slab("stock", [(-0.078, 0.072), (-0.078, 0.018), (-0.335, -0.050), (-0.352, -0.044), (-0.352, 0.056), (-0.335, 0.064)], 0.046, WOOD, bevel=0.013, segments=3), 24))
+    body.append(wood(oa.slab("stock", [(-0.078, 0.072), (-0.078, 0.018), (-0.352, -0.050), (-0.352, 0.062)], 0.046, WOOD, bevel=0.013, segments=3), 24))
     body.append(wood(oa.slab("cheek rest", [(-0.13, 0.066), (-0.30, 0.060), (-0.29, 0.078), (-0.15, 0.084)], 0.036, WOOD_DARK, bevel=0.009, segments=3), 44))
     body.append(metal(oa.cylinder("sling pin", (-0.026, -0.30, 0.0), (0.026, -0.30, 0.0), 0.006, BARE, segments=10, bevel=0.002), 45))
     body.append(metal(oa.slab("butt plate", [(-0.348, -0.052), (-0.366, -0.046), (-0.366, 0.058), (-0.348, 0.066)], 0.049, GUNMETAL, bevel=0.005), 25))

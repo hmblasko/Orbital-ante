@@ -72,7 +72,7 @@ Every dial is on one asset, `Assets/OrbitalAnte/Resources/Config/LookConfig`, so
 
 **Pass 2: assets made in Blender.** On 13 Nov 2026 Matthew asked that the guns and the ship in particular stop looking PS2, so they come first:
 1. Weapons: the rifle and the test pistol (first versions built, see `docs/reports/look-pass-2-guns.md`).
-2. The ship's outside: panel lines, painted wear, chunkier legs, engines and dish.
+2. The ship's outside: base, legs, engines, thrusters and dish (first versions built, see `docs/reports/look-pass-2-ship.md`); the cabin dome now shades round. Still to do: painted wear and panel lines on the dome itself.
 3. Rocks, trees and landmarks: a small hand-shaped set per planet family to replace the generated lumps nearest the player.
 4. The suit's gloves and tools (what is on screen all the time on foot).
 5. The mannequin's replacement (Milestone 12 asks for one proper enemy model).

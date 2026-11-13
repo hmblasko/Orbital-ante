@@ -16,8 +16,12 @@ def reset_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
 
-def _new_object(name, bm, colour, smooth_angle=40.0):
+def _new_object(name, bm, colour, smooth_angle=40.0, recalc=True):
     mesh = bpy.data.meshes.new(name)
+    # Whatever order a closed shape's corners were made in, its faces are turned to look outward.
+    # (An open skin has no inside to tell by, so its maker passes recalc=False and orders it by hand.)
+    if recalc:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
     bm.to_mesh(mesh)
     bm.free()
@@ -49,7 +53,7 @@ def box(name, centre, size, colour, bevel=0.004, segments=2, rot=(0, 0, 0)):
     bmesh.ops.scale(bm, vec=Vector(size), verts=bm.verts)
     if bevel > 0:
         b = min(bevel, min(size) * 0.45)
-        bmesh.ops.bevel(bm, geom=bm.edges[:], offset=b, segments=segments, profile=0.5, affect='EDGES')
+        bmesh.ops.bevel(bm, geom=bm.edges[:], offset=b, segments=segments, profile=0.5, affect='EDGES', clamp_overlap=True)
     obj = _new_object(name, bm, colour)
     return _place(obj, centre, Euler([math.radians(a) for a in rot]))
 
@@ -63,7 +67,7 @@ def cylinder(name, start, end, radius, colour, radius_end=None, segments=20, bev
                           radius1=radius, radius2=radius if radius_end is None else radius_end, depth=length)
     if bevel > 0 and cap:
         rim = [e for e in bm.edges if abs(e.verts[0].co.z - e.verts[1].co.z) < 1e-6]
-        bmesh.ops.bevel(bm, geom=rim, offset=min(bevel, radius * 0.6), segments=2, profile=0.5, affect='EDGES')
+        bmesh.ops.bevel(bm, geom=rim, offset=min(bevel, radius * 0.6), segments=2, profile=0.5, affect='EDGES', clamp_overlap=True)
     obj = _new_object(name, bm, colour, 50.0)
     axis = (end - start).normalized()
     return _place(obj, (start + end) * 0.5, Vector((0, 0, 1)).rotation_difference(axis))
@@ -103,7 +107,7 @@ def slab(name, outline, width, colour, bevel=0.006, segments=3, x=0.0):
         bm.faces.new((front[j], front[i], back[i], back[j]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     if bevel > 0:
-        bmesh.ops.bevel(bm, geom=bm.edges[:], offset=min(bevel, width * 0.45), segments=segments, profile=0.5, affect='EDGES')
+        bmesh.ops.bevel(bm, geom=bm.edges[:], offset=min(bevel, width * 0.45), segments=segments, profile=0.5, affect='EDGES', clamp_overlap=True)
     obj = _new_object(name, bm, colour)
     return _place(obj, (x, 0, 0))
 
@@ -113,6 +117,44 @@ def sphere(name, centre, radius, colour, scale=(1, 1, 1), segments=16):
     bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=segments // 2, radius=radius)
     obj = _new_object(name, bm, colour, 80.0)
     return _place(obj, centre, None, scale)
+
+
+def turn(obj, degrees, pivot=(0, 0, 0)):
+    """Turns a piece about the upright axis through pivot. Positive is clockwise seen from above."""
+    m = Matrix.Translation(Vector(pivot)) @ Matrix.Rotation(-math.radians(degrees), 4, 'Z') @ Matrix.Translation(-Vector(pivot))
+    obj.data.transform(m)
+    obj.data.update()
+    return obj
+
+
+def densify(obj, longest):
+    """Cuts long edges so there are enough corners for paint and crumpling to show on big flat faces."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    for _ in range(4):
+        long_edges = [e for e in bm.edges if e.calc_length() > longest]
+        if not long_edges:
+            break
+        bmesh.ops.subdivide_edges(bm, edges=long_edges, cuts=1, use_grid_fill=True)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bm.to_mesh(obj.data)
+    bm.free()
+    for p in obj.data.polygons:
+        p.use_smooth = True
+    return obj
+
+
+def crumple(obj, amount, grain=3.0, seed=0):
+    """Pushes corners in and out a little, like foil or beaten metal fitted by hand."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.normal_update()
+    for v in bm.verts:
+        n = noise.noise(v.co * grain + Vector((seed * 7.3, seed * 1.9, 0))) + 0.5 * noise.noise(v.co * grain * 2.7 + Vector((0, 0, seed * 3.3)))
+        v.co += v.normal * (n * amount)
+    bm.to_mesh(obj.data)
+    bm.free()
+    return obj
 
 
 def socket(name, position):
@@ -265,11 +307,34 @@ def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(5
     bsdf = nodes["Principled BSDF"]
     attr = nodes.new("ShaderNodeVertexColor")
     attr.layer_name = "Col"
+    # A face that is inside out (the game would not draw it) shows up flat magenta to the camera.
+    geo = nodes.new("ShaderNodeNewGeometry")
+    camera_ray = nodes.new("ShaderNodeLightPath")
+    both = nodes.new("ShaderNodeMath")
+    both.operation = 'MULTIPLY'
+    links.new(geo.outputs["Backfacing"], both.inputs[0])
+    links.new(camera_ray.outputs["Is Camera Ray"], both.inputs[1])
+    warn = nodes.new("ShaderNodeEmission")
+    warn.inputs[0].default_value = (1.0, 0.0, 1.0, 1.0)
+    warn.inputs[1].default_value = 2.0
+    pick = nodes.new("ShaderNodeMixShader")
+    out = nodes["Material Output"]
     links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
+    links.new(both.outputs[0], pick.inputs[0])
+    links.new(bsdf.outputs[0], pick.inputs[1])
+    links.new(warn.outputs[0], pick.inputs[2])
+    links.new(pick.outputs[0], out.inputs["Surface"])
+    plain = bpy.data.materials.new("oa_preview_plain")
+    plain.use_nodes = True
+    pattr = plain.node_tree.nodes.new("ShaderNodeVertexColor")
+    pattr.layer_name = "Col"
+    plain.node_tree.links.new(pattr.outputs["Color"], plain.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    plain.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.62
+    plain.use_backface_culling = False
     bsdf.inputs["Roughness"].default_value = 0.62
     for o in objects:
         o.data.materials.clear()
-        o.data.materials.append(mat)
+        o.data.materials.append(plain if o.get("oa_unchecked") else mat)
         o.data.use_auto_smooth = True
         o.data.auto_smooth_angle = math.radians(o.get("oa_smooth", 40.0))
     if scene.world is None:

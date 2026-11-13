@@ -70,6 +70,18 @@ namespace OrbitalAnte.Look
             return true;
         }
 
+        /// <summary>One piece of a model as a shared mesh, or null if the model or the piece is missing. Do not destroy it.</summary>
+        public static Mesh PartMesh(string id, string part)
+        {
+            Entry entry = Get(id);
+            if (entry == null) return null;
+            for (int i = 0; i < entry.File.Parts.Length; i++)
+            {
+                if (entry.File.Parts[i].Name == part) return entry.Meshes[i];
+            }
+            return null;
+        }
+
         static Material Outdoor() => PlanetMaterials.VertexColour(Color.white, 1f, 0f, true, PropPaintScale);
 
         /// <summary>For inside a hull: no sunlight, an even glow in its place (the cabin's own light is baked, so there is none to borrow).</summary>
