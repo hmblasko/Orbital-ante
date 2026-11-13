@@ -297,7 +297,7 @@ namespace OrbitalAnte.Ship
 
             var beam = new MeshBuilder();
             beam.Color("#39B8FF");
-            float bottom = ShipLayout.BellyY - Config.liftReach;
+            float bottom = ShipLayout.BellyY - Hatch.EffectiveReach;
             beam.Lathe(P3.Zero, new[] { ShipLayout.ShaftRadius * 0.96f, ShipLayout.ShaftRadius * 0.96f }, new[] { bottom, ShipLayout.BellyY }, 28);
             var beamGo = new GameObject("LiftBeam");
             beamGo.transform.SetParent(transform, false);
@@ -822,13 +822,13 @@ namespace OrbitalAnte.Ship
         }
 
         /// <summary>
-        /// How far down the lift can set someone down: the ground under the belly in ship space, or NaN when
-        /// there is nothing within its reach to stand on.
+        /// Ground under the belly in ship space, or NaN when there is nothing within the working lift reach.
+        /// A missing ground reading is allowed: HatchLift then chooses a clear release point into space.
         /// </summary>
         public float FindLiftBottom()
         {
             Vector3 from = transform.TransformPoint(new Vector3(0f, ShipLayout.BellyY, 0f));
-            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, Config.liftReach, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, Hatch.EffectiveReach, Layers.WorldMask, QueryTriggerInteraction.Ignore);
             float nearest = float.MaxValue;
             for (int i = 0; i < hits; i++)
             {
