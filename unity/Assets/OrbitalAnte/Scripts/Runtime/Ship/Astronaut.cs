@@ -34,6 +34,8 @@ namespace OrbitalAnte.Ship
         public Camera Eye { get; private set; }
         public Ship Ship { get; private set; }
         public AstronautMode Mode { get; private set; }
+        /// <summary>Degrees the seated pilot's head is tipped down toward the dash's camera screen (set by the cockpit).</summary>
+        public float ScreenGlance { get; set; }
         public PlayerWeapons Weapons { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
         public Rigidbody Suit { get; private set; }
@@ -317,7 +319,7 @@ namespace OrbitalAnte.Ship
             // A glance down at your lap while the belt goes across, then eyes front.
             float glance = belt.State == BeltState.Buckling ? Mathf.Sin(Mathf.Clamp01((belt.Progress - 0.2f) / 0.75f) * Mathf.PI) * _config.buckleGlance : 0f;
             float yaw = Mathf.LerpAngle(_yawFrom, 0f, sit);
-            float pitch = Mathf.Lerp(_pitchFrom, 0f, sit) + glance;
+            float pitch = Mathf.Lerp(_pitchFrom, 0f, sit) + glance + ScreenGlance;
             Eye.transform.localPosition = Vector3.Lerp(_standFrom, V(ShipLayout.SeatedEye), sit);
             Eye.transform.localRotation = Quaternion.Euler(pitch, yaw, 0f);
         }

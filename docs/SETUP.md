@@ -48,6 +48,9 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
+| Look down at the camera screen (and back up) | C | D-pad down |
+| Next ship camera | V | D-pad right |
+| Next dash design (for choosing; all four are in the build) | N | Click right stick |
 | Match velocity with what you aim at (hold) | F | A / Cross |
 | Map | M | D-pad up |
 | Pause menu | Esc | Start / Menu |
@@ -101,8 +104,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light, and the launch: where the pad goes, the engine build-up and the pad's shapes (956 tests; they take a few seconds).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch, shots fired inside the cabin and the map, and the launch: resting on the pad, the build-up, smoke and the service arm (78 tests). The editor will flicker into Play mode for a few minutes.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light, and the launch: where the pad goes, the engine build-up and the pad's shapes, and the cockpit: fuel and air, the dash readings, the four dash designs, the cameras and the look-down view (1,035 tests; they take a few seconds).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch, shots fired inside the cabin and the map, and the launch: resting on the pad, the build-up, smoke and the service arm, and the cockpit: the dash and its cameras, an empty tank, and looking down at the screen (81 tests). The editor will flicker into Play mode for a few minutes.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 5. Or run everything without opening the editor: close Unity, then right-click `tools/check-in-unity.ps1` > **Run with PowerShell** (Mac: `bash tools/check-in-unity.sh`). It ends with `Overall: PASS` or `FAIL` and saves `unity/Logs/oa-check/summary.txt`, which you can send me. Claude Code on your own computer can run this loop and fix what fails: see `docs/CLAUDE_CODE_LOCAL.md`.
 

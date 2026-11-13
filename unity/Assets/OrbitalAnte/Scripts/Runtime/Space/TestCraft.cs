@@ -28,6 +28,8 @@ namespace OrbitalAnte.Space
         public bool Unmanned { get; set; }
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
         public float LiftScale { get; set; } = 1f;
+        /// <summary>The share of all push (and of the match-velocity brake) that fuel allows, 0 to 1. Turning is not touched: you can always steer.</summary>
+        public float PushScale { get; set; } = 1f;
         /// <summary>How much of full turning and sideways thrust is available (damaged thrusters give less). 0 to 1.</summary>
         public float SideScale { get; set; } = 1f;
         bool Locked => ControlsLocked || Unmanned;
@@ -264,7 +266,7 @@ namespace OrbitalAnte.Space
             {
                 // The main engines lift; the small thrusters push sideways and fore and aft.
                 Vector3 push = new Vector3(ThrustInput.x * SideScale, ThrustInput.y * LiftScale, ThrustInput.z * SideScale);
-                Body.AddRelativeForce(push * power, ForceMode.Acceleration);
+                Body.AddRelativeForce(push * (power * PushScale), ForceMode.Acceleration);
             }
 
             if (MatchingVelocity)
@@ -275,7 +277,7 @@ namespace OrbitalAnte.Space
                 float speed = velocity.magnitude;
                 if (speed > 0.02f)
                 {
-                    float brake = Mathf.Min(Config.matchVelocityThrust * Mathf.Min(LiftScale, SideScale), speed / dt);
+                    float brake = Mathf.Min(Config.matchVelocityThrust * Mathf.Min(LiftScale, SideScale) * PushScale, speed / dt);
                     Body.AddForce(-velocity / speed * brake, ForceMode.Acceleration);
                 }
             }

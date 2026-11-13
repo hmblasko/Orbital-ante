@@ -67,6 +67,8 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Look.LookConfig.ResetStatics();
             OrbitalAnte.Look.PostFx.ResetStatics();
             OrbitalAnte.Look.ModelLibrary.ResetStatics();
+            OrbitalAnte.Launch.LaunchConfig.ResetStatics();
+            OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

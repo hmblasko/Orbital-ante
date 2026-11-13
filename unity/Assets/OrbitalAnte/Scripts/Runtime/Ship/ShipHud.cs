@@ -113,7 +113,8 @@ namespace OrbitalAnte.Ship
             if (_ship == null || _astronaut == null) return;
 
             // The flying instruments belong to the seat. On your feet they would only be clutter.
-            bool flying = !_ship.Flight.Unmanned && (_map == null || !_map.IsOpen);
+            // (They mark things as seen through the windows, so they also step aside while a ship camera fills the view.)
+            bool flying = !_ship.Flight.Unmanned && (_map == null || !_map.IsOpen) && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen;
             if (flying != _flightShown && _flightHud != null)
             {
                 _flightShown = flying;

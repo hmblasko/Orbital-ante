@@ -180,6 +180,27 @@ namespace OrbitalAnte.Look
             }
         }
 
+        /// <summary>
+        /// Switches the finish (and shadows) on or off for one camera. A small picture-in-picture camera has no
+        /// use for bloom or shadows and should not pay for them; the same camera shown full screen should.
+        /// </summary>
+        public void SetFinish(Camera cam, bool on)
+        {
+            if (cam == null || _profile == null || _cameraDataType == null) return;
+            if (!_prepared.Contains(cam)) Prepare(cam);
+            try
+            {
+                Component data = cam.GetComponent(_cameraDataType);
+                if (data == null) return;
+                SetMember(data, "renderPostProcessing", on);
+                SetMember(data, "renderShadows", on);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("Orbital Ante: could not change the picture finish for camera '" + cam.name + "': " + e.Message);
+            }
+        }
+
         void OnDestroy()
         {
             if (_profile != null)

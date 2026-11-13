@@ -789,6 +789,7 @@ namespace OrbitalAnte.Ship
                 Flight.Unmanned = !Belt.Buckled;
                 Flight.LiftScale = Model.ThrustFactor * Mathf.Clamp01(LiftGate);
                 Flight.SideScale = Model.TurnFactor;
+                Flight.PushScale = Mathf.Clamp01(FuelGate);
             }
 
             for (int i = 0; i < Model.Count; i++) Model.RestRepair(i, RepairingPart == i ? 0f : dt);
@@ -822,6 +823,8 @@ namespace OrbitalAnte.Ship
         /// lift-off. Set each frame by the launch effects; 1 when there are none.
         /// </summary>
         public float LiftGate { get; set; } = 1f;
+        /// <summary>The share of all push the fuel allows: 1 with fuel in the tank, the weak reserve when it is dry (see Cockpit/ShipSupplies). Steering is never cut.</summary>
+        public float FuelGate { get; set; } = 1f;
         /// <summary>The engine effects riding on this ship, if it has them (see Launch/LaunchFx).</summary>
         public OrbitalAnte.Launch.LaunchFx Launch { get; set; }
 

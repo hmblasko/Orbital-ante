@@ -201,6 +201,31 @@ What to read off in Unity, standing on Earth at noon, then at a coast, then seat
 
 What to read off in Unity, in the arena: Tris, Batches and SetPass calls in the Stats panel looking at the guns and then away from them (expect a difference of about 65,000 or 130,000 triangles); the Budget line with `Paint` at 1 and at 0.
 
+## Cockpit (Milestone 9): estimates from reading the code, not measured
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Deck figures are guesses. Nothing here has been run in Unity.
+
+| System | Cost | Cap |
+|---|---|---|
+| Dash picture | 1,224 to 2,841 corners and 10 to 19 words, one canvas, 3 draw calls | 30 paints a second (`Redraws Per Second`); 1,200 triangles and 24 words (rule test) |
+| Painting the dash | 12 to 41 microseconds and 0 bytes on a desktop. The mesh is only handed to Unity when the picture differs from the last one (when coasting, 299 of 300 were the same); guessed 0.3 to 1 ms on Deck each time it does | not painted while a camera fills the view |
+| Words | legacy Text, touched only when changed. Words keep their place, so a warning blink changes 1 to 3 words (rule test) | 24 words |
+| Dash overdraw | about a fifth of the screen, 2.1 to 2.7 layers of plain blending (Glass 0.27) | fixed |
+| Little camera screen | one extra camera into 240 x 150, a cull and draw of what is within 30 km, no bloom, grade or shadows, once every 6 frames, only while seated. Guessed up to 1 to 2 ms on that frame over a planet. **First thing to lower if the pad is over budget.** | `Feed Every Frames` 6 (1 to 12) |
+| Camera filling the view | replaces the Eye, with the full finish, so no added cost | one camera at a time |
+| Cameras | 3, at most 1 drawing; they leave out the dash's own layer | 3 |
+| Camera hardware on the lander | about 4,200 triangles (two booms, three cameras), no shadows | part of the lander's 36,000 |
+| Garbage | target: 0 bytes per frame holding steady; about 0.3 KB a second while numbers change | - |
+| Memory | feed picture about 0.2 MB | - |
+
+What to read off in Unity, seated on the pad on Earth:
+1. Press **F3**. Note the Budget line, then **Batches**, **Tris** and **SetPass calls** in the Game view's **Stats** panel.
+2. In the **Project** window open **Assets > OrbitalAnte > Resources > Config** and click **CockpitConfig**. Set `Feed Every Frames` to 1 and note the same four; then 12. The rise at 1 is what the little screen costs.
+3. **Window > Analysis > Profiler**, CPU Usage, Hierarchy: type `ShipCamera` in the search box. Note **Time ms** and **GC Alloc** on a frame where it appears.
+4. In the same list: `CockpitDash.Update` (Time ms, GC Alloc; expect 0 B) and `Canvas.SendWillRenderCanvases`.
+5. **Window > Analysis > Frame Debugger > Enable**. Under the ShipCamera group, note how many events there are and whether Bloom, UberPost or a depth pre-pass appear (none should).
+6. Burn fuel below 20% and note whether the Profiler graph spikes twice a second (it should not).
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

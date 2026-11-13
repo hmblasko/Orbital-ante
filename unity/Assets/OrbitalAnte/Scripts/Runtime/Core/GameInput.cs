@@ -50,6 +50,10 @@ namespace OrbitalAnte.Core
         public static InputAction ToggleMap { get; private set; }
         public static InputAction Unbuckle { get; private set; }
         public static InputAction FlyHatch { get; private set; }
+        /// <summary>Tips the pilot's head down to the dash's camera screen, and back up.</summary>
+        public static InputAction CockpitScreen { get; private set; }
+        public static InputAction NextCamera { get; private set; }
+        public static InputAction NextDash { get; private set; }
 
         /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
         public static InputActionMap Play { get; private set; }
@@ -157,6 +161,9 @@ namespace OrbitalAnte.Core
             ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
             Unbuckle = AddButton(Flight, "Unbuckle", "<Keyboard>/b", "<Gamepad>/buttonNorth");
             FlyHatch = AddButton(Flight, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
+            CockpitScreen = AddButton(Flight, "Look Down At Camera Screen", "<Keyboard>/c", "<Gamepad>/dpad/down");
+            NextCamera = AddButton(Flight, "Next Ship Camera", "<Keyboard>/v", "<Gamepad>/dpad/right");
+            NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", "<Gamepad>/rightStickPress");
             Play = Gameplay;
 
             // ---------- System (fixed) ----------
