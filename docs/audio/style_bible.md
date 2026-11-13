@@ -76,7 +76,7 @@ Rules the music director keeps (the code is `MusicBrain`, and each of these has 
 1. **Nothing changes off the grid.** Layers enter and leave on bar lines. Pieces hand over on a beat or a bar.
 2. **Combat arrives with a riser** that starts on the next beat and lands on the combat piece's first downbeat, about three seconds later. An ambush (the intensity is heading straight above 85, not climbing there) skips the riser and hits on the next beat. If a fight flares up again during the quiet after the last one, combat music does not wait for that quiet to finish.
 3. **Combat ends with an ending**, not a fade: a final hit at the end of a two-bar phrase, a chord that resolves, about five seconds of ring, and then the exploration piece returns from its barest layers.
-4. **No flapping.** Combat music starts at 60 and will not stop until intensity is under 38 and it has played for at least 14 seconds.
+4. **No flapping.** Combat music starts at 60 and will not stop until intensity has stayed under 38 for four seconds and it has played for at least 14 seconds.
 5. **Firing at nothing is not a battle.** The player's own shots can raise intensity only into the Exploration band, and hits, severed parts and kills on something that is not fighting back stop in the Tension band. Being shot at or taking damage is what starts combat music. A crash is a fright, not a fight, and also stops short of it.
 6. **A piece that comes back does not start over.** Each piece has two or three entry points, and takes the next one each time it returns.
 7. **Music rests.** After two times round, the exploration and flight pieces fade out at the end of their loop and stay away for most of a minute. Deep space has no music at all. The silence makes the next entry matter.
@@ -135,7 +135,7 @@ This makes a firefight on the Moon sound unmistakably different from one on Mars
 | Exploration and menu music | about -17 LUFS |
 | Mystery music | about -20 LUFS |
 | Flight and combat music | about -15 LUFS |
-| True peak of any file | no higher than -1 dB |
+| True peak of any one file | no higher than -1 dB. Music layers playing together can add up to just under full scale; the headroom below is what covers that until there is a limiter. |
 | Whole-game headroom | 4 dB kept free at the output, because Unity clips instead of limiting |
 | Sample rate | 48 kHz everywhere |
 

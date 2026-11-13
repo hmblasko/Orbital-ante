@@ -98,7 +98,9 @@ namespace OrbitalAnte.Audio
         public void Report(IntensityEvent e, float weight = 1f)
         {
             float ceiling = Ceiling(e);
-            if (e == IntensityEvent.EnemyShotNearby || e == IntensityEvent.DamageTaken) _sinceHostile = 0f;
+            // Fire from far off (a low weight) raises the danger a little but does not make this the player's fight.
+            if (e == IntensityEvent.DamageTaken || (e == IntensityEvent.EnemyShotNearby && weight >= 0.5f)) _sinceHostile = 0f;
+            if (e == IntensityEvent.EnemyShotNearby && weight < 0.5f) ceiling = Math.Min(ceiling, UnopposedCeiling);
             bool mine = e == IntensityEvent.HitDealt || e == IntensityEvent.PartSevered || e == IntensityEvent.Kill;
             if (mine && _sinceHostile > HostileMemory) ceiling = Math.Min(ceiling, UnopposedCeiling);
             if (_heat < ceiling) _heat = Math.Min(ceiling, _heat + Add(e) * Math.Max(0f, weight));

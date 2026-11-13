@@ -1406,7 +1406,7 @@
     "Audio/Sfx/weapons/weapon_sniper_shot_01",
     "Audio/Sfx/weapons/weapon_sniper_shot_02"
    ],
-   "volumeDb": -2,
+   "volumeDb": 0,
    "volVarDb": 0.5,
    "pitchVar": 0.2,
    "spatial": 0.65,

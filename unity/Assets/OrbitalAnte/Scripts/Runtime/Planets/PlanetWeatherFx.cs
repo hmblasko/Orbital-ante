@@ -121,7 +121,8 @@ namespace OrbitalAnte.Planets
             UpdateFalling(cam, s, weather, intensity);
             UpdateLightning(cam, s, weather, intensity, dt);
 
-            float volume = _world.Settings.thunderVolume;
+            // The player's effects volume setting applies to these older code-made sounds too.
+            float volume = _world.Settings.thunderVolume * Audio.AudioPrefs.BusGain(Audio.AudioBus.Environment);
             float windTarget = Mathf.Clamp01(intensity * 1.2f) * 0.55f * volume;
             _wind.volume = Mathf.MoveTowards(_wind.volume, windTarget, dt * 0.4f);
             if (_wind.volume > 0.002f && !_wind.isPlaying) _wind.Play();
@@ -280,7 +281,7 @@ namespace OrbitalAnte.Planets
             _flashLevel = Mathf.Lerp(0.45f, 1f, Mathf.InverseLerp(520f, 70f, distance)) * Mathf.Lerp(0.6f, 1f, intensity);
             // Sound travels about 340 metres a second: far strikes are heard late and quieter.
             _thunderDue = distance / 340f;
-            _thunderVolume = _world.Settings.thunderVolume * Mathf.Lerp(1f, 0.35f, Mathf.InverseLerp(70f, 520f, distance));
+            _thunderVolume = _world.Settings.thunderVolume * Audio.AudioPrefs.BusGain(Audio.AudioBus.Environment) * Mathf.Lerp(1f, 0.35f, Mathf.InverseLerp(70f, 520f, distance));
         }
 
         // ------------------------------------------------------------------ placeholder sounds, made from noise

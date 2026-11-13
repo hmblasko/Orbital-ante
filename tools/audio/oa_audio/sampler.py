@@ -104,7 +104,8 @@ def render(notes: list[Note], bpm: float, total_beats: float, program: int = 0, 
                 elif alt:
                     x = dsp.lowpass(x, 9000.0, 1)
                 if drive:
-                    x = dsp.saturate(x, drive, 0.5)
+                    # Level-matched, so stepping from the medium take to the hard one changes the tone, not the volume.
+                    x = dsp.saturate(x, drive, 0.5) / (0.5 + 0.5 * drive / np.tanh(drive))
                 out = x if out is None else out + x
         return out
     return _render_once(notes, bpm, total_beats, program, drums, font, tail, gain, midi_path, name, 0.0)

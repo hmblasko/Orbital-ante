@@ -2,9 +2,9 @@
 
 Date: 13 Nov 2026. Branch `claude/audio-slice`.
 
-Status: **built and measured, never heard, not yet run in Unity.** Nothing in this report is a listening result. The system that wrote and mixed this audio cannot hear, and neither can the critics it used. Every quality statement below is a measurement or a reading of the source, and says which. Matthew's first listen decides what happens next.
+Status: **built and measured, never heard, not yet run in Unity.** Merged to main in pull request 24; this version of the report includes the follow-up round. Nothing in this report is a listening result. The system that wrote and mixed this audio cannot hear, and neither can the critics it used. Every quality statement below is a measurement or a reading of the source, and says which. Matthew's first listen decides what happens next.
 
-The honest headline: an independent critic scored the first version **6.1 out of 10 against a pass mark of 8.5**. Most of what it found is fixed. Its biggest finding is not: the "real" instruments (bass, drums, brass, electric piano) come from a free General MIDI sound bank, and that is the most likely place for the music to still sound cheap. See "The main open problem".
+The honest headline: an independent critic scored the first version **6.1 out of 10 against a pass mark of 8.5**, and a second pass after fixes scored it **6.7**. It does not pass. Its biggest finding is not: the "real" instruments (bass, drums, brass, electric piano) come from a free General MIDI sound bank, and that is the most likely place for the music to still sound cheap. See "The main open problem".
 
 ## What changed
 
@@ -49,7 +49,7 @@ Cues: a riser into combat, an ambush hit, a combat ending, a lift into flight, a
 
 | Check | Result | What it proves, and what it does not |
 |---|---|---|
-| 30 rule tests (`Tests/EditMode/AudioRulesTests.cs`), run with `dotnet test` outside Unity | All pass | The music director, intensity, rewards, vacuum, voice pool and the five-minute script behave as written. Not that Unity plays them correctly. |
+| 33 rule tests (`Tests/EditMode/AudioRulesTests.cs`), run with `dotnet test` outside Unity | All pass | The music director, intensity, rewards, vacuum, voice pool and the five-minute script behave as written. Not that Unity plays them correctly. |
 | The whole game's C# compiled against Unity reference assemblies | Compiles | No typos or missing references in runtime code. The two editor scripts could not be compiled here. |
 | `tools/audio/qa.py` over every file (`docs/audio/qa_report.md`) | Pass, 0 failures, 4 warnings | Every file is 48 kHz, no clipping, true peak at or under -1 dB, starts and ends on silence, loops wrap cleanly; music hits its loudness targets; every weapon measures further from every other weapon than from its own variations. The warnings: landing thud and engine ignition are mostly below 250 Hz and will be weak on Deck speakers. |
 | Loop exactness: each piece rendered three times round, third pass compared with the second | -212 dB or better on all five | The loops are sample-exact, so there is no click or gap at the wrap. |
@@ -84,7 +84,26 @@ The full first report is kept as written in `docs/audio/critic_report_1.md`. Sco
 | 22 | Style bible said things that were not true | **Fixed.** |
 | 14, 19, 21, 23 | Cave, facility, cabin and two music layers lack mid-range; the combat riser's drum roll clashes with flight's tempo; energy weapons have no mechanical layer; music is compressed twice | **Not done.** |
 
-**There has been no second critic pass yet.** One was started on the fixed version and stopped part-way when the session ran out of its usage allowance, so it produced no verdict. The 6.1 is therefore the score of the version *before* these fixes, and nobody independent has yet checked that the fixes did what the table says. That re-check is the first job of the next round.
+### Second critic pass: 6.7 out of 10, still not a pass
+
+A second independent pass re-measured the merged version (`docs/audio/critic_report_2.md`). **6.7, up from 6.1, against 8.5.** It confirmed as fixed: the 12-second wait for music when a fight restarts (now 3.8 s), the ambush hit, combat music from target practice and crashes, pieces always restarting from bar 1, endings mid-phrase, the silent first instant, and the style bible's accuracy. It rated most of the sound changes "partly fixed" (vacuum gunfire is 14 dB louder on small speakers but still well under the music; the hit marker is 6 dB up but still under the two loudest energy weapons; the combat bass is still mostly below what a Deck can play). Production realism moved only from 4 to 4.5: same sound bank.
+
+It also found eight new problems caused by the fixes. What was done in this follow-up:
+
+| New problem | What was done |
+|---|---|
+| A fight that flares up again as the ending is being counted in cut the music dead and let the ending ring over the new riser | **Fixed**, with a test: the ending always lands first, then fades out under the riser. |
+| Danger that comes and goes could restart combat music every 16 seconds | **Fixed**, with a test: the danger must stay low for four seconds before a fight counts as over. |
+| A 2 to 3 dB jump in level between a medium and a hard note | **Fixed** for the hard notes (level-matched). The smaller step between soft and medium on the guitar is not. |
+| Sniper quieter than the rifle | **Changed.** Its body is back and it is 2 dB louder. |
+| The whole game is quiet, and three big sounds at once can still clip | **Not done.** Needs a limiter on the output, which needs an AudioMixer asset made in the editor. |
+| Combat layers without the top one reach -0.01 dB | **Not done.** Covered in play by the 4 dB of headroom; to be fixed with the limiter. |
+| The lift-off cue could land on bar 17 of the flight piece | **Fixed**: a piece that arrives on a riser starts from its top. |
+| One distant shot unlocked full combat intensity for ten seconds | **Fixed**, with a test. |
+
+The fixed version has **not** been re-scored a third time.
+
+**Codex review** (asked for on pull request 24): one finding, that storm wind and thunder ignored the new effects volume setting. Checked against the code, it was right, and it is fixed in this follow-up. Nothing from Codex was rejected.
 
 ### The main open problem
 
@@ -115,7 +134,7 @@ The bass, drums, brass, strings, choir and electric piano are played from FluidR
 | 4 to 6 compositions | Done (5), never heard |
 | 30 to 40 sound effects | Done (68 events), never heard |
 | Adaptive music demo and five-minute sequence | Done in code and as an offline render; not run in Unity |
-| Critic pass and fixes | One full pass (6.1, below the 8.5 target) and one round of fixes. The re-score of the fixed version has not been done. |
+| Critic passes and fixes | Two passes (6.1, then 6.7; target 8.5) and two rounds of fixes. Below target. |
 | AudioMixer groups and snapshots | **Partial.** The eight buses exist in code with levels and sliders. A real AudioMixer asset (needed for a limiter and for snapshots) is not made: it cannot be created or checked without the editor. There is an experimental menu item, Orbital Ante > Audio, for it. |
 | Sourced recordings (real guns, real engines, real instruments) | **Blocked** from the cloud: sound-library sites are not reachable. |
 | Steam Deck findings | **Blocked** until it runs on the Deck. Estimates only, in `docs/performance_budget.md`. |

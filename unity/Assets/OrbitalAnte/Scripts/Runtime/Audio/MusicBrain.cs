@@ -13,6 +13,8 @@ namespace OrbitalAnte.Audio
         StemGain,
         /// <summary>Play the transition cue Cue, starting at Time.</summary>
         PlayCue,
+        /// <summary>Fade the cue Cue out, starting at Time and taking Seconds, wherever it has got to.</summary>
+        StopCue,
     }
 
     /// <summary>One instruction from the music director to whatever plays the audio. Times are on the audio clock.</summary>
@@ -71,6 +73,13 @@ namespace OrbitalAnte.Audio
         bool _afterRest;
         bool _started;
         float _heading;
+        double _changeAt;
+        double _calmSince = -1;
+        string _lastCue = "";
+        double _lastCueEnd;
+
+        /// <summary>How long the danger must stay low before a fight counts as over. Without it, danger that comes and goes every few seconds would end and restart the combat music each time.</summary>
+        public const double CalmSeconds = 4.0;
 
         public MusicBrain(AudioManifest manifest)
         {
@@ -124,9 +133,15 @@ namespace OrbitalAnte.Audio
                 _combat = true;
                 _combatSince = now;
             }
-            else if (_combat && intensity < _m.CombatExit && now - _combatSince >= _m.CombatMinSeconds)
+            else if (_combat)
             {
-                _combat = false;
+                if (intensity >= _m.CombatExit) _calmSince = -1;
+                else if (_calmSince < 0) _calmSince = now;
+                if (_calmSince >= 0 && now - _calmSince >= CalmSeconds && now - _combatSince >= _m.CombatMinSeconds)
+                {
+                    _combat = false;
+                    _calmSince = -1;
+                }
             }
 
             string home = ctx != null ? ctx.Track : "";
@@ -138,7 +153,9 @@ namespace OrbitalAnte.Audio
             // A fight does not wait its turn: combat may interrupt a hand-over that is still under way (the hush
             // after the last fight, a piece fading in). Flapping is still impossible, because leaving combat has
             // its own minimum time and lower threshold.
-            bool urgent = want.Length > 0 && want == _m.CombatTrack && have != want;
+            // It does wait for one thing: a hand-over already counted in (the ending on its bar line) happens first,
+            // so the old piece is never cut off in the middle of leaving.
+            bool urgent = want.Length > 0 && want == _m.CombatTrack && have != want && now >= _changeAt;
             if (now >= _busyUntil || urgent)
             {
                 if (want != have)
@@ -223,7 +240,18 @@ namespace OrbitalAnte.Audio
                 double start = Math.Max(now, change - fade);
                 commands.Add(new MusicCommand { Kind = MusicCommandKind.StopTrack, Track = _track.Id, Time = start, Seconds = change - start });
             }
-            if (cue != null) commands.Add(new MusicCommand { Kind = MusicCommandKind.PlayCue, Cue = cue.Id, Time = cueStart });
+            // A cue still ringing from the last hand-over (the ending of a fight that has just flared up again)
+            // bows out as the new one begins.
+            if (_lastCue.Length > 0 && _lastCueEnd > now && (cue == null || cue.Id != _lastCue || cueStart < _lastCueEnd))
+                commands.Add(new MusicCommand { Kind = MusicCommandKind.StopCue, Cue = _lastCue, Time = earliest, Seconds = 0.6 });
+            _lastCue = "";
+            if (cue != null)
+            {
+                commands.Add(new MusicCommand { Kind = MusicCommandKind.PlayCue, Cue = cue.Id, Time = cueStart });
+                _lastCue = cue.Id;
+                _lastCueEnd = cueStart + cue.Seconds;
+            }
+            _changeAt = change;
 
             if (to.Length == 0)
             {
@@ -242,7 +270,8 @@ namespace OrbitalAnte.Audio
             double offset = 0;
             _plays.TryGetValue(next.Id, out int plays);
             _plays[next.Id] = plays + 1;
-            if (next.Id != _m.CombatTrack && next.EntryBars.Length > 0)
+            // A piece that arrives on a riser also starts from its top: the riser is written to land on bar 1.
+            if (next.Id != _m.CombatTrack && !leadIn && next.EntryBars.Length > 0)
             {
                 int bar = next.EntryBars[plays % next.EntryBars.Length];
                 if (bar >= 1 && bar <= next.Bars) offset = (bar - 1) * next.BarSeconds;

@@ -280,6 +280,59 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void Music_DangerThatComesAndGoesDoesNotRestartTheFightMusicEachTime()
+        {
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            // Danger high for 5 s, low for 3 s, over and over for two minutes: one fight, not fifteen.
+            List<MusicCommand> c = Drive(brain, 10, 130, t => ((t - 10) % 8) < 5 ? 75f : 15f);
+            Assert.AreEqual(1, c.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight").Count);
+            Assert.AreEqual(0, c.FindAll(x => x.Kind == MusicCommandKind.PlayCue && x.Cue == "ending").Count);
+        }
+
+        [Test]
+        public void Music_AFightThatFlaresUpAsTheEndingIsCountedIn_LetsTheEndingLandThenFadesItUnderTheRiser()
+        {
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            var all = new List<MusicCommand>();
+            var frame = new List<MusicCommand>();
+            double stopAt = -1;
+            for (double t = 10; t < 60; t += 0.02)
+            {
+                // The moment the ending is ordered (before it has landed) the shooting starts again.
+                float level = t > 14 && t < 16 ? 75f : (stopAt > 0 ? 75f : 10f);
+                frame.Clear();
+                brain.Update(t, level, frame);
+                foreach (MusicCommand c in frame)
+                {
+                    all.Add(c);
+                    if (c.Kind == MusicCommandKind.StopTrack && c.Track == "fight" && stopAt < 0) stopAt = c.Time + c.Seconds;
+                }
+            }
+            List<MusicCommand> fights = all.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight");
+            Assert.AreEqual(2, fights.Count);
+            MusicCommand riser = all.FindLast(x => x.Kind == MusicCommandKind.PlayCue && x.Cue == "riser");
+            Assert.GreaterOrEqual(riser.Time, stopAt - 1e-6, "the new riser must not start before the old fight music has finished leaving");
+            MusicCommand fade = all.Find(x => x.Kind == MusicCommandKind.StopCue);
+            Assert.AreEqual("ending", fade.Cue, "the ending still ringing is faded out under the riser");
+            Assert.Less(fade.Time, fights[1].Time);
+        }
+
+        [Test]
+        public void Intensity_DistantFireDoesNotMakeItThePlayersFight()
+        {
+            var im = new IntensityModel();
+            for (int i = 0; i < 1500; i++)
+            {
+                if (i % 10 == 0) im.Report(IntensityEvent.EnemyShotNearby, 0.3f);
+                if (i % 5 == 0) im.Report(IntensityEvent.HitDealt);
+                im.Tick(0.02f);
+                Assert.Less(im.Value, 60f);
+            }
+        }
+
+        [Test]
         public void Intensity_BandsMatchTheBrief()
         {
             Assert.AreEqual(IntensityBand.Solitude, IntensityModel.BandOf(19f));
