@@ -22,7 +22,7 @@ All in `unity/Assets/OrbitalAnte/Scripts/Runtime/Ante/`, namespace `OrbitalAnte.
 | `AnteRun.cs` | All of the above assembled into one object, plus the save state (`AnteRunState`). |
 | `AnteBalanceData.cs` | The ScriptableObject that holds an `AnteBalance` for the Inspector. Falls back to code defaults if the asset is missing. |
 
-Tests: `Tests/EditMode/AnteScoringTests.cs`, `AnteDirectorTests.cs`, `AnteRewardsTests.cs`.
+Tests: `Tests/EditMode/AnteScoringTests.cs`, `AnteDirectorTests.cs`, `AnteRewardsTests.cs`, `AnteEdgeTests.cs`.
 
 ## The rules, in plain words
 
@@ -120,7 +120,7 @@ ScoreResult result = anteRun.Report(new ScoreEvent
 
 ## Tested, and not
 
-**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 81 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
+**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 93 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
 
 **Not verified:**
 - Nothing has been compiled or run in Unity. `AnteBalanceData.cs` was compiled against hand-written stand-ins for Unity's types.
