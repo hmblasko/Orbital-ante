@@ -61,14 +61,16 @@ namespace OrbitalAnte.Ante
         public string needs;
         public PerkEffect[] effects = new PerkEffect[0];
 
-        public string Describe()
+        /// <param name="balance">Where the limits quoted on the card come from. Null uses the default numbers.</param>
+        public string Describe(AnteBalance balance = null)
         {
+            if (balance == null) balance = new AnteBalance();
             var parts = new List<string>();
-            for (int i = 0; i < effects.Length; i++) parts.Add(Describe(effects[i]));
+            for (int i = 0; i < effects.Length; i++) parts.Add(Describe(effects[i], balance));
             return string.Join(", ", parts);
         }
 
-        static string Describe(PerkEffect effect)
+        static string Describe(PerkEffect effect, AnteBalance balance)
         {
             int percent = (int)Math.Round(Math.Abs(effect.value) * 100.0, MidpointRounding.AwayFromZero);
             string amount = (effect.value >= 0f ? "+" : "-") + percent + "%";
@@ -76,7 +78,10 @@ namespace OrbitalAnte.Ante
             {
                 case PerkStat.ScoreBonus:
                     return amount + " score: " + (string.IsNullOrEmpty(effect.tag) ? effect.kind.ToString() : effect.tag + " " + effect.kind);
-                case PerkStat.ChainScoreBonus: return amount + " score on the next event of a different kind";
+                case PerkStat.ChainScoreBonus:
+                    return amount + " score when you score in a different category (combat, exploration, bounty, objective, salvage, repair, landing) within "
+                           + ScoreMath.Exact(balance.chainWindowSeconds).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+                           + " seconds of your last score; works " + balance.chainUsesPerAnte + " times per ante";
                 case PerkStat.ShipFuelPerImpulse: return amount + " ship fuel per thrust";
                 case PerkStat.WeaponDamage: return amount + " weapon damage";
                 case PerkStat.MaxHp: return amount + " max HP";
@@ -89,6 +94,17 @@ namespace OrbitalAnte.Ante
     public static class PerkCatalog
     {
         public const string ChainPerkId = "perk.change_of_pace";
+
+        /// <summary>
+        /// How many unique perks a catalog needs for every draft of a full run to show a full set of choices:
+        /// one is taken after each cleared ante except the last, and the final draft still needs a full hand.
+        /// The six example perks are fewer than this, so late drafts in a full run come up short until the
+        /// real list is written.
+        /// </summary>
+        public static int SizeNeededForFullDrafts(AnteBalance balance)
+        {
+            return Math.Max(0, balance.AnteCount - 2) + balance.perkChoices;
+        }
 
         /// <summary>
         /// The six example perks from the point-system handoff, and only those. Names, tags and rarities are

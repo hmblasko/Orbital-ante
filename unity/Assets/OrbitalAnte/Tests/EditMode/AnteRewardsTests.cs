@@ -254,6 +254,60 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("+20% weapon damage, -15% max HP", PerkCatalog.CreateDefaults()[2].Describe());
         }
 
+        [Test]
+        public void TheChainCardStatesItsCategoryRuleItsWindowAndItsLimit()
+        {
+            PerkDefinition chain = PerkCatalog.CreateDefaults().Find(p => p.id == PerkCatalog.ChainPerkId);
+            string text = chain.Describe(new AnteBalance());
+            StringAssert.Contains("+10%", text);
+            StringAssert.Contains("different category", text);
+            StringAssert.Contains("within 30 seconds", text);
+            StringAssert.Contains("2 times per ante", text);
+
+            string changed = chain.Describe(new AnteBalance { chainWindowSeconds = 45f, chainUsesPerAnte = 3 });
+            StringAssert.Contains("within 45 seconds", changed);
+            StringAssert.Contains("3 times per ante", changed);
+        }
+
+        [Test]
+        public void TwoEnemyTiersAreTheSameCategoryForTheChainPerk()
+        {
+            var run = new AnteRun(new AnteBalance(), 7);
+            run.Perks.Add(run.Catalog[5]);
+            run.Report(new ScoreEvent { claimId = "e1", kind = ScoreEventKind.EnemyTier1 });
+            Assert.IsFalse(run.Report(new ScoreEvent { claimId = "e2", kind = ScoreEventKind.EnemyTier2 }).chainBonusUsed);
+        }
+
+        [Test]
+        public void AFullRunTakingEveryRewardShowsWhatHappensWhenThePerkPoolRunsDry()
+        {
+            // The six example perks are all unique, so a nine-ante run uses them up. Expected: three choices
+            // while three remain, then fewer, then no draft at all (and never a pending pick with nothing to pick).
+            var balance = new AnteBalance();
+            Assert.Less(PerkCatalog.CreateDefaults().Count, PerkCatalog.SizeNeededForFullDrafts(balance),
+                "the example list is knowingly too short for a full run");
+            Assert.AreEqual(10, PerkCatalog.SizeNeededForFullDrafts(balance));
+
+            var run = new AnteRun(balance, 31);
+            int[] expectedChoices = { 3, 3, 3, 3, 2, 1, 0, 0 };
+            int mission = 0;
+            for (int ante = 1; ante <= 8; ante++)
+            {
+                while (!run.Director.TargetMet)
+                    run.Report(new ScoreEvent { claimId = "m" + mission++, kind = ScoreEventKind.OptionalMission, missionBasePoints = 550 });
+                Assert.IsTrue(run.Director.ConfirmAdvance());
+
+                List<PerkDefinition> offers = run.PerkOffers();
+                Assert.AreEqual(expectedChoices[ante - 1], offers.Count, "after ante " + ante);
+                Assert.AreEqual(offers.Count > 0, run.Director.PerkDraftPending, "after ante " + ante);
+                if (offers.Count > 0) Assert.IsTrue(run.TakePerk(offers[0]));
+                Assert.IsTrue(run.UseScratchOff().HasValue);
+                Assert.IsTrue(run.BeginNextAnte());
+            }
+            Assert.AreEqual(6, run.Perks.Owned.Count);
+            Assert.AreEqual(9, run.Director.Ante);
+        }
+
         // ---- Scratch-off ----
 
         [Test]

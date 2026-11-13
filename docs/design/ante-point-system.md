@@ -73,6 +73,7 @@ Perk draft: 70 / 25 / 5 common / uncommon / rare per slot. Scratch-off: 50% +150
 - **Caps the handoff asks for without numbers (mine):** under-threat recovery pays at most 3 times per ante; a retaken base pays for at most 2 retake missions per run, each scored as an optional mission; no perk stat can be stacked past 40% either way.
 - **"First-time wreck discovery"** is a Landmark event tagged `wreck`, since there is no separate wreck value.
 - **Perk names, tags and rarities (mine, placeholders).** Only the six example effects from the handoff exist. The real perk list is Milestone 14 content.
+- **The example perk list is too short for a full run.** All six are unique, so a nine-ante run would see three choices after antes 1 to 4, then two, then one, then no draft after antes 7 and 8. When nothing is left the draft is skipped rather than shown empty. A full run needs at least 10 perks for three choices every time; the real list is Milestone 14 content.
 - **Free picks not taken are given up** when the next ante starts. The upgrade screen should warn before leaving.
 - **Attributes can only be bought between antes.**
 - **End condition meanings.** OnTimer: the ante always runs its full time. Hybrid: you may leave early once the target is met, otherwise the timer decides. OnPlayerAdvance: once the target is met there is no more time pressure and you leave when you like; timer out before the target still ends the run.
@@ -80,6 +81,7 @@ Perk draft: 70 / 25 / 5 common / uncommon / rare per slot. Scratch-off: 50% +150
 ## Open questions (yours)
 
 1. **Ante length and what ends an ante.** The data says 300 seconds and Hybrid as a stand-in so tests can run. All three modes are built and tested. Not final until you say.
+   One thing to weigh: in OnPlayerAdvance the ante stays open after the timer, and fresh things still score. Nothing can be farmed (each thing pays once), but a leaderboard chaser could stay and sweep up every remaining reward with no deadline, which pulls against "varied intensity" and "no grind". Hybrid and OnTimer do not have this. If you pick OnPlayerAdvance, I would stop scoring once the timer is out, and this needs a playtest either way.
 2. **Ninth scratch-off.** The data says between antes only (eight tickets in a full run). A ticket at victory could still pay cash or a voucher that has nothing left to be spent on, so only the 2% cosmetic token would matter. Both settings are built and tested.
 3. A point value for salvage, and for clearing every base on a planet.
 
@@ -118,7 +120,7 @@ ScoreResult result = anteRun.Report(new ScoreEvent
 
 ## Tested, and not
 
-**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 76 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
+**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 81 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
 
 **Not verified:**
 - Nothing has been compiled or run in Unity. `AnteBalanceData.cs` was compiled against hand-written stand-ins for Unity's types.

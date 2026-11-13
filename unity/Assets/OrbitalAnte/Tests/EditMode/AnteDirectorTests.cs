@@ -105,6 +105,32 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ATickThatCrossesTheEndStillCountsAllOfItsPlayTime()
+        {
+            AnteRun run = Run(AnteEndCondition.OnPlayerAdvance, 300, 300);
+            run.Report(new ScoreEvent { claimId = "perkless", kind = ScoreEventKind.OptionalMission, missionBasePoints = 300 });
+            run.Tick(299f, false);
+            run.Tick(40f, false);       // one second of timer left, forty seconds of play
+            Assert.IsTrue(run.Director.WaitingForPlayer);
+            Assert.AreEqual(339f, run.Director.RunSeconds, 0.001f);
+            run.Tick(10f, false);
+            Assert.AreEqual(349f, run.Director.RunSeconds, 0.001f);
+        }
+
+        [Test]
+        public void ChangeOfPaceCannotReachAcrossATickThatCrossesTheEnd()
+        {
+            AnteRun run = Run(AnteEndCondition.OnPlayerAdvance, 300, 300);
+            foreach (PerkDefinition perk in run.Catalog) if (perk.id == PerkCatalog.ChainPerkId) run.Perks.Add(perk);
+            run.Tick(299f, false);
+            run.Report(new ScoreEvent { claimId = "m", kind = ScoreEventKind.OptionalMission, missionBasePoints = 300 });
+            run.Tick(40f, false);
+            ScoreResult later = run.Report(new ScoreEvent { claimId = "e", kind = ScoreEventKind.EnemyTier1 });
+            Assert.IsFalse(later.chainBonusUsed, "forty seconds have passed, the window is thirty");
+            Assert.AreEqual(45, later.points);
+        }
+
+        [Test]
         public void SelectNeverEndsAnAnte()
         {
             foreach (AnteEndCondition end in new[] { AnteEndCondition.OnTimer, AnteEndCondition.OnPlayerAdvance, AnteEndCondition.Hybrid })

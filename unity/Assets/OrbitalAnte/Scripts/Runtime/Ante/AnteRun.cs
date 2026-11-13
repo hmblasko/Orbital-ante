@@ -73,6 +73,16 @@ namespace OrbitalAnte.Ante
             Score = new ScoreService(Balance, Ledger, Claims, Perks);
             Director = new AnteDirector(Balance, Ledger);
             Attributes = new AttributeShop(Balance);
+            Director.Changed += DropTheDraftIfNothingIsLeftToOffer;
+        }
+
+        /// <summary>
+        /// If every perk is already held there is nothing to draft, so no pick is left pending with an empty
+        /// screen behind it. With fewer than three left, the draft simply shows what there is.
+        /// </summary>
+        void DropTheDraftIfNothingIsLeftToOffer()
+        {
+            if (Director.PerkDraftPending && PerkOffers().Count == 0) Director.MarkPerkDraftTaken();
         }
 
         /// <summary>The one door every world system reports through.</summary>

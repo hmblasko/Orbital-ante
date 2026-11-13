@@ -86,7 +86,12 @@ namespace OrbitalAnte.Ante
             SecondsLeft = 0f;
             if (!TargetMet) End(AntePhase.Failed);
             else if (_balance.endCondition != AnteEndCondition.OnPlayerAdvance) Clear();
-            else Changed?.Invoke();             // target met: stays open until the player advances
+            else
+            {
+                // Target met: the ante stays open until the player advances, and the rest of this tick is still play time.
+                RunSeconds += deltaSeconds - used;
+                Changed?.Invoke();
+            }
         }
 
         /// <summary>True when the player is allowed to end the ante now by choice.</summary>
