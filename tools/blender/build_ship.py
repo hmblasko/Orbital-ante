@@ -11,7 +11,7 @@ Ship space in the game: origin in the middle of the cabin floor, Y up, Z nose, X
 Here in Blender that is X right, Y nose, Z up, so a game point (x, y, z) is written G(x, y, z).
 """
 import bpy, bmesh, sys, os, math, glob
-from mathutils import Vector
+from mathutils import Vector, Matrix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import oa_blender as oa
 
@@ -336,6 +336,94 @@ def dish():
 
 # ------------------------------------------------------------------ all of it
 
+# ------------------------------------------------------------------ cameras
+
+# Not from ShipLayout: the cockpit reads these places from the sockets (PoleCam0, PoleCam1, LandingCam).
+POLE_MOUNT = (2.38, 1.5, -0.75)          # on the dome's skin, pilot's right; the left pole mirrors it
+POLE_HEAD = (5.2, 2.6, -3.2)
+POLE_AIM = (0.0, 0.6, 0.3)
+LANDING_CAM = (0.9, BELLY_Y - 0.05, 0.9)
+LENS_RED = (1.0, 0.22, 0.14)
+LENS_GLASS = (0.10, 0.16, 0.26)
+
+
+def turned(objects, origin, forward, up=(0, 0, 1)):
+    """Moves pieces built at the origin looking along +Y so they sit at origin looking along forward."""
+    f = Vector(forward).normalized()
+    r = f.cross(Vector(up)).normalized()
+    u = r.cross(f).normalized()
+    m = Matrix(((r.x, f.x, u.x, origin[0]), (r.y, f.y, u.y, origin[1]), (r.z, f.z, u.z, origin[2]), (0, 0, 0, 1)))
+    for o in objects:
+        o.data.transform(m)
+        o.data.update()
+    return objects
+
+
+def camera_head(seed):
+    """A chunky, friendly camera, built at the origin looking along +Y. Returns (pieces, lamp, lens distance)."""
+    o = []
+    o.append(painted(oa.box("camera body", (0, 0, 0), (0.30, 0.36, 0.26), CREAM, bevel=0.07, segments=2), seed))
+    o.append(painted(oa.box("camera stripe", (0, -0.06, 0), (0.312, 0.07, 0.272), ORANGE, bevel=0.02), seed + 1))
+    o.append(metal(oa.lathe("lens barrel", (0, 0.16, 0), (0, 1, 0), [(0.0, 0.085), (0.02, 0.11), (0.10, 0.11), (0.12, 0.125), (0.17, 0.125), (0.17, 0.095), (0.10, 0.085)], CHARCOAL, segments=12), seed + 2))
+    o.append(metal(oa.lathe("lens ring", (0, 0.255, 0), (0, 1, 0), [(0.0, 0.118), (0.008, 0.132), (0.03, 0.132), (0.038, 0.118)], SILVER, segments=12), seed + 3))
+    glass = oa.sphere("lens glass", (0, 0.285, 0), 0.118, LENS_GLASS, scale=(1, 0.30, 1), segments=12)
+    oa.paint(glass, wear=0, dirt=0, mottle=0.2, seed=seed, gradient=0.3)
+    o.append(glass)
+    o.append(painted(oa.box("sun hood", (0, 0.24, 0.135), (0.30, 0.20, 0.022), CHARCOAL, bevel=0.008), seed + 4))
+    o.append(metal(oa.box("viewfinder", (0.0, -0.10, 0.155), (0.12, 0.14, 0.06), DARK_METAL, bevel=0.02), seed + 5))
+    o.append(metal(rod("aerial", (-0.11, -0.12, 0.12), (-0.13, -0.16, 0.42), 0.008, CHARCOAL, segments=6), seed + 6))
+    o.append(painted(oa.sphere("aerial tip", (-0.131, -0.162, 0.43), 0.02, ORANGE, segments=8), seed + 7))
+    o.append(metal(oa.cylinder("lamp cup", (0.105, 0.172, 0.085), (0.105, 0.192, 0.085), 0.03, CHARCOAL, segments=10), seed + 8))
+    lamp = oa.sphere("record lamp", (0.105, 0.196, 0.085), 0.022, LENS_RED, segments=8)
+    oa.paint(lamp, wear=0, dirt=0, mottle=0, gradient=0)
+    return o, [lamp], 0.30
+
+
+def pole(index):
+    """A selfie-stick camera boom: 0 on the pilot's left, 1 on the right."""
+    sx = -1.0 if index == 0 else 1.0
+    mount = G(sx * POLE_MOUNT[0], POLE_MOUNT[1], POLE_MOUNT[2])
+    lens_at = G(sx * POLE_HEAD[0], POLE_HEAD[1], POLE_HEAD[2])
+    aim = (G(*POLE_AIM) - lens_at).normalized()
+    # The lens is at the stated place; the camera sits behind it and the boom comes up under the camera,
+    # so nothing of the boom is in the picture.
+    centre = lens_at - aim * 0.30
+    head = centre - Vector((0, 0, 0.24))
+    along = (head - mount).normalized()
+    length = (head - mount).length
+    parts = []
+    parts.append(metal(oa.sphere("boom shoulder", mount, 0.17, DARK_METAL, segments=10), 1))
+    parts.append(metal(oa.lathe("boom foot", mount - along * 0.12, along, [(0.0, 0.26), (0.05, 0.25), (0.12, 0.16)], DARK_METAL, segments=10), 2))
+    parts.append(painted(rod("boom", mount, head, 0.06, CREAM, radius_end=0.04, segments=10), 3))
+    # A thin stay under the boom with spacers, so it reads as a made thing and not a stick.
+    down = (Vector((0, 0, -1)) - along * along.dot(Vector((0, 0, -1)))).normalized()
+    parts.append(metal(rod("stay", mount + along * 0.3 + down * 0.26, head - along * 0.35 + down * 0.05, 0.016, SILVER, segments=6), 4))
+    for k in range(5):
+        t = 0.3 + (length - 0.7) * k / 4.0
+        gap = 0.26 - 0.21 * k / 4.0
+        p = mount + along * t
+        parts.append(metal(rod("spacer", p, p + down * gap, 0.013, SILVER_DARK, segments=6), 5))
+        if k in (1, 3):
+            parts.append(painted(rod("boom band", p - along * 0.05, p + along * 0.05, 0.068 - 0.004 * k, ORANGE, segments=10, bevel=0.008), 6))
+    parts.append(metal(oa.sphere("head joint", head, 0.085, DARK_METAL, segments=8), 7))
+    parts.append(metal(rod("head yoke", head, centre - Vector((0, 0, 0.10)), 0.035, DARK_METAL, segments=8), 8))
+    body, lamp, lens = camera_head(20 + index * 10)
+    turned(body + lamp, centre, aim)
+    return parts + body, lamp, centre + aim * lens
+
+
+def landing_camera():
+    """A small camera pod under the belly, lens straight down."""
+    top = G(*LANDING_CAM)
+    parts = []
+    parts.append(metal(oa.cylinder("pod plate", top + Vector((0, 0, 0.04)), top - Vector((0, 0, 0.03)), 0.22, DARK_METAL, segments=14, bevel=0.012), 40))
+    parts.append(metal(rod("pod neck", top, top - Vector((0, 0, 0.14)), 0.07, SILVER_DARK, segments=10), 41))
+    centre = top - Vector((0, 0, 0.26))
+    body, lamp, lens = camera_head(42)
+    turned(body + lamp, centre, (0, 0, -1), up=(0, 1, 0))
+    return parts + body, lamp, centre - Vector((0, 0, lens))
+
+
 def lander():
     pieces = [("base", base())]
     for i in range(4):
@@ -344,7 +432,16 @@ def lander():
     for i in range(4):
         pieces.append(("thruster%d" % i, thruster(i)))
     pieces.append(("dish", dish()))
-    sockets = []
+    cameras = []
+    for i in range(2):
+        body, lamp, lens = pole(i)
+        pieces += [("pole%d" % i, body), ("pole%dGlow" % i, lamp)]
+        cameras.append(("PoleCam%d" % i, lens))
+        cameras.append(("PoleMount%d" % i, G((-1.0 if i == 0 else 1.0) * POLE_MOUNT[0], POLE_MOUNT[1], POLE_MOUNT[2])))
+    body, lamp, lens = landing_camera()
+    pieces += [("landingcam", body), ("landingcamGlow", lamp)]
+    cameras.append(("LandingCam", lens))
+    sockets = [oa.socket(name, position) for name, position in cameras]
     for i in range(4):
         sockets.append(oa.socket("LegRoot%d" % i, at_angle(LEG_ROOT_R, LEG_ROOT_Y, 45 + 90 * i)))
         sockets.append(oa.socket("Footpad%d" % i, at_angle(LEG_PAD_R, GROUND_Y, 45 + 90 * i)))
@@ -408,4 +505,6 @@ if __name__ == "__main__":
         shown.append(floor)
         oa.render_preview(os.path.join(previews, "lander_a.png"), shown, (9, 13, 1.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
         oa.render_preview(os.path.join(previews, "lander_b.png"), shown, (-12, -7, 4.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_cams.png"), shown, (10.5, -10.5, 6.0), (0.5, -0.5, 0.6), lens=36, size=(1200, 820), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_camhead.png"), shown, (3.2, -1.0, 2.2), (5.0, -3.0, 2.5), lens=40, size=(900, 700), samples=64)
         oa.render_preview(os.path.join(previews, "lander_c.png"), shown, (5.2, 5.6, -2.9), (1.2, 1.0, -1.6), lens=30, size=(1100, 800), samples=64)

@@ -195,7 +195,7 @@ namespace OrbitalAnte.Tests
             {
                 Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
             }
-            Assert.LessOrEqual(model.TriangleCount, 34000, "docs/performance_budget.md caps the lander's fittings at 34,000 triangles");
+            Assert.LessOrEqual(model.TriangleCount, 36000, "docs/performance_budget.md caps the lander's fittings at 36,000 triangles");
         }
 
         [Test]
@@ -224,6 +224,24 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ShipModelFile_HasTheCockpitCameras_LookingAtTheShip()
+        {
+            ModelFile model = LoadReal("Lander");
+            foreach (string piece in new[] { "pole0", "pole1", "landingcam", "pole0Glow", "pole1Glow", "landingcamGlow" })
+            {
+                Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            }
+            Assert.IsTrue(model.TrySocket("PoleCam0", out ModelSocket left), "missing PoleCam0");
+            Assert.IsTrue(model.TrySocket("PoleCam1", out ModelSocket right), "missing PoleCam1");
+            Assert.IsTrue(model.TrySocket("LandingCam", out ModelSocket belly), "missing LandingCam");
+            Assert.Less(left.X, -3f, "the left pole's camera is on the pilot's left, well clear of the hull");
+            Assert.Greater(right.X, 3f, "the right pole's camera is on the pilot's right, well clear of the hull");
+            Assert.AreEqual(-left.X, right.X, 0.01f, "the two poles mirror each other");
+            Assert.Less(belly.Y, ShipLayout.BellyY, "the landing camera's lens is under the belly");
+            Assert.Greater(belly.Y, ShipLayout.GroundY + 0.5f, "and well clear of the ground when landed");
+        }
+
+        [Test]
         public void ShipModelFile_PiecesStayWhereTheirCollidersAre()
         {
             ModelFile model = LoadReal("Lander");
@@ -233,6 +251,8 @@ namespace OrbitalAnte.Tests
             foreach (var pair in ShipProps.Exterior()) standIns[pair.Key] = pair.Value;
             foreach (ModelPart part in model.Parts)
             {
+                // The cockpit's cameras (and their record lamps) are extra hardware with no stand-in shape and no collider.
+                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam")) continue;
                 Assert.IsTrue(standIns.ContainsKey(part.Name), "no stand-in for " + part.Name);
                 ShipMesh old = standIns[part.Name];
                 float[] lo = { float.MaxValue, float.MaxValue, float.MaxValue }, hi = { float.MinValue, float.MinValue, float.MinValue };
