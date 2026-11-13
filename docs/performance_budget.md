@@ -119,6 +119,36 @@ Known follow-ups, to do only if the Profiler says so: halve the crack triangles 
 
 What to read off in Unity (see "How to measure"): Batches and Tris seated in orbit and again standing outside the landed ship; GC Alloc per frame seated and idle; the worst frame while shooting one window until it breaks; the Physics row during a hard landing.
 
+## Launch (Milestone 8): estimates from reading the code, not measured
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Deck figures are that time multiplied by 3 to 6, so they are guesses. Nothing here has been run in Unity.
+
+| System | Cost | Cap |
+|---|---|---|
+| Launch base | 6,072 triangles in 10 pieces sharing one material (counted from the stand-in shapes), about 10 draw calls. No textures, no lights, no shadows. | fixed; one base, on Earth |
+| Base physics | 8 solid shapes that never move by themselves (1 mesh of 144 triangles, 2 boxes, 5 capsules) | fixed |
+| Choosing the pad's spot | once per run on the main thread. 27 to 36 ms measured on a desktop for today's Earth (469 spots tried) before spots were dropped at the first bit of sea, so less now (not re-timed); guessed under 220 ms on Deck. | 41 rings, 4,921 spots |
+| Building the base | shapes 2.5 to 16 ms on a desktop, guessed 10 to 100 ms on Deck, once per run on the main thread | once per run |
+| Soft shade on the base | 12 rays a corner on a background thread, started on the first frame: 96 to 139 ms on a desktop, guessed 0.3 to 0.8 s on Deck. The base shows unshaded until it arrives. | once per run; never takes the last free worker |
+| Engine sounds | 4 clips made at run start (7.2 s of sound at 22,050 Hz): 11 to 15 ms on a desktop, guessed 35 to 90 ms on Deck. 3 audio sources. | fixed; freed on restart |
+| Flames | 4 cones of 10 triangles, one material, solid (not see-through) | 4 |
+| Smoke | solid lumps, 132 triangles each, plain colour with no painted detail: 14,520 triangles at the cap, 1 draw call. Guessed up to a few ms on the graphics card when the plume fills the view, because lumps overlap. | 110 (`Max Smoke` on the Launch asset; code limit 400). **First thing to lower.** |
+| Grit | 8 triangles each: 480 triangles at the cap, 1 draw call | 60 (`Max Debris`; code limit 200) |
+| Light on the ground | none added: the engines borrow the shader's one lamp while they are the brighter | - |
+| Shake | view only, 3 noise lookups a frame | off with the camera shake setting |
+| Looking for the ground | 1 ray of 50 m per frame; ground colour looked up every 2 s | - |
+| Garbage | target: 0 bytes per frame while burning. One new material at most every 2 s when the ground colour changes. | 729 dust colours |
+| Heat shimmer | not built yet. If added as a screen effect, budget 0.5 to 1 ms and one copy of the screen. | - |
+
+Follow-ups, only if the Profiler says so: choose the pad's spot on a background thread when a run starts in orbit; make the sounds on a background thread; a lighter smoke lump.
+
+What to read off in Unity, seated on the pad on Earth:
+1. Press **F3**. Before touching anything, note the Budget line, then **Batches**, **Tris** and **SetPass calls** in the Game view's **Stats** panel.
+2. Hold "up" with boost through lift-off until you are about 50 m up. Note the same four things at the smokiest moment.
+3. Stop Play, set `Max Smoke` to 8 on the Launch asset, press Play and repeat step 2. The difference in the Budget line is the cost of the smoke.
+4. **Window > Analysis > Profiler**, CPU Usage, during lift-off: the **GC Alloc** column for `LaunchFx.Update` (expect 0 B) and the time on the `ParticleSystem` rows.
+5. **Edit > Project Settings > Physics**: tell me whether **Reuse Collision Callbacks** is ticked.
+
 ## The look (pass 1, 13 Nov 2026): estimates from reading the code, not measured
 
 Nothing here has been timed. The figures are estimates for a Steam Deck at 1280 x 800 from the Deck performance review of the code. The first run on a Deck replaces them.

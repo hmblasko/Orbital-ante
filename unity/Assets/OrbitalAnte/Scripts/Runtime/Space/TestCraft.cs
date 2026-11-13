@@ -140,7 +140,17 @@ namespace OrbitalAnte.Space
 
         void Update()
         {
-            if (GameInput.Asset == null || GameSession.Paused) return;
+            if (GameInput.Asset == null) return;
+            if (GameSession.Paused)
+            {
+                // Whatever was held when the menu opened is forgotten, so letting go while paused is honoured
+                // and the first physics step after resuming cannot use a stale push.
+                ThrustInput = Vector3.zero;
+                _lookPending = Vector2.zero;
+                Boosting = false;
+                MatchingVelocity = false;
+                return;
+            }
 
             if (Locked)
             {

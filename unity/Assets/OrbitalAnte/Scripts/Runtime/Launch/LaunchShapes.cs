@@ -13,23 +13,20 @@ namespace OrbitalAnte.Launch
     /// </summary>
     public static class LaunchShapes
     {
-        public const float PadRadius = 15f;
-        public const float DishRadius = 3.4f;
-        public const float DishDepth = 0.28f;
-        /// <summary>The ship's own origin (its cabin floor) when it stands on the pad.</summary>
-        public const float ShipHeightOnPad = -ShipLayout.GroundY;
-
-        public static readonly P3 TowerFoot = new P3(-10.2f, 0f, 0f);
-        public const float TowerHalf = 1.2f;
-        public const float TowerHeight = 15f;
-        /// <summary>Where the swing arm is hinged: the tower's corner nearest the ship, at the height of the cabin's side window.</summary>
-        public static readonly P3 ArmPivot = new P3(-9f, ShipHeightOnPad + 0.2f, 0f);
-        public const float ArmLength = 6.2f;
-        public static readonly P3 WaterTowerFoot = new P3(9.6f, 0f, -9.6f);
-        public static readonly P3 HutCentre = new P3(10.2f, 0f, 7.2f);
-        public static readonly P3 HutHalf = new P3(2.2f, 1.3f, 1.7f);
-        public const float MastDistance = 11.6f;
-        public const float MastHeight = 9.5f;
+        public const float PadRadius = LaunchLayout.PadRadius;
+        public const float DishRadius = LaunchLayout.DishRadius;
+        public const float DishDepth = LaunchLayout.DishDepth;
+        public const float ShipHeightOnPad = LaunchLayout.ShipHeightOnPad;
+        public static readonly P3 TowerFoot = LaunchLayout.TowerFoot;
+        public const float TowerHalf = LaunchLayout.TowerHalf;
+        public const float TowerHeight = LaunchLayout.TowerHeight;
+        public static readonly P3 ArmPivot = LaunchLayout.ArmPivot;
+        public const float ArmLength = LaunchLayout.ArmLength;
+        public static readonly P3 WaterTowerFoot = LaunchLayout.WaterTowerFoot;
+        public static readonly P3 HutCentre = LaunchLayout.HutCentre;
+        public static readonly P3 HutHalf = LaunchLayout.HutHalf;
+        public const float MastDistance = LaunchLayout.MastDistance;
+        public const float MastHeight = LaunchLayout.MastHeight;
 
         const string Concrete = "#B9B4A8";
         const string ConcreteDark = "#8E8A80";
@@ -41,11 +38,7 @@ namespace OrbitalAnte.Launch
         const string Black = "#1E1E20";
         const string White = "#ECE9E0";
 
-        public static P3 Mast(int i)
-        {
-            double a = (45 + 90 * i) * Math.PI / 180.0;
-            return new P3(Math.Sin(a) * MastDistance * 1.2, 0, Math.Cos(a) * MastDistance * 1.2);
-        }
+        public static P3 Mast(int i) => LaunchLayout.Mast(i);
 
         // ------------------------------------------------------------------ the mound
 

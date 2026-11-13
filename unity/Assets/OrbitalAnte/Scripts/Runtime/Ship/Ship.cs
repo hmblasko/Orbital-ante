@@ -787,7 +787,7 @@ namespace OrbitalAnte.Ship
             if (Flight != null)
             {
                 Flight.Unmanned = !Belt.Buckled;
-                Flight.LiftScale = Model.ThrustFactor;
+                Flight.LiftScale = Model.ThrustFactor * Mathf.Clamp01(LiftGate);
                 Flight.SideScale = Model.TurnFactor;
             }
 
@@ -816,6 +816,14 @@ namespace OrbitalAnte.Ship
 
         /// <summary>Set by whoever is mending, each frame they mend, so that part's progress does not slip back.</summary>
         public int RepairingPart { get; set; } = -1;
+
+        /// <summary>
+        /// The share of the engines' push that reaches the ship, 0 to 1. Less than 1 during the build-up before
+        /// lift-off. Set each frame by the launch effects; 1 when there are none.
+        /// </summary>
+        public float LiftGate { get; set; } = 1f;
+        /// <summary>The engine effects riding on this ship, if it has them (see Launch/LaunchFx).</summary>
+        public OrbitalAnte.Launch.LaunchFx Launch { get; set; }
 
         /// <summary>True while the player is on their feet in the cabin. Set by the astronaut.</summary>
         public bool CrewAboard

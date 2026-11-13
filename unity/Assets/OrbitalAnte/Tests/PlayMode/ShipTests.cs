@@ -35,7 +35,7 @@ namespace OrbitalAnte.Tests
             PlanetSurface.PictureWidthForTests = 64;
             _root = new GameObject("ShipTestRoot");
             _world = _root.AddComponent<SolarSystemWorld>();
-            _world.Build(4242);
+            _world.Build(4242, StartPlace.Orbit);
             _ship = _world.Ship;
         }
 

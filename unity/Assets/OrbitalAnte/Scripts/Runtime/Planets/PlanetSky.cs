@@ -211,7 +211,10 @@ namespace OrbitalAnte.Planets
             _lampLevel = Mathf.MoveTowards(_lampLevel, wanted, Time.unscaledDeltaTime * 2.5f);
             Vector3 lampAt = eye + cam.transform.forward * 0.4f;
             var lampColor = new Color(1f, 0.93f, 0.8f) * (settings.lampBrightness * _lampLevel);
-            SkyGlobals.SetLamp(lampAt, settings.lampReach, lampColor);
+            if (SkyGlobals.FlareColor.maxColorComponent > lampColor.maxColorComponent)
+                SkyGlobals.SetLamp(SkyGlobals.FlarePosition, SkyGlobals.FlareReach, SkyGlobals.FlareColor);
+            else
+                SkyGlobals.SetLamp(lampAt, settings.lampReach, lampColor);
             bool realLamp = !PlanetMaterials.OwnTerrain && _lampLevel > 0.01f;
             if (_lamp.enabled != realLamp) _lamp.enabled = realLamp;
             if (realLamp)

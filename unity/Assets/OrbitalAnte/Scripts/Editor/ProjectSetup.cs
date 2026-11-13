@@ -68,6 +68,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Planets.PlanetData>(PlanetsPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
@@ -313,6 +314,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
             CreateAssetIfMissing<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset");
             CreateAssetIfMissing<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);

@@ -291,7 +291,10 @@ namespace OrbitalAnte.Ship
             }
             if (belt.Buckled)
             {
-                Prompt = Words(1, null, GameInput.Unbuckle, ": unbuckle");
+                var launch = Ship.Launch;
+                Prompt = launch != null && launch.Settled && launch.Model.State == OrbitalAnte.Launch.EngineState.Off
+                    ? Words(6, "Hold ", GameInput.FlyUp, ": lift off")
+                    : Words(1, null, GameInput.Unbuckle, ": unbuckle");
                 if (GameInput.FlyHatch.WasPressedThisFrame()) ToggleHatch();
                 if (GameInput.Unbuckle.WasPressedThisFrame() && belt.Release())
                 {

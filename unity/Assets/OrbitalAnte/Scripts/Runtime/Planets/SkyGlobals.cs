@@ -37,6 +37,7 @@ namespace OrbitalAnte.Planets
             Shader.SetGlobalVector(SunRawId, Linear(SunColor, SunIntensity));
             Shader.SetGlobalVector(SpaceAmbientId, Linear(SpaceAmbient, 1f));
             SetAir(SunColor * SunIntensity, SpaceAmbient, Color.black, 0f);
+            FlareColor = Color.black;
             SetLamp(Vector3.zero, 1f, Color.black);
             SetSky(SkyLook.OpenSpace(1f), Vector3.zero, 0f);
         }
@@ -80,6 +81,15 @@ namespace OrbitalAnte.Planets
             v.w = Mathf.Clamp01(veilAmount);
             Shader.SetGlobalVector(VeilId, v);
         }
+
+        /// <summary>
+        /// A second light for the ground and everything on it, such as the ship's engines at lift-off. The shaders
+        /// know one lamp, so whichever of this and the player's lamp is brighter is the one shown. Set the colour
+        /// to black when it is out.
+        /// </summary>
+        public static Vector3 FlarePosition;
+        public static float FlareReach = 1f;
+        public static Color FlareColor = Color.black;
 
         public static void SetLamp(Vector3 position, float reach, Color color)
         {

@@ -200,6 +200,68 @@ namespace OrbitalAnte.Tests.EditMode
 
         // ------------------------------------------------------------------ the shapes
 
+        [Test]
+        public void LettingGo_IsAStepUpNeverAStepDown_AndKicks()
+        {
+            var m = new LaunchModel();
+            float peak = 0f, shakeBefore = 0f;
+            bool released = false;
+            for (int i = 0; i < 200 && !released; i++)
+            {
+                shakeBefore = m.Shake;
+                peak = Math.Max(peak, m.Burn);
+                m.Tick(0.02f, 1f, false, true, 0f, 1f, 1f);
+                released = m.JustReleased;
+            }
+            Assert.IsTrue(released);
+            Assert.AreEqual(1f, m.Kick, 1e-6);
+            Assert.Greater(m.Shake, shakeBefore * 1.3f, "no kick on release");
+            Run(m, 0.3f, 1f, false, 2f);
+            Assert.GreaterOrEqual(m.Burn, peak - 1e-4f, "the burn dropped as the ship left the ground");
+            Run(m, 0.3f, 1f, false, 4f);
+            Assert.AreEqual(0f, m.Kick, 1e-6);
+        }
+
+        [Test]
+        public void HotEnginesRelight_AlmostAtOnce_ColdOnesTakeTheFullBuildUp()
+        {
+            var m = new LaunchModel();
+            Run(m, 2f, 1f, true);
+            Assert.AreEqual(EngineState.Running, m.State);
+            Run(m, 1f, 0f, true);
+            Assert.AreEqual(EngineState.Off, m.State);
+            Run(m, m.Rules.hotIgnitionSeconds + 0.06f, 1f, true);
+            Assert.AreEqual(EngineState.Running, m.State, "a hop should not wait for the full build-up");
+
+            Run(m, m.Rules.hotSeconds + 0.5f, 0f, true);
+            Run(m, m.Rules.hotIgnitionSeconds + 0.06f, 1f, true);
+            Assert.AreEqual(EngineState.Igniting, m.State, "cold engines skipped their build-up");
+        }
+
+        [Test]
+        public void LettingGoEarly_IsReportedOnce_AndCostsNothing()
+        {
+            var m = new LaunchModel();
+            Run(m, 0.4f, 1f, true);
+            Assert.AreEqual(EngineState.Igniting, m.State);
+            m.Tick(0.02f, 0f, false, true, 0f, 1f, 1f);
+            Assert.IsTrue(m.JustCancelled);
+            Assert.AreEqual(1f, m.LiftGate, 1e-6);
+            m.Tick(0.02f, 0f, false, true, 0f, 1f, 1f);
+            Assert.IsFalse(m.JustCancelled);
+        }
+
+        [Test]
+        public void SmokeAtFullBoost_FitsUnderTheCap()
+        {
+            // About three seconds of life per puff (LaunchFx); the cap is LaunchConfig.maxSmoke = 110.
+            var m = new LaunchModel();
+            Run(m, 3f, 1f, true);
+            for (int i = 0; i < 50; i++) m.Tick(0.02f, 1f, true, false, 0f, 1f, 1f);
+            Assert.AreEqual(1f, m.Burn, 1e-4);
+            Assert.LessOrEqual(m.SmokeRate * 3f, 110f);
+        }
+
         static double Volume(ShipMesh m)
         {
             double v = 0;
@@ -297,6 +359,23 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.Less(under, 0.5f);
             Assert.Greater(open, 0.95f);
             CollectionAssert.AreEqual(shade[0], bake.SkyShade(64, 12f)[0]);
+        }
+
+        [Test]
+        public void EveryNamedPieceOfTheBase_HasAStandInShape()
+        {
+            var names = new List<string>();
+            foreach (KeyValuePair<string, ShipMesh> piece in LaunchShapes.Fixed(6f)) names.Add(piece.Key);
+            names.Add(LaunchLayout.Arm);
+            CollectionAssert.AreEquivalent(LaunchLayout.Pieces, names, "the layout's piece names and the stand-in shapes have drifted apart");
+            // The solid things you can bump into sit inside the base's footprint, clear of the ship.
+            float clear = ShipLayout.FootpadDistance + ShipLayout.FootpadRadius + 1f;
+            foreach (P3 foot in new[] { LaunchLayout.TowerFoot, LaunchLayout.WaterTowerFoot, LaunchLayout.HutCentre, LaunchLayout.Mast(0), LaunchLayout.Mast(1), LaunchLayout.Mast(2), LaunchLayout.Mast(3) })
+            {
+                double across = Math.Sqrt(foot.X * foot.X + foot.Z * foot.Z);
+                Assert.Less(across, LaunchSite.Footprint, "outside the levelled ground");
+                Assert.Greater(across - LaunchLayout.WaterTowerRadius, clear, "too close to the ship's legs");
+            }
         }
     }
 }

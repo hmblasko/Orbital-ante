@@ -67,7 +67,7 @@ namespace OrbitalAnte.Launch
                     Vec3d candidate = tilted.RotatedAround(preferred, k * 2.0 * Math.PI / count).Normalized;
                     // Not at the poles, where "north" stops meaning anything.
                     if (Math.Abs(candidate.Y) > 0.9) continue;
-                    if (!Measure(terrain, candidate, out double low, out double high)) continue;
+                    if (!Measure(terrain, candidate, true, out double low, out double high)) continue;
                     // Level ground first; among equals, the nearer to the preferred place.
                     double score = (high - low) + ring * 0.15;
                     if (score < bestScore)
@@ -86,7 +86,7 @@ namespace OrbitalAnte.Launch
         public static LaunchSpot At(PlanetTerrain terrain, Vec3d up)
         {
             up = up.Normalized;
-            Measure(terrain, up, out double low, out double high);
+            Measure(terrain, up, false, out double low, out double high);
             Vec3d north = (Vec3d.Up - up * Vec3d.Dot(Vec3d.Up, up)).Normalized;
             // x = cross(y, z), so the three make an ordinary set of axes for the pad (x east, y up, z north).
             Vec3d east = Vec3d.Cross(up, north).Normalized;
@@ -108,7 +108,8 @@ namespace OrbitalAnte.Launch
         /// Looks at the ground under a would-be base. Gives the lowest and highest ground it would cover, measured
         /// against the flat pad (so the planet's curve counts), and says no if any of it is sea or a cave mouth.
         /// </summary>
-        static bool Measure(PlanetTerrain terrain, Vec3d up, out double low, out double high)
+        /// <param name="stopEarly">Give up at the first bad point (when only the yes or no matters).</param>
+        static bool Measure(PlanetTerrain terrain, Vec3d up, bool stopEarly, out double low, out double high)
         {
             low = double.MaxValue;
             high = double.MinValue;
@@ -131,6 +132,7 @@ namespace OrbitalAnte.Launch
                     if (above > high) high = above;
                     if (terrain.HasSea && height < terrain.SeaLevel + DryMargin) usable = false;
                     if (terrain.InHole(direction, 12.0)) usable = false;
+                    if (!usable && stopEarly) return false;
                 }
             }
             return usable;

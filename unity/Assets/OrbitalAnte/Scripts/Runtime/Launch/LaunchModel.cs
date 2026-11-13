@@ -18,6 +18,14 @@ namespace OrbitalAnte.Launch
     {
         /// <summary>Seconds from pressing "up" on the ground to the ship leaving it. Short: it is a build-up, not a wait.</summary>
         public float ignitionSeconds = 1.1f;
+        /// <summary>The build-up when the engines are still hot (a hop, a second try). Barely a pause.</summary>
+        public float hotIgnitionSeconds = 0.35f;
+        /// <summary>How long after cut-off the engines still count as hot, in seconds.</summary>
+        public float hotSeconds = 3f;
+        /// <summary>How much harder the cabin shakes at the instant the ship is let go (1 = no kick).</summary>
+        public float releaseKick = 1.5f;
+        /// <summary>How long that kick lasts, in seconds.</summary>
+        public float kickSeconds = 0.4f;
         /// <summary>The share of full push the engines give while building up. Not enough to lift the ship.</summary>
         public float ignitionPush = 0.12f;
         /// <summary>Metres above the ground at which the ground stops mattering (no more kicked-up smoke, echo or shake from it).</summary>
@@ -27,9 +35,9 @@ namespace OrbitalAnte.Launch
         /// <summary>Camera shake at full push right on the ground, in degrees.</summary>
         public float shakeOnGround = 1.1f;
         /// <summary>Camera shake at full push in open space, in degrees. Small: enough to feel the engines.</summary>
-        public float shakeInSpace = 0.12f;
+        public float shakeInSpace = 0.05f;
         /// <summary>Lumps of smoke a second at full push on the ground, in thick air.</summary>
-        public float smokePerSecond = 46f;
+        public float smokePerSecond = 34f;
         /// <summary>Bits of grit thrown out at the moment of ignition.</summary>
         public int debrisAtIgnition = 26;
         /// <summary>Bits of grit a second while the engines blast the ground.</summary>
@@ -61,6 +69,13 @@ namespace OrbitalAnte.Launch
         public bool JustIgnited { get; private set; }
         /// <summary>True for the one step in which the build-up ends and the ship is let go.</summary>
         public bool JustReleased { get; private set; }
+        /// <summary>True for the one step in which the pilot lets go before the build-up ends.</summary>
+        public bool JustCancelled { get; private set; }
+        /// <summary>The kick of being let go: 1 at release, fading to 0.</summary>
+        public float Kick { get; private set; }
+
+        float _sinceRan = 1e9f;
+        float _buildUp = 1f;
 
         /// <summary>Camera shake, in degrees.</summary>
         public float Shake { get; private set; }
@@ -85,7 +100,8 @@ namespace OrbitalAnte.Launch
         /// <param name="dt">Seconds since the last call.</param>
         /// <param name="up">How hard the pilot is asking to go up, 0 to 1.</param>
         /// <param name="boost">True while the pilot holds the boost.</param>
-        /// <param name="onGround">True when the ship is resting on something.</param>
+        /// <param name="onGround">True when the ship is standing still on something. While igniting: true while it still touches.
+        /// A ship that is bouncing or scraping is not "on the ground": its engines answer at once.</param>
         /// <param name="height">Metres from the engines to the ground below, or a large number when there is none.</param>
         /// <param name="air">How thick the air is, 0 (space, the Moon) to 1 (Earth at sea level) and above.</param>
         /// <param name="engineHealth">The share of push the engines can still give, 0 to 1.</param>
@@ -93,7 +109,10 @@ namespace OrbitalAnte.Launch
         {
             JustIgnited = false;
             JustReleased = false;
+            JustCancelled = false;
             if (dt <= 0f) return;
+            if (State == EngineState.Off) _sinceRan += dt; else _sinceRan = 0f;
+            Kick = Rules.kickSeconds > 0.01f ? Math.Max(0f, Kick - dt / Rules.kickSeconds) : 0f;
             up = Clamp01(up);
             air = Clamp01(air);
             engineHealth = Clamp01(engineHealth);
@@ -104,7 +123,8 @@ namespace OrbitalAnte.Launch
                 case EngineState.Off:
                     if (asking)
                     {
-                        if (onGround && Rules.ignitionSeconds > 0.01f)
+                        _buildUp = _sinceRan < Rules.hotSeconds ? Rules.hotIgnitionSeconds : Rules.ignitionSeconds;
+                        if (onGround && _buildUp > 0.01f)
                         {
                             State = EngineState.Igniting;
                             Ignition = 0f;
@@ -119,15 +139,17 @@ namespace OrbitalAnte.Launch
                         // Let go early and it simply winds down. Nothing is lost.
                         State = EngineState.Off;
                         Ignition = 0f;
+                        JustCancelled = true;
                     }
                     else
                     {
-                        Ignition += dt / Rules.ignitionSeconds;
+                        Ignition += dt / _buildUp;
                         if (Ignition >= 1f || !onGround)
                         {
                             Ignition = 0f;
                             State = EngineState.Running;
                             JustReleased = true;
+                            Kick = 1f;
                         }
                     }
                     break;
@@ -140,7 +162,8 @@ namespace OrbitalAnte.Launch
             if (State == EngineState.Igniting)
             {
                 // The burn climbs through the build-up, ahead of the push, so you see and hear it coming.
-                wanted = 0.25f + 0.75f * Ignition * Ignition;
+                // It tops out where a normal burn sits, so letting go is a step up, never a step down.
+                wanted = 0.2f + 0.6f * Ignition * Ignition;
                 LiftGate = Rules.ignitionPush;
             }
             else if (State == EngineState.Running)
@@ -162,7 +185,8 @@ namespace OrbitalAnte.Launch
             float near = Clamp01(1f - Math.Max(0f, height) / reach);
             GroundEffect = near * near;
 
-            Shake = Burn * (Rules.shakeInSpace + (Rules.shakeOnGround - Rules.shakeInSpace) * GroundEffect);
+            Shake = Burn * (Rules.shakeInSpace + (Rules.shakeOnGround - Rules.shakeInSpace) * GroundEffect)
+                * (1f + (Math.Max(1f, Rules.releaseKick) - 1f) * Kick);
             // Smoke is exhaust and dust held up by air. With no air, grit still flies but nothing billows.
             SmokeRate = Burn * GroundEffect * Rules.smokePerSecond * (0.15f + 0.85f * air);
             DebrisRate = Burn * GroundEffect * GroundEffect * Rules.debrisPerSecond;
