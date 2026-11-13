@@ -1,26 +1,26 @@
 {
  "peak_before_limit_db": -4.08,
  "samples_over": 0,
- "lufs": -23.82,
+ "lufs": -23.73,
  "sections": [
   {
    "section": "EXPLORATION",
    "start": 0,
-   "lufs": -27.8,
-   "peak": -11.7,
+   "lufs": -27.1,
+   "peak": -10.7,
    "music_lufs": -28.2
   },
   {
    "section": "DISCOVERY",
    "start": 55,
-   "lufs": -28.3,
-   "peak": -14.0,
+   "lufs": -28.2,
+   "peak": -11.8,
    "music_lufs": -29.2
   },
   {
    "section": "RISING TENSION",
    "start": 98,
-   "lufs": -25.9,
+   "lufs": -25.7,
    "peak": -10.7,
    "music_lufs": -26.2
   },
@@ -34,7 +34,7 @@
   {
    "section": "CHAOS",
    "start": 152,
-   "lufs": -21.2,
+   "lufs": -21.1,
    "peak": -4.3,
    "music_lufs": -23.7
   },

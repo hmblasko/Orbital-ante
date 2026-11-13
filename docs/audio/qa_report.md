@@ -55,15 +55,15 @@ Loop exactness: each piece is rendered as three joined copies and the third is c
 
 ## The five-minute showcase (offline preview of the game's own decisions)
 
-Whole run -23.82 LUFS. Highest peak of everything added together, with no limiter: **-4.08 dBFS**; samples over full scale: **0**.
+Whole run -23.73 LUFS. Highest peak of everything added together, with no limiter: **-4.08 dBFS**; samples over full scale: **0**.
 
 | Section | Starts | Loudness | Peak | Music alone |
 |---|---|---|---|---|
-| Exploration | 0:00 | -27.8 LUFS | -11.7 dB | -28.2 LUFS |
-| Discovery | 0:55 | -28.3 LUFS | -14.0 dB | -29.2 LUFS |
-| Rising Tension | 1:38 | -25.9 LUFS | -10.7 dB | -26.2 LUFS |
+| Exploration | 0:00 | -27.1 LUFS | -10.7 dB | -28.2 LUFS |
+| Discovery | 0:55 | -28.2 LUFS | -11.8 dB | -29.2 LUFS |
+| Rising Tension | 1:38 | -25.7 LUFS | -10.7 dB | -26.2 LUFS |
 | Combat | 2:13 | -20.7 LUFS | -4.1 dB | -23.4 LUFS |
-| Chaos | 2:32 | -21.2 LUFS | -4.3 dB | -23.7 LUFS |
+| Chaos | 2:32 | -21.1 LUFS | -4.3 dB | -23.7 LUFS |
 | Loot And Scoring | 3:10 | -22.9 LUFS | -9.9 dB | -24.5 LUFS |
 | Take-Off | 3:36 | -22.2 LUFS | -6.7 dB | -23.3 LUFS |
 | Return To Calm | 4:35 | -27.7 LUFS | -11.5 dB | -27.8 LUFS |

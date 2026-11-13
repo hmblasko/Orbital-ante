@@ -555,7 +555,7 @@
     "Audio/Sfx/player/player_step_metal_03",
     "Audio/Sfx/player/player_step_metal_04"
    ],
-   "volumeDb": -15,
+   "volumeDb": -7,
    "volVarDb": 2.0,
    "pitchVar": 1.0,
    "spatial": 0.0,
@@ -579,7 +579,7 @@
     "Audio/Sfx/player/player_step_regolith_04",
     "Audio/Sfx/player/player_step_regolith_05"
    ],
-   "volumeDb": -16,
+   "volumeDb": -7,
    "volVarDb": 2.0,
    "pitchVar": 1.2,
    "spatial": 0.0,

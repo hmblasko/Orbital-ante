@@ -142,14 +142,18 @@ namespace OrbitalAnte.Audio
                 if (_stride >= 1.9f)
                 {
                     _stride = 0f;
-                    AudioDirector.PlayLocal("player.step.regolith", 0.8f, 1f, Random.Range(-0.15f, 0.15f));
+                    AudioDirector.PlayLocal("player.step.regolith", 1f, 1f, Random.Range(-0.15f, 0.15f));
                 }
             }
             else
             {
                 _airTime += Time.deltaTime;
+                // A character controller often reports "not grounded" for a frame or two while walking on flat
+                // ground. Those frames still count towards the stride, or steps would go missing.
+                if (_airTime < 0.15f) _stride += moved.magnitude;
             }
-            _wasGrounded = grounded;
+            // Only a real time in the air counts as leaving the ground.
+            _wasGrounded = grounded || _airTime < 0.15f;
         }
 
         void Flight(AudioDirector d, Space.SolarSystemWorld world)

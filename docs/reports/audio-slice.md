@@ -105,6 +105,10 @@ The fixed version has **not** been re-scored a third time.
 
 **Codex review** (asked for on pull request 24): one finding, that storm wind and thunder ignored the new effects volume setting. Checked against the code, it was right, and it is fixed in this follow-up. Nothing from Codex was rejected.
 
+### Matthew's first reaction (13 Nov): "no footstep sounds"
+
+Footsteps were there (in the recording and in the arena) but far too quiet: measured, each step played about 14 dB under the music and was almost all hiss above 2 kHz, with nothing in the range a Deck's speakers play well. Changed: steps are about 14 dB louder, the dusty-ground step has a mid-range knock (40% of its energy is now between 250 Hz and 2 kHz, from 13%), and the arena's step trigger no longer loses steps when the ground check flickers for a frame. Not heard, so whether they are now right, too loud or still wrong is for Matthew's ear. Note: on main today the only place you walk is the combat arena; there is no walking in the solar system until the ship interior and suit are in.
+
 ### The main open problem
 
 The bass, drums, brass, strings, choir and electric piano are played from FluidR3 GM, a free General MIDI sound bank. The critic measured that a soft note and a loud note from it differ only in volume, which is what makes MIDI files sound like MIDI files. The workaround here (three tone settings and two alternating takes per note) hides the worst of it by measurement, but a workaround is what it is. If the music still sounds cheap, this is the first suspect, and the fix is better instrument recordings, which cannot be downloaded from the cloud workspace. Two ways forward, to choose after listening:
