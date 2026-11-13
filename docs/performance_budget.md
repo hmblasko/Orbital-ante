@@ -148,6 +148,12 @@ What to read off in Unity, standing on Earth at noon, then at a coast, then seat
 | Pistol | about 3,900 triangles, 2 pieces | 9,000 triangles a gun |
 | Guns at once | 10 in the arena (8 mannequins, yours, 1 spare), 1 in the solar system | 12, until dropped and enemy guns get a simpler copy of about 1,500 triangles (needed before Phase 2 enemy counts) |
 
+### Launch base model (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| `Resources/Models/LaunchPad.bytes` | About 31,600 triangles in 17 pieces (10 solid, 7 that shine), one base in the world | 36,000 triangles |
+
 ### Enemies (look pass 2)
 
 | | Cost | Cap |
