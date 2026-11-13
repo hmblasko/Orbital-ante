@@ -116,6 +116,27 @@ Known follow-ups, to do only if the Profiler says so: halve the crack triangles 
 
 What to read off in Unity (see "How to measure"): Batches and Tris seated in orbit and again standing outside the landed ship; GC Alloc per frame seated and idle; the worst frame while shooting one window until it breaks; the Physics row during a hard landing.
 
+## The look (pass 1, 13 Nov 2026): estimates from reading the code, not measured
+
+Nothing here has been timed. The figures are estimates for a Steam Deck at 1280 x 800 from the Deck performance review of the code. The first run on a Deck replaces them.
+
+| | Estimated cost | Cap, and what to turn down first |
+|---|---|---|
+| Smoothed edges | 0.5 to 1 ms at the default (2 samples). 4 samples: 1 to 2.5 ms. | `Edge Smoothing` on the Look asset. **First thing to lower**: `Fast` or `Off`. |
+| Bloom | 0.5 to 1 ms. Starts from a half-size picture, 4 halvings, cheap filtering. | `Bloom` on the Look asset; 0 switches it off. **Second thing to lower.** |
+| Tone mapping, colour grade, warmth, split tone | about 0.3 to 0.5 ms with the vignette. They are folded into one colour table, so switching one of them off saves nothing by itself. | `Finish` on the Look asset switches the whole finish off. |
+| Ground shader (ground, rocks, outside of the ship) | 1.5 to 3.5 ms with ground filling the screen. Soft light, sky fill, bounce, rim, haze into the sky colour, and up to three lookups of painted noise. | Small dabs of paint are only worked out within 320 m and the finest within 45 m; none where the far-away picture has taken over; none for the baked cabin. `Paint` 0 on the Look asset removes the rest. |
+| Sky ball | 0.2 to 0.5 ms. One draw call, about 1,000 triangles, one texture lookup. | Known follow-up: draw it after the ground instead of before, so covered sky is not paid for. |
+| Water | 0.3 to 0.8 ms when it fills the view. | - |
+| Picture of deep space | No cost per frame. 512 x 256 (0.5 MB), painted once on a background thread when a run starts: 0.2 s measured on a desktop, guessed about 1 s on a Deck. Space is plain black until it arrives. | `Space Backdrop` 0 on the Look asset skips it. |
+| Lights and shadows | None added. | - |
+
+What to read off in Unity, standing on Earth at noon, then at a coast, then seated in orbit:
+1. The Budget line on the readout, with `Finish` ticked and then unticked on the Look asset (the difference is the cost of the finish).
+2. The same with `Edge Smoothing` at Multisample4, Multisample2 and Off.
+3. The same with `Paint` at 1 and at 0.
+4. Batches and Tris in the Stats panel (they should be within a handful of what they were before this pass).
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

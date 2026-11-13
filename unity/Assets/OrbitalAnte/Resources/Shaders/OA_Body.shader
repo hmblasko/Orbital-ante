@@ -10,6 +10,7 @@ Shader "OrbitalAnte/Body"
         _Emission ("Shines by itself (the Sun)", Range(0, 1)) = 0
         _Veil ("How much the sky hides it", Range(0, 1)) = 1
         _TwoSided ("Lit the same from both sides (rings)", Range(0, 1)) = 0
+        _Boost ("Extra brightness when it shines by itself, so it blooms", Range(1, 12)) = 1
     }
 
     SubShader
@@ -25,15 +26,13 @@ Shader "OrbitalAnte/Body"
             half _Emission;
             half _Veil;
             half _TwoSided;
+            half _Boost;
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
 
-        float4 _OA_SunPosition;
-        half4 _OA_SunRaw;
-        half4 _OA_SpaceAmbient;
-        half4 _OA_Veil;   // rgb is the sky's colour, a is how thick it is
+        #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
         struct Attributes
         {
@@ -79,11 +78,17 @@ Shader "OrbitalAnte/Body"
                 float3 toSun = normalize(_OA_SunPosition.xyz - input.positionWS);
                 half facing = dot(normal, toSun);
                 facing = lerp(facing, abs(facing) * 0.8 + 0.2, _TwoSided);
-                // A slightly soft edge to the shadow, as a real atmosphere or rough ground gives.
-                half sun = saturate(facing * 1.1 + 0.06);
-                half3 shaded = albedo * (_OA_SpaceAmbient.rgb + _OA_SunRaw.rgb * sun);
-                half3 color = _Emission > 0.99 ? albedo : lerp(shaded, albedo, _Emission);
-                color = lerp(color, _OA_Veil.rgb, saturate(_OA_Veil.a * _Veil));
+                // Light wraps a little way round the edge of the shadow, and that edge glows warm, the way a
+                // real atmosphere or rough ground softens the line between day and night.
+                half wrap = saturate((facing + 0.22) / 1.22);
+                half sun = lerp(wrap, smoothstep(0.03, 0.5, wrap), 0.5);
+                half edge = saturate(1.0 - abs(wrap - 0.16) * 6.0);
+                half3 sunlight = _OA_SunRaw.rgb * (sun + half3(1.0, 0.36, 0.14) * (edge * 0.16));
+                half3 shaded = albedo * (_OA_SpaceAmbient.rgb + sunlight);
+                half3 color = _Emission > 0.99 ? albedo * _Boost : lerp(shaded, albedo, _Emission);
+                // Inside an atmosphere, far-off things fade into the sky that is behind them.
+                float3 view = normalize(input.positionWS - _WorldSpaceCameraPos.xyz);
+                color = lerp(color, OA_SkyColor(view), saturate(_OA_Veil.a * _Veil));
                 return half4(color, 1.0);
             }
             ENDHLSL

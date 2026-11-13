@@ -60,6 +60,8 @@ namespace OrbitalAnte.Core
             Planets.FeatureMeshes.ResetStatics();
             OrbitalAnte.Ship.ShipConfig.ResetStatics();
             OrbitalAnte.Ship.ShipMeshes.ResetStatics();
+            OrbitalAnte.Look.LookConfig.ResetStatics();
+            OrbitalAnte.Look.PostFx.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -90,6 +92,8 @@ namespace OrbitalAnte.Core
             SilenceSceneLeftovers();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
+            // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
+            OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
             GameSession.PauseChanged += OnPauseChanged;
             ShowMainMenu();

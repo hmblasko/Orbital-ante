@@ -25,7 +25,6 @@ Shader "OrbitalAnte/Water"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -35,11 +34,7 @@ Shader "OrbitalAnte/Water"
                 half _Glow;
             CBUFFER_END
 
-            float4 _OA_SunPosition;
-            half4 _OA_SunColor;
-            half4 _OA_Ambient;
-            float4 _OA_LampPosition;
-            half4 _OA_LampColor;
+            #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
             struct Attributes
             {
@@ -52,7 +47,7 @@ Shader "OrbitalAnte/Water"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
-                float4 positionOSAndFog : TEXCOORD2;
+                float3 positionOS : TEXCOORD2;
             };
 
             Varyings vert(Attributes input)
@@ -64,7 +59,7 @@ Shader "OrbitalAnte/Water"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 // Ripples are worked out in the object's own space and size, so they stay put on a turning planet.
                 float3 scale = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
-                output.positionOSAndFog = float4(input.positionOS.xyz * scale, ComputeFogFactor(output.positionCS.z));
+                output.positionOS = input.positionOS.xyz * scale;
                 return output;
             }
 
@@ -76,7 +71,7 @@ Shader "OrbitalAnte/Water"
 
                 half3 normal = normalize(input.normalWS);
                 // Small moving ripples, fading out with distance so far water does not shimmer.
-                float3 p = input.positionOSAndFog.xyz / _Ripple;
+                float3 p = input.positionOS / _Ripple;
                 float t = _Time.y;
                 half3 wobble = half3(
                     sin(p.y * 1.7 + p.z * 1.3 + t * 1.1) + sin(p.z * 3.1 - t * 1.7) * 0.5,
@@ -99,11 +94,18 @@ Shader "OrbitalAnte/Water"
                 half lamp = saturate(1.0 - lampDistance * _OA_LampPosition.w);
                 light += _OA_LampColor.rgb * (lamp * lamp);
 
-                half3 halfway = normalize(toSun + toEye);
-                half glitter = pow(saturate(dot(normal, halfway)), 90.0) * (1.0 - _Glow * 0.5);
+                // The water mirrors the sky: more so the flatter you look along it.
+                float3 mirrored = reflect(-toEye, normal);
+                half3 sky = OA_SkyBase(mirrored);
+                half mirror = saturate(fresnel * 0.85 + 0.04) * (1.0 - saturate(_Glow));
 
-                half3 color = albedo * light + _OA_SunColor.rgb * glitter + albedo * _Glow;
-                color = MixFog(color, input.positionOSAndFog.w);
+                // The Sun's glitter: a broad soft sheen with a bright core that blooms.
+                half3 halfway = normalize(toSun + toEye);
+                half shine = saturate(dot(normal, halfway));
+                half glitter = (pow(shine, 220.0) * 2.2 + pow(shine, 28.0) * 0.18) * (1.0 - saturate(_Glow));
+
+                half3 color = lerp(albedo * light, sky, mirror) + _OA_SunColor.rgb * glitter + albedo * _Glow;
+                color = OA_ApplyHaze(color, input.positionWS);
                 half alpha = saturate(lerp(_BaseColor.a, 1.0, fresnel) + glitter);
                 return half4(color, alpha);
             }
