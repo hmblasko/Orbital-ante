@@ -40,7 +40,7 @@ namespace OrbitalAnte.UI
         // every frame leaves a steady trickle of rubbish for the game to clear up.
         const float TextInterval = 0.125f;
         float _nextText;
-        float _nextHelp;
+        readonly InputHintRefresh _helpRefresh = new InputHintRefresh();
         bool _refreshText;
         static readonly Color TargetColor = new Color(0.45f, 0.85f, 1f);
 
@@ -208,15 +208,13 @@ namespace OrbitalAnte.UI
                 _state.text = string.Empty;
             }
 
-            if (GameInput.Asset != null && Time.unscaledTime >= _nextHelp)
+            if (GameInput.Asset != null && _helpRefresh.TryRefresh(Time.unscaledTimeAsDouble, GameInput.BindingRevision, GameInput.UsingGamepad))
             {
-                // The key names only change when a control is rebound, so look them up now and then.
-                _nextHelp = Time.unscaledTime + 2f;
-                bool pad = GameInput.UsingGamepad;
-                _help.text = "Thrust: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     Roll: " +
+                // Rebinding refreshes on this text tick; device-only changes are bounded by the shared gate.
+                _help.text = "Thrust: " + Key(GameInput.FlyMove) + ", " + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     Roll: " +
                              Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) + "     Boost: " + Key(GameInput.Boost) +
                              "     Match velocity with what you aim at: hold " + Key(GameInput.MatchVelocity) + "     Map: " + Key(GameInput.ToggleMap) +
-                             "     Pause: " + (pad ? "Start" : "Esc");
+                             "     Pause: " + Key(GameInput.Pause);
             }
         }
 

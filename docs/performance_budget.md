@@ -43,6 +43,13 @@ Caps already enforced by code (set in `GoreConfig`):
 
 Every new system from here on gets a line in this file: what it may cost and what caps it.
 
+Control-hint refinement: one small refresh gate per HUD; stable hints rebuild on a two-second fallback, and
+device-only rebuilds are spaced at least 0.25 seconds apart. Saved-binding revisions and explicit view
+invalidation bypass that wait; flight still samples on its existing 0.125-second text tick. Description work
+scales with the fixed bindings on the displayed actions. No physics, drawing assets or canvases are added.
+Allocation and text-rebuild cost remain unmeasured; inspect arena/flight/map under rebinding and mixed-device
+input. See [the implementation report](reports/fun-control-hints.md).
+
 ## Solar system (Milestone 5): estimates from reading the code, not measured
 
 | | Cap or expected cost |

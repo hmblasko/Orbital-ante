@@ -30,6 +30,9 @@ namespace OrbitalAnte.UI
         int _frameCount;
         float _worstFrame;
         float _nextFrameReport;
+        readonly InputHintRefresh _helpRefresh = new InputHintRefresh();
+        string _pickupKey = string.Empty;
+        string _holdFireBanner = string.Empty;
 
         /// <summary>Set when a run starts so the HUD can show the gun, ammo and what the crosshair is on.</summary>
         public PlayerWeapons Weapons;
@@ -97,7 +100,6 @@ namespace OrbitalAnte.UI
             _helpText = UiKit.Label(_arenaOnly, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
             UiKit.Pin((RectTransform)_helpText.transform, new Vector2(0f, 0f), new Vector2(14f, 10f), new Vector2(700f, 54f));
             AddShadow(_helpText);
-            _helpText.text = "Respawn dummies: T or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start     Debug readout: F3";
 
             // Full-screen red flash when the player is hit. Drawn first so everything else sits on top of it.
             var flash = UiKit.NewRect("HurtFlash", _arenaOnly);
@@ -184,6 +186,7 @@ namespace OrbitalAnte.UI
             _aimText.enabled = _debugVisible;
             _helpText.enabled = _debugVisible;
 
+            UpdateHelp();
             UpdateFrameTime();
             UpdateCombatReadouts();
 
@@ -194,6 +197,19 @@ namespace OrbitalAnte.UI
                 var asObject = aimed as Object;
                 _aimText.text = aimed != null && asObject != null ? aimed.DescribeForDebug() : string.Empty;
             }
+        }
+
+        void UpdateHelp()
+        {
+            if (GameInput.Asset == null) return;
+            if (!_helpRefresh.TryRefresh(Time.unscaledTimeAsDouble, GameInput.BindingRevision, GameInput.UsingGamepad)) return;
+            string holdFireKey = GameInput.Describe(GameInput.HoldFire);
+            _helpText.text = "Respawn dummies: " + GameInput.Describe(GameInput.RespawnDummies)
+                + "     Enemies hold fire: " + holdFireKey
+                + "     Pause: " + GameInput.Describe(GameInput.Pause)
+                + "     Debug readout: " + GameInput.DescribeForGroup(GameInput.ToggleDebug, GameInput.KeyboardMouseGroup);
+            _holdFireBanner = "Enemies are holding fire.  " + holdFireKey + " starts the fight.";
+            _pickupKey = GameInput.Describe(GameInput.Interact);
         }
 
         void UpdateCombatReadouts()
@@ -215,9 +231,7 @@ namespace OrbitalAnte.UI
             Weapon pickup = Weapons != null ? Weapons.NearbyPickup : null;
             if (pickup != null && GameInput.Asset != null)
             {
-                string key = GameInput.Interact.GetBindingDisplayString(0);
-                string button = GameInput.Interact.GetBindingDisplayString(1);
-                _promptText.text = key + " / " + button + ":  " +
+                _promptText.text = _pickupKey + ":  " +
                                    (weapon != null ? "swap for " : "pick up ") + pickup.Data.displayName;
             }
             else
@@ -238,7 +252,7 @@ namespace OrbitalAnte.UI
                 _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, alpha);
 
                 if (!Health.Alive) _bannerText.text = "KNOCKED DOWN.  Back on your feet in a moment.";
-                else if (CombatWorld.EnemiesHoldFire) _bannerText.text = "Enemies are holding fire.  H or D-Pad Down starts the fight.";
+                else if (CombatWorld.EnemiesHoldFire) _bannerText.text = _holdFireBanner;
                 else _bannerText.text = string.Empty;
             }
             else
