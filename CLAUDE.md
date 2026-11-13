@@ -35,7 +35,7 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 - Lighting: Matthew asked on 11 Nov 2026 for lighting to be baked in. No real-time ray tracing (Deck budget). Fixed places get baked light: the ship's cabin is path traced by the game's own `LightBake` into vertex colours (no lightmap textures, nothing to click); planets are generated per seed under a moving Sun, so they are lit from `SkyGlobals` and anything that can be precomputed is computed when the ground is built. See "Lighting" in `docs/performance_budget.md`.
 - Two rebindable input maps: `GameInput.Gameplay` (on foot) and `GameInput.Flight`. `GameInput.Play` is whichever is live.
 - Physics layers are used by number (`Core/Layers.cs`): 8 Hitbox, 9 Gib, 10 Player, 11 CharacterBody, 12 Item (dropped weapons).
-- Use Unity 6 API names (`linearVelocity`, `FindFirstObjectByType`, `PhysicsMaterial`).
+- Use Unity 6 API names (`linearVelocity`, `FindAnyObjectByType`, `PhysicsMaterial`). Never call `GetInstanceID()` (a compile error in newer Unity 6 releases); `FindObjectsSortMode` is only a warning there and is kept so 6000.0 still compiles.
 - Namespace root is `OrbitalAnte`.
 - Never invent faction names (Faction A, B, C) or playtest results.
 - Phase 1 rule: refine before expanding. No Phase 2 features while Phase 1 is in progress.

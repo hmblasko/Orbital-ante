@@ -68,7 +68,7 @@ namespace OrbitalAnte.Core
             if (Instance != null) return;
             // Automated tests build their own little worlds and do not want the whole game on top.
             if (SceneManager.GetActiveScene().name.StartsWith("InitTestScene")) return;
-            if (FindFirstObjectByType<GameBootstrap>() != null) return;
+            if (FindAnyObjectByType<GameBootstrap>() != null) return;
             new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
         }
 
