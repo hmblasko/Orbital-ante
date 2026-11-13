@@ -237,6 +237,8 @@ namespace OrbitalAnte.Weapons
         public void Impact(Vector3 point, Vector3 normal)
         {
             Sparks(point, normal, 7);
+            // Mostly a dull smack into the ground; now and then one sings off.
+            OrbitalAnte.Audio.AudioDirector.Play(Random.value < 0.2f ? "impact.ricochet" : "impact.dirt", point);
 
             Transform mark = _marks[_nextMark];
             _markDieAt[_nextMark] = Time.time + MarkLife;
