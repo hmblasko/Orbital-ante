@@ -31,6 +31,7 @@ namespace OrbitalAnte.Core
         TimeFx _timeFx;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
+        Audio.AudioDemoSequence _audioShowcase;
 
         public TestArena Arena => _arena;
         public Space.SolarSystemWorld Space => _space;
@@ -42,6 +43,9 @@ namespace OrbitalAnte.Core
             Instance = null;
             GameSession.ResetStatics();
             CombatEvents.ResetStatics();
+            Audio.AudioDirector.ResetStatics();
+            Audio.AudioDemoSequence.ResetStatics();
+            Audio.AudioDebugPanel.ResetStatics();
             Dismemberment.Mannequin.ResetStatics();
             Dismemberment.GibManager.ResetStatics();
             Gore.GoreFx.ResetStatics();
@@ -91,6 +95,10 @@ namespace OrbitalAnte.Core
             Content.ContentDatabase.Load();
             _perf = gameObject.AddComponent<Perf.PerfMonitor>();
             SilenceSceneLeftovers();
+            // Sound before menus, so the first button already has its click.
+            Audio.AudioDirector.Create(transform);
+            gameObject.AddComponent<Audio.GameAudioHooks>();
+            gameObject.AddComponent<Audio.AudioDebugPanel>();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
@@ -162,6 +170,15 @@ namespace OrbitalAnte.Core
             _mainMenu.ReplayRequested = StartRun;
             _mainMenu.QuitRequested = QuitToDesktop;
 
+            var showcaseGo = new GameObject("AudioShowcaseController");
+            showcaseGo.transform.SetParent(_uiRoot, false);
+            _audioShowcase = showcaseGo.AddComponent<Audio.AudioDemoSequence>();
+            _audioShowcase.Build(_uiRoot);
+            _mainMenu.AudioShowcaseRequested = () =>
+            {
+                if (_audioShowcase.Begin(() => _mainMenu.SetVisible(true))) _mainMenu.SetVisible(false);
+            };
+
             var pauseGo = new GameObject("PauseMenuController");
             pauseGo.transform.SetParent(_uiRoot, false);
             _pauseMenu = pauseGo.AddComponent<PauseMenu>();
@@ -200,6 +217,7 @@ namespace OrbitalAnte.Core
         public void StartRun(int seed, Scenario scenario)
         {
             DestroyWorld();
+            if (_audioShowcase != null) _audioShowcase.Stop();
             GameInput.Play.Disable();
             GameSession.SetScenario(scenario);
             GameInput.SetFlying(scenario == Scenario.SolarSystem);

@@ -23,6 +23,15 @@ Everything follows three things: how hard the engines push, how near the ground 
 
 **Update, later on 13 Nov:** the proper base model has arrived from the visual style work and is merged in (`LaunchPad`, about 31,600 triangles, built by `tools/blender/build_launchpad.py`; previews in `docs/art/previews/launchpad_wide.jpg` and `launchpad_tower.jpg`). The game now draws it in place of the stand-ins, with its lamps, tower beacon and hut window glowing. A new rule test ties the model to the layout numbers and caps it at 36,000 triangles. The new enemy model and animation from the same work are merged too. Rule tests are now 956, all passing; still nothing run in Unity. The base triangle figure in the budget table is for the stand-ins.
 
+**Update 2, 13 Nov evening:** main (with the new audio system) is merged in, and the launch sounds are joined to it after Matthew's review:
+- The audio system now silences only the craft's old rumble, by name. Before, it could have silenced the wrong sound on the ship.
+- What you hear follows where you are: cabin, lift shaft or outside in that place's air. Before, it assumed the cockpit always.
+- Launch sounds obey the Engines volume slider.
+- The launch roar is now the ground's extra weight only and thins out in space, so it does not double the audio system's flying engine note. Choice 5 above is settled this way; it still needs ears.
+- Fixed: pushing up and forward together made the burn drop at release. The build-up now follows how hard you ask, and a new test covers part pushes with and without boost.
+- Still open from that review: a PlayMode test that lifts off with real input and physics (the current one drives the effects only). It needs Unity to write safely.
+- One editor file from the audio work (`AudioImportRules.cs`) cannot be compiled here because my stand-in editor library lacks the type it uses. That is a gap in my check, not a known fault.
+
 ## Why, and which principles it serves
 
 - **Fun core first (1)** and the refinement bar "every launch gives a little rush, even the tenth time": a short build-up you cause, then a release.

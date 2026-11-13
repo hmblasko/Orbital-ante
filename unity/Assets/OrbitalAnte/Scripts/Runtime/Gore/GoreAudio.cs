@@ -46,6 +46,14 @@ namespace OrbitalAnte.Gore
 
         public void PlayPop(Detachment detachment, Vector3 position, float volume)
         {
+            if (detachment.Reason == DetachReason.Corpse) return; // the head pop already marks the kill
+            Audio.AudioDirector director = Audio.AudioDirector.Instance;
+            string pop = PopEvent(detachment);
+            if (director != null && director.Has(pop))
+            {
+                Audio.AudioDirector.Play(pop, position, Mathf.Clamp01(volume));
+                return;
+            }
             AudioClip clip;
             switch (detachment.Reason)
             {
@@ -62,6 +70,31 @@ namespace OrbitalAnte.Gore
                     break;
             }
             Play(clip, position, volume, 0.92f, 1.10f);
+        }
+
+        static string PopEvent(Detachment detachment)
+        {
+            if (detachment.Reason == DetachReason.HeadDestroyed) return "gore.pop.head";
+            if (detachment.Reason == DetachReason.TorsoGib) return "gore.pop.torso";
+            switch (detachment.Root)
+            {
+                case BodyPartId.LeftHand:
+                case BodyPartId.RightHand:
+                case BodyPartId.LeftFoot:
+                case BodyPartId.RightFoot:
+                    return "gore.pop.small";
+                case BodyPartId.LeftForearm:
+                case BodyPartId.RightForearm:
+                case BodyPartId.LeftShin:
+                case BodyPartId.RightShin:
+                    return "gore.pop.medium";
+                case BodyPartId.Torso:
+                    return "gore.pop.torso";
+                case BodyPartId.Head:
+                    return "gore.pop.head";
+                default:
+                    return "gore.pop.big";
+            }
         }
 
         AudioClip ClipForPart(BodyPartId id)
@@ -92,6 +125,12 @@ namespace OrbitalAnte.Gore
             // Several chunks landing together should not stack into a roar.
             if (Time.unscaledTime - _lastSplatTime < 0.05f) return;
             _lastSplatTime = Time.unscaledTime;
+            Audio.AudioDirector director = Audio.AudioDirector.Instance;
+            if (director != null && director.Has("gore.splat"))
+            {
+                Audio.AudioDirector.Play("gore.splat", position, Mathf.Clamp01(volume));
+                return;
+            }
             Play(_splat, position, volume, 0.8f, 1.25f);
         }
 

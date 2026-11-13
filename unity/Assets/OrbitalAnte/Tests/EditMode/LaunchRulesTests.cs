@@ -157,7 +157,9 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.AreEqual(0f, high.DebrisRate, 1e-6);
             Assert.Greater(pad.Crackle, 0.5f);
             Assert.AreEqual(0f, high.Crackle, 1e-6);
-            Assert.Greater(high.Roar, 0.3f, "you still hear the engines through the ship's frame");
+            // The steady engine note in flight belongs to the audio system; this layer is the weight the ground adds, so it thins out.
+            Assert.Greater(high.Roar, 0.05f, "a trace of it still comes through the ship's frame");
+            Assert.Less(high.Roar, 0.25f, "the ground roar should not double up with the flying sound in open space");
 
             // The Moon: grit flies, but nothing billows or shimmers, and there is no echo off the ground.
             Assert.Greater(moon.DebrisRate, 1f);
@@ -220,6 +222,29 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.GreaterOrEqual(m.Burn, peak - 1e-4f, "the burn dropped as the ship left the ground");
             Run(m, 0.3f, 1f, false, 4f);
             Assert.AreEqual(0f, m.Kick, 1e-6);
+        }
+
+        [Test]
+        public void LettingGo_IsNeverAStepDown_ForAPartPush([Values(0.1f, 0.35f, 0.707f, 1f)] float up, [Values(false, true)] bool boost)
+        {
+            // Up and forward together reach the engines as about 0.707 of "up" (the push is capped at length one).
+            var m = new LaunchModel();
+            float before = 0f;
+            bool released = false;
+            for (int i = 0; i < 200 && !released; i++)
+            {
+                before = m.Burn;
+                m.Tick(0.02f, up, boost, true, 0f, 1f, 1f);
+                released = m.JustReleased;
+            }
+            Assert.IsTrue(released);
+            Assert.GreaterOrEqual(m.Burn, before - 1e-5f, "the burn dropped in the step the ship was let go");
+            for (int i = 0; i < 25; i++)
+            {
+                float last = m.Burn;
+                m.Tick(0.02f, up, boost, false, 1f, 1f, 1f);
+                Assert.GreaterOrEqual(m.Burn, last - 1e-5f, "the burn dropped just after the ship was let go");
+            }
         }
 
         [Test]

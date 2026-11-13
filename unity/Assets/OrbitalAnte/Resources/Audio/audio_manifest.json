@@ -1,0 +1,1929 @@
+{
+ "version": 1,
+ "events": [
+  {
+   "id": "amb.cave",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/ambience/amb_cave"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 220,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Cave: a deep held breath of air, with a drip now and then answering from far inside."
+  },
+  {
+   "id": "amb.facility",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/ambience/amb_facility"
+   ],
+   "volumeDb": -15,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 220,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Abandoned facility: mains hum, a failing ventilation fan, a relay that still clicks to nobody."
+  },
+  {
+   "id": "amb.radio.static",
+   "bus": "Dialogue",
+   "clips": [
+    "Audio/Sfx/ambience/amb_radio_static"
+   ],
+   "volumeDb": -24,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 200,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Radio static in the headset: hiss, crackle, and now and then the ghost of a carrier tone sweeping past."
+  },
+  {
+   "id": "amb.space.suit",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/ambience/amb_space_suit"
+   ],
+   "volumeDb": -17,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 220,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "What vacuum sounds like from inside a suit: almost nothing. Life-support fan, coolant ticking, your own blood. This is the bed for the game's deliberate silences."
+  },
+  {
+   "id": "amb.wind.thick",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/ambience/amb_wind_thick"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 220,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Thick-atmosphere wind: a low, heavy roar that leans on the suit, with a moan in it."
+  },
+  {
+   "id": "amb.wind.thin",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/ambience/amb_wind_thin"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 220,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
+  },
+  {
+   "id": "gore.pop.big",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_pop_big_01",
+    "Audio/Sfx/combat/gore_pop_big_02",
+    "Audio/Sfx/combat/gore_pop_big_03"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 1.5,
+   "pitchVar": 1.2,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 50,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Upper arm or thigh shot off."
+  },
+  {
+   "id": "gore.pop.head",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_pop_head_01",
+    "Audio/Sfx/combat/gore_pop_head_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 1.0,
+   "pitchVar": 1.0,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 50,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Head destroyed: a sharp pop with a bright ring so a kill is unmistakable."
+  },
+  {
+   "id": "gore.pop.medium",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_pop_medium_01",
+    "Audio/Sfx/combat/gore_pop_medium_02",
+    "Audio/Sfx/combat/gore_pop_medium_03"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 1.5,
+   "pitchVar": 1.5,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 50,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Forearm or shin shot off."
+  },
+  {
+   "id": "gore.pop.small",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_pop_small_01",
+    "Audio/Sfx/combat/gore_pop_small_02",
+    "Audio/Sfx/combat/gore_pop_small_03"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 1.5,
+   "pitchVar": 1.5,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 50,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Hand or foot shot off."
+  },
+  {
+   "id": "gore.pop.torso",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_pop_torso_01",
+    "Audio/Sfx/combat/gore_pop_torso_02"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 1.0,
+   "pitchVar": 1.0,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 50,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Torso destroyed: the big wet one."
+  },
+  {
+   "id": "gore.splat",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/gore_splat_01",
+    "Audio/Sfx/combat/gore_splat_02",
+    "Audio/Sfx/combat/gore_splat_03"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 3,
+   "pitchVar": 2.5,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 30,
+   "priority": 160,
+   "cooldownMs": 50,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A chunk landing."
+  },
+  {
+   "id": "hit.headshot",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/combat/hit_headshot"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 10,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Headshot ping: a bright bell on the home note (D), so it sits in tune with the music."
+  },
+  {
+   "id": "hit.kill",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/combat/hit_kill"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 10,
+   "cooldownMs": 80,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Kill confirm: two quick notes rising a fourth (A to D), with a soft thump underneath."
+  },
+  {
+   "id": "hit.marker",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/combat/hit_marker"
+   ],
+   "volumeDb": -7,
+   "volVarDb": 0.0,
+   "pitchVar": 0.5,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 10,
+   "cooldownMs": 35,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Hit confirm: a dry, bright tick with a click on its front, short enough to follow automatic fire and pitched (around 3 kHz) above where the guns and the music are busiest, so it is heard through both."
+  },
+  {
+   "id": "impact.armor",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/impact_armor_01",
+    "Audio/Sfx/combat/impact_armor_02"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 1.5,
+   "pitchVar": 1.0,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 60,
+   "priority": 110,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Bullet on a hard suit shell: a plate knock with a cracked, ceramic edge."
+  },
+  {
+   "id": "impact.dirt",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/impact_dirt_01",
+    "Audio/Sfx/combat/impact_dirt_02",
+    "Audio/Sfx/combat/impact_dirt_03"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 2,
+   "pitchVar": 1.5,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 60,
+   "priority": 110,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Bullet into regolith or soil: a dull thup and a spit of grit."
+  },
+  {
+   "id": "impact.flesh",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/impact_flesh_01",
+    "Audio/Sfx/combat/impact_flesh_02",
+    "Audio/Sfx/combat/impact_flesh_03"
+   ],
+   "volumeDb": -7,
+   "volVarDb": 1.5,
+   "pitchVar": 1.5,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 60,
+   "priority": 110,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Bullet into a body: a wet, padded smack."
+  },
+  {
+   "id": "impact.metal",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/impact_metal_01",
+    "Audio/Sfx/combat/impact_metal_02",
+    "Audio/Sfx/combat/impact_metal_03"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 2,
+   "pitchVar": 1.2,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 60,
+   "priority": 110,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Bullet on metal: a hard spank and a short clashing ring."
+  },
+  {
+   "id": "impact.ricochet",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/combat/impact_ricochet_01",
+    "Audio/Sfx/combat/impact_ricochet_02",
+    "Audio/Sfx/combat/impact_ricochet_03"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 2,
+   "pitchVar": 1.5,
+   "spatial": 1.0,
+   "minDist": 2,
+   "maxDist": 60,
+   "priority": 110,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Ricochet: the bullet whining away, pitch falling as it tumbles."
+  },
+  {
+   "id": "player.breath.loop",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_breath_loop"
+   ],
+   "volumeDb": -24,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 210,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Breathing inside the helmet, one calm in-and-out cycle of four seconds, with the regulator's soft click. The game brings it forward in vacuum, in silence and when hurt."
+  },
+  {
+   "id": "player.hurt",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_hurt_01",
+    "Audio/Sfx/player/player_hurt_02",
+    "Audio/Sfx/player/player_hurt_03"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 1.5,
+   "pitchVar": 1.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 25,
+   "cooldownMs": 90,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Taking a hit: a blunt thud on the suit shell with a crack of stress."
+  },
+  {
+   "id": "player.interact",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_interact_01",
+    "Audio/Sfx/player/player_interact_02"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.8,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 150,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Using something in the world: a gloved press and a small confirming tick."
+  },
+  {
+   "id": "player.jetpack.burst",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_jetpack_burst_01",
+    "Audio/Sfx/player/player_jetpack_burst_02",
+    "Audio/Sfx/player/player_jetpack_burst_03"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 1.5,
+   "pitchVar": 1.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 80,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "One tap of the jetpack: a valve opens, gas kicks, valve shuts."
+  },
+  {
+   "id": "player.jetpack.loop",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_jetpack_loop"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Jetpack thrust heard through the suit: pressurised gas with a steady nozzle tone. The game scales volume and pitch with thrust."
+  },
+  {
+   "id": "player.land",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_land_01",
+    "Audio/Sfx/player/player_land_02"
+   ],
+   "volumeDb": -10,
+   "volVarDb": 1.0,
+   "pitchVar": 0.8,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 120,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Landing from a jump: both boots, the suit's joints taking the load, kit rattling."
+  },
+  {
+   "id": "player.step.metal",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_step_metal_01",
+    "Audio/Sfx/player/player_step_metal_02",
+    "Audio/Sfx/player/player_step_metal_03",
+    "Audio/Sfx/player/player_step_metal_04"
+   ],
+   "volumeDb": -15,
+   "volVarDb": 2.0,
+   "pitchVar": 1.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 180,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Boot on deck plating: a dull clank with the plate's hollow answer underneath."
+  },
+  {
+   "id": "player.step.regolith",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_step_regolith_01",
+    "Audio/Sfx/player/player_step_regolith_02",
+    "Audio/Sfx/player/player_step_regolith_03",
+    "Audio/Sfx/player/player_step_regolith_04",
+    "Audio/Sfx/player/player_step_regolith_05"
+   ],
+   "volumeDb": -16,
+   "volVarDb": 2.0,
+   "pitchVar": 1.2,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 180,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Boot on dusty ground: a soft crunch of grit with a padded heel."
+  },
+  {
+   "id": "player.suit.alarm",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/player/player_suit_alarm"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 15,
+   "cooldownMs": 900,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Suit warning (low oxygen or a breach): two urgent notes a tritone apart, impossible to mistake for music."
+  },
+  {
+   "id": "reward.discovery",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_discovery"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 25,
+   "cooldownMs": 4000,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "New place found: the Exploration theme's opening (D up to A, settling on G) on harp and glass, opening out."
+  },
+  {
+   "id": "reward.loot.common",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_loot_common_01",
+    "Audio/Sfx/rewards/reward_loot_common_02"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.7,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 120,
+   "cooldownMs": 100,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Picking something up: a pouch rustle and one warm plucked note."
+  },
+  {
+   "id": "reward.loot.rare",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_loot_rare"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 30,
+   "cooldownMs": 1500,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Rare find: bells reach up through the Cosmic Mystery theme's sharpened fourth and resolve, in a halo of light."
+  },
+  {
+   "id": "reward.multiplier",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_multiplier"
+   ],
+   "volumeDb": -10,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 70,
+   "cooldownMs": 200,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [
+    0,
+    2,
+    4,
+    5,
+    7,
+    9,
+    11,
+    12
+   ],
+   "note": "Multiplier goes up: the ante cell flicked upward with a zip. The game raises its pitch one scale step per multiplier level."
+  },
+  {
+   "id": "reward.points.rack",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_points_rack"
+   ],
+   "volumeDb": -17,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 150,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Points racking up: coins pouring at sixteen a second for the count-up animation. Stop it with reward.points.rack_end."
+  },
+  {
+   "id": "reward.points.rack_end",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_points_rack_end"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 90,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "The count-up landing: the last coins settle and the ante cell rings out once (A, B, D)."
+  },
+  {
+   "id": "reward.points.tick",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_points_tick"
+   ],
+   "volumeDb": -15,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 140,
+   "cooldownMs": 28,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [
+    0,
+    2,
+    4,
+    7,
+    9,
+    12,
+    14,
+    16,
+    19
+   ],
+   "note": "One point counted. The game steps its pitch up the D pentatonic scale as a streak builds, so a run of points climbs like a slot machine paying out."
+  },
+  {
+   "id": "reward.repair",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_repair"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 50,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "The one repair sound, shared by ship and satellite repairs: a ratchet running up, a seal seating with a puff of air, and two notes (A up to D) that say 'fixed'."
+  },
+  {
+   "id": "reward.tier1",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_tier1"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 130,
+   "cooldownMs": 120,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Small reward: one bright, short pair of notes (A and D together)."
+  },
+  {
+   "id": "reward.tier2",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_tier2"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 100,
+   "cooldownMs": 250,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Good reward: the ante cell as a quick rising arpeggio on celesta, with a soft chord under it."
+  },
+  {
+   "id": "reward.tier3",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_tier3"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 600,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Big reward: the cell, then the theme's leap up and step back, on vibraphone over a major-ninth chord."
+  },
+  {
+   "id": "reward.tier4",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_tier4"
+   ],
+   "volumeDb": -7,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 20,
+   "cooldownMs": 2500,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Exceptional: the whole first phrase of the Orbital Ante theme as a fanfare. Brass, vibes and glockenspiel, a run up into it, the theme's flattened-seventh wink in the harmony, and a cymbal to finish."
+  },
+  {
+   "id": "ship.cabin.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_cabin_loop"
+   ],
+   "volumeDb": -22,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 200,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Cabin room tone: air handling, a coolant pump and electronics. The sound of being safe indoors."
+  },
+  {
+   "id": "ship.confirm",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_confirm"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 100,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Flight computer acknowledgement (autopilot or velocity match engaged): two soft tones, A then D."
+  },
+  {
+   "id": "ship.engine.ignite",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_engine_ignite_01",
+    "Audio/Sfx/ship/ship_engine_ignite_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.3,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 50,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Ignition: valves clunk, a cough of flame, then the roar arrives and settles."
+  },
+  {
+   "id": "ship.engine.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_engine_loop"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 50,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Main engine burning, heard from the cockpit: felt through the seat more than heard. The game raises pitch and volume with thrust."
+  },
+  {
+   "id": "ship.rcs",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_rcs_01",
+    "Audio/Sfx/ship/ship_rcs_02",
+    "Audio/Sfx/ship/ship_rcs_03"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 1.5,
+   "pitchVar": 1.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 50,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Attitude thruster puff: a valve tick and a short burst of cold gas."
+  },
+  {
+   "id": "ship.seatbelt",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_seatbelt"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.4,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 80,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Buckling in: webbing pulled, a hydraulic sigh as the harness tightens, and a firm latch."
+  },
+  {
+   "id": "ship.switch",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_switch_01",
+    "Audio/Sfx/ship/ship_switch_02",
+    "Audio/Sfx/ship/ship_switch_03"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 0.0,
+   "pitchVar": 1.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 120,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Cockpit toggle: a chunky two-stage click, the kind that feels good to flip."
+  },
+  {
+   "id": "ship.touchdown",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_touchdown_01",
+    "Audio/Sfx/ship/ship_touchdown_02"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.6,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 40,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Landing legs meeting the ground: a weighty thud, struts compressing, the hull creaking as it settles."
+  },
+  {
+   "id": "ui.back",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/ui/ui_back"
+   ],
+   "volumeDb": -16,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 150,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Backing out: the same two notes falling (D to A)."
+  },
+  {
+   "id": "ui.move",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/ui/ui_move"
+   ],
+   "volumeDb": -20,
+   "volVarDb": 0.0,
+   "pitchVar": 0.3,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 200,
+   "cooldownMs": 30,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Moving between menu items: a soft wooden tick."
+  },
+  {
+   "id": "ui.select",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/ui/ui_select"
+   ],
+   "volumeDb": -15,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 150,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Choosing a menu item: a tick with a little upward note (A to D) behind it."
+  },
+  {
+   "id": "weapon.bolt_rack",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_bolt_rack_01",
+    "Audio/Sfx/weapons/weapon_bolt_rack_02"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.5,
+   "spatial": 0.6,
+   "minDist": 2,
+   "maxDist": 25,
+   "priority": 70,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Charging handle: pulled back against the spring, then slamming home."
+  },
+  {
+   "id": "weapon.dry_fire",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_dry_fire_01",
+    "Audio/Sfx/weapons/weapon_dry_fire_02"
+   ],
+   "volumeDb": -10,
+   "volVarDb": 0.0,
+   "pitchVar": 0.5,
+   "spatial": 0.6,
+   "minDist": 2,
+   "maxDist": 25,
+   "priority": 70,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Empty chamber: a small, disappointing click."
+  },
+  {
+   "id": "weapon.gravity.grab",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_gravity_grab_01",
+    "Audio/Sfx/weapons/weapon_gravity_grab_02"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.5,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 40,
+   "priority": 40,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Gravity gun catching something: coils spin up, the field snaps shut with a thunk."
+  },
+  {
+   "id": "weapon.gravity.hold",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_gravity_hold"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.5,
+   "minDist": 2,
+   "maxDist": 25,
+   "priority": 90,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Gravity gun holding an object: a steady magnetic hum with a slow throb."
+  },
+  {
+   "id": "weapon.gravity.punt",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_gravity_punt_01",
+    "Audio/Sfx/weapons/weapon_gravity_punt_02"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.4,
+   "spatial": 0.6,
+   "minDist": 4,
+   "maxDist": 80,
+   "priority": 25,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Gravity gun launching what it holds: an electromagnetic whoomp that sucks in, then kicks out."
+  },
+  {
+   "id": "weapon.handcannon.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_handcannon_shot_01",
+    "Audio/Sfx/weapons/weapon_handcannon_shot_02",
+    "Audio/Sfx/weapons/weapon_handcannon_shot_03"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 0.8,
+   "pitchVar": 0.3,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Desert Eagle-style handgun: a huge, slow boom with a hard slap-back and a late, heavy slide."
+  },
+  {
+   "id": "weapon.laser_revolver.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_laser_revolver_shot_01",
+    "Audio/Sfx/weapons/weapon_laser_revolver_shot_02",
+    "Audio/Sfx/weapons/weapon_laser_revolver_shot_03"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 0.8,
+   "pitchVar": 0.6,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Laser cowboy revolver: hammer click, a hard zap that dives, and a ricochet-like twang trailing off."
+  },
+  {
+   "id": "weapon.laser_shotgun.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_laser_shotgun_shot_01",
+    "Audio/Sfx/weapons/weapon_laser_shotgun_shot_02"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 0.6,
+   "pitchVar": 0.3,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Double-barrel laser shotgun: two discharges a hair apart, a wall of sawtooth and a floor-shaking drop."
+  },
+  {
+   "id": "weapon.mag_in",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_mag_in_01",
+    "Audio/Sfx/weapons/weapon_mag_in_02"
+   ],
+   "volumeDb": -7,
+   "volVarDb": 0.0,
+   "pitchVar": 0.6,
+   "spatial": 0.6,
+   "minDist": 2,
+   "maxDist": 25,
+   "priority": 70,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Magazine seated: slide in, a solid latch, a pat on the base."
+  },
+  {
+   "id": "weapon.mag_out",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_mag_out_01",
+    "Audio/Sfx/weapons/weapon_mag_out_02"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.6,
+   "spatial": 0.6,
+   "minDist": 2,
+   "maxDist": 25,
+   "priority": 70,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Magazine release: catch click, then the magazine sliding free."
+  },
+  {
+   "id": "weapon.raygun.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_raygun_shot_01",
+    "Audio/Sfx/weapons/weapon_raygun_shot_02",
+    "Audio/Sfx/weapons/weapon_raygun_shot_03"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.8,
+   "pitchVar": 0.7,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Ray gun: a cartoon 'pyoo' that wobbles on the way down, with a solid thump so it still hits hard."
+  },
+  {
+   "id": "weapon.rifle.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_rifle_shot_01",
+    "Audio/Sfx/weapons/weapon_rifle_shot_02",
+    "Audio/Sfx/weapons/weapon_rifle_shot_03",
+    "Audio/Sfx/weapons/weapon_rifle_shot_04"
+   ],
+   "volumeDb": -1,
+   "volVarDb": 1.0,
+   "pitchVar": 0.35,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 5,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "AK-style rifle: sharp crack, a barking mid, and the clack of a heavy bolt carrier."
+  },
+  {
+   "id": "weapon.smg.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_smg_shot_01",
+    "Audio/Sfx/weapons/weapon_smg_shot_02",
+    "Audio/Sfx/weapons/weapon_smg_shot_03",
+    "Audio/Sfx/weapons/weapon_smg_shot_04"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 1.0,
+   "pitchVar": 0.4,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 6,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Uzi-style SMG: short, dry and snappy, with a rattling open bolt so the cadence reads at speed."
+  },
+  {
+   "id": "weapon.sniper.bolt",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_sniper_bolt_01",
+    "Audio/Sfx/weapons/weapon_sniper_bolt_02"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.4,
+   "spatial": 0.6,
+   "minDist": 3,
+   "maxDist": 40,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Working the sniper's bolt: up, back, forward, down."
+  },
+  {
+   "id": "weapon.sniper.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_sniper_shot_01",
+    "Audio/Sfx/weapons/weapon_sniper_shot_02"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 0.5,
+   "pitchVar": 0.2,
+   "spatial": 0.65,
+   "minDist": 5,
+   "maxDist": 140,
+   "priority": 20,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Sniper rifle: a hard, bright whip-crack with a lean report under it, then the valley answering back for two seconds. Where the hand cannon is all chest, this is all edge and distance."
+  },
+  {
+   "id": "weapon.suppressed.shot",
+   "bus": "Weapons",
+   "clips": [
+    "Audio/Sfx/weapons/weapon_suppressed_shot_01",
+    "Audio/Sfx/weapons/weapon_suppressed_shot_02",
+    "Audio/Sfx/weapons/weapon_suppressed_shot_03"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 1.0,
+   "pitchVar": 0.5,
+   "spatial": 0.7,
+   "minDist": 2,
+   "maxDist": 35,
+   "priority": 30,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Suppressed PPK-style pistol: a soft cough of gas; the slide and the spring are the loudest things."
+  }
+ ],
+ "music": {
+  "tracks": [
+   {
+    "id": "combat_all_in",
+    "title": "All In",
+    "context": "combat",
+    "bpm": 172.0,
+    "beatsPerBar": 4,
+    "bars": 64,
+    "key": "D minor",
+    "motifs": [
+     "conflict",
+     "orbital_ante (minor, bars 41-56)"
+    ],
+    "entryBars": [
+     1,
+     41
+    ],
+    "samples": 4286512,
+    "seconds": 89.302333,
+    "stems": [
+     {
+      "id": "drums",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 0,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/combat_all_in/drums"
+     },
+     {
+      "id": "bass",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 0,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/combat_all_in/bass"
+     },
+     {
+      "id": "stabs",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 0,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/combat_all_in/stabs"
+     },
+     {
+      "id": "lead",
+      "lo": 60,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 4,
+      "clip": "Audio/Music/combat_all_in/lead"
+     },
+     {
+      "id": "chaos",
+      "lo": 80,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 4,
+      "clip": "Audio/Music/combat_all_in/chaos"
+     }
+    ]
+   },
+   {
+    "id": "explore_regolith",
+    "title": "Regolith Lullaby",
+    "context": "surface",
+    "bpm": 86.0,
+    "beatsPerBar": 4,
+    "bars": 48,
+    "key": "D Dorian",
+    "motifs": [
+     "exploration",
+     "orbital_ante (cell, bars 21-22)"
+    ],
+    "entryBars": [
+     1,
+     17,
+     33
+    ],
+    "samples": 6429767,
+    "seconds": 133.953479,
+    "stems": [
+     {
+      "id": "pad",
+      "lo": 0,
+      "hi": 59,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/explore_regolith/pad"
+     },
+     {
+      "id": "bells",
+      "lo": 0,
+      "hi": 59,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/explore_regolith/bells"
+     },
+     {
+      "id": "keys",
+      "lo": 20,
+      "hi": 59,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/explore_regolith/keys"
+     },
+     {
+      "id": "bass",
+      "lo": 20,
+      "hi": 59,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/explore_regolith/bass"
+     },
+     {
+      "id": "perc",
+      "lo": 30,
+      "hi": 59,
+      "fadeInBars": 2,
+      "fadeOutBars": 1,
+      "clip": "Audio/Music/explore_regolith/perc"
+     },
+     {
+      "id": "tension",
+      "lo": 40,
+      "hi": 59,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/explore_regolith/tension"
+     }
+    ]
+   },
+   {
+    "id": "flight_burn_window",
+    "title": "Burn Window",
+    "context": "flight",
+    "bpm": 124.0,
+    "beatsPerBar": 4,
+    "bars": 64,
+    "key": "D major",
+    "motifs": [
+     "orbital_ante"
+    ],
+    "entryBars": [
+     1,
+     17,
+     41
+    ],
+    "samples": 5945806,
+    "seconds": 123.870958,
+    "stems": [
+     {
+      "id": "chords",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 4,
+      "clip": "Audio/Music/flight_burn_window/chords"
+     },
+     {
+      "id": "bass",
+      "lo": 12,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/flight_burn_window/bass"
+     },
+     {
+      "id": "drums",
+      "lo": 24,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/flight_burn_window/drums"
+     },
+     {
+      "id": "lead",
+      "lo": 22,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/flight_burn_window/lead"
+     },
+     {
+      "id": "top",
+      "lo": 50,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 4,
+      "clip": "Audio/Music/flight_burn_window/top"
+     }
+    ]
+   },
+   {
+    "id": "menu_house_orbits",
+    "title": "The House Always Orbits",
+    "context": "menu",
+    "bpm": 104.0,
+    "beatsPerBar": 4,
+    "bars": 40,
+    "key": "D major",
+    "motifs": [
+     "orbital_ante"
+    ],
+    "entryBars": [
+     1,
+     17,
+     33
+    ],
+    "samples": 4430769,
+    "seconds": 92.307688,
+    "stems": [
+     {
+      "id": "rhythm",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/menu_house_orbits/rhythm"
+     },
+     {
+      "id": "keys",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/menu_house_orbits/keys"
+     },
+     {
+      "id": "melody",
+      "lo": 20,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/menu_house_orbits/melody"
+     },
+     {
+      "id": "sparkle",
+      "lo": 60,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/menu_house_orbits/sparkle"
+     }
+    ]
+   },
+   {
+    "id": "mystery_dish",
+    "title": "What the Dish Heard",
+    "context": "mystery",
+    "bpm": 60.0,
+    "beatsPerBar": 4,
+    "bars": 24,
+    "key": "D Lydian",
+    "motifs": [
+     "cosmic_mystery",
+     "exploration (last bar)"
+    ],
+    "entryBars": [
+     1,
+     17
+    ],
+    "samples": 4608000,
+    "seconds": 96.0,
+    "stems": [
+     {
+      "id": "drone",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/mystery_dish/drone"
+     },
+     {
+      "id": "bells",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/mystery_dish/bells"
+     },
+     {
+      "id": "choir",
+      "lo": 25,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/mystery_dish/choir"
+     },
+     {
+      "id": "pulse",
+      "lo": 45,
+      "hi": 100,
+      "fadeInBars": 1,
+      "fadeOutBars": 1,
+      "clip": "Audio/Music/mystery_dish/pulse"
+     }
+    ]
+   }
+  ],
+  "cues": [
+   {
+    "id": "hit_combat",
+    "preSeconds": 0.0,
+    "bpm": 172.0,
+    "note": "Downbeat hit with no lead-in.",
+    "seconds": 3.0,
+    "clip": "Audio/Music/cues/hit_combat"
+   },
+   {
+    "id": "resolve_combat",
+    "preSeconds": 0.0,
+    "bpm": 86.0,
+    "note": "A musical ending for combat: final hit, the chord resolves and rings out.",
+    "seconds": 7.5,
+    "clip": "Audio/Music/cues/resolve_combat"
+   },
+   {
+    "id": "to_calm",
+    "preSeconds": 0.0,
+    "bpm": 60.0,
+    "note": "A soft landing when loud music hands over to quiet.",
+    "seconds": 5.0,
+    "clip": "Audio/Music/cues/to_calm"
+   },
+   {
+    "id": "to_combat",
+    "preSeconds": 2.790698,
+    "bpm": 172.0,
+    "note": "Riser and snare roll into a downbeat hit. Starts one exploration bar before the change.",
+    "seconds": 5.9907,
+    "clip": "Audio/Music/cues/to_combat"
+   },
+   {
+    "id": "to_flight",
+    "preSeconds": 3.870968,
+    "bpm": 124.0,
+    "note": "Lift-off: sweep, string run and fill into the flight music's first downbeat.",
+    "seconds": 6.471,
+    "clip": "Audio/Music/cues/to_flight"
+   }
+  ],
+  "contexts": [
+   {
+    "id": "menu",
+    "track": "menu_house_orbits",
+    "maxLoops": 0,
+    "restSeconds": 0,
+    "combat": false
+   },
+   {
+    "id": "surface",
+    "track": "explore_regolith",
+    "maxLoops": 2,
+    "restSeconds": 50,
+    "combat": true
+   },
+   {
+    "id": "flight",
+    "track": "flight_burn_window",
+    "maxLoops": 2,
+    "restSeconds": 40,
+    "combat": true
+   },
+   {
+    "id": "mystery",
+    "track": "mystery_dish",
+    "maxLoops": 0,
+    "restSeconds": 0,
+    "combat": true
+   },
+   {
+    "id": "space",
+    "track": "",
+    "maxLoops": 0,
+    "restSeconds": 0,
+    "combat": true
+   },
+   {
+    "id": "silence",
+    "track": "",
+    "maxLoops": 0,
+    "restSeconds": 0,
+    "combat": false
+   }
+  ],
+  "combatTrack": "combat_all_in",
+  "combatEnter": 60,
+  "combatExit": 38,
+  "combatMinSeconds": 14,
+  "ambushIntensity": 85,
+  "transitions": [
+   {
+    "from": "*",
+    "to": "combat_all_in",
+    "quantize": "beat",
+    "cue": "to_combat",
+    "ambushCue": "hit_combat",
+    "fadeOut": 2.2,
+    "fadeIn": 0.0,
+    "hush": 0.0,
+    "entry": "start"
+   },
+   {
+    "from": "combat_all_in",
+    "to": "*",
+    "quantize": "2bars",
+    "cue": "resolve_combat",
+    "ambushCue": "",
+    "fadeOut": 0.12,
+    "fadeIn": 5.0,
+    "hush": 5.5,
+    "entry": "start"
+   },
+   {
+    "from": "combat_all_in",
+    "to": "",
+    "quantize": "2bars",
+    "cue": "resolve_combat",
+    "ambushCue": "",
+    "fadeOut": 0.12,
+    "fadeIn": 0.0,
+    "hush": 0.0,
+    "entry": "start"
+   },
+   {
+    "from": "*",
+    "to": "flight_burn_window",
+    "quantize": "beat",
+    "cue": "to_flight",
+    "ambushCue": "",
+    "fadeOut": 3.0,
+    "fadeIn": 0.0,
+    "hush": 0.0,
+    "entry": "start"
+   },
+   {
+    "from": "flight_burn_window",
+    "to": "",
+    "quantize": "bar",
+    "cue": "to_calm",
+    "ambushCue": "",
+    "fadeOut": 4.0,
+    "fadeIn": 0.0,
+    "hush": 0.0,
+    "entry": "start"
+   },
+   {
+    "from": "flight_burn_window",
+    "to": "*",
+    "quantize": "bar",
+    "cue": "to_calm",
+    "ambushCue": "",
+    "fadeOut": 4.0,
+    "fadeIn": 5.0,
+    "hush": 2.5,
+    "entry": "start"
+   },
+   {
+    "from": "*",
+    "to": "mystery_dish",
+    "quantize": "bar",
+    "cue": "",
+    "ambushCue": "",
+    "fadeOut": 6.0,
+    "fadeIn": 7.0,
+    "hush": -4.0,
+    "entry": "start"
+   },
+   {
+    "from": "*",
+    "to": "*",
+    "quantize": "bar",
+    "cue": "",
+    "ambushCue": "",
+    "fadeOut": 4.0,
+    "fadeIn": 4.0,
+    "hush": 0.5,
+    "entry": "start"
+   }
+  ]
+ }
+}

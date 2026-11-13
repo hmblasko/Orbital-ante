@@ -50,6 +50,8 @@ namespace OrbitalAnte.Space
 
         Vector2 _lookPending;
         AudioSource _thrusterSound;
+        /// <summary>The craft's own code-made rumble, and only that: the ship carries other sounds on the same object.</summary>
+        public AudioSource ThrusterSound => _thrusterSound;
         float _thrusterLevel;
 
         public static TestCraft Create(Transform parent, TestCraftConfig config)

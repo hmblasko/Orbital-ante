@@ -15,6 +15,8 @@ namespace OrbitalAnte.UI
     {
         public Action<Scenario> PlayRequested;
         public Action QuitRequested;
+        /// <summary>Play the five-minute audio showcase.</summary>
+        public Action AudioShowcaseRequested;
         /// <summary>Play the most recent seed again. The argument is that seed.</summary>
         public Action<int, Scenario> ReplayRequested;
 
@@ -38,6 +40,7 @@ namespace OrbitalAnte.UI
             {
                 if (SaveSystem.Data.hasLastSeed) ReplayRequested?.Invoke(SaveSystem.Data.lastSeed, LastScenario());
             });
+            UiKit.Button(card, "Audio showcase (5 min)", () => AudioShowcaseRequested?.Invoke());
             UiKit.Button(card, "Quit to desktop", () => QuitRequested?.Invoke());
             UiKit.LayoutLabel(card, "Esc or Start pauses. Controls can be changed from the pause menu.", 16, UiKit.Muted, 26f,
                 TextAnchor.MiddleCenter, FontStyle.Normal);

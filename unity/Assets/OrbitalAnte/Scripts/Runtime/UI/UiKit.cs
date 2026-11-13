@@ -234,9 +234,12 @@ namespace OrbitalAnte.UI
             Stretch((RectTransform)text.transform);
             SetLayout(rt.gameObject, height);
 
+            button.onClick.AddListener(ClickSound);
             if (onClick != null) button.onClick.AddListener(onClick);
             return button;
         }
+
+        static void ClickSound() => Audio.AudioDirector.PlayLocal("ui.select");
 
         public static Text ButtonText(Button button)
         {

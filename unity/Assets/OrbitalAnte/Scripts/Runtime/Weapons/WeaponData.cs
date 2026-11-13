@@ -92,8 +92,10 @@ namespace OrbitalAnte.Weapons
         public Color tracerColor = new Color(1f, 0.85f, 0.35f);
         public float muzzleFlashSize = 0.22f;
 
-        [Header("Sound (placeholder, generated)")]
-        [Tooltip("Lower is boomier.")]
+        [Header("Sound")]
+        [Tooltip("The audio event for this gun's shot, for example weapon.smg.shot. Leave empty to pick by shape.")]
+        public string shotEvent = "";
+        [Tooltip("Only for the old code-made fallback sound. Lower is boomier.")]
         public float shotPitch = 1f;
         public float shotVolume = 0.8f;
 

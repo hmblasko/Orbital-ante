@@ -163,7 +163,9 @@ namespace OrbitalAnte.Launch
             {
                 // The burn climbs through the build-up, ahead of the push, so you see and hear it coming.
                 // It tops out where a normal burn sits, so letting go is a step up, never a step down.
-                wanted = 0.2f + 0.6f * Ignition * Ignition;
+                // It also follows how hard the pilot is asking, as a running engine does: pushing up and forward at once
+                // asks for less "up", and the build-up must still end at or below what follows it.
+                wanted = up * (0.25f + 0.55f * Ignition * Ignition);
                 LiftGate = Rules.ignitionPush;
             }
             else if (State == EngineState.Running)
@@ -193,7 +195,8 @@ namespace OrbitalAnte.Launch
             GroundGlow = Burn * (0.35f + 0.65f * GroundEffect);
             Shimmer = Burn * GroundEffect * air;
             // You are inside the ship: the roar comes through its frame whatever is outside.
-            Roar = Burn * (0.55f + 0.45f * GroundEffect);
+            // (The steady engine note in flight is the audio system's; this is the extra weight the ground gives it.)
+            Roar = Burn * (0.15f + 0.85f * GroundEffect);
             Crackle = Burn * GroundEffect * air;
         }
 

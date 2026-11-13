@@ -210,6 +210,22 @@ Matthew asked for lighting to be baked in. How that is read, until he says other
 - **Not baked:** sunlight coming in through the ship's windows, because the Sun moves. The cabin is lit by its own lamps only.
 - **Planets cannot be baked in the editor**, because their ground is made from the run's seed when the run starts and the Sun moves all the time. They are lit directly from the Sun's true position, which is cheap, and anything that can be worked out once when the ground is made (the shading of slopes in the far pictures, the darkness inside caves) is worked out then, not every frame.
 
+## Audio (13 Nov 2026): estimates from reading the code, not measured
+
+| | Cap or expected cost |
+|---|---|
+| One-shot voices | 24 at most (`VoiceAllocator.DefaultVoices`), plus 6 for interface and reward sounds and 3 for music cues. Unity's own limit of real voices is raised to 48 at start-up so music stems, loops and one-shots all fit. When all are busy the least important, oldest sound gives its voice up; less important sounds are not played. The worst legal case (24 + 6 + 3 + 11 music stems + 4 beds) is exactly 48, so there is no slack: if the Profiler shows sounds being dropped by Unity, the one-shot pool is the thing to shrink. The older code-made weapon and gore sources (18, idle while the produced sounds exist) are still created. |
+| Per-event limits | Each event has its own voice limit and cooldown in the audio manifest (a rifle may hold 4 voices, footsteps 2), so one sound cannot fill the pool. |
+| Music | One piece plays at a time (4 to 6 stems, each one compressed stream being decoded); two overlap only during a hand-over. Silent layers still decode, and the cues and the two long beds (cabin, engine) are compressed streams too, so the worst moment (a flight hand-over) is 13 to 15 Vorbis decoders for a few seconds, and 5 to 8 the rest of the time. If Audio CPU is high, the fix is to merge stems that always move together. |
+| Looping beds | One source each, created when first asked for and destroyed when faded out. Today at most 4 at once (engine, cabin, wind, breath). |
+| Low-pass filters | One per one-shot voice, switched on only where there is thin air or vacuum. In normal air none are running. |
+| Reverb | One reverb zone for the whole game, following the listener. |
+| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 12.5 MB. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
+| Per-frame work | A fixed loop over the playing stems and beds to set volumes, and the music director's update (a few comparisons). No allocations in play; the debug panel builds a string ten times a second and lays its text out on every screen event, only while it is open (F9). |
+| Loading | Music (24 stems and 5 cues) is read in one go as the game starts, before the first frame: a guess of 0.1 s from internal storage and up to 0.5 s from a microSD card. Sound effects are loaded a few per frame during the first seconds on the main menu, so the first gunshot does not hitch. The audio device is also restarted once at start-up to raise the voice limit to 48; moving that into project settings (`ProjectSetup.cs`) would remove the restart. |
+
+Not measured: none of this has run in Unity or on a Deck. The first thing to look at there is Unity's Profiler, Audio section: "Playing Sources" should stay at or under 48 and "Audio CPU" under about 10%.
+
 ## What the game checks by itself
 
 While you play, the top-left readout has a line like:

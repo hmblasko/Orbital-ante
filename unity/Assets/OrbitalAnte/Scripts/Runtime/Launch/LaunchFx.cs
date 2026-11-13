@@ -65,6 +65,9 @@ namespace OrbitalAnte.Launch
             OnGround = true;
         }
 
+        /// <summary>The player's "engines" volume setting, so these sounds obey the same slider as the rest.</summary>
+        static float BusGain => OrbitalAnte.Audio.AudioPrefs.BusGain(OrbitalAnte.Audio.AudioBus.Engines);
+
         public static LaunchFx Attach(Ship.Ship ship, LaunchConfig config)
         {
             var fx = ship.gameObject.AddComponent<LaunchFx>();
@@ -293,11 +296,11 @@ namespace OrbitalAnte.Launch
 
             if (Model.JustIgnited)
             {
-                _oneShot.PlayOneShot(Sounds.Ignite, Config.ignitionVolume);
+                _oneShot.PlayOneShot(Sounds.Ignite, Config.ignitionVolume * BusGain);
                 _debrisOwed += Config.rules.debrisAtIgnition;
             }
             if (Model.JustCancelled) _oneShot.Stop();
-            if (Model.JustReleased) _oneShot.PlayOneShot(Sounds.Release, Config.ignitionVolume);
+            if (Model.JustReleased) _oneShot.PlayOneShot(Sounds.Release, Config.ignitionVolume * BusGain);
 
             ShowFlames();
             ShowGround(dt);
@@ -421,8 +424,9 @@ namespace OrbitalAnte.Launch
 
         void ShowSound(float dt)
         {
-            float roar = Model.Roar * Config.roarVolume;
-            float crackle = Model.Crackle * Config.crackleVolume;
+            float bus = BusGain;
+            float roar = Model.Roar * Config.roarVolume * bus;
+            float crackle = Model.Crackle * Config.crackleVolume * bus;
             _roar.volume = Mathf.MoveTowards(_roar.volume, roar, dt * 6f);
             _crackle.volume = Mathf.MoveTowards(_crackle.volume, crackle, dt * 6f);
             _roar.pitch = 0.82f + 0.3f * Model.Burn;

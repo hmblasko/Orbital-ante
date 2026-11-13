@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// The pause menu: Resume, Controls (rebinding), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
+    /// The pause menu: Resume, Controls (rebinding), Audio (volumes), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
     /// Esc on keyboard or Start/Menu on a controller opens it. It pauses game time and audio, and every page
     /// works with keyboard, mouse or controller.
     /// </summary>
@@ -20,6 +20,7 @@ namespace OrbitalAnte.UI
             Main,
             Controls,
             Feel,
+            Audio,
             Restart,
             Quit,
             Confirm,
@@ -54,6 +55,7 @@ namespace OrbitalAnte.UI
 
             BuildMain();
             BuildFeel();
+            BuildAudio();
             BuildRestart();
             BuildQuit();
             BuildConfirm();
@@ -83,6 +85,7 @@ namespace OrbitalAnte.UI
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
+            UiKit.Button(card, "Audio", () => Show(Page.Audio));
             UiKit.Button(card, "Feel", () => Show(Page.Feel));
             UiKit.Button(card, "Restart", () => Show(Page.Restart));
             UiKit.Button(card, "Quit", () => Show(Page.Quit));
@@ -98,6 +101,37 @@ namespace OrbitalAnte.UI
             Toggle(card, "Camera shake", () => FeelSettings.CameraShake, v => FeelSettings.CameraShake = v);
             Toggle(card, "Slow-mo on headshot kills", () => FeelSettings.HeadshotSlowMo, v => FeelSettings.HeadshotSlowMo = v);
             UiKit.Button(card, "Back", () => Show(Page.Main));
+        }
+
+        /// <summary>Four volumes. Each button steps its volume up by a tenth and wraps round to silent, so it works the same with mouse, keys or a controller.</summary>
+        void BuildAudio()
+        {
+            var card = NewPage(Page.Audio, "AUDIO", 560f);
+            UiKit.LayoutLabel(card, "Press a volume to turn it up a step; after 10 it goes back to 0. Saved between sessions.", 17, UiKit.Cream, 48f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _defaults[Page.Audio] = Volume(card, "Master volume", Audio.AudioVolume.Master).gameObject;
+            Volume(card, "Music", Audio.AudioVolume.Music);
+            Volume(card, "Effects", Audio.AudioVolume.Effects);
+            Volume(card, "Radio and voices", Audio.AudioVolume.Dialogue);
+            UiKit.Button(card, "Back", () => Show(Page.Main));
+        }
+
+        static Button Volume(Transform parent, string label, Audio.AudioVolume which)
+        {
+            Button button = null;
+            string Describe()
+            {
+                int step = Mathf.RoundToInt(Audio.AudioPrefs.Get(which) * 10f);
+                return label + ":  " + new string('|', step) + new string('.', 10 - step) + "  " + step;
+            }
+            button = UiKit.Button(parent, string.Empty, () =>
+            {
+                int step = Mathf.RoundToInt(Audio.AudioPrefs.Get(which) * 10f) + 1;
+                if (step > 10) step = 0;
+                Audio.AudioPrefs.Set(which, step / 10f);
+                UiKit.ButtonText(button).text = Describe();
+            });
+            UiKit.ButtonText(button).text = Describe();
+            return button;
         }
 
         static Button Toggle(Transform parent, string label, Func<bool> get, Action<bool> set)
