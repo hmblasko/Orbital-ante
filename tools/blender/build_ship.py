@@ -426,12 +426,17 @@ def landing_camera():
 # Not from ShipLayout: the cockpit's desk panel (CockpitConfig.deskPosition, deskWidth, deskLean; the panel
 # is 1000 x 300 units, so its height is 0.3 of its width). The game reads the place from the socket Dash.
 DASH_CENTRE, DASH_WIDTH, DASH_HEIGHT, DASH_LEAN = (0.0, 0.9, 1.94), 1.1, 0.33, 24.0
-DASH_FRAME = 0.058                       # how far the bezel reaches past the screen on every side
+DASH_FRAME = 0.046                       # how far the bezel reaches past the screen on every side
 DASH_PROUD = 0.042                       # how far the bezel stands out towards the pilot
+DASH_BROW, DASH_BROW_PROUD = 0.018, 0.022  # along the top both are less: nothing may stand above DASH_TOP,
+DASH_TOP = 1.08                          # so the pilot (eye at 1.18) sees the front window over the dash
 
 
-def swept_frame(name, profile, colour, half_width, half_height, corner=0.022, corner_steps=3):
-    """A frame round a rounded rectangle in the XZ plane. profile is (outward, depth) points; -depth faces the viewer."""
+def swept_frame(name, profile, colour, half_width, half_height, corner=0.022, corner_steps=3, top=(1.0, 1.0)):
+    """A frame round a rounded rectangle in the XZ plane. profile is (outward, depth) points; -depth faces the viewer.
+
+    top scales (outward, depth towards the viewer) along the top edge, for a frame that is slimmer there.
+    """
     path = []
     for cx, cz, start in ((1, 1, 0.0), (-1, 1, 90.0), (-1, -1, 180.0), (1, -1, 270.0)):
         for k in range(corner_steps + 1):
@@ -439,7 +444,11 @@ def swept_frame(name, profile, colour, half_width, half_height, corner=0.022, co
             m = (math.cos(a), math.sin(a))
             path.append(((cx * (half_width - corner) + m[0] * corner, cz * (half_height - corner) + m[1] * corner), m))
     bm = bmesh.new()
-    rings = [[bm.verts.new((p[0] + m[0] * o, d, p[1] + m[1] * o)) for o, d in profile] for p, m in path]
+    rings = []
+    for p, m in path:
+        w = max(0.0, m[1])
+        so, sd = 1.0 + (top[0] - 1.0) * w, 1.0 + (top[1] - 1.0) * w
+        rings.append([bm.verts.new((p[0] + m[0] * o * so, d * sd if d < 0 else d, p[1] + m[1] * o * so)) for o, d in profile])
     faces = []
     for k in range(len(rings)):
         a, b = rings[k], rings[(k + 1) % len(rings)]
@@ -460,20 +469,20 @@ def dash_housing():
     hw, hh, f = DASH_WIDTH / 2, DASH_HEIGHT / 2, DASH_FRAME
     ear = 0.092                                           # a strip of controls either side of the screen
     half = hw + f + ear
+    slim = (DASH_BROW / f, DASH_BROW_PROUD / DASH_PROUD)
+    ear_top = 0.176                                       # the control strips stop below the brow
     front = []                                            # built facing the viewer: X right, Y away, Z up the screen
-    liner = swept_frame("dash liner", [(0.0, 0.010), (0.0, -0.030), (0.012, -0.037)], CHARCOAL, hw, hh)
+    liner = swept_frame("dash liner", [(0.0, 0.010), (0.0, -0.030), (0.012, -0.037)], CHARCOAL, hw, hh, top=slim)
     oa.paint(liner, wear=0.1, dirt=0.2, mottle=0.2, seed=61, gradient=0.0)
     front.append(liner)
-    front.append(painted(swept_frame("dash bezel", [(0.012, -0.037), (0.022, -DASH_PROUD), (0.040, -DASH_PROUD), (0.052, -0.033), (f, -0.016), (f, 0.03)], CREAM, hw, hh), 62))
+    front.append(painted(swept_frame("dash bezel", [(0.012, -0.037), (0.022, -DASH_PROUD), (0.032, -DASH_PROUD), (0.041, -0.033), (f, -0.016), (f, 0.03)], CREAM, hw, hh, top=slim), 62))
     back = oa.box("dash backing", (0, 0.009, 0), (DASH_WIDTH + 0.01, 0.002, DASH_HEIGHT + 0.01), (0.05, 0.055, 0.06), bevel=0)
     oa.paint(back, wear=0, dirt=0, mottle=0, gradient=0)
     front.append(back)
     for side in (-1, 1):
         x = side * (hw + f + ear / 2 - 0.004)
-        front.append(painted(oa.box("dash ear", (x, -0.004, 0), (ear + 0.012, 0.062, DASH_HEIGHT + 2 * f - 0.004), CREAM, bevel=0.018), 63 + side))
-        front.append(painted(oa.slab("hood cheek", [(-0.118, hh + f + 0.012), (0.02, hh + f + 0.012), (0.02, -0.02), (-0.034, -0.02)], 0.034, CHARCOAL, bevel=0.008, segments=1, x=side * (half - 0.004)), 66 + side))
-    front.append(painted(oa.box("dash hood", (0, -0.048, hh + f + 0.006), (2 * half + 0.03, 0.15, 0.034), CHARCOAL, bevel=0.012, segments=2), 68))
-    front.append(painted(oa.box("hood stripe", (0, -0.124, hh + f + 0.006), (2 * half - 0.2, 0.006, 0.014), ORANGE, bevel=0.002, segments=1), 69))
+        front.append(painted(oa.box("dash ear", (x, -0.004, (ear_top - hh - f) / 2), (ear + 0.012, 0.062, ear_top + hh + f - 0.002), CREAM, bevel=0.018), 63 + side))
+    front.append(painted(oa.box("brow stripe", (0, -DASH_BROW_PROUD - 0.0005, hh + DASH_BROW * 0.55), (DASH_WIDTH - 0.24, 0.003, 0.007), ORANGE, bevel=0), 69))
     knob = [(0.0, 0.034), (0.008, 0.034), (0.012, 0.027), (0.030, 0.024), (0.034, 0.018), (0.034, 0.0)]
     left, right = -(hw + f + ear / 2 - 0.004), hw + f + ear / 2 - 0.004
     for k, (z, colour) in enumerate(((0.085, ORANGE), (-0.025, CREAM))):
@@ -495,14 +504,15 @@ def dash_housing():
     # The body behind the screen, in ship space: a wedge that slopes back down to the desk.
     reach = hh + f
     mid = (DASH_CENTRE[2] + 0.014 * c, DASH_CENTRE[1] - 0.014 * s)       # (nose, up), just behind the screen
-    low, high = (mid[0] - reach * s, mid[1] - reach * c), (mid[0] + reach * s, mid[1] + reach * c)
-    outline = [(low[0], 0.64), low, high, (high[0] + 0.09, high[1] + 0.004), (2.27, 0.96), (2.31, 0.76), (2.31, 0.64)]
+    rise = hh + DASH_BROW - 0.004
+    low, high = (mid[0] - reach * s, mid[1] - reach * c), (mid[0] + rise * s, mid[1] + rise * c)
+    outline = [(low[0], 0.64), low, high, (high[0] + 0.09, high[1] - 0.012), (2.27, 0.96), (2.31, 0.76), (2.31, 0.64)]
     parts = [painted(oa.slab("dash body", outline, 2 * half - 0.012, CREAM, bevel=0.03, segments=2), 81)]
     for k in range(4):                                                    # cooling slots down the back slope
         t = 0.2 + 0.2 * k
-        z, y = 2.13 + (2.27 - 2.13) * t, high[1] + 0.004 + (0.96 - high[1] - 0.004) * t
+        z, y = high[0] + 0.09 + (2.27 - high[0] - 0.09) * t, high[1] - 0.012 + (0.96 - high[1] + 0.012) * t
         parts.append(metal(oa.box("dash vent", G(0, y + 0.004, z + 0.004), (0.7, 0.012, 0.014), CHARCOAL, bevel=0, rot=(-45, 0, 0)), 82))
-    parts.append(metal(oa.box("dash plinth", G(0, 0.69, 2.10), (2 * half + 0.07, 0.50, 0.08), DARK_METAL, bevel=0.02, segments=2), 83))
+    parts.append(metal(oa.box("dash plinth", G(0, 0.69, 2.10), (2 * half + 0.02, 0.50, 0.08), DARK_METAL, bevel=0.02, segments=2), 83))
     return parts + front
 
 

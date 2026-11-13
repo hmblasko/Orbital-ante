@@ -267,13 +267,15 @@ namespace OrbitalAnte.Tests
                 top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up);
                 lowest = System.Math.Min(lowest, housing.Positions[v * 3 + 1]);
                 bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
+                Assert.LessOrEqual(housing.Positions[v * 3 + 1], 1.08f, "the housing stays low, so the pilot (eye at 1.18) sees the front window over it");
+                Assert.LessOrEqual(System.Math.Abs(housing.Positions[v * 3]), 0.705f, "the housing keeps to the middle of the desk");
                 if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the housing may stand in front of the screen");
                 Assert.IsTrue(ShipLayout.InsideCabin(new P3(housing.Positions[v * 3], System.Math.Max(0.01f, housing.Positions[v * 3 + 1]), housing.Positions[v * 3 + 2])),
                     "the housing stays inside the cabin");
             }
             Assert.Less(left, -halfWidth - 0.03f, "the bezel frames the left edge");
             Assert.Greater(right, halfWidth + 0.03f, "the bezel frames the right edge");
-            Assert.Greater(top, halfHeight + 0.03f, "the bezel and hood frame the top edge");
+            Assert.Greater(top, halfHeight + 0.01f, "the brow frames the top edge");
             Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
             Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
         }
