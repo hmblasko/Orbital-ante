@@ -29,3 +29,7 @@ crashlytics-build.properties
 .idea/
 .DS_Store
 Thumbs.db
+
+# ChatGPT handoff packets (tools/chatgpt/oa_handoff.py)
+/handoff/
+__pycache__/
