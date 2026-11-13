@@ -1,4 +1,5 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Look;
 using OrbitalAnte.Space;
 using UnityEngine;
 
@@ -73,6 +74,11 @@ namespace OrbitalAnte.Planets
             var air = new AirSample { Visibility = AtmosphereModel.ClearVisibility };
             var weather = new WeatherSample();
             var ground = new GroundReading();
+            // The glow round the Sun shrinks as the Sun gets further away (Earth's distance is the yardstick).
+            float sunDistance = Vector3.Distance(eye, system.Bodies[0].transform.position);
+            float glowScale = Mathf.Clamp(Mathf.Sqrt(22000f / Mathf.Max(1000f, sunDistance)), 0.4f, 1.5f);
+            SkyPalette palette = SkyLook.OpenSpace(glowScale);
+            Vector3 skyUp = Vector3.zero;
 
             if (s != null)
             {
@@ -81,6 +87,7 @@ namespace OrbitalAnte.Planets
                 ViewerLocal = p;
                 double r = p.Magnitude;
                 Vector3 up = (eye - body.position).normalized;
+                skyUp = up;
                 Vector3 toSun = (system.Bodies[0].transform.position - eye).normalized;
                 day = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.1f, 0.25f, Vector3.Dot(up, toSun)));
                 air = s.AirAt(p);
@@ -128,7 +135,17 @@ namespace OrbitalAnte.Planets
 
                     sunFactor = (1f - (float)air.SunDimming) * (1f - 0.6f * storm);
                     sunlight *= sunFactor;
-                    Color skyLight = skyNow * light * 0.5f + SkyGlobals.SpaceAmbient * 0.5f;
+                    // The painted sky: deeper overhead, pale at the horizon, warm at sunrise and sunset.
+                    bool uniform = air.Underwater || insideDeck || air.Cloud > 0.5;
+                    palette = SkyLook.InAir(SkyGlobals.ToRgb(skyNow), SkyGlobals.ToRgb(haze), Vector3.Dot(up, toSun), light, skyAmount,
+                        uniform, 1f - storm, glowScale);
+                    // Low sunlight comes through more air and turns amber.
+                    sunlight *= SkyGlobals.ToColor(palette.SunTint);
+                    // Shadows are filled by the sky, so they take its colour rather than going grey.
+                    Color skyFill = SkyGlobals.ToColor((SkyGlobals.ToRgb(skyNow) * (light * 0.55f)).Saturated(1.25f));
+                    Color skyLight = skyFill + SkyGlobals.SpaceAmbient * 0.5f;
+                    // At sunrise and sunset the glowing horizon fills the shadows too, so they stay readable.
+                    skyLight += SkyGlobals.ToColor(palette.Sunset) * 0.3f;
                     ambient = Color.Lerp(SkyGlobals.SpaceAmbient, skyLight, skyAmount);
                     dark = 1f - day * (1f - (float)air.SunDimming) * (1f - 0.6f * storm);
                 }
@@ -168,15 +185,23 @@ namespace OrbitalAnte.Planets
                 RenderSettings.fogMode = FogMode.ExponentialSquared;
                 // With this curve, something as far away as the "visibility" has all but faded out.
                 RenderSettings.fogDensity = 1.7f / visibility;
-                RenderSettings.fogColor = fogColor;
+                // Things drawn with Unity's standard materials (characters, weapons) fade toward the horizon
+                // colour, the closest one flat colour can get to the painted sky the ground fades into.
+                Color horizonFog = SkyGlobals.ToColor(palette.Horizon + palette.Sunset * 0.3f);
+                RenderSettings.fogColor = air.InAtmosphere ? horizonFog + flash * 0.6f : fogColor;
             }
             RenderSettings.ambientLight = ambient;
             if (system.SunLight != null)
             {
-                system.SunLight.color = SkyGlobals.SunColor;
+                system.SunLight.color = SkyGlobals.SunColor * SkyGlobals.ToColor(palette.SunTint);
                 system.SunLight.intensity = SkyGlobals.SunIntensity * sunFactor;
             }
             SkyGlobals.SetAir(sunlight, ambient, background, veil);
+            // Lightning lights the whole sky for an instant.
+            Rgb flashRgb = SkyGlobals.ToRgb(flash);
+            palette.Zenith += flashRgb * 0.45f;
+            palette.Horizon += flashRgb * 0.6f;
+            SkyGlobals.SetSky(palette, skyUp, FogOn ? 1.7f / visibility : 0f);
 
             // The lamp: on when it is too dark to see ground that is close enough to matter.
             // Comes on when it is properly dark and stays on until it is clearly light again, so it never flickers at dusk.
@@ -186,7 +211,10 @@ namespace OrbitalAnte.Planets
             _lampLevel = Mathf.MoveTowards(_lampLevel, wanted, Time.unscaledDeltaTime * 2.5f);
             Vector3 lampAt = eye + cam.transform.forward * 0.4f;
             var lampColor = new Color(1f, 0.93f, 0.8f) * (settings.lampBrightness * _lampLevel);
-            SkyGlobals.SetLamp(lampAt, settings.lampReach, lampColor);
+            if (SkyGlobals.FlareColor.maxColorComponent > lampColor.maxColorComponent)
+                SkyGlobals.SetLamp(SkyGlobals.FlarePosition, SkyGlobals.FlareReach, SkyGlobals.FlareColor);
+            else
+                SkyGlobals.SetLamp(lampAt, settings.lampReach, lampColor);
             bool realLamp = !PlanetMaterials.OwnTerrain && _lampLevel > 0.01f;
             if (_lamp.enabled != realLamp) _lamp.enabled = realLamp;
             if (realLamp)

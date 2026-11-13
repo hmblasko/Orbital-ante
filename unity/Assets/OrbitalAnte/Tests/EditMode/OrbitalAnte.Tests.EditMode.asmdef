@@ -4,7 +4,9 @@
   "references": [
     "OrbitalAnte.Runtime",
     "UnityEngine.TestRunner",
-    "UnityEditor.TestRunner"
+    "UnityEditor.TestRunner",
+    "Unity.InputSystem",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [
     "Editor"

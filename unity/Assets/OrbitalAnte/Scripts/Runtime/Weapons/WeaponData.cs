@@ -75,6 +75,8 @@ namespace OrbitalAnte.Weapons
 
         [Header("Look")]
         public WeaponShape placeholderShape = WeaponShape.Rifle;
+        [Tooltip("The game's own model for this gun: a file name in Resources/Models, without the ending. Leave empty to use the one for its shape (Rifle or Pistol).")]
+        public string modelFile = "";
         [Tooltip("Optional. Drag a model from Assets/ThirdParty/Weapons here to replace the placeholder shape.")]
         public GameObject modelPrefab;
         [Tooltip("Turn an imported model so its barrel points along blue (Z) and its top along green (Y).")]

@@ -91,12 +91,148 @@ Numbers to read off in Unity for this section are listed in `docs/reports/milest
 
 Known follow-up: making ground solid (`Physics.BakeMesh`) could move to a background thread. I left it on the main thread, one piece a frame, until we can see in the Profiler whether it actually hitches.
 
+## Ship (Milestone 7): estimates from reading the code, not measured
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Its guess is that the Deck under Unity is 3 to 6 times slower. Nothing here looked like a threat to the 16.7 ms frame in steady play; the costs are spikes.
+
+| System | Cost | Cap |
+|---|---|---|
+| Ship outside | about 37,000 triangles (fittings about 34,000 from `Models/Lander`, of which the two camera booms and the landing camera are about 4,200, counted from the file; hull and details about 3,000), about 15 draw calls, one shader. Estimate, not measured in Unity. | fittings 36,000 triangles (a rule test fails above it); one ship in Phase 1. First trim if needed: one bevel step fewer on the base's foil panels. |
+| Reading the lander model | 914 KB, once per launch on the main thread; 4 ms warm, 19 ms cold measured on a desktop outside Unity, guessed 20 to 80 ms on a Deck | once per launch |
+| Lander model memory | about 1.1 MB kept, about 1.0 MB on the graphics card (estimate) | - |
+| Round shading of the cabin dome | worked out once when the ship is built: under 5 ms on a desktop outside Unity | - |
+| Cabin | 11,758 triangles in 11 pieces, vertex colours only, no textures, no lights | fixed |
+| Glass | 5 panes, one see-through layer each | 5 |
+| Crack lines | up to about 4,850 triangles a pane (about 24,000 if all 5 are badly cracked); rebuilt only when a new hit is recorded or the crack stage changes, guessed 3 to 8 ms each time on Deck | 6 recorded hits a pane |
+| Lift beam | one see-through layer, full screen while riding | 1 |
+| Physics | 1 rigidbody, 23 colliders (2 convex, 8 capsules, 8 spheres, 5 boxes), speculative fast-collision checking | fixed; cost in a crash unknown until measured |
+| The player aboard | no physics at all | - |
+| The player outside | 1 rigidbody, 1 capsule, 1 sphere cast per physics step | - |
+| Wreckage (torn-off parts) | 1 rigidbody each, pulled by gravity every step | 9 pieces (4 legs, engines, 4 thruster clusters); removed once 400 m from both you and the ship |
+| Building the ship at run start | guessed 100 to 250 ms on Deck, on the main thread (20 ms for meshes and 9 ms for the bake file on a desktop; sounds not timed) | once per run |
+| Sounds | 15 short clips, about 0.64 MB, 2 audio sources; freed on restart | fixed |
+| Baked light | 31 KB file, read once at start | - |
+| Fallback bake | 1 background thread; 3.9 s on a desktop at 48 paths, guessed 10 to 20 s on Deck | only if the shipped file is stale |
+| Ship HUD | list refreshed 4 times a second; prompt words rebuilt at most once a second | target: 0 bytes of garbage per frame when idle |
+
+Known follow-ups, to do only if the Profiler says so: halve the crack triangles by drawing them double-sided in the shader; build the sounds and mesh data on background threads at run start; fold the four engine colliders into the base.
+
+What to read off in Unity (see "How to measure"): Batches and Tris seated in orbit and again standing outside the landed ship; GC Alloc per frame seated and idle; the worst frame while shooting one window until it breaks; the Physics row during a hard landing.
+
+## Launch (Milestone 8): estimates from reading the code, not measured
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Deck figures are that time multiplied by 3 to 6, so they are guesses. Nothing here has been run in Unity.
+
+| System | Cost | Cap |
+|---|---|---|
+| Launch base | 6,072 triangles in 10 pieces sharing one material (counted from the stand-in shapes), about 10 draw calls. No textures, no lights, no shadows. | fixed; one base, on Earth |
+| Base physics | 8 solid shapes that never move by themselves (1 mesh of 144 triangles, 2 boxes, 5 capsules) | fixed |
+| Choosing the pad's spot | once per run on the main thread. 27 to 36 ms measured on a desktop for today's Earth (469 spots tried) before spots were dropped at the first bit of sea, so less now (not re-timed); guessed under 220 ms on Deck. | 41 rings, 4,921 spots |
+| Building the base | shapes 2.5 to 16 ms on a desktop, guessed 10 to 100 ms on Deck, once per run on the main thread | once per run |
+| Soft shade on the base | 12 rays a corner on a background thread, started on the first frame: 96 to 139 ms on a desktop, guessed 0.3 to 0.8 s on Deck. The base shows unshaded until it arrives. | once per run; never takes the last free worker |
+| Engine sounds | 4 clips made at run start (7.2 s of sound at 22,050 Hz): 11 to 15 ms on a desktop, guessed 35 to 90 ms on Deck. 3 audio sources. | fixed; freed on restart |
+| Flames | 4 cones of 10 triangles, one material, solid (not see-through) | 4 |
+| Smoke | solid lumps, 132 triangles each, plain colour with no painted detail: 14,520 triangles at the cap, 1 draw call. Guessed up to a few ms on the graphics card when the plume fills the view, because lumps overlap. | 110 (`Max Smoke` on the Launch asset; code limit 400). **First thing to lower.** |
+| Grit | 8 triangles each: 480 triangles at the cap, 1 draw call | 60 (`Max Debris`; code limit 200) |
+| Light on the ground | none added: the engines borrow the shader's one lamp while they are the brighter | - |
+| Shake | view only, 3 noise lookups a frame | off with the camera shake setting |
+| Looking for the ground | 1 ray of 50 m per frame; ground colour looked up every 2 s | - |
+| Garbage | target: 0 bytes per frame while burning. One new material at most every 2 s when the ground colour changes. | 729 dust colours |
+| Heat shimmer | not built yet. If added as a screen effect, budget 0.5 to 1 ms and one copy of the screen. | - |
+
+Follow-ups, only if the Profiler says so: choose the pad's spot on a background thread when a run starts in orbit; make the sounds on a background thread; a lighter smoke lump.
+
+What to read off in Unity, seated on the pad on Earth:
+1. Press **F3**. Before touching anything, note the Budget line, then **Batches**, **Tris** and **SetPass calls** in the Game view's **Stats** panel.
+2. Hold "up" with boost through lift-off until you are about 50 m up. Note the same four things at the smokiest moment.
+3. Stop Play, set `Max Smoke` to 8 on the Launch asset, press Play and repeat step 2. The difference in the Budget line is the cost of the smoke.
+4. **Window > Analysis > Profiler**, CPU Usage, during lift-off: the **GC Alloc** column for `LaunchFx.Update` (expect 0 B) and the time on the `ParticleSystem` rows.
+5. **Edit > Project Settings > Physics**: tell me whether **Reuse Collision Callbacks** is ticked.
+
+## The look (pass 1, 13 Nov 2026): estimates from reading the code, not measured
+
+Nothing here has been timed. The figures are estimates for a Steam Deck at 1280 x 800 from the Deck performance review of the code. The first run on a Deck replaces them.
+
+| | Estimated cost | Cap, and what to turn down first |
+|---|---|---|
+| Smoothed edges | 0.5 to 1 ms at the default (2 samples). 4 samples: 1 to 2.5 ms. | `Edge Smoothing` on the Look asset. **First thing to lower**: `Fast` or `Off`. |
+| Bloom | 0.5 to 1 ms. Starts from a half-size picture, 4 halvings, cheap filtering. | `Bloom` on the Look asset; 0 switches it off. **Second thing to lower.** |
+| Tone mapping, colour grade, warmth, split tone | about 0.3 to 0.5 ms with the vignette. They are folded into one colour table, so switching one of them off saves nothing by itself. | `Finish` on the Look asset switches the whole finish off. |
+| Ground shader (ground, rocks, outside of the ship) | 1.5 to 3.5 ms with ground filling the screen. Soft light, sky fill, bounce, rim, haze into the sky colour, and up to three lookups of painted noise. | Small dabs of paint are only worked out within 320 m and the finest within 45 m; none where the far-away picture has taken over; none for the baked cabin. `Paint` 0 on the Look asset removes the rest. |
+| Sky ball | 0.2 to 0.5 ms. One draw call, about 1,000 triangles, one texture lookup. | Known follow-up: draw it after the ground instead of before, so covered sky is not paid for. |
+| Water | 0.3 to 0.8 ms when it fills the view. | - |
+| Picture of deep space | No cost per frame. 512 x 256 (0.5 MB), painted once on a background thread when a run starts: 0.2 s measured on a desktop, guessed about 1 s on a Deck. Space is plain black until it arrives. | `Space Backdrop` 0 on the Look asset skips it. |
+| Lights and shadows | None added. | - |
+
+What to read off in Unity, standing on Earth at noon, then at a coast, then seated in orbit:
+1. The Budget line on the readout, with `Finish` ticked and then unticked on the Look asset (the difference is the cost of the finish). Stop Play, change the dial, and press Play again each time: the finish is set up once when Play starts, so a change made during Play does nothing.
+2. The same with `Edge Smoothing` at Multisample4, Multisample2 and Off.
+3. The same with `Paint` at 1 and at 0.
+4. Batches and Tris in the Stats panel (they should be within a handful of what they were before this pass).
+
+## Guns (Blender models, 13 Nov 2026): estimates from reading the code, not measured
+
+| | Cost | Cap |
+|---|---|---|
+| Rifle | about 7,800 triangles, 2 pieces | 9,000 triangles a gun (a rule test fails above it) |
+| Pistol | about 3,900 triangles, 2 pieces | 9,000 triangles a gun |
+| Guns at once | 10 in the arena (8 mannequins, yours, 1 spare), 1 in the solar system | 12, until dropped and enemy guns get a simpler copy of about 1,500 triangles (needed before Phase 2 enemy counts) |
+
+### Launch base model (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| `Resources/Models/LaunchPad.bytes` | About 31,600 triangles in 17 pieces (10 solid, 7 that shine), one base in the world | 36,000 triangles |
+
+### Enemies (look pass 2)
+
+| | Cost | Cap |
+|---|---|---|
+| Enemy model (`Resources/Models/Enemy.bytes`) | About 14,850 triangles in 14 pieces (one per breakable part), one shared material, 14 draw calls. In the arena, where the sun casts real shadows, an unseen copy of each piece casts the shadow, so the triangles are drawn again per shadow cascade. No shadow copies on planets or in space. | 16,000 triangles (the rule test `EnemyModelFile_MatchesTheSkeleton` enforces it) |
+| Enemies at full detail | About 119,000 triangles per pass for the arena's 8 | 12, until a far copy of about 3,000 triangles exists (needed before Phase 2 enemy counts); then 30 with at most 8 at full detail |
+| Enemy animation (`BodyAnimator`) | Worked out per enemy per frame, no stored clips, no garbage. 45 microseconds for 30 enemies on a desktop outside Unity; not measured on the Deck | 30 |
+| Objects per enemy | About 87 (17 bones, 14 parts, 14 meshes, 14 shadow copies in the arena, 26 hidden wound stumps) | - |
+| Triangles, all guns | about 65,000; twice that if a depth pass runs | 100,000 |
+| Draw calls | 20 (2 a gun, one shared material), down from about 100 with the box guns | - |
+| Paint on the held gun | guessed 0.1 to 0.4 ms in the arena, about nil on planets | `Paint` 0 on the Look asset |
+| Reading the models | 0.6 ms measured on a desktop outside Unity; guessed under 15 ms on a Deck, once | - |
+| Memory | about 0.4 MB on the graphics card, 0.4 MB of kept file data | - |
+| Shadows | guns cast none: their shader has no shadow pass | - |
+
+What to read off in Unity, in the arena: Tris, Batches and SetPass calls in the Stats panel looking at the guns and then away from them (expect a difference of about 65,000 or 130,000 triangles); the Budget line with `Paint` at 1 and at 0.
+
+## Cockpit (Milestone 9): estimates from reading the code, not measured
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Deck figures are guesses. Nothing here has been run in Unity.
+
+| System | Cost | Cap |
+|---|---|---|
+| Dash picture | 1,224 to 2,841 corners and 10 to 19 words, one canvas, 3 draw calls | 30 paints a second (`Redraws Per Second`); 1,200 triangles and 24 words (rule test) |
+| Painting the dash | 12 to 41 microseconds and 0 bytes on a desktop. The mesh is only handed to Unity when the picture differs from the last one (when coasting, 299 of 300 were the same); guessed 0.3 to 1 ms on Deck each time it does | not painted while a camera fills the view |
+| Words | legacy Text, touched only when changed. Words keep their place, so a warning blink changes 1 to 3 words (rule test) | 24 words |
+| Dash overdraw | about a fifth of the screen, 2.1 to 2.7 layers of plain blending (Glass 0.27) | fixed |
+| Little camera screen | one extra camera into 240 x 150, a cull and draw of what is within 30 km, no bloom, grade or shadows, once every 6 frames, only while seated. Guessed up to 1 to 2 ms on that frame over a planet. **First thing to lower if the pad is over budget.** | `Feed Every Frames` 6 (1 to 12) |
+| Camera filling the view | replaces the Eye, with the full finish, so no added cost | one camera at a time |
+| Cameras | 3, at most 1 drawing; they leave out the dash's own layer | 3 |
+| Camera hardware on the lander | about 4,200 triangles (two booms, three cameras), no shadows | part of the lander's 36,000 |
+| Garbage | target: 0 bytes per frame holding steady; about 0.3 KB a second while numbers change | - |
+| Memory | feed picture about 0.2 MB | - |
+
+What to read off in Unity, seated on the pad on Earth:
+1. Press **F3**. Note the Budget line, then **Batches**, **Tris** and **SetPass calls** in the Game view's **Stats** panel.
+2. In the **Project** window open **Assets > OrbitalAnte > Resources > Config** and click **CockpitConfig**. Set `Feed Every Frames` to 1 and note the same four; then 12. The rise at 1 is what the little screen costs.
+3. **Window > Analysis > Profiler**, CPU Usage, Hierarchy: type `ShipCamera` in the search box. Note **Time ms** and **GC Alloc** on a frame where it appears.
+4. In the same list: `CockpitDash.Update` (Time ms, GC Alloc; expect 0 B) and `Canvas.SendWillRenderCanvases`.
+5. **Window > Analysis > Frame Debugger > Enable**. Under the ShipCamera group, note how many events there are and whether Bloom, UberPost or a depth pre-pass appear (none should).
+6. Burn fuel below 20% and note whether the Profiler graph spikes twice a second (it should not).
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:
 
 - **No real-time ray tracing.** The Steam Deck cannot afford it at 60 frames a second.
-- **Fixed places get baked light**: the ship's interior (Milestone 7) and the launch base (Milestone 8). Unity's lightmapper traces light paths once, in the editor, and stores the result in textures, so soft bounced light costs almost nothing while playing. Budget: at most 2 lightmap textures of 1024 x 1024 per place (about 5 MB each), baked by one menu click.
+- **Fixed places get baked light.** The ship's interior (Milestone 7) is done: the game's own path tracer follows light from the cabin lamps round the room once and stores the result as a colour at every corner of the cabin's meshes. It is shipped as one small file (`Resources/Ship/LanderBake`, about 31 KB) and costs nothing while playing: no lights, no shadows, no lightmap textures. There is nothing for Matthew to click. If the cabin's shape changes and the file no longer fits, the game notices (fingerprint), lights the cabin flatly, and re-bakes on background threads in a few seconds. The launch base (Milestone 8) will be done the same way, or with Unity's lightmapper if it needs finer shadows than corners can hold (budget then: at most 2 lightmap textures of 1024 x 1024).
+- **Not baked:** sunlight coming in through the ship's windows, because the Sun moves. The cabin is lit by its own lamps only.
 - **Planets cannot be baked in the editor**, because their ground is made from the run's seed when the run starts and the Sun moves all the time. They are lit directly from the Sun's true position, which is cheap, and anything that can be worked out once when the ground is made (the shading of slopes in the far pictures, the darkness inside caves) is worked out then, not every frame.
 
 ## Audio (13 Nov 2026): estimates from reading the code, not measured

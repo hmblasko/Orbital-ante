@@ -52,6 +52,21 @@ namespace OrbitalAnte.Planets
             _fixedItems = new Item[fixedPositions.Length];
         }
 
+        Vec3d _clearCentre;
+        double _clearRadius;
+
+        /// <summary>
+        /// Keeps rocks, trees and the like off a patch of ground (a built base). <paramref name="centre"/> is in
+        /// metres from the body's centre. One patch per body is enough for now.
+        /// </summary>
+        public void KeepClear(Vec3d centre, double radius)
+        {
+            _clearCentre = centre;
+            _clearRadius = radius;
+        }
+
+        bool Cleared(Vec3d position) => _clearRadius > 0 && (position - _clearCentre).SqrMagnitude < _clearRadius * _clearRadius;
+
         public void SetActive(bool active)
         {
             if (_active == active) return;
@@ -138,7 +153,7 @@ namespace OrbitalAnte.Planets
                 {
                     // Tall landmarks show from further off than small ones.
                     double tall = 1 + _terrain.Placements[i].Scale / 12.0;
-                    if (d < show * tall && _spawnsLeft > 0)
+                    if (d < show * tall && _spawnsLeft > 0 && !Cleared(_fixedPositions[i]))
                     {
                         _spawnsLeft--;
                         _fixedItems[i] = Spawn(_terrain.Placements[i], _fixedPositions[i]);
@@ -154,6 +169,7 @@ namespace OrbitalAnte.Planets
 
         Item Spawn(in Placement p, Vec3d position)
         {
+            if (Cleared(position)) return null;
             if (Count >= _surface.Settings.featureCap)
             {
                 Refused++;

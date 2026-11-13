@@ -160,14 +160,22 @@ namespace OrbitalAnte.Audio
             {
                 _craft = craft;
                 // The craft's old code-made rumble steps aside for the recorded-quality engine loop.
-                AudioSource old = craft.GetComponent<AudioSource>();
+                // Asked for by name: the ship keeps its other sounds (belt, hatch, lift-off) on the same object.
+                AudioSource old = craft.ThrusterSound;
                 if (old != null) { old.mute = true; old.Stop(); }
                 _engine = 0f;
             }
             _worldLoops = true;
-            // The player is always in the cockpit for now: pressurised, small, close.
-            d.Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Cockpit };
-            d.SetLoop("ship.cabin.loop", 1f, 1.5f);
+            // Where the listener really is: in the cabin (pressurised, small, close), in the lift shaft, or outside
+            // in whatever air the place has.
+            Ship.Astronaut crew = world.Astronaut;
+            Ship.AstronautMode mode = crew != null ? crew.Mode : Ship.AstronautMode.Seated;
+            bool inCabin = mode == Ship.AstronautMode.Seated || mode == Ship.AstronautMode.Aboard;
+            float outsideAir = world.Engines != null ? world.Engines.Air : 1f;
+            if (inCabin) d.Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Cockpit };
+            else if (mode == Ship.AstronautMode.Lift) d.Space = new ListenerSpace { Air = Mathf.Max(outsideAir, 0.5f), Enclosure = Enclosure.Interior };
+            else d.Space = new ListenerSpace { Air = outsideAir, Enclosure = Enclosure.Open };
+            d.SetLoop("ship.cabin.loop", inCabin ? 1f : 0f, 1.5f);
 
             float thrust = GameSession.Paused ? 0f : Mathf.Clamp01(craft.ThrustInput.magnitude) * (craft.Boosting ? 1f : 0.7f);
             if (thrust > 0.3f && _engine < 0.05f) AudioDirector.PlayLocal("ship.engine.ignite", 0.8f);

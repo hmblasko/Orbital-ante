@@ -124,6 +124,8 @@ namespace OrbitalAnte.Space
             AddStarLayer("WhiteStars", 1100, new Color(0.92f, 0.94f, 1f), 4101);
             AddStarLayer("WarmStars", 320, new Color(1f, 0.82f, 0.62f), 4102);
             AddStarLayer("BlueStars", 260, new Color(0.65f, 0.78f, 1f), 4103);
+            // The sky itself, behind the stars. It turns with them, so the galaxy stays fixed in the sky.
+            OrbitalAnte.Look.SkyDome.Build(_stars, 20000f, true);
         }
 
         void AddStarLayer(string layerName, int count, Color color, int seed)
@@ -135,7 +137,7 @@ namespace OrbitalAnte.Space
             go.AddComponent<MeshFilter>().sharedMesh = SpaceMeshes.StarField(count, StarDistance, 760f, 1500f, seed);
             var renderer = go.AddComponent<MeshRenderer>();
             // With the game's own shader, stars fade into a daytime sky by themselves (the sky veil).
-            renderer.sharedMaterial = PlanetMaterials.OwnBody ? PlanetMaterials.Body(layerName, null, color, 1f, 1f) : Mat.Unlit(color);
+            renderer.sharedMaterial = PlanetMaterials.OwnBody ? PlanetMaterials.Body(layerName, null, color, 1f, 1f, false, OrbitalAnte.Look.LookConfig.Load().starBrightness) : Mat.Unlit(color);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
         }

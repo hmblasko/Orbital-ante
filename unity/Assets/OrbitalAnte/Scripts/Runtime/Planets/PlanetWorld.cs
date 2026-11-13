@@ -129,6 +129,18 @@ namespace OrbitalAnte.Planets
             }
         }
 
+        /// <summary>
+        /// Works out a body's ground rules right now and returns them, for things that must know the ground before
+        /// the player is placed (the launch base). Null for a body with no real ground.
+        /// </summary>
+        public PlanetTerrain TerrainNow(int body)
+        {
+            PlanetSurface s = SurfaceOf(body);
+            if (s == null) return null;
+            if (!s.Ready) s.BuildTerrainNow(PriorityOf(s));
+            return s.Terrain;
+        }
+
         System.Func<float> PriorityOf(PlanetSurface surface)
         {
             return () => surface == null ? float.MaxValue : Vector3.Distance(ViewPoint(), surface.Body.transform.position);
