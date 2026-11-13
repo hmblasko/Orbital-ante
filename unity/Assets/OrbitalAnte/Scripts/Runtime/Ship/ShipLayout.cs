@@ -179,6 +179,77 @@ namespace OrbitalAnte.Ship
             return WallTop + (CeilingPeak - WallTop) * (float)Math.Sqrt(1.0 - k * k);
         }
 
+        /// <summary>How far the inside face of the cabin wall is from the middle at a given height (0 above the ceiling).</summary>
+        public static float InnerRadiusAt(float height)
+        {
+            if (height < 0f || height > CeilingPeak) return 0f;
+            if (height <= CoveHeight)
+            {
+                double a = Math.Acos(Math.Max(-1.0, Math.Min(1.0, 1.0 - height / CoveHeight)));
+                return FloorRadius + (CabinRadius - FloorRadius) * (float)Math.Sin(a);
+            }
+            if (height <= WallTop) return CabinRadius;
+            double phi = Math.Asin(Math.Min(1.0, (height - WallTop) / (CeilingPeak - WallTop)));
+            return CabinRadius * (float)Math.Cos(phi);
+        }
+
+        /// <summary>True when a point (ship space) is in the open air of the cabin, inside its walls, floor and ceiling.</summary>
+        public static bool InsideCabin(P3 p)
+        {
+            float d = (float)Math.Sqrt(p.X * p.X + p.Z * p.Z);
+            return p.Y >= 0f && d < InnerRadiusAt((float)p.Y);
+        }
+
+        public enum CabinExitKind { Wall, Floor, Shaft, Window }
+
+        /// <summary>
+        /// Follows a straight line (a bullet) from a point inside the cabin to where it first meets the inside of
+        /// the hull. Returns false if the start is not inside the cabin. <paramref name="window"/> is the window
+        /// whose glass it meets (index into <see cref="Windows"/>), or -1. Shaft means it goes down the hatch well.
+        /// </summary>
+        public static bool CabinExit(P3 origin, P3 direction, out float distance, out P3 point, out CabinExitKind kind, out int window)
+        {
+            distance = 0f; point = origin; kind = CabinExitKind.Wall; window = -1;
+            if (!InsideCabin(origin)) return false;
+            P3 dir = direction.Unit();
+            const float step = 0.05f, longest = 2f * CabinRadius + CeilingPeak;
+            float inside = 0f, outside = -1f;
+            for (float t = step; t <= longest; t += step)
+            {
+                if (!InsideCabin(origin + dir * t)) { outside = t; break; }
+                inside = t;
+            }
+            if (outside < 0f) outside = longest;
+            for (int i = 0; i < 20; i++)
+            {
+                float mid = 0.5f * (inside + outside);
+                if (InsideCabin(origin + dir * mid)) inside = mid; else outside = mid;
+            }
+            distance = outside;
+            point = origin + dir * outside;
+            float across = (float)Math.Sqrt(point.X * point.X + point.Z * point.Z);
+            if (point.Y < 0.001f && across < FloorRadius - 0.01f)
+            {
+                kind = across < ShaftRadius ? CabinExitKind.Shaft : CabinExitKind.Floor;
+                return true;
+            }
+            for (int w = 0; w < Windows.Length; w++)
+            {
+                // LocateOnWindow keeps the height inside the panel, so check the height first.
+                InnerProfile(Windows[w].Row, out _, out float bottom);
+                InnerProfile(Math.Min(WallRows - 1, Windows[w].Row + Windows[w].Rows), out _, out float top);
+                if (point.Y < bottom || point.Y > top) continue;
+                LocateOnWindow(Windows[w], point, out float u, out float v);
+                if (u >= 0f && u <= 1f && v >= 0f && v <= 1f && OnGlass(Windows[w], u, v))
+                {
+                    kind = CabinExitKind.Window;
+                    window = w;
+                    return true;
+                }
+            }
+            return true;
+        }
+
         /// <summary>True when this cell of the wall grid is taken up by a window panel.</summary>
         public static bool InWindow(int column, int row)
         {
