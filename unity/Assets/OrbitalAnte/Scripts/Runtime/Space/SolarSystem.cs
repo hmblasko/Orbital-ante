@@ -34,6 +34,8 @@ namespace OrbitalAnte.Space
         public ReferenceFrame Frame { get; private set; }
         /// <summary>Every body's true state at <see cref="SimTime"/>.</summary>
         public BodyState[] States { get; private set; }
+        /// <summary>Start-of-step body states matching dynamic Rigidbody coordinates until Unity integrates them.</summary>
+        public BodyState[] PhysicsStates { get; private set; }
         public CelestialBody[] Bodies { get; private set; }
         /// <summary>Seconds since the run began, in simulation time.</summary>
         public double SimTime { get; private set; }
@@ -74,6 +76,7 @@ namespace OrbitalAnte.Space
             States = Model.NewStateBuffer();
             SimTime = 0;
             Model.Evaluate(SimTime, States);
+            PhysicsStates = (BodyState[])States.Clone();
 
             var bodyRoot = new GameObject("Bodies").transform;
             bodyRoot.SetParent(transform, false);
@@ -240,6 +243,7 @@ namespace OrbitalAnte.Space
         {
             // States holds this moment (the start of the step), which is also where the loose objects are.
             if (Focus != null && UpdateFrame(false)) PlaceBodies(true);
+            global::System.Array.Copy(States, PhysicsStates, States.Length);
             ApplyGravity(dt);
 
             // Then the bodies are sent to where they will be when the step ends, as the loose objects will be.

@@ -146,6 +146,12 @@ namespace OrbitalAnte.Ship
                 since = now - _map.RefusedTime;
                 bad = false;
             }
+            if (!flying && now - _ship.Flight.NavigationNoticeTime <= since)
+            {
+                words = _ship.Flight.NavigationNotice;
+                since = now - _ship.Flight.NavigationNoticeTime;
+                bad = false;
+            }
             bool showNotice = since < NoticeSeconds && words.Length > 0;
             if (showNotice)
             {

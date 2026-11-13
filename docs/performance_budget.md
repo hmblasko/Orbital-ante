@@ -47,7 +47,7 @@ Every new system from here on gets a line in this file: what it may cost and wha
 
 | | Cap or expected cost |
 |---|---|
-| Bodies moved each physics step | 150 at most (today 130: Sun, 8 planets, 11 moons, 110 asteroids) |
+| Bodies moved each physics step | Current defaults: 130 (Sun, 8 planets, 11 moons, 110 asteroids). Work scales with configured body count; 150 is not an enforced cap. |
 | Asteroids | 110 (`Asteroid Belt > Count` on the SolarSystem asset) |
 | Surface textures | 9 at 384 x 192, 11 moons at 192 x 96, about 5 MB in all |
 | Building those textures when a run starts | a pause of under half a second on Deck is the target. Estimated 0.15 to 0.5 s in a build, longer in the editor. Not measured. No loading screen yet. |
@@ -61,6 +61,21 @@ Every new system from here on gets a line in this file: what it may cost and wha
 | Camera far limit | 300 km (the system is about 240 km across) |
 
 Numbers to read off in Unity for this section are listed in `docs/reports/milestone-5.md`.
+
+### Explicit targeting, navigation assist and space exits: source costs, not measurements
+
+| Work | Bound or frequency |
+|---|---|
+| Aim candidate and occlusion selection | Ordinarily one candidate pass and up to one occluder pass over the existing bodies per rendered frame; another selection on a lock press. No physics rays or new celestial bodies. |
+| Autopilot route refusal | One pass over existing celestial envelopes per active physics step. Cached terrain bounds are read; navigation does not sample terrain heights, mesh tiles or start terrain jobs. |
+| Guidance | One bounded acceleration command per active physics step, plus reference/gravity calculations. Damage reduces available authority. No extra physics objects. |
+| Start-of-step celestial snapshot | One retained `BodyState[]` sized to the system and one array copy per solar-system step; no allocation per copy. This keeps guidance in the same time/reference frame as the dynamic body. |
+| Flight text | Existing 8 Hz readout cadence and two-second binding-description refresh; one additional target prompt on the existing canvas. Existing moving-marker layout cost still needs profiling. |
+| Exit clearance | One capsule check at each actual suit-release attempt. Existing nonalloc ground/lift queries remain. |
+
+Profile target selection, active approach/hold, frame transitions, map open/closed and exit/reboarding at 1280×800.
+Inspect CPU time, GC allocation, physics queries and canvas/text rebuilds against the baseline. Body-count scaling,
+input latency and the 60 fps target remain unmeasured. See [the navigation report](reviews/navigation-and-space-exit.md).
 
 ## Planets (Milestone 6): estimates from reading the code, not measured
 

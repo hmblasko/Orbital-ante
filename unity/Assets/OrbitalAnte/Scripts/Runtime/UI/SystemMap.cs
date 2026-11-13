@@ -171,7 +171,7 @@ namespace OrbitalAnte.UI
             {
                 // Looked up now and then, not every frame: it only changes when a control is rebound.
                 _nextHelp = Time.unscaledTime + 2f;
-                _help.text = "Zoom: " + (GameInput.UsingGamepad ? "left stick up / down" : "W / S") + "     Centre: " + Key(GameInput.MatchVelocity) + "     Close: " + Key(GameInput.ToggleMap) +
+                _help.text = (GameInput.UsingGamepad ? "Zoom (up / down): " : "Zoom: ") + GameInput.Describe(GameInput.FlyMove, "Up", "Down") + "     Centre: " + Key(GameInput.MatchVelocity) + "     Close: " + Key(GameInput.ToggleMap) +
                              "     Green ring: the neighbourhood you are in";
             }
             UpdateLabels();

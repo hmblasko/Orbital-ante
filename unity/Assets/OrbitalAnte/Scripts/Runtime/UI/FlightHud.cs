@@ -30,6 +30,8 @@ namespace OrbitalAnte.UI
         Text _readout;
         Text _state;
         Text _help;
+        Text _targetPrompt;
+        string _lockKey, _autopilotKey, _velocityLockKey, _matchKey;
         RectTransform _drift;
         Text _driftLabel;
         readonly Dictionary<int, Marker> _markers = new Dictionary<int, Marker>();
@@ -79,6 +81,9 @@ namespace OrbitalAnte.UI
 
             _help = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 16, UiKit.Muted, TextAnchor.LowerLeft, FontStyle.Normal));
             UiKit.Pin((RectTransform)_help.transform, new Vector2(0f, 0f), new Vector2(22f, 10f), new Vector2(1230f, 40f));
+
+            _targetPrompt = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream));
+            UiKit.Pin((RectTransform)_targetPrompt.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(760f, 28f));
 
             // Drift marker: a ring with a dot, placed where your velocity points.
             _drift = UiKit.NewRect("DriftMarker", _canvas.transform);
@@ -143,10 +148,11 @@ namespace OrbitalAnte.UI
 
         void UpdateReadouts()
         {
+            RefreshHelp();
             SolarSystemModel model = _system.Model;
             int anchor = _system.Frame.Anchor;
             Vector3 position = _craft.transform.position;
-            float speed = _craft.Body.linearVelocity.magnitude;
+            float speed = _craft.RelativeVelocity().magnitude;
             float pull = _craft.Gravity.FeltGravity.magnitude;
             int target = _craft.Target;
 
@@ -159,14 +165,15 @@ namespace OrbitalAnte.UI
                 _where.text = model.Spec(anchor).displayName.ToUpperInvariant() + "   " + DescribeHeight(anchor, position);
             }
 
-            string against = anchor == 0 ? "the Sun" : model.Spec(anchor).displayName + (_system.Frame.Rotating ? "'s ground" : string.Empty);
+            int reference = _craft.MatchBody;
+            string against = reference == 0 ? "the Sun" : model.Spec(reference).displayName + (_craft.MatchGround ? "'s ground" : string.Empty);
             string text =
                 "Speed  " + FormatSpeed(speed) + "   against " + against + "\n" +
                 "Pull   " + pull.ToString("0.0") + " m/s\u00B2";
             if (target >= 0)
             {
                 float closing = _craft.ClosingSpeed;
-                text += "\nAimed at " + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
+                text += "\nLOCKED: " + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
                         (closing >= 0f ? "closing " : "pulling away ") + FormatSpeed(Mathf.Abs(closing));
             }
             // What the surroundings are doing to you, so nothing slows or pushes the craft without saying so.
@@ -180,22 +187,43 @@ namespace OrbitalAnte.UI
             }
             _readout.text = text;
 
-            // One line of plain advice, most urgent first.
+            int candidate = _craft.AimedTarget;
+            _targetPrompt.text = candidate >= 0
+                ? _lockKey + ": " + (candidate == target ? "clear lock on " : "lock ") + model.Spec(candidate).displayName
+                : target >= 0 ? _lockKey + ": clear target" : "Look at a planet or moon, then press " + _lockKey + " to lock";
+
+            // Assist state is explicit even when the locked world is behind the camera.
             bool mustBrake = target >= 0 && _craft.ClosingSpeed > 30f && _craft.StoppingDistance > _craft.TargetDistance * 0.8f;
-            if (_craft.MatchingVelocity)
+            if (_craft.AutopilotActive)
+            {
+                _state.text = "AUTOPILOT: " + model.Spec(target).displayName.ToUpperInvariant() + "  —  " + _craft.ApproachPhase.ToString().ToUpperInvariant();
+                _state.color = UiKit.PanelEdge;
+            }
+            else if (_craft.VelocityLocked)
+            {
+                string who = model.Spec(_craft.MatchBody).displayName.ToUpperInvariant();
+                _state.text = _craft.AutopilotArrived ? "ARRIVED: " + who + " — VELOCITY LOCK. LAND MANUALLY" : "VELOCITY LOCK: " + who;
+                _state.color = UiKit.PanelEdge;
+            }
+            else if (_craft.MatchingVelocity)
             {
                 string who = model.Spec(_craft.MatchBody).displayName;
                 _state.text = _craft.RelativeVelocity().magnitude > 0.5f ? "MATCHING VELOCITY WITH " + who.ToUpperInvariant() : "VELOCITY MATCHED WITH " + who.ToUpperInvariant();
                 _state.color = UiKit.PanelEdge;
             }
+            else if (Time.unscaledTime - _craft.NavigationNoticeTime < 3f)
+            {
+                _state.text = _craft.NavigationNotice;
+                _state.color = UiKit.PanelEdge;
+            }
             else if (mustBrake)
             {
-                _state.text = "BRAKE NOW:  aim at " + model.Spec(target).displayName + " and hold Match Velocity";
+                _state.text = "BRAKE NOW: hold " + _matchKey + " to match " + model.Spec(target).displayName;
                 _state.color = UiKit.Danger;
             }
             else if (pull > _craft.Config.thrust && !_craft.Boosting)
             {
-                _state.text = "PULL IS STRONGER THAN YOUR THRUSTERS:  use Boost";
+                _state.text = "PULL IS STRONGER THAN YOUR THRUSTERS: use Boost";
                 _state.color = UiKit.Danger;
             }
             else if (_craft.Boosting && _craft.ThrustInput.sqrMagnitude > 0.01f)
@@ -203,21 +231,21 @@ namespace OrbitalAnte.UI
                 _state.text = "BOOST";
                 _state.color = UiKit.PanelEdge;
             }
-            else
-            {
-                _state.text = string.Empty;
-            }
+            else _state.text = string.Empty;
+        }
 
-            if (GameInput.Asset != null && Time.unscaledTime >= _nextHelp)
-            {
-                // The key names only change when a control is rebound, so look them up now and then.
-                _nextHelp = Time.unscaledTime + 2f;
-                bool pad = GameInput.UsingGamepad;
-                _help.text = "Thrust: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     Roll: " +
-                             Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) + "     Boost: " + Key(GameInput.Boost) +
-                             "     Match velocity with what you aim at: hold " + Key(GameInput.MatchVelocity) + "     Map: " + Key(GameInput.ToggleMap) +
-                             "     Pause: " + (pad ? "Start" : "Esc");
-            }
+        void RefreshHelp()
+        {
+            if (GameInput.Asset == null || Time.unscaledTime < _nextHelp) return;
+            _nextHelp = Time.unscaledTime + 2f;
+            _lockKey = Key(GameInput.LockTarget);
+            _autopilotKey = Key(GameInput.Autopilot);
+            _velocityLockKey = Key(GameInput.VelocityLock);
+            _matchKey = Key(GameInput.MatchVelocity);
+            _help.text = "Thrust: " + Key(GameInput.FlyMove) + ", " + Key(GameInput.FlyUp) + " up / " + Key(GameInput.FlyDown) + " down   Roll: "
+                + Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) + "   Boost: " + Key(GameInput.Boost)
+                + "\nTarget lock: " + _lockKey + "   Autopilot: " + _autopilotKey + "   Velocity lock: " + _velocityLockKey
+                + "   Hold match: " + _matchKey + "   Map: " + Key(GameInput.ToggleMap) + "   Pause: " + Key(GameInput.Pause);
         }
 
         static string Key(UnityEngine.InputSystem.InputAction action) => GameInput.Describe(action);
@@ -229,7 +257,7 @@ namespace OrbitalAnte.UI
 
         void UpdateDriftMarker()
         {
-            Vector3 velocity = _craft.Body.linearVelocity;
+            Vector3 velocity = _craft.RelativeVelocity();
             float speed = velocity.magnitude;
             Camera cam = _craft.Eye;
             if (speed < 1f)
@@ -277,6 +305,7 @@ namespace OrbitalAnte.UI
                 else if (spec.kind == BodyKind.Moon) relevant = home != 0 && _system.PlanetOf(i) == home;
                 else relevant = true;
 
+                if (i == target) relevant = true;
                 Vector3 view = relevant ? cam.WorldToViewportPoint(centre) : Vector3.zero;
                 float size = distance > 1f ? Mathf.Asin(Mathf.Clamp01((float)spec.radius / distance)) * pixelsPerRadian : 9999f;
                 bool show = relevant && view.z > 0f && view.x > 0f && view.x < 1f && view.y > 0f && view.y < 1f
@@ -300,7 +329,7 @@ namespace OrbitalAnte.UI
                     bool aimed = i == target;
                     marker.Label.color = aimed ? TargetColor : marker.Plain;
                     marker.Label.text = aimed
-                        ? "[ " + spec.displayName + "  " + SpaceConvert.Distance(surfaceDistance) + " ]"
+                        ? "[LOCKED " + spec.displayName + "  " + SpaceConvert.Distance(surfaceDistance) + " ]"
                         : spec.displayName + "  " + SpaceConvert.Distance(surfaceDistance);
                 }
             }

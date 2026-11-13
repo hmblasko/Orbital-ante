@@ -19,6 +19,24 @@ namespace OrbitalAnte.Space
         [Tooltip("How hard Match Velocity brakes, in metres per second squared.")]
         public float matchVelocityThrust = 60f;
 
+        [Header("Navigation assist (first-pass values for Fable to tune)")]
+        [Tooltip("Metres above the body's outer envelope, including the terrain's maximum-height estimate. Autopilot approaches; it does not land.")]
+        [Min(10f)] public float autopilotClearance = 150f;
+        [Tooltip("Maximum translational acceleration used by autopilot, before damaged-engine limits.")]
+        [Min(0f)] public float autopilotAcceleration = 30f;
+        [Tooltip("Cruise speed relative to the moving destination, in metres per second.")]
+        [Min(1f)] public float autopilotCruiseSpeed = 300f;
+        [Tooltip("Seconds used to settle toward the requested relative velocity.")]
+        [Min(0.05f)] public float assistResponseTime = 0.5f;
+        [Min(0.1f)] public float autopilotArrivalDistance = 3f;
+        [Min(0.01f)] public float autopilotArrivalSpeed = 0.5f;
+        [Tooltip("Extra clearance around intervening celestial bodies. This is a route refusal check, not obstacle pathfinding.")]
+        [Min(0f)] public float autopilotRouteClearance = 20f;
+        [Tooltip("Angular forgiveness beyond a planet's visible disc, in degrees, when pressing Target Lock.")]
+        [Range(0f, 20f)] public float targetLockCone = 7f;
+        [Tooltip("A manual translational input above this cancels an active assist.")]
+        [Range(0.01f, 0.5f)] public float assistCancelInput = 0.1f;
+
         [Header("Turning")]
         [Tooltip("Degrees turned per unit of mouse movement.")]
         public float mouseSensitivity = 0.08f;

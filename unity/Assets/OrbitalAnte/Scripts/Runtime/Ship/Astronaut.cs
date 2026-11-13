@@ -183,7 +183,9 @@ namespace OrbitalAnte.Ship
                 }
 
             }
-            GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
+            bool flying = mode == AstronautMode.Seated && Ship.Belt.Buckled;
+            Ship.Flight.Unmanned = !flying;
+            GameInput.SetFlying(flying);
         }
 
         void EnterSeat(bool instant)
@@ -211,20 +213,38 @@ namespace OrbitalAnte.Ship
             PoseAboard();
         }
 
-        void GoOutside(Vector3 feet, Vector3 velocity)
+        void GoOutside(Vector3 feet)
         {
-            _up = Ship.transform.up;
+            // The ground ray only samples the centre of the beam. Check the whole suit at the physics pose
+            // before enabling it, so a rock or wall beside that ray cannot receive an intersecting capsule.
+            Vector3 exitUp = Ship.Body.rotation * Vector3.up;
+            const float skin = 0.02f;
+            int blockingLayers = Layers.WorldMask | (1 << Layers.CharacterBody) | (1 << Layers.Player);
+            if (Physics.CheckCapsule(feet + exitUp * ShipLayout.PersonRadius,
+                feet + exitUp * (ShipLayout.PersonHeight - ShipLayout.PersonRadius),
+                ShipLayout.PersonRadius - skin, blockingLayers, QueryTriggerInteraction.Ignore))
+            {
+                Say("The space below the hatch is blocked. Returning inside.");
+                Ship.Hatch.BeginUp(Ship.Hatch.Rider);
+                SetMode(AstronautMode.Lift);
+                return;
+            }
+            _up = exitUp;
             Vector3 forward = Vector3.ProjectOnPlane(Eye.transform.forward, _up);
-            if (forward.sqrMagnitude < 0.01f) forward = Vector3.ProjectOnPlane(Ship.transform.forward, _up);
+            if (forward.sqrMagnitude < 0.01f) forward = Ship.Body.rotation * Vector3.forward;
             Suit.transform.SetPositionAndRotation(feet, Quaternion.LookRotation(forward.normalized, _up));
             Suit.gameObject.SetActive(true);
             Suit.position = feet;
             Suit.rotation = Suit.transform.rotation;
-            Suit.linearVelocity = velocity;
+            // Rigidbody velocity is measured at its centre of mass, not at the feet. Include the ship's
+            // rotation at the capsule's mass centre so stepping out of a moving/tumbling ship preserves motion.
+            Suit.linearVelocity = Ship.Body.GetPointVelocity(Suit.worldCenterOfMass);
             transform.SetParent(Suit.transform, false);
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
             _pendingYaw = 0f;
+            _jumpQueued = false;
+            _grounded = false;
             SetMode(AstronautMode.Outside);
         }
 
@@ -282,6 +302,7 @@ namespace OrbitalAnte.Ship
             {
                 Ship.PlaySound(Ship.Sounds.BeltClick, 1f);
                 Ship.PlaySound(Ship.Sounds.SeatHiss, 0.9f);
+                Ship.Flight.Unmanned = false;
                 GameInput.SetFlying(true);
             }
             if (belt.State == BeltState.Free)
@@ -299,6 +320,8 @@ namespace OrbitalAnte.Ship
                 if (GameInput.Unbuckle.WasPressedThisFrame() && belt.Release())
                 {
                     Ship.PlaySound(Ship.Sounds.BeltRelease, 1f);
+                    // Cancel assist in this transition, before the next physics step can use an old seat flag.
+                    Ship.Flight.Unmanned = true;
                     GameInput.SetFlying(false);
                     _yawFrom = 0f;
                     _pitchFrom = 0f;
@@ -361,17 +384,9 @@ namespace OrbitalAnte.Ship
 
             if (_walker.OverOpenWell)
             {
-                float bottom = Ship.FindLiftBottom();
-                if (float.IsNaN(bottom))
-                {
-                    Prompt = "The lift is holding you: there is nothing below to stand on.";
-                }
-                else
-                {
-                    Ship.Hatch.BeginDown(new P3(_walker.X, 0f, _walker.Z), bottom);
-                    SetMode(AstronautMode.Lift);
-                    return;
-                }
+                Ship.Hatch.BeginDown(new P3(_walker.X, 0f, _walker.Z), Ship.FindLiftBottom());
+                SetMode(AstronautMode.Lift);
+                return;
             }
 
             if (GameInput.Hatch.WasPressedThisFrame()) ToggleHatch();
@@ -417,18 +432,29 @@ namespace OrbitalAnte.Ship
             }
             else if (finished == LiftRide.Down)
             {
-                // Measured again now: the ship may have settled or slid while you rode down.
+                // Measured again now: the ship may have moved, rolled or lifted while you rode down.
                 float bottom = Ship.FindLiftBottom();
+                Vector3 local = V(Ship.Hatch.Rider);
                 if (float.IsNaN(bottom))
                 {
-                    // The ground has gone (the ship lifted or rolled). Back up into the cabin.
+                    // Finish clearing the hull if a former ground stop disappeared partway down.
+                    if (local.y > Ship.Hatch.SpaceExitY + 1e-4f)
+                    {
+                        Ship.Hatch.BeginDown(Ship.Hatch.Rider, float.NaN);
+                        return;
+                    }
+                }
+                else local.y = Mathf.Max(local.y, bottom);
+                if (!Ship.Hatch.HasExitClearance(local.y))
+                {
+                    // A wall or raised ground can physically block the belly opening. Do not activate the
+                    // capsule inside the convex base just because a ground ray found a very close surface.
+                    Say("There is not enough room below the hatch. Returning inside.");
                     Ship.Hatch.BeginUp(Ship.Hatch.Rider);
                     return;
                 }
-                Vector3 local = V(Ship.Hatch.Rider);
-                local.y = Mathf.Max(local.y, bottom);
                 Vector3 feet = Ship.Body.position + Ship.Body.rotation * local;
-                GoOutside(feet, Ship.Body.GetPointVelocity(feet));
+                GoOutside(feet);
             }
         }
 
@@ -451,7 +477,8 @@ namespace OrbitalAnte.Ship
             Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
 
             Vector3 feetInShip = Quaternion.Inverse(Ship.Body.rotation) * (Suit.position - Ship.Body.position);
-            if (Ship.Hatch.CanPickUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
+            var feet = new P3(feetInShip.x, feetInShip.y, feetInShip.z);
+            if (Ship.Hatch.CanPickUp(feet))
             {
                 BoardLift(feetInShip);
                 return;
@@ -469,6 +496,11 @@ namespace OrbitalAnte.Ship
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
+            }
+            else if (Ship.Hatch.CanPickUp(feet, requested: true))
+            {
+                Prompt = Words(7, null, GameInput.Interact, ": go aboard");
+                if (GameInput.Interact.WasPressedThisFrame()) BoardLift(feetInShip);
             }
             else if (away < _config.remoteHatchRange)
             {
