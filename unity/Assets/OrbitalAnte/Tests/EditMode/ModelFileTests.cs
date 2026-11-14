@@ -543,6 +543,45 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        {
+            // The hitbox radii MannequinFactory gives the trooper's modelled limbs, times BodyFit's thickness for
+            // this kind, against how thick the limb really is in the file. A hitbox much fatter than the limb
+            // is hit by shots that visibly miss; one much thinner lets visible hits through.
+            var limbs = new (BodyPartId part, float radius)[]
+            {
+                (BodyPartId.RightUpperArm, 0.085f), (BodyPartId.RightForearm, 0.066f), (BodyPartId.RightHand, 0.082f),
+                (BodyPartId.RightThigh, 0.10f), (BodyPartId.RightShin, 0.076f),
+                (BodyPartId.LeftUpperArm, 0.085f), (BodyPartId.LeftForearm, 0.066f), (BodyPartId.LeftHand, 0.082f),
+                (BodyPartId.LeftThigh, 0.10f), (BodyPartId.LeftShin, 0.076f),
+            };
+            ModelFile model = LoadReal(name);
+            foreach ((BodyPartId part, float radius) in limbs)
+            {
+                ModelPart piece = model.Part(part.ToString());
+                float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue, maxZ = float.MinValue;
+                for (int v = 0; v < piece.VertexCount; v++)
+                {
+                    float x = piece.Positions[v * 3], y = piece.Positions[v * 3 + 1], z = piece.Positions[v * 3 + 2];
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                }
+                // Arms lie along x and legs along y, so the thickness is across the other two.
+                OrbitalAnte.Core.Vec3d d = BodySkeleton.PartDirection(part);
+                bool alongX = System.Math.Abs(d.X) > System.Math.Abs(d.Y);
+                float thick = 0.5f * System.Math.Max(alongX ? maxY - minY : maxX - minX, maxZ - minZ);
+                float box = radius * BodyFit.Thickness(name, part);
+                Assert.Less(box, thick * 1.12f, name + " " + part + ": the hitbox is fatter than the limb");
+                Assert.Greater(box, thick * 0.55f, name + " " + part + ": the hitbox is much thinner than the limb");
+            }
+            Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));
+            Assert.AreEqual(1f, BodyFit.Thickness("something nobody made", BodyPartId.Head));
+            Assert.Greater(BodyFit.Thickness("EnemyBruiser", BodyPartId.Torso), 1.1f);
+            Assert.Less(BodyFit.Thickness("EnemyRunner", BodyPartId.Torso), 0.95f);
+        }
+
+        [Test]
         public void EnemyModelFile_BootsStandOnTheGround([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
             ModelFile model = LoadReal(name);
