@@ -36,6 +36,12 @@ namespace OrbitalAnte.Core
         public static InputAction HoldFire { get; private set; }
         /// <summary>Opens or closes the ship's belly hatch, from inside or from nearby outside.</summary>
         public static InputAction Hatch { get; private set; }
+        // The suit's jets (outside the ship). Jump is "jets up" once you are off the ground.
+        public static InputAction JetDown { get; private set; }
+        public static InputAction SuitMatch { get; private set; }
+        public static InputAction TetherClip { get; private set; }
+        public static InputAction SuitRollLeft { get; private set; }
+        public static InputAction SuitRollRight { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -141,6 +147,11 @@ namespace OrbitalAnte.Core
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
             Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
+            JetDown = AddButton(Gameplay, "Jets Down", "<Keyboard>/leftCtrl", "<Gamepad>/buttonEast");
+            SuitMatch = AddButton(Gameplay, "Suit Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/leftTrigger");
+            TetherClip = AddButton(Gameplay, "Tether On / Off", "<Keyboard>/x", "<Gamepad>/dpad/right");
+            SuitRollLeft = AddButton(Gameplay, "Roll Left (floating)", "<Keyboard>/z", "<Gamepad>/leftShoulder");
+            SuitRollRight = AddButton(Gameplay, "Roll Right (floating)", "<Keyboard>/c", "<Gamepad>/rightShoulder");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");

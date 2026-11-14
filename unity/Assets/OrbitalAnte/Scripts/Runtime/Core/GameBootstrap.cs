@@ -69,6 +69,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Look.ModelLibrary.ResetStatics();
             OrbitalAnte.Launch.LaunchConfig.ResetStatics();
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
+            OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 

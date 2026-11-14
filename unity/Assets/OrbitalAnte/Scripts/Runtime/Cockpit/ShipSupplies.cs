@@ -82,6 +82,12 @@ namespace OrbitalAnte.Cockpit
             }
         }
 
+        /// <summary>Takes a share of the air tank out (the suit filling up from the ship).</summary>
+        public void DrawAir(float share)
+        {
+            if (share > 0f) Oxygen = Math.Max(0f, Oxygen - share);
+        }
+
         public void Set(float fuel, float oxygen)
         {
             Fuel = Clamp01(fuel);

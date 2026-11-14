@@ -2,6 +2,7 @@ using System;
 using OrbitalAnte.Core;
 using OrbitalAnte.Player;
 using OrbitalAnte.Space;
+using OrbitalAnte.Spacewalk;
 using OrbitalAnte.Weapons;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -26,8 +27,9 @@ namespace OrbitalAnte.Ship
     ///
     /// Inside the ship the player is not a physics object at all. They are carried in the ship's own space by
     /// <see cref="InteriorWalker"/>, which is why nothing the ship does (spinning, crashing, flying at speed)
-    /// can shake them through a wall. Outside, a simple suit body takes over under the planet's gravity; the
-    /// proper suit and jetpack are Milestone 11.
+    /// can shake them through a wall. Outside, the suit's body takes over: it walks under a planet's pull,
+    /// flies on its jets off the ground, and floats free (no "down" at all) where nothing pulls. The suit's
+    /// rules are in <c>Spacewalk/SuitRules.cs</c>.
     /// </summary>
     [DefaultExecutionOrder(-250)]
     public sealed class Astronaut : MonoBehaviour
@@ -76,6 +78,32 @@ namespace OrbitalAnte.Ship
         bool _jumpQueued;
         Vector3 _up = Vector3.up;
         bool _grounded;
+
+        // ---- the suit (rules in Spacewalk/SuitRules.cs)
+        public SuitConfig SuitDials { get; private set; }
+        public SuitSupplies SuitTanks { get; private set; }
+        public JetGlow Jets { get; } = new JetGlow();
+        public Posture Posture { get; private set; }
+        public bool Tethered { get; private set; }
+        public bool TetherTaut { get; private set; }
+        /// <summary>Where the tether is fixed to the ship, in the world.</summary>
+        public Vector3 TetherAnchor => Ship.transform.TransformPoint(V(ShipLayout.TetherAnchor));
+        /// <summary>Which way a slack tether hangs: the way things fall, or away from the ship's belly when nothing pulls.</summary>
+        public Vector3 TetherHangs => _suitGravity.FeltGravity.sqrMagnitude > 0.06f ? _suitGravity.FeltGravity.normalized : -Ship.transform.up;
+        /// <summary>What the suit's readout shows. Filled in every physics step while outside.</summary>
+        public SuitInputs SuitState;
+        /// <summary>True while the suit has a danger to report (for the warning tone).</summary>
+        public bool SuitAlarm { get; private set; }
+        /// <summary>How full the ship's air tank is, 0 to 1. Set by the cockpit, which keeps the ship's supplies.</summary>
+        public float ShipAir { get; set; } = 1f;
+        /// <summary>Hands over (and forgets) the share of the ship's air the suit has drawn since last asked.</summary>
+        public float TakeAirDrawn() { float drawn = _airDrawn; _airDrawn = 0f; return drawn; }
+        SuitFx _fx;
+        float _airDrawn, _jetPush, _airTime, _rollEase;
+        Quaternion _viewLocal = Quaternion.identity;
+        bool _mendingNow;
+        Vector3 _jetLocal;
+        static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
 
         Transform _strapLeft, _strapRight, _strapLap, _buckle;
         Material _webbing;
@@ -131,7 +159,11 @@ namespace OrbitalAnte.Ship
             // Slippery, so the suit slides along walls instead of sticking to them. Walking speed is set directly.
             capsule.sharedMaterial = new PhysicsMaterial("Suit") { dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             a._suitGravity = suitGo.AddComponent<GravityBody>();
+            suitGo.AddComponent<SuitBody>().Owner = a;
             suitGo.SetActive(false);
+            a.SuitDials = SuitConfig.Load();
+            a.SuitTanks = new SuitSupplies(a.SuitDials.rules);
+            a._fx = SuitFx.Build(a, a.SuitDials, world);
 
             a._walker.WalkSpeed = config.walkSpeed;
             a._walker.Gravity = config.cabinGravity;
@@ -243,7 +275,27 @@ namespace OrbitalAnte.Ship
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
             _pendingYaw = 0f;
+            _rollEase = 0f;
+            _airTime = 0f;
+            Posture = Posture.Upright;
+            Jets.Reset();
             SetMode(AstronautMode.Outside);
+            // Stepping out of a ship that is not standing on anything, the line goes on by itself.
+            bool landed = Ship.Flight != null && Ship.Flight.Landed;
+            if (!landed && !Tethered) SetTether(true, quiet: false);
+        }
+
+        /// <summary>Puts the player outside at a place and velocity, as if the lift had just let them go. For tests.</summary>
+        public void StepOutsideForTests(Vector3 feet, Vector3 velocity) => GoOutside(feet, velocity);
+        /// <summary>Clips the tether on or off without the range check or the sound. For tests.</summary>
+        public void SetTetherForTests(bool on) => SetTether(on, quiet: true);
+
+        void SetTether(bool on, bool quiet)
+        {
+            if (Tethered == on) return;
+            Tethered = on;
+            TetherTaut = false;
+            if (!quiet && _fx != null) _fx.Play(on ? _fx.Sounds.Clip : _fx.Sounds.Unclip, 0.9f);
         }
 
         void BoardLift(Vector3 feetInShip)
@@ -253,6 +305,10 @@ namespace OrbitalAnte.Ship
             _yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
             transform.SetParent(Ship.transform, false);
             Ship.Hatch.BeginUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z));
+            // The line reels itself in as the lift takes you.
+            SetTether(false, quiet: !Tethered);
+            Jets.Reset();
+            _pitch = Posture == Posture.Free ? 0f : _pitch;
             SetMode(AstronautMode.Lift);
             PoseLift();
         }
@@ -293,6 +349,7 @@ namespace OrbitalAnte.Ship
                 case AstronautMode.Seated: PoseSeated(); break;
                 case AstronautMode.Aboard: PoseAboard(); break;
                 case AstronautMode.Lift: PoseLift(); break;
+                case AstronautMode.Outside: PoseOutside(); break;
             }
         }
 
@@ -328,7 +385,8 @@ namespace OrbitalAnte.Ship
             if (Dead)
             {
                 _deadFor += dt;
-                if (Mode != AstronautMode.Outside) { PoseOnly(); _posed = true; }
+                PoseOnly();
+                _posed = true;
                 if (!_deathTold && _deadFor > 1.8f)
                 {
                     _deathTold = true;
@@ -350,7 +408,9 @@ namespace OrbitalAnte.Ship
                 // In the seat or the lift the daze is only felt (the slump): the belt and the lift ride must
                 // keep running, or a knock half way through either would leave you stuck there.
             }
-            _posed = Mode != AstronautMode.Outside;
+            _posed = true;
+            TickSuit(dt);
+            if (Dead) { _posed = false; return; }
 
             switch (Mode)
             {
@@ -425,7 +485,15 @@ namespace OrbitalAnte.Ship
 
         void ReadLook(float dt, out float yawDelta)
         {
+            ReadLookRaw(dt, out yawDelta, out float pitchDelta);
+            _pitch = Mathf.Clamp(_pitch + pitchDelta, -88f, 88f);
+        }
+
+        /// <summary>How far the player turned their head this frame, in degrees (pitch positive is downward).</summary>
+        void ReadLookRaw(float dt, out float yawDelta, out float pitchDelta)
+        {
             yawDelta = 0f;
+            pitchDelta = 0f;
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
             if (look.sqrMagnitude <= 0f) return;
             InputControl control = GameInput.Look.activeControl;
@@ -433,7 +501,7 @@ namespace OrbitalAnte.Ship
             {
                 // Mouse movement is already "distance moved this frame".
                 yawDelta = look.x * _look.mouseSensitivity;
-                _pitch -= look.y * _look.mouseSensitivity;
+                pitchDelta = -look.y * _look.mouseSensitivity;
             }
             else
             {
@@ -441,9 +509,8 @@ namespace OrbitalAnte.Ship
                 float curved = Mathf.Pow(magnitude, Mathf.Max(1f, _look.stickCurve));
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 yawDelta = shaped.x * _look.stickYawSpeed * dt;
-                _pitch -= shaped.y * _look.stickPitchSpeed * dt;
+                pitchDelta = -shaped.y * _look.stickPitchSpeed * dt;
             }
-            _pitch = Mathf.Clamp(_pitch, -88f, 88f);
         }
 
         void UpdateAboard(float dt)
@@ -462,17 +529,13 @@ namespace OrbitalAnte.Ship
 
             if (_walker.OverOpenWell)
             {
+                // With ground below, the lift sets you down on it. With none (in flight), it lowers you clear
+                // of the belly and lets go: the suit's jets and the tether take it from there.
                 float bottom = Ship.FindLiftBottom();
-                if (float.IsNaN(bottom))
-                {
-                    Prompt = "The lift is holding you: there is nothing below to stand on.";
-                }
-                else
-                {
-                    Ship.Hatch.BeginDown(new P3(_walker.X, 0f, _walker.Z), bottom);
-                    SetMode(AstronautMode.Lift);
-                    return;
-                }
+                if (float.IsNaN(bottom)) bottom = ShipLayout.BellyY - ShipLayout.PersonHeight - 0.35f;
+                Ship.Hatch.BeginDown(new P3(_walker.X, 0f, _walker.Z), bottom);
+                SetMode(AstronautMode.Lift);
+                return;
             }
 
             if (GameInput.Hatch.WasPressedThisFrame()) ToggleHatch();
@@ -518,16 +581,11 @@ namespace OrbitalAnte.Ship
             }
             else if (finished == LiftRide.Down)
             {
-                // Measured again now: the ship may have settled or slid while you rode down.
+                // Measured again now: the ship may have settled or slid while you rode down. With no ground
+                // there at all, you are let go where the lift stopped.
                 float bottom = Ship.FindLiftBottom();
-                if (float.IsNaN(bottom))
-                {
-                    // The ground has gone (the ship lifted or rolled). Back up into the cabin.
-                    Ship.Hatch.BeginUp(Ship.Hatch.Rider);
-                    return;
-                }
                 Vector3 local = V(Ship.Hatch.Rider);
-                local.y = Mathf.Max(local.y, bottom);
+                if (!float.IsNaN(bottom)) local.y = Mathf.Max(local.y, bottom);
                 Vector3 feet = Ship.Body.position + Ship.Body.rotation * local;
                 GoOutside(feet, Ship.Body.GetPointVelocity(feet));
             }
@@ -543,15 +601,28 @@ namespace OrbitalAnte.Ship
 
         void UpdateOutside(float dt)
         {
-            ReadLook(dt, out float yawDelta);
-            // Turning is applied to the view at once. The suit's body only keeps you upright.
-            _pendingYaw += yawDelta;
-            transform.localRotation = Quaternion.Euler(0f, _pendingYaw, 0f);
+            ReadLookRaw(dt, out float yawDelta, out float pitchDelta);
+            if (Posture == Posture.Free)
+            {
+                // Floating: there is no "up", so the head turns any way at all, and can roll over.
+                float roll = (GameInput.SuitRollLeft.IsPressed() ? 1f : 0f) - (GameInput.SuitRollRight.IsPressed() ? 1f : 0f);
+                _viewLocal = _viewLocal * Quaternion.Euler(pitchDelta, yawDelta, roll * SuitDials.rollSpeed * dt);
+            }
+            else
+            {
+                // Turning is applied to the view at once. The suit's body only keeps you upright.
+                _pendingYaw += yawDelta;
+                _pitch = Mathf.Clamp(_pitch + pitchDelta, -88f, 88f);
+                _rollEase = Mathf.LerpAngle(_rollEase, 0f, 1f - Mathf.Exp(-5f * dt));
+            }
             if (GameInput.Jump.WasPressedThisFrame()) _jumpQueued = true;
-            Eye.transform.localPosition = new Vector3(0f, ShipLayout.EyeHeight, 0f);
-            Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            PoseOutside();
 
-            Vector3 feetInShip = Quaternion.Inverse(Ship.Body.rotation) * (Suit.position - Ship.Body.position);
+            // Floating, there are no "feet": the lift takes you by where your middle is.
+            Vector3 feetWorld = Posture == Posture.Free
+                ? Suit.position + Suit.rotation * (Vector3.up * (ShipLayout.PersonHeight * 0.5f)) - Ship.Body.rotation * (Vector3.up * (ShipLayout.PersonHeight * 0.5f))
+                : Suit.position;
+            Vector3 feetInShip = Quaternion.Inverse(Ship.Body.rotation) * (feetWorld - Ship.Body.position);
             if (Ship.Hatch.CanPickUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
             {
                 BoardLift(feetInShip);
@@ -563,18 +634,121 @@ namespace OrbitalAnte.Ship
             {
                 if (GameInput.Hatch.WasPressedThisFrame()) ToggleHatch();
             }
-            if (Mending(dt)) return;
+            if (GameInput.TetherClip.WasPressedThisFrame()) ToggleTether();
+            // While you mend, the jets hold you beside the ship by themselves (see FixedUpdate).
+            _mendingNow = false;
+            if (Mending(dt))
+            {
+                _mendingNow = GameInput.Interact.IsPressed();
+                return;
+            }
 
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
+            bool flying = !_grounded;
             if (LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
             }
+            else if (flying && SuitState.Speed > 1.5f && !SuitState.Matching)
+            {
+                // The one thing worth knowing when you are drifting: how to stop.
+                Prompt = SuitState.MatchTarget == MatchTarget.Ship
+                    ? Words(7, "Hold ", GameInput.SuitMatch, ": match the ship")
+                    : Words(8, "Hold ", GameInput.SuitMatch, ": stop against the ground");
+            }
+            else if (flying && !Tethered && SuitState.TetherInReach)
+            {
+                Prompt = Words(9, null, GameInput.TetherClip, ": clip the tether on");
+            }
             else if (away < _config.remoteHatchRange)
             {
-                Prompt = Ship.Hatch.WantOpen ? "Stand under the blue ring to go aboard" : Words(5, null, GameInput.Hatch, ": open the hatch");
+                Prompt = Ship.Hatch.WantOpen
+                    ? (flying ? "Fly under the blue ring to go aboard" : "Stand under the blue ring to go aboard")
+                    : Words(5, null, GameInput.Hatch, ": open the hatch");
             }
+        }
+
+        /// <summary>Puts the view where the suit's state says it is. Upright: turn and nod. Floating: any way up, turning about the eyes.</summary>
+        void PoseOutside()
+        {
+            if (Posture == Posture.Free)
+            {
+                transform.localRotation = _viewLocal;
+                transform.localPosition = EyeLocal - _viewLocal * EyeLocal;
+                Eye.transform.localPosition = EyeLocal;
+                Eye.transform.localRotation = Quaternion.identity;
+            }
+            else
+            {
+                transform.localPosition = Vector3.zero;
+                transform.localRotation = Quaternion.Euler(0f, _pendingYaw, 0f);
+                Eye.transform.localPosition = EyeLocal;
+                Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, _rollEase);
+            }
+        }
+
+        void ToggleTether()
+        {
+            if (Tethered)
+            {
+                SetTether(false, quiet: false);
+                Say("Tether off. Nothing is holding you now.");
+                return;
+            }
+            float distance = Vector3.Distance(Suit.position, TetherAnchor);
+            if (Tether.InReach(SuitDials.rules, distance))
+            {
+                SetTether(true, quiet: false);
+                Say("Tether on: " + Mathf.RoundToInt(SuitDials.rules.tetherLength) + " m of line.");
+            }
+            else
+            {
+                Say("Too far from the ship to clip on (" + Mathf.RoundToInt(distance) + " m; the line is " + Mathf.RoundToInt(SuitDials.rules.tetherLength) + " m).");
+            }
+        }
+
+        /// <summary>The suit's air and jet fuel, every frame, wherever you are.</summary>
+        void TickSuit(float dt)
+        {
+            bool outside = Mode == AstronautMode.Outside;
+            float push = outside ? _jetPush : 0f;
+            _airDrawn += SuitTanks.Tick(dt, outside || ShipAir <= 0f, !outside, push, ShipAir);
+            SuitState.Air = SuitTanks.Air;
+            SuitState.Fuel = SuitTanks.Fuel;
+            SuitState.AirLow = SuitTanks.AirLow;
+            SuitState.AirOut = SuitTanks.AirOut;
+            SuitState.FuelLow = SuitTanks.FuelLow;
+            SuitState.FuelOut = SuitTanks.FuelOut;
+            SuitState.BurningAir = SuitTanks.BurningAir;
+            SuitState.SecondsLeft = SuitTanks.SecondsLeft;
+            SuitState.Tethered = Tethered;
+            SuitState.TetherTaut = TetherTaut;
+            SuitState.Floating = outside && Posture == Posture.Free;
+            if (!outside)
+            {
+                SuitState.Matching = false;
+                SuitState.TetherTaut = false;
+                // Aboard, an empty jet tank is no danger: it is filling.
+                SuitState.FuelOut = false;
+                SuitState.FuelLow = false;
+            }
+            SuitAlarm = SuitReadout.IsAlarm(SuitState);
+            if (SuitTanks.Suffocated) Die(SuitKnock.NoAir);
+        }
+
+        /// <summary>The suit's body hit something at this speed (metres per second, straight into it).</summary>
+        public void SuitHit(float speed, Vector3 from)
+        {
+            if (Dead || Mode != AstronautMode.Outside) return;
+            SuitKnock.Result result = SuitKnock.For(SuitDials.rules, speed);
+            if (speed > 2.5f && _fx != null) _fx.Play(_fx.Sounds.Bump, Mathf.Clamp01(speed / SuitDials.rules.hurtSpeed));
+            if (result == SuitKnock.Result.Nothing) return;
+            // The view takes the blow the same way it does in the cabin.
+            Vector3 local = Eye.transform.InverseTransformDirection(from);
+            if (Crash != null) Crash.Hit(speed, false, local.x, Mathf.Clamp(local.z - local.y, -1f, 1f));
+            if (result == SuitKnock.Result.Killed) Die(SuitKnock.Cause(speed));
+            else _dazed = Mathf.Max(_dazed, 0.8f);
         }
 
         /// <summary>Looks for a damaged part in front of the player and mends it while the button is held.</summary>
@@ -625,55 +799,195 @@ namespace OrbitalAnte.Ship
         {
             if (Mode != AstronautMode.Outside || Ship == null) return;
             float dt = Time.fixedDeltaTime;
+            SuitRules rules = SuitDials.rules;
 
-            // "Up" is away from whatever is pulling. With next to no pull, keep whatever up was.
+            // What is pulling, how hard, and how high above its ground you are.
             Vector3 pull = _suitGravity.FeltGravity;
             float weight = pull.magnitude;
-            if (weight > 0.25f) _up = Vector3.Slerp(_up, -pull / weight, 1f - Mathf.Exp(-8f * dt)).normalized;
+            int body = _system != null ? _suitGravity.Neighbourhood : -1;
+            bool hasBody = body >= 0 && _system != null && body < _system.Bodies.Length;
+            float radius = hasBody ? (float)_system.Model.Spec(body).radius : 1f;
+            float height = hasBody ? (float)_system.AltitudeAbove(body, Suit.position) : float.MaxValue;
 
-            Quaternion rotation = Suit.rotation;
-            rotation = Quaternion.FromToRotation(rotation * Vector3.up, _up) * rotation;
-            Suit.MoveRotation(rotation);
-            // Walk the way you are looking.
-            rotation = rotation * Quaternion.Euler(0f, _pendingYaw, 0f);
+            Posture next = SuitPosture.Next(rules, Posture, weight, height, radius, _grounded);
+            if (next != Posture) SwitchPosture(next, pull, weight);
 
-            // What is underfoot, and how it is moving.
+            // The directions the jets push in: your own right, up and forward.
+            Quaternion frame;
             Vector3 groundVelocity = Vector3.zero;
-            _grounded = false;
-            Vector3 from = Suit.position + _up * 0.5f;
-            int hits = Physics.SphereCastNonAlloc(from, 0.25f, -_up, _hits, 0.36f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
-            float nearest = float.MaxValue;
-            for (int i = 0; i < hits; i++)
+            if (Posture == Posture.Upright)
             {
-                if (_hits[i].rigidbody == Suit || _hits[i].distance >= nearest) continue;
-                nearest = _hits[i].distance;
-                _grounded = true;
-                groundVelocity = _hits[i].rigidbody != null ? _hits[i].rigidbody.GetPointVelocity(_hits[i].point) : Vector3.zero;
+                // "Up" is away from whatever is pulling.
+                if (weight > 0.05f) _up = Vector3.Slerp(_up, -pull / weight, 1f - Mathf.Exp(-8f * dt)).normalized;
+                Quaternion rotation = Suit.rotation;
+                rotation = Quaternion.FromToRotation(rotation * Vector3.up, _up) * rotation;
+                Suit.MoveRotation(rotation);
+                // Walk, and fly, the way you are looking.
+                frame = rotation * Quaternion.Euler(0f, _pendingYaw, 0f);
+
+                // What is underfoot, and how it is moving.
+                _grounded = false;
+                Vector3 from = Suit.position + _up * 0.5f;
+                int hits = Physics.SphereCastNonAlloc(from, 0.25f, -_up, _hits, 0.36f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+                float nearest = float.MaxValue;
+                for (int i = 0; i < hits; i++)
+                {
+                    if (_hits[i].rigidbody == Suit || _hits[i].distance >= nearest) continue;
+                    nearest = _hits[i].distance;
+                    _grounded = true;
+                    groundVelocity = _hits[i].rigidbody != null ? _hits[i].rigidbody.GetPointVelocity(_hits[i].point) : Vector3.zero;
+                }
+            }
+            else
+            {
+                _grounded = false;
+                frame = Suit.rotation * _viewLocal;
             }
 
-            Vector2 move = GameInput.Asset != null && !GameSession.Paused ? Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
-            Vector3 wish = (rotation * Vector3.right * move.x + rotation * Vector3.forward * move.y) * _config.outsideWalkSpeed;
+            bool live = GameInput.Asset != null && !GameSession.Paused && !Dead;
+            Vector2 move = live ? Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
+            bool jetUp = live && GameInput.Jump.IsPressed(), jetDown = live && GameInput.JetDown.IsPressed();
+            bool matchHeld = live && (GameInput.SuitMatch.IsPressed() || _mendingNow);
 
-            Vector3 relative = Suit.linearVelocity - groundVelocity;
-            Vector3 vertical = Vector3.Project(relative, _up);
-            Vector3 level = relative - vertical;
+            // What Match Velocity would match, and your speed against it (shown on the suit's readout).
+            Vector3 toShip = Ship.Body.worldCenterOfMass - Suit.worldCenterOfMass;
+            float shipDistance = toShip.magnitude;
+            float offShip = shipDistance > 0.5f ? Vector3.Angle(Eye.transform.forward, toShip) : 0f;
+            MatchTarget target = _mendingNow ? MatchTarget.Ship : Jetpack.Choose(rules, shipDistance, offShip);
+            bool againstGround = hasBody && height < Mathf.Max(GroundMatchLeast, radius * GroundMatchShare);
+            Vector3 reference = target == MatchTarget.Ship
+                ? Ship.Body.linearVelocity
+                : !hasBody ? Vector3.zero
+                : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.LocalVelocityOf(body);
+            Vector3 relative = Suit.linearVelocity - reference;
+
+            Vector3 jets = Vector3.zero;
+            float factor = SuitTanks.PushFactor;
             if (_grounded)
             {
-                level = Vector3.MoveTowards(level, wish, 40f * dt);
+                // On your feet: walking, and the push off for a jump. No jets, no fuel.
+                _airTime = 0f;
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
+                Vector3 onGround = Suit.linearVelocity - groundVelocity;
+                Vector3 vertical = Vector3.Project(onGround, _up);
+                Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);
                 if (_jumpQueued)
                 {
                     // The same push off whatever the gravity, so low gravity means high, slow jumps.
                     vertical = _up * Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
                     _grounded = false;
                 }
+                Suit.linearVelocity = groundVelocity + level + vertical;
             }
-            else if (weight > 0.25f)
+            else
             {
-                // A little steering in the air; none at all floating free (that is what the jetpack will be for).
-                level = Vector3.MoveTowards(level, wish, 5f * dt);
+                _airTime += dt;
+                if (matchHeld)
+                {
+                    P3 push = Jetpack.Match(rules, new P3(relative.x, relative.y, relative.z), dt, factor);
+                    jets = new Vector3(push.X, push.Y, push.Z);
+                }
+                else
+                {
+                    // A hop on a planet is not a flight: sideways jets wait a moment, unless you ask for lift.
+                    bool sideways = Posture == Posture.Free || _airTime > 0.5f || jetUp || jetDown;
+                    if (!sideways && weight > rules.freePull)
+                    {
+                        // Mid-hop you can still lean a little, as anyone can. That is not the jets and costs nothing.
+                        Vector3 lean = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
+                        Vector3 inAir = Suit.linearVelocity - groundVelocity;
+                        Vector3 rise = Vector3.Project(inAir, _up);
+                        Suit.linearVelocity = groundVelocity + Vector3.MoveTowards(inAir - rise, lean, 5f * dt) + rise;
+                    }
+                    P3 wish = new P3(sideways ? move.x : 0f, (jetUp ? 1f : 0f) - (jetDown ? 1f : 0f), sideways ? move.y : 0f);
+                    P3 push = Jetpack.Push(rules, wish, factor);
+                    jets = frame * new Vector3(push.X, push.Y, push.Z);
+                }
+                if (jets.sqrMagnitude > 0f) Suit.AddForce(jets, ForceMode.Acceleration);
             }
             _jumpQueued = false;
-            Suit.linearVelocity = groundVelocity + level + vertical;
+
+            // The nozzles that are lit, and what the push costs.
+            float full = Mathf.Max(0.1f, rules.jetPush);
+            _jetLocal = Quaternion.Inverse(frame) * jets / full;
+            _jetPush = Mathf.Clamp01(_jetLocal.magnitude);
+            Jets.Tick(dt, new P3(_jetLocal.x, _jetLocal.y, _jetLocal.z));
+
+            // The tether: stops you at its length, and nothing more.
+            Vector3 anchor = TetherAnchor;
+            float fromAnchor = Vector3.Distance(Suit.position, anchor);
+            TetherTaut = false;
+            if (Tethered)
+            {
+                Vector3 offset = Suit.worldCenterOfMass - anchor;
+                Vector3 against = Suit.linearVelocity - Ship.Body.GetPointVelocity(anchor);
+                P3 change = Tether.Pull(rules, new P3(offset.x, offset.y, offset.z), new P3(against.x, against.y, against.z), out bool taut, out P3 back);
+                if (taut)
+                {
+                    Suit.linearVelocity += new Vector3(change.X, change.Y, change.Z);
+                    Suit.position += new Vector3(back.X, back.Y, back.Z);
+                }
+                TetherTaut = taut;
+            }
+
+            SuitState.MatchTarget = target;
+            SuitState.Matching = matchHeld && !_grounded && relative.sqrMagnitude > 0.04f;
+            SuitState.Speed = relative.magnitude;
+            SuitState.AgainstGround = againstGround;
+            SuitState.GroundName = hasBody ? BodyName(body) : string.Empty;
+            SuitState.ShipDistance = fromAnchor;
+            SuitState.TetherInReach = Tether.InReach(rules, fromAnchor);
+        }
+
+        // Close above a body, speed is measured against the ground turning under you (the same rule the ship uses).
+        const float GroundMatchLeast = 300f, GroundMatchShare = 0.5f;
+
+        string[] _bodyNames;
+        string BodyName(int body)
+        {
+            if (_bodyNames == null)
+            {
+                _bodyNames = new string[_system.Bodies.Length];
+                for (int i = 0; i < _bodyNames.Length; i++) _bodyNames[i] = _system.Bodies[i].Spec.id.ToUpperInvariant();
+            }
+            return _bodyNames[body];
+        }
+
+        /// <summary>
+        /// Changes between standing head-up and floating free without the view jumping: the way you are
+        /// looking is kept exactly, and any tilt left over is eased out.
+        /// </summary>
+        void SwitchPosture(Posture next, Vector3 pull, float weight)
+        {
+            if (next == Posture.Free)
+            {
+                _viewLocal = Quaternion.Euler(0f, _pendingYaw, 0f) * Quaternion.Euler(_pitch, 0f, _rollEase);
+                _rollEase = 0f;
+            }
+            else
+            {
+                Quaternion view = Suit.rotation * _viewLocal;
+                Vector3 eye = Suit.position + Suit.rotation * EyeLocal;
+                Vector3 up = weight > 0.01f ? -pull / weight : view * Vector3.up;
+                Vector3 forward = view * Vector3.forward;
+                Vector3 flat = Vector3.ProjectOnPlane(forward, up);
+                // Looking straight up or down, the top of your head says which way is "ahead".
+                if (flat.sqrMagnitude < 0.01f) flat = Vector3.ProjectOnPlane(view * (Vector3.Dot(forward, up) > 0f ? Vector3.down : Vector3.up), up);
+                Quaternion upright = Quaternion.LookRotation(flat.normalized, up);
+                _pendingYaw = 0f;
+                _pitch = Mathf.Clamp(-Mathf.Asin(Mathf.Clamp(Vector3.Dot(forward, up), -1f, 1f)) * Mathf.Rad2Deg, -88f, 88f);
+                Quaternion left = Quaternion.Inverse(upright * Quaternion.Euler(_pitch, 0f, 0f)) * view;
+                _rollEase = Mathf.DeltaAngle(0f, left.eulerAngles.z);
+                _up = up;
+                // The body turns about your eyes, so what you see does not move.
+                Vector3 feet = eye - upright * EyeLocal;
+                Suit.transform.SetPositionAndRotation(feet, upright);
+                Suit.position = feet;
+                Suit.rotation = upright;
+                _airTime = 1f;
+            }
+            Posture = next;
+            PoseOutside();
         }
 
         // ------------------------------------------------------------------ the belt you can see
@@ -729,6 +1043,22 @@ namespace OrbitalAnte.Ship
             if (_webbing != null) Destroy(_webbing);
             if (_strapLeft != null) Destroy(_strapLeft.GetComponent<MeshFilter>().sharedMesh);
             if (_buckle != null) Destroy(_buckle.GetComponent<MeshFilter>().sharedMesh);
+        }
+    }
+
+    /// <summary>Sits on the suit's physics body and passes on what it runs into.</summary>
+    public sealed class SuitBody : MonoBehaviour
+    {
+        public Astronaut Owner { get; set; }
+
+        void OnCollisionEnter(Collision collision)
+        {
+            if (Owner == null || collision.contactCount == 0) return;
+            // Small loose things (a gib, a dropped gun) do not hurt.
+            Rigidbody other = collision.rigidbody;
+            if (other != null && !other.isKinematic && other.mass < 20f) return;
+            Vector3 normal = collision.GetContact(0).normal;
+            Owner.SuitHit(Mathf.Abs(Vector3.Dot(collision.relativeVelocity, normal)), -normal);
         }
     }
 }

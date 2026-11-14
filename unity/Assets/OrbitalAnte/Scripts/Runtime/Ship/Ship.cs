@@ -766,7 +766,7 @@ namespace OrbitalAnte.Ship
         public int FindRepairTarget(Vector3 eye, Vector3 forward, bool inside = false)
         {
             int best = -1;
-            float reach = inside ? Config.repairReach : Config.outsideRepairReach;
+            float reach = inside ? Config.repairReach : Config.spacewalkRepairReach;
             float bestAngle = Config.repairAim;
             for (int i = 0; i < Model.Count; i++)
             {
