@@ -19,11 +19,11 @@ Three words to test any new sound against: **grounded, groovy, generous** (it re
 
 ## 3. The four themes
 
-All four are written around the note D so any of them can follow any other. They live in one file, `tools/audio/oa_audio/motifs.py`, and the exploration, combat, flight and mystery pieces and every reward sound take their notes from there. (The menu piece states the Orbital Ante theme from its own copy of the notes; moving it onto the shared file is on the list.)
+All four are written around the note D so any of them can follow any other. They live in one file, `tools/audio/oa_audio/motifs.py`, and the exploration, combat, flight and mystery pieces and every reward sound take their notes from there. (The main theme uses the ante cell in the minor, A C D, and the Cosmic Mystery theme's wide slow intervals, written out in its own file.)
 
 | Theme | The idea | The notes (bar by bar) | Where it is now |
 |---|---|---|---|
-| **Orbital Ante** | Whimsical, adventurous. A rising three-note call (A, B, D), an answer that leans on a flattened seventh (the "wink"), the call again one step higher, then home. | `A B D` / `F# E C A` / `B D E` / `F# E D B D` | Stated in full in the flight piece and the menu piece. Appears in the minor in the third section of the combat piece. Its first three notes are the "ante cell". |
+| **Orbital Ante** | Whimsical, adventurous. A rising three-note call (A, B, D), an answer that leans on a flattened seventh (the "wink"), the call again one step higher, then home. | `A B D` / `F# E C A` / `B D E` / `F# E D B D` | Stated in full in the flight piece. Appears in the minor in the third section of the combat piece. Its first three notes are the "ante cell". |
 | **Ante cell** | The first three notes of the above: A, B, D. The game's signature. | `A B D` | The reward ladder (tier 1 is A and D together, tier 2 and the end of the score count-up are the whole cell, the bigger tiers grow out of it). |
 | **Exploration** | Wonder and curiosity. An open rising fifth that settles, then a reach up that never quite resolves, like a question. | `D A` / `G` / `C B G` / `A` | The exploration piece (bells, then electric piano). Quoted by a bell in the combat ending, to say "back to exploring". |
 | **Conflict** | Urgency. A tight figure worrying at the home note and the note a semitone above it, a drop, and a scramble back up. | `D D Eb D C A` / `Bb F E D` / `D D Eb D C F` / `G F E D` | The lead of the combat piece. |
@@ -40,7 +40,7 @@ Rules for the themes:
 | Role | Instruments | Notes |
 |---|---|---|
 | Bass | Finger bass and slap bass (sampled), doubled with synth sub or a growling synth in combat | The bass is the star of the up-tempo pieces, as the brief asks. It plays lines with gaps, octave jumps and ghost notes, not root-note thumping. (No slides yet: the sound bank cannot bend a note convincingly.) |
-| Drums | Sampled kits for realism, layered with synthesised kick, clap and hats for weight | Swung in the menu piece, straight four-on-the-floor in flight, breakbeat in combat. |
+| Drums | Sampled kits for realism, layered with synthesised kick, clap and hats for weight | Soft deep-house four-on-the-floor in the main theme, straight four-on-the-floor in flight, breakbeat in combat. |
 | Keys | Electric piano, organ stabs | The warm centre. |
 | Colour | Glass and bell tones, tremolo strings, choir pad, brass section | Bells are the sound of the unknown; brass is the sound of trouble or triumph. |
 | Synths | Pads, plucks, an acid line, a hard lead | Analogue in character, never harsh. |
@@ -54,10 +54,12 @@ Sampled instruments come from one MIT-licensed sound bank (see `docs/audio/licen
 | Regolith Lullaby | On foot, exploring | 86 | D Dorian | Walking pace. Half of the combat tempo. |
 | All In | Combat | 172 | D minor | Exactly double the exploration tempo, so the two share a bar line and the hand-over can be exact. |
 | Burn Window | Flying | 124 | D major | House tempo for the bass to dance at. |
-| The House Always Orbits | Main menu | 104 | D, swung | Laid back; the game introducing itself. |
+| Long Way From Anywhere | Main theme (menus) | 120 | D minor | Deep house: a steady, soft four-on-the-floor under slow minor ninths and one distant bell. Existential, not upbeat, as Matthew asked on 14 Nov 2026. Entirely synthesised. Replaced the first menu piece, a swung jazz number that was the wrong mood. |
 | What the Dish Heard | Caves, seas, the unknown | 60 | D Lydian | Slow enough to feel like no tempo at all. |
 
 Staying around D is what lets one piece dissolve into another without a clash.
+
+**Direction from Matthew (14 Nov 2026):** the main music should be "more existential and not upbeat, but still have a good deep house beat". The main theme was rewritten to that. The other pieces (exploration at 86, flight at 124 in a bright D major, combat at 172) were written before it and are the next to be reconsidered against it once he has heard the new theme: the likely direction is one steady deep-house tempo with the mood carried by harmony and space, which is also what the build prompt's "club DJ at a steady tempo" asks for.
 
 ## 6. How the music behaves
 

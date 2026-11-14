@@ -1802,55 +1802,64 @@
     ]
    },
    {
-    "id": "menu_house_orbits",
-    "title": "The House Always Orbits",
+    "id": "main_long_way",
+    "title": "Long Way From Anywhere",
     "context": "menu",
-    "bpm": 104.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
-    "bars": 40,
-    "key": "D major",
+    "bars": 64,
+    "key": "D minor",
     "motifs": [
-     "orbital_ante"
+     "orbital_ante (cell, in the minor)",
+     "cosmic_mystery (bars 17-32)"
     ],
     "entryBars": [
      1,
      17,
-     33
+     41
     ],
-    "samples": 4430769,
-    "seconds": 92.307688,
+    "samples": 6144000,
+    "seconds": 128.0,
     "stems": [
      {
-      "id": "rhythm",
+      "id": "beat",
       "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/rhythm"
+      "clip": "Audio/Music/main_long_way/beat"
      },
      {
-      "id": "keys",
+      "id": "bass",
       "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/keys"
+      "clip": "Audio/Music/main_long_way/bass"
      },
      {
-      "id": "melody",
-      "lo": 20,
+      "id": "chords",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/main_long_way/chords"
+     },
+     {
+      "id": "lead",
+      "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/melody"
+      "clip": "Audio/Music/main_long_way/lead"
      },
      {
-      "id": "sparkle",
-      "lo": 60,
+      "id": "air",
+      "lo": 0,
       "hi": 100,
-      "fadeInBars": 1,
+      "fadeInBars": 2,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/sparkle"
+      "clip": "Audio/Music/main_long_way/air"
      }
     ]
    },
@@ -1953,7 +1962,7 @@
   "contexts": [
    {
     "id": "menu",
-    "track": "menu_house_orbits",
+    "track": "main_long_way",
     "maxLoops": 0,
     "restSeconds": 0,
     "combat": false

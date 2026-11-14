@@ -135,6 +135,20 @@ A thruster is heard from the side it sits on, which is the side opposite to the 
 
 **Unverified.** Whether the directions can really be told apart by ear, and whether up and down read as "below" and "above" (stereo cannot place a sound above you; only the tone suggests it). Not run in Unity. A 39-second preview, `thruster_preview.ogg`, plays each direction in the order of the table, then two diagonals; it is turned up for listening on its own.
 
+### Matthew's direction (14 Nov): "The main music needs to be redone. More existential and not upbeat, but still a good deep house beat."
+
+**What changed.** The menu piece, a swung jazz number in D major, is gone. In its place is a new main theme, "Long Way From Anywhere": deep house at 120, D minor, 64 bars (2 min 8 s), five layers. A soft, round kick on every beat with off-beat hats and a distant clap; an off-beat sub bass; slow minor ninth chords (two bars each) that never settle, played as dub-echoed stabs whose filter opens and closes over sixteen bars; and one bell with long gaps, using the game's own notes (the ante cell in the minor, and the Cosmic Mystery theme's wide intervals). Eight bars in the middle drop the kick altogether. It is entirely synthesised, so it does not lean on the General MIDI sound bank the critic objected to.
+
+Also fixed while there: in the menus the old piece's melody never played at all, because it waited for an intensity the menus never reach. All five layers of the new theme play in the menus.
+
+**Why (principles 8 and 1; build prompt section 1, "a thread of horror and existential unknown").** The old theme told the player this was a jaunty game.
+
+**Tested.** Loop is sample-exact (-215 dB). -16.5 LUFS, true peak -1.5 dB. Through a 200 Hz high-pass (a stand-in for Deck speakers) the mix loses 1.5 LU; the bass layer alone loses 4.3 LU and the beat 2.7, so on a handheld the beat is carried by the kick's knock, the hats and the clap. `qa.py` passes.
+
+**Unverified.** Whether it sounds existential, or good, or like deep house to someone who loves deep house. Nobody has heard it. Listening file: `main_theme_long_way.ogg` (the piece once through, then the first quarter again so the loop point can be heard, then a fade).
+
+**Not changed yet.** Exploration, flight, combat and mystery. They wait for Matthew's verdict on this one, since his direction probably applies to them too.
+
 ### The main open problem
 
 The bass, drums, brass, strings, choir and electric piano are played from FluidR3 GM, a free General MIDI sound bank. The critic measured that a soft note and a loud note from it differ only in volume, which is what makes MIDI files sound like MIDI files. The workaround here (three tone settings and two alternating takes per note) hides the worst of it by measurement, but a workaround is what it is. If the music still sounds cheap, this is the first suspect, and the fix is better instrument recordings, which cannot be downloaded from the cloud workspace. Two ways forward, to choose after listening:
