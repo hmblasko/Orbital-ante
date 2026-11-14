@@ -27,7 +27,7 @@ All four are written around the note D so any of them can follow any other. They
 | **Ante cell** | The first three notes of the above: A, B, D. The game's signature. | `A B D` | The reward ladder (tier 1 is A and D together, tier 2 and the end of the score count-up are the whole cell, the bigger tiers grow out of it). |
 | **Exploration** | Wonder and curiosity. An open rising fifth that settles, then a reach up that never quite resolves, like a question. | `D A` / `G` / `C B G` / `A` | The exploration piece (a far-off plucked string, at half speed). Quoted by a plucked string in the combat ending, to say "back to exploring". |
 | **Conflict** | Urgency. A tight figure worrying at the home note and the note a semitone above it, a drop, and a scramble back up. | `D D Eb D C A` / `Bb F E D` / `D D Eb D C F` / `G F E D` | The lead of the combat piece. |
-| **Cosmic Mystery** | Loneliness and awe. Wide, slow intervals; a sharpened fourth keeps it weightless. | `D` / `A G#` / `E` / `C# F#` | The mystery piece (bells and choir). |
+| **Cosmic Mystery** | Loneliness and awe. Wide, slow intervals; a sharpened fourth keeps it weightless. | `D` / `A G#` / `E` / `C# F#` | The mystery piece (soft glass tones and a pad choir). |
 
 Rules for the themes:
 
@@ -45,7 +45,7 @@ Rules for the themes:
 | Lead | A soft synth in flight, a plucked string when exploring, a hard lead in combat | Four bars of tune, then four of nothing. Bells are used sparingly (Matthew, 14 Nov 2026: "less bells"). |
 | Colour | Noise swells, a ride and a squelching sixteenth-note line for the worst moments | |
 
-Main theme, exploration, flight, combat and the transition cues are synthesised entirely in this repository's own code. Only the mystery piece still uses the sampled sound bank. The sampled instruments come from one MIT-licensed sound bank (see `docs/audio/licence_manifest.md`).
+Main theme, exploration, flight, combat and the transition cues are synthesised entirely in this repository's own code. All of the music is now synthesised; the sampled sound bank remains only in seven reward sounds. The sampled instruments come from one MIT-licensed sound bank (see `docs/audio/licence_manifest.md`).
 
 ## 5. Tempo and key plan
 
@@ -55,11 +55,11 @@ Main theme, exploration, flight, combat and the transition cues are synthesised 
 | All In | Combat | 120 | D minor | The same record getting harder, not a different one: heavier kick, rolling bass, the Conflict theme on a hard lead. |
 | Burn Window | Flying | 120 | D minor | The record with the engines lit: a turning arpeggio, the Orbital Ante theme in the minor. |
 | Long Way From Anywhere | Main theme (menus) | 120 | D minor | Deep house: a steady, soft four-on-the-floor under slow minor ninths and one distant bell. Existential, not upbeat, as Matthew asked on 14 Nov 2026. Entirely synthesised. Replaced the first menu piece, a swung jazz number that was the wrong mood. |
-| What the Dish Heard | Caves, seas, the unknown | 60 | D Lydian | Slow enough to feel like no tempo at all. |
+| What the Dish Heard | Caves, seas, the unknown | 120, felt at 60 | D Lydian | Slow enough to feel like no tempo at all, but on the same grid as the rest, so it mixes in and out on a bar line. Under tension, the other pieces' kick is heard through a wall. |
 
-One tempo and one key for everything but the mystery piece is what lets the game mix from any piece into any other on a bar line, like a DJ, which is what the build prompt asks for ("blends continuously like a club DJ at a steady tempo").
+One tempo for everything (and one key for everything but the mystery piece, which stays on D with its own strange harmony) is what lets the game mix from any piece into any other on a bar line, like a DJ, which is what the build prompt asks for ("blends continuously like a club DJ at a steady tempo").
 
-**Direction from Matthew (14 Nov 2026):** the main music should be "more existential and not upbeat, but still have a good deep house beat". He heard the rewritten main theme and said "Less bells but otherwise like it". Exploration, flight and combat were then rewritten in the same mood (they had been 86 BPM vibraphone, 124 BPM D major disco and 172 BPM breakbeat with brass). He has not heard those three yet.
+**Direction from Matthew (14 Nov 2026):** the main music should be "more existential and not upbeat, but still have a good deep house beat". He heard the rewritten main theme and said "Less bells but otherwise like it". Exploration, flight and combat were then rewritten in the same mood (they had been 86 BPM vibraphone, 124 BPM D major disco and 172 BPM breakbeat with brass). His verdict on those three: "Much better". The mystery piece was then moved onto the same tempo and made fully synthesised, with its bells replaced by soft tones; he has not heard that one yet.
 
 ## 6. How the music behaves
 

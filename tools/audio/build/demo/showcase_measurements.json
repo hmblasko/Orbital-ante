@@ -1,7 +1,7 @@
 {
  "peak_before_limit_db": -3.47,
  "samples_over": 0,
- "lufs": -23.52,
+ "lufs": -23.54,
  "sections": [
   {
    "section": "EXPLORATION",
@@ -13,9 +13,9 @@
   {
    "section": "DISCOVERY",
    "start": 55,
-   "lufs": -27.9,
+   "lufs": -28.2,
    "peak": -8.8,
-   "music_lufs": -28.9
+   "music_lufs": -29.2
   },
   {
    "section": "RISING TENSION",

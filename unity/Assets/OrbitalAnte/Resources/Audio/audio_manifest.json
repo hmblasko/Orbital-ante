@@ -1909,17 +1909,17 @@
     "id": "mystery_dish",
     "title": "What the Dish Heard",
     "context": "mystery",
-    "bpm": 60.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
-    "bars": 24,
+    "bars": 48,
     "key": "D Lydian",
     "motifs": [
      "cosmic_mystery",
-     "exploration (last bar)"
+     "exploration (last bars)"
     ],
     "entryBars": [
      1,
-     17
+     33
     ],
     "samples": 4608000,
     "seconds": 96.0,
@@ -1928,32 +1928,32 @@
       "id": "drone",
       "lo": 0,
       "hi": 100,
-      "fadeInBars": 2,
-      "fadeOutBars": 2,
+      "fadeInBars": 4,
+      "fadeOutBars": 4,
       "clip": "Audio/Music/mystery_dish/drone"
      },
      {
-      "id": "bells",
+      "id": "tones",
       "lo": 0,
       "hi": 100,
-      "fadeInBars": 1,
-      "fadeOutBars": 2,
-      "clip": "Audio/Music/mystery_dish/bells"
+      "fadeInBars": 2,
+      "fadeOutBars": 4,
+      "clip": "Audio/Music/mystery_dish/tones"
      },
      {
       "id": "choir",
       "lo": 25,
       "hi": 100,
-      "fadeInBars": 2,
-      "fadeOutBars": 2,
+      "fadeInBars": 4,
+      "fadeOutBars": 4,
       "clip": "Audio/Music/mystery_dish/choir"
      },
      {
       "id": "pulse",
       "lo": 45,
       "hi": 100,
-      "fadeInBars": 1,
-      "fadeOutBars": 1,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
       "clip": "Audio/Music/mystery_dish/pulse"
      }
     ]

@@ -20,7 +20,7 @@ The honest headline: an independent critic scored the first version **6.1 out of
 | All In | Combat | 120 | 2:08 | 5 |
 | Burn Window | Flying | 120 | 2:08 | 5 |
 | The House Always Orbits | Main menu | 104 | 1:32 | 4 |
-| What the Dish Heard | Caves and the unknown | 60 | 1:36 | 4 |
+| What the Dish Heard | Caves and the unknown | 120 (felt at 60) | 1:36 | 4 |
 
 (This table is the state on 14 Nov, after the rewrites described under "The other three pieces" below. The menu piece was replaced by Long Way From Anywhere, 120.)
 
@@ -167,13 +167,15 @@ Also fixed while there: in the menus the old piece's melody never played at all,
 
 **Unverified.** Everything about how it sounds. Nobody has heard these three pieces; the critic has not scored them. Exploration measures dark (about 80% of its energy under 250 Hz before the master tilt), so whether enough of it reaches the Deck's speakers needs ears. Listening file: `music_preview_deep_house.ogg` (44 s each of exploration, flight and combat, mixed into each other on bar lines), made by `tools/audio/render_music_preview.py`.
 
+**Matthew's verdict (14 Nov): "Much better".** The deep house direction now stands for all the music. Following that, the mystery piece (What the Dish Heard) was moved onto the same 120 grid (felt at half speed, same length), its bells replaced by soft glass tones, a whistle and a plucked string (stem `bells` is now `tones`), its sampled choir, celesta and harp replaced by synthesised parts, and its tension heartbeat replaced by the other pieces' kick heard through a wall. Measured: loop exact (−215 dB), −20.5 LUFS, 38 rule tests and `qa.py` pass. Not heard by anyone.
+
 ### Slow motion ("Deep Breath", asked for by Matthew on 14 Nov; built in the core thread)
 
 When the game slows time, the world's sounds now go with it: gunshots, impacts, pops, engines and beds drop in pitch (to 0.7 at the deepest slow, less than time itself, so a gunshot is still a gunshot) and lose their top (down to 3.2 kHz). Sounds inside the suit and the interface stay exactly as they are, so the player's own head is the one thing still at full speed. Music keeps its tempo, because it runs on the audio clock, and steps back by about a third instead. Going in there is a sinking breath with one heavy heartbeat; coming out, the same breath let go. The audio reads the game's time scale and never sets it, so it also covers the headshot slow-motion with no extra wiring. One new rule test. Not heard, not run in Unity.
 
 ### The main open problem
 
-**Update, 14 Nov:** the main theme, exploration, flight, combat and all the transition cues no longer use this sound bank at all (they are fully synthesised). It remains only in the mystery piece and seven reward sounds, so the problem below is now much smaller.
+**Update, 14 Nov:** the main theme, exploration, flight, combat and all the transition cues no longer use this sound bank at all (they are fully synthesised). It remains only in seven reward sounds (the mystery piece left it too, later the same day), so the problem below is now much smaller.
 
 The bass, drums, brass, strings, choir and electric piano are played from FluidR3 GM, a free General MIDI sound bank. The critic measured that a soft note and a loud note from it differ only in volume, which is what makes MIDI files sound like MIDI files. The workaround here (three tone settings and two alternating takes per note) hides the worst of it by measurement, but a workaround is what it is. If the music still sounds cheap, this is the first suspect, and the fix is better instrument recordings, which cannot be downloaded from the cloud workspace. Two ways forward, to choose after listening:
 

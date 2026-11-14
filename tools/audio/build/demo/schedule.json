@@ -14,7 +14,7 @@
   {"kind": "StopTrack", "track": "explore_regolith", "stem": "", "cue": "", "time": 56.3, "seconds": 6, "gain": 0, "offset": 0},
   {"kind": "StartTrack", "track": "mystery_dish", "stem": "", "cue": "", "time": 58.3, "seconds": 7, "gain": 1, "offset": 0},
   {"kind": "StemGain", "track": "mystery_dish", "stem": "drone", "cue": "", "time": 58.3, "seconds": 0, "gain": 1, "offset": 0},
-  {"kind": "StemGain", "track": "mystery_dish", "stem": "bells", "cue": "", "time": 58.3, "seconds": 0, "gain": 1, "offset": 0},
+  {"kind": "StemGain", "track": "mystery_dish", "stem": "tones", "cue": "", "time": 58.3, "seconds": 0, "gain": 1, "offset": 0},
   {"kind": "StemGain", "track": "mystery_dish", "stem": "choir", "cue": "", "time": 58.3, "seconds": 0, "gain": 1, "offset": 0},
   {"kind": "StemGain", "track": "mystery_dish", "stem": "pulse", "cue": "", "time": 58.3, "seconds": 0, "gain": 0, "offset": 0},
   {"kind": "StemGain", "track": "mystery_dish", "stem": "pulse", "cue": "", "time": 74.3, "seconds": 4, "gain": 1, "offset": 0},

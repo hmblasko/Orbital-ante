@@ -42,7 +42,7 @@ Each shot is reduced to twelve numbers (length, tail decay, brightness, how pitc
 | Regolith Lullaby | 120 | 64 | 128.0 s | 6 | -17.5 LUFS | -1.4 dB | 59% | 7% | -215.6 dB |
 | Burn Window | 120 | 64 | 128.0 s | 5 | -16.0 LUFS | -1.2 dB | 52% | 11% | -215.3 dB |
 | Long Way From Anywhere | 120 | 64 | 128.0 s | 5 | -16.6 LUFS | -1.5 dB | 57% | 11% | -215.4 dB |
-| What the Dish Heard | 60 | 24 | 96.0 s | 4 | -20.5 LUFS | -6.8 dB | 44% | 8% | -215.7 dB |
+| What the Dish Heard | 120 | 48 | 96.0 s | 4 | -20.5 LUFS | -7.5 dB | 44% | 5% | -215.2 dB |
 
 Loop exactness: each piece is rendered as three joined copies and the third is compared with the second. Below -100 dB means going round the loop is, sample for sample, the same as carrying on. Measured before Ogg encoding.
 
@@ -56,12 +56,12 @@ Loop exactness: each piece is rendered as three joined copies and the third is c
 
 ## The five-minute showcase (offline preview of the game's own decisions)
 
-Whole run -23.52 LUFS. Highest peak of everything added together, with no limiter: **-3.47 dBFS**; samples over full scale: **0**.
+Whole run -23.54 LUFS. Highest peak of everything added together, with no limiter: **-3.47 dBFS**; samples over full scale: **0**.
 
 | Section | Starts | Loudness | Peak | Music alone |
 |---|---|---|---|---|
 | Exploration | 0:00 | -25.8 LUFS | -9.2 dB | -26.5 LUFS |
-| Discovery | 0:55 | -27.9 LUFS | -8.8 dB | -28.9 LUFS |
+| Discovery | 0:55 | -28.2 LUFS | -8.8 dB | -29.2 LUFS |
 | Rising Tension | 1:38 | -24.4 LUFS | -8.4 dB | -24.9 LUFS |
 | Combat | 2:13 | -20.3 LUFS | -4.4 dB | -22.7 LUFS |
 | Chaos | 2:32 | -20.8 LUFS | -3.5 dB | -23.0 LUFS |
