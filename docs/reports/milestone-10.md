@@ -64,3 +64,9 @@
 **deck-performance.** Applied: one groan at a time in a tumbling crash; the autopilot's words are only rebuilt when they change; the blocked-path check and the knock are plain sums with no searching of the scene. Estimates are in "Navigation" in `docs/performance_budget.md`.
 
 **unity-reviewer.** Applied: a daze in the seat or the lift no longer freezes the belt or the lift ride; opening the map no longer stops the autopilot; the knock is measured from the ship's real change of velocity each physics step (the engine's reported impulse is not reliable here) and told once per step; pitched thumps have their own sound source so other sounds keep their pitch; a dead pilot cannot use the dash, the cameras or the map, and the view returns to their own eyes; the death page waits 0.8 s before a button can be pressed; the tests no longer assume the Moon is in view for the seed. Noted, outside this milestone: saved key bindings may not load back because binding ids are made afresh each launch. That belongs to the pause menu and needs its own fix.
+
+## Codex (ChatGPT) work checked
+
+Codex reviewed this pull request on request and raised two points. Both were real and both are fixed.
+- **The autopilot flew for free while the map was open.** Its fuel is now charged whenever it is pushing, whether or not your hands are on the controls.
+- **A blow against two surfaces at once (a floor and a wall) was measured against only the first.** The knock now counts every surface touched in the same physics step, and each surface only once.

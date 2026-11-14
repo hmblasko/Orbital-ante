@@ -637,32 +637,38 @@ namespace OrbitalAnte.Ship
         /// <summary>How fast the hull is sliding over what it touches, metres per second. Drives the scrape.</summary>
         public float SlideSpeed => _slide;
 
-        // The ship's velocity at the end of the last physics step, and whether this step's knock is already told.
-        Vector3 _velocityBefore;
-        bool _knockTold;
+        // The ship's velocity at the end of the last physics step, and the part of this step's change of
+        // velocity that the things it touched account for.
+        Vector3 _velocityBefore, _felt;
 
         void FixedUpdate()
         {
-            // Runs before the physics step, so in the collision messages that follow it this is "just before".
+            // Runs before the physics step, so the collision messages of the step before have all arrived.
+            // The blow is told here, once, after every surface touched in that step has been counted.
+            float knock = _felt.magnitude - 0.5f;
+            if (knock > 0f)
+            {
+                if (knock > HardestKnock) HardestKnock = knock;
+                // The surfaces pushed the ship this way, so the blow came from the other way.
+                if (Crew != null) Crew.Knock(knock, transform.InverseTransformDirection(-_felt.normalized));
+            }
+            _felt = Vector3.zero;
             if (Body != null) _velocityBefore = Body.linearVelocity;
-            _knockTold = false;
         }
 
         /// <summary>
         /// What the person inside feels: how much the ship's own velocity changed across this physics step,
-        /// measured straight into the surface. Told once per step however many things were touched.
+        /// measured straight into each surface it touched. Two touches on the same surface count once; a
+        /// floor and a wall in the same step both count. Told once per step (see FixedUpdate).
         /// A ship resting on spinning ground changes velocity a little every step; that is not a knock.
         /// </summary>
         void FeelKnock(Collision collision)
         {
-            if (_knockTold || Body == null || collision.contactCount == 0) return;
+            if (Body == null || collision.contactCount == 0) return;
             Vector3 normal = collision.GetContact(0).normal;
-            float knock = Mathf.Abs(Vector3.Dot(Body.linearVelocity - _velocityBefore, normal)) - 0.5f;
-            if (knock <= 0f) return;
-            _knockTold = true;
-            if (knock > HardestKnock) HardestKnock = knock;
-            // The surface pushes the ship along its normal, so the blow came from the other way.
-            if (Crew != null) Crew.Knock(knock, transform.InverseTransformDirection(-normal));
+            // Only what the surfaces counted so far have not already explained.
+            Vector3 left = Body.linearVelocity - _velocityBefore - _felt;
+            _felt += normal * Vector3.Dot(left, normal);
         }
 
         void OnCollisionStay(Collision collision)
