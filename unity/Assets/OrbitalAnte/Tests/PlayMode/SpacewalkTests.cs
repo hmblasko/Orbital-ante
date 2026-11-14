@@ -53,7 +53,7 @@ namespace OrbitalAnte.Tests
             if (_root != null) Object.Destroy(_root);
             PlanetSurface.PictureWidthForTests = 0;
             SuitConfig.ResetStatics();
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         static IEnumerator Frames(int count)

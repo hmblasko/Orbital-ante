@@ -30,7 +30,7 @@ namespace OrbitalAnte.Bases
         /// <summary>How many stand guard at each size.</summary>
         public int smallGuards = 4, mediumGuards = 6, largeGuards = 8;
         /// <summary>The base floor stands this far above the highest ground it covers, in metres.</summary>
-        public float clearance = 0.4f;
+        public float clearance = 1f;
         /// <summary>And at least this far above the sea, in metres.</summary>
         public float dryMargin = 2.5f;
 
@@ -168,10 +168,12 @@ namespace OrbitalAnte.Bases
             high = double.MinValue;
             Vec3d a = up.AnyPerpendicular().Normalized;
             Vec3d b = Vec3d.Cross(up, a).Normalized;
-            for (int ring = 0; ring <= 3; ring++)
+            // Close enough together that no bump between two looks can stand higher than the floor's clearance.
+            const int Rings = 5;
+            for (int ring = 0; ring <= Rings; ring++)
             {
-                double distance = footprint * ring / 3.0;
-                int count = ring == 0 ? 1 : 8;
+                double distance = footprint * ring / (double)Rings;
+                int count = ring == 0 ? 1 : 12;
                 for (int k = 0; k < count; k++)
                 {
                     double angle = k * 2.0 * Math.PI / count + ring * 0.4;

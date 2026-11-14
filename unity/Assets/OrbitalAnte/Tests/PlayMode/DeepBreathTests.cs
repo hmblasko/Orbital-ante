@@ -40,7 +40,7 @@ namespace OrbitalAnte.Tests
             FeelSettings.HeadshotSlowMo = _slowMoWas;
             TimeFlow.Reset();
             Time.fixedDeltaTime = _stepWas;
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         [UnityTest]

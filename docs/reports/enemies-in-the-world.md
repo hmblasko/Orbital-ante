@@ -78,10 +78,40 @@ Everything visible: whether enemies stand, walk and aim properly on a slope and 
 Asked for by Matthew: "Max Payne style slow-mo ... only for a limited use". Built as the game's own mechanic. **Not run in Unity.**
 
 - Hold **Q** (keyboard) or **click the right stick** (controller) while on foot. The world slows to about a third of its speed; your own aim does not.
-- A full meter lasts 6 real seconds. It **never refills by waiting**: a limb shot off gives back a tenth, a kill a quarter. It needs 15% to start (the notch on the bar). A run starts full.
+- A full meter lasts 6 real seconds. It **never refills by waiting**: a limb shot off a living enemy gives back 5%, a kill 15%, so one kill always buys a breath (first-guess numbers from the design review; they were 10% and 25%, which made it effectively endless in a fight). It needs 15% to start (the notch on the bar). A run starts full.
 - A thin bar low in the middle of the screen shows only when it is not full or in use; a cool rim round the view shows while the world is slowed.
 - The refill rule is the one recommended on the decision card (refill by fighting). It is three numbers on the `DeepBreathConfig` asset if Matthew picks another.
 - Principle 2 (a meaningful choice of when to spend it), 5 (the whole rule is on screen), 9 (no timer to wait on).
 - All changes to game speed now go through one place (`TimeFlow`), so pausing during slow motion cannot leave time stuck.
 - Tested: 13 rule tests (`DeepBreathRulesTests`) pass; `DeepBreathTests` (PlayMode) compile but have not run.
 - Unverified: the feel of the slowing, whether physics stays smooth at a third speed, the bar's place on the Deck's screen, and sound (the audio thread follows `DeepBreathFx.Amount`).
+
+## Bases (14 Nov 2026)
+
+Asked for by Matthew: "interesting bases spread throughout the planets". **Not run in Unity. What is built here is where bases go, what they stand on and who guards them. The buildings themselves are being modelled by the bases thread, so until those arrive a base is a grey foundation mound with guards on it, which is not yet "interesting".**
+
+- `BaseField` (plain C#): seeded places for small, medium and large bases on every world of 60 m radius or more, one per 90,000 square metres (Earth and Venus 24 wanted, Mars 17, the Moon 3), at least 180 m apart and 260 m from the launch pad, on the most level dry ground of 24 places looked at. A world with three or more always has one large base.
+- The ground is never reshaped. Each base stands on a foundation that reaches down to the lowest ground under it, as the launch pad does.
+- Guards: 4, 6 or 8 by size, spread over the floor. Size changes the mix, not the health: a small base has only Troopers and Runners, a medium always has a Bruiser, a large has two Bruisers and exactly one Marksman.
+- Nothing natural spawns on a base. At most six bases stand at once.
+- Principle 4 (discovery that matters) and 5 (the Bruiser's outline and the Marksman's aim line let you judge a base before committing).
+
+### Agent review of bases and Deep Breath
+
+**game-designer:** Deep Breath paid back more than it cost (lowered, above) and paid for splitting corpses (fixed: living bodies only). A large base's guards often could not wake because nearer camps filled the cap (guards now wake first and room is kept for them). A small base was a weaker fight than the camp it replaced (3/5/8 became 4/6/8). Size now changes the mix. Moons were thin (120,000 became 90,000 square metres per base). No Phase 2 features found in the code; loot, clearing bonuses and vehicles still wait.
+
+**deck-performance:** choosing a world's bases is one hitch per world (early give-up added; to be measured). Showing bases within 700 m meant nearly all of a small world's bases at once (now 350 m and a cap of six). Foundations were remade on every return (now kept).
+
+**unity-reviewer:** a ship parked on a base would drop when the player walked far away (a base is now kept while anything that needs ground stands on it). Ground could poke through the floor between samples (61 samples and 1 m of clearance, was 25 and 0.4 m). The cleared patch was smaller than the mound (now reaches the foot of the skirt). Bases could be sited before the launch pad existed (the pad's place is now worked out directly). Tests that reset the clock now go through `TimeFlow`. It found no way for time to stick slowed or paused.
+
+**Not done, and why:**
+- Rocks already standing near the pad when a run starts can remain on a base site within about 420 m of the pad. Needs the features pool to retire items; small, next pass.
+- Earth places 14 to 16 of its 24 bases (sea and rough ground refuse the rest) and Neptune almost none (it is an ocean world). Underwater bases on Neptune are a design question for later.
+- Deep Breath on a controller is a hold on the right stick's click while aiming with the same stick. Likely awkward on the Deck; every other on-foot button is taken. **Matthew's call after trying it**: it can be rebound in the pause menu, or changed to press-on / press-off.
+- Sounds begun during a breath keep their lowered pitch after it ends (audio thread's code).
+
+### What to try
+
+1. On Earth or Mars, fly low and look for a grey mound with enemies standing on it. Land on it.
+2. Walk far from the ship while it is parked on a base, come back: the ship should still be on the floor.
+3. In a fight, hold Q (or click the right stick). Note whether aiming while holding the stick click is comfortable.

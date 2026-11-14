@@ -110,6 +110,7 @@ namespace OrbitalAnte.Enemies
                 // Nobody camps on the launch pad: the first minute of a run is the player's.
                 Vec3d pad = Vec3d.Zero;
                 if (_world.Base != null && _world.Base.Surface == surface) pad = _world.Base.Spot.Up;
+                else if (surface.Body.Spec.id == "Earth") pad = OrbitalAnte.Launch.LaunchSite.Find(terrain).Up;
                 var random = GameSession.Stream("enemies." + surface.Body.Spec.id);
                 double radius = surface.SurfaceRadius;
                 w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad) };

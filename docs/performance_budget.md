@@ -279,6 +279,27 @@ What to read off in Unity (floating outside, tethered): in **Window > Analysis >
 | Dropped enemy guns | up to 7,800 triangles and a moving body each | 12 loose; cleared with their owner |
 | Aim line (Marksman) | one line renderer while aiming | 1 per Marksman, 1 Marksman per camp |
 
+## Bases (14 Nov 2026): estimates from reading the code, not measured in Unity
+
+Timed by the deck-performance agent on a desktop processor outside Unity, before the early give-up and the finer sampling went in. Deck figures are that time multiplied by 3 to 6, so they are guesses.
+
+| System | Cost | Cap |
+|---|---|---|
+| Choosing where a world's bases go | once per world per run on the main thread, in the same frame as placing its camps. Measured on a desktop before the changes: Jupiter 14 ms, Venus 10 ms, Mars 7 ms, Earth 5 to 9 ms, Moon 0.5 ms. A place is now refused as soon as it is too rough (about half the time in a trial), but each place is looked at in 61 spots, not 25. **The likeliest hitch on approach: read it off in the Profiler.** | 24 bases a world (`mostBases`), 24 places looked at per base |
+| Bases standing at once | those within 350 m, kept until 450 m (or while something is parked on them) | 6 (`PlanetBases.ShownCap`) |
+| One foundation | 168 triangles, 1 draw call, 1 solid mesh shape; made once per base and kept | 6 at once |
+| Base models (not built yet) | proposed caps: small 6,000, medium 12,000, large 20,000 triangles | to be enforced by a rule test |
+| Keeping rocks off base floors | 0.4 microseconds a check on a desktop, a handful of checks a frame | 24 patches a world |
+
+## Deep Breath (14 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Physics while slowed | the physics step shrinks with the slowing, so physics runs as often per real second as at normal speed: no extra cost, and none of the saving slow motion would otherwise give | step never below a tenth of normal (`LeastStepShare`); slowest world speed 0.35 (`slowTo`) |
+| Catch-up after a hitch while slowed | unknown: may run more steps in one frame than at normal speed. To be read off in the Profiler. | - |
+| Rim round the view | one full-screen see-through layer while slowed; guessed 0.1 to 0.3 ms on the Deck's graphics card | 6 s a full meter |
+| Meter | its own canvas, 5 elements; rewritten at most 33 times a second while draining | 200 steps |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

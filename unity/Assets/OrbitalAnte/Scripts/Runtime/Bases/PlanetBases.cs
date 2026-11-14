@@ -90,8 +90,10 @@ namespace OrbitalAnte.Bases
             if (surface == null) { _worlds[body] = null; return null; }
             if (!surface.Ready || surface.Terrain == null) return null;   // not built yet: ask again later
 
+            // Where the launch pad is (or will be: it may not be built yet), so the same seed always gives the same bases.
             Vec3d pad = Vec3d.Zero;
             if (_world.Base != null && _world.Base.Surface == surface) pad = _world.Base.Spot.Up;
+            else if (surface.Body.Spec.id == "Earth") pad = LaunchSite.Find(surface.Terrain).Up;
             var random = GameSession.Stream("bases." + surface.Body.Spec.id);
             w = new World { Sites = BaseField.Build(Rules, surface.Terrain, random, Kinds, pad) };
             w.Built = new GameObject[w.Sites.Count];
@@ -99,7 +101,9 @@ namespace OrbitalAnte.Bases
             // Nothing natural grows through a base's floor.
             if (surface.Features != null)
             {
-                for (int i = 0; i < w.Sites.Count; i++) surface.Features.AlsoKeepClear(w.Sites[i].Centre, w.Sites[i].Footprint + 2.0);
+                // Out to the foot of the foundation's skirt, not only the floor.
+                for (int i = 0; i < w.Sites.Count; i++)
+                    surface.Features.AlsoKeepClear(w.Sites[i].Centre, w.Sites[i].Footprint + (w.Sites[i].Depth + 1.5) * 1.15 + 1.0);
             }
             _worlds[body] = w;
             return w;
@@ -121,7 +125,12 @@ namespace OrbitalAnte.Bases
             {
                 World w = pair.Value;
                 if (w == null || w == here) continue;
-                for (int i = 0; i < w.Built.Length; i++) PutAway(w, i);
+                PlanetSurface other = _world.Planets != null ? _world.Planets.SurfaceOf(pair.Key) : null;
+                for (int i = 0; i < w.Built.Length; i++)
+                {
+                    if (w.Built[i] != null && other != null && SomethingStandsOn(w.Sites[i], other, pair.Key)) continue;
+                    PutAway(w, i);
+                }
             }
             if (here == null) return;
 
@@ -132,7 +141,8 @@ namespace OrbitalAnte.Bases
                 float distance = (SpaceConvert.ToVector3(here.Sites[i].Centre) - local).magnitude;
                 if (here.Built[i] != null)
                 {
-                    if (distance > HideBeyond) PutAway(here, i);
+                    // Never from under something parked on it (the ship, while the player is off on foot).
+                    if (distance > HideBeyond && !SomethingStandsOn(here.Sites[i], surface, body)) PutAway(here, i);
                 }
                 else if (distance < ShowWithin && !builtOne && ShownCount < ShownCap)
                 {
@@ -142,6 +152,20 @@ namespace OrbitalAnte.Bases
                     builtOne = true;
                 }
             }
+        }
+
+        bool SomethingStandsOn(BaseSite site, PlanetSurface surface, int body)
+        {
+            IReadOnlyList<GravityBody> movers = _world.System.Movers;
+            Vector3 centre = SpaceConvert.ToVector3(site.Centre);
+            float reach = (float)(site.Footprint + (site.Depth + 1.5) * 1.15 + 10.0);
+            for (int i = 0; i < movers.Count; i++)
+            {
+                GravityBody m = movers[i];
+                if (m == null || !m.NeedsGround || m.Neighbourhood != body) continue;
+                if ((surface.Body.transform.InverseTransformPoint(m.transform.position) - centre).sqrMagnitude < reach * reach) return true;
+            }
+            return false;
         }
 
         void PutAway(World w, int i)
