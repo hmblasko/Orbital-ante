@@ -72,6 +72,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
@@ -321,6 +322,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);

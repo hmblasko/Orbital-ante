@@ -576,8 +576,10 @@ namespace OrbitalAnte.Ship
                 float magnitude = Mathf.Clamp01(look.magnitude);
                 float curved = Mathf.Pow(magnitude, Mathf.Max(1f, _look.stickCurve));
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
-                yawDelta = shaped.x * _look.stickYawSpeed * dt;
-                pitchDelta = -shaped.y * _look.stickPitchSpeed * dt;
+                // Your own head does not slow when the world does (hitstop, Deep Breath).
+                float own = TimeFlow.PlayerDelta(dt);
+                yawDelta = shaped.x * _look.stickYawSpeed * own;
+                pitchDelta = -shaped.y * _look.stickPitchSpeed * own;
             }
         }
 

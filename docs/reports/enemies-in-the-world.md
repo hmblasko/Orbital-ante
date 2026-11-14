@@ -72,3 +72,16 @@ Everything visible: whether enemies stand, walk and aim properly on a slope and 
 2. Shoot a limb off: there should be blood and a pop.
 3. Find a tall thin enemy standing still: a red line should show for a second before each shot.
 4. Leave a half-cleared camp, fly off and come back: only the ones you left should be there.
+
+## Deep Breath: limited-use slow motion (14 Nov 2026)
+
+Asked for by Matthew: "Max Payne style slow-mo ... only for a limited use". Built as the game's own mechanic. **Not run in Unity.**
+
+- Hold **Q** (keyboard) or **click the right stick** (controller) while on foot. The world slows to about a third of its speed; your own aim does not.
+- A full meter lasts 6 real seconds. It **never refills by waiting**: a limb shot off gives back a tenth, a kill a quarter. It needs 15% to start (the notch on the bar). A run starts full.
+- A thin bar low in the middle of the screen shows only when it is not full or in use; a cool rim round the view shows while the world is slowed.
+- The refill rule is the one recommended on the decision card (refill by fighting). It is three numbers on the `DeepBreathConfig` asset if Matthew picks another.
+- Principle 2 (a meaningful choice of when to spend it), 5 (the whole rule is on screen), 9 (no timer to wait on).
+- All changes to game speed now go through one place (`TimeFlow`), so pausing during slow motion cannot leave time stuck.
+- Tested: 13 rule tests (`DeepBreathRulesTests`) pass; `DeepBreathTests` (PlayMode) compile but have not run.
+- Unverified: the feel of the slowing, whether physics stays smooth at a third speed, the bar's place on the Deck's screen, and sound (the audio thread follows `DeepBreathFx.Amount`).
