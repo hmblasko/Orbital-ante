@@ -103,7 +103,7 @@ namespace OrbitalAnte.Enemies
             {
                 if (!string.IsNullOrEmpty(spec.model)) OrbitalAnte.Look.ModelLibrary.Find(spec.model);
                 WeaponData gun = string.IsNullOrEmpty(spec.weapon) ? WeaponData.Rifle : ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
-                if (gun != null && !string.IsNullOrEmpty(gun.modelFile)) OrbitalAnte.Look.ModelLibrary.Find(gun.modelFile);
+                if (gun != null) OrbitalAnte.Look.ModelLibrary.Find(WeaponModelFactory.ModelIdFor(gun));
             }
             return spawner;
         }
