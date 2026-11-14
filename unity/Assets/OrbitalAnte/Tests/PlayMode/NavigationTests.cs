@@ -139,6 +139,30 @@ namespace OrbitalAnte.Tests
             Assert.AreNotEqual(PilotPhase.Off, craft.Order.Phase);
             Assert.Greater(before, 0f);
 
+            // Locking a different body in mid-flight sends the autopilot there instead (or it says what is in the way).
+            int other = -1;
+            foreach (string id in new[] { "Mars", "Venus", "Jupiter", "Saturn", "Moon" })
+            {
+                int body = Body(id);
+                if (body == moon) continue;
+                Vector3 toOther = craft.System.Bodies[body].transform.position - craft.Body.position;
+                craft.Body.rotation = Quaternion.LookRotation(toOther.normalized, craft.Body.rotation * Vector3.up);
+                yield return Frames(2);
+                if (craft.UnderNose == body || craft.NearNose == body) { other = body; break; }
+            }
+            if (other >= 0)
+            {
+                craft.PressLock();
+                Assert.AreEqual(other, craft.LockedTarget, "Lock should take the new body while the autopilot is on");
+                if (!craft.PilotOn)
+                {
+                    Assert.AreEqual(PilotStop.Blocked, craft.LastStop, craft.LastStopWords);
+                    yield break;
+                }
+                yield return Steps(5);
+                Assert.IsTrue(craft.PilotOn, "it gave up after being sent somewhere new: " + craft.LastStopWords);
+            }
+
             // Reading the map takes the pilot's hands off, but the autopilot flies on.
             craft.ControlsLocked = true;
             yield return Frames(3);

@@ -294,6 +294,7 @@ namespace OrbitalAnte.Launch
             // physics step of full push slips out at the start of a build-up.
             flight.LiftScale = Ship.Model.ThrustFactor * Mathf.Clamp01(Model.LiftGate);
             flight.Landed = Settled;
+            flight.Grounded = OnGround;
 
             if (Model.JustIgnited)
             {

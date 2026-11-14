@@ -70,3 +70,9 @@
 Codex reviewed this pull request on request and raised two points. Both were real and both are fixed.
 - **The autopilot flew for free while the map was open.** Its fuel is now charged whenever it is pushing, whether or not your hands are on the controls.
 - **A blow against two surfaces at once (a floor and a wall) was measured against only the first.** The knock now counts every surface touched in the same physics step, and each surface only once.
+
+## After the first run on the Deck (14 Nov 2026)
+
+Matthew's first run found two things.
+- **The ship moved about by itself on the pad.** Most likely cause, from reading the code (not yet confirmed in Unity): the steering turned the ship directly even while it stood on the ground, so any movement of the stick, mouse or trackpad twisted its feet against the pad and the physics pushed it about. Now, standing on the ground with no push held, nothing turns the ship. Any push and it steers again. If it still moves, the F3 readout line starting "Anchored to" will say what the physics thinks is happening.
+- **Lock-on.** A rough aim is now enough: Lock takes the body nearest the nose within 25 degrees, and the flight readout names it ("Nearest the nose: Moon (T locks it)"). Pressing Autopilot with nothing locked locks that body and goes. Locking a different body while the autopilot is flying sends it there instead of switching it off.

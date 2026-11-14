@@ -57,6 +57,11 @@ namespace OrbitalAnte.Space
         public float PilotPushShare { get; private set; }
         /// <summary>Set by the ship: standing still on the ground. The autopilot will not start from there.</summary>
         public bool Landed { get; set; }
+        /// <summary>Set by the ship: touching the ground at all, moving or not.</summary>
+        public bool Grounded { get; set; }
+        /// <summary>The body nearest the nose within a wide cone, or -1. What Lock takes when nothing is dead ahead, so a rough aim is enough.</summary>
+        public int NearNose { get; private set; } = -1;
+        const float LockCone = 25f;
         float _nextPathCheck, _shownSeconds = -1f, _phaseHeld;
         PilotPhase _shownPhase;
         Vec3d[] _pathPositions;
@@ -80,8 +85,17 @@ namespace OrbitalAnte.Space
         public void PressLock()
         {
             int before = LockedTarget;
-            LockedTarget = TargetLock.Press(LockedTarget, UnderNose);
-            if (PilotOn && LockedTarget != before) StopPilot(PilotStop.PilotTookOver);
+            LockedTarget = TargetLock.Press(LockedTarget, UnderNose >= 0 ? UnderNose : NearNose);
+            if (!PilotOn || LockedTarget == before) return;
+            // Locking a different body while the autopilot is flying sends it there instead. Letting go of
+            // the lock altogether hands the ship back.
+            if (LockedTarget < 0) { StopPilot(PilotStop.PilotTookOver); return; }
+            int blocker = FindBlocker();
+            if (blocker >= 0) { StopPilot(PilotStop.Blocked, blocker); return; }
+            _shownSeconds = -1f;
+            _shownPhase = PilotPhase.Burning;
+            _phaseHeld = 1f;
+            _nextPathCheck = 0.5f;
         }
 
         /// <summary>Starts the autopilot toward the locked body, or says plainly why it will not.</summary>
@@ -268,7 +282,12 @@ namespace OrbitalAnte.Space
                 if (GameInput.Autopilot != null && GameInput.Autopilot.WasPressedThisFrame())
                 {
                     if (PilotOn) StopPilot(PilotStop.PilotTookOver);
-                    else StartPilot();
+                    else
+                    {
+                        // One press is enough: with nothing locked yet, it locks what the nose is on and goes.
+                        if (LockedTarget < 0 && (UnderNose >= 0 || NearNose >= 0)) LockedTarget = UnderNose >= 0 ? UnderNose : NearNose;
+                        StartPilot();
+                    }
                 }
                 else if (PilotOn && (ThrustInput.sqrMagnitude > 0.04f || MatchingVelocity))
                 {
@@ -325,6 +344,8 @@ namespace OrbitalAnte.Space
         {
             Target = -1;
             UnderNose = -1;
+            NearNose = -1;
+            float near = LockCone;
             if (System == null || System.Model == null || Eye == null) return;
             Vector3 eye = Eye.transform.position;
             // The ship's nose, not the pilot's eyes: a glance down at the camera screen, a launch shake or a knock
@@ -346,6 +367,11 @@ namespace OrbitalAnte.Space
                 {
                     best = score;
                     UnderNose = i;
+                }
+                if (score < near)
+                {
+                    near = score;
+                    NearNose = i;
                 }
             }
             if (LockedTarget >= System.Bodies.Length) LockedTarget = -1;
@@ -378,8 +404,11 @@ namespace OrbitalAnte.Space
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
             _lookPending = Vector2.zero;
+            // Standing on the ground with the engines idle, nothing turns the ship: a nudge of the stick or the
+            // mouse must not twist its feet against the pad. Any push (the thrusters firing) and it steers again.
+            bool planted = Grounded && ThrustInput.sqrMagnitude < 0.0025f && !MatchingVelocity;
             if (PilotOn && !Unmanned) FlyByPilot(dt);
-            else if (!Locked)
+            else if (!Locked && !planted)
             {
                 // Only a pilot steadies the ship. Left alone it tumbles, tips and comes to rest like any other object.
                 Body.MoveRotation(Body.rotation * turn);
