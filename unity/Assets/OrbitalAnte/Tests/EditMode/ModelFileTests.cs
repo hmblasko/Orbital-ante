@@ -279,19 +279,16 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void CabinFittingsFile_IsTheDashHousing_WithTheCabinsLightBakedIn()
+        public void CabinFittingsFile_IsTheConsole_WithTheCabinsLightBakedIn()
         {
-            // tools/bake copies the housing out of the Lander model and stores it lit by the cabin's lamps.
-            ModelFile lander = LoadReal("Lander"), cabin = LoadReal(ShipAssembly.BakedFittingsModel);
-            ModelPart plain = lander.Part(ShipAssembly.DashHousingPiece), lit = cabin.Part(ShipAssembly.DashHousingPiece);
-            Assert.IsNotNull(lit, "run tools/bake again: the baked housing is missing");
-            CollectionAssert.AreEqual(plain.Positions, lit.Positions, "run tools/bake again: the housing's shape has changed since its light was baked");
+            // tools/bake copies the console's body out of the Console model and stores it lit by the cabin's lamps.
+            ModelFile console = LoadReal(ShipAssembly.FittingsSource), cabin = LoadReal(ShipAssembly.BakedFittingsModel);
+            ModelPart plain = console.Part(ShipAssembly.FittingsPiece), lit = cabin.Part(ShipAssembly.FittingsPiece);
+            Assert.IsNotNull(plain, "the Console model has no body");
+            Assert.IsNotNull(lit, "run tools/bake again: the baked console is missing");
+            CollectionAssert.AreEqual(plain.Positions, lit.Positions, "run tools/bake again: the console's shape has changed since its light was baked");
             CollectionAssert.AreEqual(plain.Triangles, lit.Triangles);
-            Assert.IsTrue(cabin.TrySocket(ShipAssembly.DashSocket, out ModelSocket socket));
-            Assert.IsTrue(lander.TrySocket(ShipAssembly.DashSocket, out ModelSocket source));
-            Assert.AreEqual(source.Y, socket.Y, 1e-5f);
-            Assert.AreEqual(source.Z, socket.Z, 1e-5f);
-            // Lit, not just copied: the light differs from the paint, and the housing is not left in the dark.
+            // Lit, not just copied: the light differs from the paint, and the console is not left in the dark.
             float brightness = 0f, change = 0f;
             for (int i = 0; i < lit.Colors.Length; i += 3)
             {
@@ -300,7 +297,7 @@ namespace OrbitalAnte.Tests
                 change += System.Math.Abs(lit.Colors[i] - plain.Colors[i]);
             }
             Assert.Greater(change / lit.VertexCount, 0.02f);
-            Assert.Greater(brightness / lit.VertexCount, 0.15f, "the housing got next to no light");
+            Assert.Greater(brightness / lit.VertexCount, 0.15f, "the console got next to no light");
         }
 
         [Test]
@@ -315,42 +312,100 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void ShipModelFile_DashHousing_FramesThePanelAndLeavesTheScreenOpen()
+        public void ConsoleModelFile_FramesTheScreen_StaysLow_AndLeavesTheScreenOpen()
         {
             // The cockpit's desk panel (CockpitConfig's defaults): 1.1 m by 0.33 m, leaned back 24 degrees.
             const float cx = 0f, cy = 0.9f, cz = 1.94f, halfWidth = 0.55f, halfHeight = 0.165f;
             double lean = 24.0 * System.Math.PI / 180.0;
             float c = (float)System.Math.Cos(lean), s = (float)System.Math.Sin(lean);
-            ModelFile model = LoadReal("Lander");
-            ModelPart housing = model.Part("dashhousing");
-            Assert.IsNotNull(housing, "missing piece dashhousing");
-            Assert.LessOrEqual(housing.TriangleCount, 1800, "the housing is a small thing: keep it near 1,500 triangles");
-            Assert.IsTrue(model.TrySocket("Dash", out ModelSocket dash), "missing socket Dash");
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            Assert.LessOrEqual(model.TriangleCount, 9000, "docs/performance_budget.md caps the console at 9,000 triangles");
+            Assert.IsNotNull(model.Part(OrbitalAnte.Cockpit.ConsoleGauges.Body), "missing the console's body");
+            Assert.IsTrue(model.TrySocket(OrbitalAnte.Cockpit.ConsoleGauges.DashSocket, out ModelSocket dash), "missing socket Dash");
             Assert.AreEqual(cx, dash.X, 0.001f);
             Assert.AreEqual(cy, dash.Y, 0.001f);
             Assert.AreEqual(cz, dash.Z, 0.001f);
 
-            float left = 0f, right = 0f, top = 0f, bottom = 0f, lowest = float.MaxValue;
-            for (int v = 0; v < housing.VertexCount; v++)
+            float left = 0f, right = 0f, top = 0f, bottom = 0f, lowest = float.MaxValue, widest = 0f;
+            foreach (ModelPart part in model.Parts)
             {
-                float x = housing.Positions[v * 3] - cx, y = housing.Positions[v * 3 + 1] - cy, z = housing.Positions[v * 3 + 2] - cz;
-                float up = y * c + z * s;              // up the panel
-                float towardPilot = y * s - z * c;     // out of the panel's face
-                left = System.Math.Min(left, x); right = System.Math.Max(right, x);
-                top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up);
-                lowest = System.Math.Min(lowest, housing.Positions[v * 3 + 1]);
-                bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
-                Assert.LessOrEqual(housing.Positions[v * 3 + 1], 1.08f, "the housing stays low, so the pilot (eye at 1.18) sees the front window over it");
-                Assert.LessOrEqual(System.Math.Abs(housing.Positions[v * 3]), 0.705f, "the housing keeps to the middle of the desk");
-                if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the housing may stand in front of the screen");
-                Assert.IsTrue(ShipLayout.InsideCabin(new P3(housing.Positions[v * 3], System.Math.Max(0.01f, housing.Positions[v * 3 + 1]), housing.Positions[v * 3 + 2])),
-                    "the housing stays inside the cabin");
+                for (int v = 0; v < part.VertexCount; v++)
+                {
+                    float px = part.Positions[v * 3], py = part.Positions[v * 3 + 1], pz = part.Positions[v * 3 + 2];
+                    float x = px - cx, y = py - cy, z = pz - cz;
+                    float up = y * c + z * s;              // up the panel
+                    float towardPilot = y * s - z * c;     // out of the panel's face
+                    left = System.Math.Min(left, x); right = System.Math.Max(right, x);
+                    if (System.Math.Abs(x) < halfWidth) { top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up); }
+                    lowest = System.Math.Min(lowest, py);
+                    widest = System.Math.Max(widest, System.Math.Abs(px));
+                    bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
+                    // The pilot (eye at 1.18) must see the front window over the console: the hood round the screen
+                    // may stand to 1.08, and the wings either side stay under 0.84.
+                    Assert.LessOrEqual(py, 1.08f, part.Name + " stands too high");
+                    if (System.Math.Abs(px) > 0.705f) Assert.LessOrEqual(py, 0.84f, part.Name + ": the wings stay low");
+                    if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the console may stand in front of the screen");
+                    Assert.IsTrue(ShipLayout.InsideCabin(new P3(px, System.Math.Max(0.01f, py), pz)), part.Name + " pokes through the cabin wall");
+                    // And none of it reaches back over the edge of the desk toward the pilot's knees.
+                    Assert.GreaterOrEqual(pz, 1.74f, part.Name + " hangs over the front of the desk");
+                }
             }
             Assert.Less(left, -halfWidth - 0.03f, "the bezel frames the left edge");
             Assert.Greater(right, halfWidth + 0.03f, "the bezel frames the right edge");
             Assert.Greater(top, halfHeight + 0.01f, "the brow frames the top edge");
             Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
             Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
+            Assert.Greater(widest, 1.2f, "the console has a wing either side of the screen");
+        }
+
+        [Test]
+        public void ConsoleModelFile_HasItsInstruments_WhereTheGameCanMoveThem()
+        {
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            for (int i = 0; i < OrbitalAnte.Cockpit.ConsoleGauges.LampCount; i++)
+            {
+                string name = OrbitalAnte.Cockpit.ConsoleGauges.PieceOf((OrbitalAnte.Cockpit.ConsoleLamp)i);
+                Assert.IsNotNull(model.Part(name), "missing lamp piece " + name);
+            }
+            ModelPart fuel = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.FuelPiece), needle = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.NeedlePiece);
+            Assert.IsNotNull(fuel);
+            Assert.IsNotNull(needle);
+
+            // Fuel: the liquid lies between its two sockets, so squeezing it toward FuelBase empties the tube.
+            P3 fuelBase = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.FuelBase), fuelTop = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.FuelTop);
+            P3 along = fuelTop - fuelBase;
+            float length = along.Length;
+            Assert.Greater(length, 0.2f, "the fuel tube is long enough to read");
+            Assert.Less(fuelBase.X, 0f, "fuel is on the pilot's left");
+            for (int v = 0; v < fuel.VertexCount; v++)
+            {
+                P3 p = new P3(fuel.Positions[v * 3], fuel.Positions[v * 3 + 1], fuel.Positions[v * 3 + 2]) - fuelBase;
+                float t = P3.Dot(p, along) / (length * length);
+                Assert.That(t, Is.InRange(-0.02f, 1.02f), "the liquid reaches past its sockets");
+            }
+
+            // Air: the needle points at empty, and empty, half and full are 120 degrees apart round the pivot.
+            P3 pivot = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirDial), outward = (Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirDialOut) - pivot).Unit();
+            P3 empty = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirEmpty) - pivot, half = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirHalf) - pivot, full = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirFull) - pivot;
+            Assert.AreEqual(-0.5f, P3.Dot(empty.Unit(), half.Unit()), 0.01f);
+            Assert.AreEqual(-0.5f, P3.Dot(half.Unit(), full.Unit()), 0.01f);
+            Assert.AreEqual(0f, P3.Dot(empty.Unit(), outward), 0.01f, "the needle turns in the plane of the dial");
+            Assert.Greater(outward.Y, 0.5f, "the dial faces up toward the pilot");
+            Assert.Less(outward.Z, 0f, "the dial faces back toward the pilot");
+            P3 tip = P3.Zero;
+            float far = 0f;
+            for (int v = 0; v < needle.VertexCount; v++)
+            {
+                P3 p = new P3(needle.Positions[v * 3], needle.Positions[v * 3 + 1], needle.Positions[v * 3 + 2]) - pivot;
+                if (p.Length > far) { far = p.Length; tip = p; }
+            }
+            Assert.Greater(P3.Dot(tip.Unit(), empty.Unit()), 0.99f, "the needle is modelled pointing at empty");
+        }
+
+        static P3 Socket(ModelFile model, string name)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing socket " + name);
+            return new P3(s.X, s.Y, s.Z);
         }
 
         [Test]
@@ -364,8 +419,7 @@ namespace OrbitalAnte.Tests
             foreach (ModelPart part in model.Parts)
             {
                 // The cockpit's cameras (and their record lamps) are extra hardware with no stand-in shape and no collider.
-                // Nor has the dash's housing, which stands on the desk inside the cabin.
-                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam") || part.Name == "dashhousing") continue;
+                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam")) continue;
                 Assert.IsTrue(standIns.ContainsKey(part.Name), "no stand-in for " + part.Name);
                 ShipMesh old = standIns[part.Name];
                 float[] lo = { float.MaxValue, float.MaxValue, float.MaxValue }, hi = { float.MinValue, float.MinValue, float.MinValue };

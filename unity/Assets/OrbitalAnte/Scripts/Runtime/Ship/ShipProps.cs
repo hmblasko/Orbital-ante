@@ -749,33 +749,14 @@ namespace OrbitalAnte.Ship
                 FlatFan(b, loop, new P3(side, 0f, 0f));
             }
 
-            // Screens: a dark bezel with a glowing face.
-            // The middle of the desk is left clear for the real dash (CockpitDash), which stands on it.
-            DeskScreen(b, -1.3f, 0.5f, 0.1f, 0.07f, ScreenAmber, 1.0);
-            DeskScreen(b, 1.3f, 0.5f, 0.1f, 0.07f, ScreenGreen, 1.0);
-
-            // Chunky toggle rows either side.
-            string[] caps = { Silver, Silver, Red, Silver, Yellow };
-            for (int side = -1; side <= 1; side += 2)
-            {
-                P3 plateAt = DeskTopPoint(0.98f * side, 0.3f);
-                DeskFrame(0.98f * side, out P3 up, out P3 normal);
-                b.Color(DarkMetal);
-                Pad(b, plateAt + normal * 0.001f, new P3(1f, 0f, 0f), up, normal, 0.2f, 0.04f, 0.006f, 0.01f, 2, 1);
-                for (int k = 0; k < caps.Length; k++)
-                {
-                    P3 at = plateAt + new P3((k - 2) * 0.075f, 0f, 0f) + normal * 0.006f;
-                    b.Color(caps[k]);
-                    Rod(b, at, at + (normal + up * (k % 2 == 0 ? 0.35f : -0.35f)).Unit() * 0.04f, 0.013f, 0.018f, 6, false, true);
-                }
-            }
-
+            // The console (the Console model, drawn by ConsoleInstruments) stands on the desk top and carries every
+            // instrument, so the desk itself is left plain apart from the two sticks at its front edge.
             // A hand controller either side of the seat line.
             for (int side = -1; side <= 1; side += 2)
             {
-                P3 foot = DeskTopPoint(0.85f * side, 0.04f);
+                P3 foot = DeskTopPoint(0.85f * side, 0f) + new P3(0f, 0f, -0.012f);
                 b.Color(DarkMetal);
-                Blob(b, foot + new P3(0f, 0.008f, 0f), new P3(0.04f, 0.014f, 0.04f), 8, 4);
+                Blob(b, foot + new P3(0f, 0.008f, 0f), new P3(0.03f, 0.014f, 0.03f), 8, 4);
                 Rod(b, foot, foot + new P3(0f, 0.06f, 0f), 0.014f, 0.014f, 6, false, false);
                 b.Color(side < 0 ? Red : Black);
                 Blob(b, foot + new P3(0f, 0.07f, 0f), new P3(0.026f, 0.03f, 0.026f), 8, 4);

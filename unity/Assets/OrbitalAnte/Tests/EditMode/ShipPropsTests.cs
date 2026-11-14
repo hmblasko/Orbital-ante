@@ -613,7 +613,6 @@ namespace OrbitalAnte.Tests
         {
             ShipMesh m = Meshes["desk"];
             float lowTop = 0f;
-            int green = 0, amber = 0;
             for (int i = 0; i < m.VertexCount; i++)
             {
                 P3 p = m.Position(i);
@@ -621,16 +620,10 @@ namespace OrbitalAnte.Tests
                 // Nothing on the desk may stand up into the front window, whose sill is at 0.85.
                 Assert.LessOrEqual(p.Y, 0.84f, "the desk stands up into the front window at " + p);
                 lowTop = Math.Max(lowTop, p.Y);
-                if (m.Glow[i] > 0f)
-                {
-                    Assert.That(m.Glow[i], Is.InRange(1f, 1.5f));
-                    if (P3.Distance(m.Color(i), MeshBuilder.Web("#5CFF8A")) < 1e-3f) green++;
-                    if (P3.Distance(m.Color(i), MeshBuilder.Web("#FFB347")) < 1e-3f) amber++;
-                }
+                // The desk carries no screens of its own any more: every instrument is on the console that stands on it.
+                Assert.AreEqual(0f, m.Glow[i], "the desk should not glow");
             }
             Assert.Greater(lowTop, 0.7f);
-            Assert.Greater(green, 0);
-            Assert.Greater(amber, 0);
             TestContext.Out.WriteLine("desk top reaches " + lowTop.ToString("0.000") + " m");
         }
 

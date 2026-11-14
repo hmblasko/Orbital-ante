@@ -74,7 +74,10 @@ namespace OrbitalAnte.Cockpit
         Text _overlayText;
         readonly List<Text> _words = new List<Text>();
         readonly List<GameObject> _fittings = new List<GameObject>();
-        Material _housingMaterial;
+        /// <summary>The modelled console and its instruments, or null without the Console model.</summary>
+        public ConsoleInstruments Console { get; private set; }
+        /// <summary>What the console's instruments show.</summary>
+        public readonly ConsoleGauges Gauges = new ConsoleGauges();
         float _nextDraw, _overlayUntil;
         /// <summary>Unity's built-in "UI" layer. The dash lives on it so the ship's own cameras can leave it out.</summary>
         public const int DashLayer = 5;
@@ -205,28 +208,9 @@ namespace OrbitalAnte.Cockpit
         /// </summary>
         void BuildHousing(RectTransform panel)
         {
-            // The lit copy only fits a cabin showing its shipped light. If that light did not fit (the cabin is
-            // re-baking itself), the lit copy would not match either, so the plain one is used.
-            Mesh mesh = _ship.LightBaked ? ModelLibrary.PartMesh(ShipAssembly.BakedFittingsModel, ShipAssembly.DashHousingPiece) : null;
-            bool lit = mesh != null;
-            ModelFile source = ModelLibrary.Find(lit ? ShipAssembly.BakedFittingsModel : "Lander");
-            if (!lit) mesh = ModelLibrary.PartMesh("Lander", ShipAssembly.DashHousingPiece);
-            if (mesh == null) return;
-            var go = new GameObject(ShipAssembly.DashHousingPiece);
-            go.transform.SetParent(_ship.transform, false);
-            go.layer = Layers.Default;
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var r = go.AddComponent<MeshRenderer>();
-            // Baked() hands back a material of our own, to be destroyed with the dash; the shared ones are not ours.
-            if (lit) _housingMaterial = PlanetMaterials.Baked(1f);
-            r.sharedMaterial = lit ? _housingMaterial : ModelLibrary.SharedMaterial();
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            r.receiveShadows = false;
-            // The plain copy stands inside the hull: give it the even indoor light, not the Sun.
-            if (!lit) ModelLibrary.SetIndoors(go, true);
-            _fittings.Add(go);
-            if (source != null && source.TrySocket(ShipAssembly.DashSocket, out ModelSocket socket))
-                panel.localPosition = new Vector3(socket.X, socket.Y, socket.Z);
+            // The console the screen sits in, with its real gauges. Without the model the screen stands on the bare desk.
+            Console = ConsoleInstruments.Build(_ship.transform, _ship.LightBaked);
+            if (Console != null && Console.HasScreenPlace) panel.localPosition = Console.ScreenPlace;
         }
 
         void AddFitting(string piece, bool lit)
@@ -303,6 +287,12 @@ namespace OrbitalAnte.Cockpit
 
             DashInputs input = Gather(engines);
             Model.Tick(dt, input);
+            // The real instruments move every frame (they are cheap); only the screen is redrawn on a timer.
+            if (Console != null)
+            {
+                Gauges.Set(Model.Readings, _craft.LockedTarget >= 0, _craft.PilotOn);
+                Console.Show(Gauges);
+            }
             _nextDraw -= dt;
             if (_nextDraw > 0f) return;
             _nextDraw = 1f / Mathf.Clamp(Config.redrawsPerSecond, 10, 60);
@@ -544,7 +534,7 @@ namespace OrbitalAnte.Cockpit
             }
             if (_canvas != null) Destroy(_canvas.gameObject);
             for (int i = 0; i < _fittings.Count; i++) if (_fittings[i] != null) Destroy(_fittings[i]);
-            if (_housingMaterial != null) Destroy(_housingMaterial);
+            if (Console != null) Console.Destroy();
         }
     }
 }

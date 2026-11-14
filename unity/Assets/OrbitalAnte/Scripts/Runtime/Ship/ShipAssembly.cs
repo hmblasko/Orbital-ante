@@ -25,11 +25,11 @@ namespace OrbitalAnte.Ship
 
         /// <summary>
         /// A model holding fittings that stand inside the cabin, with the cabin's light already in their colours
-        /// (made by tools/bake). Today that is the dash housing, copied from the Lander model.
+        /// (made by tools/bake). Today that is the body of the cockpit console, copied from the Console model.
         /// </summary>
         public const string BakedFittingsModel = "LanderCabin";
-        public const string DashHousingPiece = "dashhousing";
-        public const string DashSocket = "Dash";
+        /// <summary>The model the baked fittings are copied from, and the one piece of it that takes baked light.</summary>
+        public const string FittingsSource = "Console", FittingsPiece = "console";
 
         /// <summary>Every baked piece of the cabin. The order is part of the baked file's format: add new pieces at the end.</summary>
         public static List<ShipPiece> InteriorPieces()
