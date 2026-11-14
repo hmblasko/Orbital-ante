@@ -42,6 +42,8 @@ namespace OrbitalAnte.Space
         public FlightHud Hud { get; private set; }
         public SystemMap Map { get; private set; }
         public PlanetWorld Planets { get; private set; }
+        public OrbitalAnte.Enemies.EnemySpawner Enemies { get; private set; }
+        public OrbitalAnte.Bases.PlanetBases Bases { get; private set; }
 
         public void Build(int seed, StartPlace place = StartPlace.FromConfig)
         {
@@ -117,6 +119,8 @@ namespace OrbitalAnte.Space
             ShipHud.Build(Ship, Astronaut, Hud, Map);
             SuitHud = shipHudGo.AddComponent<OrbitalAnte.Spacewalk.SuitHud>();
             SuitHud.Build(Astronaut, Astronaut.SuitDials);
+            Bases = OrbitalAnte.Bases.PlanetBases.Build(this, null);
+            Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();

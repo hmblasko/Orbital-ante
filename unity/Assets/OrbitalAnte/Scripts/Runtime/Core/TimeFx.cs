@@ -4,8 +4,9 @@ using UnityEngine;
 namespace OrbitalAnte.Core
 {
     /// <summary>
-    /// Owns game speed while playing: hitstop (a few hundredths of a second of near-freeze when the player pops
-    /// a limb) and the optional brief slow-mo on a headshot kill. Pausing always wins over both.
+    /// Times the hitstop (a few hundredths of a second of near-freeze when the player pops a limb) and the
+    /// optional brief slow-mo on a headshot kill. It hands both to <see cref="TimeFlow"/>, which is the only
+    /// place the clock is set; pausing always wins there.
     /// </summary>
     public sealed class TimeFx : MonoBehaviour
     {
@@ -30,7 +31,8 @@ namespace OrbitalAnte.Core
         void OnDisable()
         {
             CombatEvents.PlayerHitSomething -= OnPlayerHit;
-            if (!GameSession.Paused) Time.timeScale = 1f;
+            TimeFlow.Hitstop = 1f;
+            TimeFlow.Headshot = 1f;
         }
 
         void OnPlayerHit(HitOutcome outcome)
@@ -54,14 +56,9 @@ namespace OrbitalAnte.Core
 
         void Update()
         {
-            // While paused the pause menu holds time at zero.
-            if (GameSession.Paused) return;
-
-            float target = 1f;
-            if (InHitstop) target = Mathf.Clamp(_cfg.hitstopTimeScale, 0.001f, 1f);
-            else if (InSlowMo) target = Mathf.Clamp(_cfg.headshotSlowMoScale, 0.05f, 1f);
-
-            if (!Mathf.Approximately(Time.timeScale, target)) Time.timeScale = target;
+            // (While paused these are still handed in; TimeFlow keeps time at zero until the menu closes.)
+            TimeFlow.Hitstop = InHitstop ? Mathf.Clamp(_cfg.hitstopTimeScale, 0.001f, 1f) : 1f;
+            TimeFlow.Headshot = InSlowMo ? Mathf.Clamp(_cfg.headshotSlowMoScale, 0.05f, 1f) : 1f;
         }
 
         /// <summary>Cancels any freeze or slow-mo in progress (used when a run restarts).</summary>
@@ -69,7 +66,8 @@ namespace OrbitalAnte.Core
         {
             _hitstopUntil = 0f;
             _slowMoUntil = 0f;
-            if (!GameSession.Paused) Time.timeScale = 1f;
+            TimeFlow.Hitstop = 1f;
+            TimeFlow.Headshot = 1f;
         }
     }
 }

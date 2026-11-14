@@ -39,7 +39,7 @@ namespace OrbitalAnte.Tests
 
             _hitstopWas = FeelSettings.Hitstop;
             _slowMoWas = FeelSettings.HeadshotSlowMo;
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         [TearDown]
@@ -51,7 +51,7 @@ namespace OrbitalAnte.Tests
             if (_cfg != null) Object.Destroy(_cfg);
             FeelSettings.Hitstop = _hitstopWas;
             FeelSettings.HeadshotSlowMo = _slowMoWas;
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         Mannequin NewMannequin(Vector3 position)

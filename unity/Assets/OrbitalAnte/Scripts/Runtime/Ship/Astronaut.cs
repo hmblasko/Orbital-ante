@@ -40,6 +40,8 @@ namespace OrbitalAnte.Ship
         /// <summary>Degrees the seated pilot's head is tipped down toward the dash's camera screen (set by the cockpit).</summary>
         public float ScreenGlance { get; set; }
         public PlayerWeapons Weapons { get; private set; }
+        /// <summary>How much more the suit can take from being shot. Mends by itself when left alone.</summary>
+        public PlayerHealth Armour { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
         public Rigidbody Suit { get; private set; }
 
@@ -167,6 +169,10 @@ namespace OrbitalAnte.Ship
             capsule.sharedMaterial = new PhysicsMaterial("Suit") { dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             a._suitGravity = suitGo.AddComponent<GravityBody>();
             suitGo.AddComponent<SuitBody>().Owner = a;
+            // The suit can be shot. It takes what the test player takes and mends after a few quiet seconds.
+            a.Armour = suitGo.AddComponent<PlayerHealth>();
+            a.Armour.Initialize(a._look);
+            a.Armour.Died += () => a.Die("Shot down outside the ship.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
             a._suitGravity.SunkBelow = -0.7f;
@@ -218,8 +224,9 @@ namespace OrbitalAnte.Ship
         void BuildPistol()
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
-            Weapons.Initialize(_look, Eye, null, null, _world);
-            Weapons.Equip(Weapon.Create(WeaponData.Pistol, _world, true));
+            Weapons.Initialize(_look, Eye, null, Armour, _world);
+            // The rifle: with enemies on every world, the test pistol is not enough gun.
+            Weapons.Equip(Weapon.Create(WeaponData.Rifle, _world, true));
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -317,6 +324,8 @@ namespace OrbitalAnte.Ship
             Vector3 forward = Ship.transform.InverseTransformDirection(transform.forward);
             _yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
             transform.SetParent(Ship.transform, false);
+            // Safe aboard: the suit is patched up (it cannot mend itself while it is put away).
+            if (Armour != null && !Dead) Armour.Revive();
             Ship.Hatch.BeginUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z));
             // The line reels itself in as the lift takes you.
             SetTether(false, quiet: !Tethered);
@@ -567,8 +576,10 @@ namespace OrbitalAnte.Ship
                 float magnitude = Mathf.Clamp01(look.magnitude);
                 float curved = Mathf.Pow(magnitude, Mathf.Max(1f, _look.stickCurve));
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
-                yawDelta = shaped.x * _look.stickYawSpeed * dt;
-                pitchDelta = -shaped.y * _look.stickPitchSpeed * dt;
+                // Your own head does not slow when the world does (hitstop, Deep Breath).
+                float own = TimeFlow.PlayerDelta(dt);
+                yawDelta = shaped.x * _look.stickYawSpeed * own;
+                pitchDelta = -shaped.y * _look.stickPitchSpeed * own;
             }
         }
 
@@ -941,7 +952,7 @@ namespace OrbitalAnte.Ship
             Vector3 reference = target == MatchTarget.Ship
                 ? (_mendingNow ? Ship.Body.GetPointVelocity(Suit.worldCenterOfMass) : Ship.Body.linearVelocity)
                 : !hasBody ? Vector3.zero
-                : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.LocalVelocityOf(body);
+                : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.VelocityOfSeenFrom(body, Suit.position);
             Vector3 relative = Suit.linearVelocity - reference;
 
             Vector3 jets = Vector3.zero;

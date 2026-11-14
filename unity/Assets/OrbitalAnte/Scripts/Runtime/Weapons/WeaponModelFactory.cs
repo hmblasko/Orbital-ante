@@ -51,6 +51,15 @@ namespace OrbitalAnte.Weapons
             {
                 built = BuildFromModelFile(data, weaponRoot, out sockets);
             }
+            if (!built && !string.IsNullOrEmpty(data.modelFile))
+            {
+                // The gun names a model of its own that has not been made yet: borrow the one for its shape,
+                // so it still looks like a gun and not a stack of boxes.
+                string named = data.modelFile;
+                data.modelFile = string.Empty;
+                try { built = BuildFromModelFile(data, weaponRoot, out sockets); }
+                finally { data.modelFile = named; }
+            }
             if (!built)
             {
                 sockets = data.placeholderShape == WeaponShape.Pistol ? BuildPistol(weaponRoot) : BuildRifle(weaponRoot);

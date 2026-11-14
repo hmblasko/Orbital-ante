@@ -65,7 +65,26 @@ namespace OrbitalAnte.Planets
             _clearRadius = radius;
         }
 
-        bool Cleared(Vec3d position) => _clearRadius > 0 && (position - _clearCentre).SqrMagnitude < _clearRadius * _clearRadius;
+        readonly List<Vec3d> _alsoClear = new List<Vec3d>();
+        readonly List<double> _alsoClearRadius = new List<double>();
+
+        /// <summary>One more place nothing natural stands (a base's floor). Call before the ground near it is shown.</summary>
+        public void AlsoKeepClear(Vec3d centre, double radius)
+        {
+            _alsoClear.Add(centre);
+            _alsoClearRadius.Add(radius);
+        }
+
+        bool Cleared(Vec3d position)
+        {
+            if (_clearRadius > 0 && (position - _clearCentre).SqrMagnitude < _clearRadius * _clearRadius) return true;
+            for (int i = 0; i < _alsoClear.Count; i++)
+            {
+                double r = _alsoClearRadius[i];
+                if ((position - _alsoClear[i]).SqrMagnitude < r * r) return true;
+            }
+            return false;
+        }
 
         public void SetActive(bool active)
         {
