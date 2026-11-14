@@ -76,7 +76,10 @@ namespace OrbitalAnte.Tests
         [UnityTest]
         public IEnumerator GibCap_PushesOutTheOldestChunk()
         {
+            // maxActiveGibs counts fading chunks too. With a cap of 3 and one fade slot, the oldest starts
+            // fading at the third chunk, and is removed at once when a fourth arrives (GibCapRule).
             _cfg.maxActiveGibs = 3;
+            _cfg.overflowFadeSlots = 1;
             _cfg.overflowFadeTime = 0.1f;
             GibManager manager = GibManager.Create(_root.transform, _cfg);
             Mannequin m = NewMannequin(Vector3.zero);
@@ -85,17 +88,21 @@ namespace OrbitalAnte.Tests
             m.DamagePart(BodyPartId.LeftThigh, Big, Vector3.forward);
             Gib oldest = m.Part(BodyPartId.LeftThigh).GetComponentInParent<Gib>();
             m.DamagePart(BodyPartId.RightThigh, Big, Vector3.forward);
+            Assert.AreEqual(2, manager.ActiveCount);
+            Assert.IsFalse(oldest.Fading, "nothing is pushed out while below the fade slots");
+
             m.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward);
             Assert.AreEqual(3, manager.ActiveCount);
-            Assert.IsFalse(oldest.Fading, "nothing is pushed out while under the cap");
+            Assert.IsTrue(oldest.Fading, "the oldest chunk starts fading when only the fade slot is left");
 
             m.DamagePart(BodyPartId.RightUpperArm, Big, Vector3.forward);
-            Assert.IsTrue(oldest.Fading, "the oldest chunk starts fading when the cap is reached");
-            Assert.AreEqual(3, SolidCount(m, BodyPartId.LeftThigh, BodyPartId.RightThigh, BodyPartId.LeftUpperArm, BodyPartId.RightUpperArm));
+            Assert.AreEqual(3, manager.ActiveCount, "live chunks never go over the cap, fading ones included");
+            Assert.AreEqual(2, SolidCount(m, BodyPartId.LeftThigh, BodyPartId.RightThigh, BodyPartId.LeftUpperArm, BodyPartId.RightUpperArm),
+                "the oldest was removed at once, and the next oldest is now fading");
 
             yield return new WaitForSeconds(0.5f);
-            Assert.AreEqual(3, manager.ActiveCount, "the pushed-out chunk is gone");
-            Assert.AreEqual(3, m.ActiveGibCount);
+            Assert.AreEqual(2, manager.ActiveCount, "the fading chunk is gone");
+            Assert.AreEqual(2, m.ActiveGibCount);
         }
 
         [UnityTest]
