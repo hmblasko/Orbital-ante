@@ -391,3 +391,9 @@ Note: in the Unity editor the numbers are worse than a real build, because the e
 
 - Whether busy scenes later (planet surfaces, launch) hold 60, or the game should offer a locked 40 fps mode on Deck. The budget asset already has the 25 ms floor so that choice stays open.
 - Shadow distance, anti-aliasing and render scale. These wait for the first measurements; guessing them now would be tuning blind.
+
+## Save reliability refinement: source review only
+
+Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. This is one save slot at run start, menu return and quit, with no added per-frame work. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
+
+Current save data is small. File size, allocations, storage latency and checkpoint-frame time have not been measured in Unity or on Deck; there is no promised maximum file-size cost. Profile `SaveSystem.Save`, `SaveFileStore.Write` and `FileStream.Flush` on internal storage and microSD. See `docs/reviews/save-recovery-and-version-protection.md` for the regression evidence and target-runtime checks.
