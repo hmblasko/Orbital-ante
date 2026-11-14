@@ -24,8 +24,8 @@ namespace OrbitalAnte.Spacewalk
         Image _airRing, _fuelFill;
         Text _airText, _speed, _tether, _notice;
         readonly Image[] _rim = new Image[4];
-        Texture2D _rimTexture;
-        Sprite _rimSprite;
+        Texture2D _rimTexture, _whiteTexture;
+        Sprite _rimSprite, _whiteSprite;
         float _nextText, _shownUntil;
         int _shownAir = -1, _shownSpeed = -1, _shownLine = -1, _airStep = -1, _fuelStep = -1, _noticeKey = -1, _againstKey = -1;
         string _shownAgainst = string.Empty, _shownNotice = string.Empty;
@@ -113,8 +113,12 @@ namespace OrbitalAnte.Spacewalk
             _fuelFill.type = Image.Type.Filled;
             _fuelFill.fillMethod = Image.FillMethod.Vertical;
             _fuelFill.fillOrigin = (int)Image.OriginVertical.Bottom;
-            // A filled image needs a sprite to cut; any plain one will do.
-            _fuelFill.sprite = UiKit.Rounded;
+            // A filled image needs a sprite to cut, and a plain one, or its rounded corners would stretch.
+            _whiteTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "SuitBar" };
+            _whiteTexture.SetPixels32(new[] { (Color32)Color.white, (Color32)Color.white, (Color32)Color.white, (Color32)Color.white });
+            _whiteTexture.Apply(false, true);
+            _whiteSprite = Sprite.Create(_whiteTexture, new Rect(0f, 0f, 2f, 2f), new Vector2(0.5f, 0.5f), 2f);
+            _fuelFill.sprite = _whiteSprite;
             Text jetName = UiKit.Label(_panel, "JETS", 13, UiKit.Muted);
             UiKit.Pin((RectTransform)jetName.transform, new Vector2(0f, 1f), new Vector2(78f, 14f), new Vector2(44f, 16f));
 
@@ -254,6 +258,8 @@ namespace OrbitalAnte.Spacewalk
         {
             if (_rimSprite != null) Destroy(_rimSprite);
             if (_rimTexture != null) Destroy(_rimTexture);
+            if (_whiteSprite != null) Destroy(_whiteSprite);
+            if (_whiteTexture != null) Destroy(_whiteTexture);
         }
     }
 }

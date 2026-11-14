@@ -118,6 +118,7 @@ namespace OrbitalAnte.Ship
         static readonly Vector3 Lap = new Vector3(0f, 0.6f, 1.44f);
 
         readonly RaycastHit[] _hits = new RaycastHit[6];
+        readonly Collider[] _overlaps = new Collider[6];
 
         // ------------------------------------------------------------------ building
 
@@ -699,7 +700,7 @@ namespace OrbitalAnte.Ship
                 Say("Tether off. Nothing is holding you now.");
                 return;
             }
-            float distance = Vector3.Distance(Suit.position, TetherAnchor);
+            float distance = Vector3.Distance(Suit.worldCenterOfMass, TetherAnchor);
             if (Tether.InReach(SuitDials.rules, distance))
             {
                 SetTether(true, quiet: false);
@@ -843,11 +844,23 @@ namespace OrbitalAnte.Ship
             }
             else
             {
+                // Floating, but something may still be pulling you gently onto ground: feel for it along the
+                // pull, so touching down stands you up wherever the ground is.
                 _grounded = false;
+                if (weight > rules.freePull)
+                {
+                    Vector3 down = pull / weight;
+                    int hits = Physics.SphereCastNonAlloc(Suit.worldCenterOfMass, 0.25f, down, _hits, ShipLayout.PersonHeight * 0.5f + 0.15f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+                    for (int i = 0; i < hits; i++)
+                    {
+                        if (_hits[i].rigidbody != Suit) _grounded = true;
+                    }
+                }
                 frame = Suit.rotation * _viewLocal;
             }
 
-            bool live = GameInput.Asset != null && !GameSession.Paused && !Dead;
+            // A blow that winds you costs you the controls for as long as it lasts.
+            bool live = GameInput.Asset != null && !GameSession.Paused && !Dead && !Dazed;
             Vector2 move = live ? Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
             bool jetUp = live && GameInput.Jump.IsPressed(), jetDown = live && GameInput.JetDown.IsPressed();
             bool matchHeld = live && (GameInput.SuitMatch.IsPressed() || _mendingNow);
@@ -914,7 +927,7 @@ namespace OrbitalAnte.Ship
 
             // The tether: stops you at its length, and nothing more.
             Vector3 anchor = TetherAnchor;
-            float fromAnchor = Vector3.Distance(Suit.position, anchor);
+            float fromAnchor = Vector3.Distance(Suit.worldCenterOfMass, anchor);
             TetherTaut = false;
             if (Tethered)
             {
@@ -924,13 +937,16 @@ namespace OrbitalAnte.Ship
                 if (taut)
                 {
                     Suit.linearVelocity += new Vector3(change.X, change.Y, change.Z);
-                    Suit.position += new Vector3(back.X, back.Y, back.Z);
+                    // Only a real overrun is put right by moving you (a fast drift can pass the end in one
+                    // step). Small ones are left alone: moving the body every step would shake the view.
+                    if (back.Length > 0.05f) Suit.position += new Vector3(back.X, back.Y, back.Z);
                     // Coming up short on the line at speed is a blow like any other, though the harness
                     // spreads it: it can wind you, never kill you.
                     float jolt = change.Length;
                     if (jolt > rules.hurtSpeed) SuitHit(Mathf.Min(jolt, rules.fatalSpeed - 0.5f), -offset.normalized);
                 }
-                TetherTaut = taut;
+                // Held taut for as long as you hang at the end of it, not only on the step it catches you.
+                TetherTaut = taut || offset.magnitude > rules.tetherLength - 0.05f;
             }
 
             SuitState.MatchTarget = target;
@@ -1004,6 +1020,15 @@ namespace OrbitalAnte.Ship
                 _up = up;
                 // The body turns about your eyes, so what you see does not move.
                 Vector3 feet = eye - upright * EyeLocal;
+                // If standing up would put the body through something (the hull beside you), wait until it is clear.
+                if (!_grounded)
+                {
+                    int touching = Physics.OverlapCapsuleNonAlloc(feet + upright * (Vector3.up * 0.35f), feet + upright * (Vector3.up * (ShipLayout.PersonHeight - 0.35f)), 0.28f, _overlaps, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+                    for (int i = 0; i < touching; i++)
+                    {
+                        if (_overlaps[i].attachedRigidbody != Suit) return;
+                    }
+                }
                 Suit.transform.SetPositionAndRotation(feet, upright);
                 Suit.position = feet;
                 Suit.rotation = upright;

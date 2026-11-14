@@ -71,6 +71,8 @@ namespace OrbitalAnte.Spacewalk
             float freeHeight = Math.Max(rules.freeHeightLeast, bodyRadius * rules.freeHeightShare);
             if (now == Posture.Free)
             {
+                // Touching ground that pulls on you always stands you up, however high that ground is.
+                if (grounded && pull > rules.freePull) return Posture.Upright;
                 // A little further in than where you were let go, so you do not flip back and forth on the line.
                 bool held = pull > rules.freePull * 1.2f && height < freeHeight * 0.85f;
                 return held ? Posture.Upright : Posture.Free;

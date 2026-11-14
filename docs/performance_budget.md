@@ -251,6 +251,20 @@ What to read off in Unity:
 5. Click the **Audio** row in the Profiler and repeat the crash. Note the highest **Playing Audio Sources** and **Audio Voices**.
 6. **Edit > Project Settings > Physics**: note whether **Reuse Collision Callbacks** is ticked. Then **Edit > Project Settings > Time**: note the **Fixed Timestep** number.
 
+## Spacewalk (Milestone 11): estimates from reading the code, not measured
+
+| System | Cost | Cap |
+|---|---|---|
+| Suit body | one capsule, one sphere cast per physics step, no garbage. The real ground height is asked of the planets every sixth step | one suit; switched off aboard |
+| Tether line | 60 corners rewritten per frame while clipped on, 1 draw call | 14 segments |
+| Jet flames | 96 triangles, up to 12 draw calls, one material | 12 |
+| Suit readout | one canvas, guessed 5 to 8 draw calls. Gauges are only rewritten when they move by half a percent, and colours are set on the renderer, so the canvas is not rebuilt every frame | text 8 times a second |
+| Readout words | only built again when what they depend on changes | none while nothing changes |
+| Visor rim | four soft bands 90 px deep, about a third of the screen blended at most (all four only on a forward push). Guessed 0.1 to 0.3 ms on the graphics card. First thing to lower: band depth | 4 bands |
+| Suit sounds | 7 clips made at run start, guessed 27 to 80 ms once on a Deck; about 0.16 MB kept; 2 sources | once per run |
+
+What to read off in Unity (floating outside, tethered): in **Window > Analysis > Profiler**, CPU Usage, Hierarchy, search `SuitHud.LateUpdate`, `SuitFx.LateUpdate` and `Astronaut.FixedUpdate` for Time ms and GC Alloc (expect 0 B on most frames), and `Canvas.BuildBatch` while drifting and then while thrusting.
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

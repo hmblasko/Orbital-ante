@@ -31,7 +31,7 @@ namespace OrbitalAnte.Spacewalk
         Vector3[] _tetherPoints;
         AudioSource _jet, _voice;
         bool _wasTaut, _wasAlarm;
-        float _nextWarn;
+        float _nextWarn, _nextTaut;
 
         // Where each nozzle sits, measured from the eyes (right, up, forward), and which way its flame points.
         // The second of each pair is the mirror image across the body.
@@ -189,7 +189,11 @@ namespace OrbitalAnte.Spacewalk
             if (_astronaut.TakeJetPuff() && outside) Play(Sounds.Puff, 0.7f);
 
             bool taut = outside && _astronaut.TetherTaut;
-            if (taut && !_wasTaut) Play(Sounds.Taut, 0.9f);
+            if (taut && !_wasTaut && Time.unscaledTime > _nextTaut)
+            {
+                Play(Sounds.Taut, 0.9f);
+                _nextTaut = Time.unscaledTime + 1.5f;
+            }
             _wasTaut = taut;
 
             // A new danger is heard once, then again every so often for as long as it lasts.

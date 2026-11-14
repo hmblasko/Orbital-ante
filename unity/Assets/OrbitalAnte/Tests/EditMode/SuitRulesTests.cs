@@ -295,6 +295,16 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(Posture.Upright, SuitPosture.Next(rules, Posture.Free, 6f, line * 0.5f, radius, false), "well inside, you are stood up again");
         }
 
+        [Test]
+        public void TouchingGroundThatPulls_AlwaysStandsYouUp_HoweverHighThatGroundIs()
+        {
+            var rules = new SuitRules();
+            // A mountain top far above the body's nominal radius: floating by height alone, but your feet are on rock.
+            Assert.AreEqual(Posture.Upright, SuitPosture.Next(rules, Posture.Free, 1.6f, 400f, 150f, true));
+            Assert.AreEqual(Posture.Free, SuitPosture.Next(rules, Posture.Free, 1.6f, 400f, 150f, false));
+            Assert.AreEqual(Posture.Free, SuitPosture.Next(rules, Posture.Free, 0.01f, 1f, 30f, true), "where nothing pulls, touching a rock does not make a floor of it");
+        }
+
         // ------------------------------------------------------------------ knocks and words
 
         [Test]
