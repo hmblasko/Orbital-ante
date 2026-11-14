@@ -4,7 +4,8 @@ namespace OrbitalAnte.Planets
 {
     /// <summary>
     /// Turns the shapes from <see cref="FeatureShapes"/> into Unity meshes, and keeps each one so it is only
-    /// built once. Every rock or tree of the same kind and variant shares one mesh.
+    /// built once. Every rock or tree of the same kind and variant shares one mesh. Kinds that have a model made
+    /// in Blender (<see cref="SceneryModels"/>) use that instead, and their shape here is only the fallback.
     ///
     /// The meshes carry vertex colours and no texture coordinates. The material that draws them must use a
     /// shader that reads vertex colours (the stock URP "Lit" shader does not).
@@ -28,6 +29,11 @@ namespace OrbitalAnte.Planets
             // "== null" is also true for a mesh Unity has destroyed (after leaving play mode, for example).
             Mesh cached = _cache[slot];
             if (cached != null) return cached;
+
+            // Earth's trees, plants and crags are models made in Blender. They are shared and owned by the model
+            // library, so they are handed on without being kept here. The shape below is only the stand-in.
+            Mesh model = SceneryModels.Drawn(kind, v);
+            if (model != null) return model;
 
             Mesh mesh = Build(kind, v);
             _cache[slot] = mesh;
@@ -59,6 +65,10 @@ namespace OrbitalAnte.Planets
             return mesh;
         }
 
-        public static void ResetStatics() => _cache = null;
+        public static void ResetStatics()
+        {
+            _cache = null;
+            SceneryModels.ResetStatics();
+        }
     }
 }

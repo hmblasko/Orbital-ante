@@ -288,7 +288,8 @@ def export(path, parts, sockets=()):
 
 # ------------------------------------------------------------------ preview pictures
 
-def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(50, 20, 35), world=(0.36, 0.5, 0.72), samples=96):
+def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(50, 20, 35), world=(0.36, 0.5, 0.72), samples=96,
+                   glow=(), glow_strength=5.0, sun_energy=3.6, sky=0.7):
     """A picture of the model with soft sun and sky light, showing the per-corner paint. Not the game's shader."""
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
@@ -337,14 +338,26 @@ def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(5
         o.data.materials.append(plain if o.get("oa_unchecked") else mat)
         o.data.use_auto_smooth = True
         o.data.auto_smooth_angle = math.radians(o.get("oa_smooth", 40.0))
+    if glow:
+        shine = bpy.data.materials.new("oa_preview_glow")
+        shine.use_nodes = True
+        gattr = shine.node_tree.nodes.new("ShaderNodeVertexColor")
+        gattr.layer_name = "Col"
+        emit = shine.node_tree.nodes.new("ShaderNodeEmission")
+        emit.inputs[1].default_value = glow_strength
+        shine.node_tree.links.new(gattr.outputs["Color"], emit.inputs[0])
+        shine.node_tree.links.new(emit.outputs[0], shine.node_tree.nodes["Material Output"].inputs["Surface"])
+        for o in glow:
+            o.data.materials.clear()
+            o.data.materials.append(shine)
     if scene.world is None:
         scene.world = bpy.data.worlds.new("w")
     scene.world.use_nodes = True
     bg = scene.world.node_tree.nodes["Background"]
     bg.inputs[0].default_value = (*world, 1)
-    bg.inputs[1].default_value = 0.7
+    bg.inputs[1].default_value = sky
     light = bpy.data.lights.new("sun", 'SUN')
-    light.energy = 3.6
+    light.energy = sun_energy
     light.color = (1.0, 0.93, 0.8)
     light.angle = math.radians(6)
     lo = bpy.data.objects.new("sun", light)
