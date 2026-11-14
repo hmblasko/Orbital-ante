@@ -147,3 +147,10 @@ The bases thread's work is merged: five base designs (relay outpost, fuel depot,
 Also: the Marksman's scope glass (`LensGlow`) shines only while it lines up a shot, with the red line. An enemy config asset made before today takes the new roster by itself (`EnemyRoster.Version`, `EnemyConfig.rosterVersion`).
 
 **Tested.** Compiles against the reference assemblies; 1,984 rule tests pass. **Not run in Unity:** how the guns sit in each kind's hands, the glint, the dropped gun's size.
+
+## Codex's two pull requests, 39 and 40, taken whole (14 Nov 2026)
+
+Both were read line by line, joined into `claude/playtest`, compiled, and their rule tests run (2,034 pass). **Neither has been run in Unity.**
+
+- **39, controls.** The reason rebound controls did not come back after a restart: the game builds its controls in code, so each control got a new random id every launch and the saved changes matched nothing. Each control now gets the same id every time, made from its map, action, device and name. The Controls page also scrolls, so the list fits the Deck's screen with the tabs and the Back button always showing. Checked by hand that no two controls in the on-foot or flight maps would collide (a collision stops the game at start by design). **Principle 2** (agency: your controls stay yours).
+- **40, saves.** A damaged main save no longer overwrites the good backup it was recovered from, and a save written by a newer build is never overwritten by an older one: the older build plays on but does not save, and says so in the Console. Worth knowing while switching branches: if a branch with a newer save layout has been run, an older branch will not save until the newer one is used again. **Principle 9** (no lost progress by surprise).
