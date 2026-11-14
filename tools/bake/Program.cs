@@ -3,7 +3,7 @@
 //   dotnet run -c Release -- <repo> [--paths 768] [--dump <folder>] [--no-write]
 //
 // Writes  unity/Assets/OrbitalAnte/Resources/Ship/LanderBake.bytes    (the cabin's baked light)
-//         unity/Assets/OrbitalAnte/Resources/Models/LanderCabin.bytes (the dash housing, lit by the same lamps)
+//         unity/Assets/OrbitalAnte/Resources/Models/LanderCabin.bytes (the cockpit console's body, lit by the same lamps)
 // --dump also writes every piece with its baked colours for tools/blender/preview_cabin.py.
 // See README.md beside this file for the project file it needs.
 using System;
@@ -34,10 +34,11 @@ static class CabinBake
         var bake = new LightBake();
         foreach (ShipPiece piece in pieces) bake.Add(Moved(piece.Mesh, piece.Offset));
 
-        // The dash housing is a Blender model, not a cabin piece, but it stands in the cabin's light.
-        ModelFile lander = ModelFile.Parse(File.ReadAllBytes(Path.Combine(resources, "Models", "Lander.bytes")), out string problem);
-        if (lander == null) { Console.Error.WriteLine("Lander.bytes: " + problem); return 1; }
-        ModelPart housing = lander.Part(ShipAssembly.DashHousingPiece);
+        // The cockpit console is a Blender model, not a cabin piece, but it stands in the cabin's light.
+        string sourceFile = ShipAssembly.FittingsSource + ".bytes";
+        ModelFile lander = ModelFile.Parse(File.ReadAllBytes(Path.Combine(resources, "Models", sourceFile)), out string problem);
+        if (lander == null) { Console.Error.WriteLine(sourceFile + ": " + problem); return 1; }
+        ModelPart housing = lander.Part(ShipAssembly.FittingsPiece);
         ShipMesh housingMesh = null;
         if (housing != null)
         {
@@ -71,7 +72,7 @@ static class CabinBake
                 var file = new ModelFile
                 {
                     Parts = new[] { new ModelPart { Name = housing.Name, Positions = housing.Positions, Normals = housing.Normals, Colors = colours, Triangles = housing.Triangles } },
-                    Sockets = lander.TrySocket(ShipAssembly.DashSocket, out ModelSocket dash) ? new[] { dash } : new ModelSocket[0],
+                    Sockets = lander.Sockets,
                 };
                 byte[] bytes = file.ToBytes();
                 File.WriteAllBytes(Path.Combine(resources, "Models", ShipAssembly.BakedFittingsModel + ".bytes"), bytes);
@@ -84,7 +85,10 @@ static class CabinBake
             Directory.CreateDirectory(dump);
             using (var w = new BinaryWriter(File.Create(Path.Combine(dump, "cabin.bin"))))
             {
-                w.Write(light.Count);
+                // The console's parts that shine by themselves (the fuel, the needle, the lamps) go in as they are.
+                var shining = new List<ModelPart>();
+                foreach (ModelPart part in lander.Parts) if (part != housing) shining.Add(part);
+                w.Write(light.Count + shining.Count);
                 for (int m = 0; m < light.Count; m++)
                 {
                     ShipMesh mesh = m < pieces.Count ? Moved(pieces[m].Mesh, pieces[m].Offset) : housingMesh;
@@ -93,6 +97,14 @@ static class CabinBake
                     foreach (float v in mesh.Positions) w.Write(v);
                     foreach (float v in light[m]) w.Write(v);          // linear light
                     foreach (int t in mesh.Triangles) w.Write(t);
+                }
+                foreach (ModelPart part in shining)
+                {
+                    w.Write(part.VertexCount);
+                    w.Write(part.Triangles.Length / 3);
+                    foreach (float v in part.Positions) w.Write(v);
+                    foreach (float c in part.Colors) w.Write((float)Math.Pow(c, 2.2) * 1.6f);
+                    foreach (int t in FacingItsNormals(part)) w.Write(t);
                 }
             }
             int triangles = 0;

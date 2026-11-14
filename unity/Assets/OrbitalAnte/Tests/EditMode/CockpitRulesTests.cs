@@ -267,9 +267,10 @@ namespace OrbitalAnte.Tests
             DashDesigns.Paint(style, m.Readings, a);
             DashDesigns.Paint(style, m.Readings, b);
             Assert.AreEqual(a.Fingerprint(), b.Fingerprint());
-            m.Tick(0.5f, new DashInputs { Fuel = 0.4f, Oxygen = 1f, Speed = 40f, DriftZ = 40f, Altitude = -1f });
+            // (The Flight deck screen leaves fuel to the console's real tube, so the direction changes too.)
+            m.Tick(0.5f, new DashInputs { Fuel = 0.4f, Oxygen = 1f, Speed = 40f, DriftX = 30f, DriftZ = 40f, Altitude = -1f });
             DashDesigns.Paint(style, m.Readings, b);
-            Assert.AreNotEqual(a.Fingerprint(), b.Fingerprint(), "the fuel bar moved");
+            Assert.AreNotEqual(a.Fingerprint(), b.Fingerprint(), "the fuel bar and the direction dot moved");
         }
 
         [Test]
@@ -285,11 +286,76 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("1.8 km", all, "height");
             StringAssert.Contains("-52", all, "sink rate");
             StringAssert.Contains("MOON", all, "what the speed is measured against");
-            StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("LANDING", all, "which camera");
             StringAssert.Contains("FUEL", all);
+            // The Flight deck screen is set in the modelled console, which shows air and fuel as real gauges
+            // (ConsoleGauges): it carries fewer words on purpose. Its notice still says FUEL LOW.
+            if (style == DashStyle.FlightDeck) return;
+            StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("AIR", all);
             StringAssert.Contains("16", all, "air left");
+        }
+
+        [Test]
+        public void TheFlightDeckScreen_AlwaysHasTheSameSevenWords_AndNoCheapOnes()
+        {
+            var d = new DashDrawing();
+            foreach (DashInputs input in new[] { new DashInputs { Fuel = 1f, Oxygen = 1f, Altitude = -1f }, Busy, new DashInputs { Speed = 40f, DriftZ = -1f, Altitude = 12f, Vertical = -3f, Against = "EARTH" } })
+            {
+                DashModel m = Settle(input, 1f);
+                DashDesigns.Paint(DashStyle.FlightDeck, m.Readings, d);
+                Assert.AreEqual(7, d.Texts.Count, "a word was added or skipped: words must keep their place in the list");
+                foreach (DashText t in d.Texts)
+                {
+                    foreach (string cheap in new[] { "PROPERTY", "LOOK DOWN", "PUSH", "HOLDING", "HEIGHT", "CLIMB", "SINK", "SPEED vs", "%" })
+                        StringAssert.DoesNotContain(cheap, t.Text);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ the console's real instruments
+
+        [Test]
+        public void ConsoleGauges_FollowTheReadings()
+        {
+            var g = new ConsoleGauges();
+            var r = new DashReadings { Fuel = 0.4f, Oxygen = 0.25f };
+            g.Set(r, locked: false, autopilot: false);
+            Assert.AreEqual(0.4f, g.FuelLevel, 1e-5f);
+            Assert.AreEqual(0.25f, g.AirTurn, 1e-5f);
+            for (int i = 0; i < ConsoleGauges.LampCount; i++) Assert.IsFalse(g.Lamps[i], "nothing to report, so no lamp is lit");
+
+            r.Fuel = 0f; r.Oxygen = 2f;
+            g.Set(r, false, false);
+            Assert.AreEqual(ConsoleGauges.FuelSliver, g.FuelLevel, 1e-6f, "a dry tank still shows a sliver, so the tube never vanishes");
+            Assert.AreEqual(1f, g.AirTurn, 1e-6f);
+        }
+
+        [Test]
+        public void ConsoleLamps_SayWhatTheShipIsDoing()
+        {
+            var g = new ConsoleGauges();
+            var r = new DashReadings { Matching = true };
+            g.Set(r, locked: true, autopilot: true);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Lock));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Auto));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Match));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
+
+            // Low blinks in step with the screen's notice; out burns steadily, so it is never caught dark.
+            r = new DashReadings { FuelLow = true, OxygenLow = true, Clock = 0.2f };
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Air));
+            r.Clock = 0.7f;
+            g.Set(r, false, false);
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
+            r.FuelOut = true;
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Fuel), "an empty tank's lamp stays on");
+            Assert.AreEqual("lampFuelGlow", ConsoleGauges.PieceOf(ConsoleLamp.Fuel));
         }
 
         [Test]

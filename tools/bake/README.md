@@ -4,11 +4,12 @@
 (the game's own `LightBake`) and writes the two files the game ships with:
 
 - `unity/Assets/OrbitalAnte/Resources/Ship/LanderBake.bytes`: a colour for every corner of the cabin.
-- `unity/Assets/OrbitalAnte/Resources/Models/LanderCabin.bytes`: the dash housing from the Lander model, lit by the same lamps.
+- `unity/Assets/OrbitalAnte/Resources/Models/LanderCabin.bytes`: the body of the cockpit console from the Console model, lit by the same lamps.
 
 Run it again after changing any cabin shape, colour or lamp (`ShipProps`, `ShipShell`, `ShipAssembly`), and after
-rebuilding the Lander model if the dash housing changed. Rule tests fail when either file is stale
-(`BakedLightFile_FitsTheCabin`, `CabinFittingsFile_IsTheDashHousing_WithTheCabinsLightBakedIn`).
+rebuilding the Console model (`tools/blender/build_console.py`): always bake after the last model build, because
+Blender does not place every corner identically twice. Rule tests fail when either file is stale
+(`BakedLightFile_FitsTheCabin`, `CabinFittingsFile_IsTheConsole_WithTheCabinsLightBakedIn`).
 
 ## How to run it
 
