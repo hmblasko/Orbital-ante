@@ -137,6 +137,9 @@ namespace OrbitalAnte.Look
             }
             // A missing model is remembered too, so it is not looked for again every time a gun is made.
             Loaded[id] = entry;
+            // Its far copy is read at the same moment, so reading a model early (the enemy spawner does, for its
+            // whole roster) also spares the hitch of reading the far copy when the first one walks away.
+            if (entry != null) Get(ModelFile.FarOf(id));
             return entry;
         }
 

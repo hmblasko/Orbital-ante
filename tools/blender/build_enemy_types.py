@@ -377,6 +377,41 @@ def line_up(folder):
     black_shapes(os.path.join(folder, "enemy_types_outline.png"), shown, (0.1, 16.0, 1.25), (0.1, 0, 1.25), lens=80, size=(1500, 700))
 
 
+def far_line_up(folder, distances=(24.0,)):
+    """The four from where the game goes over to the far copy (DetailRule.BodyRange) and from nearer: for each
+    distance one picture of the full bodies and one of the far copies, from the same place, 1280 by 800, with
+    the game's own 80 degrees of view from top to bottom (PlayerConfig.fieldOfView). Put side by side they
+    answer the only question that matters about a far copy: can you tell? They are Blender pictures, not the
+    game's shader, so they judge the shapes and the paint, not the finished frame.
+
+    The near distances matter as much as the far one: only eight bodies are ever full, so in a crowd the
+    ninth-nearest wears its far copy however close it stands."""
+    oa.reset_scene()
+    full, far = [], []
+    makers = (("Enemy", be.make),) + BUILDS
+    at = {"EnemyRunner": -2.15, "Enemy": -0.75, "EnemyMarksman": 0.75, "EnemyBruiser": 2.35}
+    for name, maker in makers:
+        parts = maker()
+        thinned = be.far_parts(parts, name)
+        k = GAME_SCALE[name]
+        m = Matrix.Translation(Vector((at[name], 0, 0))) @ Matrix.Diagonal((k, k, k, 1.0))
+        for group, into in ((parts, full), (thinned, far)):
+            for o in all_objects(group):
+                o.data.transform(m)
+                o.data.update()
+                into.append(o)
+    floor = be.ground()
+    lens = 13.4     # 13.4 mm across 36 mm is 80 degrees tall at 16:10
+    for metres in distances:
+        eye, target = (0.0, metres, 1.6), (0.0, 0, 1.2)
+        for group, other, name in ((full, far, "far_%d_full.png" % round(metres)), (far, full, "far_%d_far.png" % round(metres))):
+            for o in group:
+                o.hide_render = False
+            for o in other:
+                o.hide_render = True
+            oa.render_preview(os.path.join(folder, name), group + [floor], eye, target, lens=lens, size=(1280, 800), samples=96)
+
+
 def posed_line_up(pose_file, folder):
     """All four in the poses the game's animator gives them, each carrying itself its own way.
 
@@ -456,8 +491,19 @@ if __name__ == "__main__":
     poses = args[args.index("--poses") + 1] if "--poses" in args else None
     only = args[args.index("--type") + 1] if "--type" in args else None
     kinds = args[args.index("--kinds") + 1] if "--kinds" in args else None
+    far_only = "--far-only" in args     # write only the far copies (EnemyRunnerFar and so on); the full files are left as they are
     if kinds and previews:
         posed_line_up(kinds, previews)
+        sys.exit(0)
+    if "--far-preview" in args:
+        at = args.index("--far-preview")
+        metres = []
+        for word in args[at + 2:]:
+            try:
+                metres.append(float(word))
+            except ValueError:
+                break
+        far_line_up(args[at + 1], tuple(metres) or (24.0,))
         sys.exit(0)
     for name, maker in BUILDS:
         if only and name != "Enemy" + only:
@@ -468,9 +514,11 @@ if __name__ == "__main__":
         if poses and previews:
             be.render_poses(parts, stump_objects, poses, previews)
             continue
-        report(name, parts)
-        be.write(parts, stump_objects, name)
-        if previews:
+        if not far_only:
+            report(name, parts)
+            be.write(parts, stump_objects, name)
+        be.write_far(parts, name)
+        if previews and not far_only:
             for o in stump_objects:
                 o.hide_render = True
             shown = all_objects(parts) + [be.ground()]

@@ -9,7 +9,9 @@ Working space in Blender: X is the model's right, Y is forward (out of the barre
 in metres. The exporter turns that into the game's space (X right, Y up, Z forward).
 """
 import bpy, bmesh, math, struct, os, random
-from mathutils import Vector, Matrix, Euler, noise
+from mathutils import Vector, Matrix, Euler, noise, kdtree
+from mathutils.bvhtree import BVHTree
+import bmesh
 
 
 def reset_scene():
@@ -284,6 +286,276 @@ def export(path, parts, sockets=()):
             _write_string(f, s.name.replace("socket_", ""))
             f.write(struct.pack("<3f", s.location.x, s.location.z, s.location.y))
     print("OA wrote", path, os.path.getsize(path), "bytes;", "; ".join(report))
+
+
+# ------------------------------------------------------------------ far copies
+
+FAR = "Far"     # ModelFile.FarSuffix in the game: the far copy of model X is the file XFar
+
+
+def _triangle_count(obj):
+    obj.data.calc_loop_triangles()
+    return len(obj.data.loop_triangles)
+
+
+def _thinned(obj, ratio):
+    """A copy of one piece with about `ratio` of its triangles, keeping its shape, paint and how it is shaded."""
+    copy = obj.copy()
+    copy.data = obj.data.copy()
+    bpy.context.scene.collection.objects.link(copy)
+    if ratio < 0.999:
+        mod = copy.modifiers.new("thin", 'DECIMATE')
+        mod.decimate_type = 'COLLAPSE'
+        mod.ratio = ratio
+        graph = bpy.context.evaluated_depsgraph_get()
+        mesh = bpy.data.meshes.new_from_object(copy.evaluated_get(graph), preserve_all_data_layers=True, depsgraph=graph)
+        copy.modifiers.remove(mod)
+        old = copy.data
+        copy.data = mesh
+        _carry_paint(old, mesh)
+        bpy.data.meshes.remove(old)
+        for p in copy.data.polygons:
+            p.use_smooth = True
+    return copy
+
+
+_VIEWS = []
+
+
+def _views():
+    """Twenty-four ways of looking out from a surface, spread over the half of the sky above it."""
+    if not _VIEWS:
+        for ring, (height, count) in enumerate(((80, 1), (55, 6), (30, 8), (10, 9))):
+            for k in range(count):
+                up, round_ = math.radians(height), 2.0 * math.pi * (k + 0.5 * ring) / count
+                _VIEWS.append(Vector((math.cos(up) * math.cos(round_), math.cos(up) * math.sin(round_), math.sin(up))))
+    return _VIEWS
+
+
+def _tree_of(objects):
+    """The surfaces of some shapes as one thing to cast rays at, or None if there are none."""
+    corners, triangles = [], []
+    for o in objects:
+        mesh = o.data
+        mesh.calc_loop_triangles()
+        base = len(corners)
+        corners.extend(v.co.copy() for v in mesh.vertices)
+        triangles.extend(tuple(base + i for i in t.vertices) for t in mesh.loop_triangles)
+    return BVHTree.FromPolygons(corners, triangles) if triangles else None
+
+
+def _drop_hidden(copies, originals):
+    """Takes out of the thinned shapes of one piece the faces nobody can ever see. Changes `copies` in place
+    and returns them, with None where nothing of a shape is left.
+
+    A model is shapes laid over and sunk into each other (a plate on a chest, a vest inside a jacket), and most
+    of what is underneath is never seen. Thinning moves every surface a little, so in a far copy the shape
+    underneath pokes through the one on top in patches of the wrong colour: the first thing that makes a far
+    copy look cheap. A face of a thinned shape is taken out if both of these hold:
+
+    - in the FULL model nothing can be seen from its middle in any direction past the other shapes of the same
+      piece (it is buried, or it is one of those patches), and
+    - taking it out cannot open a hole: in the THINNED model it is buried too, or another shape's surface lies
+      just beneath it (which is what a patch poking through its cover looks like from the cover's side).
+
+    The second test matters because a thinned cover does not reach quite as far as the full one did: a belly
+    hidden under the skirt of a breastplate is no longer hidden when the skirt has drawn back, and without it
+    you would see inside (the preview shows that in magenta).
+
+    Only shapes of the SAME piece hide each other: pieces move against each other in the game (a ball joint
+    turns inside a cuff). A face next to one that is kept is kept too, as a margin. And this is done after
+    thinning, never before: thinning a shape with holes cut in it eats the edges of the holes back.
+    """
+    thin_trees = [_tree_of([o for k, o in enumerate(copies) if k != i]) for i in range(len(copies))]
+    for i, copy in enumerate(copies):
+        full_tree = _tree_of([o for k, o in enumerate(originals) if k != i])
+        thin_tree = thin_trees[i]
+        if full_tree is None or thin_tree is None:
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(copy.data)
+        bm.normal_update()
+        keep = set()
+        for f in bm.faces:
+            n = f.normal
+            if not (0.5 < n.length < 1.5):
+                keep.update(v.index for v in f.verts)
+                continue
+            across = n.orthogonal().normalized()
+            along = n.cross(across)
+            middle = f.calc_center_median()
+            ways = [across * d.x + along * d.y + n * d.z for d in _views()]
+            # A thinned face is big: its middle can be covered while a corner shows. Look from near each corner too.
+            spots = [middle] + [middle.lerp(v.co, 0.7) for v in f.verts]
+            starts = [spot + n * 0.0005 for spot in spots]
+            if any(full_tree.ray_cast(start, way, 3.0)[0] is None for start in starts for way in ways):
+                keep.update(v.index for v in f.verts)       # seen in the full model
+                continue
+            if all(thin_tree.ray_cast(start, way, 3.0)[0] is not None for start in starts for way in ways):
+                continue                                    # buried in the far copy as well
+
+            def covered_beneath(spot):
+                hit, normal, _, _ = thin_tree.ray_cast(spot, -n, 0.04)
+                return hit is not None and normal.dot(n) > 0.2
+
+            if all(covered_beneath(spot) for spot in spots):
+                continue                                    # poking through a cover that lies just beneath
+            keep.update(v.index for v in f.verts)           # nothing would be behind it: it stays
+        hidden = [f for f in bm.faces if not any(v.index in keep for v in f.verts)]
+        if hidden and len(hidden) == len(bm.faces):
+            bm.free()
+            mesh = copy.data
+            bpy.data.objects.remove(copy)
+            bpy.data.meshes.remove(mesh)
+            copies[i] = None
+            continue
+        if hidden:
+            bmesh.ops.delete(bm, geom=hidden, context='FACES')
+            bm.to_mesh(copy.data)
+            copy.data.update()
+        bm.free()
+    return copies
+
+
+def inside_out_share(objects, rays=4000, seed=7):
+    """How often somebody looking at these shapes from outside would see the inside of one: the share of rays
+    cast at them from all round whose first hit is the back of a face. The game does not draw backs, so there
+    you would see straight through. A far copy should score no worse than its full model."""
+    tree_objects = [o for o in objects if o is not None]
+    corners, triangles = [], []
+    for o in tree_objects:
+        mesh = o.data
+        mesh.calc_loop_triangles()
+        base = len(corners)
+        corners.extend(v.co.copy() for v in mesh.vertices)
+        triangles.extend(tuple(base + i for i in t.vertices) for t in mesh.loop_triangles)
+    if not triangles:
+        return 0.0
+    tree = BVHTree.FromPolygons(corners, triangles)
+    lo = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    hi = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    middle, reach = (lo + hi) / 2, (hi - lo).length
+    rng = random.Random(seed)
+    hits = backs = 0
+    for _ in range(rays):
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
+        aim = Vector((rng.uniform(lo.x, hi.x), rng.uniform(lo.y, hi.y), rng.uniform(lo.z, hi.z)))
+        start = aim - d * (reach + 1.0)
+        hit, normal, _, _ = tree.ray_cast(start, d, 2.0 * reach + 2.0)
+        if hit is None:
+            continue
+        hits += 1
+        if normal.dot(d) > 0.0:
+            backs += 1
+    return backs / float(hits) if hits else 0.0
+
+
+def _carry_paint(full, thinned):
+    """Gives each corner of the thinned mesh the paint of the full mesh round the same spot.
+
+    Thinning does not carry the paint across reliably, so it is looked up again: the average of the nearest few
+    painted corners of the same shape, nearer ones counting for more. Averaging also calms the worn edges and
+    grime, which were worked out for corners a far copy no longer has. (Taking the paint from whatever shape
+    of the full model shows at that spot was tried and is worse: a corner under a pad takes the pad's colour
+    and smears it down the limb.)
+    """
+    source = full.color_attributes.get("Col")
+    if source is None or len(full.vertices) == 0:
+        return
+    tree = kdtree.KDTree(len(full.vertices))
+    for i, v in enumerate(full.vertices):
+        tree.insert(v.co, i)
+    tree.balance()
+    old = thinned.color_attributes.get("Col")
+    if old is not None:
+        thinned.color_attributes.remove(old)
+    layer = thinned.color_attributes.new("Col", 'FLOAT_COLOR', 'POINT')
+    for i, v in enumerate(thinned.vertices):
+        total, weight = [0.0, 0.0, 0.0], 0.0
+        for _, index, distance in tree.find_n(v.co, 4):
+            w = 1.0 / (distance + 0.002)
+            c = source.data[index].color
+            total[0] += c[0] * w; total[1] += c[1] * w; total[2] += c[2] * w
+            weight += w
+        layer.data[i].color = (total[0] / weight, total[1] / weight, total[2] / weight, 1.0)
+
+
+def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=()):
+    """The far copy of a model: the same pieces by the same names, in about `target` triangles in all.
+
+    parts is a list of (name, [objects]) as export() takes it; the result is another, made of new objects (the
+    originals are left alone). Fittings smaller than drop_below across (bolts, studs, rivets: a pixel or less
+    from where a far copy is seen) are left out, but no piece is ever left empty. Pieces that shine by
+    themselves (named ...Glow) are kept exactly as they are: they are small, and the game switches them by name.
+
+    Faces that can never be seen (a vest inside a jacket, the chest under a plate) are taken out: see
+    _drop_hidden.
+
+    A shape of `whole` triangles or fewer (a plate, a strap, a buckle: a box with its edges eased) is kept as it
+    is. Thinning one gives a crumpled lump with dark creases across it, which reads as a cheap model from much
+    further off than a few saved triangles are worth. So is any shape named in `keep` (the name it was made
+    with, without Blender's ".001"): for shapes that cross each other at a shallow angle, a visor let into a
+    helmet, where thinning either one turns the clean line between them into a ragged blotch. Everything
+    else, the rounded shapes that carry most of the triangles and thin gracefully, is thinned by the same
+    share, found by trying, with none taken below `least` triangles. A shape named in `leave_out` is not in
+    the far copy at all: for one that barely shows in the full model and pokes through its cover when thinned.
+
+    The line it prints says how often the far copy is seen from inside (see inside_out_share). It should say
+    0.00%, as the full model does: anything else is a hole to go and look for in the preview, in magenta.
+    """
+    keep, leave_out = set(keep), set(leave_out)
+
+    def kept_whole(o, n):
+        return n <= whole or o.name.split(".")[0] in keep
+
+    plain, fixed = [], 0
+    for name, objects in parts:
+        if name.endswith("Glow"):
+            fixed += sum(_triangle_count(o) for o in objects)
+            continue
+        kept = [o for o in objects if max(o.dimensions) >= drop_below and o.name.split(".")[0] not in leave_out]
+        if not kept and objects:
+            kept = [max(objects, key=lambda o: max(o.dimensions))]
+        plain.append((name, kept))
+
+    def made(ratio, keep):
+        total, out = fixed, []
+        for name, objects in plain:
+            copies = []
+            for o in objects:
+                n = _triangle_count(o)
+                copies.append(_thinned(o, 1.0 if kept_whole(o, n) else max(ratio, least / float(n))))
+            biggest = max(range(len(objects)), key=lambda k: max(objects[k].dimensions)) if objects else -1
+            copies = _drop_hidden(copies, objects)
+            if objects and all(c is None for c in copies):
+                copies[biggest] = _thinned(objects[biggest], 1.0)     # a piece is never left empty
+            copies = [c for c in copies if c is not None]
+            total += sum(_triangle_count(c) for c in copies)
+            out.append((name, copies))
+        if not keep:
+            for _, copies in out:
+                for c in copies:
+                    mesh = c.data
+                    bpy.data.objects.remove(c)
+                    bpy.data.meshes.remove(mesh)
+        return total, out
+
+    low, high = 0.01, 1.0
+    for _ in range(8):
+        middle = (low + high) / 2
+        total, _ = made(middle, keep=False)
+        if total > target:
+            high = middle
+        else:
+            low = middle
+    total, out = made(low, keep=True)
+    by_name = dict(out)
+    result = [(name, objects if name.endswith("Glow") else by_name[name]) for name, objects in parts]
+    full_share = inside_out_share([o for _, objects in parts for o in objects])
+    far_share = inside_out_share([o for _, objects in out for o in objects] + [o for name, objects in parts if name.endswith("Glow") for o in objects])
+    print("OA far copy: %d triangles (asked for %d), share %.3f; seen from inside %.2f%% of the time (the full model %.2f%%)"
+          % (total, target, low, 100 * far_share, 100 * full_share))
+    return result
 
 
 # ------------------------------------------------------------------ preview pictures

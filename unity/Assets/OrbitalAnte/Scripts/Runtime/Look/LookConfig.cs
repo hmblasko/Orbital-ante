@@ -58,6 +58,14 @@ namespace OrbitalAnte.Look
         [Range(1f, 12f)] public float sunBrightness = 5f;
         [Range(1f, 4f)] public float starBrightness = 1.5f;
 
+        [Header("Far copies (enemies and guns a long way off)")]
+        [Tooltip("On: an enemy or a gun a long way off is drawn as a simpler copy of itself. Off draws everything in full, which is the costliest the game can be.")]
+        public bool farCopies = true;
+        [Tooltip("The most enemy bodies drawn in full at once, the nearest in view first. Past this number even a close enemy wears its simpler copy, so raise it if you can see that happen and the Budget line on F3 has room.")]
+        [Range(0, 40)] public int fullBodies = DetailRule.FullBodies;
+        [Tooltip("How far off things change to their simpler copies. 1 is 24 m for an enemy and 9 m for a gun; 2 is twice as far. Raise it if you can see the change happen.")]
+        [Range(0.5f, 4f)] public float farCopyDistance = 1f;
+
         static LookConfig _cached;
 
         public static LookConfig Load()

@@ -96,6 +96,9 @@ namespace OrbitalAnte.Dismemberment
 
             var mannequin = root.AddComponent<Mannequin>();
             var parts = BuildParts(mannequin, rig, config, modelled);
+            // Far away it is drawn with the model's far copy, and only the nearest few bodies are ever drawn in full.
+            // (Before the gun is made: the gun watches itself.)
+            if (modelled) ModelDetail.Attach(root, _model, DetailRule.BodyRange, true);
 
             // Simple capsule that stops the character and the player walking through each other.
             var blockerGo = new GameObject("BodyBlocker");

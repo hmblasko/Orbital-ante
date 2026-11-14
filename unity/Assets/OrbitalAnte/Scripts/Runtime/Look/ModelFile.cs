@@ -58,6 +58,17 @@ namespace OrbitalAnte.Look
         /// </summary>
         public static bool Shines(string piece) => piece != null && piece.EndsWith("Glow", StringComparison.Ordinal);
 
+        /// <summary>
+        /// On the end of a model's name, the far copy of it: the same pieces by the same names and the same
+        /// sockets in about a fifth of the triangles, written by the same Blender script (oa_blender.thin).
+        /// </summary>
+        public const string FarSuffix = "Far";
+
+        /// <summary>The name of a model's far copy. (A far copy has none of its own.)</summary>
+        public static string FarOf(string model) => string.IsNullOrEmpty(model) || IsFar(model) ? null : model + FarSuffix;
+
+        public static bool IsFar(string model) => model != null && model.Length > FarSuffix.Length && model.EndsWith(FarSuffix, StringComparison.Ordinal);
+
         public bool TrySocket(string name, out ModelSocket socket)
         {
             for (int i = 0; i < Sockets.Length; i++)

@@ -9,6 +9,7 @@ The four sockets keep the positions the placeholder guns had, so hands, tracers 
 import bpy, sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import oa_blender as oa
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "OrbitalAnte", "Resources", "Models"))
@@ -340,11 +341,28 @@ def sniper():
     return [("Body", body), ("Magazine", mag), ("LensGlow", glow)], sockets
 
 
-def build(name, maker, previews):
+FAR_TRIANGLES = 2000    # docs/performance_budget.md: a gun in an enemy's hands or lying on the ground far off
+FAR_SHARE = 0.4         # and never more than this share of the full gun, or a small gun's far copy saves nothing
+
+
+def far_copy(parts):
+    full = sum(oa._triangle_count(o) for _, objects in parts for o in objects)
+    return oa.thin(parts, min(FAR_TRIANGLES, int(full * FAR_SHARE)), drop_below=0.012)
+
+
+def build(name, maker, previews, far_only=False):
     oa.reset_scene()
     parts, sockets = maker()
-    oa.export(os.path.join(OUT, name + ".bytes"), parts, sockets)
-    if previews:
+    if not far_only:
+        oa.export(os.path.join(OUT, name + ".bytes"), parts, sockets)
+    # The far copy: the same pieces and sockets, thinned. Written with every build so the two never drift apart.
+    far = far_copy(parts)
+    oa.export(os.path.join(OUT, name + oa.FAR + ".bytes"), far, sockets)
+    for piece, objects in far:
+        if not piece.endswith("Glow"):                    # the shining pieces are the full model's own
+            for o in objects:
+                o.hide_render = True
+    if previews and not far_only:
         everything = [o for _, objs in parts for o in objs]
         length, mid = SHOTS.get(name, (0.26, (0, 0.05, 0.01)))
         floor = oa.box("floor", (0, 0, -0.5 * length), (40, 40, 0.01), (0.80, 0.74, 0.66), bevel=0)
@@ -361,11 +379,35 @@ SHOTS = {"Rifle": (0.75, (0, 0.16, 0.0)), "Pistol": (0.26, (0, 0.05, 0.01)), "Sm
 GUNS = (("Rifle", rifle), ("Pistol", pistol), ("Smg", smg), ("Shotgun", shotgun), ("Sniper", sniper))
 
 
+def far_line_up(folder):
+    """All five guns from the side, the full ones in a row above their far copies, to judge the far copies by eye.
+    Seen much closer than the game ever shows a far copy (about 2 m at the game's width of view)."""
+    oa.reset_scene()
+    shown, y = [], 2.3
+    for name, maker in GUNS:
+        parts, _ = maker()
+        far = far_copy(parts)
+        length, mid = SHOTS[name]
+        y -= 0.5 * length
+        for group, z in ((parts, 0.26), (far, -0.26)):
+            for _, objects in group:
+                for o in objects:
+                    if o in shown:                 # a shining piece is the same object in both
+                        continue
+                    o.data.transform(Matrix.Translation(Vector((0, y - mid[1], z))))
+                    shown.append(o)
+        y -= 0.5 * length + 0.18
+    oa.render_preview(os.path.join(folder, "guns_far_compare.png"), shown, (7.0, 0.05, 0.0), (0, 0.05, 0.0), lens=50, size=(1280, 800), samples=96)
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     previews = args[args.index("--preview") + 1] if "--preview" in args else None
     # --only Smg,Sniper builds just those: the others' files are left exactly as they are.
     only = args[args.index("--only") + 1].split(",") if "--only" in args else None
+    if "--far-preview" in args:
+        far_line_up(args[args.index("--far-preview") + 1])
+        sys.exit(0)
     for gun, maker in GUNS:
         if only is None or gun in only:
-            build(gun, maker, previews)
+            build(gun, maker, previews, far_only="--far-only" in args)

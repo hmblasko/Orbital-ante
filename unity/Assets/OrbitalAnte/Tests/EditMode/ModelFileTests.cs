@@ -200,6 +200,83 @@ namespace OrbitalAnte.Tests
             }
         }
 
+        // ------------------------------------------------------------------ far copies
+
+        static void Bounds(ModelPart piece, out P3 min, out P3 max)
+        {
+            min = new P3(float.MaxValue, float.MaxValue, float.MaxValue);
+            max = new P3(float.MinValue, float.MinValue, float.MinValue);
+            for (int v = 0; v < piece.VertexCount; v++)
+            {
+                float x = piece.Positions[v * 3], y = piece.Positions[v * 3 + 1], z = piece.Positions[v * 3 + 2];
+                min = new P3(System.Math.Min(min.X, x), System.Math.Min(min.Y, y), System.Math.Min(min.Z, z));
+                max = new P3(System.Math.Max(max.X, x), System.Math.Max(max.Y, y), System.Math.Max(max.Z, z));
+            }
+        }
+
+        [TestCase("Enemy", 4800, 0.4f)]
+        [TestCase("EnemyRunner", 4800, 0.4f)]
+        [TestCase("EnemyBruiser", 4800, 0.4f)]
+        [TestCase("EnemyMarksman", 4800, 0.4f)]
+        [TestCase("Rifle", 2200, 0.45f)]
+        [TestCase("Pistol", 2200, 0.45f)]
+        [TestCase("Smg", 2200, 0.45f)]
+        [TestCase("Shotgun", 2200, 0.45f)]
+        [TestCase("Sniper", 2200, 0.45f)]
+        public void TheFarCopy_IsTheSameModel_InAFractionOfTheTriangles(string id, int budget, float share)
+        {
+            // tools/blender writes XFar.bytes beside X.bytes with every build: the same pieces by the same names
+            // (the wound is only in the full file) and the same sockets, so the game can swap one for the other.
+            ModelFile full = LoadReal(id), far = LoadReal(ModelFile.FarOf(id));
+            Assert.LessOrEqual(far.TriangleCount, budget, "docs/performance_budget.md caps this far copy");
+            Assert.Less(far.TriangleCount, full.TriangleCount * share, "a far copy this close to the full one saves nothing");
+            // Corners are what the graphics card works on first: a far copy must save those too, not only triangles.
+            int corners = 0, fullCorners = 0;
+            foreach (ModelPart p in far.Parts) corners += p.VertexCount;
+            foreach (ModelPart p in full.Parts) if (p.Name != "Stump") fullCorners += p.VertexCount;
+            Assert.Less(corners, fullCorners * 0.62f, "the far copy has nearly as many corners as the full model");
+            Assert.AreEqual(full.Sockets.Length, far.Sockets.Length);
+            foreach (ModelSocket s in full.Sockets)
+            {
+                Assert.IsTrue(far.TrySocket(s.Name, out ModelSocket same), "the far copy has lost socket " + s.Name);
+                Assert.AreEqual(s.X, same.X, 1e-4f); Assert.AreEqual(s.Y, same.Y, 1e-4f); Assert.AreEqual(s.Z, same.Z, 1e-4f);
+            }
+            foreach (ModelPart piece in full.Parts)
+            {
+                if (piece.Name == "Stump") { Assert.IsNull(far.Part("Stump"), "the wound is not thinned: the full file's is used"); continue; }
+                ModelPart thin = far.Part(piece.Name);
+                Assert.IsNotNull(thin, "the far copy has lost piece " + piece.Name);
+                Assert.Greater(thin.Triangles.Length, 0, piece.Name + " is empty in the far copy");
+                if (ModelFile.Shines(piece.Name))
+                {
+                    // What shines is kept exactly: the game switches it by name and it must sit where it sat.
+                    Assert.AreEqual(piece.VertexCount, thin.VertexCount, piece.Name);
+                    continue;
+                }
+                // The same outline: thinning may round a corner or drop a rivet, never move, shrink or grow a piece.
+                Bounds(piece, out P3 min, out P3 max);
+                Bounds(thin, out P3 thinMin, out P3 thinMax);
+                // (Thinning puts a corner where it best stands for the ones it replaces, which can be a hair outside.)
+                const float lost = 0.035f, grown = 0.015f;
+                Assert.That(thinMin.X - min.X, Is.InRange(-grown, lost), id + " " + piece.Name + " left");
+                Assert.That(thinMin.Y - min.Y, Is.InRange(-grown, lost), id + " " + piece.Name + " bottom");
+                Assert.That(thinMin.Z - min.Z, Is.InRange(-grown, lost), id + " " + piece.Name + " back");
+                Assert.That(max.X - thinMax.X, Is.InRange(-grown, lost), id + " " + piece.Name + " right");
+                Assert.That(max.Y - thinMax.Y, Is.InRange(-grown, lost), id + " " + piece.Name + " top");
+                Assert.That(max.Z - thinMax.Z, Is.InRange(-grown, lost), id + " " + piece.Name + " front");
+                // And still painted: not all one colour, not white (thinning once threw the paint away).
+                float lightest = 0f, darkest = 1f, mean = 0f;
+                for (int c = 0; c < thin.Colors.Length; c += 3)
+                {
+                    float v = (thin.Colors[c] + thin.Colors[c + 1] + thin.Colors[c + 2]) / 3f;
+                    lightest = System.Math.Max(lightest, v); darkest = System.Math.Min(darkest, v); mean += v;
+                }
+                mean /= thin.VertexCount;
+                Assert.Less(mean, 0.93f, id + " " + piece.Name + " has lost its paint");
+                Assert.Greater(lightest - darkest, 0.02f, id + " " + piece.Name + " is one flat colour");
+            }
+        }
+
         // ------------------------------------------------------------------ the lander's outside fittings
 
         static void AssertSocket(ModelFile model, string name, P3 expected)
@@ -622,8 +699,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman",
+                                                            "EnemyFar", "EnemyRunnerFar", "EnemyBruiserFar", "EnemyMarksmanFar")] string file)
         {
+            // The far copies are held to the same fit: the hitboxes do not change when the drawn copy does, so
+            // what looks hit must be hit whichever is showing.
+            string name = ModelFile.IsFar(file) ? file.Substring(0, file.Length - ModelFile.FarSuffix.Length) : file;
             // The hitbox radii MannequinFactory gives the trooper's modelled limbs, times BodyFit's thickness for
             // this kind, against how thick the limb really is in the file. A hitbox much fatter than the limb
             // is hit by shots that visibly miss; one much thinner lets visible hits through.
@@ -634,7 +715,7 @@ namespace OrbitalAnte.Tests
                 (BodyPartId.LeftUpperArm, 0.085f), (BodyPartId.LeftForearm, 0.066f), (BodyPartId.LeftHand, 0.082f),
                 (BodyPartId.LeftThigh, 0.10f), (BodyPartId.LeftShin, 0.076f),
             };
-            ModelFile model = LoadReal(name);
+            ModelFile model = LoadReal(file);
             foreach ((BodyPartId part, float radius) in limbs)
             {
                 ModelPart piece = model.Part(part.ToString());
@@ -651,8 +732,8 @@ namespace OrbitalAnte.Tests
                 bool alongX = System.Math.Abs(d.X) > System.Math.Abs(d.Y);
                 float thick = 0.5f * System.Math.Max(alongX ? maxY - minY : maxX - minX, maxZ - minZ);
                 float box = radius * BodyFit.Thickness(name, part);
-                Assert.Less(box, thick * 1.12f, name + " " + part + ": the hitbox is fatter than the limb");
-                Assert.Greater(box, thick * 0.55f, name + " " + part + ": the hitbox is much thinner than the limb");
+                Assert.Less(box, thick * 1.12f, file + " " + part + ": the hitbox is fatter than the limb");
+                Assert.Greater(box, thick * 0.55f, file + " " + part + ": the hitbox is much thinner than the limb");
             }
             // The head's ball: no wider than the helmet is across, and sitting on the helmet, not above or below it.
             ModelPart head = model.Part("Head");
@@ -667,8 +748,8 @@ namespace OrbitalAnte.Tests
             float middle = BodySkeleton.HeadCentreAboveNeck + BodyFit.HeadRise(name);
             across.Sort();
             float helmetHalfWidth = across[(int)(across.Count * 0.9f)];
-            Assert.Less(ball, helmetHalfWidth * 1.25f, name + ": the head's hitbox is wider than the helmet");
-            Assert.Greater(ball, helmetHalfWidth * 0.8f, name + ": the head's hitbox is much narrower than the helmet");
+            Assert.Less(ball, helmetHalfWidth * 1.25f, file + ": the head's hitbox is wider than the helmet");
+            Assert.Greater(ball, helmetHalfWidth * 0.8f, file + ": the head's hitbox is much narrower than the helmet");
             Assert.AreEqual(0f, BodyFit.HeadRise("Enemy"));
             Assert.Less(BodyFit.HeadRise("EnemyBruiser"), -0.03f, "the bruiser's helmet is sunk into its collar");
             Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));

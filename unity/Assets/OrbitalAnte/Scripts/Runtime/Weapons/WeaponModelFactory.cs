@@ -97,6 +97,8 @@ namespace OrbitalAnte.Weapons
             Transform model = NewChild("Model", root, Vector3.zero);
             var pieces = new System.Collections.Generic.Dictionary<string, GameObject>();
             if (!ModelLibrary.Build(id, model, pieces)) return false;
+            // In an enemy's hands or lying on the ground far off, the gun is drawn with its far copy.
+            ModelDetail.Attach(root.gameObject, id, DetailRule.GunRange, false);
 
             Vector3 magazineAt = new Vector3(magazine.X, magazine.Y, magazine.Z);
             Transform magazineSocket = NewChild("Magazine", root, magazineAt);
