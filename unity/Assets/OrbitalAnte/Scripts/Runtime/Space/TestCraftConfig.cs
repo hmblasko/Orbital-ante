@@ -19,6 +19,9 @@ namespace OrbitalAnte.Space
         [Tooltip("How hard Match Velocity brakes, in metres per second squared.")]
         public float matchVelocityThrust = 60f;
 
+        [Header("Autopilot (flies to the locked body and stops above it)")]
+        public OrbitalAnte.Navigation.AutopilotRules autopilot = new OrbitalAnte.Navigation.AutopilotRules();
+
         [Header("Turning")]
         [Tooltip("Degrees turned per unit of mouse movement.")]
         public float mouseSensitivity = 0.08f;

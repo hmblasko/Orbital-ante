@@ -25,6 +25,9 @@ namespace OrbitalAnte.Dismemberment
 
         float _phase;
         float _headRoll;
+        float _lastYaw;
+        BodyAnimator _anim = new BodyAnimator(1);
+        AI.MannequinCombat _combat;
         MovementState _appliedState = (MovementState)(-1);
         Vector3 _lastPosition;
 
@@ -52,13 +55,28 @@ namespace OrbitalAnte.Dismemberment
             _blocker = blocker;
             _lastPosition = transform.position;
             _target = transform.position;
-            ApplyStandingPose(0f, false);
+            _lastYaw = transform.eulerAngles.y;
+            _owner.Struck += OnStruck;
+            // Stand properly from the first frame rather than in the skeleton's T-pose.
+            ApplyPose(_owner.State, false, 1f / 60f, 0f);
+        }
+
+        void Start()
+        {
+            _combat = GetComponent<AI.MannequinCombat>();
+        }
+
+        void OnDestroy()
+        {
+            if (_owner != null) _owner.Struck -= OnStruck;
         }
 
         public void SetWander(Bounds area, int seed)
         {
             _wanderArea = area;
             _rng = new SeededRandom(seed);
+            // How this one carries itself (its stance, its arm swing, when it glances about) differs per character.
+            _anim = new BodyAnimator(seed);
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
             PickTarget();
         }
@@ -274,142 +292,57 @@ namespace OrbitalAnte.Dismemberment
 
         // ------------------------------------------------------------------ poses
 
+        /// <summary>
+        /// The pose itself is worked out by <see cref="BodyAnimator"/> (plain rules, tested without Unity);
+        /// this only tells it what the character is doing and copies the answer onto the bones.
+        /// </summary>
         void ApplyPose(MovementState state, bool moving, float dt, float instantSpeed)
         {
-            _rig.ResetBones();
             // The head part can be rolled by the head-only state, so always put it back first.
             BodyPart head = _owner.Part(BodyPartId.Head);
             if (head != null && _owner.Model.OnBody(BodyPartId.Head)) head.transform.localRotation = Quaternion.identity;
 
-            switch (state)
+            float yaw = transform.eulerAngles.y;
+            // Capped, so being placed or spun round by something else does not whip the feet about.
+            float turnRate = dt > 0f ? Mathf.Clamp(Mathf.DeltaAngle(_lastYaw, yaw) / dt, -400f, 400f) : 0f;
+            _lastYaw = yaw;
+
+            bool armed = _combat != null && _combat.Weapon != null;
+            var input = new BodyAnimInput
             {
-                case MovementState.Intact:
-                    ApplyStandingPose(moving ? 1f : 0f, _sprinting);
-                    break;
-                case MovementState.OneLeg:
-                    ApplyOneLegPose(moving);
-                    break;
-                case MovementState.Crawl:
-                    ApplyCrawlPose(moving);
-                    break;
-                case MovementState.Wriggle:
-                    ApplyWrigglePose(moving);
-                    break;
-                case MovementState.HeadOnly:
-                    ApplyHeadOnlyPose(head, dt, instantSpeed);
-                    break;
-            }
+                State = state,
+                ForwardSpeed = state == MovementState.Intact ? CurrentSpeed : instantSpeed,
+                TurnRate = turnRate,
+                Phase = _phase,
+                Moving = moving,
+                WalkSpeed = _cfg.walkSpeed,
+                SprintSpeed = _cfg.sprintSpeed,
+                StandingLeg = _owner.Model.LegWorks(true) ? MannequinRig.Left : MannequinRig.Right,
+                LeftArmWorks = _owner.Model.ArmCanCrawl(true),
+                RightArmWorks = _owner.Model.ArmCanCrawl(false),
+                Aim = armed && FacePoint.HasValue ? 1.0 : 0.0,
+                GunSide = armed ? _combat.GunSide : -1,
+            };
+            _anim.Update(dt, input);
+            _rig.Apply(_anim.Pose);
+
+            if (state == MovementState.HeadOnly) ApplyHeadOnlyPose(head, dt, instantSpeed);
         }
 
-        // Arm rotation conventions (rest pose is a T-pose facing +Z):
-        //  - Rotating an upper arm about Z lowers it: +angle for the left arm, -angle for the right.
-        //  - Rotating about X swings a lowered arm or a leg: negative = forward.
-        //  - A forearm bends forward about Y: +angle for the left arm, -angle for the right.
-        static Quaternion ArmDown(int side, float downDegrees, float swingDegrees)
+        /// <summary>Knocks the body about when a part still on it is hit. Only for show: nothing here changes the rules.</summary>
+        void OnStruck(Mannequin mannequin, BodyPartId part, HitInfo hit, bool severed)
         {
-            float z = side == MannequinRig.Left ? downDegrees : -downDegrees;
-            return Quaternion.Euler(swingDegrees, 0f, 0f) * Quaternion.Euler(0f, 0f, z);
+            if (_anim == null) return;
+            Vector3 direction = transform.InverseTransformDirection(hit.Direction);
+            Vector3 point = transform.InverseTransformPoint(hit.Point);
+            _anim.Flinch(direction.x, direction.z, point.y / 1.8f, Mathf.Clamp(point.x / 0.3f, -1f, 1f), severed ? 2.5f : 1f);
         }
 
-        static Quaternion ElbowBend(int side, float degrees)
+        /// <summary>The gun's kick, passed through the shoulder into the body.</summary>
+        public void Kick(float strength, int gunSide)
         {
-            return Quaternion.Euler(0f, side == MannequinRig.Left ? degrees : -degrees, 0f);
-        }
-
-        void ApplyStandingPose(float moveAmount, bool sprinting)
-        {
-            float s = Mathf.Sin(_phase);
-            float c = Mathf.Cos(_phase);
-            float legSwing = (sprinting ? 44f : 28f) * moveAmount;
-            float knee = (sprinting ? 65f : 38f) * moveAmount;
-            float armSwing = (sprinting ? 48f : 22f) * moveAmount;
-            float bob = (sprinting ? 0.05f : 0.025f) * moveAmount * Mathf.Abs(c);
-            float lean = sprinting ? 12f : 3f * moveAmount;
-
-            _rig.Pose.localPosition = new Vector3(0f, bob, 0f);
-            _rig.Pose.localRotation = Quaternion.Euler(lean, 0f, 0f);
-
-            // Left leg swings forward while the right swings back, and the swinging leg bends its knee.
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(-legSwing * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(legSwing * s, 0f, 0f);
-            _rig.Shin[MannequinRig.Left].localRotation = Quaternion.Euler(knee * Mathf.Max(0f, c), 0f, 0f);
-            _rig.Shin[MannequinRig.Right].localRotation = Quaternion.Euler(knee * Mathf.Max(0f, -c), 0f, 0f);
-
-            // Arms swing opposite to the legs.
-            float elbow = sprinting ? 70f : 18f;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, 78f, armSwing * s);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, 78f, -armSwing * s);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, elbow);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, elbow);
-        }
-
-        void ApplyOneLegPose(bool moving)
-        {
-            int standing = _owner.Model.LegWorks(true) ? MannequinRig.Left : MannequinRig.Right;
-            int missing = 1 - standing;
-            float air = moving ? Mathf.Max(0f, Mathf.Sin(_phase)) : 0f;       // 0 on the ground, 1 at the top of the hop
-            float crouch = moving ? Mathf.Max(0f, -Mathf.Sin(_phase)) : 0f;   // winding up for the next hop
-
-            // Lean over the good leg to stay balanced, and dip while winding up.
-            float roll = standing == MannequinRig.Left ? 9f : -9f;
-            _rig.Pose.localPosition = new Vector3(0f, air * 0.20f - crouch * 0.07f, 0f);
-            _rig.Pose.localRotation = Quaternion.Euler(6f + 6f * air, 0f, roll);
-
-            _rig.Thigh[standing].localRotation = Quaternion.Euler(-22f * crouch - 8f * air, 0f, 0f);
-            _rig.Shin[standing].localRotation = Quaternion.Euler(40f * crouch + 12f * air, 0f, 0f);
-            // Whatever is left of the other leg flails.
-            _rig.Thigh[missing].localRotation = Quaternion.Euler(-25f + 30f * Mathf.Sin(_phase + 1f), 0f, 0f);
-            _rig.Shin[missing].localRotation = Quaternion.Euler(30f, 0f, 0f);
-
-            // Arms out and flapping for balance.
-            float down = 48f - 26f * air + 10f * crouch;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, down, -10f);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, down, -10f);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, 25f);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, 25f);
-        }
-
-        /// <summary>Lays the body face down along its forward direction, centred on the character root.</summary>
-        void SetProne(float yawDegrees, float rollDegrees, float pitchBumpDegrees)
-        {
-            Quaternion yaw = Quaternion.Euler(0f, yawDegrees, 0f);
-            _rig.Pose.localRotation = yaw * Quaternion.Euler(86f - pitchBumpDegrees, 0f, rollDegrees);
-            // After tipping over, a point at height h on the standing body ends up roughly h metres forward.
-            float lift = _rig.TorsoHalfDepth * 0.5f + 0.02f;
-            _rig.Pose.localPosition = yaw * new Vector3(0f, lift, -_rig.TorsoCentreHeight);
-        }
-
-        void ApplyCrawlPose(bool moving)
-        {
-            float s = moving ? Mathf.Sin(_phase) : 0f;
-            SetProne(5f * s, 7f * s, 0f);
-
-            // Arms reach past the head and pull back alternately.
-            // Raising an arm above the shoulder is a negative "down" angle.
-            float leftReach = -48f - 30f * s;
-            float rightReach = -48f + 30f * s;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, leftReach, 12f);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, rightReach, 12f);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, 28f + 22f * s);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, 28f - 22f * s);
-
-            // Leg stumps drag and twitch behind.
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(8f * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(-8f * s, 0f, 0f);
-            // Head up, looking where it is going.
-            _rig.Head.localRotation = Quaternion.Euler(-35f, 0f, 0f);
-        }
-
-        void ApplyWrigglePose(bool moving)
-        {
-            float s = moving ? Mathf.Sin(_phase) : 0f;
-            float bump = moving ? Mathf.Max(0f, Mathf.Sin(_phase + 0.8f)) : 0f;
-            // Snake from side to side and hump up just before each lunge.
-            SetProne(14f * s, 10f * s, 9f * bump);
-            _rig.Spine.localRotation = Quaternion.Euler(0f, 0f, 6f * s);
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(10f * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(-10f * s, 0f, 0f);
-            _rig.Head.localRotation = Quaternion.Euler(-30f, -12f * s, 0f);
+            if (_anim == null) return;
+            _anim.Flinch(0.0, -1.0, 0.8, gunSide == MannequinRig.Left ? -0.6 : 0.6, 0.10 * strength);
         }
 
         void ApplyHeadOnlyPose(BodyPart head, float dt, float instantSpeed)
@@ -418,10 +351,23 @@ namespace OrbitalAnte.Dismemberment
             float hop = 0.07f * Mathf.Abs(Mathf.Sin(_phase));
             _rig.Pose.localRotation = Quaternion.identity;
             _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + _rig.HeadRadius + hop, 0f);
+            _rig.ResetBones();
 
             _headRoll += Mathf.Rad2Deg * (instantSpeed * dt / Mathf.Max(0.01f, _rig.HeadRadius));
             if (_headRoll > 360f) _headRoll -= 360f;
-            if (head != null) head.transform.localRotation = Quaternion.Euler(_headRoll, 0f, 0f);
+            if (head == null) return;
+            if (_rig.Modelled)
+            {
+                // The helmet is not a ball (neck ring, snout, crest), so it rocks and waddles along on its neck ring
+                // instead of rolling right over and dipping into the floor.
+                float roll = _headRoll * Mathf.Deg2Rad;
+                head.transform.localRotation = Quaternion.Euler(22f * Mathf.Sin(roll), 0f, 9f * Mathf.Cos(roll));
+                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f + hop, 0f);
+            }
+            else
+            {
+                head.transform.localRotation = Quaternion.Euler(_headRoll, 0f, 0f);
+            }
         }
 
         // ------------------------------------------------------------------ collision capsule

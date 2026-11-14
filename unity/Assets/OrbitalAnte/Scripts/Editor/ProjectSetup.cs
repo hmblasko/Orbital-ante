@@ -67,6 +67,11 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath) == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Planets.PlanetData>(PlanetsPath) == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -76,6 +81,27 @@ namespace OrbitalAnte.EditorTools
         static void RunFromMenu()
         {
             Run(true);
+        }
+
+        static int _lastProblems;
+
+        /// <summary>
+        /// For the command line (tools/check-in-unity): sets the project up with no windows to click, then quits
+        /// Unity with exit code 0 when everything worked and 1 when something did not.
+        /// </summary>
+        public static void SetUpFromCommandLine()
+        {
+            int code = 1;
+            try
+            {
+                Run(false);
+                code = _lastProblems == 0 ? 0 : 1;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Orbital Ante: setup failed: " + e);
+            }
+            EditorApplication.Exit(code);
         }
 
         [MenuItem("Orbital Ante/Open Test Arena", priority = 1)]
@@ -132,6 +158,7 @@ namespace OrbitalAnte.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            _lastProblems = problems.Count;
 
             if (problems.Count == 0)
             {
@@ -143,7 +170,12 @@ namespace OrbitalAnte.EditorTools
                                  "\nYou can run it again from the menu: Orbital Ante > Set Up Project.");
             }
 
-            if (needsRestart)
+            if (needsRestart && Application.isBatchMode)
+            {
+                // No one to ask. The new setting takes effect the next time Unity starts, which the check script does.
+                Debug.Log("Orbital Ante: the Input System setting was changed; it takes effect next time Unity starts.");
+            }
+            else if (needsRestart)
             {
                 bool restart = EditorUtility.DisplayDialog(
                     "Orbital Ante",
@@ -284,12 +316,37 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<GoreConfig>(GoreConfigPath);
             CreateAssetIfMissing<OrbitalAnte.Perf.PerformanceBudget>(ConfigFolder + "/PerformanceBudget.asset");
             CreateAssetIfMissing<OrbitalAnte.Space.TestCraftConfig>(ConfigFolder + "/TestCraftConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);
             // What each planet's surface is like: ground shape, colours, sea, sky, weather and formations.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Planets.PlanetData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Planets.PlanetData>(PlanetsPath);
+            // The ship: weight, damage and repair numbers, the seat, hatch and lift.
+            CreateAssetIfMissing<OrbitalAnte.Ship.ShipConfig>(ConfigFolder + "/ShipConfig.asset");
+            // The look: bloom, tone mapping, colour grade, smoothed edges and the strength of the painted style.
+            CreateAssetIfMissing<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset");
+            SetUpGlassMaterial();
+        }
+
+        /// <summary>
+        /// The stand-in window glass, used only if the game's own glass shader cannot be used. It has to be saved
+        /// as an asset: a see-through material made while the game runs loses its settings in a built game.
+        /// </summary>
+        static void SetUpGlassMaterial()
+        {
+            const string folder = "Assets/OrbitalAnte/Resources/Materials";
+            const string path = folder + "/OA_Glass.mat";
+            EnsureFolder(folder);
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) return;
+            var glass = new Material(shader);
+            OrbitalAnte.Ship.ShipMeshes.MakeSeeThrough(glass);
+            AssetDatabase.CreateAsset(glass, path);
         }
 
         /// <summary>

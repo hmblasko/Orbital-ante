@@ -1,4 +1,5 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Look;
 using UnityEngine;
 
 namespace OrbitalAnte.Weapons
@@ -22,7 +23,7 @@ namespace OrbitalAnte.Weapons
 
     /// <summary>
     /// Builds what a gun looks like. If the weapon data has a model assigned (a CC0 model from
-    /// Assets/ThirdParty/Weapons), that is used. Otherwise a placeholder is built from primitives. Either way the
+    /// Assets/ThirdParty/Weapons), that is used. Otherwise the game's own Blender-made model is used, and if that is missing too, a placeholder built from primitives. Either way the
     /// result has the same four sockets, so nothing else in the game cares which one it got.
     ///
     /// A gun's own space: origin at the grip, barrel along +Z, top along +Y.
@@ -48,10 +49,67 @@ namespace OrbitalAnte.Weapons
             }
             if (!built)
             {
+                built = BuildFromModelFile(data, weaponRoot, out sockets);
+            }
+            if (!built)
+            {
                 sockets = data.placeholderShape == WeaponShape.Pistol ? BuildPistol(weaponRoot) : BuildRifle(weaponRoot);
             }
             sockets.LocalBounds = MeasureLocalBounds(weaponRoot);
             return sockets;
+        }
+
+        // ------------------------------------------------------------------ the game's own models
+
+        /// <summary>The model file a gun uses: the one named on its data, or the one for its shape.</summary>
+        public static string ModelIdFor(WeaponData data)
+        {
+            if (!string.IsNullOrEmpty(data.modelFile)) return data.modelFile;
+            return data.placeholderShape == WeaponShape.Pistol ? "Pistol" : "Rifle";
+        }
+
+        /// <summary>
+        /// A gun made in Blender (tools/blender/build_weapons.py), drawn with the game's shared look. The model
+        /// carries its own attachment points. Its "Magazine" piece is separate so a reload can take it away.
+        /// </summary>
+        static bool BuildFromModelFile(WeaponData data, Transform root, out WeaponSockets sockets)
+        {
+            sockets = default;
+            string id = ModelIdFor(data);
+            ModelFile file = ModelLibrary.Find(id);
+            if (file == null) return false;
+            if (!file.TrySocket("Muzzle", out ModelSocket muzzle) || !file.TrySocket("SupportHand", out ModelSocket support) ||
+                !file.TrySocket("Magazine", out ModelSocket magazine))
+            {
+                Debug.LogWarning("Weapon '" + data.displayName + "': the model '" + id + "' is missing an attachment point. Using the placeholder shape instead.");
+                return false;
+            }
+
+            Transform model = NewChild("Model", root, Vector3.zero);
+            var pieces = new System.Collections.Generic.Dictionary<string, GameObject>();
+            if (!ModelLibrary.Build(id, model, pieces)) return false;
+
+            Vector3 magazineAt = new Vector3(magazine.X, magazine.Y, magazine.Z);
+            Transform magazineSocket = NewChild("Magazine", root, magazineAt);
+            GameObject magazineMesh = null;
+            if (pieces.TryGetValue("Magazine", out GameObject piece))
+            {
+                // The piece's corners are in the gun's space, so it is shifted back by where its socket sits.
+                piece.name = "MagazineMesh";
+                piece.transform.SetParent(magazineSocket, false);
+                piece.transform.localPosition = -magazineAt;
+                magazineMesh = piece;
+            }
+
+            sockets = new WeaponSockets
+            {
+                Grip = NewChild("Grip", root, Vector3.zero),
+                SupportHand = NewChild("SupportHand", root, new Vector3(support.X, support.Y, support.Z)),
+                Muzzle = NewChild("Muzzle", root, new Vector3(muzzle.X, muzzle.Y, muzzle.Z)),
+                Magazine = magazineSocket,
+                MagazineMesh = magazineMesh,
+            };
+            return true;
         }
 
         // ------------------------------------------------------------------ placeholders

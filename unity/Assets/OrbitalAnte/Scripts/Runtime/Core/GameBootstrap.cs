@@ -62,6 +62,15 @@ namespace OrbitalAnte.Core
             Planets.PlanetMaterials.ResetStatics();
             Planets.PlanetSurface.ResetStatics();
             Planets.FeatureMeshes.ResetStatics();
+            OrbitalAnte.Ship.ShipConfig.ResetStatics();
+            OrbitalAnte.Ship.ShipMeshes.ResetStatics();
+            OrbitalAnte.Look.LookConfig.ResetStatics();
+            OrbitalAnte.Look.PostFx.ResetStatics();
+            OrbitalAnte.Look.ModelLibrary.ResetStatics();
+            OrbitalAnte.Launch.LaunchConfig.ResetStatics();
+            OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
+            OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
+            OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -70,7 +79,7 @@ namespace OrbitalAnte.Core
             if (Instance != null) return;
             // Automated tests build their own little worlds and do not want the whole game on top.
             if (SceneManager.GetActiveScene().name.StartsWith("InitTestScene")) return;
-            if (FindFirstObjectByType<GameBootstrap>() != null) return;
+            if (FindAnyObjectByType<GameBootstrap>() != null) return;
             new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
         }
 
@@ -96,6 +105,8 @@ namespace OrbitalAnte.Core
             gameObject.AddComponent<Audio.AudioDebugPanel>();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
+            // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
+            OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
             GameSession.PauseChanged += OnPauseChanged;
             ShowMainMenu();
@@ -179,6 +190,7 @@ namespace OrbitalAnte.Core
             _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
+            OrbitalAnte.Ship.Astronaut.OnDeath = cause => _pauseMenu.ShowDeath(cause);
         }
 
         // ------------------------------------------------------------------ state changes

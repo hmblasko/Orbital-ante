@@ -34,6 +34,30 @@ namespace OrbitalAnte.Dismemberment
         public float TorsoCentreHeight;
         /// <summary>Half the front-to-back thickness of the torso.</summary>
         public float TorsoHalfDepth;
+        /// <summary>True when the pieces are the enemy model rather than the stand-in shapes.</summary>
+        public bool Modelled;
+
+        /// <summary>Puts every bone where a worked-out pose says (see BodyAnimator).</summary>
+        public void Apply(BodyPose pose)
+        {
+            Pose.localPosition = ToVector(pose.RootPosition);
+            Pose.localRotation = ToQuaternion(pose.RootRotation);
+            Hips.localRotation = ToQuaternion(pose.Local[(int)BodyBone.Hips]);
+            Spine.localRotation = ToQuaternion(pose.Local[(int)BodyBone.Spine]);
+            Head.localRotation = ToQuaternion(pose.Local[(int)BodyBone.Head]);
+            for (int s = 0; s < 2; s++)
+            {
+                UpperArm[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.UpperArm(s)]);
+                Forearm[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.Forearm(s)]);
+                Hand[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.Hand(s)]);
+                Thigh[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.Thigh(s)]);
+                Shin[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.Shin(s)]);
+                Foot[s].localRotation = ToQuaternion(pose.Local[(int)BodySkeleton.Foot(s)]);
+            }
+        }
+
+        static Vector3 ToVector(OrbitalAnte.Core.Vec3d v) => new Vector3((float)v.X, (float)v.Y, (float)v.Z);
+        static Quaternion ToQuaternion(OrbitalAnte.Core.QuatD q) => new Quaternion((float)q.X, (float)q.Y, (float)q.Z, (float)q.W);
 
         public void ResetBones()
         {

@@ -166,6 +166,17 @@ namespace OrbitalAnte.Arena
             RenderSettings.ambientGroundColor = new Color(0.30f, 0.26f, 0.24f);
             RenderSettings.fog = false;
             RenderSettings.reflectionIntensity = 1f;
+
+            // The same painted sky the planets use, set for a clear afternoon.
+            Vector3 toSun = -lightGo.transform.forward;
+            Planets.SkyGlobals.Reset();
+            Planets.SkyGlobals.SetSun(toSun * 100000f);
+            var sky = OrbitalAnte.Look.SkyLook.InAir(new OrbitalAnte.Look.Rgb(0.36f, 0.62f, 0.96f), new OrbitalAnte.Look.Rgb(0.78f, 0.87f, 0.95f),
+                toSun.y, 1f, 1f, false, 1f, 1f);
+            // A full veil: no deep space showing through a daytime sky.
+            Planets.SkyGlobals.SetAir(sun.color * sun.intensity, RenderSettings.ambientSkyColor * 0.5f, new Color(0.56f, 0.71f, 0.88f), 1f);
+            Planets.SkyGlobals.SetSky(sky, Vector3.up, 0f);
+            OrbitalAnte.Look.SkyDome.Build(transform, 200f, false);
         }
 
         void BuildGeometry()

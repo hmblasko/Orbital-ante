@@ -34,11 +34,23 @@ namespace OrbitalAnte.Core
         public static InputAction Interact { get; private set; }
         public static InputAction RespawnDummies { get; private set; }
         public static InputAction HoldFire { get; private set; }
+        /// <summary>Opens or closes the ship's belly hatch, from inside or from nearby outside.</summary>
+        public static InputAction Hatch { get; private set; }
+        // The suit's jets (outside the ship). Jump is "jets up" once you are off the ground.
+        public static InputAction JetDown { get; private set; }
+        public static InputAction SuitMatch { get; private set; }
+        public static InputAction TetherClip { get; private set; }
+        public static InputAction SuitRollLeft { get; private set; }
+        public static InputAction SuitRollRight { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
         public static InputAction FlyMove { get; private set; }
         public static InputAction FlyLook { get; private set; }
+        /// <summary>Held: the mouse or right stick turns the ship. Let go: it turns your head instead.</summary>
+        public static InputAction FlySteer { get; private set; }
+        /// <summary>Controller: switches the right stick between turning the ship and looking round the cabin.</summary>
+        public static InputAction FlyLookToggle { get; private set; }
         public static InputAction FlyUp { get; private set; }
         public static InputAction FlyDown { get; private set; }
         public static InputAction RollLeft { get; private set; }
@@ -46,6 +58,14 @@ namespace OrbitalAnte.Core
         public static InputAction MatchVelocity { get; private set; }
         public static InputAction Boost { get; private set; }
         public static InputAction ToggleMap { get; private set; }
+        public static InputAction Unbuckle { get; private set; }
+        public static InputAction FlyHatch { get; private set; }
+        /// <summary>Tips the pilot's head down to the dash's camera screen, and back up.</summary>
+        public static InputAction CockpitScreen { get; private set; }
+        public static InputAction NextCamera { get; private set; }
+        public static InputAction NextDash { get; private set; }
+        public static InputAction LockTarget { get; private set; }
+        public static InputAction Autopilot { get; private set; }
 
         /// <summary>The rebindable map for what the player is doing right now: on foot (Gameplay) or flying.</summary>
         public static InputActionMap Play { get; private set; }
@@ -130,6 +150,12 @@ namespace OrbitalAnte.Core
             Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
+            Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
+            JetDown = AddButton(Gameplay, "Jets Down", "<Keyboard>/leftCtrl", "<Gamepad>/buttonEast");
+            SuitMatch = AddButton(Gameplay, "Suit Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/leftTrigger");
+            TetherClip = AddButton(Gameplay, "Tether On / Off", "<Keyboard>/x", "<Gamepad>/dpad/right");
+            SuitRollLeft = AddButton(Gameplay, "Roll Left (floating)", "<Keyboard>/z", "<Gamepad>/leftShoulder");
+            SuitRollRight = AddButton(Gameplay, "Roll Right (floating)", "<Keyboard>/c", "<Gamepad>/rightShoulder");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -140,16 +166,29 @@ namespace OrbitalAnte.Core
                 .With("Left", "<Keyboard>/a", KeyboardMouseGroup)
                 .With("Right", "<Keyboard>/d", KeyboardMouseGroup);
             FlyMove.AddBinding("<Gamepad>/leftStick", groups: GamepadGroup);
-            FlyLook = Flight.AddAction("Steer", InputActionType.Value, expectedControlLayout: "Vector2");
+            // In the seat the mouse or right stick looks round the cabin. Held with "Turn Ship", it turns the ship.
+            FlyLook = Flight.AddAction("Look Around / Turn Ship", InputActionType.Value, expectedControlLayout: "Vector2");
             FlyLook.AddBinding("<Mouse>/delta", groups: KeyboardMouseGroup);
             FlyLook.AddBinding("<Gamepad>/rightStick", groups: GamepadGroup);
             FlyUp = AddButton(Flight, "Thrust Up", "<Keyboard>/space", "<Gamepad>/rightTrigger");
             FlyDown = AddButton(Flight, "Thrust Down", "<Keyboard>/leftCtrl", "<Gamepad>/leftTrigger");
+            // Mouse: looks round the cabin; hold this and it turns the ship.
+            FlySteer = AddButton(Flight, "Turn Ship (hold)", "<Mouse>/rightButton", null);
+            // Controller: the right stick turns the ship (a hold would tie up a trigger finger); click it to
+            // look round the cabin instead, and click again to go back.
+            FlyLookToggle = AddButton(Flight, "Look Around (press)", null, "<Gamepad>/rightStickPress");
             RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", "<Gamepad>/leftShoulder");
             RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", "<Gamepad>/rightShoulder");
             MatchVelocity = AddButton(Flight, "Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/buttonSouth");
             Boost = AddButton(Flight, "Boost (hold)", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
+            Unbuckle = AddButton(Flight, "Unbuckle", "<Keyboard>/b", "<Gamepad>/buttonNorth");
+            FlyHatch = AddButton(Flight, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
+            CockpitScreen = AddButton(Flight, "Look Down At Camera Screen", "<Keyboard>/c", "<Gamepad>/dpad/down");
+            NextCamera = AddButton(Flight, "Next Ship Camera", "<Keyboard>/v", "<Gamepad>/dpad/right");
+            NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", null);
+            LockTarget = AddButton(Flight, "Lock Target", "<Keyboard>/t", "<Gamepad>/buttonWest");
+            Autopilot = AddButton(Flight, "Autopilot To Locked Target", "<Keyboard>/r", "<Gamepad>/buttonEast");
             Play = Gameplay;
 
             // ---------- System (fixed) ----------
@@ -204,8 +243,10 @@ namespace OrbitalAnte.Core
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
             var action = map.AddAction(name, InputActionType.Button);
-            action.AddBinding(keyboardPath, groups: KeyboardMouseGroup);
-            action.AddBinding(gamepadPath, groups: GamepadGroup);
+            // An action with nothing on one device still gets an empty slot for it, so the first binding is always
+            // the keyboard's and the second the controller's, and the controls page has a row to bind it on.
+            action.AddBinding(keyboardPath ?? string.Empty, groups: KeyboardMouseGroup);
+            action.AddBinding(gamepadPath ?? string.Empty, groups: GamepadGroup);
             return action;
         }
 

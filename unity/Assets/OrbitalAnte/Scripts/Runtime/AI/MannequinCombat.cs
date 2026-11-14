@@ -38,6 +38,8 @@ namespace OrbitalAnte.AI
         float _triggerUntil;
         float _nextTriggerAt;
         Vector3 _aimDirection = Vector3.forward;
+        // Gives each one-handed wobble its own rhythm (set on first use: Unity forbids Random in constructors). Visual only.
+        float _wobblePhase = -1f;
         bool _aimedAtTarget;
         float _kick;
         bool _magazineOut;
@@ -398,6 +400,7 @@ namespace OrbitalAnte.AI
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
             _kick = Mathf.Min(2.5f, shot.RecoilScale);
+            if (_loco != null) _loco.Kick(_kick, _gunSide);
             ShotsFired++;
         }
 
@@ -441,7 +444,8 @@ namespace OrbitalAnte.AI
             if (Weapon.Data.twoHanded && hands == 1)
             {
                 // A rifle in one hand waves about. This is only for show; the real penalty is in the spread.
-                float t = Time.time * 5.3f + GetInstanceID() * 0.01f;
+                if (_wobblePhase < 0f) _wobblePhase = UnityEngine.Random.Range(0f, 100f);
+                float t = Time.time * 5.3f + _wobblePhase;
                 want = Quaternion.Euler(Mathf.Sin(t) * 4f, Mathf.Cos(t * 0.7f) * 4f, 0f) * want;
             }
 
