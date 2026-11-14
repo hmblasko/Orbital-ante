@@ -55,13 +55,50 @@ namespace OrbitalAnte.Planets
                 case FeatureKind.Cactus: return 0.4f;
                 case FeatureKind.VentChimney: return 0.4f;
                 case FeatureKind.Iceberg: return 1.1f;
+                case FeatureKind.Birch: return 0.3f;
+                case FeatureKind.Maple: return 0.55f;
+                case FeatureKind.Blossom: return 0.65f;
+                case FeatureKind.Pine: return 0.35f;
+                case FeatureKind.Acacia: return 0.75f;
+                case FeatureKind.GiantTree: return 0.3f;
+                case FeatureKind.Snag: return 0.3f;
+                case FeatureKind.SnowConifer: return 0.3f;
+                case FeatureKind.Meadow: return 1.2f;
+                case FeatureKind.Reeds: return 0.4f;
+                case FeatureKind.Fern: return 1.2f;
+                case FeatureKind.Log: return 1.9f;
+                case FeatureKind.Crag: return 0.45f;
+                case FeatureKind.SnowCrag: return 0.45f;
+                case FeatureKind.Outcrop: return 1.1f;
                 default: return 0.5f;
             }
         }
 
         /// <summary>Builds one shape. The same kind and variant always give exactly the same result.</summary>
+        /// <summary>
+        /// The shape worked out in code that stands in for a kind whose real model is made in Blender, for when
+        /// that model's file is missing. Kinds that are worked out in code anyway come back unchanged.
+        /// </summary>
+        public static FeatureKind StandIn(FeatureKind kind)
+        {
+            switch (kind)
+            {
+                case FeatureKind.Birch: case FeatureKind.Maple: case FeatureKind.Blossom: case FeatureKind.Acacia:
+                    return FeatureKind.Broadleaf;
+                case FeatureKind.Pine: case FeatureKind.GiantTree: case FeatureKind.SnowConifer: case FeatureKind.Snag:
+                    return FeatureKind.Conifer;
+                case FeatureKind.Meadow: case FeatureKind.Reeds: case FeatureKind.Fern:
+                    return FeatureKind.Bush;
+                case FeatureKind.Log: return FeatureKind.Slab;
+                case FeatureKind.Crag: case FeatureKind.SnowCrag: return FeatureKind.Spire;
+                case FeatureKind.Outcrop: return FeatureKind.Tor;
+                default: return kind;
+            }
+        }
+
         public static ShapeData Build(FeatureKind kind, int variant)
         {
+            kind = StandIn(kind);
             int v = ((variant % Variants) + Variants) % Variants;
             var b = new Builder(new SeededRandom(7000 + (int)kind * 131 + v * 17));
             switch (kind)

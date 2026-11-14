@@ -37,6 +37,8 @@ namespace OrbitalAnte.Look
     {
         public const int MaxParts = 64;
         public const int MaxCornersPerPart = 60000;
+        /// <summary>Scenery files carry three attachment points a tree (its trunk), so this is generous.</summary>
+        public const int MaxSockets = 256;
 
         public ModelPart[] Parts = new ModelPart[0];
         public ModelSocket[] Sockets = new ModelSocket[0];
@@ -151,7 +153,7 @@ namespace OrbitalAnte.Look
                         model.Parts[p] = part;
                     }
                     int socketCount = reader.ReadInt32();
-                    if (socketCount < 0 || socketCount > 64)
+                    if (socketCount < 0 || socketCount > MaxSockets)
                     {
                         problem = "it claims " + socketCount + " attachment points";
                         return null;

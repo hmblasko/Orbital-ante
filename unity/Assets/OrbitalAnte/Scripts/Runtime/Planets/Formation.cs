@@ -57,6 +57,8 @@ namespace OrbitalAnte.Planets
     {
         Boulder, Slab, RockPile, Hoodoo, Spire, Arch, BalancedRock, Tor, BasaltColumns, Crystal, IceShard,
         Stalagmite, Conifer, Broadleaf, Palm, Bush, Cactus, VentChimney, Iceberg,
+        // Earth's scenery, made in Blender (see SceneryModels). New kinds go on the end: the numbers are saved in assets.
+        Birch, Maple, Blossom, Pine, Acacia, GiantTree, Snag, SnowConifer, Meadow, Reeds, Fern, Log, Crag, SnowCrag, Outcrop,
     }
 
     /// <summary>Where on a body a formation is allowed to appear.</summary>

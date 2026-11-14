@@ -297,6 +297,15 @@ namespace OrbitalAnte.Planets
             l.Add(new Formation("tors", "Tors", Wind, Technique.Scatter,
                 "Stacks of rounded boulders left on hilltops.")
                 { MinSize = 14, MaxSize = 26, Feature = FeatureKind.Tor, MinCount = 3, MaxCount = 6, MinScale = 4, MaxScale = 8, Where = Where.Highland });
+            l.Add(new Formation("crag_ridge", "Crags", Wind, Technique.Scatter,
+                "Bare teeth of rock standing out of high ground, the bones of an old mountain. Earth only.")
+                { MinSize = 30, MaxSize = 60, Feature = FeatureKind.Crag, MinCount = 5, MaxCount = 9, MinScale = 12, MaxScale = 24, Where = Where.Highland });
+            l.Add(new Formation("snow_peaks", "Snow peaks", Wind, Technique.Scatter,
+                "Sharp summits streaked with snow that make the skyline of a range. Earth only.")
+                { MinSize = 35, MaxSize = 70, Feature = FeatureKind.SnowCrag, MinCount = 4, MaxCount = 8, MinScale = 18, MaxScale = 34, Where = Where.Highland });
+            l.Add(new Formation("rock_ledges", "Rock ledges", Wind, Technique.Scatter,
+                "Shelves of layered rock breaking out of a hillside, mossy on top. Earth only.")
+                { MinSize = 16, MaxSize = 30, Feature = FeatureKind.Outcrop, MinCount = 5, MaxCount = 10, MinScale = 3, MaxScale = 6.5, Where = Where.Land });
             l.Add(new Formation("balanced_rocks", "Balanced rocks", Wind, Technique.Scatter,
                 "Big rocks perched on narrow stems that look ready to fall.")
                 { MinSize = 12, MaxSize = 24, Feature = FeatureKind.BalancedRock, MinCount = 2, MaxCount = 5, MinScale = 4, MaxScale = 8 });
@@ -545,6 +554,39 @@ namespace OrbitalAnte.Planets
             l.Add(new Formation("cactus_stand", "Cactus stand", Plants, Technique.Scatter,
                 "Tall branching cacti. Earth only.")
                 { MinSize = 25, MaxSize = 45, Feature = FeatureKind.Cactus, MinCount = 8, MaxCount = 18, MinScale = 2.5, MaxScale = 6, Where = Where.Land });
+            l.Add(new Formation("birch_grove", "Birch grove", Plants, Technique.Scatter,
+                "Slim white trunks under light, fluttering crowns that turn gold. Earth only.")
+                { MinSize = 30, MaxSize = 55, Feature = FeatureKind.Birch, MinCount = 22, MaxCount = 40, MinScale = 6, MaxScale = 10, Where = Where.Land });
+            l.Add(new Formation("autumn_wood", "Autumn wood", Plants, Technique.Scatter,
+                "A wood caught in the fall: reds, oranges and golds. Earth only.")
+                { MinSize = 30, MaxSize = 60, Feature = FeatureKind.Maple, MinCount = 20, MaxCount = 40, MinScale = 6, MaxScale = 9.5, Where = Where.Land });
+            l.Add(new Formation("blossom_orchard", "Blossom orchard", Plants, Technique.Scatter,
+                "Low spreading trees smothered in pink and white blossom. Earth only.")
+                { MinSize = 18, MaxSize = 30, Feature = FeatureKind.Blossom, MinCount = 8, MaxCount = 16, MinScale = 4.5, MaxScale = 6.5, Where = Where.Lowland });
+            l.Add(new Formation("pine_stand", "Umbrella pines", Plants, Technique.Scatter,
+                "Tall bare red trunks carrying flat dark crowns, on high dry ground. Earth only.")
+                { MinSize = 30, MaxSize = 55, Feature = FeatureKind.Pine, MinCount = 14, MaxCount = 28, MinScale = 9, MaxScale = 14, Where = Where.Highland });
+            l.Add(new Formation("savanna", "Savanna", Plants, Technique.Scatter,
+                "Wide grassland dotted with flat-topped thorn trees. Earth only.")
+                { MinSize = 45, MaxSize = 80, Feature = FeatureKind.Acacia, MinCount = 10, MaxCount = 20, MinScale = 5.5, MaxScale = 8, Where = Where.Equatorial });
+            l.Add(new Formation("giant_grove", "Grove of giants", Plants, Technique.Scatter,
+                "A few enormous red-barked trees, each as tall as a tower block. Earth only.")
+                { MinSize = 30, MaxSize = 50, Feature = FeatureKind.GiantTree, MinCount = 7, MaxCount = 13, MinScale = 22, MaxScale = 32, Where = Where.Land });
+            l.Add(new Formation("snow_forest", "Snow forest", Plants, Technique.Scatter,
+                "Firs bowed under snow, near the ice. Earth only.")
+                { MinSize = 35, MaxSize = 65, Feature = FeatureKind.SnowConifer, MinCount = 26, MaxCount = 48, MinScale = 6, MaxScale = 11, Where = Where.Polar });
+            l.Add(new Formation("ghost_wood", "Ghost wood", Plants, Technique.Scatter,
+                "Dead trees standing silver and bare where a fire or a flood passed. Earth only.")
+                { MinSize = 20, MaxSize = 35, Feature = FeatureKind.Snag, MinCount = 8, MaxCount = 16, MinScale = 4.5, MaxScale = 8, Where = Where.Land });
+            l.Add(new Formation("flower_meadow", "Flower meadow", Plants, Technique.Scatter,
+                "Long grass thick with wild flowers. Earth only.")
+                { MinSize = 20, MaxSize = 40, Feature = FeatureKind.Meadow, MinCount = 30, MaxCount = 55, MinScale = 0.5, MaxScale = 0.8, Where = Where.Lowland });
+            l.Add(new Formation("reed_bed", "Reed bed", Plants, Technique.Scatter,
+                "Tall reeds and bulrushes crowding the water's edge. Earth only.")
+                { MinSize = 12, MaxSize = 22, Feature = FeatureKind.Reeds, MinCount = 14, MaxCount = 26, MinScale = 1.4, MaxScale = 2.2, Where = Where.Coast });
+            l.Add(new Formation("fern_glade", "Fern glade", Plants, Technique.Scatter,
+                "A damp hollow carpeted with ferns. Earth only.")
+                { MinSize = 16, MaxSize = 28, Feature = FeatureKind.Fern, MinCount = 16, MaxCount = 30, MinScale = 0.7, MaxScale = 1.2, Where = Where.Land });
         }
     }
 }

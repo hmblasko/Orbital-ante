@@ -120,6 +120,8 @@ namespace OrbitalAnte.Space
             SuitHud = shipHudGo.AddComponent<OrbitalAnte.Spacewalk.SuitHud>();
             SuitHud.Build(Astronaut, Astronaut.SuitDials);
             Bases = OrbitalAnte.Bases.PlanetBases.Build(this, null);
+            // Read the base models while the run is being got ready, not on the frame the first base comes into range.
+            OrbitalAnte.Bases.BaseView.Warm();
             Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.

@@ -264,7 +264,7 @@ namespace OrbitalAnte.Planets
                 case Technique.Scatter:
                 {
                     int count = r.Range(f.MinCount, f.MaxCount + 1);
-                    float[] tint = Feature.IsPlant(f.Feature)
+                    float[] tint = Feature.OwnColour(f.Feature)
                         ? new[] { 1f, 1f, 1f }
                         : ColorUtil.Parse(string.IsNullOrEmpty(f.Tint) ? terrain.Profile.rockColor : f.Tint);
                     double shrink = Math.Max(0.6, Math.Min(1.0, terrain.Scale));
@@ -416,8 +416,26 @@ namespace OrbitalAnte.Planets
     {
         public static bool IsPlant(FeatureKind kind)
         {
-            return kind == FeatureKind.Conifer || kind == FeatureKind.Broadleaf || kind == FeatureKind.Palm ||
-                   kind == FeatureKind.Bush || kind == FeatureKind.Cactus;
+            switch (kind)
+            {
+                case FeatureKind.Conifer: case FeatureKind.Broadleaf: case FeatureKind.Palm: case FeatureKind.Bush:
+                case FeatureKind.Cactus: case FeatureKind.Birch: case FeatureKind.Maple: case FeatureKind.Blossom:
+                case FeatureKind.Pine: case FeatureKind.Acacia: case FeatureKind.GiantTree: case FeatureKind.Snag:
+                case FeatureKind.SnowConifer: case FeatureKind.Meadow: case FeatureKind.Reeds: case FeatureKind.Fern:
+                case FeatureKind.Log:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// True for things that come painted (plants, and the rocks made in Blender): they are drawn in their own
+        /// colours and never tinted with the body's rock colour.
+        /// </summary>
+        public static bool OwnColour(FeatureKind kind)
+        {
+            return IsPlant(kind) || kind == FeatureKind.Crag || kind == FeatureKind.SnowCrag || kind == FeatureKind.Outcrop;
         }
     }
 }

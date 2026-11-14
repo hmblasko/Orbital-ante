@@ -187,6 +187,7 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("FUEL LOW", Settle(new DashInputs { Matching = true, FuelLow = true, Altitude = -1f }, 0.5f).Readings.Notice);
             StringAssert.Contains("AIR LOW", Settle(new DashInputs { OxygenLow = true, Matching = true, Altitude = -1f }, 0.5f).Readings.Notice);
             StringAssert.Contains("FUEL LOW", Settle(new DashInputs { FuelLow = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice, "fuel can hurt you today; air cannot yet");
+            StringAssert.Contains("AIR LOW", Settle(new DashInputs { FuelLow = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice, "and when both are low the notice says both");
             StringAssert.Contains("FUEL OUT", Settle(new DashInputs { FuelLow = true, FuelOut = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice);
         }
 

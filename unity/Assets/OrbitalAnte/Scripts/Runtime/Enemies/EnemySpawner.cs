@@ -65,6 +65,11 @@ namespace OrbitalAnte.Enemies
         SeededRandom _wakingRandom;
         int _wakingBody, _wakingCamp = -1, _wakingMember;
         Squad _wakingSquad;
+        // Where a base's own design says its guards stand, in the body's space: on the floor, and up on its towers.
+        readonly List<Vector3> _wakingSpawns = new List<Vector3>();
+        readonly List<Vector3> _wakingLookouts = new List<Vector3>();
+        readonly List<Vector3> _places = new List<Vector3>();
+        int _lookoutsUsed;
         readonly List<Weapon> _guns = new List<Weapon>();
 
         /// <summary>The most guns left lying about before the oldest are cleared away.</summary>
@@ -289,12 +294,25 @@ namespace OrbitalAnte.Enemies
             _wakingSquad = new Squad(w.Left[best]);
             Vec3d direction = w.Camps[best].Direction;
             Vector3 home = SpaceConvert.ToVector3(direction * HomeRadius(w.Camps[best], surface));
+            _wakingSpawns.Clear();
+            _wakingLookouts.Clear();
+            _lookoutsUsed = 0;
             _wakingFooting = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
             if (w.Camps[best].HomeRadius > 0)
             {
                 // A base's guards: its floor is their ground. They keep to it more than a camp keeps to its patch.
                 BaseSite? site = _world.Bases != null ? _world.Bases.SiteAt(body, direction) : null;
-                if (site.HasValue) _wakingFooting.SetFloor(home, (float)site.Value.Footprint);
+                if (site.HasValue)
+                {
+                    _wakingFooting.SetFloor(home, (float)site.Value.Footprint);
+                    BaseSite s = site.Value;
+                    _places.Clear();
+                    BaseView.Places(s, "Spawn", _places);
+                    for (int i = 0; i < _places.Count; i++) _wakingSpawns.Add(SpaceConvert.ToVector3(s.ToBody(_places[i].x, _places[i].y, _places[i].z)));
+                    _places.Clear();
+                    BaseView.Places(s, "Guard", _places);
+                    for (int i = 0; i < _places.Count; i++) _wakingLookouts.Add(SpaceConvert.ToVector3(s.ToBody(_places[i].x, _places[i].y, _places[i].z)));
+                }
             }
         }
 
@@ -338,8 +356,25 @@ namespace OrbitalAnte.Enemies
                 // A base's guards are spread over its floor, not bunched in the middle.
                 if (footing.FloorRadius > 0f) far = footing.FloorRadius * (0.25f + 0.35f * ((m * 0.37f + jitter) % 1f));
                 Vector3 position = footing.OnTheGround(home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
+                // A base's own design says where its guards stand: the ones that hold still go up on the towers
+                // as lookouts, the rest take the marked places on the floor.
+                bool lookout = false;
+                if (spec.holdsStill && _lookoutsUsed < _wakingLookouts.Count)
+                {
+                    position = planet.TransformPoint(_wakingLookouts[_lookoutsUsed++]);
+                    lookout = true;
+                }
+                else if (_wakingSpawns.Count > 0) position = planet.TransformPoint(_wakingSpawns[m % _wakingSpawns.Count]);
                 Vector3 worldUp = footing.Up(position);
-                Vector3 facing = Vector3.ProjectOnPlane(planet.TransformDirection(side * Mathf.Cos(angle + 1.3f) + along * Mathf.Sin(angle + 1.3f)), worldUp);
+                if (lookout || _wakingSpawns.Count > 0)
+                {
+                    // Facing outward from the middle of the base.
+                    Vector3 outward = Vector3.ProjectOnPlane(position - planet.TransformPoint(home), worldUp);
+                    if (outward.sqrMagnitude > 0.01f) angle = float.NaN;
+                }
+                Vector3 facing = float.IsNaN(angle)
+                    ? Vector3.ProjectOnPlane(position - planet.TransformPoint(home), worldUp)
+                    : Vector3.ProjectOnPlane(planet.TransformDirection(side * Mathf.Cos(angle + 1.3f) + along * Mathf.Sin(angle + 1.3f)), worldUp);
                 Quaternion rotation = Quaternion.LookRotation(facing.sqrMagnitude > 1e-4f ? facing.normalized : Vector3.Cross(worldUp, Vector3.right), worldUp);
 
                 Weapon gun = null;
@@ -348,7 +383,12 @@ namespace OrbitalAnte.Enemies
                 float tall = Mathf.Max(0.5f, spec.scale), wide = tall * Mathf.Clamp(spec.width, 0.6f, 1.8f);
                 who.transform.localScale = new Vector3(wide, tall, wide);
                 var locomotion = who.GetComponent<MannequinLocomotion>();
-                if (locomotion != null) locomotion.SetWander(default, wanderSeed);
+                if (locomotion != null)
+                {
+                    locomotion.SetWander(default, wanderSeed);
+                    // A lookout keeps its post on the tower.
+                    if (lookout) locomotion.Wander = false;
+                }
                 var combat = who.GetComponent<MannequinCombat>();
                 if (combat != null)
                 {
@@ -394,6 +434,7 @@ namespace OrbitalAnte.Enemies
             config.rushes = spec.rushes;
             config.holdsStill = spec.holdsStill;
             config.closesIn = spec.closesIn;
+            config.modelId = spec.model ?? "";
             config.aimTell = spec.aimTell;
             if (spec.red + spec.green + spec.blue > 0f) config.torsoColor = new Color(spec.red, spec.green, spec.blue);
             if (type < _typeConfigs.Length) _typeConfigs[type] = config;

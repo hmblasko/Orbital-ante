@@ -73,6 +73,17 @@ namespace OrbitalAnte.Planets
         public PlanetSettings settings = new PlanetSettings();
         [Tooltip("One entry per body that has ground to land on. bodyId must match the body's id in the Solar System asset.")]
         public List<PlanetProfile> planets = PlanetProfiles.Defaults();
+        [Tooltip("Which set of built-in defaults this asset's planets came from. When the game's defaults move on, the planets list is replaced with the new defaults (your settings above are kept). Set this to 9999 to keep your own planet edits for good.")]
+        public int defaultsVersion;
+
+        void OnEnable()
+        {
+            // An asset saved before the defaults changed still holds the old planets. Nothing on it has been
+            // edited by hand in practice, and the alternative is a step for Matthew to do in the editor.
+            if (defaultsVersion >= PlanetProfiles.Version) return;
+            planets = PlanetProfiles.Defaults();
+            defaultsVersion = PlanetProfiles.Version;
+        }
 
         public override string DisplayName => "Planets";
 

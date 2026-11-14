@@ -102,6 +102,16 @@ namespace OrbitalAnte.Planets
         public double maxHeight = 100000;
         /// <summary>Colour as a web colour. Empty uses the body's rock colour.</summary>
         public string color = "";
+        /// <summary>Where it grows between the equator (0) and the poles (1). The same on both halves of the world.</summary>
+        public double minLatitude;
+        public double maxLatitude = 1;
+        /// <summary>
+        /// Above 0, it grows in patches this many metres across with open ground between, instead of evenly
+        /// everywhere: woods and clearings, not a lawn of trees.
+        /// </summary>
+        public double patch;
+        /// <summary>How much of the ground the patches cover, 0 to 1.</summary>
+        public double cover = 0.5;
 
         public ScatterRule()
         {

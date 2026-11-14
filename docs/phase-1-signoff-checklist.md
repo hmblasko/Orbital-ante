@@ -121,13 +121,12 @@ If Unity shows red errors in the Console before you can press Play, stop and sen
 | J3 | Holding the right stick click while aiming is comfortable on the Deck (if not, say what button you would rather) | |
 | J4 | Bases can be found on every world; guards stand on them | |
 | J5 | A bigger base feels like a different, harder fight | |
-| J6 | The base buildings look good (only once the bases thread's models are in) | |
-| J7 | Earth has more landscapes, trees and mountains, and they look right (only once the bases thread's scenery is in) | |
+| J6 | The base buildings look good, and guards move sensibly round them; a lookout stays up on its tower | |
+| J7 | Earth has more landscapes, trees and mountains, and they look right | |
 
 ## Known gaps, so they do not surprise you
 
-- Base buildings and the new Earth scenery are being modelled by another thread. Until they land a base is a grey mound with guards.
-- The four enemy types share one body with different proportions. Their own models are being built.
+- Base buildings have no insides and no doors that open yet.
 - Heat shimmer at launch is not built.
 - Saved key bindings not loading back after a restart was reported earlier and is not yet fixed (line A4 checks it).
 - The ante timer, points, upgrades, loot, factions and the rest of Phase 2 are not in the game, on purpose.
