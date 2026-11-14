@@ -129,8 +129,10 @@ namespace OrbitalAnte.Player
                 float magnitude = Mathf.Clamp01(look.magnitude);
                 float curved = Mathf.Pow(magnitude, Mathf.Max(1f, Config.stickCurve));
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
-                _yaw += shaped.x * Config.stickYawSpeed * dt;
-                _pitch -= shaped.y * Config.stickPitchSpeed * dt;
+                // Your own head does not slow when the world does (hitstop, Deep Breath).
+                float own = TimeFlow.PlayerDelta(dt);
+                _yaw += shaped.x * Config.stickYawSpeed * own;
+                _pitch -= shaped.y * Config.stickPitchSpeed * own;
             }
 
             _pitch = Mathf.Clamp(_pitch, -88f, 88f);

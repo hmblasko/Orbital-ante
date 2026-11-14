@@ -60,7 +60,8 @@ namespace OrbitalAnte.Core
         public static void SetPaused(bool paused)
         {
             Paused = paused;
-            Time.timeScale = paused ? 0f : 1f;
+            // Time is only ever set in TimeFlow, so pausing cannot be undone by a slow-mo ending underneath it.
+            TimeFlow.Paused = paused;
             AudioListener.pause = paused;
             PauseChanged?.Invoke(paused);
         }
@@ -70,7 +71,7 @@ namespace OrbitalAnte.Core
         {
             Mode = GameMode.MainMenu;
             Paused = false;
-            Time.timeScale = 1f;
+            TimeFlow.Reset();
             AudioListener.pause = false;
             PauseChanged = null;
             ModeChanged = null;

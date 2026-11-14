@@ -29,6 +29,7 @@ namespace OrbitalAnte.Core
         TestArena _arena;
         Space.SolarSystemWorld _space;
         TimeFx _timeFx;
+        Combat.DeepBreathFx _deepBreath;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
@@ -70,6 +71,8 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Launch.LaunchConfig.ResetStatics();
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
             OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
+            OrbitalAnte.Combat.DeepBreathConfig.ResetStatics();
+            OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 
@@ -105,6 +108,9 @@ namespace OrbitalAnte.Core
             gameObject.AddComponent<Audio.AudioDebugPanel>();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
+            // Deep Breath lives here, not on a player, so it works the same wherever the on-foot controls are
+            // live: the combat arena, walking the cabin, and outside the ship in the solar system.
+            _deepBreath = gameObject.AddComponent<Combat.DeepBreathFx>();
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
             OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
@@ -268,6 +274,8 @@ namespace OrbitalAnte.Core
         void DestroyWorld()
         {
             if (_timeFx != null) _timeFx.Clear();
+            // Every run starts with a full breath.
+            if (_deepBreath != null) _deepBreath.ResetForNewRun();
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.

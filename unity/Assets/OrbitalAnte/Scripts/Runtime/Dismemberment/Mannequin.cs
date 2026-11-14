@@ -119,6 +119,7 @@ namespace OrbitalAnte.Dismemberment
                 Severed = result.Detachments.Count > 0,
                 Killed = result.Killed,
                 HeadshotKill = result.Killed && torsoWasOnBody,
+                Enemy = true,
                 Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
             };
