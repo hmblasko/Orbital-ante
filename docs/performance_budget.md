@@ -98,12 +98,12 @@ Counted and timed by the deck-performance agent on a desktop processor outside U
 
 | System | Cost | Cap |
 |---|---|---|
-| Ship outside | about 38,400 triangles (fittings about 35,400 from `Models/Lander`, of which the two camera booms and the landing camera are about 4,200 and the dash housing inside the cabin about 1,400, counted from the file; hull and details about 3,000), about 15 draw calls, one shader. Estimate, not measured in Unity. | fittings 36,000 triangles (a rule test fails above it); one ship in Phase 1. First trim if needed: one bevel step fewer on the base's foil panels. |
-| Reading the lander model | 914 KB, once per launch on the main thread; 4 ms warm, 19 ms cold measured on a desktop outside Unity, guessed 20 to 80 ms on a Deck | once per launch |
+| Ship outside | about 39,500 triangles (fittings 34,124 from `Models/Lander`, 17 pieces, of which the two camera booms and the landing camera are about 4,200; hull and details 5,372), about 15 draw calls, one shader. Counted from the files, not measured in Unity. | fittings 36,000 triangles (a rule test fails above it); one ship in Phase 1. First trim if needed: one bevel step fewer on the base's foil panels. |
+| Reading the lander model | 1,098 KB, once per launch on the main thread; 4 ms warm, 19 ms cold measured on a desktop outside Unity, guessed 20 to 80 ms on a Deck | once per launch |
 | Lander model memory | about 1.1 MB kept, about 1.0 MB on the graphics card (estimate) | - |
 | Round shading of the cabin dome | worked out once when the ship is built: under 5 ms on a desktop outside Unity | - |
-| Cabin | 18,554 triangles in 13 pieces, vertex colours only, no textures, no lights; plus the dash housing, 1,360 triangles with the cabin's light baked into its colours (`Models/LanderCabin`, 55 KB). About 14 draw calls and 0.7 MB on the graphics card (estimates, not measured in Unity) | 15,000 triangles of fittings inside (a rule test fails above it) |
-| Cabin: baked light file | 47 KB, read once at the start of a run | - |
+| Cabin | 27,888 triangles, 21,377 corners, 12 pieces, one baked material, 12 draw calls, about 1.0 MB on the graphics card (the working hardware is 8,830 triangles, the lockers with the ship's computer 2,760). Vertex colours only: no textures, no lights, no shadows. Drawn whenever the ship is in view, from outside too (to do: hide it when you are outside and more than 30 m away). Baked light file 64 KB, read once at the start of a run. Counted from the files, not measured in Unity. | 26,000 triangles of fittings (rule test; today 24,096); nothing thinner than 12 mm (`ShipProps.Thinnest`) |
+| Cockpit console | 7,936 triangles, 8 pieces (body 7,700), 3 to 8 draw calls (lamps that are off are not drawn); `Models/Console` 315 KB plus the lit copy `Models/LanderCabin` 306 KB; two small materials of its own; one scale, one rotation and five on/off checks a frame, 0 bytes a frame. The plain body mesh in `Models/Console` is built but not drawn when the lit copy is used (about 0.36 MB; to do: build meshes only when asked for). Not measured in Unity. | 9,000 triangles (rule test) |
 | Cabin: fallback bake | Only if the shipped file does not fit the cabin: one background thread, about 4.6 s on a desktop at 48 paths, guessed 15 to 30 s on a Deck, with the cabin flatly lit meanwhile | should never run in a shipped build (a rule test and a PlayMode test fail when the file is stale) |
 | Glass | 5 panes, one see-through layer each | 5 |
 | Crack lines | up to about 4,850 triangles a pane (about 24,000 if all 5 are badly cracked); rebuilt only when a new hit is recorded or the crack stage changes, guessed 3 to 8 ms each time on Deck | 6 recorded hits a pane |
@@ -114,7 +114,6 @@ Counted and timed by the deck-performance agent on a desktop processor outside U
 | Wreckage (torn-off parts) | 1 rigidbody each, pulled by gravity every step | 9 pieces (4 legs, engines, 4 thruster clusters); removed once 400 m from both you and the ship |
 | Building the ship at run start | guessed 100 to 250 ms on Deck, on the main thread (20 ms for meshes and 9 ms for the bake file on a desktop; sounds not timed) | once per run |
 | Sounds | 15 short clips, about 0.64 MB, 2 audio sources; freed on restart | fixed |
-| Baked light | 31 KB file, read once at start | - |
 | Fallback bake | 1 background thread; 3.9 s on a desktop at 48 paths, guessed 10 to 20 s on Deck | only if the shipped file is stale |
 | Ship HUD | list refreshed 4 times a second; prompt words rebuilt at most once a second | target: 0 bytes of garbage per frame when idle |
 
@@ -192,8 +191,9 @@ What to read off in Unity, standing on Earth at noon, then at a coast, then seat
 | | Cost | Cap |
 |---|---|---|
 | Enemy model (`Resources/Models/Enemy.bytes`) | About 14,850 triangles in 14 pieces (one per breakable part), one shared material, 14 draw calls. In the arena, where the sun casts real shadows, an unseen copy of each piece casts the shadow, so the triangles are drawn again per shadow cascade. No shadow copies on planets or in space. | 16,000 triangles (the rule test `EnemyModelFile_MatchesTheSkeleton` enforces it) |
+| Three more enemy bodies (`Models/EnemyRunner`, `EnemyBruiser`, `EnemyMarksman`) | About 13,800, 14,100 and 14,000 triangles, each in the same 14 pieces on the same skeleton, drawn with the same shared material: one more kind costs no more per enemy than the trooper. Files 386, 416 and 425 KB, read the first time that kind is made. Counted from the files, not measured in Unity. The same far copy is owed for each before enemy counts rise | 16,000 triangles each (a rule test fails above it) |
 | Enemies at full detail | About 119,000 triangles per pass for the arena's 8 | 12, until a far copy of about 3,000 triangles exists (needed before Phase 2 enemy counts); then 30 with at most 8 at full detail |
-| Enemy animation (`BodyAnimator`) | Worked out per enemy per frame, no stored clips, no garbage. 45 microseconds for 30 enemies on a desktop outside Unity; not measured on the Deck | 30 |
+| Enemy animation (`BodyAnimator`) | Worked out per enemy per frame, no stored clips, no garbage. Each kind carries itself its own way through one shared `BodyStyle` (eleven numbers, made once; nothing per frame). 45 microseconds for 30 enemies on a desktop outside Unity; not measured on the Deck | 30 |
 | Objects per enemy | About 87 (17 bones, 14 parts, 14 meshes, 14 shadow copies in the arena, 26 hidden wound stumps) | - |
 | Triangles, all guns | about 65,000; twice that if a depth pass runs | 100,000 |
 | Draw calls | 20 (2 a gun, one shared material), down from about 100 with the box guns | - |

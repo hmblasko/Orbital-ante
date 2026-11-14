@@ -315,7 +315,7 @@ def make():
     return parts
 
 
-def write(parts, stump_objects):
+def write(parts, stump_objects, file_name="Enemy"):
     """Each piece is written measured from its own joint; the picture scene is left as it was."""
     sockets = []
     listed = []
@@ -326,7 +326,7 @@ def write(parts, stump_objects):
         listed.append((name, parts[name]))
         sockets.append(oa.socket(name, origin))
     listed.append(("Stump", stump_objects))
-    oa.export(os.path.join(OUT, "Enemy.bytes"), listed, sockets)
+    oa.export(os.path.join(OUT, file_name + ".bytes"), listed, sockets)
     for name in ORDER:
         origin = Vector(ORIGINS[name])
         for o in parts[name]:

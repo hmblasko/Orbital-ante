@@ -28,6 +28,76 @@ namespace OrbitalAnte.Dismemberment
     }
 
     /// <summary>
+    /// How one kind of character carries itself: the same skeleton and the same walk, held differently. Plain
+    /// numbers, never changed after they are made, so one style can be shared by every character of a kind.
+    /// The default is the ordinary trooper and changes nothing.
+    /// </summary>
+    public sealed class BodyStyle
+    {
+        /// <summary>Degrees the whole body leans forward from the hips, standing or moving.</summary>
+        public readonly double Lean;
+        /// <summary>Degrees the back curls forward. Negative stands up very straight.</summary>
+        public readonly double Hunch;
+        /// <summary>Degrees the arms are held out from the sides.</summary>
+        public readonly double ArmsOut;
+        /// <summary>Extra degrees the elbows are always bent.</summary>
+        public readonly double ElbowBend;
+        /// <summary>How far apart the feet are kept: 1 is the trooper's stance.</summary>
+        public readonly double Stance;
+        /// <summary>How long each stride is: above 1 takes fewer, longer steps at the same speed.</summary>
+        public readonly double Stride;
+        /// <summary>How much the body rises and falls with each step.</summary>
+        public readonly double Bob;
+        /// <summary>How much the hips swing from side to side over each foot.</summary>
+        public readonly double Sway;
+        /// <summary>How far the arms swing.</summary>
+        public readonly double ArmSwing;
+        /// <summary>How much it fidgets standing still: breathing, shifting its weight, looking about. 0 is a statue.</summary>
+        public readonly double Idle;
+        /// <summary>Metres the hips are carried lower than a trooper's, knees bent to suit.</summary>
+        public readonly double Crouch;
+
+        public BodyStyle(double lean = 0.0, double hunch = 0.0, double armsOut = 0.0, double elbowBend = 0.0, double stance = 1.0, double stride = 1.0,
+                         double bob = 1.0, double sway = 1.0, double armSwing = 1.0, double idle = 1.0, double crouch = 0.0)
+        {
+            Lean = Limit(lean, -10.0, 20.0);
+            Hunch = Limit(hunch, -8.0, 20.0);
+            ArmsOut = Limit(armsOut, 0.0, 40.0);
+            ElbowBend = Limit(elbowBend, 0.0, 50.0);
+            Stance = Limit(stance, 0.5, 2.0);
+            Stride = Limit(stride, 0.6, 1.5);
+            Bob = Limit(bob, 0.0, 2.5);
+            Sway = Limit(sway, 0.0, 2.5);
+            ArmSwing = Limit(armSwing, 0.0, 2.0);
+            Idle = Limit(idle, 0.0, 2.0);
+            Crouch = Limit(crouch, 0.0, 0.12);
+        }
+
+        static double Limit(double v, double low, double high) => double.IsNaN(v) ? low : v < low ? low : v > high ? high : v;
+
+        /// <summary>The ordinary soldier: changes nothing.</summary>
+        public static readonly BodyStyle Trooper = new BodyStyle();
+        /// <summary>Small and quick: leans into its run, knees bent, arms pumping, never quite still.</summary>
+        public static readonly BodyStyle Runner = new BodyStyle(lean: 9.0, crouch: 0.035, stride: 1.12, armSwing: 1.25, bob: 1.2, stance: 0.9, idle: 1.3);
+        /// <summary>Huge and heavy: feet wide, arms held out round its own bulk, rolling from foot to foot.</summary>
+        public static readonly BodyStyle Bruiser = new BodyStyle(lean: 3.0, hunch: 9.0, armsOut: 20.0, elbowBend: 20.0, stance: 1.55, stride: 0.9, bob: 1.5, sway: 1.9, armSwing: 0.7, idle: 0.8);
+        /// <summary>Tall and still: bolt upright, feet together, gliding more than walking, hardly moving at rest.</summary>
+        public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.05, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.2);
+
+        /// <summary>The style that goes with a body model, by the model's name. Anything unknown walks like a trooper.</summary>
+        public static BodyStyle For(string model)
+        {
+            switch (model)
+            {
+                case "EnemyRunner": return Runner;
+                case "EnemyBruiser": return Bruiser;
+                case "EnemyMarksman": return Marksman;
+                default: return Trooper;
+            }
+        }
+    }
+
+    /// <summary>
     /// Works out a humanoid's pose every frame, with no stored animation clips and no Unity types.
     ///
     /// Standing characters are posed from the ground up: each foot is given a path over the ground that matches
@@ -71,8 +141,27 @@ namespace OrbitalAnte.Dismemberment
         uint _dice;
         double _lookYaw, _lookPitch, _lookYawGoal, _lookPitchGoal, _lookTimer;
 
-        public BodyAnimator(int seed = 1)
+        readonly BodyStyle _style;
+        double _size = 1.0;
+
+        /// <summary>How this character carries itself. Set when it is made.</summary>
+        public BodyStyle Style => _style;
+
+        /// <summary>
+        /// How large the model is drawn (its root scale). The animator works at the skeleton's own size, so the
+        /// speeds it is given are divided by this: a body drawn 1.3 times as large covers 1.3 times the ground
+        /// with every stride, and without this its feet would skate.
+        /// </summary>
+        public double Size
         {
+            get => _size;
+            set => _size = double.IsNaN(value) || value < 0.2 ? 0.2 : value > 5.0 ? 5.0 : value;
+        }
+
+        /// <param name="style">How it carries itself; null is the ordinary trooper.</param>
+        public BodyAnimator(int seed = 1, BodyStyle style = null)
+        {
+            _style = style ?? BodyStyle.Trooper;
             _dice = (uint)seed * 2654435761u + 0x9E3779B9u;
             if (_dice == 0) _dice = 1;
             _timeOffset = Roll() * 20.0;
@@ -133,7 +222,7 @@ namespace OrbitalAnte.Dismemberment
             _time += dt;
 
             double towardSpeed = 1.0 - Math.Exp(-9.0 * dt);
-            double wanted = Math.Max(0.0, input.ForwardSpeed);
+            double wanted = Math.Max(0.0, input.ForwardSpeed) / _size;
             double leanGoal = Clamp((wanted - _speed) * 2.4, -7.0, 9.0);
             _lean += (leanGoal - _lean) * (1.0 - Math.Exp(-7.0 * dt));
             _speed += (wanted - _speed) * towardSpeed;
@@ -219,8 +308,8 @@ namespace OrbitalAnte.Dismemberment
 
         double StandingCadence(in BodyAnimInput input)
         {
-            double walk = Math.Max(0.1, input.WalkSpeed);
-            double sprint = Math.Max(walk + 0.1, input.SprintSpeed);
+            double walk = Math.Max(0.1, input.WalkSpeed / _size);
+            double sprint = Math.Max(walk + 0.1, input.SprintSpeed / _size);
             double v = _speed;
             double moveAmount = Clamp01(v / (walk * 0.5));
             double straight = v <= walk
@@ -229,16 +318,36 @@ namespace OrbitalAnte.Dismemberment
             double turnAmount = Clamp01((Math.Abs(_turn) - 20.0) / 50.0);
             // Shuffle round fast enough that a planted foot never twists more than about 30 degrees each way.
             double turning = Math.Min(2.4, Math.Abs(_turn) * 0.62 / 60.0);
-            return Math.Max(straight * moveAmount / _strideScale, turning * turnAmount);
+            Pace(walk, sprint, RunAmount(v, walk, sprint), out double quicken, out _);
+            return Math.Max(straight * quicken * moveAmount / (_strideScale * _style.Stride), turning * turnAmount);
+        }
+
+        /// <summary>The walk and sprint speeds the gait was tuned at: the trooper's, at the skeleton's own size.</summary>
+        const double TunedWalk = 2.0, TunedSprint = 4.6;
+
+        static double RunAmount(double v, double walk, double sprint) => Smooth((v - walk * 1.2) / Math.Max(0.1, sprint * 0.95 - walk * 1.2));
+
+        /// <summary>
+        /// What a body quicker or slower than the trooper for its size does about it. A small quick one cannot
+        /// take strides twice as long as its legs, so its legs go faster (<paramref name="quicken"/>, up to a
+        /// third faster) and past that it spends less of each stride on the ground (<paramref name="over"/>). A
+        /// big slow one takes the same long strides more slowly. For the trooper both are exactly 1.
+        /// </summary>
+        static void Pace(double walk, double sprint, double run, out double quicken, out double over)
+        {
+            double ratio = Lerp(walk / TunedWalk, sprint / TunedSprint, run);
+            quicken = Clamp(ratio, 0.6, 1.35);
+            over = Math.Max(1.0, ratio / quicken);
         }
 
         void BuildStanding(BodyPose pose, in BodyAnimInput input)
         {
-            double walk = Math.Max(0.1, input.WalkSpeed);
-            double sprint = Math.Max(walk + 0.1, input.SprintSpeed);
+            BodyStyle style = _style;
+            double walk = Math.Max(0.1, input.WalkSpeed / _size);
+            double sprint = Math.Max(walk + 0.1, input.SprintSpeed / _size);
             double v = _speed;
             double moveAmount = Clamp01(v / (walk * 0.5));
-            double run = Smooth((v - walk * 1.2) / Math.Max(0.1, sprint * 0.95 - walk * 1.2));
+            double run = RunAmount(v, walk, sprint);
             double turnRadians = _turn * Deg;
             double turnAmount = Clamp01((Math.Abs(_turn) - 20.0) / 50.0);
             double activity = Math.Max(moveAmount, turnAmount);
@@ -246,26 +355,27 @@ namespace OrbitalAnte.Dismemberment
             double aimStill = _aim * (1.0 - moveAmount);
             double gunSign = input.GunSide == BodySkeleton.Left ? -1.0 : 1.0;
 
-            double duty = Lerp(0.62, 0.36, run);
+            Pace(walk, sprint, run, out _, out double over);
+            double duty = Lerp(0.62, 0.36, run) / over;
             double stanceTime = duty / Math.Max(_cadence, 0.6);
             double g = _gait;
 
             // ---- pelvis over the feet
             double breath = Math.Sin(TwoPi * (_time + _timeOffset) / 3.7);
             double weight = Math.Sin(TwoPi * (_time + _timeOffset) / 7.3) + 0.35 * Math.Sin(TwoPi * (_time + _timeOffset) / 3.1);
-            double idle = still * (1.0 - 0.7 * _aim);
+            double idle = still * (1.0 - 0.7 * _aim) * style.Idle;
 
             double mid = g - duty * 0.5;                       // 0 at the middle of the left foot's time on the ground
             double perStep = Math.Cos(2.0 * TwoPi * mid);      // 1 at the middle of either foot's time on the ground
             double perStride = Math.Cos(TwoPi * mid);          // 1 over the left foot, -1 over the right
-            double bob = (0.020 * (1.0 - run) - 0.045 * run) * moveAmount * perStep;
-            double drop = 0.012 + 0.036 * moveAmount + 0.022 * run + 0.045 * aimStill + 0.02 * turnAmount * (1.0 - moveAmount);
-            double sway = -(0.022 * moveAmount * (1.0 - 0.6 * run) + 0.018 * turnAmount * (1.0 - moveAmount)) * perStride
+            double bob = (0.020 * (1.0 - run) - 0.045 * run) * moveAmount * perStep * style.Bob;
+            double drop = 0.012 + 0.036 * moveAmount + 0.022 * run + 0.045 * aimStill + 0.02 * turnAmount * (1.0 - moveAmount) + style.Crouch;
+            double sway = -(0.022 * moveAmount * (1.0 - 0.6 * run) + 0.018 * turnAmount * (1.0 - moveAmount)) * perStride * style.Sway
                           + 0.030 * weight * idle;
-            double hipRoll = -3.2 * moveAmount * perStride + 2.2 * weight * idle;
+            double hipRoll = -3.2 * moveAmount * perStride * style.Sway + 2.2 * weight * idle;
             double gaitYaw = (5.0 + 5.0 * run) * moveAmount * Math.Cos(TwoPi * g);
             double stanceYaw = gunSign * 16.0 * aimStill;
-            double lean = 2.0 * moveAmount + 9.0 * run + _lean * moveAmount;
+            double lean = style.Lean + 2.0 * moveAmount + 9.0 * run + _lean * moveAmount;
 
             pose.RootRotation = QuatD.Identity;
             pose.RootPosition = new Vec3d(sway + _pushX.X, bob - drop - Math.Max(0.0, _dip.X), _pushZ.X - 0.03 * run);
@@ -274,7 +384,7 @@ namespace OrbitalAnte.Dismemberment
             Vec3d hipsPosition = pose.RootPosition + new Vec3d(0, BodySkeleton.HipsY, 0);
 
             // ---- feet on the ground, legs bent to reach them
-            double halfWidth = Lerp(Lerp(0.125, 0.098, moveAmount), 0.072, run) + 0.03 * aimStill;
+            double halfWidth = (Lerp(Lerp(0.125, 0.098, moveAmount), 0.072, run) + 0.03 * aimStill) * style.Stance;
             double lift = 0.045 * turnAmount * (1.0 - moveAmount) + 0.07 * moveAmount + 0.20 * run;
             double strikeToeUp = (14.0 + 6.0 * run) * moveAmount;
             double rollOff = (30.0 + 22.0 * run) * moveAmount;
@@ -338,24 +448,24 @@ namespace OrbitalAnte.Dismemberment
 
 
             // ---- upper body
-            double spinePitch = 1.1 * breath * still + 0.25 * lean + 5.0 * aimStill;
+            double spinePitch = 1.1 * breath * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch;
             double spineRoll = -0.8 * hipRoll;
             pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw) * Qx(spinePitch) * Qz(spineRoll);
-            double look = (1.0 - _aim) * still;
+            double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle);
             pose.Local[(int)BodyBone.Head] = Qy(0.7 * gaitYaw - stanceYaw + _lookYaw * look)
                                              * Qx(-(0.9 * lean + 0.6 * spinePitch) + _lookPitch * look)
                                              * Qz(-0.3 * spineRoll);
 
-            double swingSize = (16.0 + 26.0 * run) * moveAmount * _armScale;
+            double swingSize = (16.0 + 26.0 * run) * moveAmount * _armScale * style.ArmSwing;
             double lag = 0.04;
             for (int s = 0; s < 2; s++)
             {
                 double sign = s == BodySkeleton.Left ? 1.0 : -1.0;
                 double wave = sign * Math.Cos(TwoPi * (g - lag));      // -1 is this arm fully forward
                 double forward = Math.Max(0.0, -wave);
-                double down = 79.0 - 3.0 * run + 1.2 * breath * still;
-                double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still - 4.0 * run;
-                double elbow = 14.0 + 6.0 * moveAmount + 60.0 * run + 16.0 * moveAmount * forward;
+                double down = 79.0 - style.ArmsOut - 3.0 * run + 1.2 * breath * still * style.Idle;
+                double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still * style.Idle - 4.0 * run;
+                double elbow = 14.0 + style.ElbowBend + 6.0 * moveAmount + 60.0 * run + 16.0 * moveAmount * forward;
                 SetArm(pose, s, down, swing, elbow);
             }
 

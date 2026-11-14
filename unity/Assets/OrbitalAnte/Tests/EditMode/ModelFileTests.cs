@@ -492,11 +492,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_MatchesTheSkeleton()
+        public void EnemyModelFile_MatchesTheSkeleton([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
             // The Blender script carries its own copy of the joint positions. If BodySkeleton changes, this fails
-            // until tools/blender/build_enemy.py is changed to match and run again.
-            ModelFile model = LoadReal("Enemy");
+            // until tools/blender/build_enemy.py is changed to match and run again (and build_enemy_types.py, which
+            // builds the other three on the same joints: every kind is the same skeleton, drawn at its own size).
+            ModelFile model = LoadReal(name);
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
@@ -512,10 +513,10 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint()
+        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
             // Each piece is measured from its joint, so it must start there and reach the way the part points.
-            ModelFile model = LoadReal("Enemy");
+            ModelFile model = LoadReal(name);
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
@@ -542,9 +543,9 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_BootsStandOnTheGround()
+        public void EnemyModelFile_BootsStandOnTheGround([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
-            ModelFile model = LoadReal("Enemy");
+            ModelFile model = LoadReal(name);
             foreach (BodyPartId id in new[] { BodyPartId.LeftFoot, BodyPartId.RightFoot })
             {
                 ModelPart piece = model.Part(id.ToString());
