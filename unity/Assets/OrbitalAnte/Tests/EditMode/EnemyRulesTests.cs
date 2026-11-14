@@ -129,7 +129,7 @@ namespace OrbitalAnte.Tests.EditMode
             var roster = EnemyRoster.Defaults();
             var camps = EnemyField.Build(rules, roster, new SeededRandom(9), 500, null, Vec3d.Zero);
             Vec3d at = camps[0].Direction;   // right on top of an ordinary camp
-            EnemyField.AddGarrison(camps, rules, roster, new SeededRandom(10), 500, at, 512.5, 8);
+            EnemyField.AddGarrison(camps, rules, roster, new SeededRandom(10), 500, at, 512.5, 8, 2);
             EnemyCamp guards = camps[camps.Count - 1];
             Assert.AreEqual(8, guards.Members.Length);
             Assert.AreEqual(512.5, guards.HomeRadius, 1e-9);
@@ -138,6 +138,33 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.LessOrEqual(count, 1);
             for (int i = 0; i < camps.Count - 1; i++)
                 Assert.GreaterOrEqual(EnemyField.GroundDistance(camps[i].Direction, at, 500), rules.campSpacing - 1e-6, "the camp that was there has gone");
+        }
+
+        [Test]
+        public void ABiggerBaseIsADifferentFight_NotTougherEnemies()
+        {
+            var rules = new EnemyFieldRules();
+            var roster = EnemyRoster.Defaults();
+            int bruiser = roster.FindIndex(t => t.id == "Bruiser"), marksman = roster.FindIndex(t => t.id == "Marksman");
+            for (int seed = 1; seed <= 200; seed++)
+            {
+                var camps = new List<EnemyCamp>();
+                var random = new SeededRandom(seed);
+                EnemyField.AddGarrison(camps, rules, roster, random, 500, new Vec3d(1, 0, 0), 505, 4, 0);
+                EnemyField.AddGarrison(camps, rules, roster, random, 500, new Vec3d(0, 0, 1), 505, 6, 1);
+                EnemyField.AddGarrison(camps, rules, roster, random, 500, new Vec3d(-1, 0, 0), 505, 8, 2);
+                Assert.AreEqual(0, Count(camps[0], bruiser) + Count(camps[0], marksman), "a small base has only the light types");
+                Assert.GreaterOrEqual(Count(camps[1], bruiser), 1, "a medium base always has a Bruiser");
+                Assert.GreaterOrEqual(Count(camps[2], bruiser), 2, "a large base always has two");
+                Assert.AreEqual(1, Count(camps[2], marksman), "and exactly one Marksman");
+            }
+        }
+
+        static int Count(EnemyCamp camp, int type)
+        {
+            int n = 0;
+            foreach (int m in camp.Members) if (m == type) n++;
+            return n;
         }
     }
 }

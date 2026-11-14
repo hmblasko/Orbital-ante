@@ -28,6 +28,8 @@ namespace OrbitalAnte.Enemies
 
         Vector3 _floorCentre;   // in the body's space
         float _floorRadius;
+        /// <summary>The radius of the base floor this footing has, or 0.</summary>
+        public float FloorRadius => _floorRadius;
 
         /// <summary>A level floor (a base's) that counts as the ground wherever it is above the terrain.</summary>
         public void SetFloor(Vector3 centreInBodySpace, float radius)
@@ -75,7 +77,7 @@ namespace OrbitalAnte.Enemies
             Vector3 up = _home.normalized;
             Vector3 side = Vector3.Cross(up, Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
             Vector3 along = Vector3.Cross(up, side);
-            float angle = rng.Range(0f, Mathf.PI * 2f), far = _roam * Mathf.Sqrt(rng.NextFloat());
+            float angle = rng.Range(0f, Mathf.PI * 2f), far = (_floorRadius > 0f ? Mathf.Min(_roam, _floorRadius * 0.9f) : _roam) * Mathf.Sqrt(rng.NextFloat());
             return OnTheGround(_home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
         }
 

@@ -124,7 +124,8 @@ namespace OrbitalAnte.Dismemberment
                 Severed = result.Detachments.Count > 0,
                 Killed = result.Killed,
                 HeadshotKill = result.Killed && torsoWasOnBody,
-                Enemy = true,
+                // Only a hit on the living body counts: splitting a loose chunk or a corpse is not a fight.
+                Enemy = groupBefore == 0 && before != MovementState.Dead,
                 Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
             };

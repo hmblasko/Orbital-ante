@@ -13,7 +13,7 @@ namespace OrbitalAnte.Bases
     public sealed class BaseFieldRules
     {
         /// <summary>One base for every this many square metres of a world's surface.</summary>
-        public float areaPerBase = 120000f;
+        public float areaPerBase = 90000f;
         public int leastBases = 1, mostBases = 24;
         /// <summary>Worlds smaller than this (metres of radius) have no base: there is no room to land beside one.</summary>
         public float leastRadius = 60f;
@@ -28,7 +28,7 @@ namespace OrbitalAnte.Bases
         /// <summary>How often each size turns up, against the others.</summary>
         public float smallShare = 5f, mediumShare = 3f, largeShare = 1f;
         /// <summary>How many stand guard at each size.</summary>
-        public int smallGuards = 3, mediumGuards = 5, largeGuards = 8;
+        public int smallGuards = 4, mediumGuards = 6, largeGuards = 8;
         /// <summary>The base floor stands this far above the highest ground it covers, in metres.</summary>
         public float clearance = 0.4f;
         /// <summary>And at least this far above the sea, in metres.</summary>
@@ -109,7 +109,9 @@ namespace OrbitalAnte.Bases
                         bool crowded = false;
                         for (int i = 0; i < sites.Count && !crowded; i++) crowded = Angle(up, sites[i].Up) < spacing;
                         if (crowded) continue;
-                        if (!Measure(rules, terrain, up, footprint, out double low, out double high)) continue;
+                        // No rougher than the size allows, and no rougher than the best place found so far.
+                        double limit = found ? Math.Min(rules.Roughness(size), best.Roughness) : rules.Roughness(size);
+                        if (!Measure(rules, terrain, up, footprint, out double low, out double high, limit)) continue;
                         double rough = high - low;
                         if (rough > rules.Roughness(size)) continue;
                         if (found && rough >= best.Roughness) continue;
@@ -158,7 +160,9 @@ namespace OrbitalAnte.Bases
         /// The lowest and highest ground a floor of this size would cover, measured against the flat floor (so the
         /// world's curve counts). False if any of it is sea or a cave mouth.
         /// </summary>
-        public static bool Measure(BaseFieldRules rules, PlanetTerrain terrain, Vec3d up, double footprint, out double low, out double high)
+        /// <param name="giveUpPast">Stop and say no as soon as the ground is known to rise and fall by more than this.</param>
+        public static bool Measure(BaseFieldRules rules, PlanetTerrain terrain, Vec3d up, double footprint, out double low, out double high,
+                                   double giveUpPast = double.MaxValue)
         {
             low = double.MaxValue;
             high = double.MinValue;
@@ -173,12 +177,13 @@ namespace OrbitalAnte.Bases
                     double angle = k * 2.0 * Math.PI / count + ring * 0.4;
                     Vec3d flat = up * terrain.Radius + a * (Math.Cos(angle) * distance) + b * (Math.Sin(angle) * distance);
                     Vec3d direction = flat.Normalized;
+                    if (terrain.InHole(direction, 12.0)) return false;
                     double height = terrain.Height(direction);
+                    if (terrain.HasSea && height < terrain.SeaLevel + rules.dryMargin) return false;
                     double above = (terrain.Radius + height) * Vec3d.Dot(direction, up) - terrain.Radius;
                     if (above < low) low = above;
                     if (above > high) high = above;
-                    if (terrain.HasSea && height < terrain.SeaLevel + rules.dryMargin) return false;
-                    if (terrain.InHole(direction, 12.0)) return false;
+                    if (high - low > giveUpPast) return false;
                 }
             }
             return true;

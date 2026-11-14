@@ -40,6 +40,10 @@ namespace OrbitalAnte.Enemies
         public float aimTell;
         /// <summary>The most of this type in one camp (0: no limit).</summary>
         public int mostPerCamp;
+        /// <summary>How many of this type always stand guard at a medium and at a large base. A bigger base is a different fight, not tougher enemies.</summary>
+        public int atMediumBase, atLargeBase;
+        /// <summary>Never among the drawn guards of a small base (the heavy types are kept for the bigger ones).</summary>
+        public bool notAtSmallBase;
         /// <summary>How often this type turns up, against the others.</summary>
         public float share = 1f;
     }
@@ -89,13 +93,13 @@ namespace OrbitalAnte.Enemies
                                     red = 0.95f, green = 0.8f, blue = 0.15f, reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
                 // Big and slow: walks you down with a blast that only matters close. Hard to stop in the middle.
                 new EnemyTypeSpec { id = "Bruiser", scale = 1.3f, width = 1.45f, speed = 0.8f, toughness = 2.2f, weapon = "Shotgun", engageRange = 20f,
-                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f,
+                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true,
                                     red = 0.75f, green = 0.2f, blue = 0.16f },
                 // Tall, thin and still: stands off and takes one slow, painful shot. A bright line shows where it is
                 // aiming for a second before every shot, and there is never more than one in a camp.
                 new EnemyTypeSpec { id = "Marksman", scale = 1.2f, width = 0.95f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
                                     reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, share = 1f,
-                                    aimTell = 1f, mostPerCamp = 1, red = 0.22f, green = 0.5f, blue = 0.85f },
+                                    aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true, red = 0.22f, green = 0.5f, blue = 0.85f },
             };
         }
 
@@ -174,7 +178,7 @@ namespace OrbitalAnte.Enemies
         /// crowd it is taken away, so a base is one fight and not two on top of each other.
         /// </summary>
         public static void AddGarrison(List<EnemyCamp> camps, EnemyFieldRules rules, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random,
-                                       double radius, Vec3d direction, double homeRadius, int guards)
+                                       double radius, Vec3d direction, double homeRadius, int guards, int baseSize = 0)
         {
             double spacing = Math.Min(rules.campSpacing, radius * Math.PI / 3) / radius;
             for (int i = camps.Count - 1; i >= 0; i--)
@@ -182,7 +186,14 @@ namespace OrbitalAnte.Enemies
                 if (camps[i].HomeRadius <= 0 && Angle(camps[i].Direction, direction) < spacing) camps.RemoveAt(i);
             }
             var members = new int[Math.Max(1, guards)];
-            for (int m = 0; m < members.Length; m++)
+            // The ones a base of this size always has come first; the rest are drawn.
+            int placed = 0;
+            for (int t = 0; t < roster.Count && baseSize > 0; t++)
+            {
+                int always = baseSize >= 2 ? roster[t].atLargeBase : roster[t].atMediumBase;
+                for (int k = 0; k < always && placed < members.Length; k++) members[placed++] = t;
+            }
+            for (int m = placed; m < members.Length; m++)
             {
                 int type = EnemyRoster.Pick(roster, random.NextDouble());
                 int most = roster[type].mostPerCamp;
@@ -192,6 +203,7 @@ namespace OrbitalAnte.Enemies
                     for (int k = 0; k < m; k++) if (members[k] == type) already++;
                     if (already >= most) type = 0;
                 }
+                if (baseSize == 0 && roster[type].notAtSmallBase) type = 0;
                 members[m] = type;
             }
             camps.Add(new EnemyCamp { Direction = direction.Normalized, Members = members, Seed = random.Next(), HomeRadius = homeRadius });

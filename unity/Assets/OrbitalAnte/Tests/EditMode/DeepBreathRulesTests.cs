@@ -83,8 +83,9 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(breath.Refused);
             Assert.AreEqual(breath.Rules.perLimb, breath.Meter, 1e-6f, "a refused breath costs nothing");
 
-            // A second limb takes it over the line.
-            breath.Earn(breath.Rules.perLimb);
+            // A kill takes it over the line: one kill always buys a breath.
+            Assert.GreaterOrEqual(breath.Rules.perKill, breath.Rules.leastToStart);
+            breath.Earn(breath.Rules.perKill);
             Assert.IsTrue(breath.CanStart);
             breath.Tick(Dt, true);
             Assert.IsTrue(breath.Active);

@@ -119,7 +119,7 @@ namespace OrbitalAnte.Enemies
                 {
                     BaseFieldRules baseRules = _world.Bases.Rules;
                     for (int i = 0; i < sites.Count; i++)
-                        EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size));
+                        EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size), (int)sites[i].Size);
                 }
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
@@ -255,17 +255,28 @@ namespace OrbitalAnte.Enemies
             }
 
             // Wake the nearest sleeping camp that still has anyone in it, one a think, so the cost is spread.
-            int best = -1;
-            double nearest = _config.field.wakeRange;
+            // A base's guards come first, and room is kept for the guards of a base the player is heading for:
+            // nobody should reach an empty base and have its guards appear round them.
+            int best = -1, bestGuards = -1, held = 0;
+            double nearest = _config.field.wakeRange, nearestGuards = _config.field.wakeRange, nearestHeld = _config.field.sleepRange;
             for (int c = 0; c < w.Camps.Count; c++)
             {
                 if (w.Awake[c] || w.Left[c] == 0) continue;
                 double d = EnemyField.GroundDistance(at, w.Camps[c].Direction, radius);
-                if (d < nearest) { nearest = d; best = c; }
+                bool guards = w.Camps[c].HomeRadius > 0;
+                if (guards && d < nearestGuards) { nearestGuards = d; bestGuards = c; }
+                if (guards && d < nearestHeld) { nearestHeld = d; held = w.Left[c]; }
+                if (!guards && d < nearest) { nearest = d; best = c; }
             }
-            if (best < 0 || _wakingCamp >= 0) return;
+            if (_wakingCamp >= 0) return;
+            if (bestGuards >= 0)
+            {
+                best = bestGuards;
+                held = 0;
+            }
+            if (best < 0) return;
             // The fallen still lying about count too: they cost as much to draw as the living.
-            if (PresentCount + w.Left[best] > _config.field.liveCap) return;
+            if (PresentCount + w.Left[best] + held > _config.field.liveCap) return;
             w.Awake[best] = true;
             _wakingWorld = w;
             _wakingSurface = surface;
@@ -321,6 +332,8 @@ namespace OrbitalAnte.Enemies
                 MannequinConfig config = ConfigFor(type);
                 // Spread round the camp's middle, a couple of metres apart.
                 float angle = (m + jitter * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
+                // A base's guards are spread over its floor, not bunched in the middle.
+                if (footing.FloorRadius > 0f) far = footing.FloorRadius * (0.25f + 0.35f * ((m * 0.37f + jitter) % 1f));
                 Vector3 position = footing.OnTheGround(home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
                 Vector3 worldUp = footing.Up(position);
                 Vector3 facing = Vector3.ProjectOnPlane(planet.TransformDirection(side * Mathf.Cos(angle + 1.3f) + along * Mathf.Sin(angle + 1.3f)), worldUp);

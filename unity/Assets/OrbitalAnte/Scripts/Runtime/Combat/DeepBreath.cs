@@ -20,9 +20,9 @@ namespace OrbitalAnte.Combat
         /// <summary>The share of the meter needed before a breath can begin.</summary>
         public float leastToStart = 0.15f;
         /// <summary>The share of the meter given back for popping a limb off an enemy.</summary>
-        public float perLimb = 0.10f;
+        public float perLimb = 0.05f;
         /// <summary>The share of the meter given back for a kill.</summary>
-        public float perKill = 0.25f;
+        public float perKill = 0.15f;
     }
 
     /// <summary>
@@ -30,6 +30,7 @@ namespace OrbitalAnte.Combat
     ///
     /// The whole rule, so nothing is hidden from the player:
     /// - A run starts with a full meter. Holding the breath empties it in <see cref="DeepBreathRules.seconds"/>.
+    /// - One kill from empty buys exactly enough to begin again ("one kill buys a breath").
     /// - It never refills by waiting. Only fighting gives it back (a limb, a kill), so there is no clock to watch.
     /// - It cannot begin with less than <see cref="DeepBreathRules.leastToStart"/> in the meter, so a nearly
     ///   empty meter cannot be flickered on and off.

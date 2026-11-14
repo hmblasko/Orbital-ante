@@ -29,12 +29,19 @@ namespace OrbitalAnte.Bases
         public static int[] Kinds = { 1, 1, 1 };
 
         /// <summary>A base is built when the player comes this near, and put away past the second distance, in metres.</summary>
-        const float ShowWithin = 700f, HideBeyond = 900f;
+        const float ShowWithin = 350f, HideBeyond = 450f;
+        /// <summary>
+        /// The most bases standing at once. The worlds are small: without this, most of a world's bases would be
+        /// built at once, nearly all of them out of sight behind the curve of the ground.
+        /// </summary>
+        public const int ShownCap = 6;
 
         sealed class World
         {
             public List<BaseSite> Sites;
             public GameObject[] Built;
+            /// <summary>Each base's foundation, kept once made so coming back to a base does not make it again.</summary>
+            public Mesh[] Foundations;
         }
 
         SolarSystemWorld _world;
@@ -88,6 +95,7 @@ namespace OrbitalAnte.Bases
             var random = GameSession.Stream("bases." + surface.Body.Spec.id);
             w = new World { Sites = BaseField.Build(Rules, surface.Terrain, random, Kinds, pad) };
             w.Built = new GameObject[w.Sites.Count];
+            w.Foundations = new Mesh[w.Sites.Count];
             // Nothing natural grows through a base's floor.
             if (surface.Features != null)
             {
@@ -126,10 +134,10 @@ namespace OrbitalAnte.Bases
                 {
                     if (distance > HideBeyond) PutAway(here, i);
                 }
-                else if (distance < ShowWithin && !builtOne)
+                else if (distance < ShowWithin && !builtOne && ShownCount < ShownCap)
                 {
                     // One a look, so several coming into range together do not arrive in one frame.
-                    here.Built[i] = Make(here.Sites[i], surface);
+                    here.Built[i] = Make(here, i, surface);
                     ShownCount++;
                     builtOne = true;
                 }
@@ -144,8 +152,9 @@ namespace OrbitalAnte.Bases
             ShownCount--;
         }
 
-        GameObject Make(BaseSite site, PlanetSurface surface)
+        GameObject Make(World w, int index, PlanetSurface surface)
         {
+            BaseSite site = w.Sites[index];
             var go = new GameObject("Base " + site.Size + " " + site.Kind);
             go.layer = Layers.Default;
             go.transform.SetParent(surface.Body.transform, false);
@@ -153,12 +162,17 @@ namespace OrbitalAnte.Bases
             go.transform.localRotation = Quaternion.LookRotation(SpaceConvert.ToVector3(site.North), SpaceConvert.ToVector3(site.Up));
 
             // The foundation: a low mound with a flat top, reaching below the lowest ground it covers.
-            float depth = (float)site.Depth + 1.5f, top = (float)site.Footprint;
-            var b = new MeshBuilder();
-            b.Color(FoundationColour);
-            b.Lathe(P3.Zero, new[] { top + depth * 1.15f, top + 0.5f, top }, new[] { -depth, -0.5f, 0f }, 28, capBottom: true, capTop: true);
-            Mesh mesh = ShipMeshes.ToMesh(b.Finish(), "BaseFoundation");
-            _owned.Add(mesh);
+            Mesh mesh = w.Foundations[index];
+            if (mesh == null)
+            {
+                float depth = (float)site.Depth + 1.5f, top = (float)site.Footprint;
+                var b = new MeshBuilder();
+                b.Color(FoundationColour);
+                b.Lathe(P3.Zero, new[] { top + depth * 1.15f, top + 0.5f, top }, new[] { -depth, -0.5f, 0f }, 28, capBottom: true, capTop: true);
+                mesh = ShipMeshes.ToMesh(b.Finish(), "BaseFoundation");
+                _owned.Add(mesh);
+                w.Foundations[index] = mesh;
+            }
             if (_material == null)
             {
                 _material = new Material(PlanetMaterials.VertexColour(Color.white));
