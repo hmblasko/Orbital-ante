@@ -74,6 +74,7 @@ namespace OrbitalAnte.Cockpit
         Text _overlayText;
         readonly List<Text> _words = new List<Text>();
         readonly List<GameObject> _fittings = new List<GameObject>();
+        Material _housingMaterial;
         float _nextDraw, _overlayUntil;
         /// <summary>Unity's built-in "UI" layer. The dash lives on it so the ship's own cameras can leave it out.</summary>
         public const int DashLayer = 5;
@@ -128,6 +129,7 @@ namespace OrbitalAnte.Cockpit
                 panel.localRotation = Quaternion.Euler(Config.deskLean, 0f, 0f);
                 panel.localScale = Vector3.one * (Mathf.Max(0.2f, Config.deskWidth) / DashDrawing.Width);
                 go.layer = DashLayer;
+                BuildHousing(panel);
             }
             else
             {
@@ -194,6 +196,37 @@ namespace OrbitalAnte.Cockpit
                 AddFitting(spot.Piece, false);
                 AddFitting(spot.Piece + "Glow", true);
             }
+        }
+
+        /// <summary>
+        /// The modelled housing round the desk panel, when the model has one. The first choice is the copy with
+        /// the cabin's baked light already in its colours (made by tools/bake), drawn as the cabin is drawn; the
+        /// plain copy in the Lander model is the fallback. The model's socket says where the panel's middle goes.
+        /// </summary>
+        void BuildHousing(RectTransform panel)
+        {
+            // The lit copy only fits a cabin showing its shipped light. If that light did not fit (the cabin is
+            // re-baking itself), the lit copy would not match either, so the plain one is used.
+            Mesh mesh = _ship.LightBaked ? ModelLibrary.PartMesh(ShipAssembly.BakedFittingsModel, ShipAssembly.DashHousingPiece) : null;
+            bool lit = mesh != null;
+            ModelFile source = ModelLibrary.Find(lit ? ShipAssembly.BakedFittingsModel : "Lander");
+            if (!lit) mesh = ModelLibrary.PartMesh("Lander", ShipAssembly.DashHousingPiece);
+            if (mesh == null) return;
+            var go = new GameObject(ShipAssembly.DashHousingPiece);
+            go.transform.SetParent(_ship.transform, false);
+            go.layer = Layers.Default;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            // Baked() hands back a material of our own, to be destroyed with the dash; the shared ones are not ours.
+            if (lit) _housingMaterial = PlanetMaterials.Baked(1f);
+            r.sharedMaterial = lit ? _housingMaterial : ModelLibrary.SharedMaterial();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            // The plain copy stands inside the hull: give it the even indoor light, not the Sun.
+            if (!lit) ModelLibrary.SetIndoors(go, true);
+            _fittings.Add(go);
+            if (source != null && source.TrySocket(ShipAssembly.DashSocket, out ModelSocket socket))
+                panel.localPosition = new Vector3(socket.X, socket.Y, socket.Z);
         }
 
         void AddFitting(string piece, bool lit)
@@ -511,6 +544,7 @@ namespace OrbitalAnte.Cockpit
             }
             if (_canvas != null) Destroy(_canvas.gameObject);
             for (int i = 0; i < _fittings.Count; i++) if (_fittings[i] != null) Destroy(_fittings[i]);
+            if (_housingMaterial != null) Destroy(_housingMaterial);
         }
     }
 }
