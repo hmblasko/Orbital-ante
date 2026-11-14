@@ -69,7 +69,7 @@ Perk draft: 70 / 25 / 5 common / uncommon / rare per slot. Scratch-off: 50% +150
 
 ## Choices of mine, flagged
 
-- **Salvage has no value.** The handoff lists salvage as a way to earn but gives no number. `SalvageDelivered` exists and scores nothing until you give one. The build prompt's "bonus for clearing all bases on a planet" has no number either and has no event yet.
+- **Salvage is 240, derived.** See the salvage section below.
 - **Caps the handoff asks for without numbers (mine):** under-threat recovery pays at most 3 times per ante; a retaken base pays for at most 2 retake missions per run, each scored as an optional mission; no perk stat can be stacked past 40% either way.
 - **"First-time wreck discovery"** is a Landmark event tagged `wreck`, since there is no separate wreck value.
 - **Perk names, tags and rarities (mine, placeholders).** Only the six example effects from the handoff exist. The real perk list is Milestone 14 content.
@@ -78,12 +78,30 @@ Perk draft: 70 / 25 / 5 common / uncommon / rare per slot. Scratch-off: 50% +150
 - **Attributes can only be bought between antes.**
 - **End condition meanings.** OnTimer: the ante always runs its full time. Hybrid: you may leave early once the target is met, otherwise the timer decides. OnPlayerAdvance: once the target is met there is no more time pressure and you leave when you like; timer out before the target still ends the run.
 
-## Open questions (yours)
+## Decided by Matthew (14 Nov 2026)
 
-1. **Ante length and what ends an ante.** The data says 300 seconds and Hybrid as a stand-in so tests can run. All three modes are built and tested. Not final until you say.
-   One thing to weigh: in OnPlayerAdvance the ante stays open after the timer, and fresh things still score. Nothing can be farmed (each thing pays once), but a leaderboard chaser could stay and sweep up every remaining reward with no deadline, which pulls against "varied intensity" and "no grind". Hybrid and OnTimer do not have this. If you pick OnPlayerAdvance, I would stop scoring once the timer is out, and this needs a playtest either way.
-2. **Ninth scratch-off.** The data says between antes only (eight tickets in a full run). A ticket at victory could still pay cash or a voucher that has nothing left to be spent on, so only the 2% cosmetic token would matter. Both settings are built and tested.
-3. A point value for salvage, and for clearing every base on a planet.
+1. **Ante length and end: 300 seconds, Hybrid.** You may leave early once the target is met; otherwise the timer decides. The other two modes stay in the code for playtests. OnPlayerAdvance carries a known risk if it is ever tried: the ante stays open after the timer and fresh things still score, so a leaderboard chaser could sweep up every remaining reward with no deadline.
+2. **No ninth scratch-off.** Tickets come between antes only, eight in a full run.
+3. **Salvage: work it out with maths.** See the next section.
+
+## Salvage: 240 points (derived, not playtested)
+
+Salvage means finding a piece, securing it with the grapple or crane, and carrying it back to the base. The table already prices both halves of that job, so the value is built from them instead of invented:
+
+- **Securing it** is a short hands-on job, the same size as an under-threat recovery: **80**.
+- **Carrying something home intact** is what separates a bounty delivered alive from one brought back dead: 420 - 260 = **160**. (Goodwill is paid on top of that and is not part of the 160.)
+- 80 + 160 = **240**.
+
+Checks on the answer:
+
+- **Order.** It lands above jobs finished on the spot (landmark 120, satellite repaired 180) and below things that must be fought for first (dead bounty 260, hijacked ship 260, alive bounty 420). Salvage needs no fight and uses up no tie-up shot, so it should not beat a bounty.
+- **Implied time.** Ante 1 asks for 170 base points a minute, so 240 is worth about 85 seconds of that pace. A satellite repair implies 64 seconds and a dish network 92. A fetch-and-return trip belongs in that band.
+- **No double pay.** Finding the wreck is a separate landmark event (120). The 240 is only for the delivery, once per piece.
+- **Not farmable.** Each piece has its own claim id, and there are only as many pieces as the seed places.
+
+What this cannot tell you: how long hauling really takes. Flight is Milestone 10 and the grapple does not exist. If a real haul takes much longer than 85 seconds, 240 is too low and nobody will bother; much shorter, and it is too generous. That is a playtest question. A test pins the formula, so if the recovery or bounty values are retuned the test will flag that salvage needs another look.
+
+**Still without a number:** the build prompt's "bonus for clearing all bases on a planet". There is no event for it yet. By the same method it would be a dish-network-sized set bonus (260), but I have not added it because you were not asked about it.
 
 ## How future systems plug in
 
@@ -120,7 +138,7 @@ ScoreResult result = anteRun.Report(new ScoreEvent
 
 ## Tested, and not
 
-**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 93 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
+**Run for real (13 Nov 2026, `dotnet test`, .NET 8, outside Unity): 95 new rule tests, all passed**, alongside the 10 existing `SeededRandom` tests they depend on. They cover: the formula and every cap; deterministic rounding; the handoff numbers; the three ledgers and spending separation; claims across save and load and across antes; respawns; caps; alive and dead bounty; ante thresholds and resets; all three end conditions; pause; stopwatch; Select; attributes; draft distinctness, determinism, uniqueness, usefulness and rarity distribution (200,000 rolls); scratch odds (200,000 rolls), wallet-only cash and no re-roll; independent streams; the final-ante ticket setting.
 
 **Not verified:**
 - Nothing has been compiled or run in Unity. `AnteBalanceData.cs` was compiled against hand-written stand-ins for Unity's types.

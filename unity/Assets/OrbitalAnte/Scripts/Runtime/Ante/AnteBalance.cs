@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OrbitalAnte.Ante
 {
-    /// <summary>What ends an ante. This is an open design question: the value in the balance data is a placeholder until Matthew decides.</summary>
+    /// <summary>What ends an ante. Matthew chose Hybrid on 14 Nov 2026. The other two stay available for playtests.</summary>
     public enum AnteEndCondition
     {
         /// <summary>The ante always runs to the end of its timer. Target met then: cleared. Not met: the run is over.</summary>
@@ -14,7 +14,7 @@ namespace OrbitalAnte.Ante
         Hybrid = 2,
     }
 
-    /// <summary>Whether clearing the last ante also gives a scratch-off. Open design question.</summary>
+    /// <summary>Whether clearing the last ante also gives a scratch-off. Matthew chose between antes only on 14 Nov 2026.</summary>
     public enum FinalScratchTiming
     {
         BetweenAntesOnly = 0,
@@ -55,7 +55,7 @@ namespace OrbitalAnte.Ante
         UnderThreatRecovery = 16,
         /// <summary>A newly generated, unique mission to retake a base the factions took back. Scored like an optional mission, with a cap per base.</summary>
         BaseRetakeMission = 17,
-        /// <summary>Salvage brought home. No value has been given for this yet, so it scores nothing until one is set.</summary>
+        /// <summary>One piece of salvage brought back to the base. Pays once per piece.</summary>
         SalvageDelivered = 18,
     }
 
@@ -101,7 +101,7 @@ namespace OrbitalAnte.Ante
         public float valueScaleLinear = 0.21f;
         public float valueScaleQuadratic = 0.035f;
 
-        // ---- Timer (open question: length and end condition await Matthew) ----
+        // ---- Timer (300 seconds and Hybrid chosen by Matthew, 14 Nov 2026) ----
         public float anteSeconds = 300f;
         public float stopwatchSeconds = 30f;
         public float stopwatchMaxPerAnte = 90f;
@@ -136,8 +136,13 @@ namespace OrbitalAnte.Ante
         public int optionalMissionMin = 250;
         public int optionalMissionMax = 550;
         public int underThreatRecovery = 80;
-        /// <summary>Not given in the handoff. 0 means "scores nothing yet".</summary>
-        public int salvageDelivered = 0;
+        /// <summary>
+        /// Derived, not playtested (Matthew asked for it to be worked out from the other values, 14 Nov 2026):
+        /// the hands-on job of securing it (the under-threat recovery value, 80) plus carrying something home
+        /// intact (the gap between a bounty delivered alive and one brought back dead, 420 - 260 = 160).
+        /// See docs/design/ante-point-system.md.
+        /// </summary>
+        public int salvageDelivered = 240;
 
         // ---- Anti-farm caps (my provisional numbers; the handoff says "with caps" without giving them) ----
         public int underThreatRecoveriesPerAnte = 3;
@@ -284,7 +289,7 @@ namespace OrbitalAnte.Ante
             }
             if (rarityCommon + rarityUncommon + rarityRare <= 0f) problems.Add("Ante balance: perk rarity weights add up to nothing.");
             if (ScratchOff.TotalWeight(this) <= 0f) problems.Add("Ante balance: scratch-off weights add up to nothing.");
-            if (salvageDelivered <= 0) problems.Add("Ante balance: salvage has no point value yet, so delivering salvage scores nothing.");
+            if (salvageDelivered <= 0) problems.Add("Ante balance: salvage has no point value, so delivering salvage scores nothing.");
         }
     }
 }

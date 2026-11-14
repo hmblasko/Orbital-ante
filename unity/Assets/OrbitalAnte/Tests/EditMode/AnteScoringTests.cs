@@ -121,12 +121,39 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TheDefaultNumbersPassTheirOwnCheckApartFromSalvage()
+        public void TheDefaultNumbersPassTheirOwnCheck()
         {
             var problems = new List<string>();
             new AnteBalance().Validate(problems);
-            Assert.AreEqual(1, problems.Count, string.Join(" | ", problems));
+            Assert.AreEqual(0, problems.Count, string.Join(" | ", problems));
+
+            new AnteBalance { salvageDelivered = 0 }.Validate(problems);
+            Assert.AreEqual(1, problems.Count);
             StringAssert.Contains("salvage", problems[0]);
+        }
+
+        [Test]
+        public void TheDecidedSettingsAreTheDefaults()
+        {
+            var balance = new AnteBalance();
+            Assert.AreEqual(300f, balance.anteSeconds);
+            Assert.AreEqual(AnteEndCondition.Hybrid, balance.endCondition);
+            Assert.AreEqual(FinalScratchTiming.BetweenAntesOnly, balance.finalScratch);
+        }
+
+        [Test]
+        public void SalvageIsBuiltFromTheOtherValuesAndSitsBetweenItsNeighbours()
+        {
+            var balance = new AnteBalance();
+            Assert.AreEqual(balance.underThreatRecovery + (balance.bountyAlive - balance.bountyDead), balance.salvageDelivered);
+            Assert.AreEqual(240, balance.salvageDelivered);
+            Assert.Greater(balance.salvageDelivered, balance.satelliteRepaired, "more than a job done on the spot");
+            Assert.Less(balance.salvageDelivered, balance.bountyDead, "less than a bounty, which has to be fought for first");
+            Assert.Less(balance.salvageDelivered, balance.bountyAlive);
+
+            var run = new AnteRun(balance, 7);
+            Assert.AreEqual(240, run.Report(new ScoreEvent { claimId = "salvage:1", kind = ScoreEventKind.SalvageDelivered }).points);
+            Assert.AreEqual(ScoreOutcome.AlreadyClaimed, run.Report(new ScoreEvent { claimId = "salvage:1", kind = ScoreEventKind.SalvageDelivered }).outcome);
         }
 
         // ---- Ledgers ----
@@ -303,9 +330,9 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void SalvageScoresNothingUntilItIsGivenAValue()
+        public void AKindWithNoValueScoresNothingAndKeepsItsClaim()
         {
-            var run = new AnteRun(new AnteBalance(), 7);
+            var run = new AnteRun(new AnteBalance { salvageDelivered = 0 }, 7);
             ScoreResult result = run.Report(new ScoreEvent { claimId = "salvage:1", kind = ScoreEventKind.SalvageDelivered });
             Assert.AreEqual(ScoreOutcome.NoValueSet, result.outcome);
             Assert.IsFalse(run.Claims.IsClaimed("salvage:1"), "a refused event does not use up its claim");

@@ -29,7 +29,7 @@ namespace OrbitalAnte.Ante
     /// Which ante the run is in, its timer, and the moves between antes. Plain C#, no Unity types: a
     /// MonoBehaviour will call <see cref="Tick"/> once a frame in Milestone 14.
     ///
-    /// How an ante ends is configurable (<see cref="AnteEndCondition"/>) because Matthew has not decided it.
+    /// How an ante ends is configurable (<see cref="AnteEndCondition"/>) so the other modes can be tried in playtests; Matthew chose Hybrid on 14 Nov 2026.
     /// </summary>
     public sealed class AnteDirector
     {
@@ -152,7 +152,7 @@ namespace OrbitalAnte.Ante
         {
             if (IsLastAnte)
             {
-                // The perk draft would have nothing left to affect. The scratch-off at victory is an open question.
+                // The perk draft would have nothing left to affect. No scratch-off at victory unless the setting says so (Matthew chose none, 14 Nov 2026).
                 PerkDraftPending = false;
                 ScratchPending = _balance.finalScratch == FinalScratchTiming.AlsoAtVictory;
                 End(AntePhase.Victory);

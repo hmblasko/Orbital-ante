@@ -20,8 +20,7 @@ namespace OrbitalAnte.Tests
                 Assert.AreEqual(result.points, run.Ledger.AnteEarned, kind.ToString());
                 Assert.AreEqual(result.points, run.Ledger.LifetimeRunScore, kind.ToString());
                 Assert.AreEqual(result.points, run.Ledger.SpendablePoints, kind.ToString());
-                if (kind == ScoreEventKind.SalvageDelivered) Assert.AreEqual(0, result.points);
-                else Assert.Greater(result.points, 0, kind.ToString());
+                Assert.Greater(result.points, 0, kind.ToString());
                 Assert.AreEqual(result.Awarded, run.Claims.IsClaimed("one:" + kind), kind.ToString());
             }
         }
