@@ -255,6 +255,8 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(PilotFate.Jolted, crash.Fate(r.throwSpeed + 1f, true), "strapped in, you are never thrown");
             Assert.AreEqual(PilotFate.Killed, crash.Fate(r.fatalLoose, false));
             Assert.AreEqual(PilotFate.Jolted, crash.Fate(r.fatalLoose, true), "the knock that kills a loose pilot only jolts a strapped one");
+            Assert.AreEqual(PilotFate.Jolted, crash.Fate(r.fatalBuckled * 10f, true), "buckled in, no crash ends the run: the ship breaks, you do not");
+            r.beltAlwaysSaves = false;
             Assert.AreEqual(PilotFate.Killed, crash.Fate(r.fatalBuckled, true));
             Assert.Greater(r.fatalBuckled, r.fatalLoose * 3f);
             // A landing gentle enough not to hurt the ship never hurts the pilot either.

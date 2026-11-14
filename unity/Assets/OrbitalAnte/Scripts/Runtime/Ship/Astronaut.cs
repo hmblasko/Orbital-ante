@@ -59,6 +59,8 @@ namespace OrbitalAnte.Ship
         readonly InteriorWalker _walker = new InteriorWalker();
 
         float _yaw, _pitch;
+        // Where the head is turned while buckled in, measured from straight ahead.
+        float _seatYaw, _seatPitch;
         Vector3 _standFrom;
         float _yawFrom, _pitchFrom;
 
@@ -165,6 +167,10 @@ namespace OrbitalAnte.Ship
             capsule.sharedMaterial = new PhysicsMaterial("Suit") { dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             a._suitGravity = suitGo.AddComponent<GravityBody>();
             suitGo.AddComponent<SuitBody>().Owner = a;
+            // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
+            a._suitGravity.NeedsGround = true;
+            a._suitGravity.SunkBelow = -0.7f;
+            a._suitGravity.PutBackAt = 0.25f;
             suitGo.SetActive(false);
             a.SuitDials = SuitConfig.Load();
             a.SuitTanks = new SuitSupplies(a.SuitDials.rules);
@@ -262,6 +268,9 @@ namespace OrbitalAnte.Ship
             _walker.Place(-0.78f, 1.0f);
             _yaw = 0f;
             _pitch = 0f;
+            _seatYaw = 0f;
+            _seatPitch = 0f;
+            Ship.Flight.PilotLook = Vector3.zero;
             SetMode(AstronautMode.Aboard);
             PoseAboard();
         }
@@ -470,8 +479,54 @@ namespace OrbitalAnte.Ship
                     _standFrom = new Vector3(-0.78f, ShipLayout.EyeHeight, 1.0f);
                 }
             }
+            SeatLook(belt.Buckled);
             PoseSeated();
+            // Head turned well away from the nose: Lock takes what is in front of your eyes, not the nose.
+            bool away = belt.Buckled && (Mathf.Abs(_seatYaw) > 10f || Mathf.Abs(_seatPitch) > 10f);
+            Ship.Flight.PilotLook = away ? Eye.transform.forward : Vector3.zero;
         }
+
+        /// <summary>
+        /// Buckled in, the mouse or right stick turns your head, not the ship: the ship is moved by its
+        /// thrusters. Holding Turn Ship hands the mouse to the ship and brings your eyes back to the front, so
+        /// you see where the nose is going. Looking down at the camera screen does the same.
+        /// </summary>
+        void SeatLook(bool buckled)
+        {
+            float dt = Time.unscaledDeltaTime;
+            bool free = buckled && !Dead && !GameSession.Paused && GameInput.Asset != null
+                        && !Ship.Flight.Steering && !Ship.Flight.ControlsLocked && Mathf.Abs(ScreenGlance) < 0.5f;
+            if (!free)
+            {
+                float ease = 1f - Mathf.Exp(-6f * dt);
+                _seatYaw = Mathf.Lerp(_seatYaw, 0f, ease);
+                _seatPitch = Mathf.Lerp(_seatPitch, 0f, ease);
+                return;
+            }
+            Vector2 look = GameInput.FlyLook.ReadValue<Vector2>();
+            if (look.sqrMagnitude <= 0f) return;
+            InputControl control = GameInput.FlyLook.activeControl;
+            if (control != null && control.device is Pointer)
+            {
+                _seatYaw += look.x * _look.mouseSensitivity;
+                _seatPitch -= look.y * _look.mouseSensitivity;
+            }
+            else
+            {
+                float magnitude = Mathf.Clamp01(look.magnitude);
+                float curved = Mathf.Pow(magnitude, Mathf.Max(1f, _look.stickCurve));
+                Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
+                _seatYaw += shaped.x * _look.stickYawSpeed * dt;
+                _seatPitch -= shaped.y * _look.stickPitchSpeed * dt;
+            }
+            // As far as a belted-in neck goes: over either shoulder, up at the roof, down at your knees.
+            _seatYaw = Mathf.Clamp(_seatYaw, -SeatLookYaw, SeatLookYaw);
+            _seatPitch = Mathf.Clamp(_seatPitch, -SeatLookUp, SeatLookDown);
+        }
+
+        public const float SeatLookYaw = 125f, SeatLookUp = 70f, SeatLookDown = 60f;
+        /// <summary>How far the head is turned from straight ahead in the seat, in degrees (x right, y down).</summary>
+        public Vector2 SeatLookNow => new Vector2(_seatYaw, _seatPitch);
 
         void PoseSeated()
         {
@@ -481,8 +536,8 @@ namespace OrbitalAnte.Ship
             transform.localRotation = Quaternion.identity;
             // A glance down at your lap while the belt goes across, then eyes front.
             float glance = belt.State == BeltState.Buckling ? Mathf.Sin(Mathf.Clamp01((belt.Progress - 0.2f) / 0.75f) * Mathf.PI) * _config.buckleGlance : 0f;
-            float yaw = Mathf.LerpAngle(_yawFrom, 0f, sit);
-            float pitch = Mathf.Lerp(_pitchFrom, 0f, sit) + glance + ScreenGlance;
+            float yaw = Mathf.LerpAngle(_yawFrom, 0f, sit) + _seatYaw * sit;
+            float pitch = Mathf.Lerp(_pitchFrom, 0f, sit) + glance + ScreenGlance + _seatPitch * sit;
             Eye.transform.localPosition = Vector3.Lerp(_standFrom, V(ShipLayout.SeatedEye), sit);
             Eye.transform.localRotation = Quaternion.Euler(pitch, yaw, 0f);
         }
@@ -544,9 +599,10 @@ namespace OrbitalAnte.Ship
 
             if (GameInput.Hatch.WasPressedThisFrame()) ToggleHatch();
 
-            // The lever and the seat come first, so a cracked window nearby never swallows the button.
+            // The hatch and the seat come first, so a cracked window nearby never swallows the button.
+            // No lever: look at the hatch in the floor and press the button.
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
-            if (LookingAt(V(ShipLayout.HatchLever), 1.8f, 26f, eye, forward))
+            if (LookingAt(Vector3.zero, 3.2f, 24f, eye, forward))
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
@@ -649,7 +705,8 @@ namespace OrbitalAnte.Ship
 
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
             bool flying = !_grounded;
-            if (LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
+            // Look at the hatch in the belly (or the button beside it) and press the button.
+            if (LookingAt(new Vector3(0f, ShipLayout.BellyY, 0f), 3.2f, 24f, eye, forward) || LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();

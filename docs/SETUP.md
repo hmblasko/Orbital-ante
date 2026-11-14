@@ -44,13 +44,14 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Steer | Mouse | Right stick |
+| Look around the cabin | Mouse | Click the right stick, then move it (click again to go back to turning) |
+| Turn the ship | Hold the right mouse button and move the mouse | Right stick |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
 | Look down at the camera screen (and back up) | C | D-pad down |
 | Next ship camera | V | D-pad right |
-| Next dash design (for choosing; all four are in the build) | N | Click right stick |
+| Next dash design (for choosing; all four are in the build) | N | (keyboard only) |
 | Lock on to what the nose points at (press again on it, or on empty sky, to let go) | T | X / Square |
 | Autopilot to the locked body (any thrust takes the ship back) | R | B / Circle |
 | Match velocity with what you aim at (hold) | F | A / Cross |

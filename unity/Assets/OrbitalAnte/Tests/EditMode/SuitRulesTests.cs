@@ -350,5 +350,17 @@ namespace OrbitalAnte.Tests
             s.MatchTarget = MatchTarget.Ship;
             Assert.AreEqual("vs SHIP", SuitReadout.SpeedAgainst(s));
         }
+
+        [Test]
+        public void TheSuitCannotTakeMoreAirThanTheShipHasLeft()
+        {
+            var rules = new SuitRules();
+            var tanks = new SuitSupplies(rules);
+            tanks.Set(0f, 1f);
+            float shipAir = 0.0001f;
+            float drawn = tanks.Tick(0.1f, false, true, 0f, shipAir);
+            Assert.LessOrEqual(drawn, shipAir + 1e-7f, "it asked the ship for more air than the ship had");
+            Assert.AreEqual(shipAir / rules.suitShareOfShipAir, tanks.Air, 1e-4f, "the suit gained exactly what that air is worth");
+        }
     }
 }

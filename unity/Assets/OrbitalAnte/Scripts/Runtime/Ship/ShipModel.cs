@@ -174,6 +174,9 @@ namespace OrbitalAnte.Ship
             var result = new DamageResult { Before = State(part), After = State(part), Fraction = Fraction(part) };
             if (amount <= 0f || _lost[part]) return result;
             PartSpec spec = Parts[part];
+            // The hatch is the one way in and out, so it never breaks: nothing can shut the player out of
+            // their ship, or in. (Matthew, 14 Nov 2026.)
+            if (spec.Kind == PartKind.Hatch) return result;
             result.Dealt = amount;
             _repair[part] = 0f;
 

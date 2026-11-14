@@ -146,9 +146,12 @@ namespace OrbitalAnte.Spacewalk
                 if (Fuel < 1f) { Fuel = Math.Min(1f, Fuel + fill); Filling = true; }
                 if (shipAir > 0f && Air < 1f)
                 {
-                    float before = Air;
-                    Air = Math.Min(1f, Air + fill);
-                    drawn = (Air - before) * Math.Max(0f, Rules.suitShareOfShipAir);
+                    // The suit can take no more than the ship has left to give: the last breath in the ship's
+                    // tank fills only as much of the suit as it is worth.
+                    float share = Math.Max(0f, Rules.suitShareOfShipAir);
+                    float gain = Math.Min(Math.Min(fill, 1f - Air), share > 0f ? shipAir / share : fill);
+                    Air += gain;
+                    drawn = gain * share;
                     Filling = true;
                 }
             }

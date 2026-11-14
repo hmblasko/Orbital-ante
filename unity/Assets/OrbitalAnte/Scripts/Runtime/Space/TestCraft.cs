@@ -25,6 +25,19 @@ namespace OrbitalAnte.Space
         public bool MatchingVelocity { get; private set; }
         /// <summary>Set by the map while it is open, so flying controls do nothing behind it.</summary>
         public bool ControlsLocked { get; set; }
+        /// <summary>
+        /// True while the pilot holds Turn Ship: the mouse or right stick is turning the ship. The rest of the
+        /// time it is theirs to look round the cabin with, and only the thrusters move the ship.
+        /// </summary>
+        public bool Steering { get; private set; }
+        /// <summary>Controller only: the right stick has been clicked over to looking round the cabin.</summary>
+        public bool PadLooking { get; private set; }
+        bool _lookFromPad;
+        /// <summary>
+        /// Where the pilot is looking when their head is turned well away from the nose (world direction), or
+        /// zero. Lock then takes what they are looking at, so the rule is always "lock what is in front of my eyes".
+        /// </summary>
+        public Vector3 PilotLook { get; set; }
         /// <summary>Set by the ship while nobody is buckled into the seat: the controls do nothing.</summary>
         public bool Unmanned { get; set; }
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
@@ -160,6 +173,19 @@ namespace OrbitalAnte.Space
         /// <summary>The craft's own code-made rumble, and only that: the ship carries other sounds on the same object.</summary>
         public AudioSource ThrusterSound => _thrusterSound;
         float _thrusterLevel;
+        // The small thrusters: a sharper hiss with a note and a side for each direction (see ThrusterHeard).
+        AudioSource _jetSound;
+        public AudioSource JetSound => _jetSound;
+        float _jetLevel, _turnHeard;
+        /// <summary>What the thrusters sounded like last frame: which engines, how loud, from which side.</summary>
+        public ThrusterHeard Heard { get; private set; }
+        /// <summary>
+        /// The push the thrusters are really giving, in the ship's own directions (right, up, nose; length 0 to
+        /// 1): the pilot's, the autopilot's, or the brake of Match Velocity. For sound and for flames.
+        /// </summary>
+        public Vector3 Firing { get; private set; }
+        /// <summary>How hard the ship is being turned by its pilot, 0 to 1.</summary>
+        public float TurnHeard => _turnHeard;
 
         public static TestCraft Create(Transform parent, TestCraftConfig config)
         {
@@ -245,6 +271,31 @@ namespace OrbitalAnte.Space
             _thrusterSound.volume = 0f;
             _thrusterSound.playOnAwake = false;
             _thrusterSound.Play();
+
+            // The small thrusters: the same noise with the low end taken out, so it hisses where the engines rumble.
+            var hiss = new float[rate * 2];
+            float slow = 0f, soft = 0f;
+            for (int i = 0; i < hiss.Length; i++)
+            {
+                float n = rng.Range(-1f, 1f);
+                slow += (n - slow) * 0.045f;
+                soft += (n - slow - soft) * 0.55f;
+                hiss[i] = soft * 0.9f;
+            }
+            for (int i = 0; i < blend; i++)
+            {
+                float t = i / (float)blend;
+                hiss[hiss.Length - blend + i] = Mathf.Lerp(hiss[hiss.Length - blend + i], hiss[i], t);
+            }
+            var jetClip = AudioClip.Create("ThrusterHiss", hiss.Length, 1, rate, false);
+            jetClip.SetData(hiss, 0);
+            _jetSound = gameObject.AddComponent<AudioSource>();
+            _jetSound.clip = jetClip;
+            _jetSound.loop = true;
+            _jetSound.spatialBlend = 0f;
+            _jetSound.volume = 0f;
+            _jetSound.playOnAwake = false;
+            _jetSound.Play();
         }
 
         void Update()
@@ -267,12 +318,28 @@ namespace OrbitalAnte.Space
                 _lookPending = Vector2.zero;
                 Boosting = false;
                 MatchingVelocity = false;
+                Steering = false;
+                if (Unmanned) PadLooking = false;
                 // Nobody in the seat ends the autopilot. Reading the map does not: it flies on while you look.
                 if (PilotOn && Unmanned) StopPilot(PilotStop.Unbuckled);
             }
             else
             {
                 Vector2 move = GameInput.FlyMove.ReadValue<Vector2>();
+                // With a mouse, the ship turns only while Turn Ship is held. With a controller the right stick
+                // turns the ship unless it has been clicked over to looking about.
+                // Which it is goes by the device that last moved the view, not by "which device was touched last":
+                // a controller lying on the desk reports all the time and must not take the mouse's turn.
+                var lookFrom = GameInput.FlyLook.activeControl;
+                if (lookFrom != null) _lookFromPad = lookFrom.device is UnityEngine.InputSystem.Gamepad;
+                if (GameInput.FlyLookToggle != null && GameInput.FlyLookToggle.WasPressedThisFrame())
+                {
+                    PadLooking = !PadLooking;
+                    _lookFromPad = true;
+                }
+                bool held = GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
+                if (held) _lookFromPad = false;
+                Steering = _lookFromPad ? !PadLooking : held;
                 float lift = (GameInput.FlyUp.IsPressed() ? 1f : 0f) - (GameInput.FlyDown.IsPressed() ? 1f : 0f);
                 ThrustInput = Vector3.ClampMagnitude(new Vector3(move.x, lift, move.y), 1f);
                 Boosting = GameInput.Boost.IsPressed();
@@ -306,17 +373,42 @@ namespace OrbitalAnte.Space
                 Vector2 look = GameInput.FlyLook.ReadValue<Vector2>();
                 var control = GameInput.FlyLook.activeControl;
                 bool mouse = control != null && control.device is UnityEngine.InputSystem.Pointer;
-                if (mouse) _lookPending += look * Config.mouseSensitivity;
+                if (!Steering) _lookPending = Vector2.zero;   // the pilot is looking about, not turning the ship
+                else if (mouse) _lookPending += look * Config.mouseSensitivity;
                 else _lookPending += look * (Config.stickTurnSpeed * Time.unscaledDeltaTime);
             }
 
             if (!Locked) UpdateTarget();
 
-            float target = ThrustInput.magnitude * (Boosting || PilotOn ? 1f : 0.55f);
-            if (MatchingVelocity && RelativeVelocity().sqrMagnitude > 0.04f) target = Mathf.Max(target, 0.8f);
-            _thrusterLevel = Mathf.MoveTowards(_thrusterLevel, target, Time.unscaledDeltaTime * 5f);
+            // What is firing, in the ship's own directions: the pilot's push (or the autopilot's), and the
+            // brake of Match Velocity, which pushes against whatever way the ship is drifting.
+            float strength = Boosting || PilotOn ? 1f : 0.55f;
+            Vector3 firing = ThrustInput * strength;
+            if (MatchingVelocity && !PilotOn)
+            {
+                Vector3 drift = RelativeVelocity();
+                if (drift.sqrMagnitude > 0.04f) firing -= transform.InverseTransformDirection(drift.normalized) * 0.8f;
+            }
+            firing = Vector3.ClampMagnitude(firing, 1f);
+            Firing = firing;
+            bool turning = !Locked && ((Steering && _lookPending.sqrMagnitude > 1e-6f)
+                           || GameInput.RollLeft.IsPressed() || GameInput.RollRight.IsPressed());
+            _turnHeard = Mathf.MoveTowards(_turnHeard, turning ? 1f : 0f, Time.unscaledDeltaTime * 5f);
+            ThrusterHeard mix = ThrusterHeard.For(firing.x, firing.y, firing.z, _turnHeard);
+            Heard = mix;
+
+            _thrusterLevel = Mathf.MoveTowards(_thrusterLevel, mix.Main, Time.unscaledDeltaTime * 5f);
             _thrusterSound.volume = _thrusterLevel * Config.thrusterVolume;
             _thrusterSound.pitch = 0.8f + _thrusterLevel * 0.5f;
+            _jetLevel = Mathf.MoveTowards(_jetLevel, mix.Jets, Time.unscaledDeltaTime * 8f);
+            _jetSound.volume = _jetLevel * Config.thrusterVolume * 0.8f;
+            if (mix.Jets > 0.01f)
+            {
+                // The note and the side follow the push quickly, but not in one frame (that would click).
+                float ease = 1f - Mathf.Exp(-14f * Time.unscaledDeltaTime);
+                _jetSound.pitch = Mathf.Lerp(_jetSound.pitch, mix.Pitch, ease);
+                _jetSound.panStereo = Mathf.Lerp(_jetSound.panStereo, mix.Pan, ease);
+            }
         }
 
         /// <summary>The craft's velocity measured against the body Match Velocity would match.</summary>
@@ -350,7 +442,9 @@ namespace OrbitalAnte.Space
             Vector3 eye = Eye.transform.position;
             // The ship's nose, not the pilot's eyes: a glance down at the camera screen, a launch shake or a knock
             // to the head must never change what the ship is aimed at or what Match Velocity matches.
-            Vector3 forward = transform.forward;
+            // The one exception is a pilot who has turned their head well away on purpose (free look): then it is
+            // what they are looking at, so Lock always means "what is in front of my eyes".
+            Vector3 forward = PilotLook.sqrMagnitude > 0.5f ? PilotLook : transform.forward;
             float best = TargetCone;
             for (int i = 0; i < System.Bodies.Length; i++)
             {
@@ -484,6 +578,7 @@ namespace OrbitalAnte.Space
         {
             // The rumble is made afresh for every run.
             if (_thrusterSound != null && _thrusterSound.clip != null) Destroy(_thrusterSound.clip);
+            if (_jetSound != null && _jetSound.clip != null) Destroy(_jetSound.clip);
         }
     }
 }
