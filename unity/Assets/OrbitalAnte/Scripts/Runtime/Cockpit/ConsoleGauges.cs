@@ -18,6 +18,8 @@ namespace OrbitalAnte.Cockpit
         public const int LampCount = 5;
         /// <summary>The tube never shows quite empty: a sliver stays, so a dry tank and a missing gauge look different.</summary>
         public const float FuelSliver = 0.02f;
+        /// <summary>At or under this much air the Air lamp stops blinking and burns.</summary>
+        public const float AirGone = 0.002f;
 
         /// <summary>0 (empty) to 1 (full): the length of the liquid in the tube.</summary>
         public float FuelLevel = 1f;
@@ -34,14 +36,23 @@ namespace OrbitalAnte.Cockpit
         public void Set(DashReadings r, bool locked, bool autopilot)
         {
             if (r == null) return;
-            FuelLevel = Math.Max(FuelSliver, Math.Min(1f, r.Fuel));
-            AirTurn = Math.Max(0f, Math.Min(1f, r.Oxygen));
+            Set(r.Fuel, r.Oxygen, r.FuelLow, r.FuelOut, r.OxygenLow, r.Blink, locked, autopilot, r.Matching);
+        }
+
+        /// <summary>
+        /// The same from raw numbers, for when nobody is aboard to need the eased readings: seen through the
+        /// glass from outside, the instruments still tell the truth.
+        /// </summary>
+        public void Set(float fuel, float air, bool fuelLow, bool fuelOut, bool airLow, bool blink, bool locked, bool autopilot, bool matching)
+        {
+            FuelLevel = Math.Max(FuelSliver, Math.Min(1f, fuel));
+            AirTurn = Math.Max(0f, Math.Min(1f, air));
             Lamps[(int)ConsoleLamp.Lock] = locked;
             Lamps[(int)ConsoleLamp.Auto] = autopilot;
-            Lamps[(int)ConsoleLamp.Match] = r.Matching;
-            // Out of fuel burns steadily; low blinks. A lamp that only ever blinked could be caught dark at a glance.
-            Lamps[(int)ConsoleLamp.Fuel] = r.FuelOut || (r.FuelLow && r.Blink);
-            Lamps[(int)ConsoleLamp.Air] = r.OxygenLow && r.Blink;
+            Lamps[(int)ConsoleLamp.Match] = matching;
+            // Out burns steadily; low blinks. A lamp that only ever blinked could be caught dark at a glance.
+            Lamps[(int)ConsoleLamp.Fuel] = fuelOut || (fuelLow && blink);
+            Lamps[(int)ConsoleLamp.Air] = air <= AirGone || (airLow && blink);
         }
 
         /// <summary>The model's piece for a lamp's lit face.</summary>

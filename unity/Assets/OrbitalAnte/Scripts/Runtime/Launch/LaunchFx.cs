@@ -24,7 +24,10 @@ namespace OrbitalAnte.Launch
         public LaunchAudio Sounds { get; private set; }
 
         /// <summary>Metres from the engine bells to whatever is below them, or a large number when nothing is within reach.</summary>
+        /// <summary>From the engine bells straight down to the ground, in metres.</summary>
         public float HeightAboveGround { get; private set; } = 1e6f;
+        /// <summary>How far the bells are above the footpads: the ship's height off the ground is measured from its feet.</summary>
+        const float BellsAboveFeet = OrbitalAnte.Ship.ShipLayout.EngineExitY - OrbitalAnte.Ship.ShipLayout.GroundY;
         public bool OnGround { get; private set; }
         /// <summary>True when the ship has been standing still on something for a moment: pressing up now starts the build-up.</summary>
         public bool Settled { get; private set; }
@@ -288,7 +291,7 @@ namespace OrbitalAnte.Launch
             bool settled = OnGround && _touchingFor >= 0.5f && flight.Body.angularVelocity.sqrMagnitude < 0.04f
                 && (_slidingKnown ? _sliding < 0.5f : true);
             Settled = settled;
-            Model.Tick(dt, up, boost, Model.State == EngineState.Off ? settled : OnGround, HeightAboveGround, Air, health);
+            Model.Tick(dt, up, boost, Model.State == EngineState.Off ? settled : OnGround, Mathf.Max(0f, HeightAboveGround - BellsAboveFeet), Air, health);
             Ship.LiftGate = Model.LiftGate;
             // The ship copied last frame's gate into the controls before this ran. Set it again now, so not one
             // physics step of full push slips out at the start of a build-up.

@@ -13,13 +13,13 @@ namespace OrbitalAnte.Tests
     /// </summary>
     public class ShipPropsTests
     {
-        const int ExteriorBudget = 14000, InteriorBudget = 15000;
+        const int ExteriorBudget = 14000, InteriorBudget = 26000;
 
         static readonly Dictionary<string, ShipMesh> Meshes = ShipProps.All().ToDictionary(p => p.Key, p => p.Value);
         static readonly string[] ExteriorNames = ShipProps.Exterior().Select(p => p.Key).ToArray();
         static readonly string[] InteriorNames = ShipProps.Interior().Select(p => p.Key).ToArray();
         /// <summary>Interior meshes that are built in their final place (the rest are built at the origin for the game to move).</summary>
-        static readonly string[] PlacedInterior = InteriorNames.Where(n => n != "lever" && n != "belt_strap" && n != "belt_buckle").ToArray();
+        static readonly string[] PlacedInterior = InteriorNames.Where(n => n != "belt_strap" && n != "belt_buckle").ToArray();
 
         static IEnumerable<string> AllNames() => ShipProps.All().Select(p => p.Key);
 
@@ -646,7 +646,10 @@ namespace OrbitalAnte.Tests
                 bool carcassFront = Math.Abs(c.Z - frontPlane) < 1e-4f && c.Y < 1.4f && Math.Abs(c.X) < 1.14f;
                 // The latches are little sealed lumps half sunk into the doors; the sealed-piece test covers them.
                 bool latch = P3.Distance(m.Color(m.Triangles[t * 3]), MeshBuilder.Web("#D9772B")) < 1e-3f;
-                if ((c.Z > frontPlane + 0.03f && !latch) || carcassFront)
+                // So are the fittings of the ship's computer, in its bay.
+                float bay = 2f * 1.15f / 5f, bayMiddle = -1.15f + bay * (ShipProps.ComputerBay + 0.5f);
+                bool computer = Math.Abs(c.X - bayMiddle) < bay * 0.5f && c.Z > frontPlane + 0.03f;
+                if ((c.Z > frontPlane + 0.03f && !latch && !computer) || carcassFront)
                 {
                     Assert.Greater(Normal(m, t).Unit().Z, -0.05f, "locker front faces the wall at " + c);
                     fronts++;
@@ -656,33 +659,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void LeverPost_AndLever_AreTheStatedSize()
+        public void NoLever_StandsInTheCabin_AndTheSeatIsTheOnlyThingToWalkRound()
         {
-            ShipMesh post = Meshes["lever_post"];
-            float top = 0f;
-            for (int i = 0; i < post.VertexCount; i++)
-            {
-                P3 p = post.Position(i);
-                top = Math.Max(top, p.Y);
-                float away = Flat(p - new P3(ShipLayout.HatchLever.X, 0f, ShipLayout.HatchLever.Z));
-                Assert.LessOrEqual(away, ShipLayout.Obstacles[1].Radius, "post is fatter than its obstacle circle");
-            }
-            Assert.AreEqual(0.92f, top, 0.01f);
-
-            ShipMesh lever = Meshes["lever"];
-            float tip = 0f, low = 0f;
-            bool red = false;
-            for (int i = 0; i < lever.VertexCount; i++)
-            {
-                P3 p = lever.Position(i);
-                tip = Math.Max(tip, p.Y);
-                low = Math.Min(low, p.Y);
-                Assert.Less(Flat(p), 0.06f);
-                if (p.Y > 0.2f && lever.Color(i).X > 0.7f && lever.Color(i).Y < 0.3f) red = true;
-            }
-            Assert.AreEqual(0.28f, tip, 1e-3f);
-            Assert.Greater(low, -0.05f);
-            Assert.IsTrue(red);
+            // Matthew, 14 Nov 2026: no hatch lever; you look at the hatch and press the button.
+            Assert.IsFalse(InteriorNames.Any(n => n.Contains("lever")));
+            Assert.IsFalse(ShipAssembly.InteriorPieces().Any(p => p.Name.Contains("Lever")));
+            Assert.AreEqual(1, ShipLayout.Obstacles.Length);
         }
 
         [Test]
@@ -729,7 +711,7 @@ namespace OrbitalAnte.Tests
             // You walk inside WalkRadius, between the lockers and the desk; your body is PersonRadius wide and
             // PersonHeight tall. Nothing soft may stand in that space, because nothing there would stop you.
             float reach = ShipLayout.WalkRadius + ShipLayout.PersonRadius;
-            foreach (string name in new[] { "comforts", "fairy_lights" })
+            foreach (string name in new[] { "comforts", "fairy_lights", "hardware" })
             {
                 ShipMesh m = Meshes[name];
                 for (int i = 0; i < m.VertexCount; i++)
@@ -738,10 +720,60 @@ namespace OrbitalAnte.Tests
                     bool rug = p.Y < 0.02f;
                     bool behindTheLockers = p.Z <= ShipLayout.LockerZ + 0.02f, pastTheDesk = p.Z >= ShipLayout.DeskZ;
                     bool overhead = p.Y > ShipLayout.PersonHeight + 0.03f;
-                    if (!rug && !behindTheLockers && !pastTheDesk && !overhead)
+                    // Where the dome leans in over your head, a rib or a pipe that hugs it is part of the roof.
+                    bool hugsTheDome = name == "hardware" && p.Y > ShipLayout.WallTop && WallRadius(p.Y) - Flat(p) < 0.1f;
+                    if (!rug && !behindTheLockers && !pastTheDesk && !overhead && !hugsTheDome)
                         Assert.GreaterOrEqual(Flat(p), reach, name + " stands where you can walk at " + p);
-                    // The front window's sill is at 0.85: nothing on the nose may stand up into the view.
-                    if (pastTheDesk) Assert.LessOrEqual(p.Y, 0.84f, name + " stands up into the front window at " + p);
+                    // The front window's sill is at 0.85: nothing on the nose may stand up into the view
+                    // (the roof is another matter: see Hardware_LeavesTheFrontAndRoofWindowsClear_SeenFromTheSeat).
+                    if (pastTheDesk && !overhead) Assert.LessOrEqual(p.Y, 0.84f, name + " stands up into the front window at " + p);
+                }
+            }
+        }
+
+        [Test]
+        public void Hardware_LeavesTheFrontAndRoofWindowsClear_SeenFromTheSeat()
+        {
+            // Look from the pilot's eyes through every corner of the hardware: the line must never go on to
+            // meet the glass of the front window or the roof window.
+            ShipMesh m = Meshes["hardware"];
+            for (int i = 0; i < m.VertexCount; i++)
+            {
+                P3 p = m.Position(i);
+                Assert.IsTrue(ShipLayout.CabinExit(ShipLayout.SeatedEye, p - ShipLayout.SeatedEye, out _, out _, out ShipLayout.CabinExitKind kind, out int window));
+                if (kind != ShipLayout.CabinExitKind.Window) continue;
+                string id = ShipLayout.Windows[window].Id;
+                Assert.IsFalse(id == "window_front" || id == "window_overhead", "hardware is in front of the " + ShipLayout.Windows[window].Name + " at " + p);
+            }
+        }
+
+        [Test]
+        public void Hardware_HasItsRibs_ItsOrrery_AndOnlyGlowsThatLightNothing()
+        {
+            ShipMesh m = Meshes["hardware"];
+            float lowestOverTheWell = float.MaxValue;
+            int sun = 0, lights = 0, crown = 0;
+            for (int i = 0; i < m.VertexCount; i++)
+            {
+                P3 p = m.Position(i);
+                Assert.Less(m.Glow[i], LightBake.CastsLightFrom, "hardware must not be a lamp to the baker at " + p);
+                // Over the lift well and the middle of the floor nothing may hang down to head height.
+                if (Flat(p) < ShipLayout.ShaftRadius) lowestOverTheWell = Math.Min(lowestOverTheWell, p.Y);
+                if (m.Glow[i] > 0f && Flat(p) < 0.06f) sun++;
+                else if (m.Glow[i] > 0f) lights++;
+                if (p.Y > 2.5f && Flat(p) > 0.45f) crown++;
+            }
+            Assert.Greater(lowestOverTheWell, ShipLayout.PersonHeight + 0.2f, "the orrery hangs too low over the lift");
+            Assert.Greater(sun, 20, "the orrery's sun");
+            Assert.Greater(lights, 40, "pilot lights on the roof panels and the gauge");
+            Assert.Greater(crown, 50, "the crown ring the ribs run up to");
+            foreach (float column in ShipProps.RibColumns)
+            {
+                for (int w = 0; w < ShipLayout.Windows.Length; w++)
+                {
+                    float from = ShipLayout.Windows[w].Column, to = from + ShipLayout.Windows[w].Columns;
+                    float c = column < from ? column + ShipLayout.WallColumns : column;
+                    Assert.IsFalse(c > from - 0.3f && c < to + 0.3f, "a rib runs across the " + ShipLayout.Windows[w].Name);
                 }
             }
         }

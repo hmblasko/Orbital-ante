@@ -40,21 +40,17 @@ namespace OrbitalAnte.Ship
                 new ShipPiece { Name = "Floor", Mesh = ShipProps.Floor() },
                 new ShipPiece { Name = "Seat", Mesh = ShipProps.Seat() },
                 new ShipPiece { Name = "Desk", Mesh = ShipProps.Desk() },
-                new ShipPiece { Name = "LeverPost", Mesh = ShipProps.LeverPost() },
                 new ShipPiece { Name = "Lockers", Mesh = ShipProps.Lockers() },
                 new ShipPiece { Name = "CeilingLight", Mesh = ShipProps.CeilingLight() },
                 new ShipPiece { Name = "WallLamps", Mesh = ShipProps.WallLamps() },
                 new ShipPiece { Name = "HatchDoor0", Mesh = ShipProps.HatchDoor(0) },
                 new ShipPiece { Name = "HatchDoor1", Mesh = ShipProps.HatchDoor(1) },
-                new ShipPiece { Name = "Lever", Mesh = ShipProps.Lever(), Offset = LeverPivot },
                 new ShipPiece { Name = "Comforts", Mesh = ShipProps.Comforts() },
                 new ShipPiece { Name = "FairyLights", Mesh = ShipProps.FairyLights() },
+                new ShipPiece { Name = "Hardware", Mesh = ShipProps.Hardware() },
             };
             return pieces;
         }
-
-        /// <summary>Where the lever's foot is: the top of its post.</summary>
-        public static readonly P3 LeverPivot = new P3(ShipLayout.HatchLever.X, 0.92f, ShipLayout.HatchLever.Z);
 
         static ShipMesh Moved(ShipMesh mesh, P3 offset)
         {

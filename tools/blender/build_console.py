@@ -239,10 +239,10 @@ def left_wing():
         x = x0 + (x1 - x0) * (0.25 + 0.25 * k)
         band = [(-0.004, fr + 0.004), (0.004, fr + 0.004), (0.004, fr + 0.0005), (-0.004, fr + 0.0005)]
         fixed.append(metal(hoop("fuel hoop", (x, -0.006 - fr, fz), (1, 0, 0), band, BRASS, segments=14), 95, wear=0.4))
-    for k in range(9):                                    # the scale underneath; the last eighth is red
-        x = x0 + (x1 - x0) * k / 8.0
-        long = k % 2 == 0
-        fixed.append(plain(oa.box("fuel tick", (x, -0.0075, fz - fr - (0.019 if long else 0.016)), (0.0035, 0.002, 0.014 if long else 0.008), RED if k >= 7 else CREAM, bevel=0)))
+    for k in range(11):                                   # the scale underneath: tenths, red from the "low" line (a fifth) down
+        x = x0 + (x1 - x0) * k / 10.0
+        long = k % 5 == 0 or k == 8
+        fixed.append(plain(oa.box("fuel tick", (x, -0.0075, fz - fr - (0.019 if long else 0.016)), (0.0035, 0.002, 0.014 if long else 0.008), RED if k >= 8 else CREAM, bevel=0)))
     # A drop at the full end: this is the fuel.
     drop = [(-0.011, 0.0), (-0.008, 0.007), (0.0, 0.010), (0.007, 0.007), (0.017, 0.0), (0.007, -0.007), (0.0, -0.010), (-0.008, -0.007)]
     d = oa.slab("fuel drop", drop, 0.002, AMBER, bevel=0)

@@ -21,7 +21,7 @@ namespace OrbitalAnte.Cockpit
         readonly List<GameObject> _objects = new List<GameObject>();
         readonly GameObject[] _lamps = new GameObject[ConsoleGauges.LampCount];
         readonly bool[] _lampShown = new bool[ConsoleGauges.LampCount];
-        Material _bodyMaterial;
+        Material _bodyMaterial, _glowMaterial;
         Transform _fuel, _needle;
         Vector3 _needleAxis;
         float _needleHalf, _fuelShown = -1f, _airShown = -1f;
@@ -57,7 +57,9 @@ namespace OrbitalAnte.Cockpit
                 made.HasScreenPlace = true;
             }
 
-            Material glow = PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
+            // The parts that shine: their own colours, brighter than white so they bloom, and nothing from the sky
+            // (they are inside the hull). Baked() hands back a material of our own, destroyed with the console.
+            Material glow = made._glowMaterial = PlanetMaterials.Baked(2f);
 
             // Fuel: the liquid is modelled full. It hangs from a pivot at the empty end that is squeezed along the tube.
             Mesh fuel = ModelLibrary.PartMesh(ConsoleGauges.Model, ConsoleGauges.FuelPiece);
@@ -132,7 +134,9 @@ namespace OrbitalAnte.Cockpit
             for (int i = 0; i < _objects.Count; i++) if (_objects[i] != null) Object.Destroy(_objects[i]);
             _objects.Clear();
             if (_bodyMaterial != null) Object.Destroy(_bodyMaterial);
+            if (_glowMaterial != null) Object.Destroy(_glowMaterial);
             _bodyMaterial = null;
+            _glowMaterial = null;
         }
 
         /// <summary>A pivot at a place in ship space with the piece hung under it so the piece stays where the model put it.</summary>

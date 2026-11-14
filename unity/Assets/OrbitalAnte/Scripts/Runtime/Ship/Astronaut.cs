@@ -706,7 +706,7 @@ namespace OrbitalAnte.Ship
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
             bool flying = !_grounded;
             // Look at the hatch in the belly (or the button beside it) and press the button.
-            if (LookingAt(new Vector3(0f, ShipLayout.BellyY, 0f), 3.2f, 24f, eye, forward) || LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
+            if (LookingAt(new Vector3(0f, ShipLayout.BellyY, 0f), HatchLookReach, 24f, eye, forward) || LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
@@ -827,6 +827,12 @@ namespace OrbitalAnte.Ship
             }
             return true;
         }
+
+        /// <summary>
+        /// How far from the middle of the belly you can look at the hatch and open it: anywhere under the ship
+        /// between its legs, however tall they are.
+        /// </summary>
+        const float HatchLookReach = ShipLayout.BellyClearance + 0.9f;
 
         bool LookingAt(Vector3 shipPoint, float reach, float degrees, Vector3 eye, Vector3 forward)
         {

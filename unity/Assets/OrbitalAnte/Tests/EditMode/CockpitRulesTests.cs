@@ -288,8 +288,8 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("MOON", all, "what the speed is measured against");
             StringAssert.Contains("LANDING", all, "which camera");
             StringAssert.Contains("FUEL", all);
-            // The Flight deck screen is set in the modelled console, which shows air and fuel as real gauges
-            // (ConsoleGauges): it carries fewer words on purpose. Its notice still says FUEL LOW.
+            // The Flight deck screen carries fewer words on purpose: its fuel and air are pictures (see
+            // TheFlightDeckScreen_ShowsFuelAndAir_AsPicturesThatFollowTheTanks). Its notice still says FUEL LOW.
             if (style == DashStyle.FlightDeck) return;
             StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("AIR", all);
@@ -311,6 +311,34 @@ namespace OrbitalAnte.Tests
                         StringAssert.DoesNotContain(cheap, t.Text);
                 }
             }
+        }
+
+        [Test]
+        public void TheFlightDeckScreen_ShowsFuelAndAir_AsPicturesThatFollowTheTanks()
+        {
+            // The console's tube and dial sit out to the sides, past the edge of the view from the seat, and
+            // are not there at all if the Console model is missing. So the screen itself must show both.
+            var d = new DashDrawing();
+            int Picture(float fuel, float air, bool fuelLow = false, bool airLow = false, float clock = 0.2f)
+            {
+                var r = new DashReadings { Fuel = fuel, Oxygen = air, FuelLow = fuelLow, OxygenLow = airLow, Clock = clock };
+                DashDesigns.Paint(DashStyle.FlightDeck, r, d);
+                return d.Fingerprint();
+            }
+            int full = Picture(1f, 1f);
+            int corners = d.VertexCount;
+            Assert.AreNotEqual(full, Picture(0.6f, 1f), "less fuel must change the picture");
+            Assert.AreEqual(corners, d.VertexCount, "a gauge moving must never add or drop corners");
+            Assert.AreNotEqual(full, Picture(1f, 0.6f), "less air must change the picture");
+            Assert.AreEqual(corners, d.VertexCount);
+            Assert.AreNotEqual(Picture(0.6f, 1f), Picture(0.58f, 1f), "the fuel tube is fine enough to show two parts in a hundred");
+            Assert.AreNotEqual(Picture(1f, 0.6f), Picture(1f, 0.58f), "the air bubbles are fine enough to show two parts in a hundred");
+            Assert.AreNotEqual(Picture(0.1f, 1f), Picture(0.1f, 1f, fuelLow: true), "low fuel must look different from the same level without the warning");
+            Assert.AreNotEqual(Picture(1f, 0.1f), Picture(1f, 0.1f, airLow: true), "low air must look different too");
+            Assert.AreNotEqual(Picture(0.1f, 1f, fuelLow: true, clock: 0.2f), Picture(0.1f, 1f, fuelLow: true, clock: 0.7f), "and it blinks");
+            Picture(0f, 0f, true, true);
+            Assert.AreEqual(corners, d.VertexCount, "empty tanks keep every corner too");
+            Assert.AreEqual(7, d.Texts.Count, "and still no words for them");
         }
 
         // ------------------------------------------------------------------ the console's real instruments
@@ -355,6 +383,17 @@ namespace OrbitalAnte.Tests
             r.FuelOut = true;
             g.Set(r, false, false);
             Assert.IsTrue(g.Lit(ConsoleLamp.Fuel), "an empty tank's lamp stays on");
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air), "air that is only low still blinks");
+            r.Oxygen = 0f;
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Air), "with no air left the lamp stays on too");
+
+            // The same from raw numbers, for the instruments seen through the glass with nobody aboard.
+            g.Set(0.5f, 0.5f, false, false, false, true, true, false, false);
+            Assert.AreEqual(0.5f, g.FuelLevel, 1e-6f);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Lock));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
             Assert.AreEqual("lampFuelGlow", ConsoleGauges.PieceOf(ConsoleLamp.Fuel));
         }
 
@@ -407,6 +446,8 @@ namespace OrbitalAnte.Tests
                 {
                     Assert.Greater(Math.Abs(spot.Lens.X), 3f, "a pole camera should stand well clear of the hull");
                     Assert.Greater(look.Z, 0f, "a pole camera looks back at the ship from behind");
+                    Assert.Less(spot.LookAt.Y, 0f, "a pole camera aims below the cabin floor, so the long legs are in the picture");
+                    Assert.Greater(spot.LookAt.Y, ShipLayout.BellyY, "but not so low that it loses the cabin");
                 }
             }
             Assert.AreEqual(1, landing);

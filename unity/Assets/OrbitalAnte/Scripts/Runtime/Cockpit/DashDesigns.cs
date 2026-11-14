@@ -132,7 +132,7 @@ namespace OrbitalAnte.Cockpit
         /// <summary>
         /// The chosen design. Always the same seven words in the same order (blank when there is nothing to
         /// say): speed, its unit, the body it is measured against, height, climb or sink, the camera's name,
-        /// and the notice.
+        /// and the notice. Fuel and air are pictures (a tube and a column of bubbles), not words.
         /// </summary>
         static void FlightDeck(Look k, DashReadings r, DashDrawing d)
         {
@@ -144,8 +144,12 @@ namespace OrbitalAnte.Cockpit
             for (int i = 1; i < 6; i++) d.Rect(14f, H * i / 6f - 0.5f, W - 28f, 1f, rule);
             for (int i = 1; i < 20; i++) d.Rect(W * i / 20f - 0.5f, 10f, 1f, i % 5 == 0 ? 12f : 6f, rule);
 
-            Pusher(DashStyle.FlightDeck, k, r, d, 124f, 172f, 60f);
-            Ball(DashStyle.FlightDeck, k, r, d, 386f, 164f, 112f);
+            Pusher(DashStyle.FlightDeck, k, r, d, 118f, 172f, 60f);
+            Ball(DashStyle.FlightDeck, k, r, d, 392f, 164f, 112f);
+            // Fuel and air stand either side of the ball, so both are read looking straight ahead. The console's
+            // own tube and dial say the same thing larger, but they are off to the sides and need the model.
+            DeckFuel(k, r, d, 245f);
+            DeckAir(k, r, d, 536f);
 
             // Speed: the one big number, with the body it is measured against named under a small world.
             const float sx = 668f;
@@ -198,6 +202,59 @@ namespace OrbitalAnte.Cockpit
             d.Triangle(20f, 14f, 44f, 14f, 32f, 36f, flag);
             d.Triangle(W - 44f, 14f, W - 20f, 14f, W - 32f, 36f, flag);
             d.Text(520f, 24f, r.Notice.Length > 24 ? 17f : 21f, !urgent || r.Blink ? r.Notice : "", urgent ? k.Warn : k.Accent);
+        }
+
+        /// <summary>
+        /// Fuel on the Flight deck screen: a slim glass tube with a drop over it. The long red notch is where
+        /// "low" begins. Always the same number of corners, so the picture only changes when the level does.
+        /// </summary>
+        static void DeckFuel(Look k, DashReadings r, DashDrawing d, float cx)
+        {
+            const float y = 64f, w = 20f, h = 168f;
+            float level = Math.Max(0f, Math.Min(1f, r.Fuel));
+            bool warn = r.FuelLow || r.FuelOut;
+            DashColor colour = warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : k.Fuel;
+            float x = cx - w * 0.5f;
+            d.Panel(x - 4f, y - 4f, w + 8f, h + 8f, 13f, warn && r.Blink ? k.Warn : k.Edge);
+            d.Panel(x, y, w, h, 10f, k.Face);
+            float tall = (h - 6f) * level;
+            d.Panel(x + 3f, y + 3f, w - 6f, tall, 7f, colour);
+            d.Rect(x + 5f, y + 12f, 2.5f, h - 24f, new DashColor(1f, 1f, 1f, 0.14f));
+            for (int i = 1; i < 5; i++)
+            {
+                bool low = i == 1;
+                d.Rect(x + w + 6f, y + 3f + (h - 6f) * i / 5f - 1f, low ? 11f : 6f, 2f, low ? k.Warn : k.Dim);
+            }
+            // The drop.
+            float top = y + h + 14f;
+            d.Disc(cx, top + 6f, 6.5f, colour, 12);
+            d.Triangle(cx - 5.8f, top + 9f, cx + 5.8f, top + 9f, cx, top + 21f, colour);
+        }
+
+        /// <summary>
+        /// Air on the Flight deck screen: five bubbles in a column. They shrink away from the top as the air
+        /// goes; the last one is ringed red, because that is the "low" fifth.
+        /// </summary>
+        static void DeckAir(Look k, DashReadings r, DashDrawing d, float cx)
+        {
+            const float bottom = 80f, step = 38f, size = 12.5f;
+            float level = Math.Max(0f, Math.Min(1f, r.Oxygen));
+            bool warn = r.OxygenLow;
+            DashColor colour = warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : k.Air;
+            for (int i = 0; i < 5; i++)
+            {
+                float cy = bottom + step * i;
+                float fill = Math.Max(0f, Math.Min(1f, level * 5f - i));
+                // The low bubble's ring is a quiet red until the air really is low: a mark, not an alarm.
+                DashColor ring = i > 0 ? k.Edge : warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : DashColor.Mix(k.Warn, k.Edge, 0.55f);
+                d.Ring(cx, cy, size + 1.5f, size + 4f, ring, 20);
+                d.Disc(cx, cy, size + 1.5f, k.Face, 20);
+                // The area of the bubble follows the air in it, so half a bubble looks like half.
+                float radius = size * (float)Math.Sqrt(fill);
+                d.Disc(cx, cy, radius, colour, 16);
+                // A glint, as long as there is bubble enough to carry one.
+                d.Disc(cx - radius * 0.35f, cy + radius * 0.35f, radius * 0.22f, new DashColor(1f, 1f, 1f, 0.3f), 8);
+            }
         }
 
         // ------------------------------------------------------------------ air: always something round

@@ -92,9 +92,7 @@ namespace OrbitalAnte.Ship
         public static readonly P3 SeatPosition = new P3(0f, 0f, 1.2f);
         /// <summary>Where your eyes are when buckled in.</summary>
         public static readonly P3 SeatedEye = new P3(0f, 1.18f, 1.28f);
-        /// <summary>The hatch lever, on a post beside the lift well.</summary>
-        public static readonly P3 HatchLever = new P3(1.05f, 1.0f, -0.55f);
-        /// <summary>The same control outside, on the belly beside the ring.</summary>
+        /// <summary>The hatch button outside, on the belly beside the ring (inside, you look at the hatch and press the button).</summary>
         public static readonly P3 OutsideHatchButton = new P3(1.35f, BellyY - 0.05f, 0f);
         /// <summary>Where the safety tether is fixed: on the belly beside the hatch ring, opposite the button.</summary>
         public static readonly P3 TetherAnchor = new P3(-1.2f, BellyY - 0.05f, 0f);
@@ -102,7 +100,6 @@ namespace OrbitalAnte.Ship
         public static readonly FloorObstacle[] Obstacles =
         {
             new FloorObstacle(0f, 1.2f, 0.42f),     // the seat
-            new FloorObstacle(1.05f, -0.55f, 0.16f) // the lever post
         };
         /// <summary>The instrument desk across the nose: you cannot walk further forward than this.</summary>
         public const float DeskZ = 1.72f;

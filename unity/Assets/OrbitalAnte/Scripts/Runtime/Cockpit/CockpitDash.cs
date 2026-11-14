@@ -286,7 +286,16 @@ namespace OrbitalAnte.Cockpit
                 Shown = inCabin;
                 _canvas.gameObject.SetActive(inCabin);
             }
-            if (!inCabin) return;
+            if (!inCabin)
+            {
+                // Seen through the glass from outside, the tube, needle and lamps still follow the tanks.
+                if (Console != null)
+                {
+                    Gauges.Set(Supplies.Fuel, Supplies.Oxygen, Supplies.FuelLow, Supplies.FuelOut, Supplies.OxygenLow, Time.time % 1f < 0.5f, _craft.LockedTarget >= 0, _craft.PilotOn, _craft.MatchingVelocity);
+                    Console.Show(Gauges);
+                }
+                return;
+            }
 
             DashInputs input = Gather(engines);
             Model.Tick(dt, input);
