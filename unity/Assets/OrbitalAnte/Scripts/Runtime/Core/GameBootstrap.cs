@@ -72,6 +72,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
             OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
             OrbitalAnte.Enemies.EnemyConfig.ResetStatics();
+            OrbitalAnte.Bases.PlanetBases.ResetStatics();
             OrbitalAnte.Combat.DeepBreathConfig.ResetStatics();
             OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();

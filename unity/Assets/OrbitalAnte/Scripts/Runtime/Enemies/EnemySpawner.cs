@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using OrbitalAnte.AI;
+using OrbitalAnte.Bases;
 using OrbitalAnte.Content;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
@@ -112,6 +113,14 @@ namespace OrbitalAnte.Enemies
                 var random = GameSession.Stream("enemies." + surface.Body.Spec.id);
                 double radius = surface.SurfaceRadius;
                 w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad) };
+                // Every base has its guards, standing on its floor.
+                IReadOnlyList<BaseSite> sites = _world.Bases != null ? _world.Bases.SitesOn(body) : null;
+                if (sites != null)
+                {
+                    BaseFieldRules baseRules = _world.Bases.Rules;
+                    for (int i = 0; i < sites.Count; i++)
+                        EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size));
+                }
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
                 w.Gone = new bool[w.Camps.Count][];
@@ -265,8 +274,19 @@ namespace OrbitalAnte.Enemies
             _wakingMember = 0;
             _wakingRandom = new SeededRandom(w.Camps[best].Seed);
             Vec3d direction = w.Camps[best].Direction;
-            Vector3 home = SpaceConvert.ToVector3(direction * surface.GroundRadius(direction));
+            Vector3 home = SpaceConvert.ToVector3(direction * HomeRadius(w.Camps[best], surface));
             _wakingFooting = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
+            if (w.Camps[best].HomeRadius > 0)
+            {
+                // A base's guards: its floor is their ground. They keep to it more than a camp keeps to its patch.
+                BaseSite? site = _world.Bases != null ? _world.Bases.SiteAt(body, direction) : null;
+                if (site.HasValue) _wakingFooting.SetFloor(home, (float)site.Value.Footprint);
+            }
+        }
+
+        static double HomeRadius(EnemyCamp camp, PlanetSurface surface)
+        {
+            return camp.HomeRadius > 0 ? camp.HomeRadius : surface.GroundRadius(camp.Direction);
         }
 
         /// <summary>Stands up the next member of the camp being woken: one a frame.</summary>
@@ -283,7 +303,7 @@ namespace OrbitalAnte.Enemies
             SeededRandom rng = _wakingRandom;
             PlanetFooting footing = _wakingFooting;
             Transform planet = surface.Body.transform;
-            Vector3 home = SpaceConvert.ToVector3(c.Direction * surface.GroundRadius(c.Direction));
+            Vector3 home = SpaceConvert.ToVector3(c.Direction * HomeRadius(c, surface));
             Vector3 up = home.normalized;
             Vector3 side = Vector3.Cross(up, Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
             Vector3 along = Vector3.Cross(up, side);

@@ -121,5 +121,23 @@ namespace OrbitalAnte.Tests.EditMode
                 }
             }
         }
+
+        [Test]
+        public void ABasesGuards_StandOnItsFloor_AndNoCampCrowdsThem()
+        {
+            var rules = new EnemyFieldRules();
+            var roster = EnemyRoster.Defaults();
+            var camps = EnemyField.Build(rules, roster, new SeededRandom(9), 500, null, Vec3d.Zero);
+            Vec3d at = camps[0].Direction;   // right on top of an ordinary camp
+            EnemyField.AddGarrison(camps, rules, roster, new SeededRandom(10), 500, at, 512.5, 8);
+            EnemyCamp guards = camps[camps.Count - 1];
+            Assert.AreEqual(8, guards.Members.Length);
+            Assert.AreEqual(512.5, guards.HomeRadius, 1e-9);
+            int marksman = roster.FindIndex(t => t.id == "Marksman"), count = 0;
+            foreach (int m in guards.Members) if (m == marksman) count++;
+            Assert.LessOrEqual(count, 1);
+            for (int i = 0; i < camps.Count - 1; i++)
+                Assert.GreaterOrEqual(EnemyField.GroundDistance(camps[i].Direction, at, 500), rules.campSpacing - 1e-6, "the camp that was there has gone");
+        }
     }
 }

@@ -26,6 +26,16 @@ namespace OrbitalAnte.Enemies
             _roam = roam;
         }
 
+        Vector3 _floorCentre;   // in the body's space
+        float _floorRadius;
+
+        /// <summary>A level floor (a base's) that counts as the ground wherever it is above the terrain.</summary>
+        public void SetFloor(Vector3 centreInBodySpace, float radius)
+        {
+            _floorCentre = centreInBodySpace;
+            _floorRadius = radius;
+        }
+
         public override bool IsFlat => false;
 
         public override Vector3 Up(Vector3 at)
@@ -45,7 +55,19 @@ namespace OrbitalAnte.Enemies
         public Vector3 OnTheGround(Vector3 inBodySpace)
         {
             Vec3d dir = SpaceConvert.ToVec3d(inBodySpace).Normalized;
-            return _body.TransformPoint(SpaceConvert.ToVector3(dir * _surface.GroundRadius(dir)));
+            double ground = _surface.GroundRadius(dir);
+            if (_floorRadius > 0f)
+            {
+                // Where the line from the body's middle meets the floor's flat top.
+                Vector3 floorUp = _floorCentre.normalized, d = SpaceConvert.ToVector3(dir);
+                float facing = Vector3.Dot(d, floorUp);
+                if (facing > 0.5f)
+                {
+                    Vector3 onFloor = d * (_floorCentre.magnitude / facing);
+                    if ((onFloor - _floorCentre).sqrMagnitude < _floorRadius * _floorRadius && onFloor.magnitude > ground) return _body.TransformPoint(onFloor);
+                }
+            }
+            return _body.TransformPoint(SpaceConvert.ToVector3(dir * ground));
         }
 
         public override Vector3 WanderPoint(SeededRandom rng, Bounds area, Vector3 from)

@@ -234,6 +234,7 @@ namespace OrbitalAnte.Weapons
         {
             var w = CreateInstance<WeaponData>();
             w.name = SmgId;
+            w.shotEvent = "weapon.smg.shot";
             w.displayName = "Buzz Gun (name TBD)";
             w.twoHanded = false;
             w.placeholderShape = WeaponShape.Pistol;
@@ -260,6 +261,7 @@ namespace OrbitalAnte.Weapons
         {
             var w = CreateInstance<WeaponData>();
             w.name = ShotgunId;
+            w.shotEvent = "weapon.laser_shotgun.shot";
             w.displayName = "Double Zapper (name TBD)";
             w.twoHanded = true;
             w.placeholderShape = WeaponShape.Rifle;
@@ -285,6 +287,7 @@ namespace OrbitalAnte.Weapons
         {
             var w = CreateInstance<WeaponData>();
             w.name = SniperId;
+            w.shotEvent = "weapon.sniper.shot";
             w.displayName = "Long Shot (name TBD)";
             w.twoHanded = true;
             w.placeholderShape = WeaponShape.Rifle;

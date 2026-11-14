@@ -71,6 +71,8 @@ namespace OrbitalAnte.Enemies
         /// <summary>Index into the roster for each member.</summary>
         public int[] Members;
         public int Seed;
+        /// <summary>How far from the body's centre the camp stands, metres. 0: on the ground (a base's guards stand on its floor).</summary>
+        public double HomeRadius;
     }
 
     public static class EnemyRoster
@@ -165,6 +167,34 @@ namespace OrbitalAnte.Enemies
                 camps.Add(new EnemyCamp { Direction = dir, Members = members, Seed = random.Next() });
             }
             return camps;
+        }
+
+        /// <summary>
+        /// Puts guards at a base: a squad of the given size standing on its floor. Any ordinary camp that would
+        /// crowd it is taken away, so a base is one fight and not two on top of each other.
+        /// </summary>
+        public static void AddGarrison(List<EnemyCamp> camps, EnemyFieldRules rules, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random,
+                                       double radius, Vec3d direction, double homeRadius, int guards)
+        {
+            double spacing = Math.Min(rules.campSpacing, radius * Math.PI / 3) / radius;
+            for (int i = camps.Count - 1; i >= 0; i--)
+            {
+                if (camps[i].HomeRadius <= 0 && Angle(camps[i].Direction, direction) < spacing) camps.RemoveAt(i);
+            }
+            var members = new int[Math.Max(1, guards)];
+            for (int m = 0; m < members.Length; m++)
+            {
+                int type = EnemyRoster.Pick(roster, random.NextDouble());
+                int most = roster[type].mostPerCamp;
+                if (most > 0)
+                {
+                    int already = 0;
+                    for (int k = 0; k < m; k++) if (members[k] == type) already++;
+                    if (already >= most) type = 0;
+                }
+                members[m] = type;
+            }
+            camps.Add(new EnemyCamp { Direction = direction.Normalized, Members = members, Seed = random.Next(), HomeRadius = homeRadius });
         }
 
         /// <summary>Metres over the ground between two directions on a ball of this radius.</summary>
