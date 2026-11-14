@@ -147,6 +147,8 @@ Also fixed while there: in the menus the old piece's melody never played at all,
 
 **Unverified.** Whether it sounds existential, or good, or like deep house to someone who loves deep house. Nobody has heard it. Listening file: `main_theme_long_way.ogg` (the piece once through, then the first quarter again so the loop point can be heard, then a fade).
 
+**Matthew's verdict (14 Nov): "Less bells but otherwise like it."** Done: the bell now stays out of more than half the piece (the first sixteen bars and the sixteen after the breakdown are groove and chords alone), its echo an octave down is kept only in the breakdown, what remains is softer (more glass tone than struck bell) and about 3 dB quieter, and the high shimmer layer is thinner. Not heard.
+
 **Not changed yet.** Exploration, flight, combat and mystery. They wait for Matthew's verdict on this one, since his direction probably applies to them too.
 
 ### Slow motion ("Deep Breath", asked for by Matthew on 14 Nov; built in the core thread)

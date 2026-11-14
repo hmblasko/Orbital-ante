@@ -41,7 +41,7 @@ Each shot is reduced to twelve numbers (length, tail decay, brightness, how pitc
 | All In | 172 | 64 | 89.3 s | 5 | -14.6 LUFS | -0.7 dB | 47% | 17% | -240.0 dB |
 | Regolith Lullaby | 86 | 48 | 134.0 s | 6 | -17.0 LUFS | -1.4 dB | 46% | 6% | -212.2 dB |
 | Burn Window | 124 | 64 | 123.9 s | 5 | -15.0 LUFS | -1.5 dB | 49% | 16% | -212.1 dB |
-| Long Way From Anywhere | 120 | 64 | 128.0 s | 5 | -16.5 LUFS | -1.4 dB | 54% | 12% | -215.4 dB |
+| Long Way From Anywhere | 120 | 64 | 128.0 s | 5 | -16.6 LUFS | -1.5 dB | 57% | 11% | -215.4 dB |
 | What the Dish Heard | 60 | 24 | 96.0 s | 4 | -20.5 LUFS | -6.8 dB | 44% | 8% | -215.7 dB |
 
 Loop exactness: each piece is rendered as three joined copies and the third is compared with the second. Below -100 dB means going round the loop is, sample for sample, the same as carrying on. Measured before Ogg encoding.

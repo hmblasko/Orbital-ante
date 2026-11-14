@@ -4,7 +4,7 @@ Asked for by Matthew on 14 Nov 2026: "more existential and not upbeat, but still
 
 So: a soft four-on-the-floor kick that never lets up, an off-beat sub bass, and over it almost nothing. Minor
 ninth chords that move slowly and never quite come home, dub-delayed chord stabs that open and close like
-breathing, and a lonely bell line with a lot of empty bars in it. The bell's notes are the game's own: the
+breathing, and a lonely bell line that is silent for more than half the piece. The bell's notes are the game's own: the
 ante cell in the minor (A, C, D) and the wide, slow intervals of the Cosmic Mystery theme.
 
 Everything here is synthesised by this repository's own code. No sampled instruments: deep house is machine
@@ -148,17 +148,20 @@ def build(session_dir: str):
     out["chords"] = stem(L, L.fx(chords_fx, stabs, pad * duck), 0.0, hp=140)
 
     # ---------------------------------------------------------------- lead: one bell, a long way off
-    lead_n = (bars(LEAD_A, 4, 0, vel=92) + bars(LEAD_A2, 4, 8, vel=94) + bars(LEAD_B, 4, 16, vel=96) + bars(LEAD_B2, 4, 24, vel=98)
-              + bars(LEAD_BREAK, 4, 32, vel=84) + bars(LEAD_A2, 4, 40, vel=96) + bars(LEAD_A, 4, 48, vel=92) + bars(LEAD_B, 4, 56, vel=96))
+    # Matthew, 14 Nov: "less bells". The bell now stays out of half the piece: the opening sixteen bars and the
+    # sixteen after the breakdown are groove and chords alone, so when it does speak it is an event.
+    lead_n = (bars(LEAD_B, 4, 16, vel=90) + bars(LEAD_A, 4, 24, vel=88)
+              + bars(LEAD_BREAK, 4, 32, vel=80) + bars(LEAD_B, 4, 56, vel=90))
     lead_n = humanize(lead_n, rng, 0.01, 6, BPM)
-    bell = L.synth("lead_bell", lead_n, synth.v_bell, ratio=3.5, decay=2.6, bright=0.8)
+    bell = L.synth("lead_bell", lead_n, synth.v_bell, ratio=3.5, decay=2.0, bright=0.55)
     glass = L.synth("lead_glass", shift(lead_n, 0, 0, 0.8), synth.v_glass, attack=0.25, release=3.0, shimmer=0.7)
     # an answer an octave down, a bar late, the second time each section comes round: someone else, or an echo
-    answer_n = shift([n for n in lead_n if 32 <= n.start < 64 or 96 <= n.start < 128 or n.start >= 224], 4.0, -12, 0.6)
+    answer_n = shift([n for n in lead_n if 128 <= n.start < 156], 4.0, -12, 0.6)   # only in the breakdown now
     answer = L.synth("lead_answer", answer_n, synth.v_glass, attack=0.5, release=3.5, shimmer=0.4)
 
     def lead_fx(b, g, a):
-        x = b * 0.9 + g * 0.6 + dsp.pan(dsp.mono(a), -0.4) * 0.6
+        # more of the soft glass tone, less of the struck bell
+        x = b * 0.5 + g * 0.9 + dsp.pan(dsp.mono(a), -0.4) * 0.6
         x = dsp.delay(x, L.beat * 1.5, L.beat * 2.0, 0.5, 0.35, 3200)
         return dsp.reverb(x, 5.0, 0.42, 0.5, 0.04, 1.8, seed=1204)
 
@@ -170,7 +173,7 @@ def build(session_dir: str):
     top_n = []
     for start, dur, ch in prog:
         v = voicing(ch, 74, 4, True, 93)
-        top_n += [Note(start, dur, v[-1], 60), Note(start + dur / 2, dur / 2, v[-2] + 12, 50)]
+        top_n += [Note(start, dur, v[-1], 54)]
     shimmer = L.synth("air_shimmer", top_n, synth.v_glass, attack=2.0, release=4.0, shimmer=1.2)
     swells = np.zeros((L.n_render, 2))
     for at_bar, length_bars in [(16, 2), (32, 2), (40, 4), (56, 2), (64, 2)]:
@@ -183,5 +186,5 @@ def build(session_dir: str):
 
     out["air"] = stem(L, L.fx(air_fx, shaker, shimmer * duck, swells), 0.0, hp=350)
 
-    out = balance(out, dict(beat=-19.5, bass=-20.5, chords=-22.0, lead=-23.0, air=-27.0))
+    out = balance(out, dict(beat=-19.5, bass=-20.5, chords=-21.5, lead=-26.5, air=-28.0))
     return calibrate(out, target_lufs=-16.5), L
