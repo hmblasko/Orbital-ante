@@ -391,6 +391,34 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ADeepChestedBody_LiesOnItsChest_NotInTheGround()
+        {
+            // Lying down, the middle of the torso rests one chest-depth off the ground. The Bruiser's chest is a
+            // quarter deeper than the trooper's, so at the trooper's height it would sink in.
+            double Rest(BodyStyle style)
+            {
+                var a = new BodyAnimator(8, style);
+                double lowest = double.MaxValue;
+                for (int i = 0; i < 300; i++)
+                {
+                    BodyAnimInput input = Hurt(MovementState.Crawl, i * 0.09);
+                    a.Update(Dt, input);
+                    if (i < 60) continue;
+                    Vec3d middle = a.Pose.RootPosition + a.Pose.RootRotation.Rotate(new Vec3d(0.0, BodySkeleton.SpineY + BodySkeleton.TorsoCentreAboveSpine, 0.0));
+                    lowest = Math.Min(lowest, middle.Y);
+                }
+                return lowest;
+            }
+            double trooper = Rest(BodyStyle.Trooper);
+            Assert.AreEqual(BodyAnimator.ProneHeight, trooper, 0.03, "the trooper lies where it always did");
+            Assert.AreEqual(trooper * 1.25, Rest(BodyStyle.Bruiser), 0.03);
+            Assert.Less(Rest(BodyStyle.Runner), trooper);
+            // The style's chest is the same number the hitboxes are fitted with.
+            foreach (string model in new[] { "Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman" })
+                Assert.AreEqual(BodyFit.Thickness(model, BodyPartId.Torso), BodyStyle.For(model).Girth, 1e-6, model);
+        }
+
+        [Test]
         public void EachKind_StandsItsOwnWay()
         {
             BodyPose Settled(BodyStyle style, out double fidget)

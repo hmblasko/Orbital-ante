@@ -168,10 +168,11 @@ def runner():
         T.append(metal(small_box("sash pouch", (x, y, z), (0.050, 0.030, 0.066), L.signal if i % 2 == 0 else L.suit_dark, bevel=0.008, rot=(0, -35, 0)), 25 + i))
     for sx in (-1, 1):
         T.append(metal(oa.lathe("shoulder ring", (sx * 0.160, 0, SHOULDER_Z), (sx, 0, 0), [(0.0, 0.056), (0.006, 0.074), (0.050, 0.074), (0.060, 0.062)], BRASS, segments=16), 30))
-        # Two slim bottles low on the back, and a little jet under each: built for speed.
+        # Two slim bottles low on the back. No jets under them: it runs fast, it does not fly, and a body should
+        # not promise what its owner cannot do.
         T.append(shell(oa.cylinder("bottle", (sx * 0.062, -0.150, 1.10), (sx * 0.062, -0.150, 1.40), 0.044, L.signal, segments=14, bevel=0.020), 31))
         T.append(metal(oa.cylinder("bottle valve", (sx * 0.062, -0.150, 1.398), (sx * 0.062, -0.150, 1.425), 0.014, BRASS, segments=10, bevel=0.003), 32))
-        T.append(metal(oa.lathe("jet", (sx * 0.062, -0.150, 1.10), (0, 0, -1), [(0.0, 0.020), (0.012, 0.026), (0.050, 0.040), (0.046, 0.030), (0.016, 0.014)], RUBBER, segments=12), 33))
+        T.append(metal(oa.cylinder("bottle foot", (sx * 0.062, -0.150, 1.085), (sx * 0.062, -0.150, 1.108), 0.030, BRASS, segments=12, bevel=0.005), 33))
     T.append(shell(small_box("bottle frame", (0, -0.128, 1.26), (0.200, 0.040, 0.210), L.pack, bevel=0.014), 34))
 
     parts = {"Head": H, "Torso": T}
@@ -195,8 +196,10 @@ def bruiser():
     H = []
     # A small, low dome sunk into the collar, with a slit to see through and a jaw like a bucket.
     H.append(shell(squash(oa.sphere("helmet", c, 0.132, L.plate, segments=22), c, (1.12, 1.02, 0.84)), 1))
-    H.append(glass(small_box("slit", c + Vector((0, 0.118, 0.012)), (0.170, 0.050, 0.030), L.lens, bevel=0.010), 2))
-    H.append(rubber(small_box("slit shade", c + Vector((0, 0.108, 0.040)), (0.200, 0.080, 0.026), L.visor, bevel=0.010), 3))
+    # The slit is the brightest thing on the whole figure: the head is the only place a shot ends it, and the
+    # eye should go there, not to the chest.
+    H.append(glass(small_box("slit", c + Vector((0, 0.124, 0.010)), (0.186, 0.050, 0.044), L.lens, bevel=0.012), 2))
+    H.append(rubber(small_box("slit shade", c + Vector((0, 0.104, 0.046)), (0.206, 0.076, 0.022), L.visor, bevel=0.009), 3))
     H.append(shell(small_box("jaw", c + Vector((0, 0.080, -0.062)), (0.200, 0.130, 0.086), L.suit, bevel=0.026, segments=3), 4))
     for i in range(4):
         H.append(rubber(small_box("jaw vent", c + Vector((-0.054 + 0.036 * i, 0.146, -0.062)), (0.014, 0.010, 0.052), RUBBER, bevel=0.003), 5))
@@ -209,12 +212,13 @@ def bruiser():
     barrel = [(0.845, 0.04), (0.862, 0.130), (0.905, 0.190), (0.96, 0.225), (1.04, 0.250), (1.13, 0.262), (1.22, 0.262), (1.30, 0.250),
               (1.37, 0.228), (1.43, 0.190), (1.47, 0.150), (1.50, 0.11), (1.51, 0.06)]
     T.append(cloth(squash(oa.lathe("body", (0, 0, 0), (0, 0, 1), barrel, L.suit, segments=22), (0, 0, 0), (0.94, 1.0, 1.0)), 20))
-    # Red armour over the chest, with one great round port in the middle of it.
+    # Red armour over the chest, with one great round port in the middle of it. The port is dark, a blind
+    # window: nothing on the chest glows, because shooting the chest is the slow way.
     plate = [(1.150, 0.255), (1.158, 0.285), (1.24, 0.290), (1.33, 0.276), (1.40, 0.244), (1.455, 0.196), (1.495, 0.150), (1.516, 0.128), (1.520, 0.09)]
     T.append(shell(squash(oa.lathe("chest armour", (0, 0, 0), (0, 0, 1), plate, L.plate, segments=22), (0, 0, 0), (0.94, 1.0, 1.0)), 21))
     pc = Vector((0, 0.262, 1.290))
     T.append(metal(oa.lathe("port rim", pc, (0, 1, 0), [(-0.030, 0.090), (0.012, 0.104), (0.034, 0.104), (0.042, 0.088)], BRASS, segments=20), 22))
-    T.append(glass(squash(oa.sphere("port", pc + Vector((0, 0.026, 0)), 0.090, L.lens, segments=16), pc + Vector((0, 0.026, 0)), (1.0, 0.36, 1.0)), 23))
+    T.append(glass(squash(oa.sphere("port", pc + Vector((0, 0.026, 0)), 0.090, L.visor, segments=16), pc + Vector((0, 0.026, 0)), (1.0, 0.36, 1.0)), 23))
     for i in range(6):
         a = math.radians(60 * i + 30)
         T.append(metal(oa.sphere("port bolt", pc + Vector((math.cos(a) * 0.096, 0.040, math.sin(a) * 0.096)), 0.012, L.signal, segments=8), 24))
@@ -278,9 +282,9 @@ def marksman():
     H.append(rubber(oa.cylinder("breather", c + Vector((0, 0.108, -0.085)), c + Vector((0, 0.130, -0.170)), 0.032, RUBBER, radius_end=0.026, segments=12, bevel=0.006), 9))
     # A rangefinder box on the left ear, and from it an aerial as tall again as the head, with a blue tag.
     H.append(shell(small_box("rangefinder", c + Vector((-0.150, 0.010, 0.020)), (0.050, 0.110, 0.070), L.suit_dark, bevel=0.012), 10))
-    H.append(metal(oa.cylinder("aerial", c + Vector((-0.152, -0.020, 0.050)), c + Vector((-0.166, -0.050, 0.470)), 0.0075, RUBBER, radius_end=0.004, segments=8), 11))
-    H.append(shell(oa.sphere("aerial tip", c + Vector((-0.166, -0.050, 0.474)), 0.015, L.signal, segments=10), 12))
-    tag = oa.slab("aerial tag", [(-0.054, HEAD_Z + 0.420), (-0.054, HEAD_Z + 0.372), (-0.150, HEAD_Z + 0.384), (-0.118, HEAD_Z + 0.398), (-0.150, HEAD_Z + 0.410)], 0.005, L.signal, bevel=0.0015, segments=1, x=-0.166)
+    H.append(metal(oa.cylinder("aerial", c + Vector((-0.152, -0.020, 0.050)), c + Vector((-0.166, -0.050, 0.470)), 0.012, RUBBER, radius_end=0.008, segments=8), 11))
+    H.append(shell(oa.sphere("aerial tip", c + Vector((-0.166, -0.050, 0.474)), 0.022, L.signal, segments=10), 12))
+    tag = oa.slab("aerial tag", [(-0.054, HEAD_Z + 0.440), (-0.054, HEAD_Z + 0.360), (-0.220, HEAD_Z + 0.378), (-0.165, HEAD_Z + 0.400), (-0.220, HEAD_Z + 0.424)], 0.012, L.signal, bevel=0.0015, segments=1, x=-0.166)
     H.append(cloth(tag, 13))
     H.append(metal(oa.cylinder("ear", c + Vector((0.134, -0.005, -0.005)), c + Vector((0.166, -0.005, -0.005)), 0.034, BRASS, radius_end=0.028, segments=12, bevel=0.006), 14))
     H.append(metal(oa.lathe("neck ring", (0, 0, NECK_Z + 0.012), (0, 0, 1), [(0.0, 0.062), (0.006, 0.086), (0.034, 0.086), (0.046, 0.074)], BRASS, segments=18), 15))
@@ -303,18 +307,20 @@ def marksman():
     for sx in (-1, 1):
         T.append(metal(oa.lathe("shoulder ring", (sx * 0.170, 0, SHOULDER_Z), (sx, 0, 0), [(0.0, 0.060), (0.006, 0.080), (0.046, 0.080), (0.056, 0.066)], BRASS, segments=16), 28))
         T.append(cloth(tilt(small_box("pouch", (sx * 0.112, 0.082, 0.975), (0.056, 0.046, 0.078), L.suit_dark, bevel=0.012), (sx * 0.112, 0.082, 0.975), 'Z', -sx * 38), 29))
-    # A short cape down the back, flaring out: it gives the thin figure a shape nobody else has.
-    # Five pleats fanned from the roll at the shoulders, every other one standing proud and hanging shorter, so
-    # it reads as cloth and not as a board.
+    # A short cape down the back that fans out wider than the arms hang, so that from the front the figure is
+    # a tall A with a stalk on top: a shape nobody else has, and one that still reads when the long eye, the
+    # spare barrel and everything else on it are too small to see.
+    # Seven pleats fanned from the roll at the shoulders, on three levels so no two that overlap lie in one
+    # plane, every other one darker, so it reads as cloth and not as a board.
     shade = tuple(v * 0.80 for v in L.signal)
-    for i in range(5):
-        x = -0.170 + 0.085 * i
-        proud = 0.014 * (i % 2)
-        hem = 0.93 + 0.045 * (i % 2)
+    for i in range(7):
+        x = -0.186 + 0.062 * i
+        proud = 0.012 * (i % 3)
+        hem = 0.905 + 0.030 * (i % 2)
         fold = [(-0.118 - proud, 1.475), (-0.150 - proud, 1.36), (-0.188 - proud, 1.18), (-0.248 - proud, hem), (-0.270 - proud, hem + 0.012),
                 (-0.214 - proud, 1.19), (-0.176 - proud, 1.37), (-0.142 - proud, 1.482)]
-        pleat = oa.slab("cape pleat", fold, 0.098, shade if i % 2 else L.signal, bevel=0.010, segments=2, x=x)
-        T.append(cloth(tilt(pleat, (x * 0.55, -0.130, 1.468), 'Y', (i - 2) * 6.5), 30))
+        pleat = oa.slab("cape pleat", fold, 0.150, shade if i % 2 else L.signal, bevel=0.010, segments=2, x=x)
+        T.append(cloth(tilt(pleat, (x, -0.130, 1.468), 'Y', (3 - i) * 6.5), 30))
     T.append(cloth(oa.cylinder("cape roll", (-0.205, -0.130, 1.468), (0.205, -0.130, 1.468), 0.030, L.signal, segments=12, bevel=0.012), 31))
     # A spare barrel in a tube, slung across the back and standing up over one shoulder.
     T.append(metal(oa.cylinder("barrel tube", (-0.090, -0.215, 1.02), (0.120, -0.205, 1.560), 0.030, L.pack, segments=12, bevel=0.008), 32))
@@ -371,6 +377,39 @@ def line_up(folder):
     black_shapes(os.path.join(folder, "enemy_types_outline.png"), shown, (0.1, 16.0, 1.25), (0.1, 0, 1.25), lens=80, size=(1500, 700))
 
 
+def posed_line_up(pose_file, folder):
+    """All four in the poses the game's animator gives them, each carrying itself its own way.
+
+    The file comes from tools/blender/pose_dump (mode "kinds").
+    """
+    with open(pose_file) as f:
+        kinds = json.load(f)["kinds"]
+    makers = dict((("Enemy", be.make),) + BUILDS)
+    for state, gap, eye, target, lens in (("idle", 1.75, (2.4, 12.6, 1.9), (0.25, 0, 1.18), 62), ("ready", 1.75, (2.4, 12.6, 1.9), (0.25, 0, 1.18), 62),
+                                          ("walk", 2.0, (11.5, 3.6, 1.7), (0.0, 0.2, 1.1), 62), ("run", 2.3, (12.5, 4.2, 1.7), (0.0, 0.4, 1.1), 62)):
+        oa.reset_scene()
+        shown = []
+        for i, kind in enumerate(kinds):
+            parts = makers[kind["model"]]()
+            k = kind["scale"]
+            # Idle and ready stand in a row across the picture; walking and running they go one behind another
+            # across it, seen from the side, so every stride can be read.
+            offset = (i - (len(kinds) - 1) / 2.0) * gap
+            across = state in ("idle", "ready")
+            place = Matrix.Translation(Vector((offset, 0, 0) if across else (0, -offset, 0))) @ Matrix.Diagonal((k, k, k, 1.0))
+            for name in be.ORDER:
+                m = kind[state].get(name)
+                for o in parts[name]:
+                    o.data.transform(place @ be.game_matrix(m) @ Matrix.Translation(-Vector(be.ORIGINS[name])))
+                    o.data.update()
+                    shown.append(o)
+        floor = be.ground()
+        oa.render_preview(os.path.join(folder, "enemy_kinds_" + state + ".png"), shown + [floor], eye, target, lens=lens, size=(1500, 820), samples=56)
+        if state == "idle":
+            floor.hide_render = True
+            black_shapes(os.path.join(folder, "enemy_kinds_outline.png"), shown, (0.0, 16.0, 1.25), (0.0, 0, 1.25), lens=80, size=(1500, 700))
+
+
 def black_shapes(path, objects, eye, target, lens, size):
     """The models as flat black shapes on white, for judging outlines."""
     scene = bpy.context.scene
@@ -416,6 +455,10 @@ if __name__ == "__main__":
     previews = args[args.index("--preview") + 1] if "--preview" in args else None
     poses = args[args.index("--poses") + 1] if "--poses" in args else None
     only = args[args.index("--type") + 1] if "--type" in args else None
+    kinds = args[args.index("--kinds") + 1] if "--kinds" in args else None
+    if kinds and previews:
+        posed_line_up(kinds, previews)
+        sys.exit(0)
     for name, maker in BUILDS:
         if only and name != "Enemy" + only:
             continue

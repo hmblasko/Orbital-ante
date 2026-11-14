@@ -162,14 +162,191 @@ def pistol():
     return [("Body", body), ("Magazine", mag)], sockets
 
 
+# ------------------------------------------------------------------ the enemy kinds' guns
+
+BRASS = (0.72, 0.56, 0.24)
+YELLOW = (0.93, 0.74, 0.16)
+OLIVE = (0.36, 0.42, 0.25)
+OLIVE_DARK = (0.25, 0.30, 0.18)
+RUBBER = (0.10, 0.10, 0.12)
+CELL = (0.45, 1.0, 0.55)
+LENS = (1.0, 0.25, 0.28)
+GLASS = (0.16, 0.30, 0.40)
+
+
+def lit(o):
+    """Something that shines by itself: flat colour, drawn brighter than white by the game (piece names end in Glow)."""
+    oa.paint(o, wear=0, dirt=0, mottle=0, gradient=0)
+    return o
+
+
+def smg():
+    """The Runner's gun: a stubby box with the magazine up through the grip, far too long for it."""
+    body, mag = [], []
+    body.append(metal(oa.slab("receiver", [(-0.105, 0.016), (0.135, 0.016), (0.135, 0.070), (0.122, 0.080), (-0.092, 0.080), (-0.105, 0.066)], 0.046, GUNMETAL, bevel=0.007), 1))
+    body.append(metal(oa.slab("lid", [(-0.080, 0.076), (0.110, 0.076), (0.110, 0.086), (0.100, 0.092), (-0.070, 0.092), (-0.080, 0.086)], 0.036, (0.27, 0.29, 0.35), bevel=0.004), 2))
+    # The cocking knob on top, big enough to grab in a glove.
+    body.append(metal(oa.cylinder("knob stem", (0, 0.030, 0.088), (0, 0.030, 0.104), 0.008, DARK, segments=10), 3))
+    body.append(metal(oa.cylinder("knob", (0, 0.030, 0.102), (0, 0.030, 0.114), 0.016, BARE, segments=14, bevel=0.004), 4))
+    # A short barrel in a fat nut, and a ring of cooling holes.
+    body.append(metal(oa.lathe("barrel nut", (0, 0.132, 0.046), (0, 1, 0), [(0.0, 0.016), (0.004, 0.024), (0.026, 0.024), (0.032, 0.018), (0.032, 0.012)], DARK, segments=14), 5))
+    body.append(metal(oa.cylinder("barrel", (0, 0.150, 0.046), (0, 0.218, 0.046), 0.0125, DARK, segments=14, bevel=0.002), 6))
+    body.append(metal(oa.cylinder("bore", (0, 0.212, 0.046), (0, 0.2195, 0.046), 0.007, (0.03, 0.03, 0.04), segments=10), 7))
+    for i in range(3):
+        for x in (-0.0236, 0.0236):
+            body.append(metal(oa.sphere("vent", (x, 0.050 + 0.026 * i, 0.058), 0.0075, (0.05, 0.05, 0.06), scale=(0.35, 1, 1), segments=8), 8))
+    # Sights: two ears each end, a signal post at the front.
+    for y in (0.112, -0.082):
+        for x in (-0.012, 0.012):
+            body.append(metal(oa.slab("sight ear", [(y - 0.010, 0.078), (y + 0.010, 0.078), (y + 0.007, 0.108), (y - 0.007, 0.108)], 0.005, GUNMETAL, bevel=0.0018, x=x), 9))
+    body.append(soft(oa.cylinder("front post", (0, 0.112, 0.082), (0, 0.112, 0.104), 0.004, SIGNAL, segments=8), 10))
+    # The grip the magazine goes up through, and a guard in front of it.
+    body.append(metal(oa.slab("grip", [(0.022, 0.020), (-0.036, 0.020), (-0.044, -0.098), (0.014, -0.098)], 0.038, DARK, bevel=0.008, segments=3), 11))
+    for x in (-0.0195, 0.0195):
+        body.append(soft(oa.slab("grip panel", [(0.012, 0.004), (-0.028, 0.004), (-0.034, -0.084), (0.006, -0.084)], 0.006, (0.30, 0.20, 0.14), bevel=0.0025, x=x), 12))
+    body.append(metal(oa.box("guard bottom", (0, 0.052, -0.024), (0.014, 0.066, 0.006), DARK, bevel=0.0025), 13))
+    body.append(metal(oa.box("guard front", (0, 0.084, -0.003), (0.014, 0.006, 0.044), DARK, bevel=0.0025, rot=(8, 0, 0)), 14))
+    body.append(metal(oa.box("trigger", (0, 0.040, 0.000), (0.008, 0.009, 0.028), BARE, bevel=0.003, rot=(18, 0, 0)), 15))
+    # A wire stock, folded forward along both sides.
+    for x in (-0.0265, 0.0265):
+        body.append(metal(oa.cylinder("stock wire", (x, -0.098, 0.030), (x, 0.085, 0.030), 0.0048, BARE, segments=8, bevel=0.001), 16))
+    body.append(metal(oa.cylinder("stock hinge", (-0.030, -0.100, 0.030), (0.030, -0.100, 0.030), 0.008, DARK, segments=10, bevel=0.002), 17))
+    body.append(metal(oa.box("stock pad", (0, 0.092, 0.030), (0.064, 0.010, 0.030), RUBBER, bevel=0.004), 18))
+    body.append(metal(oa.cylinder("sling ring", (-0.024, -0.086, 0.066), (-0.036, -0.086, 0.066), 0.010, BARE, segments=10, bevel=0.002), 19))
+
+    # The magazine: straight, long, with a yellow band and a fat floor plate.
+    mag.append(metal(oa.box("magazine", (0, -0.011, -0.170), (0.026, 0.040, 0.150), (0.25, 0.27, 0.33), bevel=0.005), 30))
+    mag.append(soft(oa.box("magazine band", (0, -0.011, -0.190), (0.0275, 0.0415, 0.024), YELLOW, bevel=0.003), 31))
+    mag.append(metal(oa.box("magazine floor", (0, -0.011, -0.250), (0.032, 0.048, 0.012), DARK, bevel=0.004), 32))
+    for x in (-0.0135, 0.0135):
+        mag.append(metal(oa.box("magazine rib", (x, -0.011, -0.140), (0.003, 0.010, 0.070), DARK, bevel=0.001), 33))
+
+    sockets = [oa.socket("Muzzle", (0, 0.220, 0.046)), oa.socket("SupportHand", (0, 0.100, 0.006)), oa.socket("Magazine", (0, -0.011, -0.098))]
+    return [("Body", body), ("Magazine", mag)], sockets
+
+
+def shotgun():
+    """The Bruiser's gun: two fat barrels side by side, coiled, with a power cell that shines green."""
+    body, mag, glow = [], [], []
+    # A chunky breech block the barrels hinge from.
+    body.append(metal(oa.slab("breech", [(-0.070, 0.006), (0.215, 0.006), (0.215, 0.086), (0.190, 0.098), (-0.040, 0.098), (-0.070, 0.070)], 0.112, GUNMETAL, bevel=0.012, segments=3), 1))
+    body.append(metal(oa.box("breech plate", (0, 0.150, 0.100), (0.080, 0.090, 0.008), (0.27, 0.29, 0.35), bevel=0.003), 2))
+    body.append(metal(oa.slab("top lever", [(-0.050, 0.098), (0.020, 0.098), (0.020, 0.106), (-0.040, 0.112), (-0.056, 0.108)], 0.016, BARE, bevel=0.004), 3))
+    for x in (-0.057, 0.057):
+        for y, z in ((-0.030, 0.050), (0.180, 0.030), (0.180, 0.074)):
+            body.append(metal(oa.sphere("rivet", (x, y, z), 0.008, BARE, scale=(0.5, 1, 1), segments=8), 4))
+    # Two barrels, each with brass bands, cooling coils and a flared mouth.
+    # From the side only one of them shows, so each is fat enough to say "this is not a rifle" by itself.
+    for x in (-0.034, 0.034):
+        body.append(metal(oa.cylinder("barrel", (x, 0.212, 0.052), (x, 0.590, 0.052), 0.0310, DARK, segments=16), 5))
+        body.append(metal(oa.lathe("mouth", (x, 0.576, 0.052), (0, 1, 0), [(0.0, 0.0315), (0.008, 0.0390), (0.032, 0.0420), (0.038, 0.0375), (0.038, 0.0250), (0.014, 0.0240)], BRASS, segments=16), 6))
+        for i in range(5):
+            y = 0.452 + 0.023 * i
+            body.append(metal(oa.lathe("coil", (x, y, 0.052), (0, 1, 0), [(-0.007, 0.0305), (-0.005, 0.0375), (0.005, 0.0375), (0.007, 0.0305)], (0.62, 0.34, 0.20), segments=14), 7))
+        body.append(metal(oa.lathe("band", (x, 0.262, 0.052), (0, 1, 0), [(-0.009, 0.0305), (-0.007, 0.0350), (0.007, 0.0350), (0.009, 0.0305)], BRASS, segments=16), 8))
+        # The light at the bottom of each barrel.
+        glow.append(lit(oa.cylinder("emitter", (x, 0.596, 0.052), (x, 0.604, 0.052), 0.0235, CELL, segments=12)))
+    # The block the barrels hinge from, wider than the breech behind it.
+    body.append(metal(oa.box("hinge block", (0, 0.226, 0.050), (0.136, 0.034, 0.076), GUNMETAL, bevel=0.010, segments=2), 9))
+    body.append(metal(oa.box("barrel tie", (0, 0.420, 0.052), (0.030, 0.022, 0.030), GUNMETAL, bevel=0.004), 9))
+    body.append(metal(oa.slab("rib", [(0.215, 0.074), (0.570, 0.074), (0.570, 0.082), (0.215, 0.082)], 0.012, GUNMETAL, bevel=0.002), 10))
+    body.append(soft(oa.sphere("bead", (0, 0.560, 0.089), 0.008, SIGNAL, segments=10), 11))
+    # Wood: a fat fore-end under the barrels and a stock with a rubber pad.
+    body.append(wood(oa.slab("fore-end", [(0.248, 0.030), (0.260, -0.016), (0.420, -0.006), (0.440, 0.030)], 0.120, WOOD, bevel=0.014, segments=3), 12))
+    body.append(wood(oa.slab("grip", [(0.020, 0.014), (-0.040, 0.014), (-0.076, -0.098), (-0.026, -0.110), (0.006, -0.030)], 0.044, WOOD_DARK, bevel=0.012, segments=3), 13))
+    body.append(wood(oa.slab("stock", [(-0.062, 0.078), (-0.062, 0.020), (-0.345, -0.060), (-0.345, 0.062)], 0.052, WOOD, bevel=0.015, segments=3), 14))
+    body.append(metal(oa.slab("butt pad", [(-0.341, -0.064), (-0.366, -0.056), (-0.366, 0.058), (-0.341, 0.066)], 0.056, RUBBER, bevel=0.006), 15))
+    body.append(soft(oa.box("tape", (0, -0.200, 0.020), (0.057, 0.040, 0.094), TAPE, bevel=0.008, rot=(-10, 0, 3)), 16))
+    # Two triggers in one big guard, for a big glove.
+    body.append(metal(oa.box("guard bottom", (0, 0.060, -0.034), (0.016, 0.118, 0.007), DARK, bevel=0.003), 17))
+    body.append(metal(oa.box("guard front", (0, 0.116, -0.012), (0.016, 0.007, 0.050), DARK, bevel=0.003, rot=(8, 0, 0)), 18))
+    body.append(metal(oa.box("trigger", (0, 0.046, -0.004), (0.008, 0.009, 0.030), BARE, bevel=0.003, rot=(18, 0, 0)), 19))
+    body.append(metal(oa.box("trigger", (0, 0.074, -0.004), (0.008, 0.009, 0.030), BARE, bevel=0.003, rot=(14, 0, 0)), 20))
+    # A window each side of the breech shows the charge.
+    for x in (-0.0565, 0.0565):
+        glow.append(lit(oa.box("charge window", (x, 0.090, 0.052), (0.004, 0.070, 0.022), CELL, bevel=0.0015)))
+        body.append(metal(oa.box("window frame", (x * 0.985, 0.090, 0.052), (0.004, 0.086, 0.036), BRASS, bevel=0.003), 21))
+
+    # The power cell: a fat can that plugs in under the breech, ahead of the guard.
+    mag.append(metal(oa.cylinder("cell", (0, 0.168, 0.010), (0, 0.168, -0.070), 0.036, (0.25, 0.27, 0.33), segments=16, bevel=0.006), 30))
+    mag.append(soft(oa.lathe("cell band", (0, 0.168, -0.024), (0, 0, -1), [(-0.010, 0.0360), (-0.008, 0.0385), (0.008, 0.0385), (0.010, 0.0360)], (0.30, 0.78, 0.42), segments=16), 31))
+    mag.append(metal(oa.cylinder("cell cap", (0, 0.168, -0.066), (0, 0.168, -0.080), 0.030, BRASS, segments=14, bevel=0.004), 32))
+    mag.append(metal(oa.box("cell pull", (0, 0.168, -0.086), (0.010, 0.030, 0.010), DARK, bevel=0.003), 33))
+
+    sockets = [oa.socket("Muzzle", (0, 0.612, 0.052)), oa.socket("SupportHand", (0, 0.335, 0.000)), oa.socket("Magazine", (0, 0.168, 0.000))]
+    return [("Body", body), ("Magazine", mag), ("CellGlow", glow)], sockets
+
+
+def sniper():
+    """The Marksman's gun: a very long barrel, a green stock with a hole for the thumb, and an enormous scope."""
+    body, mag, glow = [], [], []
+    body.append(metal(oa.cylinder("action", (0, -0.060, 0.050), (0, 0.250, 0.050), 0.025, GUNMETAL, segments=16, bevel=0.004), 1))
+    body.append(metal(oa.box("port", (0.020, 0.090, 0.056), (0.014, 0.080, 0.018), DARK, bevel=0.003), 2))
+    # The bolt, with a ball on the end.
+    body.append(metal(oa.cylinder("bolt arm", (0.020, -0.020, 0.050), (0.050, -0.030, 0.032), 0.0058, BARE, segments=10), 3))
+    body.append(metal(oa.sphere("bolt ball", (0.052, -0.031, 0.030), 0.0125, DARK, segments=12), 4))
+    body.append(metal(oa.cylinder("bolt shroud", (0, -0.090, 0.050), (0, -0.058, 0.050), 0.019, DARK, segments=14, bevel=0.004), 5))
+    # The barrel: heavy, fluted, ending in a brake with slots.
+    body.append(metal(oa.cylinder("barrel", (0, 0.250, 0.050), (0, 0.840, 0.050), 0.0165, DARK, radius_end=0.0135, segments=16), 6))
+    for i in range(6):
+        a = math.radians(60 * i + 30)
+        x, z = math.cos(a) * 0.0152, math.sin(a) * 0.0152
+        body.append(metal(oa.box("flute", (x, 0.470, 0.050 + z), (0.0042, 0.300, 0.0042), (0.06, 0.06, 0.07), bevel=0.0012, rot=(0, -math.degrees(a), 0)), 7))
+    body.append(metal(oa.lathe("brake", (0, 0.826, 0.050), (0, 1, 0), [(0.0, 0.0140), (0.006, 0.0235), (0.058, 0.0235), (0.072, 0.0190), (0.072, 0.0100), (0.030, 0.0100)], GUNMETAL, segments=16), 8))
+    for y in (0.846, 0.866):
+        body.append(metal(oa.box("brake slot", (0, y, 0.050), (0.050, 0.009, 0.014), (0.04, 0.04, 0.05), bevel=0.002), 9))
+    # The famous green stock: fore-end, a thumb hole, a tall cheek piece and a rubber butt.
+    body.append(soft(oa.slab("fore-end", [(0.060, 0.040), (0.070, -0.004), (0.440, 0.008), (0.470, 0.028), (0.470, 0.040)], 0.058, OLIVE, bevel=0.012, segments=3), 10))
+    body.append(soft(oa.slab("stock top", [(-0.040, 0.044), (-0.110, 0.050), (-0.360, 0.050), (-0.360, 0.022), (-0.120, 0.018), (-0.050, 0.010)], 0.050, OLIVE, bevel=0.012, segments=3), 11))
+    body.append(soft(oa.slab("stock bottom", [(-0.170, 0.000), (-0.360, -0.014), (-0.360, -0.090), (-0.200, -0.062)], 0.047, OLIVE, bevel=0.012, segments=3), 12))
+    body.append(soft(oa.slab("stock back", [(-0.300, 0.040), (-0.368, 0.040), (-0.368, -0.080), (-0.300, -0.070)], 0.053, OLIVE, bevel=0.012, segments=3), 13))     # widths differ so no two sides lie in one plane
+    body.append(soft(oa.slab("grip", [(0.018, 0.016), (-0.040, 0.016), (-0.078, -0.096), (-0.030, -0.108), (0.004, -0.030)], 0.044, OLIVE_DARK, bevel=0.012, segments=3), 14))
+    body.append(soft(oa.slab("grip bridge", [(-0.066, -0.070), (-0.200, -0.040), (-0.200, -0.066), (-0.070, -0.100)], 0.040, OLIVE, bevel=0.010, segments=3), 15))
+    body.append(soft(oa.slab("cheek piece", [(-0.130, 0.050), (-0.290, 0.050), (-0.280, 0.084), (-0.150, 0.088)], 0.040, OLIVE_DARK, bevel=0.010, segments=3), 16))
+    for y in (-0.170, -0.250):
+        body.append(metal(oa.cylinder("cheek post", (0, y, 0.040), (0, y, 0.056), 0.006, BARE, segments=8), 17))
+    body.append(metal(oa.slab("butt pad", [(-0.364, -0.084), (-0.388, -0.076), (-0.388, 0.036), (-0.364, 0.044)], 0.054, RUBBER, bevel=0.006), 18))
+    # Trigger and guard.
+    body.append(metal(oa.box("guard bottom", (0, 0.050, -0.030), (0.014, 0.096, 0.006), DARK, bevel=0.0025), 19))
+    body.append(metal(oa.box("guard front", (0, 0.095, -0.010), (0.014, 0.006, 0.046), DARK, bevel=0.0025, rot=(8, 0, 0)), 20))
+    body.append(metal(oa.box("trigger", (0, 0.040, -0.002), (0.008, 0.009, 0.030), SIGNAL, bevel=0.003, rot=(18, 0, 0)), 21))
+    # The scope: a long tube, a wide bell at the front, two turrets, on two rings.
+    sz = 0.122
+    scope = [(-0.150, 0.0260), (-0.142, 0.0300), (-0.085, 0.0300), (-0.070, 0.0205), (0.130, 0.0205), (0.170, 0.0390), (0.262, 0.0410), (0.270, 0.0370)]
+    body.append(metal(oa.lathe("scope", (0, 0.020, sz), (0, 1, 0), scope, DARK, segments=18), 22))
+    body.append(metal(oa.cylinder("eyepiece glass", (0, -0.128, sz), (0, -0.124, sz), 0.0240, GLASS, segments=14), 23))
+    body.append(metal(oa.lathe("scope band", (0, 0.200, sz), (0, 1, 0), [(-0.006, 0.0392), (-0.004, 0.0425), (0.004, 0.0425), (0.006, 0.0392)], BRASS, segments=18), 24))
+    body.append(metal(oa.cylinder("turret top", (0, 0.060, sz + 0.018), (0, 0.060, sz + 0.044), 0.0135, BARE, segments=12, bevel=0.003), 25))
+    body.append(metal(oa.cylinder("turret side", (-0.018, 0.060, sz), (-0.044, 0.060, sz), 0.0135, BARE, segments=12, bevel=0.003), 26))
+    for y in (0.005, 0.110):
+        body.append(metal(oa.lathe("scope ring", (0, y, sz), (0, 1, 0), [(-0.008, 0.0205), (-0.006, 0.0265), (0.006, 0.0265), (0.008, 0.0205)], GUNMETAL, segments=16), 27))
+        body.append(metal(oa.box("ring foot", (0, y, 0.086), (0.022, 0.016, 0.030), GUNMETAL, bevel=0.004), 28))
+    body.append(metal(oa.box("rail", (0, 0.058, 0.076), (0.020, 0.170, 0.008), DARK, bevel=0.002), 29))
+    # The front glass: this is what glints when it is looking at you.
+    glow.append(lit(oa.cylinder("front glass", (0, 0.280, sz), (0, 0.286, sz), 0.0350, LENS, segments=18)))
+    # A bipod folded back under the fore-end.
+    body.append(metal(oa.box("bipod block", (0, 0.440, 0.000), (0.040, 0.026, 0.020), GUNMETAL, bevel=0.005), 40))
+    for x in (-0.020, 0.020):
+        body.append(metal(oa.cylinder("bipod leg", (x, 0.436, -0.006), (x * 1.5, 0.226, -0.014), 0.0062, DARK, segments=8), 41))
+        body.append(metal(oa.cylinder("bipod foot", (x * 1.5, 0.232, -0.014), (x * 1.5, 0.214, -0.014), 0.0098, RUBBER, segments=8, bevel=0.002), 42))
+    body.append(soft(oa.box("tape", (0, 0.330, 0.020), (0.060, 0.034, 0.046), TAPE, bevel=0.007, rot=(4, 0, 0)), 43))
+
+    # The magazine: a short box under the action.
+    mag.append(metal(oa.slab("magazine", [(0.118, 0.010), (0.200, 0.010), (0.206, -0.058), (0.126, -0.066)], 0.032, (0.25, 0.27, 0.33), bevel=0.006), 50))
+    mag.append(metal(oa.slab("magazine floor", [(0.120, -0.058), (0.212, -0.050), (0.212, -0.062), (0.122, -0.074)], 0.038, DARK, bevel=0.004), 51))
+    mag.append(soft(oa.box("magazine band", (0, 0.163, -0.030), (0.0335, 0.082, 0.012), (0.24, 0.50, 0.82), bevel=0.003, rot=(6, 0, 0)), 52))
+
+    sockets = [oa.socket("Muzzle", (0, 0.900, 0.050)), oa.socket("SupportHand", (0, 0.330, 0.000)), oa.socket("Magazine", (0, 0.160, 0.005))]
+    return [("Body", body), ("Magazine", mag), ("LensGlow", glow)], sockets
+
+
 def build(name, maker, previews):
     oa.reset_scene()
     parts, sockets = maker()
     oa.export(os.path.join(OUT, name + ".bytes"), parts, sockets)
     if previews:
         everything = [o for _, objs in parts for o in objs]
-        length = 0.75 if name == "Rifle" else 0.26
-        mid = (0, 0.16, 0.0) if name == "Rifle" else (0, 0.05, 0.01)
+        length, mid = SHOTS.get(name, (0.26, (0, 0.05, 0.01)))
         floor = oa.box("floor", (0, 0, -0.5 * length), (40, 40, 0.01), (0.80, 0.74, 0.66), bevel=0)
         oa.paint(floor, wear=0, dirt=0, mottle=0, gradient=0)
         shown = everything + [floor]
@@ -178,8 +355,17 @@ def build(name, maker, previews):
         oa.render_preview(os.path.join(previews, name.lower() + "_held.png"), shown, (-0.5 * length, mid[1] - 1.5 * length, 0.55 * length), (0, mid[1] + 0.2 * length, 0), lens=45)
 
 
+# How long each gun is and where its middle is, for framing the pictures.
+SHOTS = {"Rifle": (0.75, (0, 0.16, 0.0)), "Pistol": (0.26, (0, 0.05, 0.01)), "Smg": (0.56, (0, 0.05, -0.07)),
+         "Shotgun": (1.12, (0, 0.12, 0.0)), "Sniper": (1.45, (0, 0.26, 0.02))}
+GUNS = (("Rifle", rifle), ("Pistol", pistol), ("Smg", smg), ("Shotgun", shotgun), ("Sniper", sniper))
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     previews = args[args.index("--preview") + 1] if "--preview" in args else None
-    build("Rifle", rifle, previews)
-    build("Pistol", pistol, previews)
+    # --only Smg,Sniper builds just those: the others' files are left exactly as they are.
+    only = args[args.index("--only") + 1].split(",") if "--only" in args else None
+    for gun, maker in GUNS:
+        if only is None or gun in only:
+            build(gun, maker, previews)

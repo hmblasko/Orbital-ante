@@ -101,6 +101,9 @@ namespace OrbitalAnte.Tests
 
         [TestCase("Rifle", 0.69f, 0.045f, 0.9f, 1.15f)]
         [TestCase("Pistol", 0.155f, 0.062f, 0.17f, 0.24f)]
+        [TestCase("Smg", 0.220f, 0.046f, 0.28f, 0.36f)]
+        [TestCase("Shotgun", 0.612f, 0.052f, 0.9f, 1.05f)]
+        [TestCase("Sniper", 0.900f, 0.050f, 1.2f, 1.35f)]
         public void TheGunsFitTheirAttachmentPoints(string id, float muzzleZ, float muzzleY, float minLength, float maxLength)
         {
             ModelFile model = LoadReal(id);
@@ -135,6 +138,9 @@ namespace OrbitalAnte.Tests
 
         [TestCase("Rifle")]
         [TestCase("Pistol")]
+        [TestCase("Smg")]
+        [TestCase("Shotgun")]
+        [TestCase("Sniper")]
         public void TheGunsStayInsideTheirBudgetAndAreSoundMeshes(string id)
         {
             ModelFile model = LoadReal(id);
@@ -164,6 +170,33 @@ namespace OrbitalAnte.Tests
                     if (agree > 0f) outward++;
                 }
                 Assert.Greater(outward, total * 0.98f, part.Name + ": triangles are wound the wrong way for Unity");
+            }
+        }
+
+        [TestCase("Shotgun", "CellGlow")]
+        [TestCase("Sniper", "LensGlow")]
+        public void TheGunsThatShine_KeepTheirLightInItsOwnPiece(string id, string piece)
+        {
+            // A piece whose name ends in Glow is drawn brighter than white (ModelLibrary.Build), so it must hold only
+            // the parts that shine: small, and at the business end or on the breech, never the whole gun.
+            ModelFile model = LoadReal(id);
+            ModelPart glow = model.Part(piece);
+            Assert.IsNotNull(glow, id + " has lost its " + piece + " piece");
+            Assert.IsTrue(ModelFile.Shines(piece));
+            Assert.IsFalse(ModelFile.Shines("Body"));
+            Assert.IsFalse(ModelFile.Shines("Magazine"));
+            Assert.Less(glow.Triangles.Length / 3, 400);
+            Assert.IsTrue(model.TrySocket("Muzzle", out ModelSocket muzzle));
+            float furthest = 0f;
+            for (int i = 0; i < glow.Positions.Length; i += 3) furthest = System.Math.Max(furthest, System.Math.Abs(glow.Positions[i]));
+            Assert.Less(furthest, 0.07f, "the light should sit on the gun, not out to one side");
+            if (id == "Sniper")
+            {
+                // The front glass of the scope: ahead of the hand, above the barrel, facing the way the gun points.
+                float minZ = float.MaxValue, minY = float.MaxValue;
+                for (int i = 0; i < glow.Positions.Length; i += 3) { minY = System.Math.Min(minY, glow.Positions[i + 1]); minZ = System.Math.Min(minZ, glow.Positions[i + 2]); }
+                Assert.Greater(minZ, 0.2f);
+                Assert.Greater(minY, muzzle.Y + 0.02f);
             }
         }
 
@@ -529,7 +562,8 @@ namespace OrbitalAnte.Tests
                     if (y < minY) minY = y; if (y > maxY) maxY = y;
                     if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
                 }
-                Assert.Less(maxX - minX, 0.75f, id + " is too wide");
+                // The torso may carry cloth wider than the body (the Marksman's cape fans out past its arms).
+                Assert.Less(maxX - minX, id == BodyPartId.Torso ? 0.9f : 0.75f, id + " is too wide");
                 Assert.Less(maxY - minY, 0.75f, id + " is too tall");
                 Assert.Less(maxZ - minZ, 0.75f, id + " is too deep");
                 if (id == BodyPartId.Head || id == BodyPartId.Torso) continue;
@@ -575,6 +609,23 @@ namespace OrbitalAnte.Tests
                 Assert.Less(box, thick * 1.12f, name + " " + part + ": the hitbox is fatter than the limb");
                 Assert.Greater(box, thick * 0.55f, name + " " + part + ": the hitbox is much thinner than the limb");
             }
+            // The head's ball: no wider than the helmet is across, and sitting on the helmet, not above or below it.
+            ModelPart head = model.Part("Head");
+            var across = new System.Collections.Generic.List<float>();
+            float top = float.MinValue;
+            for (int v = 0; v < head.VertexCount; v++)
+            {
+                across.Add(System.Math.Abs(head.Positions[v * 3]));
+                top = System.Math.Max(top, head.Positions[v * 3 + 1]);
+            }
+            float ball = 0.17f * BodyFit.Thickness(name, BodyPartId.Head);
+            float middle = BodySkeleton.HeadCentreAboveNeck + BodyFit.HeadRise(name);
+            across.Sort();
+            float helmetHalfWidth = across[(int)(across.Count * 0.9f)];
+            Assert.Less(ball, helmetHalfWidth * 1.25f, name + ": the head's hitbox is wider than the helmet");
+            Assert.Greater(ball, helmetHalfWidth * 0.8f, name + ": the head's hitbox is much narrower than the helmet");
+            Assert.AreEqual(0f, BodyFit.HeadRise("Enemy"));
+            Assert.Less(BodyFit.HeadRise("EnemyBruiser"), -0.03f, "the bruiser's helmet is sunk into its collar");
             Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));
             Assert.AreEqual(1f, BodyFit.Thickness("something nobody made", BodyPartId.Head));
             Assert.Greater(BodyFit.Thickness("EnemyBruiser", BodyPartId.Torso), 1.1f);
