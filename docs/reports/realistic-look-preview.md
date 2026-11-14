@@ -26,13 +26,13 @@ The new enemy is a soldier in a real pressure suit. The reference is the Apollo 
 | Helmet | Round ball, amber slot, orange snout and crest | White shell, gold sun visor, shade, lamps, a camera, a metal neck ring |
 | Cloth | Smooth tubes with rubber bellows | Cloth that creases, and gathers in rings at elbows, knees and hips |
 | Chest | A box with three coloured buttons | A control box with a display, switches, a gauge and two valve knobs; blue and red hose connectors with hoses running round to the pack |
-| Pack | A box with two orange tanks and a bedroll | A cloth-covered life-support pack with a top unit, straps, an access plate, a canister and an aerial |
-| Kit | Two belt pouches | A webbing belt with magazine pouches, a pistol in a thigh holster, a cargo pocket, knee pads, a checklist on the left forearm |
-| Hands and feet | Mitts, boots with orange toe caps | Gloves with fingers and blue silicone tips; moulded boots on ribbed soles |
+| Pack | A box with two orange tanks and a bedroll | A cloth-covered life-support pack with straps, an access plate, a canister and an aerial |
+| Kit | Two belt pouches | A webbing belt with magazine pouches, a cargo pocket, knee pads, a checklist on the left forearm |
+| Hands and feet | Mitts, boots with orange toe caps | Dark gloves with fingers and blue silicone tips; dark moulded boots on ribbed soles |
 | Colour | Teal, cream, orange, mustard | Off-white cloth, coyote webbing, grey metal, dark polymer; one red band on arms, legs and helmet |
 | Paint | Soft blotches of lighter and darker paint | Dust that settles low and on top, shadow where things crowd together, wear on edges |
 | Shine | None: everything lit like chalk | Each surface says what it is made of: matte cloth, satin shell, bright metal, a mirror-gold visor |
-| Triangles | 14,848 | 21,188 |
+| Triangles | 14,848 | 21,288 |
 
 The fourteen breakable pieces are the same and are meant to be cut at the same joints, so the dismemberment system is designed not to change. That is not proved: the pictures show one pose (the game's "ready" pose, in which the limbs are nearly straight), with no gun, no limb off and no wound. A run, a crouch and a crawl have not been drawn.
 
@@ -41,7 +41,7 @@ Four things in the table are less than they sound. Dust and edge wear are in the
 ## Why (constitution)
 
 - This follows the director's instruction of 14 Nov and the build prompt's "convincing, grounded space hardware". It is a look change only; no rule of play moves.
-- **It puts principles 3, 5 and 7 at risk** (learnable challenge, legible risk, cognitive load), and the build prompt's "unmistakable at a glance" and "limb pops, disarms and leg shots all read instantly". A pale suit on pale ground, in one colour across all fourteen pieces, is harder to read than teal against orange. What every enemy model must show before it goes in the game is now written in `docs/art_direction.md` under "Reading a fight". **None of it is shown yet.** The model as drawn fails several of those points today: gloves, boots and the cut lines are not dark enough to mark the parts, the top of the pack stands behind the lower quarter of the helmet in the same colour, the bands are too thin to see beyond about 10 m, and it wears a holstered pistol that could not be shot off or picked up.
+- **It puts principles 3, 5 and 7 at risk** (learnable challenge, legible risk, cognitive load), and the build prompt's "unmistakable at a glance" and "limb pops, disarms and leg shots all read instantly". A pale suit on pale ground, in one colour across all fourteen pieces, is harder to read than teal against orange. What every enemy model must show before it goes in the game is now written in `docs/art_direction.md` under "Reading a fight". **None of it is shown yet.** The first drawing failed several of those points (pale gloves and boots, no dark marks at the cut lines, the pack behind the helmet, thin bands, a holstered pistol that could not be used). The second drawing answers those; see "Second drawing" below for what its sheet does and does not show.
 - **Principle 10, evidence-based iteration**:
   - Problem: the art reads as cartoony, goofy and blocky.
   - Hypothesis: real proportions, real suit hardware, cloth that folds, natural colour and shine will read as realistic while staying inside the game's model pipeline and the Deck's budget.
@@ -63,7 +63,7 @@ Four things in the table are less than they sound. Dust and edge wear are in the
 
 - The model builds and draws in Blender (4.0.2) from `tools/blender/build_enemy_realistic.py`; the pictures above are its output.
 - The same script stands both enemies in a pose dumped from the game's animator (`tools/blender/pose_dump`, mode `kinds`, pose `ready`).
-- No inside-out faces showed in any of the four views (the preview marks them magenta). That is one pose from four angles, not the far copy's measured check.
+- No inside-out faces showed in the comparison views or on the sheet (the preview marks them magenta). That is a handful of poses, not the far copy's measured check.
 - For the drawing itself no game code changed. The shine commit did change game code; what was run for it is under "Shine" below.
 
 ## What is not verified, and what it would take to put in the game
@@ -82,6 +82,32 @@ Four things in the table are less than they sound. Dust and edge wear are in the
 - `tools/blender/oa_blender.py`: the preview picture now shows what a surface is made of when a model says so. Models that do not say are drawn exactly as before.
 - `docs/art_direction.md`: rewritten for the 14 Nov direction.
 - `CLAUDE.md`: the Look note now carries the 14 Nov message.
+
+## Second drawing: changed so it reads in a fight
+
+After the design review (below), the proposed enemy was changed and drawn again. The pictures in `docs/art/previews/` are the second drawing. What Matthew was first shown differed in these ways:
+
+| | First drawing | Second drawing |
+|---|---|---|
+| Hands and feet | Off-white gloves, grey boots | Dark gloves and boots |
+| Where it comes apart | Bright metal rings only | Dark bands at shoulder, elbow, hip and ankle (the knee already had dark straps and a pad) |
+| Red bands | 4 cm, greyed by wear | 7 cm, kept cleaner |
+| Behind the head | The top of the pack stood behind the lower quarter of the helmet, in the same colour | The pack stops below the neck ring; a dark cover on the back of the helmet |
+| Thigh | A holstered pistol | Nothing: a weapon that cannot be shot off or picked up is a false promise |
+| Triangles | 21,188 | 21,288 |
+
+**The sheet** (`docs/art/previews/realistic_enemy_fight_sheet.jpg`, made by `build_enemy_realistic.py -- --sheet <folder> --pose <kinds.json>`): the current enemy and the proposed one at the size the game draws on the Deck (1280 x 800, 80 degrees of view), from 5, 10, 24 and 40 m, by day on pale ground, on orange ground under an orange sky, and at dusk. The proposed one is shown from the front, the side and behind, running with its left forearm gone, and standing with its right leg gone below the knee.
+
+What the sheet shows, looked at strip by strip:
+- **5 and 10 m:** it reads. Hands, feet, bands and joints stand out; the gold visor marks the head from the front and the dark cover marks it from behind; the missing lower leg is plain.
+- **24 m:** it reads as a figure and the head can be found (the body is about 37 pixels tall, the helmet about 6). The bands are a few reddish pixels. On pale ground by day it stands out less than the current enemy does.
+- **40 m:** a figure of about 20 pixels and no more, which is also true of the current one.
+- **A missing forearm does not read**, even at 5 m. A missing lower leg reads to about 10 m. The sheet draws no wound; the wound and the blood are what will have to carry a lost limb, and that is not shown.
+- **At dusk** the red bands nearly vanish and the visor is the only strong mark.
+
+What the sheet is not: Blender's light, not the game's (there is distance haze in the game and none here); no gun in the hands; no wound; no far copy, which is what the game would really draw beyond 24 m; one kind only, so it says nothing about telling kinds apart. It is the builder looking at its own work, not a score.
+
+**Triangles.** The Deck review found most of the detail finer than a pixel beyond 9 m. The model has not been slimmed: doing that without losing the cloth folds is real work, and whether it is needed depends on a measurement nobody has. The cheaper answer, if this model goes in, is on the dials (`Full Bodies` 8 gives about today's worst case); both are written in `docs/performance_budget.md`.
 
 ## Shine (second commit on this branch)
 
@@ -128,7 +154,7 @@ All three reviewers the repository asks for read the shine change and the direct
 - *SetPass calls may rise; one new graphics program is built the first time a model with a finish is drawn.* **Open:** to be read off in Unity.
 
 **game-designer**
-- *Readability in a fight is not shown, and the model as drawn has specific problems* (pale on pale, no dark marks at the cut lines, pack behind the helmet, thin bands, a pistol that cannot be used, glints that could pass for tells). **Taken:** "Reading a fight" in `docs/art_direction.md` now sets what a model must show; the cap on highlights was lowered for the last point. **Open:** the model itself is not yet changed and the sheet is not yet drawn.
+- *Readability in a fight is not shown, and the model as drawn has specific problems* (pale on pale, no dark marks at the cut lines, pack behind the helmet, thin bands, a pistol that cannot be used, glints that could pass for tells). **Taken:** "Reading a fight" in `docs/art_direction.md` now sets what a model must show; the cap on highlights was lowered for the last point. **Done since:** the model was changed and a first sheet drawn ("Second drawing" above). **Still open:** a wound, a gun in the hands, the far copy and the other kinds on the sheet; a lost forearm does not read without them.
 - *The report claimed more than the pictures show* (joints bending, wear, helmet size, "convincing"). **Fixed** above.
 - *The art direction dropped lines of the build prompt Matthew did not overturn* ("not overly technical looking", "interesting rather than bland", spoof guns) *and promised to redo the cabin unasked.* **Fixed** in the art direction.
 - *The decision card called textured models "going further", though the build prompt's own pipeline is textured models, and left out a mix* (NASA or generated models for hardware, script-built bodies for enemies). **Partly answered:** script-built models follow Matthew's 12 Nov instruction that assets are made in Blender, which the reviewer did not have. The mix is a fair option and is now in the art direction, to be offered when Matthew answers.

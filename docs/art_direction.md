@@ -40,7 +40,7 @@ It does **not** mean photographs wrapped on models, and it does not mean a grim,
 
 ## Reading a fight
 
-A realistic suit in one pale colour is harder to read than teal against orange. The old paint happened to colour each breakable part differently, and the new one does not. These are requirements on every enemy model before it goes in the game. None of them has been shown yet.
+A realistic suit in one pale colour is harder to read than teal against orange. The old paint happened to colour each breakable part differently, and the new one does not. These are requirements on every enemy model before it goes in the game. The proposed common enemy has a first sheet (`docs/art/previews/realistic_enemy_fight_sheet.jpg`; what it shows and does not is in `docs/reports/realistic-look-preview.md`). Telling kinds apart has not been shown at all.
 
 **Telling kinds apart** (shape first, never hue alone, because warm haze and sunsets change hue):
 - Whole-body size and bulk of suit and armour.

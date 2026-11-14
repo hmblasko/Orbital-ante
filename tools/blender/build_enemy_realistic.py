@@ -43,6 +43,11 @@ RED_ANOD = (0.50, 0.09, 0.08)
 DUST = (0.47, 0.44, 0.39)
 LENS = (0.80, 0.83, 0.86)
 PAGE = (0.80, 0.78, 0.66)
+# Reading a fight (docs/art_direction.md): hands, feet and the places a body comes apart are dark against the
+# pale suit, so a lost forearm or a dropped gun arm shows from across a field.
+GLOVE = (0.21, 0.22, 0.24)
+BOOT = (0.22, 0.22, 0.21)
+JOINT = (0.17, 0.17, 0.16)
 
 
 def fabric(o, seed=0):
@@ -58,6 +63,12 @@ def webbing(o, seed=0):
 def hard(o, seed=0):
     oa.paint(o, wear=0.8, dirt=0.6, mottle=0.22, seed=seed, grain=22.0, gradient=0.03, wear_colour=(0.62, 0.62, 0.59))
     return R.made_of(o, 0.42)
+
+
+def colour_band(o, seed=0):
+    """The band of colour: kept cleaner than other hard parts, or it greys out and cannot be told from the suit."""
+    oa.paint(o, wear=0.25, dirt=0.35, mottle=0.12, seed=seed, grain=22.0, gradient=0.0, wear_colour=(0.62, 0.40, 0.36))
+    return R.made_of(o, 0.30)
 
 
 def metal(o, seed=0):
@@ -129,7 +140,9 @@ def head():
     # A camera on the right, where real helmets carry one.
     o.append(hard(oa.cylinder("camera", c + Vector((0.160, 0.030, 0.045)), c + Vector((0.156, 0.100, 0.040)), 0.017, STEEL, segments=10, bevel=0.003), 7))
     o.append(glass(oa.cylinder("camera lens", c + Vector((0.156, 0.099, 0.040)), c + Vector((0.1558, 0.104, 0.0398)), 0.011, (0.05, 0.06, 0.08), segments=8)))
-    o.append(hard(small("vent pad", c + Vector((0, -0.150, -0.045)), (0.100, 0.034, 0.075), (0.56, 0.56, 0.53), bevel=0.012, rot=(14, 0, 0)), 8))
+    # A dark thermal cover over the back of the shell, so the head can be found from behind.
+    o.append(hard(R.ball_shell("rear cover", c, pole, up, r + 0.003, 132, 178, ARMOUR, n=16, rings=3, lip=0.004), 11))
+    o.append(hard(small("vent pad", c + Vector((0, -0.153, -0.045)), (0.100, 0.034, 0.075), (0.40, 0.40, 0.38), bevel=0.012, rot=(14, 0, 0)), 8))
     o.append(metal(oa.lathe("neck ring", (0, 0, NECK_Z + 0.010), (0, 0, 1), [(0.0, 0.106), (0.004, 0.123), (0.026, 0.123), (0.032, 0.110)], ALU, segments=24), 9))
     o.append(hard(small("neck latch", (0, 0.124, NECK_Z + 0.024), (0.044, 0.012, 0.020), STEEL, bevel=0.003), 10))
     return o
@@ -212,22 +225,21 @@ def torso():
     o.append(webbing(oa.box("hip pouch", (-0.196, -0.010, 1.000), (0.050, 0.110, 0.120), WEB, bevel=0.016, segments=3), 44))
     o.append(webbing(small("hip pouch flap", (-0.200, -0.010, 1.046), (0.056, 0.116, 0.036), (0.33, 0.29, 0.20), bevel=0.012), 45))
 
-    # The life-support pack: a cloth-covered box as wide as the shoulders, a smaller unit on top, an aerial.
-    pack = oa.box("pack", (0, -0.232, 1.262), (0.390, 0.190, 0.500), FABRIC_PACK, bevel=0.034, segments=3)
+    # The life-support pack: a cloth-covered box as wide as the shoulders, an aerial.
+    pack = oa.box("pack", (0, -0.232, 1.248), (0.390, 0.190, 0.472), FABRIC_PACK, bevel=0.034, segments=3)
     oa.densify(pack, 0.10)
     R.displace(pack, R.creases(0.003, (9, 9, 9), seed=6))
     o.append(fabric(pack, 46))
-    top = oa.box("pack top", (0, -0.238, 1.552), (0.330, 0.160, 0.110), FABRIC_PACK, bevel=0.030, segments=3)
-    o.append(fabric(top, 47))
-    o.append(webbing(small("pack strap", (0, -0.236, 1.505), (0.396, 0.196, 0.022), WEB_DARK, bevel=0.004), 48))
+    # The pack stops below the neck ring: the head is the only kill, so nothing may stand behind the helmet.
+    o.append(webbing(small("pack strap", (0, -0.236, 1.415), (0.396, 0.196, 0.022), WEB_DARK, bevel=0.004), 48))
     o.append(webbing(small("pack strap low", (0, -0.234, 1.080), (0.396, 0.196, 0.022), WEB_DARK, bevel=0.004), 49))
     o.append(hard(tiny("access plate", (0.040, -0.330, 1.290), (0.200, 0.008, 0.240), (0.52, 0.52, 0.49)), 50))
     for dx, dz in ((-0.085, -0.105), (0.085, -0.105), (-0.085, 0.105), (0.085, 0.105)):
         o.append(metal(oa.cylinder("plate bolt", (0.040 + dx, -0.333, 1.290 + dz), (0.040 + dx, -0.338, 1.290 + dz), 0.007, ALU, segments=6), 51))
     o.append(hard(tiny("warning label", (-0.125, -0.3285, 1.380), (0.070, 0.002, 0.040), (0.70, 0.56, 0.16)), 52))
     o.append(metal(oa.cylinder("canister", (-0.150, -0.250, 1.020), (0.150, -0.250, 1.020), 0.046, (0.42, 0.44, 0.40), segments=14, bevel=0.012), 53))
-    o.append(rubber(oa.cylinder("aerial", (0.130, -0.250, 1.600), (0.150, -0.262, 1.840), 0.006, RUBBER, radius_end=0.004, segments=6), 54))
-    o.append(hard(oa.cylinder("aerial base", (0.128, -0.249, 1.596), (0.131, -0.251, 1.626), 0.013, STEEL, segments=8, bevel=0.002), 55))
+    o.append(rubber(oa.cylinder("aerial", (0.130, -0.250, 1.480), (0.152, -0.264, 1.760), 0.006, RUBBER, radius_end=0.004, segments=6), 54))
+    o.append(hard(oa.cylinder("aerial base", (0.128, -0.249, 1.476), (0.131, -0.251, 1.506), 0.013, STEEL, segments=8, bevel=0.002), 55))
     # The pack's straps come over the shoulders and down the chest to the waist ring.
     for sx in (-1, 1):
         x = sx * 0.118
@@ -259,8 +271,9 @@ def right_arm():
     R.displace(sleeve, R.gathers(e, X, 0.070, 0.0060, 0.032, seed=1, lean=(0, 1, 0), bias=0.4),
                R.creases(0.0040, (17, 6, 6), seed=2))
     upper.append(fabric(sleeve, 60))
-    upper.append(metal(cuff("shoulder bearing", s, X, F, UPPER_KEYS, 0.040, 0.062, 0.006, ALU), 61))
-    upper.append(hard(cuff("arm stripe", s, X, F, UPPER_KEYS, 0.128, 0.166, 0.0075, STRIPE), 62))
+    upper.append(metal(cuff("shoulder bearing", s, X, F, UPPER_KEYS, 0.034, 0.066, 0.006, STEEL), 61))
+    upper.append(colour_band(cuff("arm stripe", s, X, F, UPPER_KEYS, 0.110, 0.180, 0.0075, STRIPE), 62))
+    upper.append(webbing(cuff("elbow band", s, X, F, UPPER_KEYS, 0.252, 0.288, 0.006, JOINT), 59))
 
     arm = R.limb("forearm", e, X, F, FORE_KEYS, FABRIC, n=16, fine=((0.0, 0.06),))
     R.displace(arm, R.gathers(e, X, 0.065, 0.0060, 0.032, seed=5, lean=(0, 1, 0), bias=0.4),
@@ -271,18 +284,18 @@ def right_arm():
 
     # The glove: a cloth gauntlet, a flat palm, four fingers and a thumb with silicone tips. Palm down, thumb forward.
     palm = R.limb("palm", w, X, F, [(-0.030, 0.015, 0.015), (-0.015, 0.040, 0.040), (0.012, 0.042, 0.044), (0.045, 0.029, 0.048),
-                                    (0.085, 0.023, 0.050), (0.106, 0.018, 0.046), (0.114, 0.008, 0.030)], FABRIC, n=14, step=0.014, power=2.4)
+                                    (0.085, 0.023, 0.050), (0.106, 0.018, 0.046), (0.114, 0.008, 0.030)], GLOVE, n=14, step=0.014, power=2.4)
     R.displace(palm, R.creases(0.0020, (30, 12, 12), seed=7))
     hand.append(fabric(palm, 66))
     hand.append(webbing(small("palm strap", w + Vector((0.062, 0.0, 0.024)), (0.026, 0.094, 0.006), WEB_DARK, bevel=0.002), 67))
     for i, (y, length) in enumerate(((0.036, 0.076), (0.012, 0.084), (-0.012, 0.078), (-0.035, 0.062))):
         p = w + Vector((0.098, y, -0.004))
         path = R.smooth_path([p, p + Vector((length * 0.42, 0, -0.005)), p + Vector((length * 0.76, 0, -0.022)), p + Vector((length * 0.96, 0, -0.047))], 2)
-        hand.append(fabric(R.sweep("finger", path[:5], 0.0125, FABRIC, n=6, radii=[0.0125, 0.0128, 0.0125, 0.0122, 0.0120]), 68 + i))
+        hand.append(fabric(R.sweep("finger", path[:5], 0.0125, GLOVE, n=6, radii=[0.0125, 0.0128, 0.0125, 0.0122, 0.0120]), 68 + i))
         hand.append(rubber(R.sweep("fingertip", path[4:], 0.0128, SILICONE, n=6, radii=[0.0128, 0.0126, 0.0085]), 72 + i))
     p = w + Vector((0.030, 0.040, -0.008))
     path = R.smooth_path([p, p + Vector((0.030, 0.026, -0.010)), p + Vector((0.054, 0.036, -0.026)), p + Vector((0.068, 0.036, -0.046))], 2)
-    hand.append(fabric(R.sweep("thumb", path[:5], 0.015, FABRIC, n=6, radii=[0.0165, 0.0160, 0.0150, 0.0142, 0.0138]), 76))
+    hand.append(fabric(R.sweep("thumb", path[:5], 0.015, GLOVE, n=6, radii=[0.0165, 0.0160, 0.0150, 0.0142, 0.0138]), 76))
     hand.append(rubber(R.sweep("thumb tip", path[4:], 0.014, SILICONE, n=6, radii=[0.0145, 0.0140, 0.0095]), 77))
     return upper, fore, hand
 
@@ -309,7 +322,8 @@ def right_leg():
                R.gathers(h, D, 0.060, 0.0050, 0.034, seed=12, lean=(0, 1, 0), bias=0.6),
                R.creases(0.0050, (6, 6, 17), seed=13))
     thigh.append(fabric(t, 80))
-    thigh.append(hard(cuff("thigh stripe", h, D, F, THIGH_KEYS, 0.300, 0.338, 0.008, STRIPE, n=18), 81))
+    thigh.append(colour_band(cuff("thigh stripe", h, D, F, THIGH_KEYS, 0.265, 0.340, 0.008, STRIPE, n=18), 81))
+    thigh.append(webbing(cuff("hip band", h, D, F, THIGH_KEYS, 0.058, 0.096, 0.006, JOINT, n=18), 79))
 
     sh = R.limb("shin", k, D, F, SHIN_KEYS, FABRIC, n=16, fine=((0.0, 0.07),))
     R.displace(sh, R.gathers(k, D, 0.070, 0.0065, 0.036, seed=14, lean=(0, -1, 0), bias=0.4),
@@ -322,7 +336,7 @@ def right_leg():
     shin.append(webbing(cuff("pad strap", k, D, F, SHIN_KEYS, -0.040, -0.020, 0.007, WEB_DARK), 84))
     shin.append(webbing(cuff("pad strap low", k, D, F, SHIN_KEYS, 0.048, 0.068, 0.007, WEB_DARK), 85))
     # The boot's cloth collar gathered over the ankle.
-    collar = cuff("boot collar", k, D, F, SHIN_KEYS, 0.300, 0.392, 0.010, (0.60, 0.59, 0.55))
+    collar = cuff("boot collar", k, D, F, SHIN_KEYS, 0.300, 0.392, 0.010, (0.27, 0.27, 0.25))
     shin.append(fabric(collar, 86))
     shin.append(webbing(cuff("collar strap", k, D, F, SHIN_KEYS, 0.326, 0.344, 0.014, WEB_DARK), 87))
 
@@ -331,14 +345,14 @@ def right_leg():
     upper_keys = [(-0.112, 0.022, 0.022, 0, 0.042), (-0.100, 0.050, 0.050, 0, 0.072), (-0.045, 0.064, 0.070, 0, 0.094),
                   (0.020, 0.066, 0.066, 0, 0.092), (0.085, 0.068, 0.050, 0, 0.078), (0.160, 0.067, 0.040, 0, 0.070),
                   (0.212, 0.058, 0.034, 0, 0.064), (0.234, 0.026, 0.018, 0, 0.054)]
-    boot = R.limb("boot", base, (0, 1, 0), (0, 0, 1), upper_keys, (0.56, 0.56, 0.53), n=14, step=0.022, power=2.3)
+    boot = R.limb("boot", base, (0, 1, 0), (0, 0, 1), upper_keys, BOOT, n=14, step=0.022, power=2.3)
     R.displace(boot, R.creases(0.0025, (10, 22, 10), seed=16))
     foot.append(fabric(boot, 88))
     sole_keys = [(-0.120, 0.034, 0.019, 0, 0.019), (-0.108, 0.056, 0.019, 0, 0.019), (-0.045, 0.069, 0.019, 0, 0.019),
                  (0.085, 0.073, 0.019, 0, 0.019), (0.170, 0.072, 0.019, 0, 0.019), (0.222, 0.062, 0.019, 0, 0.021), (0.242, 0.030, 0.015, 0, 0.024)]
     sole = R.limb("sole", base, (0, 1, 0), (0, 0, 1), sole_keys, SILICONE, n=10, step=0.024, power=4.0)
     foot.append(R.stripes(rubber(sole, 89), (0, 1, 0), 0.048, (0.06, 0.08, 0.11), share=0.5, strength=0.75))
-    foot.append(rubber(oa.sphere("ankle", a, 0.058, (0.56, 0.56, 0.53), segments=10), 90))
+    foot.append(rubber(oa.sphere("ankle", a, 0.058, BOOT, segments=10), 90))
     strap = [Vector((HIP_X - 0.074, 0.050, 0.050)), Vector((HIP_X - 0.060, 0.050, 0.118)), Vector((HIP_X, 0.050, 0.152)),
              Vector((HIP_X + 0.060, 0.050, 0.118)), Vector((HIP_X + 0.074, 0.050, 0.050))]
     foot.append(webbing(R.sweep("instep strap", strap, 0.012, WEB_DARK, n=6, up=lambda p: Vector((p.x - HIP_X, 0, p.z - 0.07)), flat=0.25, cuts=2), 91))
@@ -355,16 +369,10 @@ def make():
     for name in ("UpperArm", "Forearm", "Hand", "Thigh", "Shin", "Foot"):
         parts["Left" + name] = be.mirrored(parts["Right" + name])
 
-    # What the two sides do not share. A pistol on the right thigh:
+    # What the two sides do not share. (No holstered pistol: a weapon that cannot be shot off or picked up is a
+    # false promise in this game.)
     h = Vector((HIP_X, 0, HIP_Z))
     D, F = (0, 0, -1), (0, 1, 0)
-    x = HIP_X + 0.116
-    parts["RightThigh"].append(hard(small("holster", (x, 0.004, HIP_Z - 0.200), (0.036, 0.088, 0.170), STEEL, bevel=0.010), 100))
-    parts["RightThigh"].append(hard(small("pistol slide", (x, 0.000, HIP_Z - 0.104), (0.027, 0.120, 0.030), (0.10, 0.10, 0.105), bevel=0.004), 101))
-    parts["RightThigh"].append(rubber(small("pistol grip", (x, -0.052, HIP_Z - 0.062), (0.026, 0.040, 0.088), (0.10, 0.09, 0.08), bevel=0.008, rot=(-16, 0, 0)), 102))
-    parts["RightThigh"].append(webbing(cuff("holster strap", h, D, F, THIGH_KEYS, 0.150, 0.172, 0.008, WEB_DARK, n=18), 103))
-    parts["RightThigh"].append(webbing(cuff("holster strap low", h, D, F, THIGH_KEYS, 0.240, 0.262, 0.008, WEB_DARK, n=18), 104))
-    parts["RightThigh"].append(webbing(tiny("drop strap", (x - 0.010, 0.004, HIP_Z - 0.050), (0.006, 0.040, 0.150), WEB_DARK, rot=(0, -6, 0)), 105))
     # A cargo pocket on the left thigh:
     lx = -(HIP_X + 0.101)
     parts["LeftThigh"].append(fabric(oa.box("pocket", (lx, 0.010, HIP_Z - 0.215), (0.036, 0.104, 0.130), FABRIC, bevel=0.014, segments=3), 106))
@@ -434,6 +442,84 @@ def compare(folder, pose=None):
         oa.render_preview(os.path.join(folder, name + ".png"), shown, eye, target, lens=lens, size=(1280, 800), samples=64)
 
 
+def _copy(parts, leave_out=()):
+    """A second set of the same pieces (for pictures), without the pieces named."""
+    import bpy
+    made = {}
+    for name in be.ORDER:
+        made[name] = []
+        if name in leave_out:
+            continue
+        for o in parts[name]:
+            c = o.copy()
+            c.data = o.data.copy()
+            bpy.context.scene.collection.objects.link(c)
+            made[name].append(c)
+    return made
+
+
+def sheet(folder, poses):
+    """Reading a fight (docs/art_direction.md): the enemy at the size the game draws it on the Deck (1280 x 800,
+    80 degrees of view top to bottom), from 5, 10, 24 and 40 m, by day on pale ground, in orange haze and at dusk.
+    In each strip, left to right: the current enemy, then this one from the front, the side and the back, running
+    with its left forearm gone, and standing with its right leg gone below the knee. Blender's light, not the
+    game's; no gun, no wound and no far copy are drawn."""
+    import bpy
+    old = be.make()
+    new = make()
+    stance = (
+        (old, "ready", (), 0),
+        (new, "ready", (), 0),
+        (new, "ready", (), 90),
+        (new, "ready", (), 180),
+        (new, "run", ("LeftForearm", "LeftHand"), 25),
+        (new, "idle", ("RightShin", "RightFoot"), -20),
+    )
+    gap = 1.25
+    shown = []
+    for i, (parts, pose, gone, turn) in enumerate(stance):
+        figure = _copy(parts, gone)
+        stand(figure, poses[pose])
+        x = (len(stance) - 1) * gap * 0.5 - i * gap      # the camera looks back along y, so +x is on the left
+        place = Matrix.Translation(Vector((x, 0, 0))) @ Matrix.Rotation(math.radians(turn), 4, 'Z')
+        for name in be.ORDER:
+            for o in figure[name]:
+                o.data.transform(place)
+                o.data.update()
+                shown.append(o)
+    for parts in (old, new):
+        for name in be.ORDER:
+            for o in parts[name]:
+                bpy.data.objects.remove(o)
+
+    # (name, ground colour, sky colour, sky strength, Sun's turn, Sun's strength)
+    places = (("day", (0.70, 0.69, 0.66), (0.36, 0.50, 0.72), 0.7, (50, 20, 35), 3.6),
+              ("haze", (0.62, 0.40, 0.26), (0.78, 0.52, 0.34), 0.8, (55, 10, 60), 2.6),
+              ("dusk", (0.42, 0.40, 0.38), (0.30, 0.26, 0.36), 0.35, (82, 0, 100), 1.6))
+    os.makedirs(folder, exist_ok=True)
+    scene = bpy.context.scene
+    width, height = 1280, 800
+    lens = 18.0 / (math.tan(math.radians(40.0)) * width / height)    # 80 degrees top to bottom on a 36 mm film
+    for place, ground_colour, sky, sky_strength, sun, sun_strength in places:
+        floor = oa.box("floor", (0, 0, -0.005), (400, 400, 0.01), ground_colour, bevel=0)
+        oa.paint(floor, wear=0, dirt=0, mottle=0, gradient=0)
+        for distance in (5, 10, 24, 40):
+            # Only the strip of the picture the figures stand in is drawn.
+            per_metre = (height * 0.5) / (distance * math.tan(math.radians(40.0)))
+            half_w = min(0.5, ((len(stance) * gap * 0.5 + 0.6) * per_metre * 1.12) / width)
+            top = min(0.5, (0.75 * per_metre + 8) / height)
+            bottom = min(0.5, (1.75 * per_metre + 8) / height)
+            scene.render.use_border = True
+            scene.render.use_crop_to_border = True
+            scene.render.border_min_x, scene.render.border_max_x = 0.5 - half_w, 0.5 + half_w
+            scene.render.border_min_y, scene.render.border_max_y = 0.5 - bottom, 0.5 + top
+            oa.render_preview(os.path.join(folder, "sheet_%s_%02d.png" % (place, distance)), shown + [floor],
+                              (0.0, distance, 1.62), (0.0, 0.0, 1.62), lens=lens, size=(width, height), samples=48,
+                              world=sky, sky=sky_strength, sun=sun, sun_energy=sun_strength)
+        bpy.data.objects.remove(floor)
+    scene.render.use_border = False
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     oa.reset_scene()
@@ -445,6 +531,11 @@ if __name__ == "__main__":
                 kinds = json.load(f)["kinds"]
             pose = [k for k in kinds if k["model"] == "Enemy"][0][args[args.index("--pose") + 2]]
         compare(args[args.index("--compare") + 1], pose)
+    elif "--sheet" in args:
+        import json
+        with open(args[args.index("--pose") + 1]) as f:
+            kinds = json.load(f)["kinds"]
+        sheet(args[args.index("--sheet") + 1], [k for k in kinds if k["model"] == "Enemy"][0])
     elif "--write-to" in args:
         # Writes Enemy.bytes and EnemyFar.bytes into a folder of your choosing, to try the game's rule tests on
         # them (OA_MODELS=<folder>). It never writes into the game's own Resources folder.
