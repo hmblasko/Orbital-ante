@@ -128,3 +128,7 @@ From Codex pull request 32, rebuilt small for round worlds as Matthew chose ("ta
 ## Each type has its own body (14 Nov 2026, later)
 
 The look thread delivered `EnemyRunner`, `EnemyBruiser` and `EnemyMarksman` (same 14 pieces and joints as `Enemy`). They are now wired in: each type is drawn with its own model at 0.85, 1.3 and 1.2 times the ordinary size, walks in its own style (`BodyStyle`), and its hitboxes are fitted part by part (`BodyFit`), so what looks hit is hit. The stopgap width and chest colours are gone. The ordinary body is the fallback if a model is missing. Compiles; 1303 rule tests pass; **not run in Unity**, so how they look and whether feet slide is unverified. The hatch lever is also gone from the cabin (look thread), and the Flight deck screen draws fuel and air itself.
+
+## Base buildings and Earth scenery are in (14 Nov 2026, later)
+
+The bases thread's work is merged: five base designs (relay outpost, fuel depot, dome colony, mining works, stronghold) stand on the foundations, and Earth has twenty kinds of trees, plants, rocks and crags with taller mountains. See that thread's own report for the art. On this side, a base's guards now stand on the places its design marks: the type that holds still (the Marksman) goes up on a watchtower as a lookout and keeps its post; the others start on the marked floor places facing outward. 1974 rule tests pass on the merged tree. **Not run in Unity**: whether guards path sensibly round the buildings, and whether a lookout stays on its deck, are the first things to look at.
