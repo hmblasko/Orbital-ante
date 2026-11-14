@@ -480,6 +480,10 @@ namespace OrbitalAnte.Planets
                 if (ready)
                 {
                     bool wasSolid = n.Shown && n.Solid;
+                    // The ground under something is about to change shape (finer, with different heights). A
+                    // foot that ends up under the new surface would drop through it, so the world is told and
+                    // sets whatever stands here back on top.
+                    if (wasSolid && NearGround(n) < 0 && _reshaped.Count < 8) _reshaped.Add(n);
                     Show(n, false);
                     for (int c = 0; c < 4; c++)
                     {
@@ -554,6 +558,50 @@ namespace OrbitalAnte.Planets
             double nearest = double.MaxValue;
             for (int g = 0; g < _needGroundCount; g++) nearest = Math.Min(nearest, Vec3d.Distance(n.Centre, _needGround[g]) - reach);
             return nearest;
+        }
+
+        readonly List<Node> _reshaped = new List<Node>();
+
+        /// <summary>
+        /// True once if solid ground at this point (metres from the body's centre) was swapped for a finer shape
+        /// since the last time anyone asked. Call <see cref="ForgetReshaped"/> after asking for every mover.
+        /// </summary>
+        public bool ReshapedUnder(Vec3d point)
+        {
+            for (int i = 0; i < _reshaped.Count; i++)
+            {
+                Node n = _reshaped[i];
+                if (Vec3d.Distance(n.Centre, point) - TileRules.Reach(SurfaceRadius, n.Level) < 0) return true;
+            }
+            return false;
+        }
+
+        public bool AnyReshaped => _reshaped.Count > 0;
+        public void ForgetReshaped() => _reshaped.Clear();
+
+        /// <summary>
+        /// True if the ground showing under a point is solid and in its finest shape, so its real height is
+        /// what <see cref="GroundRadius"/> says. Coarser ground can be metres off.
+        /// </summary>
+        public bool FineSolidAt(Vec3d point)
+        {
+            if (!GroundShown || _roots == null) return false;
+            Node n = Nearest(_roots, point);
+            while (n != null && !n.Shown && n.Children != null) n = Nearest(n.Children, point);
+            return n != null && n.Shown && n.Solid && n.Level >= MaxLevel;
+        }
+
+        static Node Nearest(Node[] nodes, Vec3d point)
+        {
+            Node best = null;
+            double least = double.MaxValue;
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                if (nodes[i] == null) continue;
+                double d = Vec3d.Distance(nodes[i].Centre, point);
+                if (d < least) { least = d; best = nodes[i]; }
+            }
+            return best;
         }
 
         /// <summary>

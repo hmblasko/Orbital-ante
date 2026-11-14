@@ -193,7 +193,11 @@ namespace OrbitalAnte.Tests
             PlanetSurface moon = SurfaceOf("Moon");
             Vec3d spot = GentleSpot(moon);
             PlaceAbove("Moon", spot, 6);
-            yield return Settle(10);
+            _world.Craft.Body.isKinematic = true;   // hold it there while the finest ground arrives
+            Vec3d there = spot * moon.GroundRadius(spot);
+            for (int i = 0; i < 400 && !moon.FineSolidAt(there); i++) yield return null;
+            Assert.IsTrue(moon.FineSolidAt(there), "The ground under a craft 6 m up should become solid in its finest shape.");
+            _world.Craft.Body.isKinematic = false;
             // The lander's origin is its cabin floor, 3.8 m above its feet: with the floor at ground level the
             // whole underside is inside the Moon. It must not have to sink any further before it is rescued.
             _world.Craft.Gravity.SunkBelow = 0.6f;

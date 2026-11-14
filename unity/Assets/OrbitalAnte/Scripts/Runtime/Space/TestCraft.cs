@@ -32,6 +32,7 @@ namespace OrbitalAnte.Space
         public bool Steering { get; private set; }
         /// <summary>Controller only: the right stick has been clicked over to looking round the cabin.</summary>
         public bool PadLooking { get; private set; }
+        bool _lookFromPad;
         /// <summary>
         /// Where the pilot is looking when their head is turned well away from the nose (world direction), or
         /// zero. Lock then takes what they are looking at, so the rule is always "lock what is in front of my eyes".
@@ -327,8 +328,18 @@ namespace OrbitalAnte.Space
                 Vector2 move = GameInput.FlyMove.ReadValue<Vector2>();
                 // With a mouse, the ship turns only while Turn Ship is held. With a controller the right stick
                 // turns the ship unless it has been clicked over to looking about.
-                if (GameInput.FlyLookToggle != null && GameInput.FlyLookToggle.WasPressedThisFrame()) PadLooking = !PadLooking;
-                Steering = GameInput.UsingGamepad ? !PadLooking : GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
+                // Which it is goes by the device that last moved the view, not by "which device was touched last":
+                // a controller lying on the desk reports all the time and must not take the mouse's turn.
+                var lookFrom = GameInput.FlyLook.activeControl;
+                if (lookFrom != null) _lookFromPad = lookFrom.device is UnityEngine.InputSystem.Gamepad;
+                if (GameInput.FlyLookToggle != null && GameInput.FlyLookToggle.WasPressedThisFrame())
+                {
+                    PadLooking = !PadLooking;
+                    _lookFromPad = true;
+                }
+                bool held = GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
+                if (held) _lookFromPad = false;
+                Steering = _lookFromPad ? !PadLooking : held;
                 float lift = (GameInput.FlyUp.IsPressed() ? 1f : 0f) - (GameInput.FlyDown.IsPressed() ? 1f : 0f);
                 ThrustInput = Vector3.ClampMagnitude(new Vector3(move.x, lift, move.y), 1f);
                 Boosting = GameInput.Boost.IsPressed();

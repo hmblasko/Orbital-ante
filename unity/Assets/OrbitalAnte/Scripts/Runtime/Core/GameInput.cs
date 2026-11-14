@@ -232,8 +232,10 @@ namespace OrbitalAnte.Core
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
             var action = map.AddAction(name, InputActionType.Button);
-            if (keyboardPath != null) action.AddBinding(keyboardPath, groups: KeyboardMouseGroup);
-            if (gamepadPath != null) action.AddBinding(gamepadPath, groups: GamepadGroup);
+            // An action with nothing on one device still gets an empty slot for it, so the first binding is always
+            // the keyboard's and the second the controller's, and the controls page has a row to bind it on.
+            action.AddBinding(keyboardPath ?? string.Empty, groups: KeyboardMouseGroup);
+            action.AddBinding(gamepadPath ?? string.Empty, groups: GamepadGroup);
             return action;
         }
 

@@ -221,6 +221,8 @@ namespace OrbitalAnte.Planets
         {
             if (Surfaces == null || System == null || System.Model == null) return;
             IReadOnlyList<GravityBody> movers = System.Movers;
+            _reshapedNow = false;
+            for (int i = 0; i < Surfaces.Length; i++) _reshapedNow |= Surfaces[i] != null && Surfaces[i].AnyReshaped;
             for (int i = 0; i < movers.Count; i++)
             {
                 GravityBody mover = movers[i];
@@ -237,7 +239,7 @@ namespace OrbitalAnte.Planets
                 if (r < 1e-3) continue;
                 Vec3d dir = p / r;
 
-                if (s.GroundShown) GuardAgainstSinking(s, mover, rb, p, dir, r);
+                if (s.GroundShown) GuardAgainstSinking(s, mover, rb, p, dir, r, _reshapedNow);
 
                 if (r > s.AirTop) continue;
                 AirSample air = s.AirAt(p);
@@ -268,22 +270,40 @@ namespace OrbitalAnte.Planets
                     }
                 }
             }
+            if (_reshapedNow)
+            {
+                for (int i = 0; i < Surfaces.Length; i++) if (Surfaces[i] != null) Surfaces[i].ForgetReshaped();
+            }
         }
+
+        bool _reshapedNow;
 
         /// <summary>
         /// Ground only becomes solid as you get near it. If something still gets below it (arriving faster than the
         /// ground could be made solid), put it back on top instead of letting it fall through the world.
         /// </summary>
-        void GuardAgainstSinking(PlanetSurface s, GravityBody mover, Rigidbody rb, Vec3d p, Vec3d dir, double r)
+        void GuardAgainstSinking(PlanetSurface s, GravityBody mover, Rigidbody rb, Vec3d p, Vec3d dir, double r, bool reshaped)
         {
             // Cheap first test: nowhere near the highest ground this body has.
-            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5 + mover.SunkBelow) return;
+            float putBack = Mathf.Max(mover.PutBackAt, mover.SunkBelow + 0.5f);
+            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5 + putBack) return;
             double ground = s.GroundRadius(dir);
-            if (r >= ground + mover.SunkBelow || s.InCave(p, 4)) return;
+            // How low is too low depends on what it is standing on. The true height is only what the ground is
+            // really like where it is solid and in its finest shape; coarser ground can lie metres under it, and
+            // something resting there honestly must be left alone. There, only well under the ground counts.
+            double floor = -2.5;
+            if (mover.SunkBelow > floor && s.FineSolidAt(p))
+            {
+                floor = mover.SunkBelow;
+                // The ground here has just changed shape under it: its feet may be under the new surface with
+                // nothing to hold them (ground is solid from above only). Stand it back at its full height once.
+                if (reshaped && s.ReshapedUnder(p)) floor = putBack - 0.4;
+            }
+            if (r >= ground + floor || s.InCave(p, 4)) return;
 
             Transform body = s.Body.transform;
             Vector3 up = body.TransformDirection(SpaceConvert.ToVector3(dir));
-            Vector3 lifted = body.TransformPoint(SpaceConvert.ToVector3(dir * (ground + mover.PutBackAt)));
+            Vector3 lifted = body.TransformPoint(SpaceConvert.ToVector3(dir * (ground + putBack)));
             Vector3 groundVelocity = System.GroundVelocityAt(s.Body.Index, lifted);
             Vector3 relative = rb.linearVelocity - groundVelocity;
             float inward = Vector3.Dot(relative, up);
