@@ -394,6 +394,7 @@ namespace OrbitalAnte.Enemies
             config.rushes = spec.rushes;
             config.holdsStill = spec.holdsStill;
             config.closesIn = spec.closesIn;
+            config.modelId = spec.model ?? "";
             config.aimTell = spec.aimTell;
             if (spec.red + spec.green + spec.blue > 0f) config.torsoColor = new Color(spec.red, spec.green, spec.blue);
             if (type < _typeConfigs.Length) _typeConfigs[type] = config;

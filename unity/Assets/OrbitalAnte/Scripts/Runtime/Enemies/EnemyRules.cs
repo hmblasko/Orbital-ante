@@ -12,6 +12,8 @@ namespace OrbitalAnte.Enemies
     public sealed class EnemyTypeSpec
     {
         public string id = "Trooper";
+        /// <summary>The body model it is drawn with (empty: the ordinary one).</summary>
+        public string model = "";
         /// <summary>Height against the ordinary enemy (1).</summary>
         public float scale = 1f;
         /// <summary>Walking and running speed against the ordinary enemy.</summary>
@@ -32,9 +34,9 @@ namespace OrbitalAnte.Enemies
         public bool rushes, holdsStill;
         /// <summary>Keeps walking at the player until it is inside <see cref="keepFar"/>, instead of side-stepping at range.</summary>
         public bool closesIn;
-        /// <summary>Width against height (1: the ordinary build). With the colour, this is what tells the types apart at a glance.</summary>
+        /// <summary>Width against height (1: as modelled). Only for a kind with no body model of its own.</summary>
         public float width = 1f;
-        /// <summary>The colour of its chest, 0 to 1 each. All zero: the ordinary colour.</summary>
+        /// <summary>The colour of its chest on the stand-in shapes, 0 to 1 each. All zero: the ordinary colour.</summary>
         public float red, green, blue;
         /// <summary>Seconds a bright line shows where it is aiming before every shot (0: none). Only for slow, heavy single shots.</summary>
         public float aimTell;
@@ -89,17 +91,16 @@ namespace OrbitalAnte.Enemies
                 // The ordinary one: walks, takes cover of distance, fires bursts from a rifle.
                 new EnemyTypeSpec { id = "Trooper", share = 4f },
                 // Small and quick: runs straight in and sprays from close up. Falls apart fast.
-                new EnemyTypeSpec { id = "Runner", scale = 0.85f, speed = 1.5f, toughness = 0.7f, weapon = "Smg", engageRange = 30f,
-                                    red = 0.95f, green = 0.8f, blue = 0.15f, reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
+                new EnemyTypeSpec { id = "Runner", model = "EnemyRunner", scale = 0.85f, speed = 1.5f, toughness = 0.7f, weapon = "Smg", engageRange = 30f,
+                                    reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
                 // Big and slow: walks you down with a blast that only matters close. Hard to stop in the middle.
-                new EnemyTypeSpec { id = "Bruiser", scale = 1.3f, width = 1.45f, speed = 0.8f, toughness = 2.2f, weapon = "Shotgun", engageRange = 20f,
-                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true,
-                                    red = 0.75f, green = 0.2f, blue = 0.16f },
+                new EnemyTypeSpec { id = "Bruiser", model = "EnemyBruiser", scale = 1.3f, speed = 0.8f, toughness = 2.2f, weapon = "Shotgun", engageRange = 20f,
+                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true },
                 // Tall, thin and still: stands off and takes one slow, painful shot. A bright line shows where it is
                 // aiming for a second before every shot, and there is never more than one in a camp.
-                new EnemyTypeSpec { id = "Marksman", scale = 1.2f, width = 0.95f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
+                new EnemyTypeSpec { id = "Marksman", model = "EnemyMarksman", scale = 1.2f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
                                     reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, share = 1f,
-                                    aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true, red = 0.22f, green = 0.5f, blue = 0.85f },
+                                    aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true },
             };
         }
 

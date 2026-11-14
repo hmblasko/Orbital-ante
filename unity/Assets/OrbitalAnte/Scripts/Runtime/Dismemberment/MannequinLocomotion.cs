@@ -76,7 +76,9 @@ namespace OrbitalAnte.Dismemberment
             _wanderArea = area;
             _rng = new SeededRandom(seed);
             // How this one carries itself (its stance, its arm swing, when it glances about) differs per character.
-            _anim = new BodyAnimator(seed);
+            // Each kind carries itself its own way, and a body drawn larger takes longer strides.
+            string model = _cfg != null ? _cfg.modelId : null;
+            _anim = new BodyAnimator(seed, string.IsNullOrEmpty(model) ? null : BodyStyle.For(model)) { Size = transform.lossyScale.y };
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
             PickTarget();
         }

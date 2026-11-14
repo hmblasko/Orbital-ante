@@ -63,6 +63,8 @@ namespace OrbitalAnte.Dismemberment
         public bool rushes = false;
         [Tooltip("Stands its ground and shoots: never shifts position while it can see the player.")]
         public bool holdsStill = false;
+        [Tooltip("The body model this kind is drawn with (a file in Resources/Models). Empty or missing: the ordinary Enemy body.")]
+        public string modelId = "";
         [Tooltip("Keeps coming at the player until it is inside Keep Far, instead of side-stepping at range.")]
         public bool closesIn = false;
         [Tooltip("Seconds a bright line shows where it is aiming before every shot. 0: none. For slow, heavy single shots only.")]
