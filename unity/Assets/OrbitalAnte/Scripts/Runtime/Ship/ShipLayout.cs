@@ -78,9 +78,11 @@ namespace OrbitalAnte.Ship
         public const float BaseInradius = 2.3f;
         public const float BaseTop = -0.05f;
         /// <summary>Height of the bottom of the footpads: the ground, when the ship stands level.</summary>
-        public const float GroundY = -3.8f;
+        public const float GroundY = -5.6f;
+        /// <summary>Room under the belly when the ship stands level on flat ground.</summary>
+        public const float BellyClearance = BellyY - GroundY;
         public const float FootpadRadius = 0.45f;
-        public const float FootpadDistance = 4.3f;
+        public const float FootpadDistance = 5.5f;
         public const int Legs = 4;
         public const float EngineDistance = 1.5f;
         public const float EngineExitRadius = 0.4f;

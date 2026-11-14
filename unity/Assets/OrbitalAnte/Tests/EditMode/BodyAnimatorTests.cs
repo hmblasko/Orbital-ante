@@ -269,5 +269,20 @@ namespace OrbitalAnte.Tests
             }
             Assert.Greater(apart, 0.1, "a crowd would march in perfect step");
         }
+
+        [Test]
+        public void ASlowFrameRate_LosesNoTime_SoTheStrideKeepsUpWithTheGround()
+        {
+            // The character is moved by the whole frame time, so the animation must use the whole of it too.
+            var smooth = new BodyAnimator(3);
+            var choppy = new BodyAnimator(3);
+            BodyAnimInput input = Standing(Walk);
+            for (int i = 0; i < 180; i++) smooth.Update(Dt, input);     // three seconds at 60 frames a second
+            for (int i = 0; i < 30; i++) choppy.Update(0.1, input);     // the same three seconds at 10
+            double lag = Math.Abs(smooth.Gait - choppy.Gait);
+            lag = Math.Min(lag, 1.0 - lag);                             // the stride goes round from 1 back to 0
+            Assert.Less(lag, 0.06, "at 10 frames a second the stride fell behind the ground covered");
+            AssertSound(choppy.Pose, "at 10 frames a second");
+        }
     }
 }

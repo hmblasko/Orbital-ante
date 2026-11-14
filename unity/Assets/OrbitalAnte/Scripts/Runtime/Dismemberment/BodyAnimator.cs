@@ -117,7 +117,19 @@ namespace OrbitalAnte.Dismemberment
         public void Update(double dt, in BodyAnimInput input)
         {
             if (dt < 0) dt = 0;
-            if (dt > 0.05) dt = 0.05;
+            // A long frame is taken in several short steps, so the springs stay steady and no time is lost:
+            // the character has moved the whole frame's distance, and its stride has to keep up or the feet
+            // skate. Beyond a fifth of a second (a hitch, not a frame rate) the rest is let go.
+            if (dt > MaxStep * MaxSteps) dt = MaxStep * MaxSteps;
+            int steps = Math.Max(1, (int)Math.Ceiling(dt / MaxStep - 1e-9));
+            for (int i = 0; i < steps; i++) Step(dt / steps, input);
+        }
+
+        const double MaxStep = 0.05;
+        const int MaxSteps = 4;
+
+        void Step(double dt, in BodyAnimInput input)
+        {
             _time += dt;
 
             double towardSpeed = 1.0 - Math.Exp(-9.0 * dt);

@@ -13,7 +13,7 @@ namespace OrbitalAnte.Tests
     /// </summary>
     public class ShipPropsTests
     {
-        const int ExteriorBudget = 14000, InteriorBudget = 12000;
+        const int ExteriorBudget = 14000, InteriorBudget = 15000;
 
         static readonly Dictionary<string, ShipMesh> Meshes = ShipProps.All().ToDictionary(p => p.Key, p => p.Value);
         static readonly string[] ExteriorNames = ShipProps.Exterior().Select(p => p.Key).ToArray();
@@ -702,7 +702,7 @@ namespace OrbitalAnte.Tests
                 P3 p = ring.Position(i);
                 if (ring.Glow[i] <= 0f) continue;
                 lit++;
-                Assert.AreEqual(6f, ring.Glow[i]);
+                Assert.AreEqual(ShipProps.RingLampGlow, ring.Glow[i]);
                 Assert.AreEqual(ShipLayout.CeilingLightRadius, Flat(p), 0.07f);
                 Assert.LessOrEqual(p.Y, ShipLayout.CeilingLightY + 1e-4f, "the lamp should shine from the underside");
             }
@@ -720,7 +720,7 @@ namespace OrbitalAnte.Tests
                 P3 p = lamps.Position(i);
                 Assert.That(p.Y, Is.InRange(1.6f, 1.9f));
                 if (lamps.Glow[i] <= 0f) continue;
-                Assert.AreEqual(5f, lamps.Glow[i]);
+                Assert.AreEqual(ShipProps.WallLampGlow, lamps.Glow[i]);
                 for (int k = 0; k < ShipLayout.Legs; k++)
                 {
                     double a = ShipLayout.LegAngle(k);
@@ -728,6 +728,64 @@ namespace OrbitalAnte.Tests
                 }
             }
             foreach (int n in perLeg) Assert.Greater(n, 0, "a wall lamp is missing");
+        }
+
+        [Test]
+        public void Comforts_NeverStandWhereYouWalk_OrInTheFrontWindow()
+        {
+            // You walk inside WalkRadius, between the lockers and the desk; your body is PersonRadius wide and
+            // PersonHeight tall. Nothing soft may stand in that space, because nothing there would stop you.
+            float reach = ShipLayout.WalkRadius + ShipLayout.PersonRadius;
+            foreach (string name in new[] { "comforts", "fairy_lights" })
+            {
+                ShipMesh m = Meshes[name];
+                for (int i = 0; i < m.VertexCount; i++)
+                {
+                    P3 p = m.Position(i);
+                    bool rug = p.Y < 0.02f;
+                    bool behindTheLockers = p.Z <= ShipLayout.LockerZ + 0.02f, pastTheDesk = p.Z >= ShipLayout.DeskZ;
+                    bool overhead = p.Y > ShipLayout.PersonHeight + 0.03f;
+                    if (!rug && !behindTheLockers && !pastTheDesk && !overhead)
+                        Assert.GreaterOrEqual(Flat(p), reach, name + " stands where you can walk at " + p);
+                    // The front window's sill is at 0.85: nothing on the nose may stand up into the view.
+                    if (pastTheDesk) Assert.LessOrEqual(p.Y, 0.84f, name + " stands up into the front window at " + p);
+                }
+            }
+        }
+
+        [Test]
+        public void FairyLights_GlowRoundTheDome_AndLeaveTheFrontWindowClear()
+        {
+            ShipMesh m = Meshes["fairy_lights"];
+            int lit = 0;
+            for (int i = 0; i < m.VertexCount; i++)
+            {
+                P3 p = m.Position(i);
+                double fromNose = Math.Abs(Math.Atan2(p.X, p.Z)) * 180.0 / Math.PI;
+                Assert.GreaterOrEqual(fromNose, 50.0, "the string of lights crosses the front window at " + p);
+                Assert.That(p.Y, Is.InRange(ShipProps.FairyHookY - ShipProps.FairySag - 0.08f, ShipProps.FairyHookY + 0.03f));
+                if (m.Glow[i] <= 0f) continue;
+                Assert.AreEqual(ShipProps.FairyGlow, m.Glow[i]);
+                lit++;
+            }
+            Assert.Greater(lit, 300, "there should be dozens of bulbs");
+        }
+
+        [Test]
+        public void Comforts_HaveTheirLantern_TheirRug_AndStarsOnTheCeiling()
+        {
+            ShipMesh m = Meshes["comforts"];
+            int lantern = 0, stars = 0, rug = 0;
+            for (int i = 0; i < m.VertexCount; i++)
+            {
+                P3 p = m.Position(i);
+                if (p.Y < 0.02f) { rug++; Assert.Less(p.Z, 0f, "the rug lies behind the lift well, clear of the hatch doors' slide"); }
+                if (m.Glow[i] == ShipProps.LanternGlow) { lantern++; Assert.Less(p.Z, ShipLayout.LockerZ, "the lantern stands on the lockers"); }
+                else if (m.Glow[i] > 0f && p.Y > 2f) stars++;
+            }
+            Assert.Greater(lantern, 0);
+            Assert.Greater(rug, 100);
+            Assert.GreaterOrEqual(stars / 8, 20, "at least twenty stars (eight corners each)");
         }
 
         [Test]

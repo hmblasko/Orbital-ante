@@ -20,9 +20,9 @@ OUT = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "Orbita
 
 # ---- from ShipLayout (checked by the rule test ShipModelFile_MatchesTheShipLayout)
 BASE_INRADIUS, BELLY_Y, BASE_TOP, SHAFT_RADIUS = 2.3, -1.7, -0.05, 0.8
-GROUND_Y, FOOTPAD_RADIUS = -3.8, 0.45
+GROUND_Y, FOOTPAD_RADIUS = -5.6, 0.45
 ENGINE_EXIT_Y, ENGINE_EXIT_RADIUS, ENGINE_RING = -2.35, 0.4, 1.5
-LEG_ROOT_R, LEG_ROOT_Y, LEG_PAD_R = 2.4, -0.55, 4.3
+LEG_ROOT_R, LEG_ROOT_Y, LEG_PAD_R = 2.4, -0.55, 5.5
 THRUSTER_R, THRUSTER_Y, THRUSTER_FOOT_R, THRUSTER_FOOT_Y = 3.05, 1.15, 2.598, 1.1533
 DISH_CENTRE, DISH_MAST_FOOT, DISH_RADIUS = (-1.2, 3.35, -1.3), (-0.95, 2.4, -1.05), 0.62
 SIDES = 64
@@ -185,13 +185,13 @@ def leg(index):
 
     # Where it meets the base: a bracket and a fat joint.
     parts.append(metal(oa.box("leg bracket", at_angle(LEG_ROOT_R - 0.16, LEG_ROOT_Y, degrees), (0.5, 0.5, 0.44), DARK_METAL, bevel=0.09, segments=3, rot=(0, 0, -degrees)), 1))
-    parts.append(metal(oa.sphere("leg shoulder", root, 0.25, DARK_METAL, segments=14), 2))
+    parts.append(metal(oa.sphere("leg shoulder", root, 0.25, DARK_METAL, segments=12), 2))
     # Upper strut wrapped in gold foil, with two dark straps.
-    parts.append(foil(rod("upper strut", root + d * 0.1, knee - d * 0.1, 0.17, GOLD, segments=14, bevel=0.05), 3, amount=0.012))
+    parts.append(foil(rod("upper strut", root + d * 0.1, knee - d * 0.1, 0.17, GOLD, segments=12, bevel=0.05), 3, amount=0.012))
     for t in (0.3, 0.72):
         m = root + (knee - root) * t
-        parts.append(metal(rod("strap", m - d * 0.035, m + d * 0.035, 0.19, CHARCOAL, segments=14, bevel=0.012), 4))
-    parts.append(metal(oa.sphere("knee", knee, 0.215, DARK_METAL, segments=14), 5))
+        parts.append(metal(rod("strap", m - d * 0.035, m + d * 0.035, 0.19, CHARCOAL, segments=12, bevel=0.012), 4))
+    parts.append(metal(oa.sphere("knee", knee, 0.215, DARK_METAL, segments=12), 5))
     # Lower strut: a bare piston sliding out of a collar.
     parts.append(metal(rod("collar", knee + d * 0.12, knee + d * 0.5, 0.135, SILVER_DARK, segments=12, bevel=0.03), 6))
     parts.append(metal(rod("piston", knee + d * 0.4, ankle, 0.095, SILVER, segments=12), 7, wear=0.3))
@@ -218,7 +218,7 @@ def leg(index):
             parts.append(metal(rod("rail", p0, p1, 0.034, SILVER, segments=8, bevel=0.012), 12))
             parts.append(metal(rod("rail bracket", p0 + d * 0.06, root + along * t0 + d * 0.06, 0.024, SILVER_DARK, segments=6), 13))
             parts.append(metal(rod("rail bracket", p1 - d * 0.06, root + along * t1 - d * 0.06, 0.024, SILVER_DARK, segments=6), 13))
-        rungs = 6
+        rungs = 8
         for r in range(rungs):
             t = t0 + 0.035 + (t1 - t0 - 0.07) * r / (rungs - 1)
             m = root + along * t + off * stand
@@ -423,6 +423,98 @@ def landing_camera():
     turned(body + lamp, centre, (0, 0, -1), up=(0, 1, 0))
     return parts + body, lamp, centre - Vector((0, 0, lens))
 
+# Not from ShipLayout: the cockpit's desk panel (CockpitConfig.deskPosition, deskWidth, deskLean; the panel
+# is 1000 x 300 units, so its height is 0.3 of its width). The game reads the place from the socket Dash.
+DASH_CENTRE, DASH_WIDTH, DASH_HEIGHT, DASH_LEAN = (0.0, 0.9, 1.94), 1.1, 0.33, 24.0
+DASH_FRAME = 0.046                       # how far the bezel reaches past the screen on every side
+DASH_PROUD = 0.042                       # how far the bezel stands out towards the pilot
+DASH_BROW, DASH_BROW_PROUD = 0.018, 0.022  # along the top both are less: nothing may stand above DASH_TOP,
+DASH_TOP = 1.08                          # so the pilot (eye at 1.18) sees the front window over the dash
+
+
+def swept_frame(name, profile, colour, half_width, half_height, corner=0.022, corner_steps=3, top=(1.0, 1.0)):
+    """A frame round a rounded rectangle in the XZ plane. profile is (outward, depth) points; -depth faces the viewer.
+
+    top scales (outward, depth towards the viewer) along the top edge, for a frame that is slimmer there.
+    """
+    path = []
+    for cx, cz, start in ((1, 1, 0.0), (-1, 1, 90.0), (-1, -1, 180.0), (1, -1, 270.0)):
+        for k in range(corner_steps + 1):
+            a = math.radians(start + 90.0 * k / corner_steps)
+            m = (math.cos(a), math.sin(a))
+            path.append(((cx * (half_width - corner) + m[0] * corner, cz * (half_height - corner) + m[1] * corner), m))
+    bm = bmesh.new()
+    rings = []
+    for p, m in path:
+        w = max(0.0, m[1])
+        so, sd = 1.0 + (top[0] - 1.0) * w, 1.0 + (top[1] - 1.0) * w
+        rings.append([bm.verts.new((p[0] + m[0] * o * so, d * sd if d < 0 else d, p[1] + m[1] * o * so)) for o, d in profile])
+    faces = []
+    for k in range(len(rings)):
+        a, b = rings[k], rings[(k + 1) % len(rings)]
+        for j in range(len(profile) - 1):
+            faces.append(bm.faces.new((a[j], a[j + 1], b[j + 1], b[j])))
+    bm.normal_update()
+    nearest = min(faces, key=lambda f: f.calc_center_median().y)
+    if nearest.normal.y > 0:
+        for f in faces:
+            f.normal_flip()
+    return oa._new_object(name, bm, colour, recalc=False)
+
+
+def dash_housing():
+    """The cockpit dash's housing: a chunky wedge of a console standing on the desk, its screen left open."""
+    lean = math.radians(DASH_LEAN)
+    c, s = math.cos(lean), math.sin(lean)
+    hw, hh, f = DASH_WIDTH / 2, DASH_HEIGHT / 2, DASH_FRAME
+    ear = 0.092                                           # a strip of controls either side of the screen
+    half = hw + f + ear
+    slim = (DASH_BROW / f, DASH_BROW_PROUD / DASH_PROUD)
+    ear_top = 0.176                                       # the control strips stop below the brow
+    front = []                                            # built facing the viewer: X right, Y away, Z up the screen
+    liner = swept_frame("dash liner", [(0.0, 0.010), (0.0, -0.030), (0.012, -0.037)], CHARCOAL, hw, hh, top=slim)
+    oa.paint(liner, wear=0.1, dirt=0.2, mottle=0.2, seed=61, gradient=0.0)
+    front.append(liner)
+    front.append(painted(swept_frame("dash bezel", [(0.012, -0.037), (0.022, -DASH_PROUD), (0.032, -DASH_PROUD), (0.041, -0.033), (f, -0.016), (f, 0.03)], CREAM, hw, hh, top=slim), 62))
+    back = oa.box("dash backing", (0, 0.009, 0), (DASH_WIDTH + 0.01, 0.002, DASH_HEIGHT + 0.01), (0.05, 0.055, 0.06), bevel=0)
+    oa.paint(back, wear=0, dirt=0, mottle=0, gradient=0)
+    front.append(back)
+    for side in (-1, 1):
+        x = side * (hw + f + ear / 2 - 0.004)
+        front.append(painted(oa.box("dash ear", (x, -0.004, (ear_top - hh - f) / 2), (ear + 0.012, 0.062, ear_top + hh + f - 0.002), CREAM, bevel=0.018), 63 + side))
+    front.append(painted(oa.box("brow stripe", (0, -DASH_BROW_PROUD - 0.0005, hh + DASH_BROW * 0.55), (DASH_WIDTH - 0.24, 0.003, 0.007), ORANGE, bevel=0), 69))
+    knob = [(0.0, 0.034), (0.008, 0.034), (0.012, 0.027), (0.030, 0.024), (0.034, 0.018), (0.034, 0.0)]
+    left, right = -(hw + f + ear / 2 - 0.004), hw + f + ear / 2 - 0.004
+    for k, (z, colour) in enumerate(((0.085, ORANGE), (-0.025, CREAM))):
+        front.append(metal(oa.lathe("dash knob", (left, -0.035, z), (0, -1, 0), knob, colour, segments=10), 70 + k, wear=0.3))
+        front.append(metal(oa.box("knob mark", (left, -0.070, z + 0.012), (0.006, 0.004, 0.018), CHARCOAL, bevel=0), 72 + k))
+    front.append(metal(oa.box("speaker", (left, -0.036, -0.125), (0.062, 0.006, 0.05), DARK_METAL, bevel=0.003, segments=1), 74))
+    for k in range(3):
+        front.append(metal(oa.box("speaker slot", (left, -0.040, -0.139 + 0.014 * k), (0.046, 0.004, 0.005), CHARCOAL, bevel=0), 75))
+    lamp = oa.sphere("dash lamp", (right, -0.036, 0.105), 0.017, LENS_RED, segments=8)
+    oa.paint(lamp, wear=0, dirt=0, mottle=0, gradient=0)
+    front.append(lamp)
+    front.append(metal(oa.cylinder("lamp collar", (right, -0.030, 0.105), (right, -0.040, 0.105), 0.024, SILVER, segments=10), 76))
+    for k, z in enumerate((0.02, -0.07)):
+        front.append(metal(oa.box("toggle plate", (right, -0.036, z), (0.05, 0.006, 0.06), DARK_METAL, bevel=0.003, segments=1), 77 + k))
+        front.append(metal(rod("toggle", (right, -0.036, z), (right, -0.072, z + (0.016 if k == 0 else -0.016)), 0.007, SILVER, radius_end=0.011, segments=6), 79 + k))
+    away, up = Vector((0, c, -s)), Vector((0, s, c))
+    turned(front, G(*DASH_CENTRE), away, up)
+
+    # The body behind the screen, in ship space: a wedge that slopes back down to the desk.
+    reach = hh + f
+    mid = (DASH_CENTRE[2] + 0.014 * c, DASH_CENTRE[1] - 0.014 * s)       # (nose, up), just behind the screen
+    rise = hh + DASH_BROW - 0.004
+    low, high = (mid[0] - reach * s, mid[1] - reach * c), (mid[0] + rise * s, mid[1] + rise * c)
+    outline = [(low[0], 0.64), low, high, (high[0] + 0.09, high[1] - 0.012), (2.27, 0.96), (2.31, 0.76), (2.31, 0.64)]
+    parts = [painted(oa.slab("dash body", outline, 2 * half - 0.012, CREAM, bevel=0.03, segments=2), 81)]
+    for k in range(4):                                                    # cooling slots down the back slope
+        t = 0.2 + 0.2 * k
+        z, y = high[0] + 0.09 + (2.27 - high[0] - 0.09) * t, high[1] - 0.012 + (0.96 - high[1] + 0.012) * t
+        parts.append(metal(oa.box("dash vent", G(0, y + 0.004, z + 0.004), (0.7, 0.012, 0.014), CHARCOAL, bevel=0, rot=(-45, 0, 0)), 82))
+    parts.append(metal(oa.box("dash plinth", G(0, 0.69, 2.10), (2 * half + 0.02, 0.50, 0.08), DARK_METAL, bevel=0.02, segments=2), 83))
+    return parts + front
+
 
 def lander():
     pieces = [("base", base())]
@@ -441,6 +533,8 @@ def lander():
     body, lamp, lens = landing_camera()
     pieces += [("landingcam", body), ("landingcamGlow", lamp)]
     cameras.append(("LandingCam", lens))
+    pieces.append(("dashhousing", dash_housing()))
+    cameras.append(("Dash", G(*DASH_CENTRE)))
     sockets = [oa.socket(name, position) for name, position in cameras]
     for i in range(4):
         sockets.append(oa.socket("LegRoot%d" % i, at_angle(LEG_ROOT_R, LEG_ROOT_Y, 45 + 90 * i)))
@@ -498,13 +592,29 @@ if __name__ == "__main__":
     oa.export(os.path.join(OUT, "Lander.bytes"), pieces, sockets)
     if previews:
         shown = [o for _, objs in pieces for o in objs]
+        if "--dash" in args:
+            # The housing as the pilot sees it, on a stand-in desk with a stand-in screen.
+            dash = [o for n, objs in pieces if n == "dashhousing" for o in objs]
+            desk = oa.slab("desk", [(1.75, 0.4), (1.75, 0.655), (1.82, 0.675), (2.49, 0.745), (2.49, 0.4)], 3.2, (0.10, 0.11, 0.13), bevel=0.02)
+            wall = oa.box("wall", G(0, 1.0, 2.6), (6, 0.1, 3), (0.80, 0.76, 0.68), bevel=0)
+            lean = math.radians(DASH_LEAN)
+            screen = oa.box("screen", (0, 0, 0), (DASH_WIDTH, 0.002, DASH_HEIGHT), (0.03, 0.22, 0.12), bevel=0)
+            turned([screen], G(*DASH_CENTRE), Vector((0, math.cos(lean), -math.sin(lean))), Vector((0, math.sin(lean), math.cos(lean))))
+            for o in (desk, wall, screen):
+                oa.paint(o, wear=0, dirt=0, mottle=0, gradient=0)
+            dash += [desk, wall, screen]
+            oa.render_preview(os.path.join(previews, "dash_seat.png"), dash, G(0, 1.18, 1.28), G(0, 0.95, 1.94), lens=11, size=(1200, 760), samples=64, sun=(60, 0, 200))
+            if "--quick" not in args:
+                oa.render_preview(os.path.join(previews, "dash_side.png"), dash, G(1.5, 1.35, 1.0), G(0.1, 0.88, 2.0), lens=35, size=(1200, 760), samples=64, sun=(60, 0, 200))
+            oa.render_preview(os.path.join(previews, "dash_back.png"), dash, G(-1.25, 1.45, 2.52), G(-0.1, 0.85, 2.1), lens=24, size=(1200, 760), samples=64, sun=(60, 0, 20))
+            sys.exit(0)
         if hull:
             shown += load_hull(hull)
         floor = oa.box("floor", (0, 0, GROUND_Y - 0.01), (400, 400, 0.02), (0.62, 0.42, 0.30), bevel=0)
         oa.paint(floor, wear=0, dirt=0, mottle=0, gradient=0)
         shown.append(floor)
-        oa.render_preview(os.path.join(previews, "lander_a.png"), shown, (9, 13, 1.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
-        oa.render_preview(os.path.join(previews, "lander_b.png"), shown, (-12, -7, 4.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_a.png"), shown, (11.5, 16.5, 0.4), (0, 0, -1.3), lens=40, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_b.png"), shown, (-15, -9, 4.5), (0, 0, -1.3), lens=40, size=(1100, 800), samples=64)
         oa.render_preview(os.path.join(previews, "lander_cams.png"), shown, (10.5, -10.5, 6.0), (0.5, -0.5, 0.6), lens=36, size=(1200, 820), samples=64)
         oa.render_preview(os.path.join(previews, "lander_camhead.png"), shown, (3.2, -1.0, 2.2), (5.0, -3.0, 2.5), lens=40, size=(900, 700), samples=64)
-        oa.render_preview(os.path.join(previews, "lander_c.png"), shown, (5.2, 5.6, -2.9), (1.2, 1.0, -1.6), lens=30, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_c.png"), shown, (6.4, 6.9, -4.6), (1.2, 1.0, -2.2), lens=30, size=(1100, 800), samples=64)

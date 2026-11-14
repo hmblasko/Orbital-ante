@@ -95,7 +95,7 @@ namespace OrbitalAnte.Ship
             ship.Config = config;
             ship.Body = rb;
             ship.Model = new ShipModel(config.damage);
-            ship.Hatch = new HatchLift { DoorSeconds = config.doorSeconds, LiftSpeed = config.liftSpeed, Reach = config.liftReach };
+            ship.Hatch = new HatchLift { DoorSeconds = config.doorSeconds, LiftSpeed = config.liftSpeed, Reach = ReachOf(config) };
             ship.Belt = new SeatBelt { BuckleSeconds = config.buckleSeconds, UnbuckleSeconds = config.unbuckleSeconds };
             ship.Sounds = ShipAudio.Build();
             ship.Build();
@@ -303,7 +303,7 @@ namespace OrbitalAnte.Ship
 
             var beam = new MeshBuilder();
             beam.Color("#39B8FF");
-            float bottom = ShipLayout.BellyY - Config.liftReach;
+            float bottom = ShipLayout.BellyY - ReachOf(Config);
             beam.Lathe(P3.Zero, new[] { ShipLayout.ShaftRadius * 0.96f, ShipLayout.ShaftRadius * 0.96f }, new[] { bottom, ShipLayout.BellyY }, 28);
             var beamGo = new GameObject("LiftBeam");
             beamGo.transform.SetParent(transform, false);
@@ -833,10 +833,20 @@ namespace OrbitalAnte.Ship
         /// How far down the lift can set someone down: the ground under the belly in ship space, or NaN when
         /// there is nothing within its reach to stand on.
         /// </summary>
+        /// <summary>
+        /// How far below the belly the lift reaches: the dial, but never less than the ground under the
+        /// footpads plus a margin, so an old config asset cannot leave the lift short of the ground.
+        /// </summary>
+        public static float ReachOf(ShipConfig config)
+        {
+            float needed = ShipLayout.BellyClearance + 1.5f;
+            return config == null ? needed : Mathf.Max(config.liftReach, needed);
+        }
+
         public float FindLiftBottom()
         {
             Vector3 from = transform.TransformPoint(new Vector3(0f, ShipLayout.BellyY, 0f));
-            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, Config.liftReach, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, ReachOf(Config), Layers.WorldMask, QueryTriggerInteraction.Ignore);
             float nearest = float.MaxValue;
             for (int i = 0; i < hits; i++)
             {
