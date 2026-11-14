@@ -66,6 +66,149 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ARecoveredBackupSurvivesTheNextSaveAndNormalRotationResumes()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.WriteAllText(_store.MainPath, "{ half a fi");
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+
+            _store.Write("save:recovered");
+            Assert.AreEqual("save:recovered", File.ReadAllText(_store.MainPath));
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+            Assert.IsFalse(File.Exists(_store.MainPath + ".tmp"));
+
+            _store.Write("save:next");
+            Assert.AreEqual("save:next", File.ReadAllText(_store.MainPath));
+            Assert.AreEqual("save:recovered", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void RepeatedRecoveryAndAFreshInstancePreserveTheGoodBackup()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.WriteAllText(_store.MainPath, "junk");
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+
+            var reopened = new SaveFileStore(_folder, "save.json");
+            Assert.AreEqual(SaveSource.Backup, reopened.TryRead(LooksValid, out string content));
+            Assert.AreEqual("save:good", content);
+            reopened.Write("save:recovered");
+            Assert.AreEqual("save:good", File.ReadAllText(reopened.BackupPath));
+        }
+
+        [Test]
+        public void AMissingMainKeepsTheRecoveredBackupOnWrite()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.Delete(_store.MainPath);
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+
+            _store.Write("save:recovered");
+            Assert.AreEqual("save:recovered", File.ReadAllText(_store.MainPath));
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void AFailedPromotionCanBeRetriedWithoutLosingTheRecoveredBackup()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.WriteAllText(_store.MainPath, "junk");
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+
+            // A directory occupying the destination permits staging but prevents promotion on both platforms.
+            File.Delete(_store.MainPath);
+            Directory.CreateDirectory(_store.MainPath);
+            AssertFileOperationFails(() => _store.Write("save:failed"));
+            Assert.AreEqual("save:failed", File.ReadAllText(_store.MainPath + ".tmp"));
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+            var reopened = new SaveFileStore(_folder, "save.json");
+            Assert.AreEqual(SaveSource.Backup, reopened.TryRead(LooksValid, out string content));
+            Assert.AreEqual("save:good", content);
+
+            Directory.Delete(_store.MainPath);
+            File.WriteAllText(_store.MainPath, "junk");
+            _store.Write("save:retried");
+            Assert.AreEqual("save:retried", File.ReadAllText(_store.MainPath));
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void AWriteCanValidateAnExistingMainWithoutLoadingFirst()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.WriteAllText(_store.MainPath, "junk");
+
+            var reopened = new SaveFileStore(_folder, "save.json");
+            reopened.Write("save:recovered", LooksValid);
+            Assert.AreEqual("save:recovered", File.ReadAllText(reopened.MainPath));
+            Assert.AreEqual("save:good", File.ReadAllText(reopened.BackupPath));
+            reopened.Write("save:next", LooksValid);
+            Assert.AreEqual("save:recovered", File.ReadAllText(reopened.BackupPath));
+        }
+
+        [Test]
+        public void AWriteRechecksAMainDamagedSinceLoading()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            Assert.AreEqual(SaveSource.Main, _store.TryRead(LooksValid, out _));
+            File.WriteAllText(_store.MainPath, "junk");
+
+            _store.Write("save:recovered", LooksValid);
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void AnyFileMatchesChecksTheBackupEvenWhenTheMainIsUsable()
+        {
+            Assert.IsFalse(_store.AnyFileMatches(text => true));
+            _store.Write("future:one");
+            _store.Write("save:two");
+
+            Assert.IsTrue(_store.AnyFileMatches(text => text.StartsWith("future:", StringComparison.Ordinal)));
+            Assert.IsFalse(_store.AnyFileMatches(text => text == "absent"));
+            Assert.AreEqual("save:two", File.ReadAllText(_store.MainPath));
+            Assert.AreEqual("future:one", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void AnyFileMatchesDoesNotChangeRecoveryState()
+        {
+            _store.Write("save:good");
+            _store.Write("save:newer");
+            File.WriteAllText(_store.MainPath, "junk");
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+
+            Assert.IsTrue(_store.AnyFileMatches(text => true));
+            _store.Write("save:recovered");
+            Assert.AreEqual("save:good", File.ReadAllText(_store.BackupPath));
+        }
+
+        [Test]
+        public void AnyFileMatchesReportsUnreadablePaths()
+        {
+            _store.Write("save:good");
+            Directory.CreateDirectory(_store.BackupPath);
+            AssertFileOperationFails(() => _store.AnyFileMatches(text => false));
+            Assert.AreEqual("save:good", File.ReadAllText(_store.MainPath));
+        }
+
+        static void AssertFileOperationFails(Action operation)
+        {
+            bool failed = false;
+            try { operation(); }
+            catch (IOException) { failed = true; }
+            catch (UnauthorizedAccessException) { failed = true; }
+            Assert.IsTrue(failed, "The filesystem must refuse the occupied directory path.");
+        }
+
+        [Test]
         public void AnEmptyOrMissingSaveFallsBackToTheBackup()
         {
             _store.Write("save:good");
@@ -106,9 +249,18 @@ namespace OrbitalAnte.Tests
         {
             _store.Write("save:one");
             _store.Write("save:two");
+            File.WriteAllText(_store.MainPath, "junk");
+            Assert.AreEqual(SaveSource.Backup, _store.TryRead(LooksValid, out _));
+            File.WriteAllText(_store.MainPath + ".tmp", "leftover");
             _store.DeleteAll();
             Assert.IsFalse(File.Exists(_store.MainPath));
             Assert.IsFalse(File.Exists(_store.BackupPath));
+            Assert.IsFalse(File.Exists(_store.MainPath + ".tmp"));
+            // A newly supplied main must rotate normally after the recovery state was deleted.
+            File.WriteAllText(_store.MainPath, "save:new-one");
+            _store.Write("save:new-two");
+            Assert.AreEqual("save:new-one", File.ReadAllText(_store.BackupPath));
+            _store.DeleteAll();
             Assert.AreEqual(SaveSource.None, _store.TryRead(LooksValid, out _));
         }
 
