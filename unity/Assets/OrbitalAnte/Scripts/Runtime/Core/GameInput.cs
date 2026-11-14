@@ -43,6 +43,8 @@ namespace OrbitalAnte.Core
         public static InputAction FlyLook { get; private set; }
         /// <summary>Held: the mouse or right stick turns the ship. Let go: it turns your head instead.</summary>
         public static InputAction FlySteer { get; private set; }
+        /// <summary>Controller: switches the right stick between turning the ship and looking round the cabin.</summary>
+        public static InputAction FlyLookToggle { get; private set; }
         public static InputAction FlyUp { get; private set; }
         public static InputAction FlyDown { get; private set; }
         public static InputAction RollLeft { get; private set; }
@@ -159,10 +161,13 @@ namespace OrbitalAnte.Core
             FlyLook.AddBinding("<Gamepad>/rightStick", groups: GamepadGroup);
             FlyUp = AddButton(Flight, "Thrust Up", "<Keyboard>/space", "<Gamepad>/rightTrigger");
             FlyDown = AddButton(Flight, "Thrust Down", "<Keyboard>/leftCtrl", "<Gamepad>/leftTrigger");
-            FlySteer = AddButton(Flight, "Turn Ship (hold)", "<Mouse>/rightButton", "<Gamepad>/leftShoulder");
-            // On a controller there is no spare pair of buttons: hold Turn Ship and the left stick rolls instead.
-            RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", null);
-            RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", null);
+            // Mouse: looks round the cabin; hold this and it turns the ship.
+            FlySteer = AddButton(Flight, "Turn Ship (hold)", "<Mouse>/rightButton", null);
+            // Controller: the right stick turns the ship (a hold would tie up a trigger finger); click it to
+            // look round the cabin instead, and click again to go back.
+            FlyLookToggle = AddButton(Flight, "Look Around (press)", null, "<Gamepad>/rightStickPress");
+            RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", "<Gamepad>/leftShoulder");
+            RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", "<Gamepad>/rightShoulder");
             MatchVelocity = AddButton(Flight, "Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/buttonSouth");
             Boost = AddButton(Flight, "Boost (hold)", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
@@ -170,7 +175,7 @@ namespace OrbitalAnte.Core
             FlyHatch = AddButton(Flight, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
             CockpitScreen = AddButton(Flight, "Look Down At Camera Screen", "<Keyboard>/c", "<Gamepad>/dpad/down");
             NextCamera = AddButton(Flight, "Next Ship Camera", "<Keyboard>/v", "<Gamepad>/dpad/right");
-            NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", "<Gamepad>/rightStickPress");
+            NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", null);
             LockTarget = AddButton(Flight, "Lock Target", "<Keyboard>/t", "<Gamepad>/buttonWest");
             Autopilot = AddButton(Flight, "Autopilot To Locked Target", "<Keyboard>/r", "<Gamepad>/buttonEast");
             Play = Gameplay;

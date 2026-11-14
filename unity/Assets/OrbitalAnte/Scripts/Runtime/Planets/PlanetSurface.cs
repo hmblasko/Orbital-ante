@@ -510,22 +510,37 @@ namespace OrbitalAnte.Planets
             n.Go.SetActive(shown);
         }
 
+        /// <summary>
+        /// Solid ground reaches this far round a thing left behind (the parked ship). The focus gets the full,
+        /// speed-driven range, because it is the one that may be arriving fast.
+        /// </summary>
+        const double LeftBehindRange = 30;
+
         void UpdateSolid(Node n)
         {
-            double distance = NearGround(n);
+            double reach = TileRules.Reach(SurfaceRadius, n.Level);
+            bool wanted = false, kept = false, under = false;
+            for (int g = 0; g < _needGroundCount; g++)
+            {
+                double distance = Vec3d.Distance(n.Centre, _needGround[g]) - reach;
+                double range = g == 0 ? _solidRange : LeftBehindRange;
+                wanted |= distance <= range;
+                kept |= distance <= range * 1.6 + 40;
+                under |= distance < 12;
+            }
             if (!n.Solid)
             {
-                if (distance > _solidRange) return;
+                if (!wanted) return;
                 // One new solid tile a frame keeps the cost even. Ground right under something is never made to
                 // wait its turn: a tile that is late there is a hole to fall through.
-                if (distance >= 12)
+                if (!under)
                 {
                     if (_bakesLeft <= 0) return;
                     _bakesLeft--;
                 }
                 MakeSolid(n);
             }
-            else if (distance > _solidRange * 1.6f + 40)
+            else if (!kept)
             {
                 n.Collider.enabled = false;
                 n.Solid = false;

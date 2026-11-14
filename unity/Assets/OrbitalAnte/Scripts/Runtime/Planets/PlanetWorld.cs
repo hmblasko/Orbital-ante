@@ -291,7 +291,7 @@ namespace OrbitalAnte.Planets
             rb.position = lifted;
             rb.linearVelocity = groundVelocity + relative * 0.5f;
             // The ground it is put back on must be solid before it comes down again.
-            s.MakeSolidAt(dir * ground);
+            if (mover.NeedsGround) s.MakeSolidAt(dir * ground);
             Rescues++;
         }
 

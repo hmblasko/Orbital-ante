@@ -234,8 +234,9 @@ namespace OrbitalAnte.UI
                 // The key names only change when a control is rebound, so look them up now and then.
                 _nextHelp = Time.unscaledTime + 2f;
                 bool pad = GameInput.UsingGamepad;
-                _help.text = "Thrusters: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     Turn the ship: hold " +
-                             Key(GameInput.FlySteer) + (pad ? " (left stick rolls)" : ", roll " + Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight)) +
+                _help.text = "Thrusters: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     " +
+                             (pad ? "Right stick turns the ship (click it to look around), roll " : "Turn the ship: hold " + Key(GameInput.FlySteer) + ", roll ") +
+                             Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) +
                              "     Boost: " + Key(GameInput.Boost) + "     Match velocity: hold " + Key(GameInput.MatchVelocity) +
                              "     Lock: " + Key(GameInput.LockTarget) + "     Autopilot: " + Key(GameInput.Autopilot) + "     Map: " + Key(GameInput.ToggleMap);
             }

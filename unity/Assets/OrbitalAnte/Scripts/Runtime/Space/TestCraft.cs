@@ -30,7 +30,13 @@ namespace OrbitalAnte.Space
         /// time it is theirs to look round the cabin with, and only the thrusters move the ship.
         /// </summary>
         public bool Steering { get; private set; }
-        float _stickRoll;
+        /// <summary>Controller only: the right stick has been clicked over to looking round the cabin.</summary>
+        public bool PadLooking { get; private set; }
+        /// <summary>
+        /// Where the pilot is looking when their head is turned well away from the nose (world direction), or
+        /// zero. Lock then takes what they are looking at, so the rule is always "lock what is in front of my eyes".
+        /// </summary>
+        public Vector3 PilotLook { get; set; }
         /// <summary>Set by the ship while nobody is buckled into the seat: the controls do nothing.</summary>
         public bool Unmanned { get; set; }
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
@@ -312,22 +318,17 @@ namespace OrbitalAnte.Space
                 Boosting = false;
                 MatchingVelocity = false;
                 Steering = false;
-                _stickRoll = 0f;
+                if (Unmanned) PadLooking = false;
                 // Nobody in the seat ends the autopilot. Reading the map does not: it flies on while you look.
                 if (PilotOn && Unmanned) StopPilot(PilotStop.Unbuckled);
             }
             else
             {
                 Vector2 move = GameInput.FlyMove.ReadValue<Vector2>();
-                Steering = GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
-                // A controller has no roll buttons to spare: while Turn Ship is held its left stick rolls the
-                // ship instead of pushing it sideways. (Forward and back still push.)
-                _stickRoll = 0f;
-                if (Steering && GameInput.FlySteer.activeControl != null && GameInput.FlySteer.activeControl.device is UnityEngine.InputSystem.Gamepad)
-                {
-                    _stickRoll = -move.x;
-                    move.x = 0f;
-                }
+                // With a mouse, the ship turns only while Turn Ship is held. With a controller the right stick
+                // turns the ship unless it has been clicked over to looking about.
+                if (GameInput.FlyLookToggle != null && GameInput.FlyLookToggle.WasPressedThisFrame()) PadLooking = !PadLooking;
+                Steering = GameInput.UsingGamepad ? !PadLooking : GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
                 float lift = (GameInput.FlyUp.IsPressed() ? 1f : 0f) - (GameInput.FlyDown.IsPressed() ? 1f : 0f);
                 ThrustInput = Vector3.ClampMagnitude(new Vector3(move.x, lift, move.y), 1f);
                 Boosting = GameInput.Boost.IsPressed();
@@ -379,7 +380,7 @@ namespace OrbitalAnte.Space
             }
             firing = Vector3.ClampMagnitude(firing, 1f);
             Firing = firing;
-            bool turning = Steering && !Locked && (_lookPending.sqrMagnitude > 1e-6f || Mathf.Abs(_stickRoll) > 0.1f
+            bool turning = !Locked && ((Steering && _lookPending.sqrMagnitude > 1e-6f)
                            || GameInput.RollLeft.IsPressed() || GameInput.RollRight.IsPressed());
             _turnHeard = Mathf.MoveTowards(_turnHeard, turning ? 1f : 0f, Time.unscaledDeltaTime * 5f);
             ThrusterHeard mix = ThrusterHeard.For(firing.x, firing.y, firing.z, _turnHeard);
@@ -430,7 +431,9 @@ namespace OrbitalAnte.Space
             Vector3 eye = Eye.transform.position;
             // The ship's nose, not the pilot's eyes: a glance down at the camera screen, a launch shake or a knock
             // to the head must never change what the ship is aimed at or what Match Velocity matches.
-            Vector3 forward = transform.forward;
+            // The one exception is a pilot who has turned their head well away on purpose (free look): then it is
+            // what they are looking at, so Lock always means "what is in front of my eyes".
+            Vector3 forward = PilotLook.sqrMagnitude > 0.5f ? PilotLook : transform.forward;
             float best = TargetCone;
             for (int i = 0; i < System.Bodies.Length; i++)
             {
@@ -480,7 +483,6 @@ namespace OrbitalAnte.Space
             if (!Locked && GameInput.Asset != null)
             {
                 roll = (GameInput.RollLeft.IsPressed() ? 1f : 0f) - (GameInput.RollRight.IsPressed() ? 1f : 0f);
-                roll = Mathf.Clamp(roll + _stickRoll, -1f, 1f);
             }
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);

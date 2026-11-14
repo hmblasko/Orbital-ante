@@ -233,6 +233,7 @@ namespace OrbitalAnte.Ship
             _pitch = 0f;
             _seatYaw = 0f;
             _seatPitch = 0f;
+            Ship.Flight.PilotLook = Vector3.zero;
             SetMode(AstronautMode.Aboard);
             PoseAboard();
         }
@@ -416,6 +417,9 @@ namespace OrbitalAnte.Ship
             }
             SeatLook(belt.Buckled);
             PoseSeated();
+            // Head turned well away from the nose: Lock takes what is in front of your eyes, not the nose.
+            bool away = belt.Buckled && (Mathf.Abs(_seatYaw) > 10f || Mathf.Abs(_seatPitch) > 10f);
+            Ship.Flight.PilotLook = away ? Eye.transform.forward : Vector3.zero;
         }
 
         /// <summary>
@@ -430,7 +434,7 @@ namespace OrbitalAnte.Ship
                         && !Ship.Flight.Steering && !Ship.Flight.ControlsLocked && Mathf.Abs(ScreenGlance) < 0.5f;
             if (!free)
             {
-                float ease = 1f - Mathf.Exp(-9f * dt);
+                float ease = 1f - Mathf.Exp(-6f * dt);
                 _seatYaw = Mathf.Lerp(_seatYaw, 0f, ease);
                 _seatPitch = Mathf.Lerp(_seatPitch, 0f, ease);
                 return;
@@ -618,7 +622,8 @@ namespace OrbitalAnte.Ship
             if (Mending(dt)) return;
 
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
-            if (LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
+            // Look at the hatch in the belly (or the button beside it) and press the button.
+            if (LookingAt(new Vector3(0f, ShipLayout.BellyY, 0f), 3.2f, 24f, eye, forward) || LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();

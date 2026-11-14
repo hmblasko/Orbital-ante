@@ -69,7 +69,8 @@ Numbers to read off in Unity for this section are listed in `docs/reports/milest
 | Ground pieces ("tiles") drawn at once | about 150 standing on Earth, the biggest body (counted by a test program, with `Split Distance` 1.2). Each is 2,560 triangles, so about 390,000 triangles exist and roughly half are in view. Hard to exceed: the finest tile size is fixed per body. |
 | `Split Distance` on the Planets asset | 1.2. Raising it to 1.7 gives sharper far ground but 237 tiles (about 600,000 triangles). This is the first number to lower if planets are slow. |
 | New ground handed to the graphics card per frame | 2 pieces (`Uploads Per Frame`) |
-| Ground made solid per frame | 1 piece (2 when the ship is within 12 m of it). Only ground within 90 m is solid, more when moving fast, never beyond 260 m. This is the likeliest cause of a stutter while landing: it is still done on the main thread. |
+| Ground made solid per frame | 1 piece, plus any within 12 m of the ship or the suit (those never wait: a late one is a hole to fall through; up to 6 in one frame on first arrival, guessed 1 to 3 ms each on Deck). Only ground within 90 m is solid, more when moving fast, never beyond 260 m. This is the likeliest cause of a stutter while landing: it is still done on the main thread. |
+| Ground kept under the parked ship | The ship and the suit each keep the ground under them in its finest shape and solid (30 m round whichever one the player is not in): up to 15 more ground pieces drawn and 9 to 24 more solid, counted by a test program on a smooth ball, not measured. | 4 places (`GroundPointLimit`) |
 | Background workers | 3 (`Background Workers`). Painting far-away pictures never takes the last free one, so ground under you is never kept waiting. |
 | Rocks, trees and other placed shapes | 500 at most (`Feature Cap`), only within 170 m for loose rocks, and at most 24 put out per frame |
 | Solid placed shapes | only those taller than 1.2 m get a collider |

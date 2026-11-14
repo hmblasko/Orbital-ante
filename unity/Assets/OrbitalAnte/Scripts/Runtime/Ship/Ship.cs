@@ -754,10 +754,6 @@ namespace OrbitalAnte.Ship
                 bool high = transform.InverseTransformPoint(contact.point).y > 0f;
                 DamagePart(Model.IndexOf(high ? "cabin" : "base"), damage * 0.35f, contact.point);
             }
-            else if (index == Model.IndexOf("base"))
-            {
-                DamagePart(Model.Find(PartKind.Hatch), damage * 0.25f, contact.point);
-            }
         }
 
         // ------------------------------------------------------------------ repair
