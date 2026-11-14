@@ -436,6 +436,25 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void SlowMotion_WorldSoundsSinkAndDull_ButAPauseOrAHitstopFrameIsNotSlowMotion()
+        {
+            Assert.AreEqual(0f, MixMath.SlowAmount(1f));
+            Assert.AreEqual(0f, MixMath.SlowAmount(0f), "paused is not slow motion");
+            Assert.AreEqual(0f, MixMath.SlowAmount(0.02f), "a hitstop frame is not slow motion");
+            Assert.AreEqual(1f, MixMath.SlowAmount(0.35f), 1e-4, "the deepest slow the game uses");
+            Assert.Greater(MixMath.SlowAmount(0.6f), 0.4f);
+            Assert.AreEqual(1f, MixMath.SlowPitch(0f));
+            // Time runs at about a third; sounds only drop to 0.7, so they stay recognisable.
+            Assert.AreEqual(0.7f, MixMath.SlowPitch(1f), 1e-4);
+            Assert.GreaterOrEqual(MixMath.SlowCutoff(0f), 20000f);
+            Assert.AreEqual(3200f, MixMath.SlowCutoff(1f), 1f);
+            Assert.Less(MixMath.SlowCutoff(0.5f), 9000f);
+            Assert.AreEqual(1f, MixMath.SlowMusicGain(0f));
+            Assert.Less(MixMath.SlowMusicGain(1f), 0.7f);
+            Assert.Greater(MixMath.SlowMusicGain(1f), 0.5f, "music steps back, it does not vanish");
+        }
+
+        [Test]
         public void Intensity_BandsMatchTheBrief()
         {
             Assert.AreEqual(IntensityBand.Solitude, IntensityModel.BandOf(19f));

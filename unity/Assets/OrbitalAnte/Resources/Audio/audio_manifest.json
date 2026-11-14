@@ -122,6 +122,46 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "fx.slowmo.in",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/combat/fx_slowmo_in"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 40,
+   "cooldownMs": 400,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Time slowing down: the room's air seems to be drawn out of it, a tone sinking as it goes, and one heavy heartbeat arriving at the bottom."
+  },
+  {
+   "id": "fx.slowmo.out",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/combat/fx_slowmo_out"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 400,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Time snapping back: the same breath let go, rising fast and stopping short."
+  },
+  {
    "id": "gore.pop.big",
    "bus": "CombatImpacts",
    "clips": [
