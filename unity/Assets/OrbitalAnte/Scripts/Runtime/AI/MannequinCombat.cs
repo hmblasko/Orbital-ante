@@ -31,6 +31,8 @@ namespace OrbitalAnte.AI
         bool _seesPlayer;
         float _reactAt;
         float _lastSaw = -1000f;
+        /// <summary>The camp this one belongs to, if any: who may shoot now, and what the others have seen. Null in the arena.</summary>
+        public OrbitalAnte.Enemies.Squad Squad;
         float _tellUntil;
         bool _telling;
         LineRenderer _tellLine;
@@ -235,12 +237,14 @@ namespace OrbitalAnte.AI
                 // nobody knows where you are from across the valley. Otherwise it goes back to wandering.
                 _seesPlayer = false;
                 _loco.FacePoint = null;
-                bool hunting = now - _lastSaw <= _cfg.chaseMemory || distance <= _cfg.hearRange;
+                bool hunting = now - _lastSaw <= _cfg.chaseMemory || distance <= _cfg.hearRange
+                               || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
                 _loco.Destination = hunting ? CombatWorld.PlayerEye.position : (Vector3?)null;
                 _loco.Hurry = hunting && _cfg.rushes;
                 return;
             }
             _lastSaw = now;
+            if (Squad != null) Squad.Saw(now);
             if (!_seesPlayer)
             {
                 // Never an instant shot: there is always a beat between spotting the player and firing.
@@ -394,6 +398,12 @@ namespace OrbitalAnte.AI
                     _triggerHeld = false;
                     _nextTriggerAt = now + Rand(_cfg.burstPause);
                 }
+            }
+            else if (now >= _nextTriggerAt && !_telling && Squad != null
+                     && !Squad.TakeTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
+            {
+                // Somebody else's turn to shoot: ask again in a moment.
+                _nextTriggerAt = now + 0.25f;
             }
             else if (now >= _nextTriggerAt && _cfg.aimTell > 0f && !_telling)
             {

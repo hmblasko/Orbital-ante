@@ -115,3 +115,12 @@ Asked for by Matthew: "interesting bases spread throughout the planets". **Not r
 1. On Earth or Mars, fly low and look for a grey mound with enemies standing on it. Land on it.
 2. Walk far from the ship while it is parked on a base, come back: the ship should still be on the floor.
 3. In a fight, hold Q (or click the right stick). Note whether aiming while holding the stick click is comfortable.
+
+## Squads (14 Nov 2026)
+
+From Codex pull request 32, rebuilt small for round worlds as Matthew chose ("take the good parts"). **Not run in Unity.**
+
+- **Turns to shoot.** Only two of a camp fire at any moment (three of a squad of six or more); the others move, close in or wait their turn. A large base's eight guards never all fire together.
+- **What one sees, all know.** If any member of a camp has seen you in the last 8 seconds, the whole camp comes looking. Other camps do not.
+- Not taken from pull request 32: its path-finding grid and cover roles, which are built for the flat arena. On open, rolling ground with no walls they have nothing to work with yet; they belong with the base buildings.
+- Principle 3 (a fight you can read and answer) and 7 (cognitive load). Tested: two rule tests. The arena is unchanged (no squads there).

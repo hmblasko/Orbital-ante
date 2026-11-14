@@ -64,6 +64,7 @@ namespace OrbitalAnte.Enemies
         PlanetFooting _wakingFooting;
         SeededRandom _wakingRandom;
         int _wakingBody, _wakingCamp = -1, _wakingMember;
+        Squad _wakingSquad;
         readonly List<Weapon> _guns = new List<Weapon>();
 
         /// <summary>The most guns left lying about before the oldest are cleared away.</summary>
@@ -285,6 +286,7 @@ namespace OrbitalAnte.Enemies
             _wakingCamp = best;
             _wakingMember = 0;
             _wakingRandom = new SeededRandom(w.Camps[best].Seed);
+            _wakingSquad = new Squad(w.Left[best]);
             Vec3d direction = w.Camps[best].Direction;
             Vector3 home = SpaceConvert.ToVector3(direction * HomeRadius(w.Camps[best], surface));
             _wakingFooting = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
@@ -351,6 +353,7 @@ namespace OrbitalAnte.Enemies
                 if (combat != null)
                 {
                     combat.SetSeed(combatSeed);
+                    combat.Squad = _wakingSquad;
                     WeaponData data = ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
                     Weapon weapon = Weapon.Create(data, w.Root, config.oneHandedReloadAllowed);
                     weapon.transform.position = position + worldUp * 1.2f;

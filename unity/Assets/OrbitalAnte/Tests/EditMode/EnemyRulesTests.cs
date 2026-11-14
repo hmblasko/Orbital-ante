@@ -166,5 +166,29 @@ namespace OrbitalAnte.Tests.EditMode
             foreach (int m in camp.Members) if (m == type) n++;
             return n;
         }
+
+        [Test]
+        public void OnlyAFewOfASquadShootAtOnce_AndTurnsComeRound()
+        {
+            Assert.AreEqual(2, Squad.ShootersFor(3));
+            Assert.AreEqual(2, Squad.ShootersFor(5));
+            Assert.AreEqual(3, Squad.ShootersFor(8), "a large base's eight guards never all fire together");
+            var squad = new Squad(5);
+            Assert.IsTrue(squad.TakeTurn(10f, 1f));
+            Assert.IsTrue(squad.TakeTurn(10.2f, 1f));
+            Assert.IsFalse(squad.TakeTurn(10.4f, 1f), "the third waits");
+            Assert.AreEqual(2, squad.TurnsTaken(10.4f));
+            Assert.IsTrue(squad.TakeTurn(11.05f, 1f), "and gets a turn as soon as the first is over");
+        }
+
+        [Test]
+        public void WhatOneOfASquadSees_TheOthersKnow_ForAWhile()
+        {
+            var squad = new Squad(4);
+            Assert.IsFalse(squad.SawWithin(5f, 8f), "nobody has seen anything yet");
+            squad.Saw(5f);
+            Assert.IsTrue(squad.SawWithin(12f, 8f));
+            Assert.IsFalse(squad.SawWithin(14f, 8f), "and then they lose you");
+        }
     }
 }
