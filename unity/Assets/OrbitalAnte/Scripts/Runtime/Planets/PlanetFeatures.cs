@@ -52,6 +52,12 @@ namespace OrbitalAnte.Planets
             _terrain = terrain;
             _fixedPositions = fixedPositions;
             _fixedItems = new Item[fixedPositions.Length];
+            // A world with Blender-made scenery reads its files while it is being got ready, not when the first tree shows.
+            List<ScatterRule> rules = terrain != null && terrain.Profile != null ? terrain.Profile.scatter : null;
+            for (int i = 0; rules != null && i < rules.Count; i++)
+            {
+                if (rules[i] != null && SceneryKinds.ModelOf(rules[i].feature) != null) { SceneryModels.Warm(); break; }
+            }
         }
 
         Vec3d _clearCentre;

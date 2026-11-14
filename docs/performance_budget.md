@@ -279,6 +279,22 @@ What to read off in Unity (floating outside, tethered): in **Window > Analysis >
 | Dropped enemy guns | up to 7,800 triangles and a moving body each | 12 loose; cleared with their owner |
 | Aim line (Marksman) | one line renderer while aiming | 1 per Marksman, 1 Marksman per camp |
 
+## Earth scenery (14 Nov 2026): estimates from reading the code, not measured in Unity
+
+Counted and timed by the deck-performance agent on a desktop processor outside Unity. Deck figures are guesses.
+
+| System | Cost | Cap |
+|---|---|---|
+| Earth scenery models | 80 shared meshes in 3 files (2.4 MB). Trees average 1,225 triangles (largest 1,608), plants 411, rocks 1,166. One draw call each, no shadows. Guessed 350,000 to 400,000 triangles existing in a dense wood, about a third in view, on top of the ground. | 500 things (`Feature Cap`), within 170 m; tree 1,700, plant 620, rock 1,400 triangles. At the cap with only trees: 804,000, over budget. **First things to lower if a wood is slow: `Feature Cap`, then the trees' `perHectare` in `PlanetProfiles.Earth()`.** |
+| Scenery physics | trees 1 capsule; rocks 1 mesh of 96 to 192 triangles; small plants none. Cheaper than the old drawn-mesh colliders. | solid shape 220 triangles |
+| Reading the scenery files | when Earth's ground is got ready (`SceneryModels.Warm`), main thread: 6.0 / 1.3 / 1.3 ms on a desktop; guessed 20 to 60 ms on Deck for the trees | once per run |
+| Putting a tree out | mesh, trunk and solid shape are looked up once per kind and kept (`SceneryModels`): no searching and no garbage per tree after the first | 24 a frame (`Features Per Frame`), a whole tile at once |
+| Choosing where scenery goes | 18 rules on Earth, on background workers. The latitude and patch tests run before the ground is sampled, so they save time. About 15 KB of garbage a tile (a name and a colour list per rule): not yet removed. | |
+
+Not done, and worth doing if a wood reads slow on the Deck: draw plants under 2 m only within about 60 m (they cover a few pixels beyond that and spend the cap), a low-detail piece per tree, and dropping the model files' corner lists after the meshes are made (about 6.5 MB held).
+
+What to read off in Unity: F3 `things` in an Earth wood; Stats Tris and Batches there; in the Profiler, the worst frame and GC Alloc flying low over forest and on first approach to a stronghold.
+
 ## Bases (14 Nov 2026): estimates from reading the code, not measured in Unity
 
 Timed by the deck-performance agent on a desktop processor outside Unity, before the early give-up and the finer sampling went in. Deck figures are that time multiplied by 3 to 6, so they are guesses.
@@ -288,7 +304,9 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Choosing where a world's bases go | once per world per run on the main thread, in the same frame as placing its camps. Measured on a desktop before the changes: Jupiter 14 ms, Venus 10 ms, Mars 7 ms, Earth 5 to 9 ms, Moon 0.5 ms. A place is now refused as soon as it is too rough (about half the time in a trial), but each place is looked at in 61 spots, not 25. **The likeliest hitch on approach: read it off in the Profiler.** | 24 bases a world (`mostBases`), 24 places looked at per base |
 | Bases standing at once | those within 350 m, kept until 450 m (or while something is parked on them) | 6 (`PlanetBases.ShownCap`) |
 | One foundation | 168 triangles, 1 draw call, 1 solid mesh shape; made once per base and kept | 6 at once |
-| Base models (not built yet) | proposed caps: small 6,000, medium 12,000, large 20,000 triangles | to be enforced by a rule test |
+| Base models | 5 draw calls and 2 shared materials a base, no shadows. Drawn triangles: relay outpost 6,498, fuel depot 8,050, dome colony 12,926, mining works 15,098, stronghold 32,990. Above the 6,000 / 12,000 / 20,000 first proposed: agreed as the price of bases worth looking at, with the caps tightened to what was built. A world has few large bases. | small 9,000, medium 16,000, large 34,000 (`BaseKinds.TriangleCap`, rule test `BaseModelTests`) |
+| Base physics | 1 solid mesh of closed boxes and drums (216 to 1,052 triangles) plus the foundation, riding the planet's body | 700 triangles; large 1,400 |
+| Reading the base models | all five at the start of a run (`BaseView.Warm`), main thread: 1.0 to 4.4 ms each on a desktop outside Unity, guessed 40 to 100 ms in all on Deck, during loading. About 3 MB of garbage each, once. | once per run |
 | Keeping rocks off base floors | 0.4 microseconds a check on a desktop, a handful of checks a frame | 24 patches a world |
 
 ## Deep Breath (14 Nov 2026): estimates from reading the code, not measured in Unity
