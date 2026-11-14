@@ -56,9 +56,11 @@ namespace OrbitalAnte.Dismemberment
         public readonly double Idle;
         /// <summary>Metres the hips are carried lower than a trooper's, knees bent to suit.</summary>
         public readonly double Crouch;
+        /// <summary>How deep the chest is beside the trooper's (the torso's number in BodyFit), so a body lying on it rests on the ground and not in it.</summary>
+        public readonly double Girth;
 
         public BodyStyle(double lean = 0.0, double hunch = 0.0, double armsOut = 0.0, double elbowBend = 0.0, double stance = 1.0, double stride = 1.0,
-                         double bob = 1.0, double sway = 1.0, double armSwing = 1.0, double idle = 1.0, double crouch = 0.0)
+                         double bob = 1.0, double sway = 1.0, double armSwing = 1.0, double idle = 1.0, double crouch = 0.0, double girth = 1.0)
         {
             Lean = Limit(lean, -10.0, 20.0);
             Hunch = Limit(hunch, -8.0, 20.0);
@@ -71,6 +73,7 @@ namespace OrbitalAnte.Dismemberment
             ArmSwing = Limit(armSwing, 0.0, 2.0);
             Idle = Limit(idle, 0.0, 2.0);
             Crouch = Limit(crouch, 0.0, 0.12);
+            Girth = Limit(girth, 0.6, 1.8);
         }
 
         static double Limit(double v, double low, double high) => double.IsNaN(v) ? low : v < low ? low : v > high ? high : v;
@@ -78,11 +81,11 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>The ordinary soldier: changes nothing.</summary>
         public static readonly BodyStyle Trooper = new BodyStyle();
         /// <summary>Small and quick: leans into its run, knees bent, arms pumping, never quite still.</summary>
-        public static readonly BodyStyle Runner = new BodyStyle(lean: 9.0, crouch: 0.035, stride: 1.12, armSwing: 1.25, bob: 1.2, stance: 0.9, idle: 1.3);
+        public static readonly BodyStyle Runner = new BodyStyle(lean: 9.0, crouch: 0.035, stride: 1.12, armSwing: 1.25, bob: 0.8, stance: 0.9, idle: 1.3, girth: 0.88);
         /// <summary>Huge and heavy: feet wide, arms held out round its own bulk, rolling from foot to foot.</summary>
-        public static readonly BodyStyle Bruiser = new BodyStyle(lean: 3.0, hunch: 9.0, armsOut: 20.0, elbowBend: 20.0, stance: 1.55, stride: 0.9, bob: 1.5, sway: 1.9, armSwing: 0.7, idle: 0.8);
+        public static readonly BodyStyle Bruiser = new BodyStyle(lean: 3.0, hunch: 9.0, armsOut: 20.0, elbowBend: 20.0, stance: 1.55, stride: 0.9, bob: 1.5, sway: 1.5, armSwing: 0.7, idle: 0.8, girth: 1.25);
         /// <summary>Tall and still: bolt upright, feet together, gliding more than walking, hardly moving at rest.</summary>
-        public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.05, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.2);
+        public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.05, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.4, girth: 0.90);
 
         /// <summary>The style that goes with a body model, by the model's name. Anything unknown walks like a trooper.</summary>
         public static BodyStyle For(string model)
@@ -534,12 +537,12 @@ namespace OrbitalAnte.Dismemberment
         }
 
         /// <summary>Lays the figure face down along its forward direction, its chest resting where the character is.</summary>
-        static void SetProne(BodyPose pose, double yawDegrees, double rollDegrees, double pitchBumpDegrees)
+        void SetProne(BodyPose pose, double yawDegrees, double rollDegrees, double pitchBumpDegrees)
         {
             pose.RootRotation = Qy(yawDegrees) * Qx(86.0 - pitchBumpDegrees) * Qz(rollDegrees);
             // Whatever the tilt, the middle of the torso stays put, so humping up never lifts the body off the ground.
             var torsoCentre = new Vec3d(0.0, BodySkeleton.SpineY + BodySkeleton.TorsoCentreAboveSpine, 0.0);
-            pose.RootPosition = new Vec3d(0.0, ProneHeight + 0.004 * pitchBumpDegrees, 0.0) - pose.RootRotation.Rotate(torsoCentre);
+            pose.RootPosition = new Vec3d(0.0, ProneHeight * Style.Girth + 0.004 * pitchBumpDegrees, 0.0) - pose.RootRotation.Rotate(torsoCentre);
         }
 
         /// <summary>How high the middle of the torso is when the figure lies on its chest.</summary>

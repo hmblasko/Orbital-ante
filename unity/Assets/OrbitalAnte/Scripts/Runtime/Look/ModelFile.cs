@@ -52,6 +52,12 @@ namespace OrbitalAnte.Look
             return null;
         }
 
+        /// <summary>
+        /// True for a piece that shines by itself. The models' own rule: its name ends in "Glow" (a scope's front
+        /// glass, a power cell's window, a lamp). Such a piece holds only the parts that shine.
+        /// </summary>
+        public static bool Shines(string piece) => piece != null && piece.EndsWith("Glow", StringComparison.Ordinal);
+
         public bool TrySocket(string name, out ModelSocket socket)
         {
             for (int i = 0; i < Sockets.Length; i++)
