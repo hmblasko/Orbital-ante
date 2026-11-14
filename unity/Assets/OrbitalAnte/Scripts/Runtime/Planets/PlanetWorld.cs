@@ -189,18 +189,30 @@ namespace OrbitalAnte.Planets
             }
         }
 
+        readonly Vec3d[] _groundPoints = new Vec3d[PlanetSurface.GroundPointLimit];
+
         void TickSurface(PlanetSurface s, Vector3 eye)
         {
             Transform body = s.Body.transform;
             Vec3d viewer = SpaceConvert.ToVec3d(body.InverseTransformPoint(eye));
-            Vec3d focus = viewer;
+            // The first point is the focus (whatever the player is flying or wearing). After it come the other
+            // things that must not lose their ground: the ship while the player is out walking, for one.
+            int count = 0;
             float speed = 0f;
             if (System.Focus != null)
             {
-                focus = SpaceConvert.ToVec3d(body.InverseTransformPoint(System.Focus.transform.position));
+                _groundPoints[count++] = SpaceConvert.ToVec3d(body.InverseTransformPoint(System.Focus.transform.position));
                 speed = (System.Focus.Body.linearVelocity - System.GroundVelocityAt(s.Body.Index, System.Focus.Body.position)).magnitude;
             }
-            s.Tick(viewer, focus, speed);
+            else _groundPoints[count++] = viewer;
+            IReadOnlyList<GravityBody> movers = System.Movers;
+            for (int i = 0; i < movers.Count && count < _groundPoints.Length; i++)
+            {
+                GravityBody mover = movers[i];
+                if (!mover.NeedsGround || mover == System.Focus || mover.Neighbourhood != s.Body.Index) continue;
+                _groundPoints[count++] = SpaceConvert.ToVec3d(body.InverseTransformPoint(mover.transform.position));
+            }
+            s.Tick(viewer, _groundPoints, count, speed);
         }
 
         // ------------------------------------------------------------------ every physics step
@@ -225,7 +237,7 @@ namespace OrbitalAnte.Planets
                 if (r < 1e-3) continue;
                 Vec3d dir = p / r;
 
-                if (s.GroundShown) GuardAgainstSinking(s, rb, p, dir, r);
+                if (s.GroundShown) GuardAgainstSinking(s, mover, rb, p, dir, r);
 
                 if (r > s.AirTop) continue;
                 AirSample air = s.AirAt(p);
@@ -262,22 +274,24 @@ namespace OrbitalAnte.Planets
         /// Ground only becomes solid as you get near it. If something still gets below it (arriving faster than the
         /// ground could be made solid), put it back on top instead of letting it fall through the world.
         /// </summary>
-        void GuardAgainstSinking(PlanetSurface s, Rigidbody rb, Vec3d p, Vec3d dir, double r)
+        void GuardAgainstSinking(PlanetSurface s, GravityBody mover, Rigidbody rb, Vec3d p, Vec3d dir, double r)
         {
-            // Cheap first test: nowhere near the lowest ground this body has.
-            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5) return;
+            // Cheap first test: nowhere near the highest ground this body has.
+            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5 + mover.SunkBelow) return;
             double ground = s.GroundRadius(dir);
-            if (r >= ground - 2.5 || s.InCave(p, 4)) return;
+            if (r >= ground + mover.SunkBelow || s.InCave(p, 4)) return;
 
             Transform body = s.Body.transform;
             Vector3 up = body.TransformDirection(SpaceConvert.ToVector3(dir));
-            Vector3 lifted = body.TransformPoint(SpaceConvert.ToVector3(dir * (ground + 2.0)));
+            Vector3 lifted = body.TransformPoint(SpaceConvert.ToVector3(dir * (ground + mover.PutBackAt)));
             Vector3 groundVelocity = System.GroundVelocityAt(s.Body.Index, lifted);
             Vector3 relative = rb.linearVelocity - groundVelocity;
             float inward = Vector3.Dot(relative, up);
             if (inward < 0f) relative -= up * inward;
             rb.position = lifted;
             rb.linearVelocity = groundVelocity + relative * 0.5f;
+            // The ground it is put back on must be solid before it comes down again.
+            s.MakeSolidAt(dir * ground);
             Rescues++;
         }
 

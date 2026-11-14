@@ -41,6 +41,8 @@ namespace OrbitalAnte.Core
         public static InputActionMap Flight { get; private set; }
         public static InputAction FlyMove { get; private set; }
         public static InputAction FlyLook { get; private set; }
+        /// <summary>Held: the mouse or right stick turns the ship. Let go: it turns your head instead.</summary>
+        public static InputAction FlySteer { get; private set; }
         public static InputAction FlyUp { get; private set; }
         public static InputAction FlyDown { get; private set; }
         public static InputAction RollLeft { get; private set; }
@@ -151,13 +153,16 @@ namespace OrbitalAnte.Core
                 .With("Left", "<Keyboard>/a", KeyboardMouseGroup)
                 .With("Right", "<Keyboard>/d", KeyboardMouseGroup);
             FlyMove.AddBinding("<Gamepad>/leftStick", groups: GamepadGroup);
-            FlyLook = Flight.AddAction("Steer", InputActionType.Value, expectedControlLayout: "Vector2");
+            // In the seat the mouse or right stick looks round the cabin. Held with "Turn Ship", it turns the ship.
+            FlyLook = Flight.AddAction("Look Around / Turn Ship", InputActionType.Value, expectedControlLayout: "Vector2");
             FlyLook.AddBinding("<Mouse>/delta", groups: KeyboardMouseGroup);
             FlyLook.AddBinding("<Gamepad>/rightStick", groups: GamepadGroup);
             FlyUp = AddButton(Flight, "Thrust Up", "<Keyboard>/space", "<Gamepad>/rightTrigger");
             FlyDown = AddButton(Flight, "Thrust Down", "<Keyboard>/leftCtrl", "<Gamepad>/leftTrigger");
-            RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", "<Gamepad>/leftShoulder");
-            RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", "<Gamepad>/rightShoulder");
+            FlySteer = AddButton(Flight, "Turn Ship (hold)", "<Mouse>/rightButton", "<Gamepad>/leftShoulder");
+            // On a controller there is no spare pair of buttons: hold Turn Ship and the left stick rolls instead.
+            RollLeft = AddButton(Flight, "Roll Left", "<Keyboard>/q", null);
+            RollRight = AddButton(Flight, "Roll Right", "<Keyboard>/e", null);
             MatchVelocity = AddButton(Flight, "Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/buttonSouth");
             Boost = AddButton(Flight, "Boost (hold)", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             ToggleMap = AddButton(Flight, "Map", "<Keyboard>/m", "<Gamepad>/dpad/up");
@@ -222,8 +227,8 @@ namespace OrbitalAnte.Core
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
             var action = map.AddAction(name, InputActionType.Button);
-            action.AddBinding(keyboardPath, groups: KeyboardMouseGroup);
-            action.AddBinding(gamepadPath, groups: GamepadGroup);
+            if (keyboardPath != null) action.AddBinding(keyboardPath, groups: KeyboardMouseGroup);
+            if (gamepadPath != null) action.AddBinding(gamepadPath, groups: GamepadGroup);
             return action;
         }
 

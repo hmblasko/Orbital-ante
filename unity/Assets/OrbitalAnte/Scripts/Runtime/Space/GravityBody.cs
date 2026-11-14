@@ -16,6 +16,19 @@ namespace OrbitalAnte.Space
         /// <summary>The body whose neighbourhood this object was in last step.</summary>
         public int Neighbourhood { get; set; }
 
+        /// <summary>
+        /// True for the things the player rides or is (the ship, the suit). The ground under them is kept solid
+        /// and in its finest shape wherever they are, even when the player is somewhere else.
+        /// </summary>
+        public bool NeedsGround;
+        /// <summary>
+        /// How low this object's own origin can honestly be above the ground, in metres (negative is below it).
+        /// Lower than this and it has sunk into the world, and <c>PlanetWorld</c> puts it back on top.
+        /// </summary>
+        public float SunkBelow = -2.5f;
+        /// <summary>How far above the ground its origin is put when it is put back.</summary>
+        public float PutBackAt = 2f;
+
         void Awake()
         {
             Body = GetComponent<Rigidbody>();

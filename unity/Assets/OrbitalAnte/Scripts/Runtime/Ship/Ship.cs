@@ -103,6 +103,12 @@ namespace OrbitalAnte.Ship
             // Low and central, so it sits steadily on its legs.
             rb.centerOfMass = new Vector3(0f, -1.0f, 0f);
             ship.Gravity = go.AddComponent<GravityBody>();
+            // The ground under the ship stays solid even when the pilot has walked off. The cabin floor (the
+            // ship's origin) cannot honestly be this close to the ground however the ship is lying, so nearer
+            // than this means it has sunk in, and it is stood back up on its feet.
+            ship.Gravity.NeedsGround = true;
+            ship.Gravity.SunkBelow = 0.6f;
+            ship.Gravity.PutBackAt = -ShipLayout.GroundY + 0.3f;
             ship.Flight = TestCraft.Attach(go, flightConfig);
             ship.Flight.Unmanned = true;
             return ship;

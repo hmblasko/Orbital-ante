@@ -44,9 +44,10 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Steer | Mouse | Right stick |
+| Look around the cabin | Mouse | Right stick |
+| Turn the ship (hold, then look where you want the nose to go) | Right mouse button | Left bumper (L1) |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
-| Roll left / right | Q / E | Left bumper / Right bumper |
+| Roll left / right | Q / E | Hold L1 and push the left stick left / right |
 | Boost (hold) | Left Shift | Click left stick |
 | Look down at the camera screen (and back up) | C | D-pad down |
 | Next ship camera | V | D-pad right |

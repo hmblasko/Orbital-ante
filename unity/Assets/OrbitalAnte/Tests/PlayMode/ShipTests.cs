@@ -203,7 +203,8 @@ namespace OrbitalAnte.Tests
 
             int hatch = _ship.Model.Find(PartKind.Hatch);
             _ship.DamagePart(hatch, _ship.Model.Parts[hatch].MaxHealth * 2f, _ship.PartPosition(hatch));
-            Assert.IsFalse(_ship.ToggleHatch(), "a broken hatch must stay as it is until mended");
+            Assert.IsFalse(_ship.Model.NeedsRepair(hatch), "the hatch never breaks");
+            Assert.IsTrue(_ship.ToggleHatch(), "whatever has hit it, the hatch still opens");
         }
 
         [UnityTest]

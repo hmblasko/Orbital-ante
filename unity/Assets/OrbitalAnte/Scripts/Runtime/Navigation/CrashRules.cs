@@ -21,8 +21,14 @@ namespace OrbitalAnte.Navigation
         public float throwSpeed = 9f;
         /// <summary>Not strapped in, a knock this hard kills you.</summary>
         public float fatalLoose = 24f;
-        /// <summary>Strapped in, it takes this much. The belt is worth wearing.</summary>
+        /// <summary>Strapped in, it would take this much, if the belt could fail at all (see <see cref="beltAlwaysSaves"/>).</summary>
         public float fatalBuckled = 85f;
+        /// <summary>
+        /// Matthew, 14 Nov 2026: a broken ship never ends the game; only the player dying does. So a pilot who is
+        /// buckled in lives through any crash, however much of the ship it costs. Not buckled in, a bad enough
+        /// crash still kills (the build prompt, section 7).
+        /// </summary>
+        public bool beltAlwaysSaves = true;
         /// <summary>Seconds a thrown pilot cannot act.</summary>
         public float dazedSeconds = 1.3f;
         /// <summary>The most the view kicks, in degrees, at <see cref="fullKickSpeed"/>.</summary>
@@ -58,6 +64,7 @@ namespace OrbitalAnte.Navigation
         public PilotFate Fate(float knock, bool buckled)
         {
             if (knock < Rules.feltSpeed) return PilotFate.Fine;
+            if (buckled && Rules.beltAlwaysSaves) return PilotFate.Jolted;
             if (knock >= (buckled ? Rules.fatalBuckled : Rules.fatalLoose)) return PilotFate.Killed;
             if (!buckled && knock >= Rules.throwSpeed) return PilotFate.Thrown;
             return PilotFate.Jolted;
