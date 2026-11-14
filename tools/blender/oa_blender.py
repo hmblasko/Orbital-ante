@@ -605,6 +605,26 @@ def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(5
     plain.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.62
     plain.use_backface_culling = False
     bsdf.inputs["Roughness"].default_value = 0.62
+    # Models made for the realistic look say what each surface is made of ("Mat": how smooth, whether bare metal).
+    # When any piece in the picture does, the picture shows it; pieces that do not are given the old plain finish.
+    if any(o.data.color_attributes.get("Mat") for o in objects):
+        for o in objects:
+            if not o.data.color_attributes.get("Mat"):
+                made = o.data.color_attributes.new("Mat", 'FLOAT_COLOR', 'POINT')
+                for d in made.data:
+                    d.color = (0.38, 0.0, 0.0, 1.0)
+        for m in (mat, plain):
+            tree = m.node_tree
+            what = tree.nodes.new("ShaderNodeVertexColor")
+            what.layer_name = "Mat"
+            split = tree.nodes.new("ShaderNodeSeparateColor")
+            rough = tree.nodes.new("ShaderNodeMath")
+            rough.operation = 'SUBTRACT'
+            rough.inputs[0].default_value = 1.0
+            tree.links.new(what.outputs["Color"], split.inputs[0])
+            tree.links.new(split.outputs[0], rough.inputs[1])
+            tree.links.new(rough.outputs[0], tree.nodes["Principled BSDF"].inputs["Roughness"])
+            tree.links.new(split.outputs[1], tree.nodes["Principled BSDF"].inputs["Metallic"])
     for o in objects:
         o.data.materials.clear()
         o.data.materials.append(plain if o.get("oa_unchecked") else mat)
