@@ -20,9 +20,9 @@ OUT = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "Orbita
 
 # ---- from ShipLayout (checked by the rule test ShipModelFile_MatchesTheShipLayout)
 BASE_INRADIUS, BELLY_Y, BASE_TOP, SHAFT_RADIUS = 2.3, -1.7, -0.05, 0.8
-GROUND_Y, FOOTPAD_RADIUS = -3.8, 0.45
+GROUND_Y, FOOTPAD_RADIUS = -5.6, 0.45
 ENGINE_EXIT_Y, ENGINE_EXIT_RADIUS, ENGINE_RING = -2.35, 0.4, 1.5
-LEG_ROOT_R, LEG_ROOT_Y, LEG_PAD_R = 2.4, -0.55, 4.3
+LEG_ROOT_R, LEG_ROOT_Y, LEG_PAD_R = 2.4, -0.55, 5.5
 THRUSTER_R, THRUSTER_Y, THRUSTER_FOOT_R, THRUSTER_FOOT_Y = 3.05, 1.15, 2.598, 1.1533
 DISH_CENTRE, DISH_MAST_FOOT, DISH_RADIUS = (-1.2, 3.35, -1.3), (-0.95, 2.4, -1.05), 0.62
 SIDES = 64
@@ -185,13 +185,13 @@ def leg(index):
 
     # Where it meets the base: a bracket and a fat joint.
     parts.append(metal(oa.box("leg bracket", at_angle(LEG_ROOT_R - 0.16, LEG_ROOT_Y, degrees), (0.5, 0.5, 0.44), DARK_METAL, bevel=0.09, segments=3, rot=(0, 0, -degrees)), 1))
-    parts.append(metal(oa.sphere("leg shoulder", root, 0.25, DARK_METAL, segments=14), 2))
+    parts.append(metal(oa.sphere("leg shoulder", root, 0.25, DARK_METAL, segments=12), 2))
     # Upper strut wrapped in gold foil, with two dark straps.
-    parts.append(foil(rod("upper strut", root + d * 0.1, knee - d * 0.1, 0.17, GOLD, segments=14, bevel=0.05), 3, amount=0.012))
+    parts.append(foil(rod("upper strut", root + d * 0.1, knee - d * 0.1, 0.17, GOLD, segments=12, bevel=0.05), 3, amount=0.012))
     for t in (0.3, 0.72):
         m = root + (knee - root) * t
-        parts.append(metal(rod("strap", m - d * 0.035, m + d * 0.035, 0.19, CHARCOAL, segments=14, bevel=0.012), 4))
-    parts.append(metal(oa.sphere("knee", knee, 0.215, DARK_METAL, segments=14), 5))
+        parts.append(metal(rod("strap", m - d * 0.035, m + d * 0.035, 0.19, CHARCOAL, segments=12, bevel=0.012), 4))
+    parts.append(metal(oa.sphere("knee", knee, 0.215, DARK_METAL, segments=12), 5))
     # Lower strut: a bare piston sliding out of a collar.
     parts.append(metal(rod("collar", knee + d * 0.12, knee + d * 0.5, 0.135, SILVER_DARK, segments=12, bevel=0.03), 6))
     parts.append(metal(rod("piston", knee + d * 0.4, ankle, 0.095, SILVER, segments=12), 7, wear=0.3))
@@ -218,7 +218,7 @@ def leg(index):
             parts.append(metal(rod("rail", p0, p1, 0.034, SILVER, segments=8, bevel=0.012), 12))
             parts.append(metal(rod("rail bracket", p0 + d * 0.06, root + along * t0 + d * 0.06, 0.024, SILVER_DARK, segments=6), 13))
             parts.append(metal(rod("rail bracket", p1 - d * 0.06, root + along * t1 - d * 0.06, 0.024, SILVER_DARK, segments=6), 13))
-        rungs = 6
+        rungs = 8
         for r in range(rungs):
             t = t0 + 0.035 + (t1 - t0 - 0.07) * r / (rungs - 1)
             m = root + along * t + off * stand
@@ -613,8 +613,8 @@ if __name__ == "__main__":
         floor = oa.box("floor", (0, 0, GROUND_Y - 0.01), (400, 400, 0.02), (0.62, 0.42, 0.30), bevel=0)
         oa.paint(floor, wear=0, dirt=0, mottle=0, gradient=0)
         shown.append(floor)
-        oa.render_preview(os.path.join(previews, "lander_a.png"), shown, (9, 13, 1.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
-        oa.render_preview(os.path.join(previews, "lander_b.png"), shown, (-12, -7, 4.5), (0, 0, -0.4), lens=40, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_a.png"), shown, (11.5, 16.5, 0.4), (0, 0, -1.3), lens=40, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_b.png"), shown, (-15, -9, 4.5), (0, 0, -1.3), lens=40, size=(1100, 800), samples=64)
         oa.render_preview(os.path.join(previews, "lander_cams.png"), shown, (10.5, -10.5, 6.0), (0.5, -0.5, 0.6), lens=36, size=(1200, 820), samples=64)
         oa.render_preview(os.path.join(previews, "lander_camhead.png"), shown, (3.2, -1.0, 2.2), (5.0, -3.0, 2.5), lens=40, size=(900, 700), samples=64)
-        oa.render_preview(os.path.join(previews, "lander_c.png"), shown, (5.2, 5.6, -2.9), (1.2, 1.0, -1.6), lens=30, size=(1100, 800), samples=64)
+        oa.render_preview(os.path.join(previews, "lander_c.png"), shown, (6.4, 6.9, -4.6), (1.2, 1.0, -2.2), lens=30, size=(1100, 800), samples=64)
