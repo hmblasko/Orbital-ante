@@ -78,9 +78,11 @@ namespace OrbitalAnte.Ship
         public const float BaseInradius = 2.3f;
         public const float BaseTop = -0.05f;
         /// <summary>Height of the bottom of the footpads: the ground, when the ship stands level.</summary>
-        public const float GroundY = -3.8f;
+        public const float GroundY = -5.6f;
+        /// <summary>Room under the belly when the ship stands level on flat ground.</summary>
+        public const float BellyClearance = BellyY - GroundY;
         public const float FootpadRadius = 0.45f;
-        public const float FootpadDistance = 4.3f;
+        public const float FootpadDistance = 5.5f;
         public const int Legs = 4;
         public const float EngineDistance = 1.5f;
         public const float EngineExitRadius = 0.4f;
@@ -90,9 +92,7 @@ namespace OrbitalAnte.Ship
         public static readonly P3 SeatPosition = new P3(0f, 0f, 1.2f);
         /// <summary>Where your eyes are when buckled in.</summary>
         public static readonly P3 SeatedEye = new P3(0f, 1.18f, 1.28f);
-        /// <summary>The hatch lever, on a post beside the lift well.</summary>
-        public static readonly P3 HatchLever = new P3(1.05f, 1.0f, -0.55f);
-        /// <summary>The same control outside, on the belly beside the ring.</summary>
+        /// <summary>The hatch button outside, on the belly beside the ring (inside, you look at the hatch and press the button).</summary>
         public static readonly P3 OutsideHatchButton = new P3(1.35f, BellyY - 0.05f, 0f);
         /// <summary>Where the safety tether is fixed: on the belly beside the hatch ring, opposite the button.</summary>
         public static readonly P3 TetherAnchor = new P3(-1.2f, BellyY - 0.05f, 0f);
@@ -100,7 +100,6 @@ namespace OrbitalAnte.Ship
         public static readonly FloorObstacle[] Obstacles =
         {
             new FloorObstacle(0f, 1.2f, 0.42f),     // the seat
-            new FloorObstacle(1.05f, -0.55f, 0.16f) // the lever post
         };
         /// <summary>The instrument desk across the nose: you cannot walk further forward than this.</summary>
         public const float DeskZ = 1.72f;

@@ -62,7 +62,7 @@ namespace OrbitalAnte.Look
                 go.transform.SetParent(parent, false);
                 go.AddComponent<MeshFilter>().sharedMesh = entry.Meshes[i];
                 var renderer = go.AddComponent<MeshRenderer>();
-                renderer.sharedMaterial = material;
+                renderer.sharedMaterial = ModelFile.Shines(entry.File.Parts[i].Name) ? Shining() : material;
                 renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
                 renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
                 if (pieces != null) pieces[entry.File.Parts[i].Name] = go;
@@ -81,6 +81,12 @@ namespace OrbitalAnte.Look
             }
             return null;
         }
+
+        /// <summary>
+        /// The one material every shining piece (<see cref="ModelFile.Shines"/>) is drawn with by <see cref="Build"/>:
+        /// its own colours, brighter than white so it blooms. Shared: never change or destroy it.
+        /// </summary>
+        static Material Shining() => PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
 
         static Material Outdoor() => PlanetMaterials.VertexColour(Color.white, 1f, 0f, true, PropPaintScale);
 
@@ -131,6 +137,9 @@ namespace OrbitalAnte.Look
             }
             // A missing model is remembered too, so it is not looked for again every time a gun is made.
             Loaded[id] = entry;
+            // Its far copy is read at the same moment, so reading a model early (the enemy spawner does, for its
+            // whole roster) also spares the hitch of reading the far copy when the first one walks away.
+            if (entry != null) Get(ModelFile.FarOf(id));
             return entry;
         }
 

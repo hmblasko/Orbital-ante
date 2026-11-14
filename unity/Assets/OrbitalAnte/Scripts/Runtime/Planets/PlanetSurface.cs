@@ -240,7 +240,7 @@ namespace OrbitalAnte.Planets
             Weather = new WeatherModel(Profile, Body.Spec.id, SurfaceRadius, _seed);
             // The safety net sits under the lowest ground and the deepest cave.
             _safetyRadius = Math.Min(SurfaceRadius + Terrain.MinHeight, build.DeepestCave) - 30;
-            _ground = PlanetMaterials.Ground(Body.Spec.id);
+            _ground = PlanetMaterials.Ground(Body.Spec.id, Settings.groundRelief);
             _owned.Add(_ground);
             Features.SetTerrain(Terrain, PlacementPositions);
             if (!_pictureHeld) BeginPicture();

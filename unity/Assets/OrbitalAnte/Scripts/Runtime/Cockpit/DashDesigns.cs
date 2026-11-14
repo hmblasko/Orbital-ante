@@ -5,7 +5,11 @@ namespace OrbitalAnte.Cockpit
     /// <summary>The dash designs on offer. Matthew picks; the choice is on the CockpitConfig asset and can be flipped in play.</summary>
     public enum DashStyle
     {
-        /// <summary>Cream enamel panel, round dials with needles, a glass fuel tube. Old spacecraft, warm.</summary>
+        /// <summary>
+        /// A dark glass screen set in the console: the direction ball, speed, height, the little ship and the
+        /// camera, in warm line work with hardly a word. Air and fuel are not on it: they are real gauges on
+        /// the console beside it (<see cref="ConsoleGauges"/>).
+        /// </summary>
         FlightDeck,
         /// <summary>Dark panel, chunky blocks and bubbles, big bright numbers. Loudest and quickest to read.</summary>
         Arcade,
@@ -18,10 +22,14 @@ namespace OrbitalAnte.Cockpit
     /// <summary>
     /// Paints each dash design into a <see cref="DashDrawing"/>. Plain C#, no Unity types.
     ///
-    /// Every design shows the same five things in the same places, so switching design never moves where you
-    /// look: air and fuel on the left, the direction ball and speed in the middle, the little ship showing your
-    /// push on the right, and the camera window at the far right. What changes is the shape of each gauge.
-    /// Fuel is always a bar of some kind and air is always something round, so the two are never mistaken.
+    /// The three spare designs show the same five things in the same places, so switching between them never
+    /// moves where you look: air and fuel on the left, the direction ball and speed in the middle, the little
+    /// ship showing your push on the right, and the camera window at the far right. Fuel is always a bar of
+    /// some kind and air is always something round, so the two are never mistaken.
+    ///
+    /// The Flight deck design (the one Matthew chose) is the screen of the modelled console. It leaves air and
+    /// fuel to the console's own gauges and says as little as it can in words: numbers, the name of the body
+    /// the speed is measured against, which camera, and the one notice.
     /// </summary>
     public static class DashDesigns
     {
@@ -51,9 +59,9 @@ namespace OrbitalAnte.Cockpit
                 case DashStyle.FlightDeck:
                     return new Look
                     {
-                        HasPanel = true, Panel = new DashColor(0.89f, 0.85f, 0.74f), Edge = new DashColor(0.55f, 0.50f, 0.42f),
-                        Face = new DashColor(0.13f, 0.13f, 0.14f), Ink = new DashColor(0.96f, 0.93f, 0.84f), Dim = new DashColor(0.55f, 0.53f, 0.48f),
-                        Accent = new DashColor(0.95f, 0.52f, 0.14f), Warn = new DashColor(0.90f, 0.22f, 0.16f),
+                        HasPanel = true, Panel = new DashColor(0.045f, 0.065f, 0.08f), Edge = new DashColor(0.20f, 0.27f, 0.30f),
+                        Face = new DashColor(0.02f, 0.03f, 0.04f), Ink = new DashColor(0.98f, 0.90f, 0.72f), Dim = new DashColor(0.46f, 0.54f, 0.55f),
+                        Accent = new DashColor(1f, 0.64f, 0.18f), Warn = new DashColor(1f, 0.30f, 0.20f),
                         Fuel = new DashColor(0.96f, 0.60f, 0.12f), Air = new DashColor(0.42f, 0.78f, 0.95f), Flame = new DashColor(1f, 0.66f, 0.2f),
                     };
                 case DashStyle.Arcade:
@@ -89,24 +97,16 @@ namespace OrbitalAnte.Cockpit
             Look k = LookOf(style);
             const float W = DashDrawing.Width, H = DashDrawing.Height;
 
+            if (style == DashStyle.FlightDeck)
+            {
+                FlightDeck(k, r, d);
+                return;
+            }
             if (k.HasPanel)
             {
                 d.Panel(0f, 0f, W, H, style == DashStyle.GreenScreen ? 6f : 26f, k.Edge);
                 d.Panel(5f, 5f, W - 10f, H - 10f, style == DashStyle.GreenScreen ? 4f : 22f, k.Panel);
             }
-            if (style == DashStyle.FlightDeck)
-            {
-                // Four screws, because a real panel is held on by something.
-                for (int i = 0; i < 4; i++)
-                {
-                    float sx = i % 2 == 0 ? 20f : W - 20f, sy = i < 2 ? 20f : H - 20f;
-                    d.Disc(sx, sy, 7f, k.Edge, 12);
-                    d.Line(sx - 4f, sy - 4f, sx + 4f, sy + 4f, 2f, k.Panel);
-                }
-                // A little brass plate. You fly for nobody.
-                d.Text(575f, 56f, 12f, "PROPERTY OF NOBODY", k.Edge, DashAlign.Centre, false);
-            }
-
             Air(style, k, r, d);
             Fuel(style, k, r, d);
             Ball(style, k, r, d, 400f, 158f, 104f);
@@ -125,6 +125,136 @@ namespace OrbitalAnte.Cockpit
                 d.Text(400f, 22f, noticeSize, r.Notice, k.Panel);
             }
             else d.Text(400f, 22f, noticeSize, !urgent || r.Blink || style == DashStyle.GreenScreen ? r.Notice : "", urgent ? k.Warn : k.Accent);
+        }
+
+        // ------------------------------------------------------------------ the Flight deck screen
+
+        /// <summary>
+        /// The chosen design. Always the same seven words in the same order (blank when there is nothing to
+        /// say): speed, its unit, the body it is measured against, height, climb or sink, the camera's name,
+        /// and the notice. Fuel and air are pictures (a tube and a column of bubbles), not words.
+        /// </summary>
+        static void FlightDeck(Look k, DashReadings r, DashDrawing d)
+        {
+            const float W = DashDrawing.Width, H = DashDrawing.Height;
+            d.Panel(0f, 0f, W, H, 20f, k.Face);
+            d.Panel(4f, 4f, W - 8f, H - 8f, 17f, k.Panel);
+            // Fine rules across the glass, like the graticule of an old scope.
+            DashColor rule = k.Edge.Fade(0.55f);
+            for (int i = 1; i < 6; i++) d.Rect(14f, H * i / 6f - 0.5f, W - 28f, 1f, rule);
+            for (int i = 1; i < 20; i++) d.Rect(W * i / 20f - 0.5f, 10f, 1f, i % 5 == 0 ? 12f : 6f, rule);
+
+            Pusher(DashStyle.FlightDeck, k, r, d, 118f, 172f, 60f);
+            Ball(DashStyle.FlightDeck, k, r, d, 392f, 164f, 112f);
+            // Fuel and air stand either side of the ball, so both are read looking straight ahead. The console's
+            // own tube and dial say the same thing larger, but they are off to the sides and need the model.
+            DeckFuel(k, r, d, 245f);
+            DeckAir(k, r, d, 536f);
+
+            // Speed: the one big number, with the body it is measured against named under a small world.
+            const float sx = 668f;
+            d.Panel(sx - 108f, 150f, 216f, 86f, 12f, k.Edge);
+            d.Panel(sx - 105f, 153f, 210f, 80f, 10f, k.Face);
+            d.Text(sx - 12f, 196f, 46f, r.SpeedText, k.Ink);
+            d.Text(sx + 98f, 168f, 14f, r.SpeedUnit, k.Dim, DashAlign.Right, false);
+            bool against = r.Against.Length > 0;
+            if (against)
+            {
+                d.Disc(sx - 96f, 258f, 7f, k.Accent, 14);
+                d.Arc(sx - 96f, 258f, 10f, 11.5f, 200f, 340f, k.Accent, 8);
+            }
+            d.Text(sx - 78f, 258f, 16f, r.Against, k.Dim, DashAlign.Left);
+
+            // Height over a strip of ground, and an arrow that leans the way you are going: up or down.
+            bool near = r.AltitudeText.Length > 0;
+            if (near)
+            {
+                d.Rect(sx - 104f, 100f, 30f, 2.5f, k.Dim);
+                for (int i = 0; i < 4; i++) d.Line(sx - 100f + i * 8f, 100f, sx - 106f + i * 8f, 92f, 1.5f, k.Dim);
+                d.Line(sx - 89f, 104f, sx - 89f, 124f, 2f, k.Ink);
+                d.Triangle(sx - 94f, 120f, sx - 84f, 120f, sx - 89f, 128f, k.Ink);
+                float tilt = Math.Max(-1f, Math.Min(1f, r.Vertical / 30f));
+                DashColor arrow = r.SinkTooFast ? k.Warn : tilt < -0.5f ? k.Accent : k.Ink;
+                float tip = 68f + 14f * tilt + (tilt >= 0f ? 4f : -4f);
+                d.Triangle(sx - 100f, 68f, sx - 78f, 68f, sx - 89f, tip, arrow);
+            }
+            d.Text(sx - 64f, 110f, 22f, r.AltitudeText, k.Ink, DashAlign.Left);
+            d.Text(sx - 64f, 68f, 20f, r.VerticalText, r.SinkTooFast ? k.Warn : k.Ink, DashAlign.Left);
+
+            // The camera: a window with a lit corner bracket at each corner, and its name.
+            const float x = 822f, y = 100f, w = 160f, h = 100f;
+            d.Panel(x - 5f, y - 5f, w + 10f, h + 10f, 8f, k.Edge);
+            d.Rect(x, y, w, h, new DashColor(0f, 0f, 0f));
+            d.CameraX = x; d.CameraY = y; d.CameraWidth = w; d.CameraHeight = h;
+            for (int i = 0; i < 4; i++)
+            {
+                float bx = i % 2 == 0 ? x - 10f : x + w + 10f, by = i < 2 ? y - 10f : y + h + 10f;
+                float dx = i % 2 == 0 ? 16f : -16f, dy = i < 2 ? 16f : -16f;
+                d.Line(bx, by, bx + dx, by, 2.5f, k.Accent);
+                d.Line(bx, by, bx, by + dy, 2.5f, k.Accent);
+            }
+            d.Text(x + w * 0.5f, 232f, 15f, r.CameraName, k.Dim);
+
+            bool urgent = r.FuelOut || r.OxygenLow || r.FuelLow || r.SinkTooFast || r.Notice == "NOT BUCKLED IN";
+            // A warning flag either end of the bottom edge: lit with the notice, dim between blinks, gone when all is well.
+            // (Always drawn, so a blink changes colours and never the number of corners.)
+            DashColor flag = !urgent ? k.Panel : r.Blink ? k.Warn : k.Warn.Fade(0.25f);
+            d.Triangle(20f, 14f, 44f, 14f, 32f, 36f, flag);
+            d.Triangle(W - 44f, 14f, W - 20f, 14f, W - 32f, 36f, flag);
+            d.Text(520f, 24f, r.Notice.Length > 24 ? 17f : 21f, !urgent || r.Blink ? r.Notice : "", urgent ? k.Warn : k.Accent);
+        }
+
+        /// <summary>
+        /// Fuel on the Flight deck screen: a slim glass tube with a drop over it. The long red notch is where
+        /// "low" begins. Always the same number of corners, so the picture only changes when the level does.
+        /// </summary>
+        static void DeckFuel(Look k, DashReadings r, DashDrawing d, float cx)
+        {
+            const float y = 64f, w = 20f, h = 168f;
+            float level = Math.Max(0f, Math.Min(1f, r.Fuel));
+            bool warn = r.FuelLow || r.FuelOut;
+            DashColor colour = warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : k.Fuel;
+            float x = cx - w * 0.5f;
+            d.Panel(x - 4f, y - 4f, w + 8f, h + 8f, 13f, warn && r.Blink ? k.Warn : k.Edge);
+            d.Panel(x, y, w, h, 10f, k.Face);
+            float tall = (h - 6f) * level;
+            d.Panel(x + 3f, y + 3f, w - 6f, tall, 7f, colour);
+            d.Rect(x + 5f, y + 12f, 2.5f, h - 24f, new DashColor(1f, 1f, 1f, 0.14f));
+            for (int i = 1; i < 5; i++)
+            {
+                bool low = i == 1;
+                d.Rect(x + w + 6f, y + 3f + (h - 6f) * i / 5f - 1f, low ? 11f : 6f, 2f, low ? k.Warn : k.Dim);
+            }
+            // The drop.
+            float top = y + h + 14f;
+            d.Disc(cx, top + 6f, 6.5f, colour, 12);
+            d.Triangle(cx - 5.8f, top + 9f, cx + 5.8f, top + 9f, cx, top + 21f, colour);
+        }
+
+        /// <summary>
+        /// Air on the Flight deck screen: five bubbles in a column. They shrink away from the top as the air
+        /// goes; the last one is ringed red, because that is the "low" fifth.
+        /// </summary>
+        static void DeckAir(Look k, DashReadings r, DashDrawing d, float cx)
+        {
+            const float bottom = 80f, step = 38f, size = 12.5f;
+            float level = Math.Max(0f, Math.Min(1f, r.Oxygen));
+            bool warn = r.OxygenLow;
+            DashColor colour = warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : k.Air;
+            for (int i = 0; i < 5; i++)
+            {
+                float cy = bottom + step * i;
+                float fill = Math.Max(0f, Math.Min(1f, level * 5f - i));
+                // The low bubble's ring is a quiet red until the air really is low: a mark, not an alarm.
+                DashColor ring = i > 0 ? k.Edge : warn ? (r.Blink ? k.Warn : DashColor.Mix(k.Warn, k.Face, 0.5f)) : DashColor.Mix(k.Warn, k.Edge, 0.55f);
+                d.Ring(cx, cy, size + 1.5f, size + 4f, ring, 20);
+                d.Disc(cx, cy, size + 1.5f, k.Face, 20);
+                // The area of the bubble follows the air in it, so half a bubble looks like half.
+                float radius = size * (float)Math.Sqrt(fill);
+                d.Disc(cx, cy, radius, colour, 16);
+                // A glint, as long as there is bubble enough to carry one.
+                d.Disc(cx - radius * 0.35f, cy + radius * 0.35f, radius * 0.22f, new DashColor(1f, 1f, 1f, 0.3f), 8);
+            }
         }
 
         // ------------------------------------------------------------------ air: always something round
@@ -278,10 +408,10 @@ namespace OrbitalAnte.Cockpit
                 else
                 {
                     d.Ring(px, py, 7f, 11f, k.Accent, 18);
-                    d.Text(cx, cy + radius * 0.62f, 13f, "GOING BACKWARD", k.Accent);
+                    if (style != DashStyle.FlightDeck) d.Text(cx, cy + radius * 0.62f, 13f, "GOING BACKWARD", k.Accent);
                 }
             }
-            else d.Text(cx, cy + radius * 0.62f, 13f, "HOLDING STILL", style == DashStyle.FlightDeck ? k.Ink.Fade(0.6f) : k.Dim);
+            else if (style != DashStyle.FlightDeck) d.Text(cx, cy + radius * 0.62f, 13f, "HOLDING STILL", k.Dim);
         }
 
         static void Speed(DashStyle style, Look k, DashReadings r, DashDrawing d)
@@ -356,7 +486,7 @@ namespace OrbitalAnte.Cockpit
 
         static void Pusher(DashStyle style, Look k, DashReadings r, DashDrawing d, float cx, float cy, float s)
         {
-            if (style == DashStyle.FlightDeck) { d.Disc(cx, cy, 86f, k.Edge, 36); d.Disc(cx, cy, 80f, k.Face, 36); }
+            if (style == DashStyle.FlightDeck) { d.Disc(cx, cy - 12f, 100f, k.Edge, 40); d.Disc(cx, cy - 12f, 95f, k.Face, 40); }
             if (style == DashStyle.Arcade) d.Panel(cx - 82f, cy - 82f, 164f, 164f, 18f, k.Face);
             if (style == DashStyle.Glass) d.Ring(cx, cy, 81f, 84f, k.Dim, 40);
             cy -= 6f;
@@ -384,8 +514,8 @@ namespace OrbitalAnte.Cockpit
             {
                 double a = (i + 0.5) * Math.PI * 0.5;
                 float lx = (float)Math.Cos(a), lz = (float)Math.Sin(a);
-                Edge3(d, cx, cy, s, lx * 0.5f, 0.1f, lz * 0.5f, lx * 0.95f, -0.42f, lz * 0.95f, w, hull);
-                Edge3(d, cx, cy, s, lx * 0.82f, -0.42f, lz * 0.82f, lx * 1.08f, -0.42f, lz * 1.08f, w + 1.5f, hull);
+                Edge3(d, cx, cy, s, lx * 0.5f, 0.1f, lz * 0.5f, lx * 1.12f, -0.72f, lz * 1.12f, w, hull);
+                Edge3(d, cx, cy, s, lx * 0.99f, -0.72f, lz * 0.99f, lx * 1.25f, -0.72f, lz * 1.25f, w + 1.5f, hull);
             }
             // The nose: a window, so you can tell front from back.
             Edge3(d, cx, cy, s, -0.16f, 0.66f, 0.42f, 0.16f, 0.66f, 0.42f, w + 2.5f, k.Accent);
@@ -395,8 +525,9 @@ namespace OrbitalAnte.Cockpit
             if (r.ThrustX < 0f) Jet(d, cx, cy, s, 0.5f, 0.25f, 0f, 1f, 0f, 0f, -r.ThrustX * 0.8f * boost, flame);
             if (r.ThrustZ < 0f) Jet(d, cx, cy, s, 0f, 0.25f, 0.5f, 0f, 0f, 1f, -r.ThrustZ * 0.9f * boost, flame);
 
-            DashColor label = style == DashStyle.FlightDeck ? k.Face : k.Accent;
-            d.Text(cx, 276f, 15f, style == DashStyle.GreenScreen ? "THRUST" : "PUSH", label);
+            // The Flight deck screen says neither in words: the flames show the push, and a boost makes them longer.
+            if (style == DashStyle.FlightDeck) return;
+            d.Text(cx, 276f, 15f, style == DashStyle.GreenScreen ? "THRUST" : "PUSH", k.Accent);
             d.Text(cx, 40f, 15f, r.Boost && r.Blink ? "BOOST" : "", k.Warn);
         }
 

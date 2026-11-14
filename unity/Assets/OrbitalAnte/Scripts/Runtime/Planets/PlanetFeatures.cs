@@ -19,6 +19,8 @@ namespace OrbitalAnte.Planets
             public MeshFilter Filter;
             public MeshRenderer Renderer;
             public MeshCollider Collider;
+            /// <summary>A tree's trunk: one capsule on a child, so it can lean the way the trunk does.</summary>
+            public CapsuleCollider Trunk;
         }
 
         readonly PlanetSurface _surface;
@@ -50,6 +52,12 @@ namespace OrbitalAnte.Planets
             _terrain = terrain;
             _fixedPositions = fixedPositions;
             _fixedItems = new Item[fixedPositions.Length];
+            // A world with Blender-made scenery reads its files while it is being got ready, not when the first tree shows.
+            List<ScatterRule> rules = terrain != null && terrain.Profile != null ? terrain.Profile.scatter : null;
+            for (int i = 0; rules != null && i < rules.Count; i++)
+            {
+                if (rules[i] != null && SceneryKinds.ModelOf(rules[i].feature) != null) { SceneryModels.Warm(); break; }
+            }
         }
 
         Vec3d _clearCentre;
@@ -65,7 +73,26 @@ namespace OrbitalAnte.Planets
             _clearRadius = radius;
         }
 
-        bool Cleared(Vec3d position) => _clearRadius > 0 && (position - _clearCentre).SqrMagnitude < _clearRadius * _clearRadius;
+        readonly List<Vec3d> _alsoClear = new List<Vec3d>();
+        readonly List<double> _alsoClearRadius = new List<double>();
+
+        /// <summary>One more place nothing natural stands (a base's floor). Call before the ground near it is shown.</summary>
+        public void AlsoKeepClear(Vec3d centre, double radius)
+        {
+            _alsoClear.Add(centre);
+            _alsoClearRadius.Add(radius);
+        }
+
+        bool Cleared(Vec3d position)
+        {
+            if (_clearRadius > 0 && (position - _clearCentre).SqrMagnitude < _clearRadius * _clearRadius) return true;
+            for (int i = 0; i < _alsoClear.Count; i++)
+            {
+                double r = _alsoClearRadius[i];
+                if ((position - _alsoClear[i]).SqrMagnitude < r * r) return true;
+            }
+            return false;
+        }
 
         public void SetActive(bool active)
         {
@@ -204,16 +231,51 @@ namespace OrbitalAnte.Planets
             t.localRotation = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, (float)(p.Yaw * Mathf.Rad2Deg), 0f);
             t.localScale = Vector3.one * scale;
 
+            // What is solid is not always what is drawn. A Blender-made tree is only its trunk (one capsule: the
+            // ship lands on these), a Blender-made rock is a simpler closed shape, small plants are nothing at all.
             bool solid = scale >= _surface.Settings.solidFeatureHeight;
+            Mesh shape = null;
+            bool hasTrunk = false;
+            SceneryModels.Trunk trunk = default;
             if (solid)
             {
+                if (SceneryModels.Drawn(p.Kind, p.Variant) == null) shape = mesh;
+                else if (!SceneryModels.TryTrunk(p.Kind, p.Variant, out trunk)) shape = SceneryModels.Solid(p.Kind, p.Variant);
+                else hasTrunk = true;
+            }
+
+            if (shape != null)
+            {
                 if (item.Collider == null) item.Collider = item.Go.AddComponent<MeshCollider>();
-                item.Collider.sharedMesh = mesh;
+                item.Collider.sharedMesh = shape;
                 item.Collider.enabled = true;
             }
             else if (item.Collider != null)
             {
                 item.Collider.enabled = false;
+            }
+
+            if (hasTrunk)
+            {
+                if (item.Trunk == null)
+                {
+                    var holder = new GameObject("Trunk");
+                    holder.layer = Layers.Default;
+                    holder.transform.SetParent(t, false);
+                    item.Trunk = holder.AddComponent<CapsuleCollider>();
+                    item.Trunk.direction = 1;
+                }
+                Vector3 along = trunk.B - trunk.A;
+                Transform h = item.Trunk.transform;
+                h.localPosition = (trunk.A + trunk.B) * 0.5f;
+                h.localRotation = along.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, along) : Quaternion.identity;
+                item.Trunk.radius = trunk.Radius;
+                item.Trunk.height = along.magnitude + trunk.Radius * 2f;
+                item.Trunk.enabled = true;
+            }
+            else if (item.Trunk != null)
+            {
+                item.Trunk.enabled = false;
             }
 
             item.Go.SetActive(true);

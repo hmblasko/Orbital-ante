@@ -51,6 +51,11 @@ namespace OrbitalAnte.Dismemberment
         public BodyPart Part(BodyPartId id) => _parts[(int)id];
 
         /// <summary>The gib a group id belongs to, or null if it has already been cleaned up.</summary>
+        /// <summary>What this character stands on: flat arena ground unless it was put on a planet.</summary>
+        public Footing Footing = Footing.Flat;
+        /// <summary>Which way is up where it stands.</summary>
+        public Vector3 Up => Footing.Up(transform.position);
+
         public Gib GibForGroup(int group)
         {
             return _gibs.TryGetValue(group, out var gib) ? gib : null;
@@ -119,6 +124,8 @@ namespace OrbitalAnte.Dismemberment
                 Severed = result.Detachments.Count > 0,
                 Killed = result.Killed,
                 HeadshotKill = result.Killed && torsoWasOnBody,
+                // Only a hit on the living body counts: splitting a loose chunk or a corpse is not a fight.
+                Enemy = groupBefore == 0 && before != MovementState.Dead,
                 Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
             };
@@ -196,18 +203,18 @@ namespace OrbitalAnte.Dismemberment
                 {
                     Vector3 outward = rootPart.transform.position - torsoPosition;
                     outward = outward.sqrMagnitude > 0.0001f ? outward.normalized : UnityEngine.Random.onUnitSphere;
-                    launch = outward * Config.torsoBurstSpeed + dir * (Config.gibLaunchSpeed * 0.4f) + Vector3.up * Config.gibLift;
+                    launch = outward * Config.torsoBurstSpeed + dir * (Config.gibLaunchSpeed * 0.4f) + Up * Config.gibLift;
                     break;
                 }
                 case DetachReason.HeadDestroyed:
-                    launch = dir * (Config.gibLaunchSpeed * 1.2f) + Vector3.up * (Config.gibLift * 1.5f);
+                    launch = dir * (Config.gibLaunchSpeed * 1.2f) + Up * (Config.gibLift * 1.5f);
                     break;
                 case DetachReason.Corpse:
-                    launch = dir * (Config.gibLaunchSpeed * 0.35f) + Vector3.up * 0.6f;
+                    launch = dir * (Config.gibLaunchSpeed * 0.35f) + Up * 0.6f;
                     spin *= 0.2f;
                     break;
                 default:
-                    launch = dir * Config.gibLaunchSpeed + Vector3.up * Config.gibLift;
+                    launch = dir * Config.gibLaunchSpeed + Up * Config.gibLift;
                     break;
             }
 

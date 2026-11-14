@@ -51,9 +51,17 @@ namespace OrbitalAnte.Tests
         /// Walks the body along a straight line or a turn and measures how far each foot drifts over the ground
         /// while it is down. Returns the worst drift in metres.
         /// </summary>
-        static double WorstFootSlide(double speed, double turnDegrees, double seconds, out int steps)
+        static double WorstFootSlide(double speed, double turnDegrees, double seconds, out int steps) =>
+            WorstFootSlide(new BodyAnimator(3), 1.0, Standing(speed, turnDegrees), seconds, out steps);
+
+        /// <summary>
+        /// The same for any animator, drawn at any size. The pose is at the skeleton's own size, so it is
+        /// scaled up to the world before the feet are measured against the ground really covered.
+        /// </summary>
+        static double WorstFootSlide(BodyAnimator a, double size, BodyAnimInput input, double seconds, out int steps)
         {
-            var a = new BodyAnimator(3);
+            double speed = input.ForwardSpeed, turnDegrees = input.TurnRate;
+            BodyAnimInput Standing(double ignoredSpeed, double ignoredTurn) => input;
             // Settle into the gait first.
             for (int i = 0; i < 120; i++) a.Update(Dt, Standing(speed, turnDegrees));
 
@@ -70,10 +78,10 @@ namespace OrbitalAnte.Tests
                 a.Update(Dt, Standing(speed, turnDegrees));
                 for (int s = 0; s < 2; s++)
                 {
-                    Vec3d local = Ankle(a.Pose, s);
+                    Vec3d local = Ankle(a.Pose, s) * size;
                     double c = Math.Cos(heading), sn = Math.Sin(heading);
                     var world = new Vec3d(x + local.X * c + local.Z * sn, local.Y, z - local.X * sn + local.Z * c);
-                    bool down = local.Y < BodySkeleton.AnkleY + 0.004;
+                    bool down = local.Y < (BodySkeleton.AnkleY + 0.004) * size;
                     if (down && !planted[s])
                     {
                         plantedAt[s] = world;
@@ -268,6 +276,211 @@ namespace OrbitalAnte.Tests
                 apart = Math.Max(apart, Vec3d.Distance(Ankle(a.Pose, BodySkeleton.Left), Ankle(b.Pose, BodySkeleton.Left)));
             }
             Assert.Greater(apart, 0.1, "a crowd would march in perfect step");
+        }
+
+        [Test]
+        public void ASlowFrameRate_LosesNoTime_SoTheStrideKeepsUpWithTheGround()
+        {
+            // The character is moved by the whole frame time, so the animation must use the whole of it too.
+            var smooth = new BodyAnimator(3);
+            var choppy = new BodyAnimator(3);
+            BodyAnimInput input = Standing(Walk);
+            for (int i = 0; i < 180; i++) smooth.Update(Dt, input);     // three seconds at 60 frames a second
+            for (int i = 0; i < 30; i++) choppy.Update(0.1, input);     // the same three seconds at 10
+            double lag = Math.Abs(smooth.Gait - choppy.Gait);
+            lag = Math.Min(lag, 1.0 - lag);                             // the stride goes round from 1 back to 0
+            Assert.Less(lag, 0.06, "at 10 frames a second the stride fell behind the ground covered");
+            AssertSound(choppy.Pose, "at 10 frames a second");
+        }
+
+        // ------------------------------------------------------------------ one skeleton, four ways of carrying it
+
+        /// <summary>The four kinds: the style, the size the body is drawn at, and how fast it moves beside the trooper.</summary>
+        static readonly object[] Kinds =
+        {
+            new object[] { "Enemy", 1.0, 1.0 },
+            new object[] { "EnemyRunner", 0.85, 1.5 },
+            new object[] { "EnemyBruiser", 1.3, 0.8 },
+            new object[] { "EnemyMarksman", 1.2, 0.9 },
+        };
+
+        static BodyAnimInput KindInput(double speedShare, double quick)
+        {
+            BodyAnimInput input = Standing(0);
+            input.WalkSpeed = Walk * quick;
+            input.SprintSpeed = Sprint * quick;
+            input.ForwardSpeed = Lerp(input.WalkSpeed, input.SprintSpeed, speedShare);
+            input.Moving = true;
+            return input;
+        }
+
+        static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+        [Test]
+        public void TheTrooperStyle_ChangesNothing()
+        {
+            var plain = new BodyAnimator(3);
+            var styled = new BodyAnimator(3, BodyStyle.Trooper) { Size = 1.0 };
+            Assert.AreSame(BodyStyle.Trooper, plain.Style);
+            Assert.AreSame(BodyStyle.Trooper, BodyStyle.For("Enemy"));
+            Assert.AreSame(BodyStyle.Trooper, BodyStyle.For("something nobody made"));
+            foreach (double speed in new[] { 0.0, Walk, Sprint })
+            {
+                for (int i = 0; i < 200; i++)
+                {
+                    plain.Update(Dt, Standing(speed));
+                    styled.Update(Dt, Standing(speed));
+                }
+                Assert.AreEqual(plain.Gait, styled.Gait, 0.0);
+                for (int b = 0; b < plain.Pose.Local.Length; b++)
+                {
+                    Assert.AreEqual(plain.Pose.Local[b].W, styled.Pose.Local[b].W, 0.0, ((BodyBone)b).ToString());
+                    Assert.AreEqual(plain.Pose.Local[b].X, styled.Pose.Local[b].X, 0.0, ((BodyBone)b).ToString());
+                }
+            }
+        }
+
+        [TestCaseSource(nameof(Kinds))]
+        public void EveryKind_KeepsItsPlantedFeetStill_AtItsOwnSizeAndSpeed(string model, double size, double quick)
+        {
+            foreach (double share in new[] { 0.0, 0.5, 1.0 })
+            {
+                var a = new BodyAnimator(3, BodyStyle.For(model)) { Size = size };
+                double worst = WorstFootSlide(a, size, KindInput(share, quick), 5.0, out int steps);
+                Assert.Greater(steps, 8, model + " should have taken a good many steps");
+                Assert.Less(worst, 0.06 * size, model + " slides its feet at " + share + " of the way from walk to sprint");
+                AssertSound(a.Pose, model);
+            }
+        }
+
+        [TestCaseSource(nameof(Kinds))]
+        public void EveryKind_ReachesTheGround_WithoutSquatting(string model, double size, double quick)
+        {
+            foreach (double share in new[] { 0.0, 1.0 })
+            {
+                var a = new BodyAnimator(4, BodyStyle.For(model)) { Size = size };
+                BodyAnimInput input = KindInput(share, quick);
+                double lowest = double.MaxValue;
+                for (int i = 0; i < 400; i++)
+                {
+                    a.Update(Dt, input);
+                    if (i < 120) continue;
+                    a.Pose.World(BodyBone.Hips, out Vec3d hips, out _);
+                    lowest = Math.Min(lowest, hips.Y);
+                    for (int s = 0; s < 2; s++) Assert.Greater(Ankle(a.Pose, s).Y, BodySkeleton.AnkleY - 0.004, model + " put a foot through the ground");
+                }
+                // Legs that are asked to reach too far pull the hips down to the knees. None of them may.
+                Assert.Greater(lowest, BodySkeleton.HipsY - 0.17, model + " squats to reach its own stride at " + share);
+            }
+        }
+
+        [Test]
+        public void TheQuickSmallOne_MovesItsLegsFaster_AndTheBigSlowOne_Slower()
+        {
+            double Cadence(string model, double size, double quick)
+            {
+                var a = new BodyAnimator(3, BodyStyle.For(model)) { Size = size };
+                BodyAnimInput input = KindInput(1.0, quick);
+                for (int i = 0; i < 240; i++) a.Update(Dt, input);
+                return a.Cadence;
+            }
+            double trooper = Cadence("Enemy", 1.0, 1.0);
+            Assert.Greater(Cadence("EnemyRunner", 0.85, 1.5), trooper * 1.1);
+            Assert.Less(Cadence("EnemyBruiser", 1.3, 0.8), trooper * 0.8);
+            Assert.Less(Cadence("EnemyMarksman", 1.2, 0.9), trooper * 0.9);
+        }
+
+        [Test]
+        public void ADeepChestedBody_LiesOnItsChest_NotInTheGround()
+        {
+            // Lying down, the middle of the torso rests one chest-depth off the ground. The Bruiser's chest is a
+            // quarter deeper than the trooper's, so at the trooper's height it would sink in.
+            double Rest(BodyStyle style)
+            {
+                var a = new BodyAnimator(8, style);
+                double lowest = double.MaxValue;
+                for (int i = 0; i < 300; i++)
+                {
+                    BodyAnimInput input = Hurt(MovementState.Crawl, i * 0.09);
+                    a.Update(Dt, input);
+                    if (i < 60) continue;
+                    Vec3d middle = a.Pose.RootPosition + a.Pose.RootRotation.Rotate(new Vec3d(0.0, BodySkeleton.SpineY + BodySkeleton.TorsoCentreAboveSpine, 0.0));
+                    lowest = Math.Min(lowest, middle.Y);
+                }
+                return lowest;
+            }
+            double trooper = Rest(BodyStyle.Trooper);
+            Assert.AreEqual(BodyAnimator.ProneHeight, trooper, 0.03, "the trooper lies where it always did");
+            Assert.AreEqual(trooper * 1.25, Rest(BodyStyle.Bruiser), 0.03);
+            Assert.Less(Rest(BodyStyle.Runner), trooper);
+            // The style's chest is the same number the hitboxes are fitted with.
+            foreach (string model in new[] { "Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman" })
+                Assert.AreEqual(BodyFit.Thickness(model, BodyPartId.Torso), BodyStyle.For(model).Girth, 1e-6, model);
+        }
+
+        [Test]
+        public void EachKind_StandsItsOwnWay()
+        {
+            BodyPose Settled(BodyStyle style, out double fidget)
+            {
+                var a = new BodyAnimator(5, style);
+                for (int i = 0; i < 120; i++) a.Update(Dt, Standing(0));
+                a.Pose.World(BodyBone.Head, out Vec3d start, out _);
+                fidget = 0;
+                for (int i = 0; i < 600; i++)
+                {
+                    a.Update(Dt, Standing(0));
+                    a.Pose.World(BodyBone.Head, out Vec3d head, out _);
+                    fidget = Math.Max(fidget, Vec3d.Distance(head, start));
+                }
+                return a.Pose;
+            }
+            double Feet(BodyPose p) => Math.Abs(Ankle(p, BodySkeleton.Right).X - Ankle(p, BodySkeleton.Left).X);
+            double Hands(BodyPose p)
+            {
+                p.World(BodyBone.LeftHand, out Vec3d l, out _);
+                p.World(BodyBone.RightHand, out Vec3d r, out _);
+                return Math.Abs(r.X - l.X);
+            }
+            double Hips(BodyPose p) { p.World(BodyBone.Hips, out Vec3d h, out _); return h.Y; }
+            double HeadAhead(BodyPose p)
+            {
+                p.World(BodyBone.Head, out Vec3d head, out _);
+                p.World(BodyBone.Hips, out Vec3d hips, out _);
+                return head.Z - hips.Z;
+            }
+
+            BodyPose trooper = Settled(BodyStyle.Trooper, out double trooperFidget);
+            double feet = Feet(trooper), hands = Hands(trooper), hips = Hips(trooper), ahead = HeadAhead(trooper);
+
+            BodyPose bruiser = Settled(BodyStyle.Bruiser, out _);
+            Assert.Greater(Feet(bruiser), feet * 1.35, "the bruiser plants its feet wide");
+            Assert.Greater(Hands(bruiser), hands + 0.2, "and carries its arms out round its bulk");
+
+            BodyPose runner = Settled(BodyStyle.Runner, out _);
+            Assert.Less(Hips(runner), hips - 0.02, "the runner stands with its knees bent");
+            Assert.Greater(HeadAhead(runner), ahead + 0.04, "and leans the way it means to go");
+
+            BodyPose marksman = Settled(BodyStyle.Marksman, out double marksmanFidget);
+            Assert.Less(Feet(marksman), feet, "the marksman stands with its feet together");
+            Assert.Less(marksmanFidget, trooperFidget * 0.5, "and hardly moves");
+            Assert.Greater(marksmanFidget, 0.0005, "but is not a statue");
+        }
+
+        [Test]
+        public void AStyle_KeepsItsNumbersWithinReason()
+        {
+            var wild = new BodyStyle(lean: 400, hunch: double.NaN, armsOut: -50, stance: 0, stride: 99, idle: -1, crouch: 5);
+            Assert.LessOrEqual(wild.Lean, 20.0);
+            Assert.GreaterOrEqual(wild.ArmsOut, 0.0);
+            Assert.GreaterOrEqual(wild.Stance, 0.5);
+            Assert.LessOrEqual(wild.Stride, 1.5);
+            Assert.GreaterOrEqual(wild.Idle, 0.0);
+            Assert.LessOrEqual(wild.Crouch, 0.12);
+            var a = new BodyAnimator(1, wild) { Size = -3 };
+            Assert.Greater(a.Size, 0.0);
+            for (int i = 0; i < 200; i++) a.Update(Dt, Standing(Sprint));
+            AssertSound(a.Pose, "a wild style");
         }
     }
 }

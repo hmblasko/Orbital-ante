@@ -58,7 +58,7 @@ namespace OrbitalAnte.Ship
         Pane[] _panes;
 
         // Hatch
-        Transform _doorLeft, _doorRight, _lever;
+        Transform _doorLeft, _doorRight;
         Renderer _ring, _beam;
         Material _ringMaterial;
         bool _wasShut = true;
@@ -95,7 +95,7 @@ namespace OrbitalAnte.Ship
             ship.Config = config;
             ship.Body = rb;
             ship.Model = new ShipModel(config.damage);
-            ship.Hatch = new HatchLift { DoorSeconds = config.doorSeconds, LiftSpeed = config.liftSpeed, Reach = config.liftReach };
+            ship.Hatch = new HatchLift { DoorSeconds = config.doorSeconds, LiftSpeed = LiftSpeedOf(config), Reach = ReachOf(config) };
             ship.Belt = new SeatBelt { BuckleSeconds = config.buckleSeconds, UnbuckleSeconds = config.unbuckleSeconds };
             ship.Sounds = ShipAudio.Build();
             ship.Build();
@@ -265,7 +265,6 @@ namespace OrbitalAnte.Ship
             int hatch = Model.Find(PartKind.Hatch);
             GameObject hatchGo = NewPart(hatch, Vector3.zero);
             _partRenderers[hatch] = new Renderer[0];
-            _anchors[hatch].Add(V(ShipLayout.HatchLever));
             _anchors[hatch].Add(V(ShipLayout.OutsideHatchButton));
 
             for (int i = 0; i < _pieces.Count; i++)
@@ -286,7 +285,6 @@ namespace OrbitalAnte.Ship
                 renderer.receiveShadows = false;
                 if (piece.Name == "HatchDoor0") _doorLeft = go.transform;
                 else if (piece.Name == "HatchDoor1") _doorRight = go.transform;
-                else if (piece.Name == "Lever") _lever = go.transform;
             }
 
             // ---- the blue ring and the lift's beam
@@ -303,7 +301,7 @@ namespace OrbitalAnte.Ship
 
             var beam = new MeshBuilder();
             beam.Color("#39B8FF");
-            float bottom = ShipLayout.BellyY - Config.liftReach;
+            float bottom = ShipLayout.BellyY - ReachOf(Config);
             beam.Lathe(P3.Zero, new[] { ShipLayout.ShaftRadius * 0.96f, ShipLayout.ShaftRadius * 0.96f }, new[] { bottom, ShipLayout.BellyY }, 28);
             var beamGo = new GameObject("LiftBeam");
             beamGo.transform.SetParent(transform, false);
@@ -768,7 +766,7 @@ namespace OrbitalAnte.Ship
         public int FindRepairTarget(Vector3 eye, Vector3 forward, bool inside = false)
         {
             int best = -1;
-            float reach = inside ? Config.repairReach : Config.spacewalkRepairReach;
+            float reach = inside ? Config.repairReach : MendReachOf(Config);
             float bestAngle = Config.repairAim;
             for (int i = 0; i < Model.Count; i++)
             {
@@ -830,13 +828,50 @@ namespace OrbitalAnte.Ship
         }
 
         /// <summary>
+        /// How far below the belly the lift reaches: the dial, but never less than the ground under the
+        /// footpads plus a margin, so an old config asset cannot leave the lift short of the ground.
+        /// </summary>
+        public static float ReachOf(ShipConfig config)
+        {
+            float needed = ShipLayout.BellyClearance + 1.5f;
+            return config == null ? needed : Mathf.Max(config.liftReach, needed);
+        }
+
+        /// <summary>The longest the ride from the ground to the cabin floor may take, in seconds.</summary>
+        public const float LongestLiftRide = 1.4f;
+
+        /// <summary>
+        /// The lift's speed: the dial, but never so slow that the ride up the long legs drags. (The dial was
+        /// set when the belly was a step off the ground; an old config asset still holds that number.)
+        /// </summary>
+        public static float LiftSpeedOf(ShipConfig config)
+        {
+            float needed = -ShipLayout.GroundY / LongestLiftRide;
+            return config == null ? needed : Mathf.Max(config.liftSpeed, needed);
+        }
+
+        /// <summary>How high a mender's eyes are when they stand on the ground, for <see cref="MendReachOf"/>.</summary>
+        const float StandingEye = 1.6f;
+
+        /// <summary>
+        /// How far away a part can be mended from outside: the dial, but never less than it takes to reach the
+        /// thrusters standing on the ground under them. On Earth the suit's jets cannot lift you, so without
+        /// this the long legs would put the thrusters out of reach for good.
+        /// </summary>
+        public static float MendReachOf(ShipConfig config)
+        {
+            float needed = (float)ShipLayout.Thruster(0).Y - ShipLayout.GroundY - StandingEye + 0.7f;
+            return config == null ? needed : Mathf.Max(config.spacewalkRepairReach, needed);
+        }
+
+        /// <summary>
         /// How far down the lift can set someone down: the ground under the belly in ship space, or NaN when
         /// there is nothing within its reach to stand on.
         /// </summary>
         public float FindLiftBottom()
         {
             Vector3 from = transform.TransformPoint(new Vector3(0f, ShipLayout.BellyY, 0f));
-            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, Config.liftReach, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            int hits = Physics.RaycastNonAlloc(from, -transform.up, _rayHits, ReachOf(Config), Layers.WorldMask, QueryTriggerInteraction.Ignore);
             float nearest = float.MaxValue;
             for (int i = 0; i < hits; i++)
             {
@@ -855,12 +890,6 @@ namespace OrbitalAnte.Ship
             float slide = eased * (ShipLayout.ShaftRadius + 0.06f);
             if (_doorLeft != null) _doorLeft.localPosition = new Vector3(-slide, -drop, 0f);
             if (_doorRight != null) _doorRight.localPosition = new Vector3(slide, -drop, 0f);
-            if (_lever != null)
-            {
-                float lean = Mathf.Lerp(-32f, 32f, Hatch.WantOpen ? 1f : 0f);
-                Quaternion target = Quaternion.Euler(lean, 0f, 0f);
-                _lever.localRotation = Quaternion.RotateTowards(_lever.localRotation, target, 400f * Time.deltaTime);
-            }
             if (_ringMaterial != null)
             {
                 // The ring is always lit, so you can find the way in; brighter while the lift is on.

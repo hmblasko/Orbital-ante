@@ -266,7 +266,7 @@ namespace OrbitalAnte.UI
                     (average * 1000f).ToString("0.0") + " ms avg   " +
                     (_worstFrame * 1000f).ToString("0.0") + " ms worst   " +
                     Mathf.RoundToInt(1f / Mathf.Max(0.0001f, average)) + " fps\n" +
-                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout() + FinishReadout() +
+                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout() + FinishReadout() + DetailReadout() +
                     (ExtraDebug != null ? "\n" + ExtraDebug() : string.Empty);
             }
             _frameAccumulator = 0f;
@@ -286,6 +286,12 @@ namespace OrbitalAnte.UI
         {
             var finish = OrbitalAnte.Look.PostFx.Instance;
             return finish != null ? "\nPicture finish: " + finish.Status : string.Empty;
+        }
+
+        /// <summary>How many enemies and guns are being watched, and how many of them are drawn as their far copies.</summary>
+        static string DetailReadout()
+        {
+            return OrbitalAnte.Look.ModelDetail.Watched > 0 ? "\n" + OrbitalAnte.Look.ModelDetail.Describe() : string.Empty;
         }
 
         /// <summary>Live counts for the performance budget: loose chunks, blood droplets and splats.</summary>

@@ -50,7 +50,7 @@ namespace OrbitalAnte.Tests
             Astronaut.OnDeath = null;
             if (_root != null) Object.Destroy(_root);
             PlanetSurface.PictureWidthForTests = 0;
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         static IEnumerator Frames(int count)

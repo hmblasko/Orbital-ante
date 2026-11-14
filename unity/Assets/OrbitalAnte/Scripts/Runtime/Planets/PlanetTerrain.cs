@@ -98,6 +98,24 @@ namespace OrbitalAnte.Planets
 
         public Vec3d SurfacePoint(Vec3d direction) => direction * (Radius + Height(direction));
 
+        /// <summary>The roughest country's hills, next to the hill height on the profile.</summary>
+        const double RoughMost = 1.25;
+
+        /// <summary>
+        /// Worn mountains come out lower than plain ridged ones (their finer layers are held back on the flanks),
+        /// by about a quarter at Earth's wear. This puts the height back, so wear changes their shape, not their size.
+        /// </summary>
+        static double MountainGain(double erosion) => 1.0 + 0.3 * Noise3.Clamp01(erosion * 1.5);
+
+        /// <summary>The cross-section of a valley: 1 on its line, 0 at its edge, with a flat floor and steepening sides.</summary>
+        static double Channel(double value, double width)
+        {
+            double d = Math.Abs(value) / width;
+            if (d >= 1) return 0;
+            double side = 1 - Noise3.Smooth(0.12, 1, d);
+            return side * (0.6 + 0.4 * side);
+        }
+
         double Base(Vec3d direction, Vec3d p, double minW, double flatten)
         {
             PlanetProfile f = Profile;
@@ -115,16 +133,65 @@ namespace OrbitalAnte.Planets
             if (keep > 0.001)
             {
                 double relief = 0;
-                // Some regions are rougher than others, but nowhere is dead flat.
-                double rough = 0.45 + 0.55 * Noise3.Clamp01(0.5 + Noise3.Fbm(p, f.hillWavelength * 6, 2, _s + 2) * 1.2);
-                relief += Noise3.Fbm(p, f.hillWavelength, 4, _s + 3, minW) * f.hillHeight * 1.6 * rough;
+                // Some regions are rougher than others: calm plains, rolling country, broken hills. Nowhere is dead flat.
+                double province = Noise3.Clamp01(0.5 + Noise3.Fbm(p, f.hillWavelength * 6, 2, _s + 2) * 1.2);
+                double rough = Noise3.Lerp(1.0 - 0.75 * f.plains, RoughMost, Noise3.Smooth(0.2, 0.85, province));
+                relief += Noise3.Eroded(p, f.hillWavelength, 4, _s + 3, f.erosion, minW) * f.hillHeight * 1.6 * rough;
+                double mountains = 0;
                 if (f.mountainHeight > 0 && f.mountainCoverage > 0)
                 {
                     double start = 0.45 - f.mountainCoverage * 0.9;
                     double mask = Noise3.Smooth(start, start + 0.25, Noise3.Fbm(q, f.mountainWavelength * 3.5, 2, _s + 4));
-                    if (mask > 0) relief += Noise3.Ridged(q, f.mountainWavelength, 5, _s + 5, minW) * f.mountainHeight * 1.5 * mask;
+                    if (mask > 0)
+                    {
+                        mountains = Noise3.ErodedRidged(q, f.mountainWavelength, 5, _s + 5, f.erosion * 0.6, minW) * mask;
+                        relief += mountains * f.mountainHeight * 1.5 * MountainGain(f.erosion);
+                    }
+                }
+                if (f.cragHeight > 0 && minW < 26)
+                {
+                    // Broken rock in the mountains and the rough country; the plains stay smooth (and cost nothing here).
+                    double where = Math.Max(mountains * 1.6, Noise3.Smooth(0.45, 0.95, province) * 0.7);
+                    if (where > 0.02) relief += (Noise3.Ridged(p, 26, 3, _s + 7, minW) - 0.3) * f.cragHeight * Math.Min(1, where);
                 }
                 height += relief * keep;
+
+                if (f.valleyDepth > 0)
+                {
+                    // Winding valleys follow the lines where a broad pattern crosses zero. They cut deepest into
+                    // high ground and die away toward the lowlands, the way rivers leave the hills.
+                    double floor = f.hasSea ? f.seaLevel + 1.5 : f.continentBias - f.continentHeight * 0.5;
+                    double room = Noise3.Smooth(floor, floor + f.valleyDepth * 1.6, height);
+                    if (room > 0)
+                    {
+                        double vw = f.valleyWavelength;
+                        double cut = Channel(Noise3.Perlin(q, vw, _s + 9), f.valleyWidth);
+                        // Side valleys, narrower and shallower, joining the main ones.
+                        // They fade in as the ground gets fine enough to carry them, so none pops into being.
+                        double carried = Noise3.Smooth(minW * 0.5, minW * 2, vw * 0.4 * f.valleyWidth * 2);
+                        if (carried > 0)
+                        {
+                            cut = Math.Max(cut, 0.5 * carried * Channel(Noise3.Perlin(q, vw * 0.4, _s + 10), f.valleyWidth * 1.3));
+                        }
+                        height -= cut * f.valleyDepth * room * keep;
+                    }
+                }
+
+                if (f.terraceStep > 0 && f.terraceCoverage > 0)
+                {
+                    double start = 0.42 - f.terraceCoverage * 0.9;
+                    double stepped = Noise3.Smooth(start, start + 0.2, Noise3.Perlin(p, f.hillWavelength * 6, _s + 14) * 0.8) * keep;
+                    if (stepped > 0)
+                    {
+                        // Benches do not run dead level: the layers tilt and wander a little.
+                        double t = (height + Noise3.Perlin(p, f.hillWavelength * 2.2, _s + 15) * f.terraceStep * 0.8) / f.terraceStep;
+                        double whole = Math.Floor(t), part = t - whole;
+                        // A flat tread, then a steep riser.
+                        double riser = Noise3.Smooth(0.62, 0.95, part);
+                        double bench = (whole + 0.5 + (riser - 0.5) * 0.9 + (part - 0.5) * 0.1) * f.terraceStep;
+                        height += (bench - t * f.terraceStep) * stepped;
+                    }
+                }
             }
 
             if (f.detailHeight > 0) height += Noise3.Fbm(p, f.detailWavelength, 2, _s + 6, minW) * f.detailHeight * 1.6;
@@ -142,15 +209,18 @@ namespace OrbitalAnte.Planets
             return height;
         }
 
-        /// <summary>How steep the ground is: 0 flat, 1 a vertical wall.</summary>
-        public double SlopeAt(Vec3d direction, double step = 2.0)
+        /// <summary>
+        /// How steep the ground is: 0 flat, 1 a vertical wall. Bumps smaller than <paramref name="minWavelength"/>
+        /// are left out, for a cheap answer about the broad lie of far-away ground.
+        /// </summary>
+        public double SlopeAt(Vec3d direction, double step = 2.0, double minWavelength = 0)
         {
             Vec3d u = direction.AnyPerpendicular();
             Vec3d v = Vec3d.Cross(direction, u);
             double angle = step / Radius;
-            double h0 = Height(direction);
-            double hu = Height((direction + u * angle).Normalized);
-            double hv = Height((direction + v * angle).Normalized);
+            double h0 = Height(direction, minWavelength);
+            double hu = Height((direction + u * angle).Normalized, minWavelength);
+            double hv = Height((direction + v * angle).Normalized, minWavelength);
             double gu = (hu - h0) / step, gv = (hv - h0) / step;
             double g2 = gu * gu + gv * gv;
             return Math.Sqrt(g2 / (1.0 + g2));
@@ -545,7 +615,7 @@ namespace OrbitalAnte.Planets
         void EstimateBounds()
         {
             PlanetProfile f = Profile;
-            double swing = f.continentHeight * 1.6 + f.hillHeight * 1.6 + f.detailHeight * 1.6;
+            double swing = f.continentHeight * 1.6 + f.hillHeight * 1.6 * RoughMost + f.detailHeight * 1.6 + f.terraceStep * 1.3 + f.cragHeight;
             double up = 0, down = 0;
             for (int i = 0; i < Stamps.Count; i++)
             {
@@ -574,8 +644,8 @@ namespace OrbitalAnte.Planets
                 }
             }
             // Formations overlap now and then, so leave room for two of the biggest.
-            MaxHeight = f.continentBias + swing + f.mountainHeight * 1.5 + up * 2;
-            MinHeight = f.continentBias - swing - down * 2;
+            MaxHeight = f.continentBias + swing + f.mountainHeight * 1.5 * MountainGain(f.erosion) + up * 2;
+            MinHeight = f.continentBias - swing - f.valleyDepth - down * 2;
         }
 
         // ------------------------------------------------------------------ holes
@@ -594,17 +664,24 @@ namespace OrbitalAnte.Planets
         // ------------------------------------------------------------------ colour
 
         /// <summary>
-        /// The colour of the ground at a spot. <paramref name="slope"/> is how steep it is there (0 flat, 1 a wall),
-        /// which the caller works out from the shape it has already built.
+        /// The colour of the ground at a spot. <paramref name="slope"/> is how steep it is there (0 flat, 1 a wall)
+        /// and <paramref name="hollow"/> says whether the spot sits in a dip (toward 1) or on a crest (toward -1);
+        /// the caller works both out from the shape it has already built.
+        ///
+        /// The colours aim at how real ground looks from the air: soil and plants on gentle ground, loose stone
+        /// where it steepens, bare layered rock on faces, damp dark creases, pale dry crests, and broad patches of
+        /// slightly different tone so no hillside is one flat paint.
         /// </summary>
-        public void ColorAt(Vec3d direction, in TerrainPoint point, double slope, out float r, out float g, out float b)
+        public void ColorAt(Vec3d direction, in TerrainPoint point, double slope, out float r, out float g, out float b, double hollow = 0)
         {
             PlanetProfile f = Profile;
             Vec3d p = direction * Radius;
             double latitude = Math.Abs(direction.Y);
             double height = point.Height;
             double n = Noise3.Perlin(p, 37, _s + 20) * 0.6 + Noise3.Perlin(p, 9, _s + 21) * 0.4;
-            double h = height + n * 3;
+            // Broad patches a few hundred metres across: different soils, wetter and drier country.
+            double broad = Noise3.Perlin(p, 170, _s + 22);
+            double h = height + n * 3 + broad * 5;
 
             float cr, cg, cb;
             if (h < f.midHeight)
@@ -632,7 +709,7 @@ namespace OrbitalAnte.Planets
             if (f.hasSea)
             {
                 double above = height - f.seaLevel;
-                if (_hasShore && above < 1.8) Blend(ref cr, ref cg, ref cb, _shore, 1 - Noise3.Smooth(0.5, 1.8, above));
+                if (_hasShore && above < 1.8) Blend(ref cr, ref cg, ref cb, _shore, 1 - Noise3.Smooth(0.5, 1.8, above + n * 0.4));
                 if (above < 0)
                 {
                     // The sea bed darkens and takes on the colour of deep water.
@@ -651,40 +728,67 @@ namespace OrbitalAnte.Planets
                 cb += (point.TintB - cb) * point.TintAmount;
             }
 
-            // Formations keep most of their own colour even where they are steep.
-            double steep = Noise3.Smooth(0.5, 0.78, slope) * (1 - 0.65 * point.TintAmount);
-            if (steep > 0)
+            // Dips hold damp, fine, darker ground; crests are scoured pale and dry.
+            if (hollow != 0)
             {
-                float lr = _cliff[0], lg = _cliff[1], lb = _cliff[2];
-                if (f.strata > 0)
-                {
-                    // Layers of rock showing on cliff faces.
-                    double band = 0.5 + 0.5 * Math.Sin(height / f.strata * Math.PI * 2 + n * 2);
-                    float k = (float)(0.72 + 0.5 * band);
-                    lr = Math.Min(1f, (lr * 0.6f + _mid[0] * 0.4f) * k);
-                    lg = Math.Min(1f, (lg * 0.6f + _mid[1] * 0.4f) * k);
-                    lb = Math.Min(1f, (lb * 0.6f + _mid[2] * 0.4f) * k);
-                }
-                cr += (lr - cr) * (float)steep;
-                cg += (lg - cg) * (float)steep;
-                cb += (lb - cb) * (float)steep;
+                float k = (float)(1.0 - 0.16 * Math.Max(-1.0, Math.Min(1.0, hollow)));
+                cr *= k; cg *= k; cb *= k;
             }
 
-            double gentle = 1 - Noise3.Smooth(0.55, 0.8, slope);
-            if (height > f.peakHeight - 4)
+            // Formations keep most of their own colour even where they are steep.
+            double own = 1 - 0.65 * point.TintAmount;
+            double edge = slope + n * 0.05;
+            double steep = Noise3.Smooth(0.46, 0.72, edge) * own;
+            // Loose stone gathers on the slopes below the faces.
+            double scree = Noise3.Smooth(0.26, 0.46, edge) * (1 - steep) * own * 0.55;
+            if (scree > 0)
             {
-                Blend(ref cr, ref cg, ref cb, _peak, Noise3.Smooth(f.peakHeight - 4, f.peakHeight + 3, height + n * 4) * gentle);
+                Blend3(ref cr, ref cg, ref cb, (_cliff[0] + _high[0]) * 0.5f, (_cliff[1] + _high[1]) * 0.5f, (_cliff[2] + _high[2]) * 0.5f, scree);
+            }
+            if (steep > 0)
+            {
+                // Bare rock, never one flat colour: blotches of weathering, and where the profile says so, beds of
+                // unequal thickness that tilt and wander instead of ruled stripes.
+                float k = (float)(0.92 + 0.12 * Noise3.Perlin(p, 14, _s + 23) + 0.08 * broad);
+                float lr = _cliff[0] * k, lg = _cliff[1] * k, lb = _cliff[2] * k;
+                if (f.strata > 0)
+                {
+                    double bed = (height + Noise3.Perlin(p, 120, _s + 24) * f.strata * 2.5) / f.strata;
+                    double band = Noise3.Perlin(bed, 0.37, 0.71, _s + 25) * 0.65 + Noise3.Perlin(bed * 2.9, 1.3, 0.2, _s + 26) * 0.35;
+                    float toMid = (float)Noise3.Clamp01(0.22 + band * 0.5);
+                    float light = (float)(1.0 + band * 0.16);
+                    lr = (lr + (_mid[0] - lr) * toMid) * light;
+                    lg = (lg + (_mid[1] - lg) * toMid) * light;
+                    lb = (lb + (_mid[2] - lb) * toMid) * light;
+                }
+                Blend3(ref cr, ref cg, ref cb, lr, lg, lb, steep);
+            }
+
+            // Snow and ice lie on gentle ground, linger in hollows and blow off crests, so the snow line is ragged.
+            double gentle = 1 - Noise3.Smooth(0.5, 0.74, slope);
+            double drift = hollow * 5 + broad * 5 + n * 4;
+            if (height + drift > f.peakHeight - 4)
+            {
+                Blend(ref cr, ref cg, ref cb, _peak, Noise3.Smooth(f.peakHeight - 4, f.peakHeight + 3, height + drift) * gentle);
             }
             if (_hasPole && (!f.hasSea || height > f.seaLevel))
             {
-                double edge = f.poleLatitude + n * 0.03;
-                Blend(ref cr, ref cg, ref cb, _pole, Noise3.Smooth(edge, edge + 0.035, latitude) * gentle);
+                double rim = f.poleLatitude + n * 0.03 - hollow * 0.01;
+                Blend(ref cr, ref cg, ref cb, _pole, Noise3.Smooth(rim, rim + 0.035, latitude) * gentle);
             }
 
-            float shade = (float)(0.93 + 0.14 * n);
+            float shade = (float)(0.93 + 0.11 * n + 0.07 * broad);
             r = Clamp(cr * shade);
             g = Clamp(cg * shade);
             b = Clamp(cb * shade);
+        }
+
+        static void Blend3(ref float r, ref float g, ref float b, float tr, float tg, float tb, double amount)
+        {
+            float k = (float)Math.Min(1.0, amount);
+            r += (tr - r) * k;
+            g += (tg - g) * k;
+            b += (tb - b) * k;
         }
 
         static void Mix(float[] a, float[] b, double t, out float r, out float g, out float bl)

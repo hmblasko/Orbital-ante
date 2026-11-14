@@ -15,6 +15,8 @@ namespace OrbitalAnte.Planets
         [Header("Ground detail")]
         [Tooltip("Size of the smallest squares of ground right under you, in metres. Smaller is smoother and costs more.")]
         [Range(1f, 4f)] public float finestCell = 1.7f;
+        [Tooltip("Grit, stones and small hummocks drawn on the ground close to you, and how strongly the light catches them. 0 turns it off (plain ground, a little cheaper to draw).")]
+        [Range(0f, 1.5f)] public float groundRelief = 1f;
         [Tooltip("How far away ground switches to more detail, measured in tile widths. Bigger means more detail at a distance and more to draw.")]
         [Range(0.8f, 3f)] public float splitDistance = 1.2f;
         [Tooltip("How many pieces of ground may be worked out at the same time on spare processor cores.")]
@@ -73,6 +75,17 @@ namespace OrbitalAnte.Planets
         public PlanetSettings settings = new PlanetSettings();
         [Tooltip("One entry per body that has ground to land on. bodyId must match the body's id in the Solar System asset.")]
         public List<PlanetProfile> planets = PlanetProfiles.Defaults();
+        [Tooltip("Which set of built-in defaults this asset's planets came from. When the game's defaults move on, the planets list is replaced with the new defaults (your settings above are kept). Set this to 9999 to keep your own planet edits for good.")]
+        public int defaultsVersion;
+
+        void OnEnable()
+        {
+            // An asset saved before the defaults changed still holds the old planets. Nothing on it has been
+            // edited by hand in practice, and the alternative is a step for Matthew to do in the editor.
+            if (defaultsVersion >= PlanetProfiles.Version) return;
+            planets = PlanetProfiles.Defaults();
+            defaultsVersion = PlanetProfiles.Version;
+        }
 
         public override string DisplayName => "Planets";
 

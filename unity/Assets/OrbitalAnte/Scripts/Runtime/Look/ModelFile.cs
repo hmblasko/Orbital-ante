@@ -37,6 +37,8 @@ namespace OrbitalAnte.Look
     {
         public const int MaxParts = 64;
         public const int MaxCornersPerPart = 60000;
+        /// <summary>Scenery files carry three attachment points a tree (its trunk), so this is generous.</summary>
+        public const int MaxSockets = 256;
 
         public ModelPart[] Parts = new ModelPart[0];
         public ModelSocket[] Sockets = new ModelSocket[0];
@@ -49,6 +51,23 @@ namespace OrbitalAnte.Look
             }
             return null;
         }
+
+        /// <summary>
+        /// True for a piece that shines by itself. The models' own rule: its name ends in "Glow" (a scope's front
+        /// glass, a power cell's window, a lamp). Such a piece holds only the parts that shine.
+        /// </summary>
+        public static bool Shines(string piece) => piece != null && piece.EndsWith("Glow", StringComparison.Ordinal);
+
+        /// <summary>
+        /// On the end of a model's name, the far copy of it: the same pieces by the same names and the same
+        /// sockets in about a fifth of the triangles, written by the same Blender script (oa_blender.thin).
+        /// </summary>
+        public const string FarSuffix = "Far";
+
+        /// <summary>The name of a model's far copy. (A far copy has none of its own.)</summary>
+        public static string FarOf(string model) => string.IsNullOrEmpty(model) || IsFar(model) ? null : model + FarSuffix;
+
+        public static bool IsFar(string model) => model != null && model.Length > FarSuffix.Length && model.EndsWith(FarSuffix, StringComparison.Ordinal);
 
         public bool TrySocket(string name, out ModelSocket socket)
         {
@@ -145,7 +164,7 @@ namespace OrbitalAnte.Look
                         model.Parts[p] = part;
                     }
                     int socketCount = reader.ReadInt32();
-                    if (socketCount < 0 || socketCount > 64)
+                    if (socketCount < 0 || socketCount > MaxSockets)
                     {
                         problem = "it claims " + socketCount + " attachment points";
                         return null;

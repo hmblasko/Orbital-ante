@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using OrbitalAnte.Core;
 using OrbitalAnte.Launch;
 using OrbitalAnte.Look;
+using OrbitalAnte.Navigation;
 using OrbitalAnte.Planets;
 using OrbitalAnte.Ship;
 using OrbitalAnte.Space;
@@ -74,6 +75,10 @@ namespace OrbitalAnte.Cockpit
         Text _overlayText;
         readonly List<Text> _words = new List<Text>();
         readonly List<GameObject> _fittings = new List<GameObject>();
+        /// <summary>The modelled console and its instruments, or null without the Console model.</summary>
+        public ConsoleInstruments Console { get; private set; }
+        /// <summary>What the console's instruments show.</summary>
+        public readonly ConsoleGauges Gauges = new ConsoleGauges();
         float _nextDraw, _overlayUntil;
         /// <summary>Unity's built-in "UI" layer. The dash lives on it so the ship's own cameras can leave it out.</summary>
         public const int DashLayer = 5;
@@ -128,6 +133,7 @@ namespace OrbitalAnte.Cockpit
                 panel.localRotation = Quaternion.Euler(Config.deskLean, 0f, 0f);
                 panel.localScale = Vector3.one * (Mathf.Max(0.2f, Config.deskWidth) / DashDrawing.Width);
                 go.layer = DashLayer;
+                BuildHousing(panel);
             }
             else
             {
@@ -196,6 +202,18 @@ namespace OrbitalAnte.Cockpit
             }
         }
 
+        /// <summary>
+        /// The modelled housing round the desk panel, when the model has one. The first choice is the copy with
+        /// the cabin's baked light already in its colours (made by tools/bake), drawn as the cabin is drawn; the
+        /// plain copy in the Lander model is the fallback. The model's socket says where the panel's middle goes.
+        /// </summary>
+        void BuildHousing(RectTransform panel)
+        {
+            // The console the screen sits in, with its real gauges. Without the model the screen stands on the bare desk.
+            Console = ConsoleInstruments.Build(_ship.transform, _ship.LightBaked);
+            if (Console != null && Console.HasScreenPlace) panel.localPosition = Console.ScreenPlace;
+        }
+
         void AddFitting(string piece, bool lit)
         {
             Mesh mesh = ModelLibrary.PartMesh("Lander", piece);
@@ -240,6 +258,12 @@ namespace OrbitalAnte.Cockpit
                 if (state == PartState.Broken || state == PartState.Lost) broken++;
             }
             Supplies.Tick(dt, push, _craft.Boosting && !Braking, onPad, broken, landed);
+            // The console's throttle lever shows what the engines are being asked for, whoever asks: not what a
+            // dry tank can give, and not the autopilot's fuel surcharge (that is a bill, not a push).
+            float ordinary = Mathf.Max(1f, _craft.Config.thrust);
+            AutopilotRules pilot = _craft.PilotRules;
+            Gauges.Push(ConsoleGauges.LeverFor(flying ? _craft.ThrustInput.magnitude : 0f, _craft.Boosting, _craft.Config.boostMultiplier,
+                Braking, _craft.Config.matchVelocityThrust / ordinary, _craft.PilotOn, _craft.Order.Effort * pilot.push / ordinary, pilot.push / ordinary), dt);
             // The suit fills up from the ship's tank, and is told how much is left in it.
             Supplies.DrawAir(_crew.TakeAirDrawn());
             _crew.ShipAir = Supplies.Oxygen;
@@ -269,10 +293,25 @@ namespace OrbitalAnte.Cockpit
                 Shown = inCabin;
                 _canvas.gameObject.SetActive(inCabin);
             }
-            if (!inCabin) return;
+            if (!inCabin)
+            {
+                // Seen through the glass from outside, the tube, needle and lamps still follow the tanks.
+                if (Console != null)
+                {
+                    Gauges.Set(Supplies.Fuel, Supplies.Oxygen, Supplies.FuelLow, Supplies.FuelOut, Supplies.OxygenLow, Time.time % 1f < 0.5f, _craft.LockedTarget >= 0, _craft.PilotOn, _craft.MatchingVelocity);
+                    Console.Show(Gauges);
+                }
+                return;
+            }
 
             DashInputs input = Gather(engines);
             Model.Tick(dt, input);
+            // The real instruments move every frame (they are cheap); only the screen is redrawn on a timer.
+            if (Console != null)
+            {
+                Gauges.Set(Model.Readings, _craft.LockedTarget >= 0, _craft.PilotOn);
+                Console.Show(Gauges);
+            }
             _nextDraw -= dt;
             if (_nextDraw > 0f) return;
             _nextDraw = 1f / Mathf.Clamp(Config.redrawsPerSecond, 10, 60);
@@ -514,6 +553,7 @@ namespace OrbitalAnte.Cockpit
             }
             if (_canvas != null) Destroy(_canvas.gameObject);
             for (int i = 0; i < _fittings.Count; i++) if (_fittings[i] != null) Destroy(_fittings[i]);
+            if (Console != null) Console.Destroy();
         }
     }
 }

@@ -47,7 +47,7 @@ namespace OrbitalAnte.Tests
             GibManager.DestroyInstance();
             if (WeaponFx.Instance != null) Object.Destroy(WeaponFx.Instance.gameObject);
             if (_root != null) Object.Destroy(_root);
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         Weapon NewWeapon(WeaponData data, Vector3 position, bool oneHandCanReload = true)

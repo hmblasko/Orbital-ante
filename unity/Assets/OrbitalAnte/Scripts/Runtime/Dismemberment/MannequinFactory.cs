@@ -16,6 +16,9 @@ namespace OrbitalAnte.Dismemberment
     {
         /// <summary>The model the pieces come from. Its pieces are named after <see cref="BodyPartId"/>, plus "Stump".</summary>
         public const string ModelId = "Enemy";
+        // Which body model the character being built uses. Only while one character is being built.
+        static string _model = ModelId;
+        static bool _fitted;
         public const string StumpPiece = "Stump";
 
         // Rest-pose joint positions in metres, character standing at the origin facing +Z. Left side is -X.
@@ -56,12 +59,16 @@ namespace OrbitalAnte.Dismemberment
         }
 
         /// <summary>True when every piece of the enemy model is there to use.</summary>
-        public static bool ModelAvailable()
+        public static bool ModelAvailable() => ModelAvailable(ModelId);
+
+        /// <summary>True when every piece of the body model named is there to use.</summary>
+        public static bool ModelAvailable(string model)
         {
-            if (ModelLibrary.PartMesh(ModelId, StumpPiece) == null) return false;
+            if (string.IsNullOrEmpty(model)) return false;
+            if (ModelLibrary.PartMesh(model, StumpPiece) == null) return false;
             for (int i = 0; i < BodyLayout.Count; i++)
             {
-                if (ModelLibrary.PartMesh(ModelId, ((BodyPartId)i).ToString()) == null) return false;
+                if (ModelLibrary.PartMesh(model, ((BodyPartId)i).ToString()) == null) return false;
             }
             return true;
         }
@@ -80,12 +87,18 @@ namespace OrbitalAnte.Dismemberment
             rootBody.isKinematic = true;
             rootBody.useGravity = false;
 
-            bool modelled = ModelAvailable();
+            // The kind's own body if it has one, the ordinary body if not, the stand-in shapes if neither.
+            _model = config != null && ModelAvailable(config.modelId) ? config.modelId : ModelId;
+            bool modelled = ModelAvailable(_model);
+            _fitted = modelled;
             _shadowCopies = modelled && SceneCastsShadows();
             var rig = BuildSkeleton(root.transform, modelled);
 
             var mannequin = root.AddComponent<Mannequin>();
             var parts = BuildParts(mannequin, rig, config, modelled);
+            // Far away it is drawn with the model's far copy, and only the nearest few bodies are ever drawn in full.
+            // (Before the gun is made: the gun watches itself.)
+            if (modelled) ModelDetail.Attach(root, _model, DetailRule.BodyRange, true);
 
             // Simple capsule that stops the character and the player walking through each other.
             var blockerGo = new GameObject("BodyBlocker");
@@ -265,7 +278,7 @@ namespace OrbitalAnte.Dismemberment
                 if (AddModel(go, BodyPartId.Head, modelled))
                 {
                     col.radius = ModelHeadRadius;
-                    col.center = new Vector3(0f, 0.015f, 0f);
+                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), 0f);
                     neck = 0.165f;
                 }
                 else
@@ -375,7 +388,8 @@ namespace OrbitalAnte.Dismemberment
                     if (id == BodyPartId.LeftThigh || id == BodyPartId.RightThigh) local += direction * 0.07f;
                     else if (id == BodyPartId.Head) local += direction * 0.025f;
                 }
-                parent.SetChildCap(id, AddCap(parent.gameObject, local, capRadius[i], direction, wound, modelled));
+                float capFit = _fitted ? BodyFit.Thickness(_model, id) : 1f;
+                parent.SetChildCap(id, AddCap(parent.gameObject, local, capRadius[i] * capFit, direction, wound, modelled));
             }
 
             return parts;
@@ -394,7 +408,7 @@ namespace OrbitalAnte.Dismemberment
         static bool AddModel(GameObject parent, BodyPartId id, bool modelled)
         {
             if (!modelled) return false;
-            Mesh mesh = ModelLibrary.PartMesh(ModelId, id.ToString());
+            Mesh mesh = ModelLibrary.PartMesh(_model, id.ToString());
             if (mesh == null) return false;
             AddModelMesh(parent, mesh, "Mesh", true);
             return true;
@@ -438,6 +452,13 @@ namespace OrbitalAnte.Dismemberment
 
         static BodyPart Finish(GameObject go, BodyPartId id, Mannequin owner, Collider hitbox, float mass, GameObject proximalCap)
         {
+            // Each kind's body is thicker or thinner than the ordinary one, part by part: what looks hit is hit.
+            if (_fitted)
+            {
+                float thick = BodyFit.Thickness(_model, id);
+                if (hitbox is CapsuleCollider capsule) capsule.radius *= thick;
+                else if (hitbox is SphereCollider sphere) sphere.radius *= thick;
+            }
             var part = go.AddComponent<BodyPart>();
             part.Setup(id, owner, hitbox, mass, proximalCap);
             return part;
@@ -466,7 +487,7 @@ namespace OrbitalAnte.Dismemberment
         /// </summary>
         static GameObject AddCap(GameObject parent, Vector3 localPosition, float radius, Vector3 facing, Material material, bool modelled)
         {
-            Mesh stump = modelled ? ModelLibrary.PartMesh(ModelId, StumpPiece) : null;
+            Mesh stump = modelled ? ModelLibrary.PartMesh(_model, StumpPiece) : null;
             if (stump == null)
             {
                 var ball = AddMesh(parent, PrimitiveType.Sphere, localPosition, Quaternion.identity, Vector3.one * (radius * 2f), material);

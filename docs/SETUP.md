@@ -44,8 +44,8 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Look around the cabin | Mouse | Click the right stick, then move it (click again to go back to turning) |
-| Turn the ship | Hold the right mouse button and move the mouse | Right stick |
+| Look around the cabin | Mouse | Right stick |
+| Turn the ship | Hold the right mouse button and move the mouse | Click the right stick, then move it (click again to go back to looking) |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
@@ -76,11 +76,12 @@ You start strapped into the pilot's seat. The flying controls above only work wh
 | Unbuckle and stand up | B | Y / Triangle |
 | Walk, look, jump | W A S D, mouse, Space | Left stick, right stick, A / Cross |
 | Buckle in | Look at the seat from close by, press E | Look at the seat, press Y / Triangle |
-| Open or close the belly hatch | G (anywhere near the ship, even in flight), or E on the lever | D-pad left, or Y / Triangle on the lever |
+| Open or close the belly hatch | G (anywhere near the ship, even in flight), or look at the hatch and press E | D-pad left, or look at the hatch and press Y / Triangle |
 | Ride the lift down | Walk onto the open hatch | The same |
 | Ride the lift up | Stand under the blue ring with the hatch open | The same |
 | Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
-| Shoot (test pistol, on foot only) | Left mouse | Right trigger |
+| Shoot (the rifle outside the ship, on foot only) | Left mouse | Right trigger |
+| Deep Breath: slow the world (hold; on foot only; the bar refills only by fighting) | Q | Click the right stick |
 
 With no ground below (in flight), the lift lowers you clear of the belly and lets go. You keep the ship's speed, and the safety tether clips on by itself.
 

@@ -24,6 +24,11 @@ namespace OrbitalAnte.Cockpit
         public const int Count = 3;
         /// <summary>The landing camera hangs under the belly; this is its glass, as built in the Lander model.</summary>
         public const float LandingLensY = -2.31f;
+        /// <summary>
+        /// The height the two pole cameras aim at, in ship space: below the cabin floor, so the picture holds
+        /// the cabin and most of the long legs and not the cabin with empty sky over it.
+        /// </summary>
+        public const float PoleAimY = -0.7f;
 
         public static CameraSpot Spot(int index)
         {
@@ -39,13 +44,13 @@ namespace OrbitalAnte.Cockpit
                     return new CameraSpot
                     {
                         Name = "LEFT POLE", Socket = "PoleCam0", Piece = "pole0",
-                        Lens = new P3(-5.2f, 2.6f, -3.2f), LookAt = new P3(0f, 0.6f, 0.3f), Up = P3.Up,
+                        Lens = new P3(-5.2f, 2.6f, -3.2f), LookAt = new P3(0f, PoleAimY, 0.3f), Up = P3.Up,
                     };
                 default:
                     return new CameraSpot
                     {
                         Name = "RIGHT POLE", Socket = "PoleCam1", Piece = "pole1",
-                        Lens = new P3(5.2f, 2.6f, -3.2f), LookAt = new P3(0f, 0.6f, 0.3f), Up = P3.Up,
+                        Lens = new P3(5.2f, 2.6f, -3.2f), LookAt = new P3(0f, PoleAimY, 0.3f), Up = P3.Up,
                     };
             }
         }

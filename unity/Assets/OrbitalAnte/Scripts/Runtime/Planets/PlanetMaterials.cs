@@ -32,6 +32,7 @@ namespace OrbitalAnte.Planets
         static readonly int BoostId = Shader.PropertyToID("_Boost");
         static readonly int PaintId = Shader.PropertyToID("_Paint");
         static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
+        static readonly int GroundId = Shader.PropertyToID("_Ground");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
 
@@ -113,12 +114,15 @@ namespace OrbitalAnte.Planets
         /// The material for a body's ground tiles. With a far picture, distant ground blends into it, so what you
         /// see from orbit and what you see from a hilltop always agree.
         /// </summary>
-        public static Material Ground(string bodyId)
+        public static Material Ground(string bodyId, float relief = 1f)
         {
             Look();
             if (_terrain != null)
             {
-                return new Material(_terrain) { name = bodyId + " ground" };
+                var ground = new Material(_terrain) { name = bodyId + " ground" };
+                // Ground gets fine relief and its own break-up of colour; rocks and trees keep the painted one.
+                if (ground.HasProperty(GroundId)) ground.SetFloat(GroundId, Mathf.Clamp(relief, 0f, 1.5f));
+                return ground;
             }
             return new Material(VertexLitBase()) { name = bodyId + " ground" };
         }

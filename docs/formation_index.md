@@ -2,7 +2,7 @@
 
 Generated from `FormationIndex.cs`. Do not edit by hand: change the index in code and regenerate.
 
-There are **148 formations**. Each is a recipe the planet builder knows how to make. A body's profile (the Planets asset) lists which ones it has and how many; landmarks are fixed in place, the rest are placed by the run seed.
+There are **162 formations**. Each is a recipe the planet builder knows how to make. A body's profile (the Planets asset) lists which ones it has and how many; landmarks are fixed in place, the rest are placed by the run seed.
 
 ## Impact craters and basins (17)
 
@@ -87,7 +87,7 @@ There are **148 formations**. Each is a recipe the planet builder knows how to m
 | Crustal swell | `crustal_swell` | A very broad, gentle bulge in a planet's crust, like the Tharsis rise on Mars. | dome raised from the ground | Mars |
 | Grooves | `grooves` | Long shallow scratches running in families across a small moon. Phobos is covered in them. | long winding line (valley, ridge or cliff) | Phobos |
 
-## Wind and erosion (24)
+## Wind and erosion (27)
 
 | Formation | Id | What it is | How it is made | Found on |
 |---|---|---|---|---|
@@ -115,6 +115,9 @@ There are **148 formations**. Each is a recipe the planet builder knows how to m
 | Gullies | `gullies` | Small fresh channels running down a slope. | patch of patterned ground | Mars |
 | Tower karst | `tower_karst` | A forest of steep limestone towers, like Guilin in China. | flat-topped block | Earth, Jupiter |
 | Rubble piles | `rubble_pile` | Heaps of broken rock. | placed shapes (rocks, spires, plants) | Venus, Deimos, Io |
+| Crags | `crag_ridge` | Bare teeth of rock standing out of high ground, the bones of an old mountain. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Snow peaks | `snow_peaks` | Sharp summits streaked with snow that make the skyline of a range. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Rock ledges | `rock_ledges` | Shelves of layered rock breaking out of a hillside, mossy on top. Earth only. | placed shapes (rocks, spires, plants) | Earth |
 
 ## Rivers, lakes, seas and coasts (28)
 
@@ -187,7 +190,7 @@ There are **148 formations**. Each is a recipe the planet builder knows how to m
 | Acid storms | `acid_storms` | Storms of sulphuric acid cloud with yellow lightning. | weather or sky effect | Venus |
 | Blizzards | `blizzards` | Driving snow. | weather or sky effect | Earth |
 
-## Vegetation (Earth only) (5)
+## Vegetation (Earth only) (16)
 
 | Formation | Id | What it is | How it is made | Found on |
 |---|---|---|---|---|
@@ -196,4 +199,14 @@ There are **148 formations**. Each is a recipe the planet builder knows how to m
 | Palm grove | `palm_grove` | Palms along a warm shore. Earth only. | placed shapes (rocks, spires, plants) | Earth |
 | Scrubland | `scrubland` | Low tough bushes. Earth only. | placed shapes (rocks, spires, plants) | Earth |
 | Cactus stand | `cactus_stand` | Tall branching cacti. Earth only. | placed shapes (rocks, spires, plants) | Earth |
-
+| Birch grove | `birch_grove` | Slim white trunks under light, fluttering crowns that turn gold. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Autumn wood | `autumn_wood` | A wood caught in the fall: reds, oranges and golds. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Blossom orchard | `blossom_orchard` | Low spreading trees smothered in pink and white blossom. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Umbrella pines | `pine_stand` | Tall bare red trunks carrying flat dark crowns, on high dry ground. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Savanna | `savanna` | Wide grassland dotted with flat-topped thorn trees. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Grove of giants | `giant_grove` | A few enormous red-barked trees, each as tall as a tower block. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Snow forest | `snow_forest` | Firs bowed under snow, near the ice. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Ghost wood | `ghost_wood` | Dead trees standing silver and bare where a fire or a flood passed. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Flower meadow | `flower_meadow` | Long grass thick with wild flowers. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Reed bed | `reed_bed` | Tall reeds and bulrushes crowding the water's edge. Earth only. | placed shapes (rocks, spires, plants) | Earth |
+| Fern glade | `fern_glade` | A damp hollow carpeted with ferns. Earth only. | placed shapes (rocks, spires, plants) | Earth |

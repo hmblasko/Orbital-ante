@@ -98,3 +98,11 @@ None of this has been run in Unity. It compiles, and the rule tests pass (1,059 
 ### Still unverified
 
 All of the above in Unity. First things to look at: land fast on the Moon and watch the F3 line for "rescues"; fly with mouse and keyboard while a controller is connected; walk 100 m from the ship and back.
+
+## Added afterwards: the controller's right stick looks first (14 Nov 2026)
+
+**What changed.** Matthew: "You can reverse the driving look system". In the seat the controller's right stick now looks around the cabin by default, the same as the mouse. Clicking the stick switches it to turning the ship, and clicking again goes back to looking. Leaving the seat resets it to looking. The hint line on the flight HUD and `docs/SETUP.md` say the same.
+
+**Why.** One rule for both devices: your hand looks, the thrusters move the ship. **Principle 7** (manage cognitive load).
+
+**Tested.** Compiles against the reference assemblies. **Not run in Unity**: how it feels on the Deck's sticks, and whether a click to turn is comfortable when lining up a landing by hand.

@@ -25,7 +25,7 @@ namespace OrbitalAnte.Dismemberment
 
         float _phase;
         float _headRoll;
-        float _lastYaw;
+        Vector3 _lastForward = Vector3.forward;
         BodyAnimator _anim = new BodyAnimator(1);
         AI.MannequinCombat _combat;
         MovementState _appliedState = (MovementState)(-1);
@@ -55,7 +55,7 @@ namespace OrbitalAnte.Dismemberment
             _blocker = blocker;
             _lastPosition = transform.position;
             _target = transform.position;
-            _lastYaw = transform.eulerAngles.y;
+            _lastForward = transform.forward;
             _owner.Struck += OnStruck;
             // Stand properly from the first frame rather than in the skeleton's T-pose.
             ApplyPose(_owner.State, false, 1f / 60f, 0f);
@@ -71,12 +71,17 @@ namespace OrbitalAnte.Dismemberment
             if (_owner != null) _owner.Struck -= OnStruck;
         }
 
+        /// <summary>How thick this kind's helmet is beside the ordinary one, so a lone head rests on the ground and not in it.</summary>
+        float HeadFit() => _cfg != null && !string.IsNullOrEmpty(_cfg.modelId) ? BodyFit.Thickness(_cfg.modelId, BodyPartId.Head) : 1f;
+
         public void SetWander(Bounds area, int seed)
         {
             _wanderArea = area;
             _rng = new SeededRandom(seed);
             // How this one carries itself (its stance, its arm swing, when it glances about) differs per character.
-            _anim = new BodyAnimator(seed);
+            // Each kind carries itself its own way, and a body drawn larger takes longer strides.
+            string model = _cfg != null ? _cfg.modelId : null;
+            _anim = new BodyAnimator(seed, string.IsNullOrEmpty(model) ? null : BodyStyle.For(model)) { Size = transform.lossyScale.y };
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
             PickTarget();
         }
@@ -145,14 +150,20 @@ namespace OrbitalAnte.Dismemberment
             Vector3 step = transform.forward * (speed * pulse * dt);
             Vector3 position = transform.position + step;
 
-            // Stay on the ground.
-            if (Physics.Raycast(position + Vector3.up * 2f, Vector3.down, out RaycastHit ground, 6f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
-            {
-                position.y = ground.point.y;
-            }
+            // Stay on the ground, and upright on it (on a round world "up" changes as you walk).
+            Footing footing = _owner.Footing;
+            Vector3 up = footing.Up(position);
+            if (footing.Ground(position, up, out Vector3 ground)) position = ground;
             transform.position = position;
+            if (!footing.IsFlat)
+            {
+                Vector3 ahead = Vector3.ProjectOnPlane(transform.forward, up);
+                if (ahead.sqrMagnitude > 1e-6f) transform.rotation = Quaternion.LookRotation(ahead.normalized, up);
+            }
 
-            _owner.Velocity = (position - _lastPosition) / dt;
+            // If the whole world was moved under the player this frame, that was not this character running.
+            Vector3 moved = position - _lastPosition;
+            _owner.Velocity = moved.sqrMagnitude > 25f ? Vector3.zero : moved / dt;
             _lastPosition = position;
 
             ApplyPose(state, speed > 0.01f, dt, speed * pulse);
@@ -163,23 +174,20 @@ namespace OrbitalAnte.Dismemberment
         void Steer(MovementState state, float dt)
         {
             _repathTimer -= dt;
-            Vector3 to = _target - transform.position;
-            to.y = 0f;
+            Vector3 to = Level(_owner.Footing.Recall(_target) - transform.position);
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 0.9f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 0.9f);
 
             if (to.sqrMagnitude < 0.5f * 0.5f || _repathTimer <= 0f || blocked)
             {
                 PickTarget();
-                to = _target - transform.position;
-                to.y = 0f;
+                to = Level(_owner.Footing.Recall(_target) - transform.position);
             }
 
             if (to.sqrMagnitude > 0.0001f)
             {
-                Quaternion want = Quaternion.LookRotation(to.normalized, Vector3.up);
+                Quaternion want = Quaternion.LookRotation(to.normalized, _owner.Up);
                 float turn = _cfg.turnSpeed * TurnScaleFor(state);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
             }
@@ -188,8 +196,7 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Heads for a point, stepping around walls. Returns the speed to move at (0 on arrival).</summary>
         float SteerTo(Vector3 destination, MovementState state, float dt)
         {
-            Vector3 to = destination - transform.position;
-            to.y = 0f;
+            Vector3 to = Level(destination - transform.position);
             if (to.sqrMagnitude < 0.45f * 0.45f)
             {
                 _sprinting = false;
@@ -197,8 +204,7 @@ namespace OrbitalAnte.Dismemberment
             }
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 1.0f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 1.0f);
             if (blocked && Time.time >= _avoidUntil)
             {
                 // Something in the way: veer to one side for a moment, then try again.
@@ -207,7 +213,7 @@ namespace OrbitalAnte.Dismemberment
             }
 
             Vector3 heading = to.normalized;
-            if (Time.time < _avoidUntil) heading = Quaternion.Euler(0f, 80f * _avoidSign, 0f) * heading;
+            if (Time.time < _avoidUntil) heading = Quaternion.AngleAxis(80f * _avoidSign, _owner.Up) * heading;
             TurnToward(heading, state, dt);
 
             _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > 4f * 4f;
@@ -217,22 +223,25 @@ namespace OrbitalAnte.Dismemberment
             return speed;
         }
 
+        /// <summary>A direction with its up-and-down part taken out, so it lies along the ground.</summary>
+        Vector3 Level(Vector3 v)
+        {
+            Vector3 up = _owner.Up;
+            return v - up * Vector3.Dot(v, up);
+        }
+
         void TurnToward(Vector3 direction, MovementState state, float dt)
         {
-            direction.y = 0f;
+            direction = Level(direction);
             if (direction.sqrMagnitude < 0.0001f) return;
-            Quaternion want = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            Quaternion want = Quaternion.LookRotation(direction.normalized, _owner.Up);
             float turn = _cfg.turnSpeed * TurnScaleFor(state);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
         }
 
         void PickTarget()
         {
-            Vector3 min = _wanderArea.min;
-            Vector3 max = _wanderArea.max;
-            float x = Mathf.Lerp(min.x, max.x, (float)_rng.NextDouble());
-            float z = Mathf.Lerp(min.z, max.z, (float)_rng.NextDouble());
-            _target = new Vector3(x, transform.position.y, z);
+            _target = _owner.Footing.Hold(_owner.Footing.WanderPoint(_rng, _wanderArea, transform.position));
             _repathTimer = 4f + (float)_rng.NextDouble() * 6f;
             // An intact character sometimes breaks into a sprint, so "can't sprint" is visible once a leg is gone.
             _sprinting = _owner != null && _owner.Model != null && _owner.Model.CanSprint && _rng.NextDouble() < 0.35;
@@ -302,10 +311,10 @@ namespace OrbitalAnte.Dismemberment
             BodyPart head = _owner.Part(BodyPartId.Head);
             if (head != null && _owner.Model.OnBody(BodyPartId.Head)) head.transform.localRotation = Quaternion.identity;
 
-            float yaw = transform.eulerAngles.y;
             // Capped, so being placed or spun round by something else does not whip the feet about.
-            float turnRate = dt > 0f ? Mathf.Clamp(Mathf.DeltaAngle(_lastYaw, yaw) / dt, -400f, 400f) : 0f;
-            _lastYaw = yaw;
+            float turned = Vector3.SignedAngle(_lastForward, transform.forward, transform.up);
+            float turnRate = dt > 0f ? Mathf.Clamp(turned / dt, -400f, 400f) : 0f;
+            _lastForward = transform.forward;
 
             bool armed = _combat != null && _combat.Weapon != null;
             var input = new BodyAnimInput
@@ -362,7 +371,7 @@ namespace OrbitalAnte.Dismemberment
                 // instead of rolling right over and dipping into the floor.
                 float roll = _headRoll * Mathf.Deg2Rad;
                 head.transform.localRotation = Quaternion.Euler(22f * Mathf.Sin(roll), 0f, 9f * Mathf.Cos(roll));
-                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f + hop, 0f);
+                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f * HeadFit() + hop, 0f);
             }
             else
             {
@@ -401,6 +410,15 @@ namespace OrbitalAnte.Dismemberment
                     _blocker.enabled = false;
                     break;
             }
+        }
+
+        /// <summary>Something upright in the way. A hillside is not a wall: ground you could walk up does not count.</summary>
+        bool WallAhead(float height, float reach)
+        {
+            Vector3 up = transform.up;
+            return Physics.Raycast(transform.position + up * height, transform.forward, out RaycastHit hit, reach,
+                       Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                   && Vector3.Dot(hit.normal, up) <= 0.5f;
         }
     }
 }

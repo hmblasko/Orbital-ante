@@ -21,7 +21,7 @@ namespace OrbitalAnte.Ship
         public DamageRules damage = new DamageRules();
         [Tooltip("How close (metres) you must be to a part to mend it.")]
         public float repairReach = 3.2f;
-        [Tooltip("How far away you can mend from outside, in metres. Short: the suit's jets take you up to the dish and the thrusters.")]
+        [Tooltip("How far away you can mend from outside, in metres. Never less than it takes to reach the thrusters from the ground (Ship.MendReachOf); the suit's jets take you up to the dish.")]
         public float spacewalkRepairReach = 3.5f;
         [Tooltip("How closely (degrees) you must be looking at a part to mend it.")]
         public float repairAim = 22f;
@@ -45,10 +45,10 @@ namespace OrbitalAnte.Ship
 
         [Header("Hatch and lift")]
         public float doorSeconds = 0.5f;
-        [Tooltip("Speed of the gravity lift, in metres per second.")]
+        [Tooltip("Speed of the gravity lift, in metres per second. Never slower than a 1.4 second ride up the legs (Ship.LiftSpeedOf).")]
         public float liftSpeed = 2.6f;
         [Tooltip("How far below the belly the lift can reach, in metres.")]
-        public float liftReach = 4f;
+        public float liftReach = 6.5f;
         [Tooltip("How far from the ship (metres) the hatch button on your suit still works.")]
         public float remoteHatchRange = 12f;
 

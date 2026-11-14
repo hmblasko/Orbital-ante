@@ -42,6 +42,8 @@ namespace OrbitalAnte.Core
         public static InputAction TetherClip { get; private set; }
         public static InputAction SuitRollLeft { get; private set; }
         public static InputAction SuitRollRight { get; private set; }
+        /// <summary>Held: the astronaut takes a deep breath and the world slows (see Combat/DeepBreath).</summary>
+        public static InputAction DeepBreath { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -156,6 +158,10 @@ namespace OrbitalAnte.Core
             TetherClip = AddButton(Gameplay, "Tether On / Off", "<Keyboard>/x", "<Gamepad>/dpad/right");
             SuitRollLeft = AddButton(Gameplay, "Roll Left (floating)", "<Keyboard>/z", "<Gamepad>/leftShoulder");
             SuitRollRight = AddButton(Gameplay, "Roll Right (floating)", "<Keyboard>/c", "<Gamepad>/rightShoulder");
+            // Q sits beside W A S D and was free. On the controller every face button, bumper, trigger and
+            // D-pad way is taken on foot and Select is kept for the upgrade screen, so the last free control is
+            // the right stick's click: it is under the aiming thumb already.
+            DeepBreath = AddButton(Gameplay, "Deep Breath (hold)", "<Keyboard>/q", "<Gamepad>/rightStickPress");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -233,6 +239,9 @@ namespace OrbitalAnte.Core
             UiScroll = UI.AddAction("Scroll", InputActionType.PassThrough, expectedControlLayout: "Vector2");
             UiScroll.AddBinding("<Mouse>/scroll");
 
+            // Code-built bindings otherwise receive random IDs on every launch, so saved overrides cannot match.
+            InputBindingIdentity.Assign(Gameplay);
+            InputBindingIdentity.Assign(Flight);
             LoadBindings();
 
             SystemMap.Enable();

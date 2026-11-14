@@ -30,6 +30,12 @@ namespace OrbitalAnte.AI
         float _thinkTimer;
         bool _seesPlayer;
         float _reactAt;
+        float _lastSaw = -1000f;
+        /// <summary>The camp this one belongs to, if any: who may shoot now, and what the others have seen. Null in the arena.</summary>
+        public OrbitalAnte.Enemies.Squad Squad;
+        float _tellUntil;
+        bool _telling;
+        LineRenderer _tellLine;
         bool _shootPhase = true;
         float _phaseEnd;
         Vector3 _movePoint;
@@ -114,6 +120,8 @@ namespace OrbitalAnte.AI
             Weapon weapon = Weapon;
             Weapon = null;
             _triggerHeld = false;
+            _telling = false;
+            ShowTell(false);
             _aimedAtTarget = false;
 
             Transform parent = CombatWorld.DropParent != null ? CombatWorld.DropParent : transform.parent;
@@ -126,7 +134,7 @@ namespace OrbitalAnte.AI
         {
             if (weapon != Weapon) return;
             Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : -transform.forward;
-            DropWeapon(dir * _cfg.disarmKnockSpeed + Vector3.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
+            DropWeapon(dir * _cfg.disarmKnockSpeed + transform.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
         }
 
         void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
@@ -137,7 +145,7 @@ namespace OrbitalAnte.AI
             if (!_owner.Model.HandUsable(_gunSide == MannequinRig.Left))
             {
                 Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : Vector3.zero;
-                DropWeapon(dir * 2f + Vector3.up * 2f, 7f);
+                DropWeapon(dir * 2f + transform.up * 2f, 7f);
                 return;
             }
 
@@ -147,7 +155,7 @@ namespace OrbitalAnte.AI
 
         void OnDied(Mannequin mannequin)
         {
-            DropWeapon(Vector3.up * 1.5f, 5f);
+            DropWeapon(transform.up * 1.5f, 5f);
             if (_loco != null)
             {
                 _loco.Destination = null;
@@ -159,7 +167,7 @@ namespace OrbitalAnte.AI
 
         void Update()
         {
-            if (_owner == null || !_owner.Alive) return;
+            if (_owner == null || !_owner.Alive) { ShowTell(false); return; }
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
@@ -180,11 +188,11 @@ namespace OrbitalAnte.AI
             get
             {
                 BodyPart head = _owner.Part(BodyPartId.Head);
-                return head != null ? head.transform.position : transform.position + Vector3.up * 1.6f;
+                return head != null ? head.transform.position : transform.position + transform.up * 1.6f;
             }
         }
 
-        static Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position + Vector3.down * 0.3f;
+        Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position - transform.up * 0.3f;
 
         void Think()
         {
@@ -222,17 +230,21 @@ namespace OrbitalAnte.AI
             bool sees = distance <= _cfg.engageRange
                         && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
 
+            float now = Time.time;
             if (!sees)
             {
-                // Lost sight: walk toward where the player is until there is a clear line again.
+                // Lost sight. It only comes looking if it saw the player a moment ago or can hear them close by:
+                // nobody knows where you are from across the valley. Otherwise it goes back to wandering.
                 _seesPlayer = false;
                 _loco.FacePoint = null;
-                _loco.Destination = CombatWorld.PlayerEye.position;
-                _loco.Hurry = false;
+                bool hunting = now - _lastSaw <= _cfg.chaseMemory || distance <= _cfg.hearRange
+                               || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
+                _loco.Destination = hunting ? CombatWorld.PlayerEye.position : (Vector3?)null;
+                _loco.Hurry = hunting && _cfg.rushes;
                 return;
             }
-
-            float now = Time.time;
+            _lastSaw = now;
+            if (Squad != null) Squad.Saw(now);
             if (!_seesPlayer)
             {
                 // Never an instant shot: there is always a beat between spotting the player and firing.
@@ -243,7 +255,7 @@ namespace OrbitalAnte.AI
             }
 
             bool onFeet = state == MovementState.Intact || state == MovementState.OneLeg;
-            if (onFeet && now >= _phaseEnd)
+            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill)
             {
                 // Alternate between standing to shoot and shifting position, so nobody is a statue.
                 _shootPhase = !_shootPhase;
@@ -251,7 +263,14 @@ namespace OrbitalAnte.AI
                 if (!_shootPhase) _movePoint = PickMovePoint(distance);
             }
 
-            if (_shootPhase || !onFeet)
+            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar)
+            {
+                // The ones that fight close do not dance at range: they come straight at you, and you can see it.
+                _loco.FacePoint = null;
+                _loco.Destination = CombatWorld.PlayerEye.position;
+                _loco.Hurry = _cfg.rushes;
+            }
+            else if (_shootPhase || !onFeet)
             {
                 _loco.FacePoint = CombatWorld.PlayerEye.position;
                 _loco.Destination = null;
@@ -260,18 +279,17 @@ namespace OrbitalAnte.AI
             {
                 _loco.FacePoint = null;
                 _loco.Destination = _movePoint;
-                _loco.Hurry = false;
+                _loco.Hurry = _cfg.rushes;
             }
         }
 
         /// <summary>A few steps sideways, drifting toward a comfortable fighting distance.</summary>
         Vector3 PickMovePoint(float distance)
         {
-            Vector3 toPlayer = CombatWorld.PlayerEye.position - transform.position;
-            toPlayer.y = 0f;
+            Vector3 toPlayer = Vector3.ProjectOnPlane(CombatWorld.PlayerEye.position - transform.position, transform.up);
             toPlayer = toPlayer.sqrMagnitude > 0.01f ? toPlayer.normalized : transform.forward;
-            Vector3 side = Vector3.Cross(Vector3.up, toPlayer) * (_rng.NextDouble() < 0.5 ? -1f : 1f);
-            float along = distance > 18f ? 3f : distance < 7f ? -3f : 0f;
+            Vector3 side = Vector3.Cross(transform.up, toPlayer) * (_rng.NextDouble() < 0.5 ? -1f : 1f);
+            float along = distance > _cfg.keepFar ? 3f : distance < _cfg.keepNear ? -3f : 0f;
             return transform.position + side * Rand(2.5f, 5f) + toPlayer * along;
         }
 
@@ -285,8 +303,7 @@ namespace OrbitalAnte.AI
                 Weapon nearest = NearestDroppedWeapon();
                 if (nearest != null)
                 {
-                    Vector3 to = nearest.transform.position - transform.position;
-                    to.y = 0f;
+                    Vector3 to = Vector3.ProjectOnPlane(nearest.transform.position - transform.position, transform.up);
                     if (to.magnitude <= _cfg.pickupReach && TryPickUp(nearest)) return;
                     _loco.Destination = nearest.transform.position;
                     _loco.Hurry = true;
@@ -372,6 +389,7 @@ namespace OrbitalAnte.AI
             if (!wantsToShoot)
             {
                 _triggerHeld = false;
+                _telling = false;
             }
             else if (_triggerHeld)
             {
@@ -381,14 +399,28 @@ namespace OrbitalAnte.AI
                     _nextTriggerAt = now + Rand(_cfg.burstPause);
                 }
             }
-            else if (now >= _nextTriggerAt)
+            else if (now >= _nextTriggerAt && !_telling && Squad != null
+                     && !Squad.TakeTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
             {
+                // Somebody else's turn to shoot: ask again in a moment.
+                _nextTriggerAt = now + 0.25f;
+            }
+            else if (now >= _nextTriggerAt && _cfg.aimTell > 0f && !_telling)
+            {
+                // A heavy single shot is always announced: the line shows for a moment first.
+                _telling = true;
+                _tellUntil = now + _cfg.aimTell;
+            }
+            else if (now >= _nextTriggerAt && (!_telling || now >= _tellUntil))
+            {
+                _telling = false;
                 _triggerHeld = true;
                 _triggerPressed = true;
                 // Automatic guns fire a burst; other guns fire one shot per pull.
                 _triggerUntil = now + (Weapon.Data.automatic ? Rand(_cfg.burstSeconds) : 0.05f);
             }
 
+            ShowTell(_telling);
             FireResult shot = Weapon.State.TryFire(hands, _triggerHeld, _triggerPressed);
             if (!shot.Fired) return;
 
@@ -404,6 +436,58 @@ namespace OrbitalAnte.AI
             ShotsFired++;
         }
 
+        /// <summary>The thin bright line from the muzzle to where a heavy shot is about to go.</summary>
+        void ShowTell(bool on)
+        {
+            SetLens(on);
+            if (!on || Weapon == null)
+            {
+                if (_tellLine != null && _tellLine.enabled) _tellLine.enabled = false;
+                return;
+            }
+            if (_tellLine == null)
+            {
+                var go = new GameObject("AimLine");
+                go.transform.SetParent(transform, false);
+                _tellLine = go.AddComponent<LineRenderer>();
+                _tellLine.useWorldSpace = true;
+                _tellLine.positionCount = 2;
+                _tellLine.startWidth = 0.03f;
+                _tellLine.endWidth = 0.03f;
+                _tellLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _tellLine.receiveShadows = false;
+                _tellLine.sharedMaterial = TellMaterial();
+            }
+            _tellLine.enabled = true;
+            _tellLine.SetPosition(0, Weapon.Muzzle.position);
+            _tellLine.SetPosition(1, PlayerAimPoint);
+        }
+
+        Weapon _lensOf;
+        GameObject _lens;
+
+        /// <summary>The scope's front glass (the gun model's LensGlow piece, if it has one) shines only while a shot is being lined up.</summary>
+        void SetLens(bool on)
+        {
+            if (Weapon != _lensOf)
+            {
+                if (_lens != null) _lens.SetActive(true);
+                _lensOf = Weapon;
+                _lens = null;
+                if (Weapon != null)
+                    foreach (Transform t in Weapon.GetComponentsInChildren<Transform>(true))
+                        if (t.name == "LensGlow") { _lens = t.gameObject; break; }
+            }
+            if (_lens != null && _lens.activeSelf != on) _lens.SetActive(on);
+        }
+
+        static Material _tellMaterial;
+        static Material TellMaterial()
+        {
+            if (_tellMaterial == null) _tellMaterial = Mat.Unlit(new Color(1f, 0.25f, 0.2f));
+            return _tellMaterial;
+        }
+
         // ------------------------------------------------------------------ holding the gun
 
         void LateUpdate()
@@ -415,7 +499,7 @@ namespace OrbitalAnte.AI
         Vector3 LowReadyDirection()
         {
             bool prone = _owner.State == MovementState.Crawl || _owner.State == MovementState.Wriggle;
-            Vector3 dir = transform.forward + (prone ? Vector3.up * 0.05f : Vector3.down * 0.75f);
+            Vector3 dir = transform.forward + (prone ? transform.up * 0.05f : (-transform.up) * 0.75f);
             return dir.normalized;
         }
 
@@ -432,7 +516,7 @@ namespace OrbitalAnte.AI
             if (_loco != null && _loco.FacePoint.HasValue && CombatWorld.PlayerEye != null)
             {
                 Vector3 toTarget = PlayerAimPoint - shoulder;
-                Vector3 flat = new Vector3(toTarget.x, 0f, toTarget.z);
+                Vector3 flat = Vector3.ProjectOnPlane(toTarget, transform.up);
                 if (flat.sqrMagnitude > 0.01f && Vector3.Angle(flat, transform.forward) <= AimConeDegrees)
                 {
                     want = toTarget.normalized;
@@ -446,7 +530,7 @@ namespace OrbitalAnte.AI
                 // A rifle in one hand waves about. This is only for show; the real penalty is in the spread.
                 if (_wobblePhase < 0f) _wobblePhase = UnityEngine.Random.Range(0f, 100f);
                 float t = Time.time * 5.3f + _wobblePhase;
-                want = Quaternion.Euler(Mathf.Sin(t) * 4f, Mathf.Cos(t * 0.7f) * 4f, 0f) * want;
+                want = Quaternion.AngleAxis(Mathf.Sin(t) * 4f, transform.right) * Quaternion.AngleAxis(Mathf.Cos(t * 0.7f) * 4f, transform.up) * want;
             }
 
             _aimDirection = snap || dt <= 0f
@@ -459,11 +543,13 @@ namespace OrbitalAnte.AI
 
             // Two hands: tucked in near the shoulder. One hand: held out at nearly arm's length.
             Vector3 inward = transform.right * (side == MannequinRig.Left ? 1f : -1f);
+            // The body may be bigger or smaller than the ordinary one, and its arms with it.
+            float size = transform.lossyScale.y;
             Vector3 grip = twoHandedGrip
-                ? shoulder + _aimDirection * 0.30f + Vector3.down * 0.10f + inward * 0.07f
-                : shoulder + _aimDirection * 0.50f;
+                ? shoulder + _aimDirection * (0.30f * size) + (-transform.up) * (0.10f * size) + inward * (0.07f * size)
+                : shoulder + _aimDirection * (0.50f * size);
 
-            Vector3 up = Mathf.Abs(Vector3.Dot(_aimDirection, Vector3.up)) > 0.97f ? transform.forward : Vector3.up;
+            Vector3 up = Mathf.Abs(Vector3.Dot(_aimDirection, transform.up)) > 0.97f ? transform.forward : transform.up;
             Quaternion rotation = Quaternion.LookRotation(_aimDirection, up) * Quaternion.Euler(-5f * _kick, 0f, 0f);
             Vector3 position = grip - _aimDirection * (0.03f * _kick);
             // The weapon's origin is its grip socket.
@@ -481,7 +567,7 @@ namespace OrbitalAnte.AI
             Transform hand = _rig.Hand[side];
 
             float upperLength = Vector3.Distance(upper.position, fore.position);
-            float foreLength = Vector3.Distance(fore.position, hand.position) + PalmLength;
+            float foreLength = Vector3.Distance(fore.position, hand.position) + PalmLength * transform.lossyScale.y;
             if (upperLength < 0.001f || foreLength < 0.001f) return;
 
             Vector3 shoulder = upper.position;
@@ -493,7 +579,7 @@ namespace OrbitalAnte.AI
             float angle = Mathf.Acos(Mathf.Clamp(cos, -1f, 1f)) * Mathf.Rad2Deg;
 
             Vector3 outward = transform.right * (side == MannequinRig.Left ? -1f : 1f);
-            Vector3 axis = Vector3.Cross(dir, (Vector3.down + outward * 0.6f).normalized);
+            Vector3 axis = Vector3.Cross(dir, ((-transform.up) + outward * 0.6f).normalized);
             if (axis.sqrMagnitude < 0.0001f) axis = Vector3.Cross(dir, transform.right);
             Vector3 upperDir = Quaternion.AngleAxis(angle, axis.normalized) * dir;
 

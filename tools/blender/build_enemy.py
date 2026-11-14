@@ -4,6 +4,10 @@
     blender -b -P tools/blender/build_enemy.py -- --preview <folder> (also renders pictures of the rest pose)
     blender -b -P tools/blender/build_enemy.py -- --poses <file.json> --preview <folder>
                                                                      (renders the poses a C# pose dump describes)
+    blender -b -P tools/blender/build_enemy.py -- --far-only         (writes only the far copy, EnemyFar.bytes)
+
+Every build also writes the far copy (EnemyFar.bytes): the same fourteen pieces thinned to about 4,500 triangles,
+which the game draws in place of the full ones on enemies a long way off (Look/DetailRule.cs).
 
 The figure is modelled standing at the origin in a T-pose, facing +Y, in metres, with the joints exactly where
 the game's skeleton has them (Scripts/Runtime/Dismemberment/BodySkeleton.cs). Each piece is then written in its
@@ -315,7 +319,7 @@ def make():
     return parts
 
 
-def write(parts, stump_objects):
+def write(parts, stump_objects, file_name="Enemy"):
     """Each piece is written measured from its own joint; the picture scene is left as it was."""
     sockets = []
     listed = []
@@ -326,12 +330,57 @@ def write(parts, stump_objects):
         listed.append((name, parts[name]))
         sockets.append(oa.socket(name, origin))
     listed.append(("Stump", stump_objects))
-    oa.export(os.path.join(OUT, "Enemy.bytes"), listed, sockets)
+    oa.export(os.path.join(OUT, file_name + ".bytes"), listed, sockets)
     for name in ORDER:
         origin = Vector(ORIGINS[name])
         for o in parts[name]:
             o.data.transform(Matrix.Translation(origin))
             o.data.update()
+
+
+FAR_TRIANGLES = 4500    # docs/performance_budget.md: what an enemy too far away to see the difference is drawn with
+
+
+# Shapes of each body that are not thinned for the far copy, because they cross each other at a shallow angle
+# and thinning turns the line between them ragged (see oa.thin). Found by looking at the far copy from 3 m.
+FAR_KEEP = {
+    "Enemy": ("helmet", "visor", "visor frame"),
+    "EnemyMarksman": ("chest plate",),
+}
+
+
+# Shapes left out of a far copy: ones that barely show in the full model (the Runner's vest is all but covered by
+# its jacket) and poke through their cover when thinned.
+FAR_LEAVE_OUT = {
+    "EnemyRunner": ("vest",),
+}
+
+
+def far_parts(parts, file_name="Enemy"):
+    """The same body thinned to FAR_TRIANGLES for the far copy (new objects; the full ones are left alone)."""
+    thinned = oa.thin([(name, parts[name]) for name in ORDER], FAR_TRIANGLES,
+                      keep=FAR_KEEP.get(file_name, ()), leave_out=FAR_LEAVE_OUT.get(file_name, ()))
+    return dict(thinned)
+
+
+def write_far(parts, file_name="Enemy"):
+    """Writes the far copy beside the full one: the same pieces on the same joints, no wound (the full file has it)."""
+    far = far_parts(parts, file_name)
+    listed, sockets = [], []
+    for name in ORDER:
+        origin = Vector(ORIGINS[name])
+        for o in far[name]:
+            o.data.transform(Matrix.Translation(-origin))
+        listed.append((name, far[name]))
+        sockets.append(oa.socket(name, origin))
+    oa.export(os.path.join(OUT, file_name + oa.FAR + ".bytes"), listed, sockets)
+    for name in ORDER:
+        origin = Vector(ORIGINS[name])
+        for o in far[name]:
+            o.data.transform(Matrix.Translation(origin))
+            o.data.update()
+            o.hide_render = True                          # it stands where the full body stands: pictures show one or the other
+    return far
 
 
 def ground():
@@ -381,8 +430,22 @@ if __name__ == "__main__":
     if poses and previews:
         render_poses(parts, stump_objects, poses, previews)
     else:
-        write(parts, stump_objects)
+        if "--far-only" not in args:
+            write(parts, stump_objects)
+        far = write_far(parts)
         if previews:
+            # Only the far copy shows: the full pieces stand in the same place, and the wound is not part of a body.
+            for o in stump_objects + [o for name in ORDER for o in parts[name]]:
+                o.hide_render = True
+            shown = [o for name in ORDER for o in far[name]] + [ground()]
+            for o in shown:
+                o.hide_render = False
+            oa.render_preview(os.path.join(previews, "enemy_far.png"), shown, (1.1, 3.4, 1.35), (0, 0, 0.95), lens=60, size=(900, 900), samples=48)
+            for o in shown:
+                o.hide_render = True
+            for o in [o for name in ORDER for o in parts[name]]:
+                o.hide_render = False
+        if previews and "--far-only" not in args:
             for o in stump_objects:
                 o.hide_render = True
             shown = [o for name in ORDER for o in parts[name]] + [ground()]

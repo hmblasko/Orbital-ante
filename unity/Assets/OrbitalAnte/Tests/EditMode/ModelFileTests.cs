@@ -101,6 +101,9 @@ namespace OrbitalAnte.Tests
 
         [TestCase("Rifle", 0.69f, 0.045f, 0.9f, 1.15f)]
         [TestCase("Pistol", 0.155f, 0.062f, 0.17f, 0.24f)]
+        [TestCase("Smg", 0.220f, 0.046f, 0.28f, 0.36f)]
+        [TestCase("Shotgun", 0.612f, 0.052f, 0.9f, 1.05f)]
+        [TestCase("Sniper", 0.900f, 0.050f, 1.2f, 1.35f)]
         public void TheGunsFitTheirAttachmentPoints(string id, float muzzleZ, float muzzleY, float minLength, float maxLength)
         {
             ModelFile model = LoadReal(id);
@@ -135,6 +138,9 @@ namespace OrbitalAnte.Tests
 
         [TestCase("Rifle")]
         [TestCase("Pistol")]
+        [TestCase("Smg")]
+        [TestCase("Shotgun")]
+        [TestCase("Sniper")]
         public void TheGunsStayInsideTheirBudgetAndAreSoundMeshes(string id)
         {
             ModelFile model = LoadReal(id);
@@ -164,6 +170,110 @@ namespace OrbitalAnte.Tests
                     if (agree > 0f) outward++;
                 }
                 Assert.Greater(outward, total * 0.98f, part.Name + ": triangles are wound the wrong way for Unity");
+            }
+        }
+
+        [TestCase("Shotgun", "CellGlow")]
+        [TestCase("Sniper", "LensGlow")]
+        public void TheGunsThatShine_KeepTheirLightInItsOwnPiece(string id, string piece)
+        {
+            // A piece whose name ends in Glow is drawn brighter than white (ModelLibrary.Build), so it must hold only
+            // the parts that shine: small, and at the business end or on the breech, never the whole gun.
+            ModelFile model = LoadReal(id);
+            ModelPart glow = model.Part(piece);
+            Assert.IsNotNull(glow, id + " has lost its " + piece + " piece");
+            Assert.IsTrue(ModelFile.Shines(piece));
+            Assert.IsFalse(ModelFile.Shines("Body"));
+            Assert.IsFalse(ModelFile.Shines("Magazine"));
+            Assert.Less(glow.Triangles.Length / 3, 400);
+            Assert.IsTrue(model.TrySocket("Muzzle", out ModelSocket muzzle));
+            float furthest = 0f;
+            for (int i = 0; i < glow.Positions.Length; i += 3) furthest = System.Math.Max(furthest, System.Math.Abs(glow.Positions[i]));
+            Assert.Less(furthest, 0.07f, "the light should sit on the gun, not out to one side");
+            if (id == "Sniper")
+            {
+                // The front glass of the scope: ahead of the hand, above the barrel, facing the way the gun points.
+                float minZ = float.MaxValue, minY = float.MaxValue;
+                for (int i = 0; i < glow.Positions.Length; i += 3) { minY = System.Math.Min(minY, glow.Positions[i + 1]); minZ = System.Math.Min(minZ, glow.Positions[i + 2]); }
+                Assert.Greater(minZ, 0.2f);
+                Assert.Greater(minY, muzzle.Y + 0.02f);
+            }
+        }
+
+        // ------------------------------------------------------------------ far copies
+
+        static void Bounds(ModelPart piece, out P3 min, out P3 max)
+        {
+            min = new P3(float.MaxValue, float.MaxValue, float.MaxValue);
+            max = new P3(float.MinValue, float.MinValue, float.MinValue);
+            for (int v = 0; v < piece.VertexCount; v++)
+            {
+                float x = piece.Positions[v * 3], y = piece.Positions[v * 3 + 1], z = piece.Positions[v * 3 + 2];
+                min = new P3(System.Math.Min(min.X, x), System.Math.Min(min.Y, y), System.Math.Min(min.Z, z));
+                max = new P3(System.Math.Max(max.X, x), System.Math.Max(max.Y, y), System.Math.Max(max.Z, z));
+            }
+        }
+
+        [TestCase("Enemy", 4800, 0.4f)]
+        [TestCase("EnemyRunner", 4800, 0.4f)]
+        [TestCase("EnemyBruiser", 4800, 0.4f)]
+        [TestCase("EnemyMarksman", 4800, 0.4f)]
+        [TestCase("Rifle", 2200, 0.45f)]
+        [TestCase("Pistol", 2200, 0.45f)]
+        [TestCase("Smg", 2200, 0.45f)]
+        [TestCase("Shotgun", 2200, 0.45f)]
+        [TestCase("Sniper", 2200, 0.45f)]
+        public void TheFarCopy_IsTheSameModel_InAFractionOfTheTriangles(string id, int budget, float share)
+        {
+            // tools/blender writes XFar.bytes beside X.bytes with every build: the same pieces by the same names
+            // (the wound is only in the full file) and the same sockets, so the game can swap one for the other.
+            ModelFile full = LoadReal(id), far = LoadReal(ModelFile.FarOf(id));
+            Assert.LessOrEqual(far.TriangleCount, budget, "docs/performance_budget.md caps this far copy");
+            Assert.Less(far.TriangleCount, full.TriangleCount * share, "a far copy this close to the full one saves nothing");
+            // Corners are what the graphics card works on first: a far copy must save those too, not only triangles.
+            int corners = 0, fullCorners = 0;
+            foreach (ModelPart p in far.Parts) corners += p.VertexCount;
+            foreach (ModelPart p in full.Parts) if (p.Name != "Stump") fullCorners += p.VertexCount;
+            Assert.Less(corners, fullCorners * 0.62f, "the far copy has nearly as many corners as the full model");
+            Assert.AreEqual(full.Sockets.Length, far.Sockets.Length);
+            foreach (ModelSocket s in full.Sockets)
+            {
+                Assert.IsTrue(far.TrySocket(s.Name, out ModelSocket same), "the far copy has lost socket " + s.Name);
+                Assert.AreEqual(s.X, same.X, 1e-4f); Assert.AreEqual(s.Y, same.Y, 1e-4f); Assert.AreEqual(s.Z, same.Z, 1e-4f);
+            }
+            foreach (ModelPart piece in full.Parts)
+            {
+                if (piece.Name == "Stump") { Assert.IsNull(far.Part("Stump"), "the wound is not thinned: the full file's is used"); continue; }
+                ModelPart thin = far.Part(piece.Name);
+                Assert.IsNotNull(thin, "the far copy has lost piece " + piece.Name);
+                Assert.Greater(thin.Triangles.Length, 0, piece.Name + " is empty in the far copy");
+                if (ModelFile.Shines(piece.Name))
+                {
+                    // What shines is kept exactly: the game switches it by name and it must sit where it sat.
+                    Assert.AreEqual(piece.VertexCount, thin.VertexCount, piece.Name);
+                    continue;
+                }
+                // The same outline: thinning may round a corner or drop a rivet, never move, shrink or grow a piece.
+                Bounds(piece, out P3 min, out P3 max);
+                Bounds(thin, out P3 thinMin, out P3 thinMax);
+                // (Thinning puts a corner where it best stands for the ones it replaces, which can be a hair outside.)
+                const float lost = 0.035f, grown = 0.015f;
+                Assert.That(thinMin.X - min.X, Is.InRange(-grown, lost), id + " " + piece.Name + " left");
+                Assert.That(thinMin.Y - min.Y, Is.InRange(-grown, lost), id + " " + piece.Name + " bottom");
+                Assert.That(thinMin.Z - min.Z, Is.InRange(-grown, lost), id + " " + piece.Name + " back");
+                Assert.That(max.X - thinMax.X, Is.InRange(-grown, lost), id + " " + piece.Name + " right");
+                Assert.That(max.Y - thinMax.Y, Is.InRange(-grown, lost), id + " " + piece.Name + " top");
+                Assert.That(max.Z - thinMax.Z, Is.InRange(-grown, lost), id + " " + piece.Name + " front");
+                // And still painted: not all one colour, not white (thinning once threw the paint away).
+                float lightest = 0f, darkest = 1f, mean = 0f;
+                for (int c = 0; c < thin.Colors.Length; c += 3)
+                {
+                    float v = (thin.Colors[c] + thin.Colors[c + 1] + thin.Colors[c + 2]) / 3f;
+                    lightest = System.Math.Max(lightest, v); darkest = System.Math.Min(darkest, v); mean += v;
+                }
+                mean /= thin.VertexCount;
+                Assert.Less(mean, 0.93f, id + " " + piece.Name + " has lost its paint");
+                Assert.Greater(lightest - darkest, 0.02f, id + " " + piece.Name + " is one flat colour");
             }
         }
 
@@ -279,6 +389,181 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void CabinFittingsFile_IsTheConsole_WithTheCabinsLightBakedIn()
+        {
+            // tools/bake copies the console's body out of the Console model and stores it lit by the cabin's lamps.
+            ModelFile console = LoadReal(ShipAssembly.FittingsSource), cabin = LoadReal(ShipAssembly.BakedFittingsModel);
+            ModelPart plain = console.Part(ShipAssembly.FittingsPiece), lit = cabin.Part(ShipAssembly.FittingsPiece);
+            Assert.IsNotNull(plain, "the Console model has no body");
+            Assert.IsNotNull(lit, "run tools/bake again: the baked console is missing");
+            // Every piece that does not shine by itself is in the lit file, the same shape; nothing that shines is.
+            int litPieces = 0;
+            foreach (ModelPart part in console.Parts)
+            {
+                ModelPart baked = cabin.Part(part.Name);
+                if (!ShipAssembly.TakesBakedLight(part.Name)) { Assert.IsNull(baked, part.Name + " shines by itself and should not be baked"); continue; }
+                litPieces++;
+                Assert.IsNotNull(baked, "run tools/bake again: " + part.Name + " has no baked light");
+                CollectionAssert.AreEqual(part.Positions, baked.Positions, "run tools/bake again: " + part.Name + " has changed shape since its light was baked");
+                CollectionAssert.AreEqual(part.Triangles, baked.Triangles);
+            }
+            Assert.AreEqual(litPieces, cabin.Parts.Length);
+            Assert.IsNotNull(cabin.Part(OrbitalAnte.Cockpit.ConsoleGauges.ThrottlePiece), "the throttle's lever is lit with the console");
+            // Lit, not just copied: the light differs from the paint, and the console is not left in the dark.
+            float brightness = 0f, change = 0f;
+            for (int i = 0; i < lit.Colors.Length; i += 3)
+            {
+                float v = System.Math.Max(lit.Colors[i], System.Math.Max(lit.Colors[i + 1], lit.Colors[i + 2]));
+                brightness += v;
+                change += System.Math.Abs(lit.Colors[i] - plain.Colors[i]);
+            }
+            Assert.Greater(change / lit.VertexCount, 0.02f);
+            Assert.Greater(brightness / lit.VertexCount, 0.15f, "the console got next to no light");
+        }
+
+        [Test]
+        public void BakedLightFile_FitsTheCabin()
+        {
+            // The same check the PlayMode test TheBakedLightFileFitsTheCabin makes, run here without the engine.
+            string folder = System.Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder)) Assert.Ignore("OA_MODELS is not set");
+            string path = Path.Combine(folder, "..", "Ship", "LanderBake.bytes");
+            var pieces = ShipAssembly.InteriorPieces();
+            Assert.IsNotNull(ShipAssembly.Unpack(File.ReadAllBytes(path), pieces), "the cabin has changed since its light was baked: run tools/bake again");
+        }
+
+        [Test]
+        public void ConsoleModelFile_FramesTheScreen_StaysLow_AndLeavesTheScreenOpen()
+        {
+            // The cockpit's desk panel (CockpitConfig's defaults): 1.1 m by 0.33 m, leaned back 24 degrees.
+            const float cx = 0f, cy = 0.9f, cz = 1.94f, halfWidth = 0.55f, halfHeight = 0.165f;
+            double lean = 24.0 * System.Math.PI / 180.0;
+            float c = (float)System.Math.Cos(lean), s = (float)System.Math.Sin(lean);
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            Assert.LessOrEqual(model.TriangleCount, 9000, "docs/performance_budget.md caps the console at 9,000 triangles");
+            Assert.IsNotNull(model.Part(OrbitalAnte.Cockpit.ConsoleGauges.Body), "missing the console's body");
+            Assert.IsTrue(model.TrySocket(OrbitalAnte.Cockpit.ConsoleGauges.DashSocket, out ModelSocket dash), "missing socket Dash");
+            Assert.AreEqual(cx, dash.X, 0.001f);
+            Assert.AreEqual(cy, dash.Y, 0.001f);
+            Assert.AreEqual(cz, dash.Z, 0.001f);
+
+            float left = 0f, right = 0f, top = 0f, bottom = 0f, lowest = float.MaxValue, widest = 0f;
+            foreach (ModelPart part in model.Parts)
+            {
+                for (int v = 0; v < part.VertexCount; v++)
+                {
+                    float px = part.Positions[v * 3], py = part.Positions[v * 3 + 1], pz = part.Positions[v * 3 + 2];
+                    float x = px - cx, y = py - cy, z = pz - cz;
+                    float up = y * c + z * s;              // up the panel
+                    float towardPilot = y * s - z * c;     // out of the panel's face
+                    left = System.Math.Min(left, x); right = System.Math.Max(right, x);
+                    if (System.Math.Abs(x) < halfWidth) { top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up); }
+                    lowest = System.Math.Min(lowest, py);
+                    widest = System.Math.Max(widest, System.Math.Abs(px));
+                    bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
+                    // The pilot (eye at 1.18) must see the front window over the console: the hood round the screen
+                    // may stand to 1.08, and the wings either side stay under 0.84.
+                    Assert.LessOrEqual(py, 1.08f, part.Name + " stands too high");
+                    if (System.Math.Abs(px) > 0.705f) Assert.LessOrEqual(py, 0.84f, part.Name + ": the wings stay low");
+                    if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the console may stand in front of the screen");
+                    Assert.IsTrue(ShipLayout.InsideCabin(new P3(px, System.Math.Max(0.01f, py), pz)), part.Name + " pokes through the cabin wall");
+                    // And none of it reaches back over the edge of the desk toward the pilot's knees.
+                    Assert.GreaterOrEqual(pz, 1.74f, part.Name + " hangs over the front of the desk");
+                }
+            }
+            Assert.Less(left, -halfWidth - 0.03f, "the bezel frames the left edge");
+            Assert.Greater(right, halfWidth + 0.03f, "the bezel frames the right edge");
+            Assert.Greater(top, halfHeight + 0.01f, "the brow frames the top edge");
+            Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
+            Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
+            Assert.Greater(widest, 1.2f, "the console has a wing either side of the screen");
+        }
+
+        [Test]
+        public void ConsoleModelFile_ItsThrottleSlidesUpItsSlot_AndStaysLow()
+        {
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            ModelPart lever = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.ThrottlePiece);
+            Assert.IsNotNull(lever, "the throttle's lever must be a piece of its own, or the game cannot move it");
+            Assert.IsFalse(ModelFile.Shines(lever.Name), "the lever is painted metal, lit by the cabin: it does not shine");
+            P3 idle = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.ThrottleIdle), full = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.ThrottleFull);
+            P3 travel = full - idle;
+            Assert.That(travel.Length, Is.InRange(0.07f, 0.13f), "a throw a gloved hand can see");
+            Assert.Greater(idle.X, 0.7f, "the throttle is on the pilot's right, under the right hand");
+            Assert.AreEqual(0f, travel.X, 0.01f, "it slides straight up its slot");
+            Assert.Greater(travel.Z, 0.02f, "forward on the lever is away from the pilot");
+            Assert.Greater(travel.Y, 0f, "and up the sloping panel");
+
+            // The lever stands with its foot at ThrottleIdle, and wherever it is slid to it stays below the window
+            // line, inside the cabin and off the front of the desk, as the rest of the console must.
+            float nearest = float.MaxValue;
+            for (int v = 0; v < lever.VertexCount; v++)
+            {
+                var p = new P3(lever.Positions[v * 3], lever.Positions[v * 3 + 1], lever.Positions[v * 3 + 2]);
+                nearest = System.Math.Min(nearest, (p - idle).Length);
+                foreach (float share in new[] { 0f, 0.5f, 1f })
+                {
+                    P3 at = p + travel * share;
+                    Assert.LessOrEqual(at.Y, 0.84f, "the lever stands up into the view at " + share);
+                    Assert.IsTrue(ShipLayout.InsideCabin(new P3(at.X, System.Math.Max(0.01f, at.Y), at.Z)), "the lever goes through the wall at " + share);
+                    Assert.GreaterOrEqual(at.Z, 1.74f, "the lever hangs over the front of the desk at " + share);
+                }
+            }
+            Assert.Less(nearest, 0.012f, "the lever's foot is not at its idle socket");
+            Assert.LessOrEqual(lever.Triangles.Length / 3, 400);
+        }
+
+        [Test]
+        public void ConsoleModelFile_HasItsInstruments_WhereTheGameCanMoveThem()
+        {
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            for (int i = 0; i < OrbitalAnte.Cockpit.ConsoleGauges.LampCount; i++)
+            {
+                string name = OrbitalAnte.Cockpit.ConsoleGauges.PieceOf((OrbitalAnte.Cockpit.ConsoleLamp)i);
+                Assert.IsNotNull(model.Part(name), "missing lamp piece " + name);
+            }
+            ModelPart fuel = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.FuelPiece), needle = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.NeedlePiece);
+            Assert.IsNotNull(fuel);
+            Assert.IsNotNull(needle);
+
+            // Fuel: the liquid lies between its two sockets, so squeezing it toward FuelBase empties the tube.
+            P3 fuelBase = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.FuelBase), fuelTop = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.FuelTop);
+            P3 along = fuelTop - fuelBase;
+            float length = along.Length;
+            Assert.Greater(length, 0.2f, "the fuel tube is long enough to read");
+            Assert.Less(fuelBase.X, 0f, "fuel is on the pilot's left");
+            for (int v = 0; v < fuel.VertexCount; v++)
+            {
+                P3 p = new P3(fuel.Positions[v * 3], fuel.Positions[v * 3 + 1], fuel.Positions[v * 3 + 2]) - fuelBase;
+                float t = P3.Dot(p, along) / (length * length);
+                Assert.That(t, Is.InRange(-0.02f, 1.02f), "the liquid reaches past its sockets");
+            }
+
+            // Air: the needle points at empty, and empty, half and full are 120 degrees apart round the pivot.
+            P3 pivot = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirDial), outward = (Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirDialOut) - pivot).Unit();
+            P3 empty = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirEmpty) - pivot, half = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirHalf) - pivot, full = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.AirFull) - pivot;
+            Assert.AreEqual(-0.5f, P3.Dot(empty.Unit(), half.Unit()), 0.01f);
+            Assert.AreEqual(-0.5f, P3.Dot(half.Unit(), full.Unit()), 0.01f);
+            Assert.AreEqual(0f, P3.Dot(empty.Unit(), outward), 0.01f, "the needle turns in the plane of the dial");
+            Assert.Greater(outward.Y, 0.5f, "the dial faces up toward the pilot");
+            Assert.Less(outward.Z, 0f, "the dial faces back toward the pilot");
+            P3 tip = P3.Zero;
+            float far = 0f;
+            for (int v = 0; v < needle.VertexCount; v++)
+            {
+                P3 p = new P3(needle.Positions[v * 3], needle.Positions[v * 3 + 1], needle.Positions[v * 3 + 2]) - pivot;
+                if (p.Length > far) { far = p.Length; tip = p; }
+            }
+            Assert.Greater(P3.Dot(tip.Unit(), empty.Unit()), 0.99f, "the needle is modelled pointing at empty");
+        }
+
+        static P3 Socket(ModelFile model, string name)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing socket " + name);
+            return new P3(s.X, s.Y, s.Z);
+        }
+
+        [Test]
         public void ShipModelFile_PiecesStayWhereTheirCollidersAre()
         {
             ModelFile model = LoadReal("Lander");
@@ -362,11 +647,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_MatchesTheSkeleton()
+        public void EnemyModelFile_MatchesTheSkeleton([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
             // The Blender script carries its own copy of the joint positions. If BodySkeleton changes, this fails
-            // until tools/blender/build_enemy.py is changed to match and run again.
-            ModelFile model = LoadReal("Enemy");
+            // until tools/blender/build_enemy.py is changed to match and run again (and build_enemy_types.py, which
+            // builds the other three on the same joints: every kind is the same skeleton, drawn at its own size).
+            ModelFile model = LoadReal(name);
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
@@ -382,10 +668,10 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint()
+        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
         {
             // Each piece is measured from its joint, so it must start there and reach the way the part points.
-            ModelFile model = LoadReal("Enemy");
+            ModelFile model = LoadReal(name);
             for (int i = 0; i < BodyLayout.Count; i++)
             {
                 var id = (BodyPartId)i;
@@ -398,7 +684,8 @@ namespace OrbitalAnte.Tests
                     if (y < minY) minY = y; if (y > maxY) maxY = y;
                     if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
                 }
-                Assert.Less(maxX - minX, 0.75f, id + " is too wide");
+                // The torso may carry cloth wider than the body (the Marksman's cape fans out past its arms).
+                Assert.Less(maxX - minX, id == BodyPartId.Torso ? 0.9f : 0.75f, id + " is too wide");
                 Assert.Less(maxY - minY, 0.75f, id + " is too tall");
                 Assert.Less(maxZ - minZ, 0.75f, id + " is too deep");
                 if (id == BodyPartId.Head || id == BodyPartId.Torso) continue;
@@ -412,9 +699,69 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_BootsStandOnTheGround()
+        public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman",
+                                                            "EnemyFar", "EnemyRunnerFar", "EnemyBruiserFar", "EnemyMarksmanFar")] string file)
         {
-            ModelFile model = LoadReal("Enemy");
+            // The far copies are held to the same fit: the hitboxes do not change when the drawn copy does, so
+            // what looks hit must be hit whichever is showing.
+            string name = ModelFile.IsFar(file) ? file.Substring(0, file.Length - ModelFile.FarSuffix.Length) : file;
+            // The hitbox radii MannequinFactory gives the trooper's modelled limbs, times BodyFit's thickness for
+            // this kind, against how thick the limb really is in the file. A hitbox much fatter than the limb
+            // is hit by shots that visibly miss; one much thinner lets visible hits through.
+            var limbs = new (BodyPartId part, float radius)[]
+            {
+                (BodyPartId.RightUpperArm, 0.085f), (BodyPartId.RightForearm, 0.066f), (BodyPartId.RightHand, 0.082f),
+                (BodyPartId.RightThigh, 0.10f), (BodyPartId.RightShin, 0.076f),
+                (BodyPartId.LeftUpperArm, 0.085f), (BodyPartId.LeftForearm, 0.066f), (BodyPartId.LeftHand, 0.082f),
+                (BodyPartId.LeftThigh, 0.10f), (BodyPartId.LeftShin, 0.076f),
+            };
+            ModelFile model = LoadReal(file);
+            foreach ((BodyPartId part, float radius) in limbs)
+            {
+                ModelPart piece = model.Part(part.ToString());
+                float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue, maxZ = float.MinValue;
+                for (int v = 0; v < piece.VertexCount; v++)
+                {
+                    float x = piece.Positions[v * 3], y = piece.Positions[v * 3 + 1], z = piece.Positions[v * 3 + 2];
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                }
+                // Arms lie along x and legs along y, so the thickness is across the other two.
+                OrbitalAnte.Core.Vec3d d = BodySkeleton.PartDirection(part);
+                bool alongX = System.Math.Abs(d.X) > System.Math.Abs(d.Y);
+                float thick = 0.5f * System.Math.Max(alongX ? maxY - minY : maxX - minX, maxZ - minZ);
+                float box = radius * BodyFit.Thickness(name, part);
+                Assert.Less(box, thick * 1.12f, file + " " + part + ": the hitbox is fatter than the limb");
+                Assert.Greater(box, thick * 0.55f, file + " " + part + ": the hitbox is much thinner than the limb");
+            }
+            // The head's ball: no wider than the helmet is across, and sitting on the helmet, not above or below it.
+            ModelPart head = model.Part("Head");
+            var across = new System.Collections.Generic.List<float>();
+            float top = float.MinValue;
+            for (int v = 0; v < head.VertexCount; v++)
+            {
+                across.Add(System.Math.Abs(head.Positions[v * 3]));
+                top = System.Math.Max(top, head.Positions[v * 3 + 1]);
+            }
+            float ball = 0.17f * BodyFit.Thickness(name, BodyPartId.Head);
+            float middle = BodySkeleton.HeadCentreAboveNeck + BodyFit.HeadRise(name);
+            across.Sort();
+            float helmetHalfWidth = across[(int)(across.Count * 0.9f)];
+            Assert.Less(ball, helmetHalfWidth * 1.25f, file + ": the head's hitbox is wider than the helmet");
+            Assert.Greater(ball, helmetHalfWidth * 0.8f, file + ": the head's hitbox is much narrower than the helmet");
+            Assert.AreEqual(0f, BodyFit.HeadRise("Enemy"));
+            Assert.Less(BodyFit.HeadRise("EnemyBruiser"), -0.03f, "the bruiser's helmet is sunk into its collar");
+            Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));
+            Assert.AreEqual(1f, BodyFit.Thickness("something nobody made", BodyPartId.Head));
+            Assert.Greater(BodyFit.Thickness("EnemyBruiser", BodyPartId.Torso), 1.1f);
+            Assert.Less(BodyFit.Thickness("EnemyRunner", BodyPartId.Torso), 0.95f);
+        }
+
+        [Test]
+        public void EnemyModelFile_BootsStandOnTheGround([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        {
+            ModelFile model = LoadReal(name);
             foreach (BodyPartId id in new[] { BodyPartId.LeftFoot, BodyPartId.RightFoot })
             {
                 ModelPart piece = model.Part(id.ToString());

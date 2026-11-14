@@ -187,6 +187,7 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("FUEL LOW", Settle(new DashInputs { Matching = true, FuelLow = true, Altitude = -1f }, 0.5f).Readings.Notice);
             StringAssert.Contains("AIR LOW", Settle(new DashInputs { OxygenLow = true, Matching = true, Altitude = -1f }, 0.5f).Readings.Notice);
             StringAssert.Contains("FUEL LOW", Settle(new DashInputs { FuelLow = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice, "fuel can hurt you today; air cannot yet");
+            StringAssert.Contains("AIR LOW", Settle(new DashInputs { FuelLow = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice, "and when both are low the notice says both");
             StringAssert.Contains("FUEL OUT", Settle(new DashInputs { FuelLow = true, FuelOut = true, OxygenLow = true, Altitude = -1f }, 0.5f).Readings.Notice);
         }
 
@@ -267,9 +268,10 @@ namespace OrbitalAnte.Tests
             DashDesigns.Paint(style, m.Readings, a);
             DashDesigns.Paint(style, m.Readings, b);
             Assert.AreEqual(a.Fingerprint(), b.Fingerprint());
-            m.Tick(0.5f, new DashInputs { Fuel = 0.4f, Oxygen = 1f, Speed = 40f, DriftZ = 40f, Altitude = -1f });
+            // (The Flight deck screen leaves fuel to the console's real tube, so the direction changes too.)
+            m.Tick(0.5f, new DashInputs { Fuel = 0.4f, Oxygen = 1f, Speed = 40f, DriftX = 30f, DriftZ = 40f, Altitude = -1f });
             DashDesigns.Paint(style, m.Readings, b);
-            Assert.AreNotEqual(a.Fingerprint(), b.Fingerprint(), "the fuel bar moved");
+            Assert.AreNotEqual(a.Fingerprint(), b.Fingerprint(), "the fuel bar and the direction dot moved");
         }
 
         [Test]
@@ -285,11 +287,179 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("1.8 km", all, "height");
             StringAssert.Contains("-52", all, "sink rate");
             StringAssert.Contains("MOON", all, "what the speed is measured against");
-            StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("LANDING", all, "which camera");
             StringAssert.Contains("FUEL", all);
+            // The Flight deck screen carries fewer words on purpose: its fuel and air are pictures (see
+            // TheFlightDeckScreen_ShowsFuelAndAir_AsPicturesThatFollowTheTanks). Its notice still says FUEL LOW.
+            if (style == DashStyle.FlightDeck) return;
+            StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("AIR", all);
             StringAssert.Contains("16", all, "air left");
+        }
+
+        [Test]
+        public void TheFlightDeckScreen_AlwaysHasTheSameSevenWords_AndNoCheapOnes()
+        {
+            var d = new DashDrawing();
+            foreach (DashInputs input in new[] { new DashInputs { Fuel = 1f, Oxygen = 1f, Altitude = -1f }, Busy, new DashInputs { Speed = 40f, DriftZ = -1f, Altitude = 12f, Vertical = -3f, Against = "EARTH" } })
+            {
+                DashModel m = Settle(input, 1f);
+                DashDesigns.Paint(DashStyle.FlightDeck, m.Readings, d);
+                Assert.AreEqual(7, d.Texts.Count, "a word was added or skipped: words must keep their place in the list");
+                foreach (DashText t in d.Texts)
+                {
+                    foreach (string cheap in new[] { "PROPERTY", "LOOK DOWN", "PUSH", "HOLDING", "HEIGHT", "CLIMB", "SINK", "SPEED vs", "%" })
+                        StringAssert.DoesNotContain(cheap, t.Text);
+                }
+            }
+        }
+
+        [Test]
+        public void TheFlightDeckScreen_ShowsFuelAndAir_AsPicturesThatFollowTheTanks()
+        {
+            // The console's tube and dial sit out to the sides, past the edge of the view from the seat, and
+            // are not there at all if the Console model is missing. So the screen itself must show both.
+            var d = new DashDrawing();
+            int Picture(float fuel, float air, bool fuelLow = false, bool airLow = false, float clock = 0.2f)
+            {
+                var r = new DashReadings { Fuel = fuel, Oxygen = air, FuelLow = fuelLow, OxygenLow = airLow, Clock = clock };
+                DashDesigns.Paint(DashStyle.FlightDeck, r, d);
+                return d.Fingerprint();
+            }
+            int full = Picture(1f, 1f);
+            int corners = d.VertexCount;
+            Assert.AreNotEqual(full, Picture(0.6f, 1f), "less fuel must change the picture");
+            Assert.AreEqual(corners, d.VertexCount, "a gauge moving must never add or drop corners");
+            Assert.AreNotEqual(full, Picture(1f, 0.6f), "less air must change the picture");
+            Assert.AreEqual(corners, d.VertexCount);
+            Assert.AreNotEqual(Picture(0.6f, 1f), Picture(0.58f, 1f), "the fuel tube is fine enough to show two parts in a hundred");
+            Assert.AreNotEqual(Picture(1f, 0.6f), Picture(1f, 0.58f), "the air bubbles are fine enough to show two parts in a hundred");
+            Assert.AreNotEqual(Picture(0.1f, 1f), Picture(0.1f, 1f, fuelLow: true), "low fuel must look different from the same level without the warning");
+            Assert.AreNotEqual(Picture(1f, 0.1f), Picture(1f, 0.1f, airLow: true), "low air must look different too");
+            Assert.AreNotEqual(Picture(0.1f, 1f, fuelLow: true, clock: 0.2f), Picture(0.1f, 1f, fuelLow: true, clock: 0.7f), "and it blinks");
+            Picture(0f, 0f, true, true);
+            Assert.AreEqual(corners, d.VertexCount, "empty tanks keep every corner too");
+            Assert.AreEqual(7, d.Texts.Count, "and still no words for them");
+        }
+
+        // ------------------------------------------------------------------ the console's real instruments
+
+        [Test]
+        public void ConsoleGauges_FollowTheReadings()
+        {
+            var g = new ConsoleGauges();
+            var r = new DashReadings { Fuel = 0.4f, Oxygen = 0.25f };
+            g.Set(r, locked: false, autopilot: false);
+            Assert.AreEqual(0.4f, g.FuelLevel, 1e-5f);
+            Assert.AreEqual(0.25f, g.AirTurn, 1e-5f);
+            for (int i = 0; i < ConsoleGauges.LampCount; i++) Assert.IsFalse(g.Lamps[i], "nothing to report, so no lamp is lit");
+
+            r.Fuel = 0f; r.Oxygen = 2f;
+            g.Set(r, false, false);
+            Assert.AreEqual(ConsoleGauges.FuelSliver, g.FuelLevel, 1e-6f, "a dry tank still shows a sliver, so the tube never vanishes");
+            Assert.AreEqual(1f, g.AirTurn, 1e-6f);
+        }
+
+        [Test]
+        public void TheThrottleLever_FollowsThePush_AsAHandWould()
+        {
+            var g = new ConsoleGauges();
+            Assert.AreEqual(0f, g.Throttle, "the lever starts pulled right back");
+            // One frame of full push moves it, but not all the way: a shove, not a jump.
+            g.Push(1f, 1f / 60f);
+            Assert.Greater(g.Throttle, 0.1f);
+            Assert.Less(g.Throttle, 0.5f);
+            for (int i = 0; i < 40; i++) g.Push(1f, 1f / 60f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f, "within a second it is right forward, and rests there exactly");
+            // Half a push holds it half way; letting go brings it home.
+            for (int i = 0; i < 60; i++) g.Push(0.5f, 1f / 60f);
+            Assert.AreEqual(0.5f, g.Throttle, 1e-6f);
+            for (int i = 0; i < 60; i++) g.Push(0f, 1f / 60f);
+            Assert.AreEqual(0f, g.Throttle, 1e-6f);
+            // Match Velocity brakes harder than an ordinary push: the lever stops at its end, it does not leave the slot.
+            for (int i = 0; i < 60; i++) g.Push(2.4f, 1f / 60f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f);
+            // A frozen game (dt 0) and a broken number move nothing or bring it home; neither breaks it.
+            g.Push(0f, 0f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f);
+            for (int i = 0; i < 60; i++) g.Push(float.NaN, 1f / 60f);
+            Assert.AreEqual(0f, g.Throttle, 1e-6f);
+            // It does not care how long a frame is: one long frame or many short ones end in the same place.
+            var slow = new ConsoleGauges();
+            var quick = new ConsoleGauges();
+            slow.Push(1f, 0.1f);
+            for (int i = 0; i < 10; i++) quick.Push(1f, 0.01f);
+            Assert.AreEqual(slow.Throttle, quick.Throttle, 1e-3f);
+            // The readings do not touch it: it belongs to the engines, not the tanks.
+            slow.Set(new DashReadings { Fuel = 0f }, false, false);
+            Assert.AreEqual(quick.Throttle, slow.Throttle, 1e-3f);
+        }
+
+        [Test]
+        public void TheThrottleLever_StopsAtADifferentPlace_ForEachKindOfPush()
+        {
+            // The shipped dials: push 30, boost 2.5 times, Match Velocity 60 (twice), the autopilot up to 45 (one and a half).
+            const float boost = 2.5f, brake = 2f, auto = 1.5f;
+            float Lever(float stick, bool boosting = false, bool braking = false, bool autopilot = false, float asking = 0f)
+                => ConsoleGauges.LeverFor(stick, boosting, boost, braking, brake, autopilot, asking, auto);
+            Assert.AreEqual(0f, Lever(0f), 1e-6f, "hands off: right back");
+            Assert.AreEqual(0.2f, Lever(0.5f), 1e-6f);
+            Assert.AreEqual(0.4f, Lever(1f), 1e-6f, "a full ordinary push");
+            Assert.AreEqual(0.4f, Lever(3f), 1e-6f, "a stick cannot ask for more than all of it");
+            Assert.AreEqual(0.6f, Lever(0f, autopilot: true, asking: auto), 1e-6f, "the autopilot's hardest");
+            Assert.AreEqual(0.3f, Lever(1f, autopilot: true, asking: auto / 2f), 1e-6f, "the autopilot is flying: the stick is not asked");
+            Assert.AreEqual(0.6f, Lever(0f, autopilot: true, asking: 9f), 1e-6f);
+            Assert.AreEqual(0.8f, Lever(0f, braking: true), 1e-6f, "Match Velocity brakes harder than a push");
+            Assert.AreEqual(0.8f, Lever(1f, braking: true), 1e-6f);
+            Assert.AreEqual(1f, Lever(1f, boosting: true), 1e-6f, "only the boost puts it right forward");
+            Assert.AreEqual(1f, Lever(1f, boosting: true, braking: true), 1e-6f);
+            // Each harder ask stands further forward than the one before, so they can be told apart at a glance.
+            Assert.Less(Lever(1f), Lever(0f, autopilot: true, asking: auto));
+            Assert.Less(Lever(0f, autopilot: true, asking: auto), Lever(0f, braking: true));
+            Assert.Less(Lever(0f, braking: true), Lever(1f, boosting: true));
+            // Odd dials never push it out of its slot or break it: with nothing harder than an ordinary push, a full push is full.
+            Assert.AreEqual(1f, ConsoleGauges.LeverFor(1f, false, 0f, false, 0f, false, 0f, 0f), 1e-6f);
+            Assert.AreEqual(1f, ConsoleGauges.LeverFor(1f, true, float.NaN, false, float.PositiveInfinity, false, 0f, -3f), 1e-6f);
+            Assert.AreEqual(0f, ConsoleGauges.LeverFor(float.NaN, false, boost, false, brake, false, 0f, auto), 1e-6f);
+            Assert.AreEqual(0f, ConsoleGauges.LeverFor(0f, false, boost, false, brake, true, float.NaN, auto), 1e-6f);
+        }
+
+        [Test]
+        public void ConsoleLamps_SayWhatTheShipIsDoing()
+        {
+            var g = new ConsoleGauges();
+            var r = new DashReadings { Matching = true };
+            g.Set(r, locked: true, autopilot: true);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Lock));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Auto));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Match));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
+
+            // Low blinks in step with the screen's notice; out burns steadily, so it is never caught dark.
+            r = new DashReadings { FuelLow = true, OxygenLow = true, Clock = 0.2f };
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsTrue(g.Lit(ConsoleLamp.Air));
+            r.Clock = 0.7f;
+            g.Set(r, false, false);
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
+            r.FuelOut = true;
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Fuel), "an empty tank's lamp stays on");
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air), "air that is only low still blinks");
+            r.Oxygen = 0f;
+            g.Set(r, false, false);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Air), "with no air left the lamp stays on too");
+
+            // The same from raw numbers, for the instruments seen through the glass with nobody aboard.
+            g.Set(0.5f, 0.5f, false, false, false, true, true, false, false);
+            Assert.AreEqual(0.5f, g.FuelLevel, 1e-6f);
+            Assert.IsTrue(g.Lit(ConsoleLamp.Lock));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Fuel));
+            Assert.IsFalse(g.Lit(ConsoleLamp.Air));
+            Assert.AreEqual("lampFuelGlow", ConsoleGauges.PieceOf(ConsoleLamp.Fuel));
         }
 
         [Test]
@@ -341,6 +511,8 @@ namespace OrbitalAnte.Tests
                 {
                     Assert.Greater(Math.Abs(spot.Lens.X), 3f, "a pole camera should stand well clear of the hull");
                     Assert.Greater(look.Z, 0f, "a pole camera looks back at the ship from behind");
+                    Assert.Less(spot.LookAt.Y, 0f, "a pole camera aims below the cabin floor, so the long legs are in the picture");
+                    Assert.Greater(spot.LookAt.Y, ShipLayout.BellyY, "but not so low that it loses the cabin");
                 }
             }
             Assert.AreEqual(1, landing);
