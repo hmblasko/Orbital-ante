@@ -27,7 +27,7 @@ namespace OrbitalAnte.Spacewalk
         Texture2D _rimTexture;
         Sprite _rimSprite;
         float _nextText, _shownUntil;
-        int _shownAir = -1, _shownSpeed = -1, _shownLine = -1;
+        int _shownAir = -1, _shownSpeed = -1, _shownLine = -1, _airStep = -1, _fuelStep = -1, _noticeKey = -1, _againstKey = -1;
         string _shownAgainst = string.Empty, _shownNotice = string.Empty;
         readonly StringBuilder _text = new StringBuilder(48);
 
@@ -65,9 +65,10 @@ namespace OrbitalAnte.Spacewalk
                 rt.anchoredPosition = Vector2.zero;
                 Vector2 screen = UiKit.ReferenceResolution;
                 // Long enough to span the screen whichever way the canvas is scaled.
-                rt.sizeDelta = new Vector2((sideways ? screen.y : screen.x) * 1.6f, 150f);
+                rt.sizeDelta = new Vector2((sideways ? screen.y : screen.x) * 1.6f, 90f);
                 rt.localRotation = Quaternion.Euler(0f, 0f, turn[i]);
-                _rim[i] = UiKit.AddImage(rt, Color.clear, _rimSprite);
+                // Coloured once; its brightness is then set on the renderer, which does not rebuild the canvas.
+                _rim[i] = UiKit.AddImage(rt, _config.jetColour, _rimSprite);
                 _rim[i].type = Image.Type.Simple;
                 _rim[i].enabled = false;
             }
@@ -83,7 +84,8 @@ namespace OrbitalAnte.Spacewalk
             UiKit.Stretch(ring);
             ring.offsetMin = new Vector2(4f, 4f);
             ring.offsetMax = new Vector2(-4f, -4f);
-            _airRing = UiKit.AddImage(ring, UiKit.Cream, UiKit.Circle);
+            // (Both gauges are white underneath; their colour is set on the renderer each frame.)
+            _airRing = UiKit.AddImage(ring, Color.white, UiKit.Circle);
             _airRing.type = Image.Type.Filled;
             _airRing.fillMethod = Image.FillMethod.Radial360;
             _airRing.fillOrigin = (int)Image.Origin360.Top;
@@ -107,7 +109,7 @@ namespace OrbitalAnte.Spacewalk
             fill.anchorMax = new Vector2(1f, 1f);
             fill.offsetMin = new Vector2(3f, 3f);
             fill.offsetMax = new Vector2(-3f, -3f);
-            _fuelFill = UiKit.AddImage(fill, _config.jetColour);
+            _fuelFill = UiKit.AddImage(fill, Color.white);
             _fuelFill.type = Image.Type.Filled;
             _fuelFill.fillMethod = Image.FillMethod.Vertical;
             _fuelFill.fillOrigin = (int)Image.OriginVertical.Bottom;
@@ -148,15 +150,17 @@ namespace OrbitalAnte.Spacewalk
             Rim(outside && show);
             if (!show)
             {
-                if (_shownNotice.Length > 0) { _shownNotice = string.Empty; _notice.text = string.Empty; }
+                if (_shownNotice.Length > 0) { _shownNotice = string.Empty; _notice.text = string.Empty; _noticeKey = -1; }
                 return;
             }
 
-            _airRing.fillAmount = s.Air;
-            _fuelFill.fillAmount = s.Fuel;
+            // Written only when they would look different: every write makes the whole readout be laid out again.
+            int airStep = Mathf.RoundToInt(s.Air * 200f), fuelStep = Mathf.RoundToInt(s.Fuel * 200f);
+            if (airStep != _airStep) { _airStep = airStep; _airRing.fillAmount = airStep / 200f; }
+            if (fuelStep != _fuelStep) { _fuelStep = fuelStep; _fuelFill.fillAmount = fuelStep / 200f; }
             bool blink = Mathf.Repeat(now, 0.8f) < 0.5f;
-            _airRing.color = s.AirOut || s.AirLow ? (blink ? UiKit.Danger : UiKit.Cream) : UiKit.Cream;
-            _fuelFill.color = s.FuelLow ? (blink ? UiKit.Danger : _config.jetColour) : _config.jetColour;
+            _airRing.canvasRenderer.SetColor(s.AirOut || s.AirLow ? (blink ? UiKit.Danger : UiKit.Cream) : UiKit.Cream);
+            _fuelFill.canvasRenderer.SetColor(s.FuelLow && blink ? UiKit.Danger : _config.jetColour);
 
             if (now < _nextText) return;
             _nextText = now + TextInterval;
@@ -168,9 +172,17 @@ namespace OrbitalAnte.Spacewalk
                 _airText.text = air.ToString();
             }
 
-            string notice = outside ? SuitReadout.Notice(s) : s.AirOut || s.AirLow ? SuitReadout.Notice(s) : string.Empty;
-            if (notice != _shownNotice)
+            // The words are only built again when something they depend on has changed.
+            bool wanted = outside || s.AirOut || s.AirLow;
+            int body = s.GroundName != null ? s.GroundName.GetHashCode() : 0;
+            int noticeKey = !wanted ? 0 : 1
+                | (s.AirOut ? 2 : 0) | (s.AirLow ? 4 : 0) | (s.BurningAir ? 8 : 0) | (s.FuelOut ? 16 : 0) | (s.FuelLow ? 32 : 0)
+                | (s.TetherTaut ? 64 : 0) | (s.Matching ? 128 : 0) | (s.MatchTarget == MatchTarget.Ship ? 256 : 0) | (s.AgainstGround ? 512 : 0)
+                | (s.AirOut ? Mathf.CeilToInt(Mathf.Max(0f, s.SecondsLeft)) << 10 : 0) | ((body & 0x3FF) << 20);
+            if (noticeKey != _noticeKey)
             {
+                _noticeKey = noticeKey;
+                string notice = wanted ? SuitReadout.Notice(s) : string.Empty;
                 _shownNotice = notice;
                 _notice.text = notice;
                 _notice.color = SuitReadout.IsAlarm(s) ? UiKit.Danger : UiKit.PanelEdge;
@@ -186,11 +198,17 @@ namespace OrbitalAnte.Spacewalk
 
             // Tenths below 10 m/s, where a tenth matters; whole numbers above.
             int speed = s.Speed < 10f ? Mathf.RoundToInt(s.Speed * 10f) : 1000 + Mathf.RoundToInt(s.Speed);
-            string against = SuitReadout.SpeedAgainst(s);
-            if (speed != _shownSpeed || against != _shownAgainst)
+            int againstKey = (s.MatchTarget == MatchTarget.Ship ? 1 : 0) | (s.AgainstGround ? 2 : 0) | (body << 2);
+            if (againstKey != _againstKey)
+            {
+                _againstKey = againstKey;
+                _shownAgainst = SuitReadout.SpeedAgainst(s);
+                _shownSpeed = -1;
+            }
+            string against = _shownAgainst;
+            if (speed != _shownSpeed)
             {
                 _shownSpeed = speed;
-                _shownAgainst = against;
                 _text.Length = 0;
                 if (speed < 1000) _text.Append(speed / 10).Append('.').Append(speed % 10);
                 else _text.Append(speed - 1000);
@@ -228,9 +246,7 @@ namespace OrbitalAnte.Spacewalk
                 bool lit = level > 0.01f;
                 if (_rim[i].enabled != lit) _rim[i].enabled = lit;
                 if (!lit) continue;
-                Color c = _config.jetColour;
-                c.a = level;
-                _rim[i].color = c;
+                _rim[i].canvasRenderer.SetAlpha(level);
             }
         }
 

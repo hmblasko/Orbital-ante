@@ -98,8 +98,12 @@ namespace OrbitalAnte.Ship
         public float ShipAir { get; set; } = 1f;
         /// <summary>Hands over (and forgets) the share of the ship's air the suit has drawn since last asked.</summary>
         public float TakeAirDrawn() { float drawn = _airDrawn; _airDrawn = 0f; return drawn; }
+        /// <summary>True once for each time a jet lit from cold (the jets tick with the physics, the sound with the frame).</summary>
+        public bool TakeJetPuff() { bool puff = _jetPuff; _jetPuff = false; return puff; }
+        bool _jetPuff, _matchWasHeld;
+        MatchTarget _matchTarget;
         SuitFx _fx;
-        float _airDrawn, _jetPush, _airTime, _rollEase;
+        float _airDrawn, _jetPush, _rollEase;
         Quaternion _viewLocal = Quaternion.identity;
         bool _mendingNow;
         Vector3 _jetLocal;
@@ -276,7 +280,6 @@ namespace OrbitalAnte.Ship
             transform.localRotation = Quaternion.identity;
             _pendingYaw = 0f;
             _rollEase = 0f;
-            _airTime = 0f;
             Posture = Posture.Upright;
             Jets.Reset();
             SetMode(AstronautMode.Outside);
@@ -807,7 +810,7 @@ namespace OrbitalAnte.Ship
             int body = _system != null ? _suitGravity.Neighbourhood : -1;
             bool hasBody = body >= 0 && _system != null && body < _system.Bodies.Length;
             float radius = hasBody ? (float)_system.Model.Spec(body).radius : 1f;
-            float height = hasBody ? (float)_system.AltitudeAbove(body, Suit.position) : float.MaxValue;
+            float height = hasBody ? HeightAbove(body) : float.MaxValue;
 
             Posture next = SuitPosture.Next(rules, Posture, weight, height, radius, _grounded);
             if (next != Posture) SwitchPosture(next, pull, weight);
@@ -853,10 +856,14 @@ namespace OrbitalAnte.Ship
             Vector3 toShip = Ship.Body.worldCenterOfMass - Suit.worldCenterOfMass;
             float shipDistance = toShip.magnitude;
             float offShip = shipDistance > 0.5f ? Vector3.Angle(Eye.transform.forward, toShip) : 0f;
-            MatchTarget target = _mendingNow ? MatchTarget.Ship : Jetpack.Choose(rules, shipDistance, offShip);
+            // Chosen when the button goes down and kept while it is held, so turning your head cannot change it.
+            if (!matchHeld || !_matchWasHeld) _matchTarget = _mendingNow ? MatchTarget.Ship : Jetpack.Choose(rules, shipDistance, offShip);
+            _matchWasHeld = matchHeld;
+            MatchTarget target = _matchTarget;
             bool againstGround = hasBody && height < Mathf.Max(GroundMatchLeast, radius * GroundMatchShare);
+            // (Mending a tumbling ship, you are held against the part of it beside you, not its middle.)
             Vector3 reference = target == MatchTarget.Ship
-                ? Ship.Body.linearVelocity
+                ? (_mendingNow ? Ship.Body.GetPointVelocity(Suit.worldCenterOfMass) : Ship.Body.linearVelocity)
                 : !hasBody ? Vector3.zero
                 : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.LocalVelocityOf(body);
             Vector3 relative = Suit.linearVelocity - reference;
@@ -866,7 +873,6 @@ namespace OrbitalAnte.Ship
             if (_grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                _airTime = 0f;
                 Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
@@ -881,7 +887,6 @@ namespace OrbitalAnte.Ship
             }
             else
             {
-                _airTime += dt;
                 if (matchHeld)
                 {
                     P3 push = Jetpack.Match(rules, new P3(relative.x, relative.y, relative.z), dt, factor);
@@ -889,17 +894,10 @@ namespace OrbitalAnte.Ship
                 }
                 else
                 {
-                    // A hop on a planet is not a flight: sideways jets wait a moment, unless you ask for lift.
-                    bool sideways = Posture == Posture.Free || _airTime > 0.5f || jetUp || jetDown;
-                    if (!sideways && weight > rules.freePull)
-                    {
-                        // Mid-hop you can still lean a little, as anyone can. That is not the jets and costs nothing.
-                        Vector3 lean = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
-                        Vector3 inAir = Suit.linearVelocity - groundVelocity;
-                        Vector3 rise = Vector3.Project(inAir, _up);
-                        Suit.linearVelocity = groundVelocity + Vector3.MoveTowards(inAir - rise, lean, 5f * dt) + rise;
-                    }
-                    P3 wish = new P3(sideways ? move.x : 0f, (jetUp ? 1f : 0f) - (jetDown ? 1f : 0f), sideways ? move.y : 0f);
+                    // Off the ground the stick is the jets, at once and every time. Nothing else moves you:
+                    // let go and you keep exactly the speed you had.
+                    float fine = live && GameInput.Sprint.IsPressed() ? rules.fineShare : 1f;
+                    P3 wish = new P3(move.x, (jetUp ? 1f : 0f) - (jetDown ? 1f : 0f), move.y) * fine;
                     P3 push = Jetpack.Push(rules, wish, factor);
                     jets = frame * new Vector3(push.X, push.Y, push.Z);
                 }
@@ -912,6 +910,7 @@ namespace OrbitalAnte.Ship
             _jetLocal = Quaternion.Inverse(frame) * jets / full;
             _jetPush = Mathf.Clamp01(_jetLocal.magnitude);
             Jets.Tick(dt, new P3(_jetLocal.x, _jetLocal.y, _jetLocal.z));
+            if (Jets.Lit) _jetPuff = true;
 
             // The tether: stops you at its length, and nothing more.
             Vector3 anchor = TetherAnchor;
@@ -926,6 +925,10 @@ namespace OrbitalAnte.Ship
                 {
                     Suit.linearVelocity += new Vector3(change.X, change.Y, change.Z);
                     Suit.position += new Vector3(back.X, back.Y, back.Z);
+                    // Coming up short on the line at speed is a blow like any other, though the harness
+                    // spreads it: it can wind you, never kill you.
+                    float jolt = change.Length;
+                    if (jolt > rules.hurtSpeed) SuitHit(Mathf.Min(jolt, rules.fatalSpeed - 0.5f), -offset.normalized);
                 }
                 TetherTaut = taut;
             }
@@ -937,6 +940,26 @@ namespace OrbitalAnte.Ship
             SuitState.GroundName = hasBody ? BodyName(body) : string.Empty;
             SuitState.ShipDistance = fromAnchor;
             SuitState.TetherInReach = Tether.InReach(rules, fromAnchor);
+        }
+
+        // The real ground can be far below a body's nominal radius (gas giants), so the planets are asked. Looked
+        // up a few times a second and carried between by how far you have risen or sunk.
+        float _heightRead, _heightSphere;
+        int _heightBody = -1, _heightSteps;
+
+        float HeightAbove(int body)
+        {
+            float sphere = (float)_system.AltitudeAbove(body, Suit.position);
+            if (body != _heightBody || --_heightSteps <= 0)
+            {
+                _heightBody = body;
+                _heightSteps = 6;
+                _heightSphere = sphere;
+                Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
+                Planets.GroundReading reading = planets != null ? planets.Read(body, Suit.position) : default(Planets.GroundReading);
+                _heightRead = reading.Known ? (float)reading.AboveGround : sphere;
+            }
+            return _heightRead + (sphere - _heightSphere);
         }
 
         // Close above a body, speed is measured against the ground turning under you (the same rule the ship uses).
@@ -984,9 +1007,10 @@ namespace OrbitalAnte.Ship
                 Suit.transform.SetPositionAndRotation(feet, upright);
                 Suit.position = feet;
                 Suit.rotation = upright;
-                _airTime = 1f;
             }
             Posture = next;
+            // What "forward" means has just changed, so say so.
+            Say(next == Posture.Free ? Words(10, "Floating free: no up or down. Roll with ", GameInput.SuitRollLeft, " and " + Key(GameInput.SuitRollRight) + ".") : "Gravity has you: head up.");
             PoseOutside();
         }
 

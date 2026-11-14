@@ -304,7 +304,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(SuitKnock.Result.Nothing, SuitKnock.For(rules, rules.hurtSpeed - 1f));
             Assert.AreEqual(SuitKnock.Result.Winded, SuitKnock.For(rules, rules.hurtSpeed + 1f));
             Assert.AreEqual(SuitKnock.Result.Killed, SuitKnock.For(rules, rules.fatalSpeed + 1f));
-            StringAssert.Contains("23 m/s", SuitKnock.Cause(23.2f));
+            StringAssert.Contains("27 m/s", SuitKnock.Cause(27.2f));
             // An ordinary jump on Earth (a 0.7 m hop lands at under 4 m/s) must never hurt.
             Assert.Greater(rules.hurtSpeed, 5f);
         }
@@ -321,8 +321,8 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("TETHER", SuitReadout.Notice(s));
             s.FuelLow = true;
             Assert.AreEqual("JET FUEL LOW", SuitReadout.Notice(s));
-            s.FuelOut = true; s.BurningAir = true;
-            StringAssert.Contains("BURN YOUR AIR", SuitReadout.Notice(s));
+            s.FuelOut = true;
+            StringAssert.Contains("BURN YOUR AIR", SuitReadout.Notice(s), "the cost must be said before the first push on air");
             Assert.IsTrue(SuitReadout.IsAlarm(s));
             s.AirLow = true;
             StringAssert.Contains("AIR LOW", SuitReadout.Notice(s));

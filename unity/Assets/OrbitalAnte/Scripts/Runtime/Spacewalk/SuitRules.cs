@@ -13,8 +13,10 @@ namespace OrbitalAnte.Spacewalk
         public float fuelSeconds = 80f;
         /// <summary>Below this share of a tank the suit warns you.</summary>
         public float fuelLow = 0.25f;
+        /// <summary>The share of full push the jets give while the fine-control button is held, for small careful moves.</summary>
+        public float fineShare = 0.3f;
         /// <summary>With the jet tank dry the jets run on your air instead. A full air tank is this many seconds of full push.</summary>
-        public float airAsFuelSeconds = 75f;
+        public float airAsFuelSeconds = 40f;
         /// <summary>Minutes of air in the suit.</summary>
         public float airMinutes = 8f;
         /// <summary>Below this share of a tank the suit warns you.</summary>
@@ -37,16 +39,16 @@ namespace OrbitalAnte.Spacewalk
 
         /// <summary>You float free (no "down", look any way up) when the pull on you is weaker than this, metres per second squared...</summary>
         public float freePull = 0.15f;
-        /// <summary>...or when you are higher above the ground than this share of the body's radius (never less than <see cref="freeHeightLeast"/> metres).</summary>
+        /// <summary>...or when you are higher above the ground than this share of the body's radius, and never less than <see cref="freeHeightLeast"/> metres (which is what counts on every body under 600 m in radius, the Earth and Moon included).</summary>
         public float freeHeightShare = 0.25f;
         public float freeHeightLeast = 150f;
 
         /// <summary>Hitting something faster than this (metres per second) knocks the wind out of you.</summary>
         public float hurtSpeed = 9f;
-        /// <summary>Hitting something faster than this kills you. On Earth that is a fall of about 25 metres.</summary>
-        public float fatalSpeed = 22f;
+        /// <summary>Hitting something faster than this kills you. On Earth that is a fall of about 34 metres; on full jets it is four seconds of push.</summary>
+        public float fatalSpeed = 26f;
         /// <summary>Above this share of the fatal speed, the speed reading turns to a warning.</summary>
-        public float warnShare = 0.6f;
+        public float warnShare = 0.5f;
     }
 
     public enum Posture
@@ -332,8 +334,8 @@ namespace OrbitalAnte.Spacewalk
         {
             if (s.AirOut) return "NO AIR: GET ABOARD  " + Math.Ceiling(Math.Max(0f, s.SecondsLeft)).ToString("0");
             if (s.AirLow) return s.BurningAir ? "AIR LOW: THE JETS ARE BURNING IT" : "AIR LOW: HEAD BACK TO THE SHIP";
-            if (s.BurningAir) return "JET FUEL OUT: JETS NOW BURN YOUR AIR";
-            if (s.FuelOut) return "JET FUEL OUT";
+            // Said before the first push on air, not after: the cost should never be a surprise.
+            if (s.FuelOut) return "JET FUEL OUT: JETS NOW BURN YOUR AIR";
             if (s.FuelLow) return "JET FUEL LOW";
             if (s.TetherTaut) return "TETHER AT FULL STRETCH";
             if (s.Matching) return s.MatchTarget == MatchTarget.Ship ? "MATCHING THE SHIP" : "MATCHING " + Ground(s);

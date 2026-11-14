@@ -186,7 +186,7 @@ namespace OrbitalAnte.Spacewalk
             _jet.pitch = 0.9f + 0.25f * loud;
             if (_jet.volume > 0.001f && !_jet.isPlaying) _jet.Play();
             else if (_jet.volume <= 0.001f && _jet.isPlaying) _jet.Stop();
-            if (outside && jets.Lit) Play(Sounds.Puff, 0.7f);
+            if (_astronaut.TakeJetPuff() && outside) Play(Sounds.Puff, 0.7f);
 
             bool taut = outside && _astronaut.TetherTaut;
             if (taut && !_wasTaut) Play(Sounds.Taut, 0.9f);
