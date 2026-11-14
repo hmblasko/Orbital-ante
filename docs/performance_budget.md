@@ -43,6 +43,16 @@ Caps already enforced by code (set in `GoreConfig`):
 
 Every new system from here on gets a line in this file: what it may cost and what caps it.
 
+## Controls reliability refinement: source review only
+
+| Work | Scope and bound |
+|---|---|
+| Persistent binding identities | One SHA-256 digest per registered Gameplay/Flight binding during input initialization only; scratch allocations scale with the finite action definitions. No hashing or identity work during play, physics, or rebinding. |
+| Controls list | One vertical ScrollRect and RectMask2D while the controls page is open; a 480-unit viewport keeps existing rows inside the 1280 x 800 reference layout. All registered rows still exist; this is scrolling, not virtualization. |
+| Controller selection follow | Check the selected object while the controls page is active; reuse four corners. Force layout and adjust scroll only when a different binding row is selected. No new polling outside the controls page. |
+
+No timings, allocation measurements, Unity layout results or Deck frame rates have been collected for this refinement. Check `ControlsPage.Tick`, `Canvas.SendWillRenderCanvases` and `Canvas.BuildBatch` in the Profiler while holding controller navigation and while idle in Controls. See `docs/reviews/controls-persistence-and-access.md` for the acceptance protocol.
+
 ## Solar system (Milestone 5): estimates from reading the code, not measured
 
 | | Cap or expected cost |
