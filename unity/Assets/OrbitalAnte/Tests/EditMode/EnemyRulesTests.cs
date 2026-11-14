@@ -1,0 +1,104 @@
+using System.Collections.Generic;
+using NUnit.Framework;
+using OrbitalAnte.Core;
+using OrbitalAnte.Enemies;
+
+namespace OrbitalAnte.Tests.EditMode
+{
+    public class EnemyRulesTests
+    {
+        static List<EnemyCamp> Build(int seed, double radius, System.Func<Vec3d, bool> dry = null, Vec3d keepClear = default)
+        {
+            return EnemyField.Build(new EnemyFieldRules(), EnemyRoster.Defaults(), new SeededRandom(seed), radius, dry, keepClear);
+        }
+
+        [Test]
+        public void TheSameSeedGivesTheSameCamps()
+        {
+            List<EnemyCamp> a = Build(11, 150), b = Build(11, 150), c = Build(12, 150);
+            Assert.AreEqual(a.Count, b.Count);
+            for (int i = 0; i < a.Count; i++)
+            {
+                Assert.AreEqual(a[i].Direction, b[i].Direction);
+                CollectionAssert.AreEqual(a[i].Members, b[i].Members);
+            }
+            Assert.AreNotEqual(a[0].Direction, c[0].Direction, "another seed should move the camps");
+        }
+
+        [Test]
+        public void EveryWorldIsPopulated_AndBiggerWorldsHaveMoreCamps()
+        {
+            var rules = new EnemyFieldRules();
+            Assert.GreaterOrEqual(EnemyField.CampCount(rules, 30), rules.leastCamps, "even the smallest moon has someone on it");
+            Assert.Greater(EnemyField.CampCount(rules, 500), EnemyField.CampCount(rules, 150));
+            Assert.LessOrEqual(EnemyField.CampCount(rules, 5000), rules.mostCamps);
+        }
+
+        [Test]
+        public void OnTheMoon_ACampIsNeverFarAway()
+        {
+            // "Fighting near constantly": wherever you land, a camp should wake before long.
+            var rules = new EnemyFieldRules();
+            List<EnemyCamp> camps = Build(3, 150);
+            var r = new SeededRandom(99);
+            for (int i = 0; i < 200; i++)
+            {
+                double y = r.NextDouble() * 2 - 1, a = r.NextDouble() * 6.283185, w = System.Math.Sqrt(1 - y * y);
+                var here = new Vec3d(w * System.Math.Cos(a), y, w * System.Math.Sin(a));
+                double nearest = double.MaxValue;
+                for (int c = 0; c < camps.Count; c++) nearest = System.Math.Min(nearest, EnemyField.GroundDistance(here, camps[c].Direction, 150));
+                Assert.Less(nearest, rules.wakeRange, "a landing spot with nobody within waking range");
+            }
+        }
+
+        [Test]
+        public void CampsKeepOffTheSea_AndAwayFromThePad_AndApartFromEachOther()
+        {
+            var rules = new EnemyFieldRules();
+            var pad = new Vec3d(0, 1, 0);
+            List<EnemyCamp> camps = Build(5, 500, d => d.X > -0.2, pad);
+            Assert.Greater(camps.Count, 20);
+            for (int i = 0; i < camps.Count; i++)
+            {
+                Assert.Greater(camps[i].Direction.X, -0.2, "a camp in the sea");
+                Assert.Greater(EnemyField.GroundDistance(camps[i].Direction, pad, 500), rules.padClear - 0.01, "a camp on the launch pad");
+                for (int k = i + 1; k < camps.Count; k++)
+                {
+                    Assert.Greater(EnemyField.GroundDistance(camps[i].Direction, camps[k].Direction, 500), rules.campSpacing - 0.01);
+                }
+            }
+        }
+
+        [Test]
+        public void TheFourTypesReallyDiffer()
+        {
+            List<EnemyTypeSpec> roster = EnemyRoster.Defaults();
+            Assert.AreEqual(4, roster.Count);
+            var weapons = new HashSet<string>();
+            var sizes = new HashSet<float>();
+            for (int i = 0; i < roster.Count; i++)
+            {
+                weapons.Add(roster[i].weapon);
+                sizes.Add(roster[i].scale);
+                Assert.Greater(roster[i].reactionTime, 0.3f, roster[i].id + " must never shoot the instant it sees you");
+            }
+            Assert.AreEqual(4, weapons.Count, "each type carries its own gun");
+            Assert.AreEqual(4, sizes.Count, "each type is its own size, to be told apart at a glance");
+        }
+
+        [Test]
+        public void SquadsAreMixed_ByShare()
+        {
+            List<EnemyTypeSpec> roster = EnemyRoster.Defaults();
+            var seen = new int[roster.Count];
+            List<EnemyCamp> camps = Build(8, 500);
+            for (int i = 0; i < camps.Count; i++)
+            {
+                Assert.GreaterOrEqual(camps[i].Members.Length, new EnemyFieldRules().squadLeast);
+                for (int m = 0; m < camps[i].Members.Length; m++) seen[camps[i].Members[m]]++;
+            }
+            for (int t = 0; t < seen.Length; t++) Assert.Greater(seen[t], 0, roster[t].id + " never turns up");
+            Assert.Greater(seen[0], seen[3], "the ordinary type should be the commonest, the marksman the rarest");
+        }
+    }
+}

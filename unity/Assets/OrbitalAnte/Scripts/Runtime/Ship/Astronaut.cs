@@ -40,6 +40,8 @@ namespace OrbitalAnte.Ship
         /// <summary>Degrees the seated pilot's head is tipped down toward the dash's camera screen (set by the cockpit).</summary>
         public float ScreenGlance { get; set; }
         public PlayerWeapons Weapons { get; private set; }
+        /// <summary>How much more the suit can take from being shot. Mends by itself when left alone.</summary>
+        public PlayerHealth Armour { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
         public Rigidbody Suit { get; private set; }
 
@@ -167,6 +169,10 @@ namespace OrbitalAnte.Ship
             capsule.sharedMaterial = new PhysicsMaterial("Suit") { dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             a._suitGravity = suitGo.AddComponent<GravityBody>();
             suitGo.AddComponent<SuitBody>().Owner = a;
+            // The suit can be shot. It takes what the test player takes and mends after a few quiet seconds.
+            a.Armour = suitGo.AddComponent<PlayerHealth>();
+            a.Armour.Initialize(a._look);
+            a.Armour.Died += () => a.Die("Shot down outside the ship.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
             a._suitGravity.SunkBelow = -0.7f;
@@ -219,7 +225,8 @@ namespace OrbitalAnte.Ship
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
             Weapons.Initialize(_look, Eye, null, null, _world);
-            Weapons.Equip(Weapon.Create(WeaponData.Pistol, _world, true));
+            // The rifle: with enemies on every world, the test pistol is not enough gun.
+            Weapons.Equip(Weapon.Create(WeaponData.Rifle, _world, true));
         }
 
         // ------------------------------------------------------------------ changing mode

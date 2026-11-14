@@ -70,6 +70,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Launch.LaunchConfig.ResetStatics();
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
             OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
+            OrbitalAnte.Enemies.EnemyConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 

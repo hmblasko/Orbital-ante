@@ -126,7 +126,7 @@ namespace OrbitalAnte.AI
         {
             if (weapon != Weapon) return;
             Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : -transform.forward;
-            DropWeapon(dir * _cfg.disarmKnockSpeed + Vector3.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
+            DropWeapon(dir * _cfg.disarmKnockSpeed + transform.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
         }
 
         void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
@@ -137,7 +137,7 @@ namespace OrbitalAnte.AI
             if (!_owner.Model.HandUsable(_gunSide == MannequinRig.Left))
             {
                 Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : Vector3.zero;
-                DropWeapon(dir * 2f + Vector3.up * 2f, 7f);
+                DropWeapon(dir * 2f + transform.up * 2f, 7f);
                 return;
             }
 
@@ -147,7 +147,7 @@ namespace OrbitalAnte.AI
 
         void OnDied(Mannequin mannequin)
         {
-            DropWeapon(Vector3.up * 1.5f, 5f);
+            DropWeapon(transform.up * 1.5f, 5f);
             if (_loco != null)
             {
                 _loco.Destination = null;
@@ -180,11 +180,11 @@ namespace OrbitalAnte.AI
             get
             {
                 BodyPart head = _owner.Part(BodyPartId.Head);
-                return head != null ? head.transform.position : transform.position + Vector3.up * 1.6f;
+                return head != null ? head.transform.position : transform.position + transform.up * 1.6f;
             }
         }
 
-        static Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position + Vector3.down * 0.3f;
+        Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position - transform.up * 0.3f;
 
         void Think()
         {
@@ -228,7 +228,7 @@ namespace OrbitalAnte.AI
                 _seesPlayer = false;
                 _loco.FacePoint = null;
                 _loco.Destination = CombatWorld.PlayerEye.position;
-                _loco.Hurry = false;
+                _loco.Hurry = _cfg.rushes;
                 return;
             }
 
@@ -243,7 +243,7 @@ namespace OrbitalAnte.AI
             }
 
             bool onFeet = state == MovementState.Intact || state == MovementState.OneLeg;
-            if (onFeet && now >= _phaseEnd)
+            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill)
             {
                 // Alternate between standing to shoot and shifting position, so nobody is a statue.
                 _shootPhase = !_shootPhase;
@@ -260,18 +260,17 @@ namespace OrbitalAnte.AI
             {
                 _loco.FacePoint = null;
                 _loco.Destination = _movePoint;
-                _loco.Hurry = false;
+                _loco.Hurry = _cfg.rushes;
             }
         }
 
         /// <summary>A few steps sideways, drifting toward a comfortable fighting distance.</summary>
         Vector3 PickMovePoint(float distance)
         {
-            Vector3 toPlayer = CombatWorld.PlayerEye.position - transform.position;
-            toPlayer.y = 0f;
+            Vector3 toPlayer = Vector3.ProjectOnPlane(CombatWorld.PlayerEye.position - transform.position, transform.up);
             toPlayer = toPlayer.sqrMagnitude > 0.01f ? toPlayer.normalized : transform.forward;
-            Vector3 side = Vector3.Cross(Vector3.up, toPlayer) * (_rng.NextDouble() < 0.5 ? -1f : 1f);
-            float along = distance > 18f ? 3f : distance < 7f ? -3f : 0f;
+            Vector3 side = Vector3.Cross(transform.up, toPlayer) * (_rng.NextDouble() < 0.5 ? -1f : 1f);
+            float along = distance > _cfg.keepFar ? 3f : distance < _cfg.keepNear ? -3f : 0f;
             return transform.position + side * Rand(2.5f, 5f) + toPlayer * along;
         }
 
@@ -285,8 +284,7 @@ namespace OrbitalAnte.AI
                 Weapon nearest = NearestDroppedWeapon();
                 if (nearest != null)
                 {
-                    Vector3 to = nearest.transform.position - transform.position;
-                    to.y = 0f;
+                    Vector3 to = Vector3.ProjectOnPlane(nearest.transform.position - transform.position, transform.up);
                     if (to.magnitude <= _cfg.pickupReach && TryPickUp(nearest)) return;
                     _loco.Destination = nearest.transform.position;
                     _loco.Hurry = true;
@@ -415,7 +413,7 @@ namespace OrbitalAnte.AI
         Vector3 LowReadyDirection()
         {
             bool prone = _owner.State == MovementState.Crawl || _owner.State == MovementState.Wriggle;
-            Vector3 dir = transform.forward + (prone ? Vector3.up * 0.05f : Vector3.down * 0.75f);
+            Vector3 dir = transform.forward + (prone ? transform.up * 0.05f : (-transform.up) * 0.75f);
             return dir.normalized;
         }
 
@@ -460,10 +458,10 @@ namespace OrbitalAnte.AI
             // Two hands: tucked in near the shoulder. One hand: held out at nearly arm's length.
             Vector3 inward = transform.right * (side == MannequinRig.Left ? 1f : -1f);
             Vector3 grip = twoHandedGrip
-                ? shoulder + _aimDirection * 0.30f + Vector3.down * 0.10f + inward * 0.07f
+                ? shoulder + _aimDirection * 0.30f + (-transform.up) * 0.10f + inward * 0.07f
                 : shoulder + _aimDirection * 0.50f;
 
-            Vector3 up = Mathf.Abs(Vector3.Dot(_aimDirection, Vector3.up)) > 0.97f ? transform.forward : Vector3.up;
+            Vector3 up = Mathf.Abs(Vector3.Dot(_aimDirection, transform.up)) > 0.97f ? transform.forward : transform.up;
             Quaternion rotation = Quaternion.LookRotation(_aimDirection, up) * Quaternion.Euler(-5f * _kick, 0f, 0f);
             Vector3 position = grip - _aimDirection * (0.03f * _kick);
             // The weapon's origin is its grip socket.
@@ -493,7 +491,7 @@ namespace OrbitalAnte.AI
             float angle = Mathf.Acos(Mathf.Clamp(cos, -1f, 1f)) * Mathf.Rad2Deg;
 
             Vector3 outward = transform.right * (side == MannequinRig.Left ? -1f : 1f);
-            Vector3 axis = Vector3.Cross(dir, (Vector3.down + outward * 0.6f).normalized);
+            Vector3 axis = Vector3.Cross(dir, ((-transform.up) + outward * 0.6f).normalized);
             if (axis.sqrMagnitude < 0.0001f) axis = Vector3.Cross(dir, transform.right);
             Vector3 upperDir = Quaternion.AngleAxis(angle, axis.normalized) * dir;
 

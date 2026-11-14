@@ -61,6 +61,10 @@ namespace OrbitalAnte.Content
             // The two Milestone 3 guns must always exist.
             if (Find<WeaponData>(WeaponData.RifleId) == null) Register(WeaponData.CreateRifleDefaults(), "built-in");
             if (Find<WeaponData>(WeaponData.PistolId) == null) Register(WeaponData.CreatePistolDefaults(), "built-in");
+            // ...and the guns the enemy types carry.
+            if (Find<WeaponData>(WeaponData.SmgId) == null) Register(WeaponData.CreateSmgDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.ShotgunId) == null) Register(WeaponData.CreateShotgunDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.SniperId) == null) Register(WeaponData.CreateSniperDefaults(), "built-in");
             // ...and so must the solar system.
             if (Find<Space.SolarSystemData>(Space.SolarSystemData.DefaultId) == null) Register(Space.SolarSystemData.CreateDefaults(), "built-in");
             // ...and what each planet's surface is like.

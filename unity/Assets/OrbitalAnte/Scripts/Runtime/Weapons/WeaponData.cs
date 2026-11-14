@@ -21,6 +21,9 @@ namespace OrbitalAnte.Weapons
         public const string ResourceFolder = "Weapons";
         public const string RifleId = "Rifle";
         public const string PistolId = "Pistol";
+        public const string SmgId = "Smg";
+        public const string ShotgunId = "Shotgun";
+        public const string SniperId = "Sniper";
 
         [Header("Identity")]
         [Tooltip("Name shown on the HUD. Placeholder until the real roster is named.")]
@@ -220,6 +223,86 @@ namespace OrbitalAnte.Weapons
             w.shotPitch = 1.6f;
             w.shotVolume = 0.65f;
             w.mass = 1.1f;
+            return w;
+        }
+
+        // ------------------------------------------------------------------ the enemy types' guns
+        // Each is the reason its carrier fights the way it does. Names are placeholders until Matthew picks them.
+
+        /// <summary>The Runner's gun: a spray of weak bullets from close in. Loud, inaccurate, empties fast.</summary>
+        public static WeaponData CreateSmgDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = SmgId;
+            w.displayName = "Buzz Gun (name TBD)";
+            w.twoHanded = false;
+            w.placeholderShape = WeaponShape.Pistol;
+            w.modelFile = SmgId;
+            w.headDamage = 22f; w.torsoDamage = 16f; w.upperArmDamage = 16f; w.forearmDamage = 16f;
+            w.handDamage = 18f; w.thighDamage = 16f; w.shinDamage = 17f; w.footDamage = 18f;
+            w.playerDamage = 2.5f;
+            w.automatic = true;
+            w.shotsPerSecond = 15f;
+            w.range = 60f;
+            w.baseSpread = 1.4f; w.spreadPerShot = 0.3f; w.maxBloom = 4.5f; w.bloomRecovery = 6f;
+            w.recoilPitch = 0.5f; w.recoilYaw = 0.5f;
+            w.magazineSize = 32; w.reloadSeconds = 1.5f;
+            w.oneHandSpreadMultiplier = 1.6f; w.oneHandRecoilMultiplier = 1.4f; w.oneHandReloadMultiplier = 1.8f;
+            w.tracerColor = new Color(1f, 0.6f, 0.25f);
+            w.muzzleFlashSize = 0.16f;
+            w.shotPitch = 1.9f; w.shotVolume = 0.55f;
+            w.mass = 1.8f;
+            return w;
+        }
+
+        /// <summary>The Bruiser's gun: a slow, wide laser blast that hurts badly up close and barely reaches far.</summary>
+        public static WeaponData CreateShotgunDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = ShotgunId;
+            w.displayName = "Double Zapper (name TBD)";
+            w.twoHanded = true;
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = ShotgunId;
+            w.headDamage = 90f; w.torsoDamage = 80f; w.upperArmDamage = 70f; w.forearmDamage = 70f;
+            w.handDamage = 70f; w.thighDamage = 70f; w.shinDamage = 70f; w.footDamage = 70f;
+            w.playerDamage = 22f;
+            w.automatic = false;
+            w.shotsPerSecond = 1.1f;
+            w.range = 22f;
+            w.baseSpread = 4.5f; w.spreadPerShot = 1f; w.maxBloom = 6f; w.bloomRecovery = 5f;
+            w.recoilPitch = 3f; w.recoilYaw = 0.8f;
+            w.magazineSize = 2; w.reloadSeconds = 2.4f;
+            w.tracerColor = new Color(0.45f, 1f, 0.5f);
+            w.muzzleFlashSize = 0.34f;
+            w.shotPitch = 0.7f; w.shotVolume = 0.95f;
+            w.mass = 4.5f;
+            return w;
+        }
+
+        /// <summary>The Marksman's gun: one very accurate, very painful shot, then a long wait. It reaches a long way.</summary>
+        public static WeaponData CreateSniperDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = SniperId;
+            w.displayName = "Long Shot (name TBD)";
+            w.twoHanded = true;
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = SniperId;
+            w.headDamage = 200f; w.torsoDamage = 120f; w.upperArmDamage = 90f; w.forearmDamage = 90f;
+            w.handDamage = 90f; w.thighDamage = 90f; w.shinDamage = 90f; w.footDamage = 90f;
+            w.playerDamage = 34f;
+            w.automatic = false;
+            w.shotsPerSecond = 0.45f;
+            w.range = 400f;
+            w.baseSpread = 0.05f; w.spreadPerShot = 0.6f; w.maxBloom = 1.5f; w.bloomRecovery = 3f;
+            w.recoilPitch = 3.5f; w.recoilYaw = 0.3f;
+            w.magazineSize = 4; w.reloadSeconds = 2.8f;
+            w.oneHandSpreadMultiplier = 6f;
+            w.tracerColor = new Color(1f, 0.25f, 0.3f);
+            w.muzzleFlashSize = 0.3f;
+            w.shotPitch = 0.55f; w.shotVolume = 1f;
+            w.mass = 5.5f;
             return w;
         }
 

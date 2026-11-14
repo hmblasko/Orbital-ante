@@ -22,7 +22,8 @@ namespace OrbitalAnte.Spacewalk
         Canvas _canvas;
         RectTransform _panel;
         Image _airRing, _fuelFill;
-        Text _airText, _speed, _tether, _notice;
+        Text _airText, _speed, _tether, _notice, _armour;
+        int _shownArmour = -1;
         readonly Image[] _rim = new Image[4];
         Texture2D _rimTexture, _whiteTexture;
         Sprite _rimSprite, _whiteSprite;
@@ -127,6 +128,9 @@ namespace OrbitalAnte.Spacewalk
             _tether = Shadowed(UiKit.Label(_panel, string.Empty, 16, UiKit.Muted, TextAnchor.MiddleLeft));
             UiKit.Pin((RectTransform)_tether.transform, new Vector2(0f, 0.5f), new Vector2(124f, -12f), new Vector2(330f, 22f));
 
+            // Only there while the suit is hurt: how much more it can take from being shot.
+            _armour = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 22, UiKit.Cream));
+            UiKit.Pin((RectTransform)_armour.transform, new Vector2(0.5f, 0f), new Vector2(0f, 186f), new Vector2(400f, 30f));
             _notice = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge));
             UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(900f, 32f));
             _panel.gameObject.SetActive(false);
@@ -190,6 +194,15 @@ namespace OrbitalAnte.Spacewalk
                 _shownNotice = notice;
                 _notice.text = notice;
                 _notice.color = SuitReadout.IsAlarm(s) ? UiKit.Danger : UiKit.PanelEdge;
+            }
+
+            // Whole per cents, and only rewritten when the number changes.
+            int armour = outside && _astronaut.Armour != null ? Mathf.CeilToInt(_astronaut.Armour.Fraction * 100f) : 100;
+            if (armour != _shownArmour)
+            {
+                _shownArmour = armour;
+                _armour.text = armour >= 100 ? string.Empty : "SUIT " + armour + "%";
+                _armour.color = armour <= 35 ? UiKit.Danger : UiKit.Cream;
             }
 
             bool lines = outside;
