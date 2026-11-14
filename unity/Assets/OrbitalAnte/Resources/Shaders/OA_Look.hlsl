@@ -21,6 +21,7 @@ half4 _OA_Sunset;          // extra warm colour along the horizon at sunrise and
 half4 _OA_SunGlow;         // rgb colour of the glow round the Sun, a its strength
 float4 _OA_SkyUp;          // xyz is "up" where the viewer is (zero in open space)
 float4 _OA_Haze;           // x haze thickness (one over metres), y painted look 0..1, z rim light, w bounce light
+half4 _OA_Finish;          // x how strongly smooth surfaces shine, y how firmly the edge of a shadow is drawn (0 soft, 1 a band)
 
 // ---------------------------------------------------------------------------------------------- sky
 
@@ -124,9 +125,10 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
     half facing = dot(normal, toSun);
 
-    // Light wraps a little way round into the shadow, then is firmed up into a soft-edged band.
+    // Light wraps a little way round into the shadow. How firmly the edge of the shadow is then drawn is a dial
+    // on the Look asset: a firm band reads as illustration, a soft fall-off as a photograph.
     half wrap = saturate((facing + 0.2) / 1.2);
-    half lit = lerp(wrap, smoothstep(0.05, 0.6, wrap), 0.6);
+    half lit = lerp(wrap, smoothstep(0.05, 0.6, wrap), _OA_Finish.y);
     // The edge of the shadow glows warm, as light does coming through air or skimming rough ground.
     half edge = saturate(1.0 - abs(wrap - 0.15) * 6.0);
     half3 sun = _OA_SunColor.rgb * (lit + half3(1.0, 0.36, 0.14) * (edge * 0.2));
@@ -157,6 +159,93 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     lamp = lamp * lamp * saturate(dot(normal, toLamp / lampDistance) * 0.7 + 0.3);
     light += _OA_LampColor.rgb * lamp;
     return light;
+}
+
+// ---------------------------------------------------------------------------------------------- shine
+
+// Tells the graphics card to really skip the work inside an "if". Unity's own library defines it; this is for
+// a shader that includes this file without that library.
+#ifndef UNITY_BRANCH
+#define UNITY_BRANCH
+#endif
+
+// How much daylit sky there is over a place for a surface to mirror: 1 by day on a world, falling to 0 through
+// dusk, and 0 in open space, where the sky is black.
+half OA_DaylitSky(float3 positionWS, float3 up)
+{
+    float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
+    return dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
+}
+
+// How much of the shine a surface of this smoothness gets: none at all up to 0.1 (cloth, webbing, rubber, dust:
+// most of any model, and those pixels skip the work), all of it from 0.3 (satin paint) upward.
+half OA_ShineAmount(half gloss)
+{
+    return saturate((gloss - 0.1) * 5.0) * _OA_Finish.x;
+}
+
+// The bright spot a light makes on a smooth surface: small and fierce on a mirror, wide and faint on a rough
+// one. It is capped low on purpose: a glint must never be as bright as a muzzle flash or an enemy's aim tell
+// (those are drawn many times brighter than white), and a spot smaller than a pixel would sparkle.
+half OA_Highlight(half3 normal, float3 toLight, float3 toEye, half spread)
+{
+    float3 halfway = normalize(toLight + toEye + float3(0.0, 0.00001, 0.0));
+    float toHalf = saturate(dot(normal, halfway));
+    float fall = toHalf * toHalf * (spread - 1.0) + 1.0;
+    return min(spread / (3.14159 * fall * fall) * 0.25, 2.0) * saturate(dot(normal, toLight));
+}
+
+// What a smooth surface adds to the light it scatters: a highlight from the Sun and from the lamp, and a
+// reflection of the sky. gloss is 0 for chalk and 1 for a mirror; metal is 1 for bare metal, which reflects in
+// its own colour. widen is how fast the surface turns from one pixel to the next (0 for a flat face): a
+// highlight is spread by that much, so one on a thin barrel far away is a soft gleam, not a flicker. Returns
+// light to add (not to multiply by the surface's colour). A surface that is not smooth (see OA_ShineAmount) gets
+// exactly nothing, so models that say nothing about their finish look as they always did.
+half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen)
+{
+    half amount = OA_ShineAmount(gloss);
+    half3 shine = half3(0.0, 0.0, 0.0);
+    UNITY_BRANCH
+    if (amount > 0.0)
+    {
+        float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
+        float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
+        half facingEye = saturate(dot(normal, toEye));
+
+        // How much a surface mirrors: a few percent face on for paint, cloth and rubber, its whole colour for bare
+        // metal, and more for anything seen at a glancing angle.
+        half3 mirror = lerp(half3(0.04, 0.04, 0.04), albedo, metal);
+        half glance = 1.0 - facingEye;
+        half glance5 = glance * glance;
+        glance5 = glance5 * glance5 * glance;
+        mirror += (max(half3(gloss, gloss, gloss), mirror) - mirror) * glance5;
+
+        half rough = 1.0 - gloss;
+        half spread = min(1.0, max(0.002, rough * rough * rough * rough) + widen);
+
+        // The Sun's highlight. The planet is in the way of the Sun on its night side (the same rule as in OA_Light).
+        half reached = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 1.0;
+        half3 light = _OA_SunColor.rgb * (OA_Highlight(normal, toSun, toEye, spread) * reached);
+
+        // The sky, seen in the surface. A rough surface sees all of it at once, which is the fill light; a smooth
+        // one sees the part the mirror direction points at. Below the horizon it sees ground, lit by the same fill.
+        float3 seen = reflect(-toEye, normal);
+        half3 sky = OA_SkyBase(seen);
+        half ground = dot(up, up) > 0.25 ? saturate(-dot(seen, up) * 3.0) : 0.0;
+        sky = lerp(sky, _OA_Ambient.rgb * 0.7, ground);
+        light += lerp(_OA_Ambient.rgb, sky, gloss * gloss);
+        // Neither the Sun nor the sky reaches a thing inside the ship.
+        light *= sunAmount;
+
+        // The lamp's highlight, wherever the lamp reaches (the same reach as in OA_Light).
+        float3 toLamp = _OA_LampPosition.xyz - positionWS;
+        float lampDistance = max(0.001, length(toLamp));
+        half lamp = saturate(1.0 - lampDistance * _OA_LampPosition.w);
+        light += _OA_LampColor.rgb * (lamp * lamp * OA_Highlight(normal, toLamp / lampDistance, toEye, spread));
+
+        shine = mirror * light * amount;
+    }
+    return shine;
 }
 
 // ---------------------------------------------------------------------------------------------- haze

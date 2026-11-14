@@ -226,7 +226,7 @@ def _linear_to_srgb(c):
 
 def _part_arrays(objects):
     """Corners of several pieces as flat lists in the game's space, sharing corners that are identical."""
-    positions, normals, colours, triangles = [], [], [], []
+    positions, normals, colours, finishes, triangles = [], [], [], [], []
     index = {}
     for obj in objects:
         mesh = obj.data
@@ -235,6 +235,7 @@ def _part_arrays(objects):
         mesh.calc_normals_split()
         mesh.calc_loop_triangles()
         col = mesh.color_attributes.get("Col")
+        mat = mesh.color_attributes.get("Mat")      # what the surface is made of: (how smooth, bare metal); see oa_real.made_of
         for tri in mesh.loop_triangles:
             corner = []
             for li in tri.loops:
@@ -242,9 +243,11 @@ def _part_arrays(objects):
                 p = mesh.vertices[loop.vertex_index].co
                 n = loop.normal
                 c = col.data[loop.vertex_index].color if col else (0.5, 0.5, 0.5, 1)
+                m = mat.data[loop.vertex_index].color if mat else (0.0, 0.0, 0.0, 1)
                 # Blender (x right, y forward, z up) to the game (x right, y up, z forward).
                 key = (round(p.x, 5), round(p.z, 5), round(p.y, 5), round(n.x, 3), round(n.z, 3), round(n.y, 3),
-                       round(_linear_to_srgb(c[0]), 3), round(_linear_to_srgb(c[1]), 3), round(_linear_to_srgb(c[2]), 3))
+                       round(_linear_to_srgb(c[0]), 3), round(_linear_to_srgb(c[1]), 3), round(_linear_to_srgb(c[2]), 3),
+                       round(max(0.0, min(1.0, m[0])), 2), round(max(0.0, min(1.0, m[1])), 2))
                 i = index.get(key)
                 if i is None:
                     i = len(positions) // 3
@@ -252,10 +255,11 @@ def _part_arrays(objects):
                     positions.extend(key[0:3])
                     normals.extend(key[3:6])
                     colours.extend(key[6:9])
+                    finishes.extend(key[9:11])
                 corner.append(i)
             # Swapping two axes mirrors the model, so the order of each triangle's corners is flipped back.
             triangles.extend((corner[0], corner[2], corner[1]))
-    return positions, normals, colours, triangles
+    return positions, normals, colours, finishes, triangles
 
 
 def _write_string(f, text):
@@ -265,20 +269,28 @@ def _write_string(f, text):
 
 
 def export(path, parts, sockets=()):
-    """parts: list of (name, [objects]). sockets: Blender empties made with socket()."""
+    """parts: list of (name, [objects]). sockets: Blender empties made with socket().
+
+    The layout is "OAM1", or "OAM2" when any piece says what its surfaces are made of ("Mat", see oa_real.made_of):
+    then two more bytes follow each piece's colours for every corner, how smooth and how far bare metal.
+    The game reads both (Scripts/Runtime/Look/ModelFile.cs).
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     report = []
+    says_finish = any(o.data.color_attributes.get("Mat") is not None for _, objects in parts for o in objects)
     with open(path, "wb") as f:
-        f.write(b"OAM1")
+        f.write(b"OAM2" if says_finish else b"OAM1")
         f.write(struct.pack("<i", len(parts)))
         for name, objects in parts:
-            positions, normals, colours, triangles = _part_arrays(objects)
+            positions, normals, colours, finishes, triangles = _part_arrays(objects)
             _write_string(f, name)
             count = len(positions) // 3
             f.write(struct.pack("<ii", count, len(triangles) // 3))
             f.write(struct.pack("<%df" % len(positions), *positions))
             f.write(struct.pack("<%df" % len(normals), *normals))
             f.write(struct.pack("<%dB" % len(colours), *[int(round(c * 255)) for c in colours]))
+            if says_finish:
+                f.write(struct.pack("<%dB" % len(finishes), *[int(round(c * 255)) for c in finishes]))
             f.write(struct.pack("<%di" % len(triangles), *triangles))
             report.append("%s: %d corners, %d triangles" % (name, count, len(triangles) // 3))
         f.write(struct.pack("<i", len(sockets)))
@@ -478,6 +490,18 @@ def _carry_paint(full, thinned):
             total[0] += c[0] * w; total[1] += c[1] * w; total[2] += c[2] * w
             weight += w
         layer.data[i].color = (total[0] / weight, total[1] / weight, total[2] / weight, 1.0)
+    # What the surface is made of is carried the same way, from the nearest corner alone: a finish is a fact
+    # about a material, and an average of cloth and metal is neither.
+    made = full.color_attributes.get("Mat")
+    if made is not None:
+        old = thinned.color_attributes.get("Mat")
+        if old is not None:
+            thinned.color_attributes.remove(old)
+        # Removing a layer can move the others in memory, so "Col" is not touched again after this point.
+        carried = [tuple(made.data[tree.find(v.co)[1]].color) for v in thinned.vertices]
+        layer = thinned.color_attributes.new("Mat", 'FLOAT_COLOR', 'POINT')
+        for i, c in enumerate(carried):
+            layer.data[i].color = c
 
 
 def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=()):

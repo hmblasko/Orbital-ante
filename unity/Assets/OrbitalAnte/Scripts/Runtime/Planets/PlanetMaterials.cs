@@ -37,9 +37,10 @@ namespace OrbitalAnte.Planets
 
         static bool _looked;
         static bool _simple;
-        static Shader _terrain, _body, _atmosphere, _water, _sky;
+        static Shader _terrain, _body, _atmosphere, _water, _sky, _model;
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
+        static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
 
         /// <summary>True when the ground is drawn with the game's own shader (far-picture blending, lamp, cave darkness).</summary>
         public static bool OwnTerrain { get { Look(); return _terrain != null; } }
@@ -59,7 +60,7 @@ namespace OrbitalAnte.Planets
         {
             _simple = false;
             _looked = false;
-            _terrain = _body = _atmosphere = _water = _sky = null;
+            _terrain = _body = _atmosphere = _water = _sky = _model = null;
             _vertexLit = _vertexUnlit = null;
             ClearVertexCache();
         }
@@ -71,6 +72,11 @@ namespace OrbitalAnte.Planets
                 if (m != null) Object.Destroy(m);
             }
             VertexCache.Clear();
+            foreach (Material m in ModelCache.Values)
+            {
+                if (m != null) Object.Destroy(m);
+            }
+            ModelCache.Clear();
         }
 
         public static void SetStrength(Material material, float strength)
@@ -87,6 +93,12 @@ namespace OrbitalAnte.Planets
             _atmosphere = _simple ? null : Find("OA_Atmosphere", "OrbitalAnte/Atmosphere");
             _water = _simple ? null : Find("OA_Water", "OrbitalAnte/Water");
             _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
+            // Models fall back to the ground's shader (no shine) if theirs cannot be used.
+            _model = _simple || _terrain == null ? null : Find("OA_Model", "OrbitalAnte/Model");
+            if (!_simple && _terrain != null && _model == null)
+            {
+                Debug.LogWarning("Orbital Ante: the model shader (OA_Model) could not be used on this machine, so models are drawn with the ground's shader and nothing shines.");
+            }
             if (!_simple && (_terrain == null || _body == null || _atmosphere == null || _water == null))
             {
                 Debug.LogWarning("Orbital Ante: one or more planet shaders could not be used on this machine, so Unity's standard shaders are standing in for them. " +
@@ -180,6 +192,29 @@ namespace OrbitalAnte.Planets
             }
             m.name = "OA_Vertex_" + ColorUtility.ToHtmlStringRGB(tint);
             VertexCache[key] = m;
+            return m;
+        }
+
+        /// <summary>
+        /// The shared material the game's own models are drawn with: the mesh's colours under the shared light,
+        /// like <see cref="VertexColour"/>, plus shine where the model says a surface is smooth or bare metal
+        /// (see OA_Model.shader). If that shader cannot be used the ground's stands in, without the shine.
+        /// Shared: never change or destroy it.
+        /// </summary>
+        public static Material Model(float sunlight = 1f, float glow = 0f, float paintScale = 1f)
+        {
+            Look();
+            if (_model == null) return VertexColour(Color.white, sunlight, glow, true, paintScale);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            int key = (Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 16) | (Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) << 6) | scaleKey;
+            if (ModelCache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            var m = new Material(_model) { name = "OA_Model" };
+            m.SetColor(BaseColorId, Color.white);
+            m.SetFloat(SunAmountId, Mathf.Clamp01(sunlight));
+            m.SetFloat(GlowId, Mathf.Clamp(glow, 0f, 2f));
+            m.SetFloat(PaintId, 1f);
+            m.SetFloat(PaintScaleId, scaleKey);
+            ModelCache[key] = m;
             return m;
         }
 

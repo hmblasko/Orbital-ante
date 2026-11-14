@@ -15,6 +15,12 @@ namespace OrbitalAnte.Look
         public float[] Normals;
         /// <summary>Three numbers per corner, 0..1, as seen on screen (not linear).</summary>
         public float[] Colors;
+        /// <summary>
+        /// Two numbers per corner, 0..1: how smooth the surface is there (0 chalk, 1 a mirror) and whether it is
+        /// bare metal. Null in a model that does not say (every model made before the realistic look), which is
+        /// drawn as chalk all over.
+        /// </summary>
+        public float[] Finish;
         public int[] Triangles;
 
         public int VertexCount => Positions.Length / 3;
@@ -30,7 +36,8 @@ namespace OrbitalAnte.Look
 
     /// <summary>
     /// A model made in Blender by the scripts in tools/blender, as the game reads it. Colour is stored per corner:
-    /// there are no texture files. The file layout ("OAM1") is written by tools/blender/oa_blender.py.
+    /// there are no texture files. The file layout is written by tools/blender/oa_blender.py: "OAM1", or "OAM2"
+    /// when the model also says what its surfaces are made of (<see cref="ModelPart.Finish"/>).
     /// Plain data, no Unity types, so it can be read and tested anywhere.
     /// </summary>
     public sealed class ModelFile
@@ -106,11 +113,18 @@ namespace OrbitalAnte.Look
             {
                 using (var reader = new BinaryReader(new MemoryStream(bytes)))
                 {
-                    if (reader.ReadByte() != 'O' || reader.ReadByte() != 'A' || reader.ReadByte() != 'M' || reader.ReadByte() != '1')
+                    if (reader.ReadByte() != 'O' || reader.ReadByte() != 'A' || reader.ReadByte() != 'M')
                     {
                         problem = "it is not an Orbital Ante model file";
                         return null;
                     }
+                    int layout = reader.ReadByte();
+                    if (layout != '1' && layout != '2')
+                    {
+                        problem = "it is an Orbital Ante model file of a kind this version of the game cannot read";
+                        return null;
+                    }
+                    bool saysFinish = layout == '2';
                     int partCount = reader.ReadInt32();
                     if (partCount < 1 || partCount > MaxParts)
                     {
@@ -132,6 +146,11 @@ namespace OrbitalAnte.Look
                         part.Normals = ReadFloats(reader, corners * 3);
                         part.Colors = new float[corners * 3];
                         for (int i = 0; i < part.Colors.Length; i++) part.Colors[i] = reader.ReadByte() / 255f;
+                        if (saysFinish)
+                        {
+                            part.Finish = new float[corners * 2];
+                            for (int i = 0; i < part.Finish.Length; i++) part.Finish[i] = reader.ReadByte() / 255f;
+                        }
                         part.Triangles = new int[triangles * 3];
                         for (int i = 0; i < part.Triangles.Length; i++)
                         {
@@ -196,7 +215,9 @@ namespace OrbitalAnte.Look
             using (var stream = new MemoryStream())
             using (var writer = new BinaryWriter(stream))
             {
-                writer.Write(new[] { (byte)'O', (byte)'A', (byte)'M', (byte)'1' });
+                bool saysFinish = false;
+                foreach (ModelPart part in Parts) saysFinish |= part.Finish != null;
+                writer.Write(new[] { (byte)'O', (byte)'A', (byte)'M', saysFinish ? (byte)'2' : (byte)'1' });
                 writer.Write(Parts.Length);
                 foreach (ModelPart part in Parts)
                 {
@@ -206,6 +227,15 @@ namespace OrbitalAnte.Look
                     foreach (float v in part.Positions) writer.Write(v);
                     foreach (float v in part.Normals) writer.Write(v);
                     foreach (float v in part.Colors) writer.Write((byte)Math.Round(Math.Max(0f, Math.Min(1f, v)) * 255f));
+                    if (saysFinish)
+                    {
+                        // A piece that does not say is chalk: nothing smooth, nothing metal.
+                        for (int i = 0; i < part.VertexCount * 2; i++)
+                        {
+                            float v = part.Finish != null && i < part.Finish.Length ? part.Finish[i] : 0f;
+                            writer.Write((byte)Math.Round(Math.Max(0f, Math.Min(1f, v)) * 255f));
+                        }
+                    }
                     foreach (int i in part.Triangles) writer.Write(i);
                 }
                 writer.Write(Sockets.Length);

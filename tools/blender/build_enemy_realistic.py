@@ -445,5 +445,13 @@ if __name__ == "__main__":
                 kinds = json.load(f)["kinds"]
             pose = [k for k in kinds if k["model"] == "Enemy"][0][args[args.index("--pose") + 2]]
         compare(args[args.index("--compare") + 1], pose)
+    elif "--write-to" in args:
+        # Writes Enemy.bytes and EnemyFar.bytes into a folder of your choosing, to try the game's rule tests on
+        # them (OA_MODELS=<folder>). It never writes into the game's own Resources folder.
+        be.OUT = os.path.abspath(args[args.index("--write-to") + 1])
+        assert "Resources" not in be.OUT, "this script does not replace the game's enemy; see the top of the file"
+        parts = make()
+        be.write(parts, be.stump(), "Enemy")
+        be.write_far(parts, "Enemy")
     else:
         print("OA realistic enemy: %d triangles" % triangles(make()))

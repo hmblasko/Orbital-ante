@@ -69,6 +69,74 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void AModelThatSaysNothingAboutItsFinish_ReadsBackWithNone_SoItIsDrawnAsItAlwaysWas()
+        {
+            byte[] bytes = Triangle().ToBytes();
+            Assert.AreEqual((byte)'1', bytes[3], "a model with no finish is still written in the first layout, so every file made before the realistic look reads unchanged");
+            ModelFile back = ModelFile.Parse(bytes, out string problem);
+            Assert.IsNull(problem);
+            Assert.IsNull(back.Parts[0].Finish);
+        }
+
+        [Test]
+        public void WhatASurfaceIsMadeOf_SurvivesBeingWrittenAndReadBack()
+        {
+            ModelFile model = Triangle();
+            // Corner 0 chalk, corner 1 satin paint, corner 2 polished bare metal.
+            model.Parts[0].Finish = new float[] { 0f, 0f, 0.4f, 0f, 1f, 1f };
+            byte[] bytes = model.ToBytes();
+            Assert.AreEqual((byte)'2', bytes[3]);
+            Assert.AreEqual(Triangle().ToBytes().Length + 6, bytes.Length, "two bytes a corner, nothing else");
+            ModelFile back = ModelFile.Parse(bytes, out string problem);
+            Assert.IsNull(problem);
+            Assert.AreEqual(6, back.Parts[0].Finish.Length);
+            Assert.AreEqual(0f, back.Parts[0].Finish[0], 1e-6f);
+            Assert.AreEqual(0.4f, back.Parts[0].Finish[2], 0.003f);
+            Assert.AreEqual(1f, back.Parts[0].Finish[4], 1e-6f);
+            Assert.AreEqual(1f, back.Parts[0].Finish[5], 1e-6f);
+            // Everything else is where it was.
+            Assert.AreEqual(1f, back.Parts[0].Colors[4], 1e-6f);
+            Assert.AreEqual(2, back.Parts[0].Triangles[2]);
+            Assert.IsTrue(back.TrySocket("Muzzle", out ModelSocket muzzle));
+            Assert.AreEqual(2f, muzzle.Z, 1e-6f);
+        }
+
+        [Test]
+        public void InAModelWhereOnlySomePiecesSay_TheOthersAreChalk()
+        {
+            ModelFile model = Triangle();
+            ModelPart second = Triangle().Parts[0];
+            second.Name = "Sight";
+            second.Finish = new float[] { 0.9f, 1f, 0.9f, 1f, 0.9f, 1f };
+            model.Parts = new[] { model.Parts[0], second };
+            ModelFile back = ModelFile.Parse(model.ToBytes(), out string problem);
+            Assert.IsNull(problem);
+            Assert.AreEqual(6, back.Part("Body").Finish.Length);
+            foreach (float v in back.Part("Body").Finish) Assert.AreEqual(0f, v, 1e-6f);
+            Assert.AreEqual(0.9f, back.Part("Sight").Finish[0], 0.003f);
+        }
+
+        [Test]
+        public void AFileFromANewerGame_IsRefusedWithAReason()
+        {
+            byte[] bytes = Triangle().ToBytes();
+            bytes[3] = (byte)'3';
+            Assert.IsNull(ModelFile.Parse(bytes, out string problem));
+            StringAssert.Contains("cannot read", problem);
+            // And one cut short inside the finish is caught like any other.
+            ModelFile model = Triangle();
+            model.Parts[0].Finish = new float[6];
+            byte[] whole = model.ToBytes();
+            for (int length = 8; length < whole.Length; length += 2)
+            {
+                byte[] cut = new byte[length];
+                System.Array.Copy(whole, cut, length);
+                Assert.IsNull(ModelFile.Parse(cut, out string why), "a file cut to " + length + " bytes was accepted");
+                Assert.IsNotNull(why);
+            }
+        }
+
+        [Test]
         public void DamagedFilesAreRefusedWithAReasonAndNeverThrow()
         {
             byte[] good = Triangle().ToBytes();

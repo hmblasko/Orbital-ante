@@ -30,6 +30,7 @@ namespace OrbitalAnte.Planets
         static readonly int SunGlowId = Shader.PropertyToID("_OA_SunGlow");
         static readonly int SkyUpId = Shader.PropertyToID("_OA_SkyUp");
         static readonly int HazeId = Shader.PropertyToID("_OA_Haze");
+        static readonly int FinishId = Shader.PropertyToID("_OA_Finish");
 
         /// <summary>Open space: full sunlight, a touch of fill light, no sky, no lamp.</summary>
         public static void Reset()
@@ -61,6 +62,7 @@ namespace OrbitalAnte.Planets
             Shader.SetGlobalVector(SunGlowId, glow);
             Shader.SetGlobalVector(SkyUpId, new Vector4(up.x, up.y, up.z, sky.SunsetAmount));
             Shader.SetGlobalVector(HazeId, new Vector4(Mathf.Max(0f, hazeThickness), look.paint, look.rimLight, look.bounceLight));
+            Shader.SetGlobalVector(FinishId, new Vector4(look.shine, look.lightBand, 0f, 0f));
         }
 
         public static void SetSun(Vector3 position)

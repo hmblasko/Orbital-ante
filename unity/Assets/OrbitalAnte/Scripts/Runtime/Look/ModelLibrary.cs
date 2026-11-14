@@ -88,13 +88,13 @@ namespace OrbitalAnte.Look
         /// </summary>
         static Material Shining() => PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
 
-        static Material Outdoor() => PlanetMaterials.VertexColour(Color.white, 1f, 0f, true, PropPaintScale);
+        static Material Outdoor() => PlanetMaterials.Model(1f, 0f, PropPaintScale);
 
         /// <summary>The one material every library model is drawn with in the open. Shared: never change or destroy it.</summary>
         public static Material SharedMaterial() => Outdoor();
 
         /// <summary>For inside a hull: no sunlight, an even glow in its place (the cabin's own light is baked, so there is none to borrow).</summary>
-        static Material Indoor() => PlanetMaterials.VertexColour(Color.white, 0f, IndoorGlow, true, PropPaintScale);
+        static Material Indoor() => PlanetMaterials.Model(0f, IndoorGlow, PropPaintScale);
 
         /// <summary>
         /// Switches every library model under <paramref name="root"/> between open-air light and the even light of
@@ -163,6 +163,14 @@ namespace OrbitalAnte.Look
             mesh.SetVertices(vertices);
             mesh.SetNormals(normals);
             mesh.SetColors(colors);
+            // What each corner is made of (how smooth, whether bare metal), for models that say. OA_Model.shader
+            // reads it; a mesh without it is chalk all over.
+            if (part.Finish != null && part.Finish.Length == count * 2)
+            {
+                var finish = new Vector2[count];
+                for (int i = 0; i < count; i++) finish[i] = new Vector2(part.Finish[i * 2], part.Finish[i * 2 + 1]);
+                mesh.SetUVs(1, finish);
+            }
             mesh.SetTriangles(part.Triangles, 0);
             mesh.RecalculateBounds();
             mesh.UploadMeshData(true);

@@ -49,6 +49,12 @@ namespace OrbitalAnte.Look
         [Tooltip("Warm light bounced up from sunlit ground into shadows.")]
         [Range(0f, 2f)] public float bounceLight = 1f;
 
+        [Header("Realism")]
+        [Tooltip("How strongly smooth surfaces shine: the Sun's highlight and the sky seen in metal, visors and glass. 0 lights everything like chalk, as the game did before models said what they are made of.")]
+        [Range(0f, 2f)] public float shine = 1f;
+        [Tooltip("How firmly the edge of a shadow is drawn. 1 is a clear band between light and dark, like an illustration. 0 is a soft fall-off, like a photograph. 0.6 is how the game looked before this dial existed.")]
+        [Range(0f, 1f)] public float lightBand = 0.6f;
+
         [Header("Sky")]
         [Tooltip("Brightness of the coloured clouds of deep space behind the stars. 0 is plain black.")]
         [Range(0f, 1.5f)] public float spaceBackdrop = 1f;

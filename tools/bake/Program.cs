@@ -77,7 +77,7 @@ static class CabinBake
                 var colours = new float[lit.Length];
                 for (int i = 0; i < lit.Length; i++) colours[i] = LightBake.ToScreen(lit[i]);
                 ModelPart from = fittings[f];
-                litParts[f] = new ModelPart { Name = from.Name, Positions = from.Positions, Normals = from.Normals, Colors = colours, Triangles = from.Triangles };
+                litParts[f] = new ModelPart { Name = from.Name, Positions = from.Positions, Normals = from.Normals, Colors = colours, Finish = from.Finish, Triangles = from.Triangles };
             }
             byte[] bytes = new ModelFile { Parts = litParts, Sockets = lander.Sockets }.ToBytes();
             File.WriteAllBytes(Path.Combine(resources, "Models", ShipAssembly.BakedFittingsModel + ".bytes"), bytes);

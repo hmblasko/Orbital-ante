@@ -7,7 +7,15 @@ Status: **direction changed on 14 Nov 2026 to a more realistic look. One asset (
 - 13 Nov 2026: Matthew ran the game for the first time on his Steam Deck and said it looked like a PS2 game. He asked for "an aesthetic just like Outer Wilds". That was read as a stylised, hand-crafted look with chunky shapes and painterly colour, and the sky, light, haze and finish built for it (look pass 1) are still the foundation.
 - 14 Nov 2026: after seeing the models made in that style, Matthew wrote: **"I don't want everything so cartoony goofy and blocky for art style. I want more realistic looking. I also want landscape to look much more realistic and have more interesting geography and much more geography."**
 
-The 14 Nov message wins. It replaces the "chunky, slightly exaggerated" shapes and "painted, not flat" materials of the 13 Nov direction, and the "like TF2 and/or Gang Beasts" line in section 3 of the build prompt, for how things **look**. It does not change how the game **plays or jokes**: the build prompt's humour stays in the gibs, the sounds, the behaviour and the UI, on top of what the prompt itself calls "convincing, grounded space hardware".
+The 14 Nov message wins. It replaces the "chunky, slightly exaggerated" shapes and "painted, not flat" materials of the 13 Nov direction, and the "like TF2 and/or Gang Beasts" line in section 3 of the build prompt, for how things **look**. It does not change how the game **plays or jokes**.
+
+**A reading Matthew has not confirmed:** that the build prompt's humour now lives in the gibs, the sounds, the behaviour and the UI, on top of what the prompt itself calls "convincing, grounded space hardware". His message was about the art style. Whether a realistic soldier losing limbs is still funny rather than grim is a question for the first fight on the Deck, and for him.
+
+Three lines of the build prompt that his message did not overturn, and that this direction has to keep:
+
+- **"Not overly technical looking"** (section 1). Realistic detail must be few, large and legible parts with a job, not a crust of small fittings.
+- **"Colours/lighting should keep the world interesting rather than bland"** (section 3). Natural colour on surfaces is only acceptable because the light, the sky and the air carry the colour. If a scene comes out grey, that is a failure of this direction, not its aim.
+- **Spoof and silly guns** (section 9) and a cockpit dash that is "cartoony yet technical" (section 7). Absurd objects stay absurd. They are made as if somebody really built them.
 
 ## What "more realistic" means here
 
@@ -15,8 +23,8 @@ The 14 Nov message wins. It replaces the "chunky, slightly exaggerated" shapes a
 
 It does **not** mean photographs wrapped on models, and it does not mean a grim, grey game. It means:
 
-1. **Real proportions.** People are the height and build of people in suits. No big heads, mitts or boots. Hardware is the size it needs to be to work.
-2. **Real reference, named.** Every asset starts from the real thing it is based on, and its report says what that was (for the enemy: Apollo and present-day space suits, and ordinary soldiers' webbing).
+1. **Real proportions.** People have the anatomy of people in suits. No big heads, mitts or boots. Hardware is the size it needs to be to work. Enemy kinds still differ clearly in size, as the build prompt asks: the difference is in the whole body's scale (already in the game) and in the bulk of suit, armour and kit, never in a cartoon anatomy.
+2. **Real reference, named.** Every asset starts from the real thing it is based on, and its report names it and the pictures looked at (the build prompt, section 3: "Pull real reference images before designing any asset"). The first enemy was drawn from knowledge of the Apollo A7L suit and the present-day space-walk suit, and of infantry webbing. No reference pictures were collected for it, which is a gap to close before the next asset.
 3. **Real materials.** Cloth hangs, gathers at joints and creases. Metal is machined, anodised or painted, and worn at its edges. Rubber and silicone are dull. Glass and gold visors reflect the sky.
 4. **Real colour.** Colours are taken from what the thing is made of, as it looks after use: off-white suit cloth, coyote webbing, grey aluminium, dark polymer. Strong colour is rare and has a job (a red band to tell one suit from another, blue and red hose connectors, a warning label).
 5. **Use shows.** Dust settles low and on top. Edges wear to bare metal. Shadow gathers where things crowd together. All three are worked out from the shape and kept in the paint.
@@ -24,11 +32,37 @@ It does **not** mean photographs wrapped on models, and it does not mean a grim,
 
 ## What stays from before
 
-- **Clear silhouettes.** The build prompt asks that enemy kinds be "unmistakable at a glance". Realism must not cost that. Kinds differ by build and height (the game already scales them), by what they carry (pack, plates, long gun, shield) and by one band of colour, the way real crews are told apart.
+- **Clear silhouettes.** The build prompt asks that enemy kinds be "unmistakable at a glance". Realism must not cost that. See "Reading a fight" below.
 - **Never deliberately retro.** No low-resolution textures, wobble or filters.
 - **Sky, air and finish (look pass 1).** Gradient skies, haze that fades into the sky behind it, warm sunlight with sky-coloured shadow, bloom on things that shine, tone mapping. These are how real air and cameras behave and they stay.
 - **Destructible things split along their real parts.**
 - **Original designs.** Real hardware is the reference, never copied badge for badge. No flags, names or markings.
+
+## Reading a fight
+
+A realistic suit in one pale colour is harder to read than teal against orange. The old paint happened to colour each breakable part differently, and the new one does not. These are requirements on every enemy model before it goes in the game. None of them has been shown yet.
+
+**Telling kinds apart** (shape first, never hue alone, because warm haze and sunsets change hue):
+- Whole-body size and bulk of suit and armour.
+- **Helmet shape**, one per kind, because the head is what the player aims at.
+- Stance and gait (`BodyStyle` already gives each kind its own).
+- The outline of the gun and of what is carried on the back.
+- A pattern of light and dark that survives any light (dark plates on a pale suit, or the other way).
+- Band colour is kept in reserve for telling factions apart in Phase 2 (colour for the side, shape for the kind).
+
+**Telling parts apart** (limb pops, disarms and leg shots must "read instantly"):
+- Gloves and boots clearly darker than the suit.
+- A dark ring at every place a body comes apart: wrist, elbow, shoulder, hip, knee, ankle, neck.
+- A wound (`Stump`) that stands out against pale cloth.
+- The gun arm must not vanish against the chest.
+
+**The head** is the only kill, so it must be findable from every side: nothing the same colour standing behind it (the pack's top stays below the neck ring), and a mark on the back of the helmet.
+
+**Nothing is shown that cannot be used.** A holstered pistol that cannot be shot off or picked up is a false promise; fittings like that are left off.
+
+**Glints must not pass for tells.** A highlight on a visor or a metal ring must stay well below the brightness of a muzzle flash or the Marksman's lens.
+
+**The proof** is a sheet drawn at the game's own size (1280 x 800, the game's width of view) from 5, 10, 24 and 40 m, front, side and back, on pale ground, in orange haze and at dusk: holding its gun, running, with an arm off, a leg off, head only, a loose limb on the ground, and the far copy; and all four kinds as black outlines at those sizes.
 
 ## The pillars, rewritten
 
@@ -39,9 +73,9 @@ It does **not** mean photographs wrapped on models, and it does not mean a grim,
 - The colour grade is turned down to match: less added saturation, no teal and amber push. (A dial on the Look asset; today's value stays until Matthew has seen the new models in the game.)
 
 ### 2. Lighting
-- **Soft sunlight with a natural fall-off.** The old look firmed the edge between light and dark into a band, which is a cartoon habit. The band's firmness goes on a dial and is set soft.
+- **Soft sunlight with a natural fall-off.** The old look firmed the edge between light and dark into a band, which is a cartoon habit. The band's firmness is now a dial on the Look asset (`Light Band`). It is left at the old value (0.6) and will be turned down while looking at the new models in the game, not before.
 - **Sky light from above, bounce from below, warm light and sky-coloured shadow** stay.
-- **Shine.** Until now nothing in the game was shiny: every surface was lit like chalk. Models now say what each surface is made of (how smooth it is, and whether it is bare metal), and smooth surfaces show a highlight from the Sun and a reflection of the sky. This is what makes metal look like metal and a visor like a visor. It is one more value per corner of a model and a few lines in the shared light code, not a new lighting model.
+- **Shine.** Until now nothing in the game was shiny: every surface was lit like chalk. A model can now say what each surface is made of (how smooth it is, and whether it is bare metal), and smooth surfaces show a highlight from the Sun and a reflection of the sky. This is what makes metal look like metal and a visor like a visor. It is two numbers per corner of a model, a function in the shared light code (`OA_Shine`) and a shader for models (`OA_Model.shader`). The code is written and has not been seen in Unity, and no model in the game says what it is made of yet, so nothing shines until one does. Inside the ship there is no shine yet either.
 - **Shadow where things crowd together** is worked out when a model is built and kept in its paint, so it costs nothing in the game.
 - The baked cabin light is untouched.
 
@@ -52,7 +86,7 @@ Unchanged from look pass 1.
 - **What it is made of decides how it looks**: matte cloth, satin paint, bright bare metal, dull rubber, mirror visor.
 - **Dust, wear and grime follow the shape**: dust low and on upward faces, wear on outward edges, grime in creases.
 - The painted warm and cool dabs of the old look are turned well down on models and on the ground. They read as illustration.
-- Still no photographic texture files on the game's own models. See "How far this can go" below.
+- No texture pictures on the game's own models so far. That follows Matthew's 12 Nov instruction that assets are made in Blender, and it is the open question on the 14 Nov decision card. See "How far this can go" below.
 
 ### 5. Shapes
 - Real proportions and real mechanisms. Reference first.
@@ -65,19 +99,20 @@ Bloom, tone mapping, vignette and edge smoothing stay. The grade is made more ne
 
 ## How far this can go, said plainly
 
-The game's own models are built by scripts in Blender and coloured per corner, with no texture pictures. That keeps them small and fast on the Deck and lets every one be rebuilt and changed. It reaches the level in the first before and after: a convincing, well-made model of a real thing.
+The game's own models are built by scripts in Blender and coloured per corner, with no texture pictures (Matthew asked on 12 Nov for assets to be made in Blender). That keeps the files small and lets every model be rebuilt and changed. What it reaches is the level in the first before and after, which is for Matthew to judge.
 
-It does not reach film or scan quality. Fine surface detail (the weave of cloth, scratches, printed labels) needs texture pictures, which this pipeline does not have. If Matthew wants to go further than the before and after shows, the way is:
+It does not reach film or scan quality. Fine surface detail (the weave of cloth, scratches, printed labels) needs texture pictures, which this pipeline does not have. The build prompt's own pipeline (section 3) is different: concept pictures, then models from Tripo AI, and NASA's free models for space hardware. If Matthew wants to go further than the before and after shows, the ways are:
 
-- **Textured models from a 3D generator** (the build prompt names Tripo AI; NASA's own free models are another source), brought in through a new import path with textures. This is a real piece of engine work and each model costs more on the Deck.
-- **Higgsfield** makes pictures and video, not models the game can load. It can supply reference and concept pictures for either route.
+- **Textured models everywhere.** Unity loads such models without new code. The real costs are elsewhere: a generated enemy does not arrive cut into fourteen pieces at the joints with wounds, it needs its far copy and hitboxes fitted, the shared light needs a textured version, style drifts from one generated asset to the next, and texture memory on the Deck has not been measured.
+- **A mix.** NASA or generated models for hardware that does not come apart limb by limb (ships, satellites, rovers, the pad), and script-built bodies for enemies, where the dismemberment system needs exact cuts. Not on the 14 Nov card; to be offered when Matthew answers.
+- **Higgsfield**, as far as is known here, makes pictures and video, not models the game can load. It could supply the concept pictures that the build prompt gives to ChatGPT.
 
 ## Order of work
 
 1. **The common enemy, as the test of level** (drawn, not yet in the game). See `docs/reports/realistic-look-preview.md`.
 2. On Matthew's yes: put that enemy in the game (model file, far copy, hitbox fit, the shine value in the model file and the light code), then the other three kinds on the same suit with their own build and kit.
-3. The guns: real mechanisms, real finishes (blued steel, parkerised steel, polymer, worn wood).
-4. The lander's outside, then the cabin, keeping the cabin's warmth (Matthew asked for a place of refuge, and a real cabin can be that).
+3. The guns: real mechanisms, real finishes (blued steel, parkerised steel, polymer, worn wood). The spoof and silly guns of section 9 keep their jokes and are built as if real.
+4. The lander's outside. Then the cabin's finish only: the things Matthew asked for on 13 and 14 Nov (warm lamps, things from home, the wooden ribs and brass crown, the orrery, the hardware) stay as they are, and nothing in the cabin is reshaped without asking him first.
 5. The look dials (band firmness, grade) set while looking at the new models in the game.
 
 The landscape (shape of the ground, more geography, natural ground colours, rocks, trees and bases) is being done in the bases and scenery thread on the same rules.
