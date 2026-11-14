@@ -26,9 +26,19 @@ namespace OrbitalAnte.Ship
         const string Cream = "#EFE6CF", CreamLight = "#F4ECD8", CreamDark = "#E3D7BB";
         const string Blue = "#39B8FF", ScreenGreen = "#5CFF8A", ScreenAmber = "#FFB347";
         const string Red = "#D8342A", Yellow = "#F2C230";
-        const string DeckA = "#8C867C", DeckB = "#7F796F";
-        const string DeskBody = "#B8B2A6", DeskTop = "#4A4D55";
-        const string LampWhite = "#FFE9C4", LampWarm = "#FFC98A";
+        const string DeckA = "#8E7762", DeckB = "#806A56";
+        const string DeskBody = "#C4B69C", DeskTop = "#6E4A33";
+        const string LampWhite = "#FFD7A0", LampWarm = "#FFB870";
+        // The comforts: things that make the cabin a place to come home to.
+        const string Rust = "#A8482E", Teal = "#3F7C7C", TealDark = "#2C4A56", Mustard = "#D9A441", Wool = "#E9DFC8";
+        const string Cork = "#B58A5C", Terracotta = "#B9653F", Soil = "#3A2A20", Coffee = "#3B2414";
+        const string LeafA = "#5E8C4A", LeafB = "#7BA85A", LeafC = "#4C7A45";
+        const string BulbAmber = "#FFB25A", BulbWhite = "#FFE0AE", BulbSoft = "#FFC98A";
+        const string StarGlow = "#E6FFD6";
+        const string SeatShell = "#6B5A4D";
+
+        /// <summary>How brightly each kind of lamp shines for the light baker, against the others.</summary>
+        public const float RingLampGlow = 1.8f, WallLampGlow = 4.5f, FairyGlow = 2.5f, LanternGlow = 4f;
 
         /// <summary>Corners round the lift well and the holes in the base: one per wall column, so they line up.</summary>
         const int WellSides = ShipLayout.WallColumns;
@@ -67,6 +77,8 @@ namespace OrbitalAnte.Ship
             yield return Named("lockers", Lockers());
             yield return Named("ceiling_light", CeilingLight());
             yield return Named("wall_lamps", WallLamps());
+            yield return Named("comforts", Comforts());
+            yield return Named("fairy_lights", FairyLights());
             yield return Named("belt_strap", BeltStrap());
             yield return Named("belt_buckle", BeltBuckle());
         }
@@ -638,7 +650,7 @@ namespace OrbitalAnte.Ship
             Revolve(b, s + new P3(0f, 0f, 0.05f), P3.Up, r, h, 16, 0.17f, null);
 
             // Seat pan: grey shell with the cushion sitting in it.
-            b.Color(FrameGrey);
+            b.Color(SeatShell);
             SoftBox(b, s + new P3(0f, 0.37f, 0.03f), new P3(0.27f, 0.06f, 0.3f), 0.5f, 16, 6);
             b.Color(Orange);
             SoftBox(b, s + new P3(0f, 0.445f, 0.05f), new P3(0.245f, 0.055f, 0.27f), 0.55f, 16, 6);
@@ -647,7 +659,7 @@ namespace OrbitalAnte.Ship
             double lean = 8.0 * Math.PI / 180.0;
             P3 backUp = new P3(0, Math.Cos(lean), -Math.Sin(lean));
             P3 right = new P3(1f, 0f, 0f);
-            b.Color(FrameGrey);
+            b.Color(SeatShell);
             SoftBox(b, s + new P3(0f, 0.72f, -0.27f), new P3(0.24f, 0.31f, 0.05f), 0.5f, 16, 8, right, backUp);
             b.Color(Orange);
             SoftBox(b, s + new P3(0f, 0.72f, -0.225f), new P3(0.215f, 0.27f, 0.045f), 0.55f, 16, 8, right, backUp);
@@ -746,13 +758,13 @@ namespace OrbitalAnte.Ship
             string[] caps = { Silver, Silver, Red, Silver, Yellow };
             for (int side = -1; side <= 1; side += 2)
             {
-                P3 plateAt = DeskTopPoint(0.9f * side, 0.3f);
-                DeskFrame(0.9f * side, out P3 up, out P3 normal);
+                P3 plateAt = DeskTopPoint(0.98f * side, 0.3f);
+                DeskFrame(0.98f * side, out P3 up, out P3 normal);
                 b.Color(DarkMetal);
-                Pad(b, plateAt + normal * 0.001f, new P3(1f, 0f, 0f), up, normal, 0.24f, 0.04f, 0.006f, 0.01f, 2, 1);
+                Pad(b, plateAt + normal * 0.001f, new P3(1f, 0f, 0f), up, normal, 0.2f, 0.04f, 0.006f, 0.01f, 2, 1);
                 for (int k = 0; k < caps.Length; k++)
                 {
-                    P3 at = plateAt + new P3((k - 2) * 0.09f, 0f, 0f) + normal * 0.006f;
+                    P3 at = plateAt + new P3((k - 2) * 0.075f, 0f, 0f) + normal * 0.006f;
                     b.Color(caps[k]);
                     Rod(b, at, at + (normal + up * (k % 2 == 0 ? 0.35f : -0.35f)).Unit() * 0.04f, 0.013f, 0.018f, 6, false, true);
                 }
@@ -761,7 +773,7 @@ namespace OrbitalAnte.Ship
             // A hand controller either side of the seat line.
             for (int side = -1; side <= 1; side += 2)
             {
-                P3 foot = DeskTopPoint(0.42f * side, 0.04f);
+                P3 foot = DeskTopPoint(0.85f * side, 0.04f);
                 b.Color(DarkMetal);
                 Blob(b, foot + new P3(0f, 0.008f, 0f), new P3(0.04f, 0.014f, 0.04f), 8, 4);
                 Rod(b, foot, foot + new P3(0f, 0.06f, 0f), 0.014f, 0.014f, 6, false, false);
@@ -900,7 +912,7 @@ namespace OrbitalAnte.Ship
             }, wrapCols: true, wrapRows: true, paint: (i, j) =>
             {
                 // The underside is the lamp; the rest is housing.
-                if (j > sides / 2) b.Color(LampWhite, 6);
+                if (j > sides / 2) b.Color(LampWhite, RingLampGlow);
                 else b.Color(FrameGrey);
             });
 
@@ -915,11 +927,15 @@ namespace OrbitalAnte.Ship
             return b.Finish();
         }
 
-        /// <summary>Four small warm lamps on the wall above the legs, each a glowing dome under a little hood.</summary>
+        /// <summary>
+        /// Four small warm lamps on the wall above the legs: a frosted globe on a short brass arm, with a brass
+        /// cap. The globe itself is the light, so the lamp glows from wherever you stand.
+        /// </summary>
         public static ShipMesh WallLamps()
         {
             var b = new MeshBuilder();
             const float row = 9.86f;
+            const string Brass = "#B08A45";
             for (int k = 0; k < ShipLayout.Legs; k++)
             {
                 int column = k * (ShipLayout.WallColumns / 4) + ShipLayout.WallColumns / 8;
@@ -929,36 +945,375 @@ namespace OrbitalAnte.Ship
                 P3 across = new P3(Math.Cos(a), 0, -Math.Sin(a));
                 P3 up = P3.Cross(inward, across).Unit();
                 if (up.Y < 0f) up = -up;
-                P3 foot = wall + inward * 0.008f;
+                P3 foot = wall + inward * 0.004f - up * 0.05f;
+                P3 globe = wall + inward * 0.082f + P3.Up * 0.012f;
 
-                // The lamp: half a squashed ball on a short skirt.
-                const int around = 10, rings = 4;
-                Skin(b, around, rings + 2, (i, j) =>
+                // Back plate and the arm that swans out and up to hold the globe from below.
+                b.Color(Brass);
+                Pad(b, foot, across, up, inward, 0.034f, 0.05f, 0.008f, 0.012f);
+                var arm = new List<P3>();
+                for (int n = 0; n <= 5; n++)
                 {
-                    double lon = i * 2.0 * Math.PI / around;
-                    double lat = Math.Max(0, j - 1) * (Math.PI * 0.5) / rings;
-                    float outBy = j == 0 ? 0f : 0.012f + (float)Math.Sin(lat) * 0.05f;
-                    return foot + across * ((float)(Math.Cos(lon) * Math.Cos(lat)) * 0.08f)
-                        + up * ((float)(Math.Sin(lon) * Math.Cos(lat)) * 0.055f) + inward * outBy;
-                }, Away(foot), wrapCols: true, paint: (i, j) => b.Color(LampWarm, 5));
-
-                // The hood: a shell over the top half, grey outside and pale inside.
-                const int hoodAcross = 8, hoodRings = 4;
-                for (int skin = 0; skin < 2; skin++)
-                {
-                    float shrink = skin == 0 ? 0f : 0.008f;
-                    b.Color(skin == 0 ? FrameGrey : Cream);
-                    Func<int, int, P3> hoodAt = (i, j) =>
-                    {
-                        double lon = (15.0 + 150.0 * i / hoodAcross) * Math.PI / 180.0;
-                        double lat = j * (Math.PI * 0.5) / hoodRings;
-                        return foot + across * ((float)(Math.Cos(lon) * Math.Cos(lat)) * (0.115f - shrink))
-                            + up * ((float)(Math.Sin(lon) * Math.Cos(lat)) * (0.085f - shrink))
-                            + inward * ((float)Math.Sin(lat) * (0.09f - shrink));
-                    };
-                    if (skin == 0) Skin(b, hoodAcross + 1, hoodRings + 1, hoodAt, Away(foot));
-                    else Skin(b, hoodAcross + 1, hoodRings + 1, hoodAt, Toward(foot));
+                    float t = n / 5f;
+                    P3 under = globe - P3.Up * 0.062f;
+                    arm.Add(P3.Lerp(foot + inward * 0.006f, under, t) - P3.Up * ((float)Math.Sin(t * Math.PI) * 0.022f));
                 }
+                Pipe(b, arm, n => 0.008f, 6, false, false);
+                float[] cupR = { 0.012f, 0.03f, 0.036f };
+                float[] cupH = { -0.066f, -0.058f, -0.04f };
+                Revolve(b, globe, P3.Up, cupR, cupH, 8, -0.2f, null);
+
+                // The globe.
+                b.Color(LampWarm, WallLampGlow);
+                Blob(b, globe, new P3(0.054f, 0.058f, 0.054f), 10, 6);
+
+                // A little cap on top.
+                b.Color(Brass);
+                float[] capR = { 0.03f, 0.022f, 0.008f, 0f };
+                float[] capH = { 0.05f, 0.06f, 0.066f, 0.072f };
+                Revolve(b, globe, P3.Up, capR, capH, 8, 0f, null);
+            }
+            return b.Finish();
+        }
+
+        // ================================================================ comforts
+
+        /// <summary>The wall-grid row at a height above the floor (the opposite of <see cref="ShipLayout.InnerProfile"/>, from the cove up).</summary>
+        static float RowAtHeight(float y)
+        {
+            if (y <= 0.85f) return 4f + Clamp((y - ShipLayout.CoveHeight) / (0.85f - ShipLayout.CoveHeight), 0f, 1f);
+            if (y <= ShipLayout.WallTop) return 5f + (y - 0.85f) / (ShipLayout.WallTop - 0.85f);
+            double phi = Math.Asin(Clamp((y - ShipLayout.WallTop) / (ShipLayout.CeilingPeak - ShipLayout.WallTop), 0f, 1f));
+            return 6f + (float)(phi * 180.0 / Math.PI / 6.0);
+        }
+
+        /// <summary>A place on the inside of the wall: the point, and the directions along the wall, up it and out into the room.</summary>
+        static void WallFrame(float column, float y, out P3 foot, out P3 across, out P3 up, out P3 inward)
+        {
+            float row = RowAtHeight(y);
+            foot = ShipLayout.SurfacePoint(column, row, 0f);
+            inward = (foot - ShipLayout.SurfacePoint(column, row, 1f)).Unit();
+            double a = column * 2.0 * Math.PI / ShipLayout.WallColumns;
+            across = new P3(Math.Cos(a), 0, -Math.Sin(a));
+            up = P3.Cross(inward, across).Unit();
+            if (up.Y < 0f) up = -up;
+        }
+
+        /// <summary>A number from 0 to 1 that is always the same for the same two whole numbers (for scattering things by hand-free rule).</summary>
+        static float Scatter(int a, int b)
+        {
+            unchecked
+            {
+                uint h = (uint)a * 374761393u + (uint)b * 668265263u;
+                h = (h ^ (h >> 13)) * 1274126177u;
+                h ^= h >> 16;
+                return (h & 0xFFFFFF) / (float)0x1000000;
+            }
+        }
+
+        /// <summary>An enamel mug with a little coffee in it, standing at <paramref name="foot"/>, handle toward <paramref name="handle"/>.</summary>
+        static void Mug(MeshBuilder b, P3 foot, string colour, P3 handle)
+        {
+            float[] r = { 0f, 0.032f, 0.038f, 0.038f, 0.032f, 0.03f, 0f };
+            float[] h = { 0f, 0f, 0.012f, 0.082f, 0.082f, 0.066f, 0.066f };
+            Revolve(b, foot, P3.Up, r, h, 10, 0.03f, row => b.Color(row >= 5 ? Coffee : colour));
+            P3 side = handle.Unit();
+            var loop = new List<P3>();
+            for (int k = 0; k <= 5; k++)
+            {
+                double t = Math.PI * k / 5.0;
+                loop.Add(foot + side * (0.036f + (float)Math.Sin(t) * 0.026f) + P3.Up * (0.045f + (float)Math.Cos(t) * 0.022f));
+            }
+            b.Color(colour);
+            Pipe(b, loop, k => 0.006f, 5, false, false);
+        }
+
+        /// <summary>
+        /// Everything that makes the cabin a home: a woven rug in front of the lockers, a plant, books, a lantern,
+        /// a radio and a flask on the locker tops, a pin board of postcards, a rolled sleeping bag on the wall,
+        /// a mug and a cactus on the desk, and glow-in-the-dark stars stuck to the ceiling. None of it stands
+        /// where you can walk (see <see cref="ShipLayout.WalkRadius"/>), so nothing here needs to stop you.
+        /// </summary>
+        public static ShipMesh Comforts()
+        {
+            var b = new MeshBuilder();
+            P3 right = new P3(1f, 0f, 0f), forward = new P3(0f, 0f, 1f);
+
+            // ---- the rug: a crescent of woven bands between the lift well and the lockers
+            {
+                const int across = 22, bands = 6;
+                const float inner = 1.0f, outer = 1.6f, y = 0.008f;
+                const double from = 128.0 * Math.PI / 180.0, to = 232.0 * Math.PI / 180.0;
+                string[] weave = { Rust, Wool, TealDark, TealDark, Mustard, Rust };
+                for (int j = 0; j < bands; j++)
+                {
+                    float r0 = Lerp(inner, outer, j / (float)bands), r1 = Lerp(inner, outer, (j + 1) / (float)bands);
+                    for (int i = 0; i < across; i++)
+                    {
+                        double a0 = from + (to - from) * i / across, a1 = from + (to - from) * (i + 1) / across;
+                        // The two middle bands carry a row of diamonds: every other patch is the lighter thread.
+                        bool diamond = (j == 2 || j == 3) && (i + j) % 2 == 0;
+                        b.Color(diamond ? Teal : weave[j]);
+                        Flat(b, new P3(Math.Sin(a0) * r0, y, Math.Cos(a0) * r0), new P3(Math.Sin(a1) * r0, y, Math.Cos(a1) * r0),
+                            new P3(Math.Sin(a1) * r1, y, Math.Cos(a1) * r1), new P3(Math.Sin(a0) * r1, y, Math.Cos(a0) * r1), P3.Up);
+                    }
+                }
+                // A tasselled fringe at each end.
+                b.Color(Wool);
+                for (int end = 0; end < 2; end++)
+                {
+                    double a = end == 0 ? from : to, step = (end == 0 ? -1.0 : 1.0) * 0.035;
+                    for (int k = 0; k < 9; k++)
+                    {
+                        float r0 = Lerp(inner + 0.02f, outer - 0.02f, k / 9f), r1 = r0 + 0.035f;
+                        Flat(b, new P3(Math.Sin(a) * r0, y, Math.Cos(a) * r0), new P3(Math.Sin(a) * r1, y, Math.Cos(a) * r1),
+                            new P3(Math.Sin(a + step) * r1, y, Math.Cos(a + step) * r1), new P3(Math.Sin(a + step) * r0, y, Math.Cos(a + step) * r0), P3.Up);
+                    }
+                }
+            }
+
+            // ---- on top of the lockers
+            float shelf = LockerTop;
+            {
+                // A pot plant, its leaves spilling toward the room.
+                P3 pot = new P3(-0.88f, shelf, -2.0f);
+                float[] r = { 0f, 0.05f, 0.074f, 0.08f, 0.066f, 0f };
+                float[] h = { 0f, 0f, 0.1f, 0.1f, 0.09f, 0.09f };
+                Revolve(b, pot, P3.Up, r, h, 10, 0.04f, row => b.Color(row >= 4 ? Soil : Terracotta));
+                string[] greens = { LeafA, LeafB, LeafC };
+                for (int k = 0; k < 11; k++)
+                {
+                    double turn = k * 2.399963 + 0.4;                       // the golden angle: no two leaves line up
+                    float lift = k < 8 ? 0.35f + 0.6f * Scatter(k, 1) : -0.25f - 0.3f * Scatter(k, 2);
+                    float length = k < 8 ? 0.1f + 0.07f * Scatter(k, 3) : 0.14f + 0.05f * Scatter(k, 4);
+                    P3 flat = k < 8 ? new P3(Math.Sin(turn), 0, Math.Cos(turn)) : new P3(Math.Sin(turn) * 0.5, 0, 0.6 + 0.4 * Math.Abs(Math.Cos(turn))).Unit();
+                    P3 dir = (flat + P3.Up * lift).Unit();
+                    P3 from = pot + P3.Up * 0.09f + flat * (k < 8 ? 0.02f : 0.07f);
+                    b.Color(greens[k % 3]);
+                    Blob(b, from + dir * (length * 0.5f), new P3(0.028f, length * 0.5f, 0.009f), 6, 4, P3.Cross(dir, P3.Up), dir);
+                }
+
+                // A stack of books, none quite square to the next, and one leaning on them.
+                string[] covers = { Rust, TealDark, Mustard };
+                for (int k = 0; k < 3; k++)
+                {
+                    double skew = (Scatter(k, 7) - 0.5) * 0.5;
+                    P3 along = new P3(Math.Cos(skew), 0, Math.Sin(skew));
+                    b.Color(covers[k]);
+                    SoftBox(b, new P3(-0.42f, shelf + 0.019f + k * 0.036f, -1.98f), new P3(0.115f - k * 0.008f, 0.017f, 0.08f - k * 0.004f), 0.22f, 8, 2, along, P3.Up);
+                }
+                b.Color(Wool);
+                SoftBox(b, new P3(-0.255f, shelf + 0.1f, -1.99f), new P3(0.016f, 0.105f, 0.075f), 0.22f, 8, 2, new P3(0.94, 0.34, 0), new P3(-0.34, 0.94, 0));
+
+                // A storm lantern: the cabin's night light.
+                P3 lantern = new P3(0.06f, shelf, -1.98f);
+                float[] br = { 0f, 0.062f, 0.062f, 0.04f, 0.036f };
+                float[] bh = { 0f, 0f, 0.028f, 0.044f, 0.05f };
+                b.Color(DarkMetal);
+                Revolve(b, lantern, P3.Up, br, bh, 10, 0.02f, null);
+                float[] gr = { 0.036f, 0.052f, 0.054f, 0.046f, 0.034f };
+                float[] gh = { 0.05f, 0.075f, 0.125f, 0.16f, 0.18f };
+                b.Color(LampWarm, LanternGlow);
+                Revolve(b, lantern, P3.Up, gr, gh, 10, 0.11f, null);
+                float[] cr = { 0.034f, 0.046f, 0.04f, 0.018f, 0f };
+                float[] ch = { 0.18f, 0.186f, 0.2f, 0.225f, 0.232f };
+                b.Color(DarkMetal);
+                Revolve(b, lantern, P3.Up, cr, ch, 10, 0.19f, null);
+                var bail = new List<P3>();
+                for (int k = 0; k <= 8; k++)
+                {
+                    double t = Math.PI * k / 8.0;
+                    bail.Add(lantern + right * ((float)Math.Cos(t) * 0.066f) + P3.Up * (0.115f + (float)Math.Sin(t) * 0.15f));
+                }
+                Pipe(b, bail, k => 0.0045f, 5, false, false);
+
+                // A little radio, its dial lit.
+                P3 radio = new P3(0.5f, shelf + 0.062f, -1.98f);
+                b.Color(Teal);
+                SoftBox(b, radio, new P3(0.115f, 0.062f, 0.05f), 0.3f, 12, 4);
+                b.Color(DarkMetal);
+                Pad(b, radio + new P3(-0.04f, 0f, 0.0495f), right, P3.Up, forward, 0.05f, 0.04f, 0.004f, 0.008f, 1, 1);
+                b.Color(Wool);
+                Pad(b, radio + new P3(0.058f, 0.022f, 0.0495f), right, P3.Up, forward, 0.034f, 0.012f, 0.003f, 0.004f);
+                b.Color(Orange);
+                Blob(b, radio + new P3(0.058f, -0.02f, 0.054f), new P3(0.016f, 0.016f, 0.01f), 8, 4);
+                b.Color("#7CFFB0", 1.2);
+                Blob(b, radio + new P3(0.092f, 0.024f, 0.052f), new P3(0.006f, 0.006f, 0.004f), 6, 3);
+                b.Color(Silver);
+                Rod(b, radio + new P3(0.09f, 0.058f, -0.02f), radio + new P3(0.16f, 0.3f, -0.05f), 0.004f, 0.003f, 5, false, false);
+                Blob(b, radio + new P3(0.16f, 0.3f, -0.05f), new P3(0.008f, 0.008f, 0.008f), 6, 3);
+
+                // A flask and yesterday's mug.
+                P3 flask = new P3(0.9f, shelf, -2.0f);
+                float[] fr = { 0f, 0.04f, 0.04f, 0.04f, 0.031f, 0.031f, 0f };
+                float[] fh = { 0f, 0f, 0.09f, 0.18f, 0.195f, 0.24f, 0.246f };
+                Revolve(b, flask, P3.Up, fr, fh, 10, 0.12f, row => b.Color(row >= 4 ? Silver : Rust));
+                Mug(b, new P3(1.02f, shelf, -1.93f), Wool, new P3(1f, 0f, 0.6f));
+
+                // A stretchy cord along the front of the shelf, so none of it goes flying when the ship does.
+                const int posts = 10;
+                var cord = new List<P3>();
+                for (int k = 0; k <= posts * 2; k++)
+                {
+                    float x = Lerp(-LockerHalfWidth + 0.06f, LockerHalfWidth - 0.06f, k / (float)(posts * 2));
+                    cord.Add(new P3(x, shelf + 0.062f - (k % 2 == 1 ? 0.006f : 0f), -1.815f));
+                }
+                b.Color(Rust);
+                Pipe(b, cord, k => 0.006f, 5, false, false);
+                b.Color(DarkMetal);
+                for (int k = 0; k <= posts; k += 2)
+                {
+                    float x = Lerp(-LockerHalfWidth + 0.06f, LockerHalfWidth - 0.06f, k / (float)posts);
+                    Rod(b, new P3(x, shelf - 0.004f, -1.815f), new P3(x, shelf + 0.072f, -1.815f), 0.008f, 0.008f, 6, false, true);
+                }
+            }
+
+            // ---- a pin board on the wall behind the pilot's right shoulder, under a wall lamp
+            {
+                WallFrame(21.5f, 0.97f, out P3 foot, out P3 across, out P3 up, out P3 inward);
+                const float halfWidth = 0.3f, halfHeight = 0.2f;
+                // The wall curves and the board does not: stand its middle off so its edges just meet the wall.
+                P3 centre = foot + inward * 0.022f;
+                b.Color("#6B4A33");
+                Pad(b, centre, across, up, inward, halfWidth + 0.02f, halfHeight + 0.02f, 0.008f, 0.012f, 3, 2);
+                b.Color(Cork);
+                Pad(b, centre + inward * 0.008f, across, up, inward, halfWidth, halfHeight, 0.006f, 0.01f, 3, 2);
+                // x, y, half width, half height, tilt (degrees), card, picture
+                float[][] cards =
+                {
+                    new[] { -0.19f, 0.07f, 0.07f, 0.085f, -6f }, new[] { -0.03f, 0.09f, 0.075f, 0.055f, 4f },
+                    new[] { 0.16f, 0.06f, 0.06f, 0.075f, 9f }, new[] { -0.13f, -0.1f, 0.05f, 0.05f, 5f },
+                    new[] { 0.03f, -0.08f, 0.085f, 0.06f, -3f }, new[] { 0.2f, -0.11f, 0.045f, 0.045f, -8f },
+                };
+                string[] card = { Wool, Wool, Wool, Mustard, Wool, "#E8A0A0" };
+                string[] picture = { TealDark, Rust, "#22324A", null, "#D98E4A", null };
+                string[] pin = { Red, Blue, Yellow, Red, Yellow, Blue };
+                for (int k = 0; k < cards.Length; k++)
+                {
+                    double tilt = cards[k][4] * Math.PI / 180.0;
+                    P3 cRight = across * (float)Math.Cos(tilt) + up * (float)Math.Sin(tilt);
+                    P3 cUp = up * (float)Math.Cos(tilt) - across * (float)Math.Sin(tilt);
+                    P3 at = centre + across * cards[k][0] + up * cards[k][1] + inward * (0.0145f + k * 0.0006f);
+                    b.Color(card[k]);
+                    Pad(b, at, cRight, cUp, inward, cards[k][2], cards[k][3], 0.002f, 0.003f);
+                    if (picture[k] != null)
+                    {
+                        b.Color(picture[k]);
+                        Pad(b, at + inward * 0.0022f + cUp * (cards[k][3] * 0.12f), cRight, cUp, inward, cards[k][2] * 0.82f, cards[k][3] * 0.7f, 0.001f, 0.002f);
+                    }
+                    b.Color(pin[k]);
+                    Blob(b, at + cUp * (cards[k][3] * 0.82f) + inward * 0.008f, new P3(0.008f, 0.008f, 0.008f), 6, 3);
+                }
+            }
+
+            // ---- a rolled sleeping bag strapped to the wall behind the pilot's left shoulder
+            {
+                WallFrame(42.5f, 0.86f, out P3 foot, out P3 across, out P3 up, out P3 inward);
+                P3 centre = foot + inward * 0.135f;
+                const float half = 0.3f, fat = 0.105f;
+                float[] r = { 0f, fat * 0.55f, fat * 0.9f, fat, fat, fat, fat * 0.9f, fat * 0.55f, 0f };
+                float[] h = { 0f, 0.004f, 0.03f, 0.08f, half, 2f * half - 0.08f, 2f * half - 0.03f, 2f * half - 0.004f, 2f * half };
+                b.Color(Teal);
+                Revolve(b, centre - across * half, across, r, h, 12, half, null);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    P3 at = centre + across * (0.16f * side);
+                    float[] sr = { fat + 0.001f, fat + 0.007f, fat + 0.007f, fat + 0.001f };
+                    float[] sh = { -0.022f, -0.016f, 0.016f, 0.022f };
+                    b.Color(Rust);
+                    Revolve(b, at, across, sr, sh, 12, 0f, null);
+                    b.Color(DarkMetal);
+                    Rod(b, at + up * (fat + 0.004f), at + up * (fat + 0.004f) - inward * 0.125f, 0.012f, 0.012f, 6, false, false);
+                    b.Color(Silver);
+                    SoftBox(b, at + inward * (fat + 0.008f), new P3(0.022f, 0.016f, 0.006f), 0.4f, 8, 2, across, up);
+                }
+            }
+
+            // ---- on the desk, out at the ends where they are not in the way
+            {
+                Mug(b, DeskTopPoint(1.47f, 0.35f) - P3.Up * 0.004f, Orange, new P3(-1f, 0f, -0.5f));
+                P3 pot = DeskTopPoint(-1.47f, 0.4f) - P3.Up * 0.004f;
+                float[] r = { 0f, 0.03f, 0.04f, 0.043f, 0.034f, 0f };
+                float[] h = { 0f, 0f, 0.04f, 0.04f, 0.034f, 0.034f };
+                Revolve(b, pot, P3.Up, r, h, 8, 0.02f, row => b.Color(row >= 4 ? Soil : Wool));
+                b.Color(LeafA);
+                Blob(b, pot + new P3(0f, 0.068f, 0f), new P3(0.026f, 0.038f, 0.026f), 8, 5);
+                b.Color(LeafB);
+                Blob(b, pot + new P3(0.026f, 0.06f, 0.004f), new P3(0.013f, 0.018f, 0.013f), 6, 4);
+                b.Color("#F08FA0");
+                Blob(b, pot + new P3(-0.004f, 0.107f, 0.002f), new P3(0.01f, 0.006f, 0.01f), 6, 3);
+            }
+
+            // ---- glow-in-the-dark stars stuck to the ceiling
+            for (int k = 0; k < 44; k++)
+            {
+                float column = Scatter(k, 11) * ShipLayout.WallColumns;
+                float y = Lerp(2.08f, 2.5f, Scatter(k, 12));
+                // Only over the back and sides of the room: the overhead window (columns 61 to 67) and the
+                // sky seen through it and the front window are left to the real stars.
+                if (column > 53f || column < 11f) continue;
+                WallFrame(column, y, out P3 foot, out P3 across, out P3 up, out P3 inward);
+                float size = 0.016f + 0.02f * Scatter(k, 13);
+                double turn = Scatter(k, 14) * Math.PI;
+                P3 a = across * (float)Math.Cos(turn) + up * (float)Math.Sin(turn), c = up * (float)Math.Cos(turn) - across * (float)Math.Sin(turn);
+                P3 at = foot + inward * 0.006f;
+                b.Color(StarGlow, 1.2);
+                // Four points: two slim diamonds crossed.
+                Flat(b, at + a * size, at + c * (size * 0.28f), at - a * size, at - c * (size * 0.28f), inward);
+                Flat(b, at + c * size, at + a * (size * 0.28f) + inward * 0.0005f, at - c * size, at - a * (size * 0.28f) + inward * 0.0005f, inward);
+            }
+            return b.Finish();
+        }
+
+        /// <summary>Where the string of lights hangs from: hooks round the dome, leaving the front window clear.</summary>
+        public const int FairyHooks = 8;
+        public const float FairyHookY = 2.02f, FairySag = 0.1f;
+        public static double FairyHookAngle(int hook) => (55.0 + 250.0 * hook / (FairyHooks - 1)) * Math.PI / 180.0;
+
+        /// <summary>
+        /// A string of small warm bulbs looped round the dome above the wall lamps, from one side of the front
+        /// window right round to the other. Each bulb is a little lamp to the light baker, so the wall behind
+        /// the string glows.
+        /// </summary>
+        public static ShipMesh FairyLights()
+        {
+            var b = new MeshBuilder();
+            const int perSwag = 9, cuts = perSwag * 2;
+            string[] bulbs = { BulbAmber, BulbWhite, BulbSoft, BulbAmber, BulbWhite };
+            int bulb = 0;
+            for (int hook = 0; hook < FairyHooks - 1; hook++)
+            {
+                double a0 = FairyHookAngle(hook), a1 = FairyHookAngle(hook + 1);
+                Func<float, P3> at = t =>
+                {
+                    double a = a0 + (a1 - a0) * t;
+                    float y = FairyHookY - FairySag * 4f * t * (1f - t);
+                    float radius = WallRadius(y) - 0.1f;
+                    return new P3(Math.Sin(a) * radius, y, Math.Cos(a) * radius);
+                };
+                var wire = new List<P3>();
+                for (int k = 0; k <= cuts; k++) wire.Add(at(k / (float)cuts));
+                b.Color("#2E2A28");
+                Pipe(b, wire, k => 0.005f, 4, false, false);
+
+                for (int k = 0; k < perSwag; k++, bulb++)
+                {
+                    P3 from = at((k + 0.5f) / perSwag);
+                    b.Color("#2E2A28");
+                    Rod(b, from, from - P3.Up * 0.02f, 0.007f, 0.009f, 4, false, false);
+                    b.Color(bulbs[bulb % bulbs.Length], FairyGlow);
+                    Blob(b, from - P3.Up * 0.04f, new P3(0.02f, 0.026f, 0.02f), 6, 3);
+                }
+            }
+            // The hooks.
+            b.Color(DarkMetal);
+            for (int hook = 0; hook < FairyHooks; hook++)
+            {
+                double a = FairyHookAngle(hook);
+                float radius = WallRadius(FairyHookY);
+                P3 wall = new P3(Math.Sin(a) * radius, FairyHookY, Math.Cos(a) * radius);
+                P3 inward = new P3(-Math.Sin(a), 0, -Math.Cos(a));
+                Rod(b, wall + inward * 0.012f, wall + inward * 0.104f, 0.006f, 0.006f, 5, false, true);
             }
             return b.Finish();
         }

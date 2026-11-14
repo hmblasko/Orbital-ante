@@ -279,6 +279,81 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void CabinFittingsFile_IsTheDashHousing_WithTheCabinsLightBakedIn()
+        {
+            // tools/bake copies the housing out of the Lander model and stores it lit by the cabin's lamps.
+            ModelFile lander = LoadReal("Lander"), cabin = LoadReal(ShipAssembly.BakedFittingsModel);
+            ModelPart plain = lander.Part(ShipAssembly.DashHousingPiece), lit = cabin.Part(ShipAssembly.DashHousingPiece);
+            Assert.IsNotNull(lit, "run tools/bake again: the baked housing is missing");
+            CollectionAssert.AreEqual(plain.Positions, lit.Positions, "run tools/bake again: the housing's shape has changed since its light was baked");
+            CollectionAssert.AreEqual(plain.Triangles, lit.Triangles);
+            Assert.IsTrue(cabin.TrySocket(ShipAssembly.DashSocket, out ModelSocket socket));
+            Assert.IsTrue(lander.TrySocket(ShipAssembly.DashSocket, out ModelSocket source));
+            Assert.AreEqual(source.Y, socket.Y, 1e-5f);
+            Assert.AreEqual(source.Z, socket.Z, 1e-5f);
+            // Lit, not just copied: the light differs from the paint, and the housing is not left in the dark.
+            float brightness = 0f, change = 0f;
+            for (int i = 0; i < lit.Colors.Length; i += 3)
+            {
+                float v = System.Math.Max(lit.Colors[i], System.Math.Max(lit.Colors[i + 1], lit.Colors[i + 2]));
+                brightness += v;
+                change += System.Math.Abs(lit.Colors[i] - plain.Colors[i]);
+            }
+            Assert.Greater(change / lit.VertexCount, 0.02f);
+            Assert.Greater(brightness / lit.VertexCount, 0.15f, "the housing got next to no light");
+        }
+
+        [Test]
+        public void BakedLightFile_FitsTheCabin()
+        {
+            // The same check the PlayMode test TheBakedLightFileFitsTheCabin makes, run here without the engine.
+            string folder = System.Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder)) Assert.Ignore("OA_MODELS is not set");
+            string path = Path.Combine(folder, "..", "Ship", "LanderBake.bytes");
+            var pieces = ShipAssembly.InteriorPieces();
+            Assert.IsNotNull(ShipAssembly.Unpack(File.ReadAllBytes(path), pieces), "the cabin has changed since its light was baked: run tools/bake again");
+        }
+
+        [Test]
+        public void ShipModelFile_DashHousing_FramesThePanelAndLeavesTheScreenOpen()
+        {
+            // The cockpit's desk panel (CockpitConfig's defaults): 1.1 m by 0.33 m, leaned back 24 degrees.
+            const float cx = 0f, cy = 0.9f, cz = 1.94f, halfWidth = 0.55f, halfHeight = 0.165f;
+            double lean = 24.0 * System.Math.PI / 180.0;
+            float c = (float)System.Math.Cos(lean), s = (float)System.Math.Sin(lean);
+            ModelFile model = LoadReal("Lander");
+            ModelPart housing = model.Part("dashhousing");
+            Assert.IsNotNull(housing, "missing piece dashhousing");
+            Assert.LessOrEqual(housing.TriangleCount, 1800, "the housing is a small thing: keep it near 1,500 triangles");
+            Assert.IsTrue(model.TrySocket("Dash", out ModelSocket dash), "missing socket Dash");
+            Assert.AreEqual(cx, dash.X, 0.001f);
+            Assert.AreEqual(cy, dash.Y, 0.001f);
+            Assert.AreEqual(cz, dash.Z, 0.001f);
+
+            float left = 0f, right = 0f, top = 0f, bottom = 0f, lowest = float.MaxValue;
+            for (int v = 0; v < housing.VertexCount; v++)
+            {
+                float x = housing.Positions[v * 3] - cx, y = housing.Positions[v * 3 + 1] - cy, z = housing.Positions[v * 3 + 2] - cz;
+                float up = y * c + z * s;              // up the panel
+                float towardPilot = y * s - z * c;     // out of the panel's face
+                left = System.Math.Min(left, x); right = System.Math.Max(right, x);
+                top = System.Math.Max(top, up); bottom = System.Math.Min(bottom, up);
+                lowest = System.Math.Min(lowest, housing.Positions[v * 3 + 1]);
+                bool overScreen = System.Math.Abs(x) < halfWidth - 0.005f && System.Math.Abs(up) < halfHeight - 0.005f;
+                Assert.LessOrEqual(housing.Positions[v * 3 + 1], 1.08f, "the housing stays low, so the pilot (eye at 1.18) sees the front window over it");
+                Assert.LessOrEqual(System.Math.Abs(housing.Positions[v * 3]), 0.705f, "the housing keeps to the middle of the desk");
+                if (overScreen) Assert.LessOrEqual(towardPilot, -0.005f, "nothing of the housing may stand in front of the screen");
+                Assert.IsTrue(ShipLayout.InsideCabin(new P3(housing.Positions[v * 3], System.Math.Max(0.01f, housing.Positions[v * 3 + 1]), housing.Positions[v * 3 + 2])),
+                    "the housing stays inside the cabin");
+            }
+            Assert.Less(left, -halfWidth - 0.03f, "the bezel frames the left edge");
+            Assert.Greater(right, halfWidth + 0.03f, "the bezel frames the right edge");
+            Assert.Greater(top, halfHeight + 0.01f, "the brow frames the top edge");
+            Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
+            Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
+        }
+
+        [Test]
         public void ShipModelFile_PiecesStayWhereTheirCollidersAre()
         {
             ModelFile model = LoadReal("Lander");
@@ -289,7 +364,8 @@ namespace OrbitalAnte.Tests
             foreach (ModelPart part in model.Parts)
             {
                 // The cockpit's cameras (and their record lamps) are extra hardware with no stand-in shape and no collider.
-                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam")) continue;
+                // Nor has the dash's housing, which stands on the desk inside the cabin.
+                if (part.Name.StartsWith("pole") || part.Name.StartsWith("landingcam") || part.Name == "dashhousing") continue;
                 Assert.IsTrue(standIns.ContainsKey(part.Name), "no stand-in for " + part.Name);
                 ShipMesh old = standIns[part.Name];
                 float[] lo = { float.MaxValue, float.MaxValue, float.MaxValue }, hi = { float.MinValue, float.MinValue, float.MinValue };

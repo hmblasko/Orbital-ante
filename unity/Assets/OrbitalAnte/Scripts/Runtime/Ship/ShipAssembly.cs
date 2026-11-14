@@ -23,6 +23,14 @@ namespace OrbitalAnte.Ship
         public const string BakeResource = "Ship/LanderBake";
         const int Magic = 0x4C424B31; // "LBK1"
 
+        /// <summary>
+        /// A model holding fittings that stand inside the cabin, with the cabin's light already in their colours
+        /// (made by tools/bake). Today that is the dash housing, copied from the Lander model.
+        /// </summary>
+        public const string BakedFittingsModel = "LanderCabin";
+        public const string DashHousingPiece = "dashhousing";
+        public const string DashSocket = "Dash";
+
         /// <summary>Every baked piece of the cabin. The order is part of the baked file's format: add new pieces at the end.</summary>
         public static List<ShipPiece> InteriorPieces()
         {
@@ -39,6 +47,8 @@ namespace OrbitalAnte.Ship
                 new ShipPiece { Name = "HatchDoor0", Mesh = ShipProps.HatchDoor(0) },
                 new ShipPiece { Name = "HatchDoor1", Mesh = ShipProps.HatchDoor(1) },
                 new ShipPiece { Name = "Lever", Mesh = ShipProps.Lever(), Offset = LeverPivot },
+                new ShipPiece { Name = "Comforts", Mesh = ShipProps.Comforts() },
+                new ShipPiece { Name = "FairyLights", Mesh = ShipProps.FairyLights() },
             };
             return pieces;
         }
