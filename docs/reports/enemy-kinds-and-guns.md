@@ -1,6 +1,6 @@
 # Enemy kinds: three more bodies, the way each moves, and their guns
 
-Status: **built, not run in Unity.** Everything below was checked outside the engine: the rule tests pass, and the pictures were drawn in Blender from the game's real model files, posed by the game's real animation code. They are not Unity screenshots, and nobody has seen any of this move.
+Status: **built, not run in Unity.** Everything below was checked outside the engine: 1,930 rule tests pass, and the pictures were drawn in Blender from the game's real model files, posed by the game's real animation code. They are not Unity screenshots, and nobody has seen any of this move.
 
 Pictures:
 - `docs/art/previews/enemy_kinds.jpg`: the four kinds standing (top) and running (bottom), at the sizes the game draws them. Left to right: Bruiser, Marksman, Trooper, Runner.
@@ -46,7 +46,7 @@ These three are from the gun list in section 9 of the build prompt. The enemies 
 
 ## What was tested
 
-- The rule tests pass outside Unity (`dotnet test`); the count is in the pull request. New in this work: each enemy file has the 14 pieces and the stump, every piece sits on its own joint and stays inside its triangle budget; each kind's hitboxes fit its model; the trooper style changes nothing; no kind's feet slide at a walk or a sprint; no kind squats when it runs; each kind stands differently from the others; the style's limits hold; each gun has its sockets where the script says, its length, its two required pieces and its triangle budget; what shines is small, on the gun, and (for the Sniper) faces forward above the barrel.
+- 1,930 rule tests pass outside Unity (`dotnet test`), on this work joined with the playtest branch. New in this work: each enemy file has the 14 pieces and the stump, every piece sits on its own joint and stays inside its triangle budget; each kind's hitboxes fit its model; the trooper style changes nothing; no kind's feet slide at a walk or a sprint; no kind squats when it runs; each kind stands differently from the others; the style's limits hold; each gun has its sockets where the script says, its length, its two required pieces and its triangle budget; what shines is small, on the gun, and (for the Sniper) faces forward above the barrel. Added after the reviews: every head's hitbox is as wide as its helmet, and a deep-chested body lies on its chest, not in the ground.
 - The game code compiles against Unity reference assemblies.
 - Every model was looked at from several sides after every change, and all four kinds were posed standing and running by the game's own animation code and looked at together.
 
