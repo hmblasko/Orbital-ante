@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the game's plain C# rules (every .cs file under Scripts/Runtime that does not use Unity)
+    together with Program.cs, so the ground can be drawn and timed with no Unity install. See README.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>terrain_view</AssemblyName><ServerGarbageCollection>true</ServerGarbageCollection><TieredPGO>true</TieredPGO>
+    <RootNamespace>OrbitalAnte</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0162;CS0414;CS0649;CS0169</NoWarn>
+    <OARoot>$(MSBuildThisFileDirectory)../../unity/Assets/OrbitalAnte/</OARoot>
+    <OAUnityPattern>(?m)^(?!\s*(//|\*|/\*)).*\b(using\s+Unity|UnityEngine\.|UnityEditor\.|MonoBehaviour|ScriptableObject)</OAUnityPattern>
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+  <ItemGroup>
+    <OACandidate Include="$(OARoot)Scripts/Runtime/**/*.cs" />
+    <!-- Pure-looking files that still need a Unity-side type go here, one Remove per file. -->
+    <OACandidate Remove="@(OAExclude)" />
+  </ItemGroup>
+
+  <Target Name="OASelectRuleSources" BeforeTargets="BeforeBuild;CoreCompile">
+    <ItemGroup>
+      <OAUnitySide Include="@(OACandidate)"
+                   Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(OACandidate.FullPath)')), '$(OAUnityPattern)'))" />
+      <OARuleSource Include="@(OACandidate)" Exclude="@(OAUnitySide)" />
+      <Compile Include="@(OARuleSource)" Link="%(RecursiveDir)%(Filename)%(Extension)" /><Compile Include="$(MSBuildThisFileDirectory)Program.cs" />
+    </ItemGroup>
+    <Message Importance="high" Text="terrain_view: compiling @(OARuleSource->Count()) Unity-free files, skipping @(OAUnitySide->Count()) Unity-side files" />
+  </Target>
+</Project>

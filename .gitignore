@@ -45,3 +45,6 @@ __pycache__/
 __pycache__/
 tools/audio/sim/obj/
 tools/audio/sim/bin/
+tools/terrain_view/obj/
+tools/terrain_view/bin/
+*.ppm

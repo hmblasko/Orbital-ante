@@ -15,6 +15,8 @@ namespace OrbitalAnte.Planets
         [Header("Ground detail")]
         [Tooltip("Size of the smallest squares of ground right under you, in metres. Smaller is smoother and costs more.")]
         [Range(1f, 4f)] public float finestCell = 1.7f;
+        [Tooltip("Grit, stones and small hummocks drawn on the ground close to you, and how strongly the light catches them. 0 turns it off (plain ground, a little cheaper to draw).")]
+        [Range(0f, 1.5f)] public float groundRelief = 1f;
         [Tooltip("How far away ground switches to more detail, measured in tile widths. Bigger means more detail at a distance and more to draw.")]
         [Range(0.8f, 3f)] public float splitDistance = 1.2f;
         [Tooltip("How many pieces of ground may be worked out at the same time on spare processor cores.")]

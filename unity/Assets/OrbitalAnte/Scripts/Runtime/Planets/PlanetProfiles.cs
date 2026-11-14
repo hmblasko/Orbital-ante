@@ -13,9 +13,10 @@ namespace OrbitalAnte.Planets
     {
         /// <summary>
         /// Raised whenever the defaults below change in a way players should see. A Planets asset made from older
-        /// defaults is brought up to date by itself (see <see cref="PlanetData"/>): 2 = Earth's new scenery.
+        /// defaults is brought up to date by itself (see <see cref="PlanetData"/>): 2 = Earth's new scenery,
+        /// 3 = worn, natural ground on every world and more landforms.
         /// </summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         static FormationUse U(string id, int count) => new FormationUse(id, count);
 
@@ -26,16 +27,50 @@ namespace OrbitalAnte.Planets
 
         public static List<PlanetProfile> Defaults()
         {
-            return new List<PlanetProfile>
+            var all = new List<PlanetProfile>
             {
                 Mercury(), Venus(), Earth(), Moon(), Mars(), Phobos(), Deimos(), Jupiter(), Io(), Europa(),
                 Ganymede(), Callisto(), Saturn(), Enceladus(), Titan(), Uranus(), Titania(), Neptune(), Triton(),
             };
+            for (int i = 0; i < all.Count; i++) Richer(all[i]);
+            return all;
+        }
+
+        /// <summary>How many more of each seeded landform every world gets than its list says (Matthew, 14 Nov 2026: "much more geography").</summary>
+        public const double MoreLandforms = 1.5;
+
+        /// <summary>
+        /// Half as many again of every seeded landform: craters, volcanoes, faults, wind-cut rock, ice and caves
+        /// (a fifth more plain craters, and two of anything there was one of). Landmarks stay as they are (one of each, in its fixed place), and so do seas, lakes, weather and woods,
+        /// which are sized to the world rather than counted.
+        /// </summary>
+        static void Richer(PlanetProfile profile)
+        {
+            for (int i = 0; i < profile.formations.Count; i++)
+            {
+                FormationUse use = profile.formations[i];
+                if (use.landmark) continue;
+                Formation f = FormationIndex.Get(use.formation);
+                if (f == null) continue;
+                switch (f.Category)
+                {
+                    case FormationCategory.RiversAndWater:
+                    case FormationCategory.Sky:
+                    case FormationCategory.Vegetation:
+                        continue;
+                }
+                // The rare forms are the interesting ones, so a lone one gets a second; the commonest thing on an
+                // airless world, the plain crater, grows least, or the extra would all be more of the same.
+                if (use.count == 1) use.count = 2;
+                else if (use.formation == "simple_crater") use.count = (int)System.Math.Ceiling(use.count * 1.2);
+                else use.count = (int)System.Math.Ceiling(use.count * MoreLandforms);
+            }
         }
 
         static PlanetProfile Mercury() => new PlanetProfile
         {
             bodyId = "Mercury",
+            erosion = 0.35, plains = 0.7, cragHeight = 0.8,
             continentHeight = 12, continentWavelength = 320, hillHeight = 5, hillWavelength = 70,
             mountainHeight = 16, mountainWavelength = 150, mountainCoverage = 0.2, detailHeight = 0.4, detailWavelength = 7,
             lowColor = "#5E5A57", midColor = "#857F78", highColor = "#A39B90", cliffColor = "#4A4643", rockColor = "#6F6963",
@@ -54,6 +89,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Venus() => new PlanetProfile
         {
             bodyId = "Venus",
+            erosion = 0.45, plains = 0.7, cragHeight = 1.2, valleyDepth = 3, valleyWavelength = 360, valleyWidth = 0.1,
             continentHeight = 16, continentWavelength = 520, hillHeight = 6, hillWavelength = 100,
             mountainHeight = 30, mountainWavelength = 240, mountainCoverage = 0.18, detailHeight = 0.5, detailWavelength = 9,
             lowColor = "#4A3F36", midColor = "#6E5A44", highColor = "#9A8460", cliffColor = "#2E2620", rockColor = "#4E4238",
@@ -75,17 +111,18 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Earth() => new PlanetProfile
         {
             bodyId = "Earth",
+            erosion = 0.9, plains = 0.7, valleyDepth = 14, valleyWavelength = 260, valleyWidth = 0.075, terraceStep = 5, terraceCoverage = 0.2, cragHeight = 2.5,
             continentHeight = 30, continentWavelength = 620, continentBias = 0.5, hillHeight = 7, hillWavelength = 90,
             mountainHeight = 72, mountainWavelength = 250, mountainCoverage = 0.34, detailHeight = 0.45, detailWavelength = 8,
-            hasSea = true, seaLevel = 0, seaColor = "#2274B8", seaDeepColor = "#0A2C5C", underwaterVisibility = 110,
-            lowColor = "#4E8A3A", midColor = "#6E8E46", highColor = "#8A8474", cliffColor = "#6A6258", rockColor = "#7B756C",
-            shoreColor = "#D8C68E", midHeight = 14, highHeight = 40, peakHeight = 58, peakColor = "#F4F6F8",
+            hasSea = true, seaLevel = 0, seaColor = "#2B5F8A", seaDeepColor = "#0C2A4E", underwaterVisibility = 110,
+            lowColor = "#586C3E", midColor = "#727852", highColor = "#8A8478", cliffColor = "#6B655C", rockColor = "#7B756C",
+            shoreColor = "#C9BB98", midHeight = 14, highHeight = 40, peakHeight = 58, peakColor = "#F4F6F8",
             poleColor = "#F2F5F8", poleLatitude = 0.9, strata = 2.5,
             zones =
             {
-                new ColorZone("#D2B078", 260, -0.05, 0.85).Latitudes(0.18, 0.5).Heights(1, 30),   // deserts
-                new ColorZone("#2F6A30", 180, 0.0, 0.7).Latitudes(0, 0.75).Heights(2, 30),        // forest green
-                new ColorZone("#9A9C82", 150, 0.1, 0.6).Latitudes(0.68, 1).Heights(1, 60),        // tundra
+                new ColorZone("#BFA47C", 260, -0.05, 0.85).Latitudes(0.18, 0.5).Heights(1, 30),   // deserts
+                new ColorZone("#3C5538", 180, 0.0, 0.7).Latitudes(0, 0.75).Heights(2, 30),        // forest green
+                new ColorZone("#8F9080", 150, 0.1, 0.6).Latitudes(0.68, 1).Heights(1, 60),        // tundra
             },
             hasAtmosphere = true, skyColor = "#6EB5FF", hazeColor = "#BFD9F2", atmosphereHeight = 170, visibility = 1500,
             skyOpacity = 0.93,
@@ -143,6 +180,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Moon() => new PlanetProfile
         {
             bodyId = "Moon",
+            erosion = 0.3, plains = 0.75,
             continentHeight = 10, continentWavelength = 220, hillHeight = 5, hillWavelength = 60,
             mountainHeight = 14, mountainWavelength = 120, mountainCoverage = 0.22, detailHeight = 0.35, detailWavelength = 7,
             lowColor = "#7E7C78", midColor = "#A9A7A1", highColor = "#CFCDC6", cliffColor = "#77756F", rockColor = "#8E8C86",
@@ -163,11 +201,12 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Mars() => new PlanetProfile
         {
             bodyId = "Mars",
+            erosion = 0.55, plains = 0.7, valleyDepth = 16, valleyWavelength = 340, valleyWidth = 0.07, terraceStep = 4, terraceCoverage = 0.3, cragHeight = 1.6,
             continentHeight = 22, continentWavelength = 450, hillHeight = 6, hillWavelength = 80,
             mountainHeight = 30, mountainWavelength = 220, mountainCoverage = 0.18, detailHeight = 0.45, detailWavelength = 8,
-            lowColor = "#9A4A22", midColor = "#C1440E", highColor = "#D98A5A", cliffColor = "#6E2E14", rockColor = "#7A3A1E",
+            lowColor = "#6E4A34", midColor = "#8F5D3E", highColor = "#AC8260", cliffColor = "#573829", rockColor = "#64412F",
             midHeight = 4, highHeight = 26, poleColor = "#F4EFE8", poleLatitude = 0.94, strata = 2.2,
-            zones = { new ColorZone("#4E3226", 300, 0.12, 0.65), new ColorZone("#E0A070", 140, 0.3, 0.4) },
+            zones = { new ColorZone("#43352E", 300, 0.12, 0.65), new ColorZone("#B48C6A", 140, 0.3, 0.4) },
             hasAtmosphere = true, skyColor = "#D9A066", hazeColor = "#C98F5E", atmosphereHeight = 120, visibility = 1000,
             skyOpacity = 0.6, sunDimming = 0.1,
             weather = { new WeatherSpec(WeatherKind.Dust, 3, 230, 22, "#C27A4A", "", 35) },
@@ -189,6 +228,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Phobos() => new PlanetProfile
         {
             bodyId = "Phobos",
+            erosion = 0.25,
             continentHeight = 4, continentWavelength = 50, hillHeight = 1.5, hillWavelength = 18,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.25, detailWavelength = 5,
             lowColor = "#5B5148", midColor = "#7A6E63", highColor = "#8F8377", cliffColor = "#4A423B", rockColor = "#6A6057",
@@ -204,6 +244,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Deimos() => new PlanetProfile
         {
             bodyId = "Deimos",
+            erosion = 0.25,
             continentHeight = 2.5, continentWavelength = 40, hillHeight = 1, hillWavelength = 15,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.2, detailWavelength = 5,
             lowColor = "#746A5F", midColor = "#9A8F82", highColor = "#ADA295", cliffColor = "#5C544B", rockColor = "#857B70",
@@ -218,6 +259,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Jupiter() => new PlanetProfile
         {
             bodyId = "Jupiter", surfaceRadius = 520,
+            erosion = 0.6, cragHeight = 2.0, terraceStep = 7, terraceCoverage = 0.3,
             continentHeight = 20, continentWavelength = 500, hillHeight = 8, hillWavelength = 100,
             mountainHeight = 50, mountainWavelength = 260, mountainCoverage = 0.35, detailHeight = 0.5, detailWavelength = 9,
             lowColor = "#3A2A26", midColor = "#6B4636", highColor = "#A8683F", cliffColor = "#2A1E1C", rockColor = "#4A342C",
@@ -244,13 +286,14 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Io() => new PlanetProfile
         {
             bodyId = "Io",
+            erosion = 0.4, plains = 0.75, cragHeight = 1.0,
             continentHeight = 6, continentWavelength = 200, hillHeight = 3, hillWavelength = 50,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.35, detailWavelength = 7,
-            lowColor = "#C9A22E", midColor = "#E6D25A", highColor = "#F0E6A8", cliffColor = "#8A5A1E", rockColor = "#9A7A2A",
+            lowColor = "#B49642", midColor = "#CDBB68", highColor = "#DDD3A6", cliffColor = "#7C5A2C", rockColor = "#8E7436",
             midHeight = 0, highHeight = 6,
             zones =
             {
-                new ColorZone("#D9702A", 160, 0.1, 0.7), new ColorZone("#F4F0DC", 110, 0.3, 0.6),
+                new ColorZone("#B8703A", 160, 0.1, 0.7), new ColorZone("#E4E0CE", 110, 0.3, 0.6),
                 new ColorZone("#3A2E22", 220, 0.35, 0.7),
             },
             formations =
@@ -265,6 +308,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Europa() => new PlanetProfile
         {
             bodyId = "Europa",
+            erosion = 0.3, plains = 0.6,
             continentHeight = 3, continentWavelength = 180, hillHeight = 2.5, hillWavelength = 45,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.3, detailWavelength = 6,
             lowColor = "#C2B8A6", midColor = "#DCD6C8", highColor = "#F0EEE8", cliffColor = "#9AB4C8", rockColor = "#D4DEE6",
@@ -282,9 +326,10 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Ganymede() => new PlanetProfile
         {
             bodyId = "Ganymede",
+            erosion = 0.35, plains = 0.7, cragHeight = 0.6,
             continentHeight = 8, continentWavelength = 260, hillHeight = 4, hillWavelength = 60,
             mountainHeight = 8, mountainWavelength = 120, mountainCoverage = 0.15, detailHeight = 0.35, detailWavelength = 7,
-            lowColor = "#5E564E", midColor = "#8C8378", highColor = "#B4ADA2", cliffColor = "#8FA9BC", rockColor = "#9AA8B2",
+            lowColor = "#58585B", midColor = "#83848A", highColor = "#AAACB1", cliffColor = "#8FA9BC", rockColor = "#9AA8B2",
             midHeight = 1, highHeight = 10,
             // Dark old ground with bright, bluish sheets of newer ice: an ice moon, not a second Mercury.
             zones = { new ColorZone("#3E3832", 280, 0.05, 0.6), new ColorZone("#C8D4DC", 150, 0.08, 0.75) },
@@ -300,6 +345,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Callisto() => new PlanetProfile
         {
             bodyId = "Callisto",
+            erosion = 0.3, plains = 0.6,
             continentHeight = 6, continentWavelength = 240, hillHeight = 4, hillWavelength = 55,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.35, detailWavelength = 7,
             lowColor = "#3E3832", midColor = "#5A5148", highColor = "#766C60", cliffColor = "#2E2A26", rockColor = "#4E463E",
@@ -317,6 +363,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Saturn() => new PlanetProfile
         {
             bodyId = "Saturn", surfaceRadius = 430,
+            erosion = 0.6, cragHeight = 1.5,
             continentHeight = 14, continentWavelength = 450, hillHeight = 6, hillWavelength = 90,
             mountainHeight = 25, mountainWavelength = 220, mountainCoverage = 0.2, detailHeight = 0.45, detailWavelength = 8,
             lowColor = "#A88A52", midColor = "#CDB277", highColor = "#EADFB8", cliffColor = "#7A6238", rockColor = "#9A8456",
@@ -337,9 +384,10 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Enceladus() => new PlanetProfile
         {
             bodyId = "Enceladus",
+            erosion = 0.3, plains = 0.6,
             continentHeight = 3, continentWavelength = 80, hillHeight = 1.6, hillWavelength = 25,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.25, detailWavelength = 5,
-            lowColor = "#DCE6EC", midColor = "#F2F5F7", highColor = "#FFFFFF", cliffColor = "#A8C4D6", rockColor = "#E2ECF2",
+            lowColor = "#DCE6EC", midColor = "#EEF2F5", highColor = "#F4F6F8", cliffColor = "#A8C4D6", rockColor = "#E2ECF2",
             midHeight = 0, highHeight = 3,
             formations =
             {
@@ -352,12 +400,13 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Titan() => new PlanetProfile
         {
             bodyId = "Titan",
+            erosion = 0.8, plains = 0.75, valleyDepth = 7, valleyWavelength = 200, valleyWidth = 0.09, cragHeight = 0.8,
             continentHeight = 9, continentWavelength = 260, continentBias = 1, hillHeight = 4, hillWavelength = 60,
             mountainHeight = 12, mountainWavelength = 130, mountainCoverage = 0.15, detailHeight = 0.35, detailWavelength = 7,
             hasSea = true, seaLevel = -3, seaLiquid = Liquid.Methane, seaColor = "#3A2A14", seaDeepColor = "#1A1208",
             underwaterVisibility = 40,
-            lowColor = "#7A5A2A", midColor = "#A8742A", highColor = "#D9A441", cliffColor = "#5A3E1C", rockColor = "#C8B48A",
-            shoreColor = "#5E4622", midHeight = 0, highHeight = 10,
+            lowColor = "#6C5A40", midColor = "#8D7450", highColor = "#B09A68", cliffColor = "#52412C", rockColor = "#B8AA8A",
+            shoreColor = "#54452E", midHeight = 0, highHeight = 10,
             zones = { new ColorZone("#3A2E22", 220, 0.05, 0.6).Latitudes(0, 0.35), new ColorZone("#E0C68A", 120, 0.3, 0.4) },
             hasAtmosphere = true, skyColor = "#D98A2B", hazeColor = "#C97A22", atmosphereHeight = 220, visibility = 320,
             skyOpacity = 1, sunDimming = 0.55, airDrag = 0.1,
@@ -374,6 +423,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Uranus() => new PlanetProfile
         {
             bodyId = "Uranus", surfaceRadius = 320,
+            erosion = 0.5, cragHeight = 1.5,
             continentHeight = 12, continentWavelength = 350, hillHeight = 5, hillWavelength = 70,
             mountainHeight = 20, mountainWavelength = 160, mountainCoverage = 0.2, detailHeight = 0.4, detailWavelength = 7,
             lowColor = "#6FA8B4", midColor = "#A6D6DA", highColor = "#E4F6F6", cliffColor = "#4E8A9A", rockColor = "#BFE4E6",
@@ -394,6 +444,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Titania() => new PlanetProfile
         {
             bodyId = "Titania",
+            erosion = 0.35, plains = 0.6,
             continentHeight = 5, continentWavelength = 120, hillHeight = 2.5, hillWavelength = 35,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.3, detailWavelength = 6,
             lowColor = "#6E7880", midColor = "#98A4AC", highColor = "#BCC6CC", cliffColor = "#525C64", rockColor = "#828C94",
@@ -409,6 +460,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Neptune() => new PlanetProfile
         {
             bodyId = "Neptune", surfaceRadius = 420,
+            erosion = 0.3, plains = 0.5,   // its few islands are kept whole: no valleys cut through them
             continentHeight = 30, continentWavelength = 450, continentBias = -30, hillHeight = 7, hillWavelength = 90,
             mountainHeight = 40, mountainWavelength = 240, mountainCoverage = 0.25, detailHeight = 0.45, detailWavelength = 8,
             hasSea = true, seaLevel = 0, seaColor = "#1E4FB8", seaDeepColor = "#061A4A", underwaterVisibility = 130,
@@ -434,6 +486,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Triton() => new PlanetProfile
         {
             bodyId = "Triton",
+            erosion = 0.3, plains = 0.6,
             continentHeight = 4, continentWavelength = 180, hillHeight = 2.5, hillWavelength = 45,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.3, detailWavelength = 6,
             lowColor = "#9E8C86", midColor = "#C9B8B0", highColor = "#E6DAD4", cliffColor = "#7A6A66", rockColor = "#B0A09A",
