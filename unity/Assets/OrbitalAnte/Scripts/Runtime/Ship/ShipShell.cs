@@ -14,12 +14,12 @@ namespace OrbitalAnte.Ship
         /// <summary>A point well inside the cabin: inside faces look toward it, outside faces away from it.</summary>
         static readonly P3 Heart = new P3(0f, 1.0f, 0f);
 
-        const string Cream = "#E6D9BF";
-        const string CreamDark = "#D6C7A8";
-        const string Kick = "#7A746B";
-        const string Ceiling = "#EFE8DA";
-        const string Accent = "#D9772B";
-        const string Frame = "#3F4B54";
+        const string Cream = "#DCC6A2";
+        const string CreamDark = "#CFB690";
+        const string Kick = "#5E4E44";
+        const string Ceiling = "#34475C";
+        const string Accent = "#CC6A2A";
+        const string Frame = "#BFA882";
         const string HullWhite = "#D8D5CC";
         const string HullGrey = "#9A9EA6";
         const string HullDark = "#2A2C31";

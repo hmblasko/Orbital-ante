@@ -279,6 +279,42 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void CabinFittingsFile_IsTheDashHousing_WithTheCabinsLightBakedIn()
+        {
+            // tools/bake copies the housing out of the Lander model and stores it lit by the cabin's lamps.
+            ModelFile lander = LoadReal("Lander"), cabin = LoadReal(ShipAssembly.BakedFittingsModel);
+            ModelPart plain = lander.Part(ShipAssembly.DashHousingPiece), lit = cabin.Part(ShipAssembly.DashHousingPiece);
+            Assert.IsNotNull(lit, "run tools/bake again: the baked housing is missing");
+            CollectionAssert.AreEqual(plain.Positions, lit.Positions, "run tools/bake again: the housing's shape has changed since its light was baked");
+            CollectionAssert.AreEqual(plain.Triangles, lit.Triangles);
+            Assert.IsTrue(cabin.TrySocket(ShipAssembly.DashSocket, out ModelSocket socket));
+            Assert.IsTrue(lander.TrySocket(ShipAssembly.DashSocket, out ModelSocket source));
+            Assert.AreEqual(source.Y, socket.Y, 1e-5f);
+            Assert.AreEqual(source.Z, socket.Z, 1e-5f);
+            // Lit, not just copied: the light differs from the paint, and the housing is not left in the dark.
+            float brightness = 0f, change = 0f;
+            for (int i = 0; i < lit.Colors.Length; i += 3)
+            {
+                float v = System.Math.Max(lit.Colors[i], System.Math.Max(lit.Colors[i + 1], lit.Colors[i + 2]));
+                brightness += v;
+                change += System.Math.Abs(lit.Colors[i] - plain.Colors[i]);
+            }
+            Assert.Greater(change / lit.VertexCount, 0.02f);
+            Assert.Greater(brightness / lit.VertexCount, 0.15f, "the housing got next to no light");
+        }
+
+        [Test]
+        public void BakedLightFile_FitsTheCabin()
+        {
+            // The same check the PlayMode test TheBakedLightFileFitsTheCabin makes, run here without the engine.
+            string folder = System.Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder)) Assert.Ignore("OA_MODELS is not set");
+            string path = Path.Combine(folder, "..", "Ship", "LanderBake.bytes");
+            var pieces = ShipAssembly.InteriorPieces();
+            Assert.IsNotNull(ShipAssembly.Unpack(File.ReadAllBytes(path), pieces), "the cabin has changed since its light was baked: run tools/bake again");
+        }
+
+        [Test]
         public void ShipModelFile_DashHousing_FramesThePanelAndLeavesTheScreenOpen()
         {
             // The cockpit's desk panel (CockpitConfig's defaults): 1.1 m by 0.33 m, leaned back 24 degrees.
