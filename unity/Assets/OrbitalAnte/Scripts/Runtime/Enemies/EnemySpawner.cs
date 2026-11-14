@@ -97,6 +97,14 @@ namespace OrbitalAnte.Enemies
             GoreFx.Create(go.transform, gore);
             WeaponFx.Create(go.transform);
             if (world.System != null) world.System.WorldShifted += spawner.OnWorldShifted;
+            // Every kind's body and gun is read now, while the world loads, and not on the frame the first one stands up.
+            OrbitalAnte.Look.ModelLibrary.Find("Enemy");
+            foreach (EnemyTypeSpec spec in config.roster)
+            {
+                if (!string.IsNullOrEmpty(spec.model)) OrbitalAnte.Look.ModelLibrary.Find(spec.model);
+                WeaponData gun = string.IsNullOrEmpty(spec.weapon) ? WeaponData.Rifle : ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
+                if (gun != null && !string.IsNullOrEmpty(gun.modelFile)) OrbitalAnte.Look.ModelLibrary.Find(gun.modelFile);
+            }
             return spawner;
         }
 
@@ -422,7 +430,7 @@ namespace OrbitalAnte.Enemies
             config.crawlSpeed *= spec.speed;
             // Tough in the middle only. Arms and legs come off as easily as anyone's.
             config.torsoHp *= spec.toughness;
-            config.headHp *= spec.toughness;
+            config.headHp *= spec.headToughness > 0f ? spec.headToughness : spec.toughness;
             // Nobody fights from further off than the ground is solid: past that, shots and sight lines would
             // pass straight through hills.
             float solid = _world.Planets != null && _world.Planets.Data != null ? _world.Planets.Data.settings.solidGroundRange - 10f : 80f;

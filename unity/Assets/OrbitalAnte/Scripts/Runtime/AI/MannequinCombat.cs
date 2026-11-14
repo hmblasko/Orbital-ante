@@ -439,6 +439,7 @@ namespace OrbitalAnte.AI
         /// <summary>The thin bright line from the muzzle to where a heavy shot is about to go.</summary>
         void ShowTell(bool on)
         {
+            SetLens(on);
             if (!on || Weapon == null)
             {
                 if (_tellLine != null && _tellLine.enabled) _tellLine.enabled = false;
@@ -460,6 +461,24 @@ namespace OrbitalAnte.AI
             _tellLine.enabled = true;
             _tellLine.SetPosition(0, Weapon.Muzzle.position);
             _tellLine.SetPosition(1, PlayerAimPoint);
+        }
+
+        Weapon _lensOf;
+        GameObject _lens;
+
+        /// <summary>The scope's front glass (the gun model's LensGlow piece, if it has one) shines only while a shot is being lined up.</summary>
+        void SetLens(bool on)
+        {
+            if (Weapon != _lensOf)
+            {
+                if (_lens != null) _lens.SetActive(true);
+                _lensOf = Weapon;
+                _lens = null;
+                if (Weapon != null)
+                    foreach (Transform t in Weapon.GetComponentsInChildren<Transform>(true))
+                        if (t.name == "LensGlow") { _lens = t.gameObject; break; }
+            }
+            if (_lens != null && _lens.activeSelf != on) _lens.SetActive(on);
         }
 
         static Material _tellMaterial;
@@ -524,9 +543,11 @@ namespace OrbitalAnte.AI
 
             // Two hands: tucked in near the shoulder. One hand: held out at nearly arm's length.
             Vector3 inward = transform.right * (side == MannequinRig.Left ? 1f : -1f);
+            // The body may be bigger or smaller than the ordinary one, and its arms with it.
+            float size = transform.lossyScale.y;
             Vector3 grip = twoHandedGrip
-                ? shoulder + _aimDirection * 0.30f + (-transform.up) * 0.10f + inward * 0.07f
-                : shoulder + _aimDirection * 0.50f;
+                ? shoulder + _aimDirection * (0.30f * size) + (-transform.up) * (0.10f * size) + inward * (0.07f * size)
+                : shoulder + _aimDirection * (0.50f * size);
 
             Vector3 up = Mathf.Abs(Vector3.Dot(_aimDirection, transform.up)) > 0.97f ? transform.forward : transform.up;
             Quaternion rotation = Quaternion.LookRotation(_aimDirection, up) * Quaternion.Euler(-5f * _kick, 0f, 0f);
@@ -546,7 +567,7 @@ namespace OrbitalAnte.AI
             Transform hand = _rig.Hand[side];
 
             float upperLength = Vector3.Distance(upper.position, fore.position);
-            float foreLength = Vector3.Distance(fore.position, hand.position) + PalmLength;
+            float foreLength = Vector3.Distance(fore.position, hand.position) + PalmLength * transform.lossyScale.y;
             if (upperLength < 0.001f || foreLength < 0.001f) return;
 
             Vector3 shoulder = upper.position;

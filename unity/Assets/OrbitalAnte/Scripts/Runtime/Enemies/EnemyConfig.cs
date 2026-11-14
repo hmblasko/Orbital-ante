@@ -16,6 +16,8 @@ namespace OrbitalAnte.Enemies
         public bool enemiesInTheWorld = true;
         [Tooltip("The kinds of enemy. Each has its own size, pace, toughness, gun and way of fighting.")]
         public List<EnemyTypeSpec> roster = EnemyRoster.Defaults();
+        [Tooltip("Which set of built-in kinds the list above came from. An older asset takes the new kinds when the game starts. Set it very high to keep your own list.")]
+        public int rosterVersion = EnemyRoster.Version;
         public EnemyFieldRules field = new EnemyFieldRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
@@ -31,7 +33,11 @@ namespace OrbitalAnte.Enemies
                 _cached = CreateInstance<EnemyConfig>();
                 _cached.name = "EnemyConfig (defaults)";
             }
-            if (_cached.roster == null || _cached.roster.Count == 0) _cached.roster = EnemyRoster.Defaults();
+            if (_cached.roster == null || _cached.roster.Count == 0 || _cached.rosterVersion < EnemyRoster.Version)
+            {
+                _cached.roster = EnemyRoster.Defaults();
+                _cached.rosterVersion = EnemyRoster.Version;
+            }
             return _cached;
         }
 
