@@ -291,7 +291,7 @@ namespace OrbitalAnte.Weapons
             w.modelFile = SniperId;
             w.headDamage = 200f; w.torsoDamage = 120f; w.upperArmDamage = 90f; w.forearmDamage = 90f;
             w.handDamage = 90f; w.thighDamage = 90f; w.shinDamage = 90f; w.footDamage = 90f;
-            w.playerDamage = 34f;
+            w.playerDamage = 25f;
             w.automatic = false;
             w.shotsPerSecond = 0.45f;
             w.range = 400f;

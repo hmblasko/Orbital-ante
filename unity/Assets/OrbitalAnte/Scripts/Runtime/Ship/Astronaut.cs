@@ -224,7 +224,7 @@ namespace OrbitalAnte.Ship
         void BuildPistol()
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
-            Weapons.Initialize(_look, Eye, null, null, _world);
+            Weapons.Initialize(_look, Eye, null, Armour, _world);
             // The rifle: with enemies on every world, the test pistol is not enough gun.
             Weapons.Equip(Weapon.Create(WeaponData.Rifle, _world, true));
         }
@@ -324,6 +324,8 @@ namespace OrbitalAnte.Ship
             Vector3 forward = Ship.transform.InverseTransformDirection(transform.forward);
             _yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
             transform.SetParent(Ship.transform, false);
+            // Safe aboard: the suit is patched up (it cannot mend itself while it is put away).
+            if (Armour != null && !Dead) Armour.Revive();
             Ship.Hatch.BeginUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z));
             // The line reels itself in as the lift takes you.
             SetTether(false, quiet: !Tethered);
@@ -942,7 +944,7 @@ namespace OrbitalAnte.Ship
             Vector3 reference = target == MatchTarget.Ship
                 ? (_mendingNow ? Ship.Body.GetPointVelocity(Suit.worldCenterOfMass) : Ship.Body.linearVelocity)
                 : !hasBody ? Vector3.zero
-                : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.LocalVelocityOf(body);
+                : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.VelocityOfSeenFrom(body, Suit.position);
             Vector3 relative = Suit.linearVelocity - reference;
 
             Vector3 jets = Vector3.zero;

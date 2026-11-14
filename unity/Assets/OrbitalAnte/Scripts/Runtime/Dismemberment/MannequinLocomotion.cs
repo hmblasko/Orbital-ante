@@ -172,8 +172,7 @@ namespace OrbitalAnte.Dismemberment
             Vector3 to = Level(_owner.Footing.Recall(_target) - transform.position);
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + transform.up * probeHeight, transform.forward, 0.9f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 0.9f);
 
             if (to.sqrMagnitude < 0.5f * 0.5f || _repathTimer <= 0f || blocked)
             {
@@ -200,8 +199,7 @@ namespace OrbitalAnte.Dismemberment
             }
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + transform.up * probeHeight, transform.forward, 1.0f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 1.0f);
             if (blocked && Time.time >= _avoidUntil)
             {
                 // Something in the way: veer to one side for a moment, then try again.
@@ -407,6 +405,15 @@ namespace OrbitalAnte.Dismemberment
                     _blocker.enabled = false;
                     break;
             }
+        }
+
+        /// <summary>Something upright in the way. A hillside is not a wall: ground you could walk up does not count.</summary>
+        bool WallAhead(float height, float reach)
+        {
+            Vector3 up = transform.up;
+            return Physics.Raycast(transform.position + up * height, transform.forward, out RaycastHit hit, reach,
+                       Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                   && Vector3.Dot(hit.normal, up) <= 0.5f;
         }
     }
 }

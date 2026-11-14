@@ -46,6 +46,17 @@ namespace OrbitalAnte.Dismemberment
             return _instance;
         }
 
+        /// <summary>Moves every loose chunk by the same amount: the solar system does this to everything when it re-centres.</summary>
+        public void Shift(Vector3 by)
+        {
+            for (int i = 0; i < _active.Count; i++)
+            {
+                Gib gib = _active[i];
+                if (gib == null) continue;
+                gib.transform.position += by;
+            }
+        }
+
         public static void DestroyInstance()
         {
             if (_instance != null) Destroy(_instance.gameObject);

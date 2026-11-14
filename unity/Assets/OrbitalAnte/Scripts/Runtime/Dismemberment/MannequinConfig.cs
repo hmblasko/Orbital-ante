@@ -63,6 +63,14 @@ namespace OrbitalAnte.Dismemberment
         public bool rushes = false;
         [Tooltip("Stands its ground and shoots: never shifts position while it can see the player.")]
         public bool holdsStill = false;
+        [Tooltip("Keeps coming at the player until it is inside Keep Far, instead of side-stepping at range.")]
+        public bool closesIn = false;
+        [Tooltip("Seconds a bright line shows where it is aiming before every shot. 0: none. For slow, heavy single shots only.")]
+        public float aimTell = 0f;
+        [Tooltip("Out of sight, it only comes after the player if it saw them this many seconds ago or less...")]
+        public float chaseMemory = 8f;
+        [Tooltip("...or if the player is nearer than this, in metres (it hears them). Otherwise it goes back to wandering.")]
+        public float hearRange = 60f;
         [Tooltip("How far an unarmed character will go to fetch a dropped gun, in metres.")]
         public float weaponSeekRange = 30f;
         [Tooltip("How close it must get to pick the gun up, in metres.")]

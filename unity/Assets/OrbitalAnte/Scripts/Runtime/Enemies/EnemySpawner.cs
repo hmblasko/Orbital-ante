@@ -3,6 +3,7 @@ using OrbitalAnte.AI;
 using OrbitalAnte.Content;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
+using OrbitalAnte.Gore;
 using OrbitalAnte.Planets;
 using OrbitalAnte.Ship;
 using OrbitalAnte.Space;
@@ -26,8 +27,10 @@ namespace OrbitalAnte.Enemies
         sealed class World
         {
             public List<EnemyCamp> Camps;
-            /// <summary>How many of each camp are still alive. -1: never met.</summary>
+            /// <summary>How many of each camp are still to be fought.</summary>
             public int[] Left;
+            /// <summary>Which members of each camp are out of the fight for good, so a camp comes back as it was left.</summary>
+            public bool[][] Gone;
             public bool[] Awake;
             public Transform Root;
         }
@@ -35,8 +38,9 @@ namespace OrbitalAnte.Enemies
         sealed class Live
         {
             public Mannequin Who;
-            public int Body, Camp;
+            public int Body, Camp, Member;
             public bool Counted;
+            public Weapon Gun;
         }
 
         SolarSystemWorld _world;
@@ -47,6 +51,24 @@ namespace OrbitalAnte.Enemies
         Vector3 _gravityBefore;
         bool _gravityTaken;
         float _nextThink;
+        GibManager _gibs;
+
+        void OnWorldShifted(Vector3 by)
+        {
+            if (_gibs != null) _gibs.Shift(by);
+        }
+        // The camp being woken, one enemy a frame so nobody arrives as a hitch.
+        World _wakingWorld;
+        PlanetSurface _wakingSurface;
+        PlanetFooting _wakingFooting;
+        SeededRandom _wakingRandom;
+        int _wakingBody, _wakingCamp = -1, _wakingMember;
+        readonly List<Weapon> _guns = new List<Weapon>();
+
+        /// <summary>The most guns left lying about before the oldest are cleared away.</summary>
+        const int LooseGunCap = 12;
+        /// <summary>Everyone standing or lying about, living or not: what the cap is measured against.</summary>
+        public int PresentCount { get; private set; }
 
         /// <summary>Enemies alive and awake right now.</summary>
         public int LiveCount { get; private set; }
@@ -62,6 +84,12 @@ namespace OrbitalAnte.Enemies
             spawner._world = world;
             spawner._config = config;
             CombatWorld.Reset();
+            // The loose chunks, the blood and the gunfire effects live and die with this world.
+            GoreConfig gore = GoreConfig.Load();
+            spawner._gibs = GibManager.Create(go.transform, gore);
+            GoreFx.Create(go.transform, gore);
+            WeaponFx.Create(go.transform);
+            if (world.System != null) world.System.WorldShifted += spawner.OnWorldShifted;
             return spawner;
         }
 
@@ -86,7 +114,12 @@ namespace OrbitalAnte.Enemies
                 w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad) };
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
-                for (int i = 0; i < w.Left.Length; i++) w.Left[i] = -1;
+                w.Gone = new bool[w.Camps.Count][];
+                for (int i = 0; i < w.Left.Length; i++)
+                {
+                    w.Left[i] = w.Camps[i].Members.Length;
+                    w.Gone[i] = new bool[w.Left[i]];
+                }
                 var root = new GameObject("Enemies");
                 root.transform.SetParent(surface.Body.transform, false);
                 w.Root = root.transform;
@@ -109,6 +142,7 @@ namespace OrbitalAnte.Enemies
             CombatWorld.Player = crew.Armour;
 
             Tally();
+            WakeNext();
             if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.4f;
             Think();
@@ -125,18 +159,47 @@ namespace OrbitalAnte.Enemies
                     _live.RemoveAt(i);
                     continue;
                 }
-                if (l.Who.Alive) { alive++; continue; }
+                // A head rolling about is beaten: it cannot shoot, so it no longer holds a place or keeps a camp alive.
+                bool fighting = l.Who.Alive && l.Who.State != MovementState.HeadOnly;
+                if (fighting) { alive++; continue; }
                 if (!l.Counted)
                 {
                     l.Counted = true;
                     Killed++;
                     World w = _worlds[l.Body];
-                    if (w.Left[l.Camp] > 0) w.Left[l.Camp]--;
-                    // The body lies where it fell for a while, then is cleared away.
+                    if (!w.Gone[l.Camp][l.Member])
+                    {
+                        w.Gone[l.Camp][l.Member] = true;
+                        w.Left[l.Camp]--;
+                    }
+                    // The body lies where it fell for a while, then is cleared away, and its gun with it
+                    // unless somebody has picked the gun up.
                     Destroy(l.Who.gameObject, _config.bodySeconds);
+                    if (l.Gun != null) StartCoroutine(ClearGun(l.Gun, _config.bodySeconds));
                 }
             }
             LiveCount = alive;
+            PresentCount = _live.Count;
+
+            // Never more than a dozen guns lying about: the oldest nobody is holding goes first.
+            int loose = 0;
+            for (int i = _guns.Count - 1; i >= 0; i--)
+            {
+                if (_guns[i] == null) { _guns.RemoveAt(i); continue; }
+                if (_guns[i].Holder == null) loose++;
+            }
+            for (int i = 0; i < _guns.Count && loose > LooseGunCap; i++)
+            {
+                if (_guns[i].Holder != null) continue;
+                Destroy(_guns[i].gameObject);
+                loose--;
+            }
+        }
+
+        System.Collections.IEnumerator ClearGun(Weapon gun, float after)
+        {
+            yield return new WaitForSeconds(after);
+            if (gun != null && gun.Holder == null) Destroy(gun.gameObject);
         }
 
         void Think()
@@ -169,6 +232,10 @@ namespace OrbitalAnte.Enemies
                 if (stay || l.Who == null) continue;
                 World was = _worlds[l.Body];
                 was.Awake[l.Camp] = false;
+                if (_wakingWorld == was && _wakingCamp == l.Camp) _wakingCamp = -1;
+                // Its gun goes with it, held or dropped, unless the player has taken it: left lying, it would fall
+                // through the world once the ground under it is put away.
+                if (l.Gun != null && (l.Gun.Holder == null || l.Gun.Holder is MannequinCombat)) Destroy(l.Gun.gameObject);
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
@@ -187,54 +254,81 @@ namespace OrbitalAnte.Enemies
                 double d = EnemyField.GroundDistance(at, w.Camps[c].Direction, radius);
                 if (d < nearest) { nearest = d; best = c; }
             }
-            if (best < 0) return;
-            int size = w.Left[best] < 0 ? w.Camps[best].Members.Length : w.Left[best];
-            if (LiveCount + size > _config.field.liveCap) return;
-            Wake(w, body, best, size, surface);
+            if (best < 0 || _wakingCamp >= 0) return;
+            // The fallen still lying about count too: they cost as much to draw as the living.
+            if (PresentCount + w.Left[best] > _config.field.liveCap) return;
+            w.Awake[best] = true;
+            _wakingWorld = w;
+            _wakingSurface = surface;
+            _wakingBody = body;
+            _wakingCamp = best;
+            _wakingMember = 0;
+            _wakingRandom = new SeededRandom(w.Camps[best].Seed);
+            Vec3d direction = w.Camps[best].Direction;
+            Vector3 home = SpaceConvert.ToVector3(direction * surface.GroundRadius(direction));
+            _wakingFooting = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
         }
 
-        void Wake(World w, int body, int camp, int size, PlanetSurface surface)
+        /// <summary>Stands up the next member of the camp being woken: one a frame.</summary>
+        void WakeNext()
         {
+            if (_wakingCamp < 0) return;
+            World w = _wakingWorld;
+            PlanetSurface surface = _wakingSurface;
+            int camp = _wakingCamp, body = _wakingBody;
             EnemyCamp c = w.Camps[camp];
-            w.Awake[camp] = true;
-            w.Left[camp] = size;
-            var rng = new SeededRandom(c.Seed);
+            int size = c.Members.Length;
+            if (surface == null || w.Root == null) { _wakingCamp = -1; return; }
+            // The random numbers are drawn for every member, gone or not, so each survivor is the same one as before.
+            SeededRandom rng = _wakingRandom;
+            PlanetFooting footing = _wakingFooting;
             Transform planet = surface.Body.transform;
             Vector3 home = SpaceConvert.ToVector3(c.Direction * surface.GroundRadius(c.Direction));
-            var footing = new PlanetFooting(planet, surface, home, _config.field.roam);
             Vector3 up = home.normalized;
             Vector3 side = Vector3.Cross(up, Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
             Vector3 along = Vector3.Cross(up, side);
 
-            for (int m = 0; m < size; m++)
+            bool made = false;
+            while (!made && _wakingMember < size)
             {
+                int m = _wakingMember++;
+                float jitter = rng.NextFloat();
+                int wanderSeed = rng.Next(), combatSeed = rng.Next();
+                if (w.Gone[camp][m]) continue;
+                made = true;
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
                 EnemyTypeSpec spec = _config.roster[type];
                 MannequinConfig config = ConfigFor(type);
                 // Spread round the camp's middle, a couple of metres apart.
-                float angle = (m + rng.NextFloat() * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
+                float angle = (m + jitter * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
                 Vector3 position = footing.OnTheGround(home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
                 Vector3 worldUp = footing.Up(position);
                 Vector3 facing = Vector3.ProjectOnPlane(planet.TransformDirection(side * Mathf.Cos(angle + 1.3f) + along * Mathf.Sin(angle + 1.3f)), worldUp);
                 Quaternion rotation = Quaternion.LookRotation(facing.sqrMagnitude > 1e-4f ? facing.normalized : Vector3.Cross(worldUp, Vector3.right), worldUp);
 
+                Weapon gun = null;
                 Mannequin who = MannequinFactory.Create(position, rotation, w.Root, config, spec.id + " " + camp + "." + m);
                 who.Footing = footing;
-                who.transform.localScale = Vector3.one * Mathf.Max(0.5f, spec.scale);
+                float tall = Mathf.Max(0.5f, spec.scale), wide = tall * Mathf.Clamp(spec.width, 0.6f, 1.8f);
+                who.transform.localScale = new Vector3(wide, tall, wide);
                 var locomotion = who.GetComponent<MannequinLocomotion>();
-                if (locomotion != null) locomotion.SetWander(default, rng.Next());
+                if (locomotion != null) locomotion.SetWander(default, wanderSeed);
                 var combat = who.GetComponent<MannequinCombat>();
                 if (combat != null)
                 {
-                    combat.SetSeed(rng.Next());
+                    combat.SetSeed(combatSeed);
                     WeaponData data = ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
                     Weapon weapon = Weapon.Create(data, w.Root, config.oneHandedReloadAllowed);
                     weapon.transform.position = position + worldUp * 1.2f;
                     combat.TryPickUp(weapon);
+                    _guns.Add(weapon);
+                    gun = weapon;
                 }
-                _live.Add(new Live { Who = who, Body = body, Camp = camp });
+                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun });
+                LiveCount++;
+                PresentCount++;
             }
-            LiveCount += size;
+            if (_wakingMember >= size) _wakingCamp = -1;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>
@@ -252,13 +346,19 @@ namespace OrbitalAnte.Enemies
             // Tough in the middle only. Arms and legs come off as easily as anyone's.
             config.torsoHp *= spec.toughness;
             config.headHp *= spec.toughness;
-            config.engageRange = spec.engageRange;
+            // Nobody fights from further off than the ground is solid: past that, shots and sight lines would
+            // pass straight through hills.
+            float solid = _world.Planets != null && _world.Planets.Data != null ? _world.Planets.Data.settings.solidGroundRange - 10f : 80f;
+            config.engageRange = Mathf.Min(spec.engageRange, solid);
             config.reactionTime = spec.reactionTime;
             config.aimError = spec.aimError;
             config.keepFar = spec.keepFar;
             config.keepNear = spec.keepNear;
             config.rushes = spec.rushes;
             config.holdsStill = spec.holdsStill;
+            config.closesIn = spec.closesIn;
+            config.aimTell = spec.aimTell;
+            if (spec.red + spec.green + spec.blue > 0f) config.torsoColor = new Color(spec.red, spec.green, spec.blue);
             if (type < _typeConfigs.Length) _typeConfigs[type] = config;
             return config;
         }
@@ -266,18 +366,20 @@ namespace OrbitalAnte.Enemies
         void FixedUpdate()
         {
             // Limbs and dropped guns fall the way the player feels "down" while there is anyone to shoot.
-            if (LiveCount <= 0 || _world == null || _world.System == null || _world.System.Focus == null) return;
+            if ((LiveCount <= 0 && !_gravityTaken) || _world == null || _world.System == null || _world.System.Focus == null) return;
             if (!_gravityTaken)
             {
                 _gravityBefore = Physics.gravity;
                 _gravityTaken = true;
             }
-            Physics.gravity = _world.System.Focus.FeltGravity;
+            // Only when it has really changed: setting it wakes every sleeping limb and gun.
+            Vector3 felt = _world.System.Focus.FeltGravity;
+            if ((felt - Physics.gravity).sqrMagnitude > 0.01f) Physics.gravity = felt;
         }
 
         void ReleaseGravity()
         {
-            if (!_gravityTaken || LiveCount > 0) return;
+            if (!_gravityTaken) return;
             Physics.gravity = _gravityBefore;
             _gravityTaken = false;
         }
@@ -285,11 +387,13 @@ namespace OrbitalAnte.Enemies
         void OnDestroy()
         {
             if (_gravityTaken) Physics.gravity = _gravityBefore;
+            if (_world != null && _world.System != null) _world.System.WorldShifted -= OnWorldShifted;
             if (_typeConfigs != null)
             {
                 for (int i = 0; i < _typeConfigs.Length; i++) if (_typeConfigs[i] != null) Destroy(_typeConfigs[i]);
             }
-            CombatWorld.Reset();
+            // Only if the fight is still this world's: after a restart into the arena, the arena has already set its own.
+            if (_world != null && _world.Astronaut != null && CombatWorld.Player == _world.Astronaut.Armour) CombatWorld.Reset();
         }
     }
 }

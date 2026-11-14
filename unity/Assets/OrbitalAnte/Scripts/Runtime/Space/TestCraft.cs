@@ -39,7 +39,24 @@ namespace OrbitalAnte.Space
         /// </summary>
         public Vector3 PilotLook { get; set; }
         /// <summary>Set by the ship while nobody is buckled into the seat: the controls do nothing.</summary>
-        public bool Unmanned { get; set; }
+        public bool Unmanned
+        {
+            get => _unmanned;
+            set
+            {
+                if (value && !_unmanned)
+                {
+                    // Nobody is flying: whatever was being asked for when the pilot left the seat is let go of.
+                    if (PilotOn) StopPilot(PilotStop.Unbuckled);
+                    ThrustInput = Vector3.zero;
+                    _lookPending = Vector2.zero;
+                    Boosting = false;
+                    MatchingVelocity = false;
+                }
+                _unmanned = value;
+            }
+        }
+        bool _unmanned;
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
         public float LiftScale { get; set; } = 1f;
         /// <summary>The share of all push (and of the match-velocity brake) that fuel allows, 0 to 1. Turning is not touched: you can always steer.</summary>
@@ -139,6 +156,13 @@ namespace OrbitalAnte.Space
 
         public void StopPilot(PilotStop why, int blocker = -1)
         {
+            // The push being shown belonged to the autopilot. When it lets go by itself it must not be flown on.
+            if (PilotOn && why != PilotStop.PilotTookOver)
+            {
+                ThrustInput = Vector3.zero;
+                Boosting = false;
+                MatchingVelocity = false;
+            }
             PilotOn = false;
             PilotPushShare = 0f;
             Order = default;
@@ -423,7 +447,7 @@ namespace OrbitalAnte.Space
                 BodySpec spec = System.Bodies[Target].Spec;
                 double height = System.AltitudeAbove(Target, Body.position);
                 AgainstGround = height < global::System.Math.Max(GroundMatchLeast, spec.radius * GroundMatchShare);
-                velocity -= AgainstGround ? System.GroundVelocityAt(Target, Body.position) : System.LocalVelocityOf(Target);
+                velocity -= AgainstGround ? System.GroundVelocityAt(Target, Body.position) : System.VelocityOfSeenFrom(Target, Body.position);
             }
             return velocity;
         }
@@ -548,7 +572,7 @@ namespace OrbitalAnte.Space
             float share = Mathf.Clamp01(PushScale) * Mathf.Clamp01(Mathf.Min(LiftScale, SideScale));
             CelestialBody body = System.Bodies[LockedTarget];
             Vector3 to = body.transform.position - Body.position;
-            Vector3 relative = Body.linearVelocity - System.LocalVelocityOf(LockedTarget);
+            Vector3 relative = Body.linearVelocity - System.VelocityOfSeenFrom(LockedTarget, Body.position);
             PilotOrder order = Autopilot.Fly(PilotRules, SpaceConvert.ToVec3d(to), SpaceConvert.ToVec3d(relative), body.Spec.radius,
                 SpaceConvert.ToVec3d(Gravity != null ? Gravity.FeltGravity : Vector3.zero), share);
             // What is shown is steadier than what is flown: the time only counts down, and the word for what it

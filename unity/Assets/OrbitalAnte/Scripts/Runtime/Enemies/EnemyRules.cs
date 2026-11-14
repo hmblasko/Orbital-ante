@@ -30,6 +30,16 @@ namespace OrbitalAnte.Enemies
         public float aimError = 3f;
         public float keepFar = 18f, keepNear = 7f;
         public bool rushes, holdsStill;
+        /// <summary>Keeps walking at the player until it is inside <see cref="keepFar"/>, instead of side-stepping at range.</summary>
+        public bool closesIn;
+        /// <summary>Width against height (1: the ordinary build). With the colour, this is what tells the types apart at a glance.</summary>
+        public float width = 1f;
+        /// <summary>The colour of its chest, 0 to 1 each. All zero: the ordinary colour.</summary>
+        public float red, green, blue;
+        /// <summary>Seconds a bright line shows where it is aiming before every shot (0: none). Only for slow, heavy single shots.</summary>
+        public float aimTell;
+        /// <summary>The most of this type in one camp (0: no limit).</summary>
+        public int mostPerCamp;
         /// <summary>How often this type turns up, against the others.</summary>
         public float share = 1f;
     }
@@ -40,7 +50,7 @@ namespace OrbitalAnte.Enemies
     {
         /// <summary>One camp for every this many square metres of ground.</summary>
         public float areaPerCamp = 14000f;
-        public int leastCamps = 4, mostCamps = 70;
+        public int leastCamps = 1, mostCamps = 120;
         public int squadLeast = 3, squadMost = 5;
         /// <summary>How far from its camp a squad strolls, in metres.</summary>
         public float roam = 14f;
@@ -74,13 +84,16 @@ namespace OrbitalAnte.Enemies
                 new EnemyTypeSpec { id = "Trooper", share = 4f },
                 // Small and quick: runs straight in and sprays from close up. Falls apart fast.
                 new EnemyTypeSpec { id = "Runner", scale = 0.85f, speed = 1.5f, toughness = 0.7f, weapon = "Smg", engageRange = 30f,
-                                    reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, share = 3f },
+                                    red = 0.95f, green = 0.8f, blue = 0.15f, reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
                 // Big and slow: walks you down with a blast that only matters close. Hard to stop in the middle.
-                new EnemyTypeSpec { id = "Bruiser", scale = 1.3f, speed = 0.6f, toughness = 2.2f, weapon = "Shotgun", engageRange = 24f,
-                                    reactionTime = 0.9f, aimError = 2f, keepFar = 8f, keepNear = 2f, share = 2f },
-                // Tall and still: stands off and takes one slow, painful shot. The long wait before it is your warning.
-                new EnemyTypeSpec { id = "Marksman", scale = 1.1f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
-                                    reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, share = 1f },
+                new EnemyTypeSpec { id = "Bruiser", scale = 1.3f, width = 1.45f, speed = 0.8f, toughness = 2.2f, weapon = "Shotgun", engageRange = 20f,
+                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f,
+                                    red = 0.75f, green = 0.2f, blue = 0.16f },
+                // Tall, thin and still: stands off and takes one slow, painful shot. A bright line shows where it is
+                // aiming for a second before every shot, and there is never more than one in a camp.
+                new EnemyTypeSpec { id = "Marksman", scale = 1.2f, width = 0.95f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
+                                    reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, share = 1f,
+                                    aimTell = 1f, mostPerCamp = 1, red = 0.22f, green = 0.5f, blue = 0.85f },
             };
         }
 
@@ -136,7 +149,19 @@ namespace OrbitalAnte.Enemies
 
                 int size = random.Range(rules.squadLeast, Math.Max(rules.squadLeast, rules.squadMost) + 1);
                 var members = new int[size];
-                for (int m = 0; m < size; m++) members[m] = EnemyRoster.Pick(roster, random.NextDouble());
+                for (int m = 0; m < size; m++)
+                {
+                    int type = EnemyRoster.Pick(roster, random.NextDouble());
+                    // Some types are only fair in ones (the Marksman): past its limit the ordinary type stands in.
+                    int most = roster[type].mostPerCamp;
+                    if (most > 0)
+                    {
+                        int already = 0;
+                        for (int k = 0; k < m; k++) if (members[k] == type) already++;
+                        if (already >= most) type = 0;
+                    }
+                    members[m] = type;
+                }
                 camps.Add(new EnemyCamp { Direction = dir, Members = members, Seed = random.Next() });
             }
             return camps;

@@ -30,6 +30,10 @@ namespace OrbitalAnte.AI
         float _thinkTimer;
         bool _seesPlayer;
         float _reactAt;
+        float _lastSaw = -1000f;
+        float _tellUntil;
+        bool _telling;
+        LineRenderer _tellLine;
         bool _shootPhase = true;
         float _phaseEnd;
         Vector3 _movePoint;
@@ -114,6 +118,8 @@ namespace OrbitalAnte.AI
             Weapon weapon = Weapon;
             Weapon = null;
             _triggerHeld = false;
+            _telling = false;
+            ShowTell(false);
             _aimedAtTarget = false;
 
             Transform parent = CombatWorld.DropParent != null ? CombatWorld.DropParent : transform.parent;
@@ -159,7 +165,7 @@ namespace OrbitalAnte.AI
 
         void Update()
         {
-            if (_owner == null || !_owner.Alive) return;
+            if (_owner == null || !_owner.Alive) { ShowTell(false); return; }
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
@@ -222,17 +228,19 @@ namespace OrbitalAnte.AI
             bool sees = distance <= _cfg.engageRange
                         && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
 
+            float now = Time.time;
             if (!sees)
             {
-                // Lost sight: walk toward where the player is until there is a clear line again.
+                // Lost sight. It only comes looking if it saw the player a moment ago or can hear them close by:
+                // nobody knows where you are from across the valley. Otherwise it goes back to wandering.
                 _seesPlayer = false;
                 _loco.FacePoint = null;
-                _loco.Destination = CombatWorld.PlayerEye.position;
-                _loco.Hurry = _cfg.rushes;
+                bool hunting = now - _lastSaw <= _cfg.chaseMemory || distance <= _cfg.hearRange;
+                _loco.Destination = hunting ? CombatWorld.PlayerEye.position : (Vector3?)null;
+                _loco.Hurry = hunting && _cfg.rushes;
                 return;
             }
-
-            float now = Time.time;
+            _lastSaw = now;
             if (!_seesPlayer)
             {
                 // Never an instant shot: there is always a beat between spotting the player and firing.
@@ -251,7 +259,14 @@ namespace OrbitalAnte.AI
                 if (!_shootPhase) _movePoint = PickMovePoint(distance);
             }
 
-            if (_shootPhase || !onFeet)
+            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar)
+            {
+                // The ones that fight close do not dance at range: they come straight at you, and you can see it.
+                _loco.FacePoint = null;
+                _loco.Destination = CombatWorld.PlayerEye.position;
+                _loco.Hurry = _cfg.rushes;
+            }
+            else if (_shootPhase || !onFeet)
             {
                 _loco.FacePoint = CombatWorld.PlayerEye.position;
                 _loco.Destination = null;
@@ -370,6 +385,7 @@ namespace OrbitalAnte.AI
             if (!wantsToShoot)
             {
                 _triggerHeld = false;
+                _telling = false;
             }
             else if (_triggerHeld)
             {
@@ -379,14 +395,22 @@ namespace OrbitalAnte.AI
                     _nextTriggerAt = now + Rand(_cfg.burstPause);
                 }
             }
-            else if (now >= _nextTriggerAt)
+            else if (now >= _nextTriggerAt && _cfg.aimTell > 0f && !_telling)
             {
+                // A heavy single shot is always announced: the line shows for a moment first.
+                _telling = true;
+                _tellUntil = now + _cfg.aimTell;
+            }
+            else if (now >= _nextTriggerAt && (!_telling || now >= _tellUntil))
+            {
+                _telling = false;
                 _triggerHeld = true;
                 _triggerPressed = true;
                 // Automatic guns fire a burst; other guns fire one shot per pull.
                 _triggerUntil = now + (Weapon.Data.automatic ? Rand(_cfg.burstSeconds) : 0.05f);
             }
 
+            ShowTell(_telling);
             FireResult shot = Weapon.State.TryFire(hands, _triggerHeld, _triggerPressed);
             if (!shot.Fired) return;
 
@@ -400,6 +424,39 @@ namespace OrbitalAnte.AI
             _kick = Mathf.Min(2.5f, shot.RecoilScale);
             if (_loco != null) _loco.Kick(_kick, _gunSide);
             ShotsFired++;
+        }
+
+        /// <summary>The thin bright line from the muzzle to where a heavy shot is about to go.</summary>
+        void ShowTell(bool on)
+        {
+            if (!on || Weapon == null)
+            {
+                if (_tellLine != null && _tellLine.enabled) _tellLine.enabled = false;
+                return;
+            }
+            if (_tellLine == null)
+            {
+                var go = new GameObject("AimLine");
+                go.transform.SetParent(transform, false);
+                _tellLine = go.AddComponent<LineRenderer>();
+                _tellLine.useWorldSpace = true;
+                _tellLine.positionCount = 2;
+                _tellLine.startWidth = 0.03f;
+                _tellLine.endWidth = 0.03f;
+                _tellLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _tellLine.receiveShadows = false;
+                _tellLine.sharedMaterial = TellMaterial();
+            }
+            _tellLine.enabled = true;
+            _tellLine.SetPosition(0, Weapon.Muzzle.position);
+            _tellLine.SetPosition(1, PlayerAimPoint);
+        }
+
+        static Material _tellMaterial;
+        static Material TellMaterial()
+        {
+            if (_tellMaterial == null) _tellMaterial = Mat.Unlit(new Color(1f, 0.25f, 0.2f));
+            return _tellMaterial;
         }
 
         // ------------------------------------------------------------------ holding the gun
@@ -430,7 +487,7 @@ namespace OrbitalAnte.AI
             if (_loco != null && _loco.FacePoint.HasValue && CombatWorld.PlayerEye != null)
             {
                 Vector3 toTarget = PlayerAimPoint - shoulder;
-                Vector3 flat = new Vector3(toTarget.x, 0f, toTarget.z);
+                Vector3 flat = Vector3.ProjectOnPlane(toTarget, transform.up);
                 if (flat.sqrMagnitude > 0.01f && Vector3.Angle(flat, transform.forward) <= AimConeDegrees)
                 {
                     want = toTarget.normalized;
@@ -444,7 +501,7 @@ namespace OrbitalAnte.AI
                 // A rifle in one hand waves about. This is only for show; the real penalty is in the spread.
                 if (_wobblePhase < 0f) _wobblePhase = UnityEngine.Random.Range(0f, 100f);
                 float t = Time.time * 5.3f + _wobblePhase;
-                want = Quaternion.Euler(Mathf.Sin(t) * 4f, Mathf.Cos(t * 0.7f) * 4f, 0f) * want;
+                want = Quaternion.AngleAxis(Mathf.Sin(t) * 4f, transform.right) * Quaternion.AngleAxis(Mathf.Cos(t * 0.7f) * 4f, transform.up) * want;
             }
 
             _aimDirection = snap || dt <= 0f

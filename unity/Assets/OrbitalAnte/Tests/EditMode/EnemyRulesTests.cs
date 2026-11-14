@@ -100,5 +100,26 @@ namespace OrbitalAnte.Tests.EditMode
             for (int t = 0; t < seen.Length; t++) Assert.Greater(seen[t], 0, roster[t].id + " never turns up");
             Assert.Greater(seen[0], seen[3], "the ordinary type should be the commonest, the marksman the rarest");
         }
+
+        [Test]
+        public void NoCampEverHasTwoMarksmen()
+        {
+            // One slow, heavy shot you were warned about is fair. Two at once from the same hill is not.
+            var roster = EnemyRoster.Defaults();
+            int marksman = roster.FindIndex(t => t.id == "Marksman");
+            Assert.GreaterOrEqual(marksman, 0);
+            Assert.AreEqual(1, roster[marksman].mostPerCamp);
+            Assert.Greater(roster[marksman].aimTell, 0.5f, "every shot is announced");
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var camps = EnemyField.Build(new EnemyFieldRules(), roster, new SeededRandom(seed), 500, null, Vec3d.Zero);
+                foreach (EnemyCamp camp in camps)
+                {
+                    int count = 0;
+                    foreach (int member in camp.Members) if (member == marksman) count++;
+                    Assert.LessOrEqual(count, 1);
+                }
+            }
+        }
     }
 }

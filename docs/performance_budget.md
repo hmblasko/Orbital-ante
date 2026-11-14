@@ -268,6 +268,17 @@ What to read off in Unity:
 
 What to read off in Unity (floating outside, tethered): in **Window > Analysis > Profiler**, CPU Usage, Hierarchy, search `SuitHud.LateUpdate`, `SuitFx.LateUpdate` and `Astronaut.FixedUpdate` for Time ms and GC Alloc (expect 0 B on most frames), and `Canvas.BuildBatch` while drifting and then while thrusting.
 
+## Enemies on the worlds (14 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Enemies present at once | about 272,000 triangles and 192 draw calls for 12 with guns; scripts guessed 0.5 to 1.5 ms | 12 (`liveCap`), the fallen included until cleared (25 s) |
+| Waking a camp | about 80 objects and 16 colliders per enemy; one enemy a frame | 1 camp at a time, 1 enemy a frame |
+| Ground and wall checks | about 1,500 raycasts a second for 12; guessed 0.1 to 0.4 ms a frame | 2 a frame per enemy |
+| Placing camps | 1 to 3.5 ms on Earth at 70 camps, 7 ms on Neptune, measured on a desktop outside Unity; guessed under 40 ms on Deck | once per body; 120 camps |
+| Dropped enemy guns | up to 7,800 triangles and a moving body each | 12 loose; cleared with their owner |
+| Aim line (Marksman) | one line renderer while aiming | 1 per Marksman, 1 Marksman per camp |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:
