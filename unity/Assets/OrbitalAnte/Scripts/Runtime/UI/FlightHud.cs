@@ -235,7 +235,7 @@ namespace OrbitalAnte.UI
                 _nextHelp = Time.unscaledTime + 2f;
                 bool pad = GameInput.UsingGamepad;
                 _help.text = "Thrusters: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     " +
-                             (pad ? "Right stick turns the ship (click it to look around), roll " : "Turn the ship: hold " + Key(GameInput.FlySteer) + ", roll ") +
+                             (pad ? "Right stick looks around (click it to turn the ship, click again to look), roll " : "Turn the ship: hold " + Key(GameInput.FlySteer) + ", roll ") +
                              Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) +
                              "     Boost: " + Key(GameInput.Boost) + "     Match velocity: hold " + Key(GameInput.MatchVelocity) +
                              "     Lock: " + Key(GameInput.LockTarget) + "     Autopilot: " + Key(GameInput.Autopilot) + "     Map: " + Key(GameInput.ToggleMap);

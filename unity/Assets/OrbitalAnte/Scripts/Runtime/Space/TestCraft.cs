@@ -30,8 +30,11 @@ namespace OrbitalAnte.Space
         /// time it is theirs to look round the cabin with, and only the thrusters move the ship.
         /// </summary>
         public bool Steering { get; private set; }
-        /// <summary>Controller only: the right stick has been clicked over to looking round the cabin.</summary>
-        public bool PadLooking { get; private set; }
+        /// <summary>
+        /// Controller only: the right stick has been clicked over to turning the ship. Left alone it looks round
+        /// the cabin, the same as the mouse (Matthew, 14 Nov 2026: "You can reverse the driving look system").
+        /// </summary>
+        public bool PadSteering { get; private set; }
         bool _lookFromPad;
         /// <summary>
         /// Where the pilot is looking when their head is turned well away from the nose (world direction), or
@@ -343,7 +346,7 @@ namespace OrbitalAnte.Space
                 Boosting = false;
                 MatchingVelocity = false;
                 Steering = false;
-                if (Unmanned) PadLooking = false;
+                if (Unmanned) PadSteering = false;
                 // Nobody in the seat ends the autopilot. Reading the map does not: it flies on while you look.
                 if (PilotOn && Unmanned) StopPilot(PilotStop.Unbuckled);
             }
@@ -351,19 +354,19 @@ namespace OrbitalAnte.Space
             {
                 Vector2 move = GameInput.FlyMove.ReadValue<Vector2>();
                 // With a mouse, the ship turns only while Turn Ship is held. With a controller the right stick
-                // turns the ship unless it has been clicked over to looking about.
+                // looks about unless it has been clicked over to turning the ship.
                 // Which it is goes by the device that last moved the view, not by "which device was touched last":
                 // a controller lying on the desk reports all the time and must not take the mouse's turn.
                 var lookFrom = GameInput.FlyLook.activeControl;
                 if (lookFrom != null) _lookFromPad = lookFrom.device is UnityEngine.InputSystem.Gamepad;
                 if (GameInput.FlyLookToggle != null && GameInput.FlyLookToggle.WasPressedThisFrame())
                 {
-                    PadLooking = !PadLooking;
+                    PadSteering = !PadSteering;
                     _lookFromPad = true;
                 }
                 bool held = GameInput.FlySteer != null && GameInput.FlySteer.IsPressed();
                 if (held) _lookFromPad = false;
-                Steering = _lookFromPad ? !PadLooking : held;
+                Steering = _lookFromPad ? PadSteering : held;
                 float lift = (GameInput.FlyUp.IsPressed() ? 1f : 0f) - (GameInput.FlyDown.IsPressed() ? 1f : 0f);
                 ThrustInput = Vector3.ClampMagnitude(new Vector3(move.x, lift, move.y), 1f);
                 Boosting = GameInput.Boost.IsPressed();

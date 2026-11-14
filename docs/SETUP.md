@@ -44,8 +44,8 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Look around the cabin | Mouse | Click the right stick, then move it (click again to go back to turning) |
-| Turn the ship | Hold the right mouse button and move the mouse | Right stick |
+| Look around the cabin | Mouse | Right stick |
+| Turn the ship | Hold the right mouse button and move the mouse | Click the right stick, then move it (click again to go back to looking) |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
