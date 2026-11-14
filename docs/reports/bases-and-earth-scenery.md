@@ -6,6 +6,8 @@
 
 ## What changed
 
+Pictures (offline renders): `docs/art/previews/bases_overview.jpg`, one per base in `docs/art/previews/base_*.jpg`, and Earth's scenery in `docs/art/previews/earth_scenery_hillside.jpg`.
+
 ### Five bases (new)
 
 All five are made in Blender by `tools/blender/build_bases.py` and stand on the foundation the game already builds. None carries a name, flag or marking: whose base it is belongs to the game, not the model.
@@ -88,7 +90,7 @@ Three of the project's agents read the code before it was committed. None of the
 1. Open **Konsole**.
 2. Type `cd ~/Orbital-ante` and press Enter.
 3. Type `git fetch` and press Enter.
-4. Type `git checkout claude/bases-earth-scenery` and press Enter, then `git pull` and press Enter. (Once this is merged into `claude/playtest`, use that branch as usual.)
+4. Type `git checkout claude/playtest` and press Enter, then `git pull` and press Enter. (This work is already merged into that branch.)
 5. Open the project in Unity Hub and wait for it to finish importing.
 6. In the top menu choose **Orbital Ante > Set Up Project** (this picks up Earth's new numbers).
 7. Press **Play**. You start on the launch pad on Earth: look round for trees and mountains before you take off.
