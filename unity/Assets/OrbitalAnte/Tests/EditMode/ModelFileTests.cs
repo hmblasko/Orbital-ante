@@ -319,8 +319,19 @@ namespace OrbitalAnte.Tests
             ModelPart plain = console.Part(ShipAssembly.FittingsPiece), lit = cabin.Part(ShipAssembly.FittingsPiece);
             Assert.IsNotNull(plain, "the Console model has no body");
             Assert.IsNotNull(lit, "run tools/bake again: the baked console is missing");
-            CollectionAssert.AreEqual(plain.Positions, lit.Positions, "run tools/bake again: the console's shape has changed since its light was baked");
-            CollectionAssert.AreEqual(plain.Triangles, lit.Triangles);
+            // Every piece that does not shine by itself is in the lit file, the same shape; nothing that shines is.
+            int litPieces = 0;
+            foreach (ModelPart part in console.Parts)
+            {
+                ModelPart baked = cabin.Part(part.Name);
+                if (!ShipAssembly.TakesBakedLight(part.Name)) { Assert.IsNull(baked, part.Name + " shines by itself and should not be baked"); continue; }
+                litPieces++;
+                Assert.IsNotNull(baked, "run tools/bake again: " + part.Name + " has no baked light");
+                CollectionAssert.AreEqual(part.Positions, baked.Positions, "run tools/bake again: " + part.Name + " has changed shape since its light was baked");
+                CollectionAssert.AreEqual(part.Triangles, baked.Triangles);
+            }
+            Assert.AreEqual(litPieces, cabin.Parts.Length);
+            Assert.IsNotNull(cabin.Part(OrbitalAnte.Cockpit.ConsoleGauges.ThrottlePiece), "the throttle's lever is lit with the console");
             // Lit, not just copied: the light differs from the paint, and the console is not left in the dark.
             float brightness = 0f, change = 0f;
             for (int i = 0; i < lit.Colors.Length; i += 3)
@@ -389,6 +400,40 @@ namespace OrbitalAnte.Tests
             Assert.Less(bottom, -halfHeight - 0.03f, "the bezel frames the bottom edge");
             Assert.Less(lowest, 0.675f, "the foot reaches down into the desk top");
             Assert.Greater(widest, 1.2f, "the console has a wing either side of the screen");
+        }
+
+        [Test]
+        public void ConsoleModelFile_ItsThrottleSlidesUpItsSlot_AndStaysLow()
+        {
+            ModelFile model = LoadReal(OrbitalAnte.Cockpit.ConsoleGauges.Model);
+            ModelPart lever = model.Part(OrbitalAnte.Cockpit.ConsoleGauges.ThrottlePiece);
+            Assert.IsNotNull(lever, "the throttle's lever must be a piece of its own, or the game cannot move it");
+            Assert.IsFalse(ModelFile.Shines(lever.Name), "the lever is painted metal, lit by the cabin: it does not shine");
+            P3 idle = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.ThrottleIdle), full = Socket(model, OrbitalAnte.Cockpit.ConsoleGauges.ThrottleFull);
+            P3 travel = full - idle;
+            Assert.That(travel.Length, Is.InRange(0.07f, 0.13f), "a throw a gloved hand can see");
+            Assert.Greater(idle.X, 0.7f, "the throttle is on the pilot's right, under the right hand");
+            Assert.AreEqual(0f, travel.X, 0.01f, "it slides straight up its slot");
+            Assert.Greater(travel.Z, 0.02f, "forward on the lever is away from the pilot");
+            Assert.Greater(travel.Y, 0f, "and up the sloping panel");
+
+            // The lever stands with its foot at ThrottleIdle, and wherever it is slid to it stays below the window
+            // line, inside the cabin and off the front of the desk, as the rest of the console must.
+            float nearest = float.MaxValue;
+            for (int v = 0; v < lever.VertexCount; v++)
+            {
+                var p = new P3(lever.Positions[v * 3], lever.Positions[v * 3 + 1], lever.Positions[v * 3 + 2]);
+                nearest = System.Math.Min(nearest, (p - idle).Length);
+                foreach (float share in new[] { 0f, 0.5f, 1f })
+                {
+                    P3 at = p + travel * share;
+                    Assert.LessOrEqual(at.Y, 0.84f, "the lever stands up into the view at " + share);
+                    Assert.IsTrue(ShipLayout.InsideCabin(new P3(at.X, System.Math.Max(0.01f, at.Y), at.Z)), "the lever goes through the wall at " + share);
+                    Assert.GreaterOrEqual(at.Z, 1.74f, "the lever hangs over the front of the desk at " + share);
+                }
+            }
+            Assert.Less(nearest, 0.012f, "the lever's foot is not at its idle socket");
+            Assert.LessOrEqual(lever.Triangles.Length / 3, 400);
         }
 
         [Test]

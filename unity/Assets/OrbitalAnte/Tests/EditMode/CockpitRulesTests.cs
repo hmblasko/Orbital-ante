@@ -361,6 +361,70 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void TheThrottleLever_FollowsThePush_AsAHandWould()
+        {
+            var g = new ConsoleGauges();
+            Assert.AreEqual(0f, g.Throttle, "the lever starts pulled right back");
+            // One frame of full push moves it, but not all the way: a shove, not a jump.
+            g.Push(1f, 1f / 60f);
+            Assert.Greater(g.Throttle, 0.1f);
+            Assert.Less(g.Throttle, 0.5f);
+            for (int i = 0; i < 40; i++) g.Push(1f, 1f / 60f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f, "within a second it is right forward, and rests there exactly");
+            // Half a push holds it half way; letting go brings it home.
+            for (int i = 0; i < 60; i++) g.Push(0.5f, 1f / 60f);
+            Assert.AreEqual(0.5f, g.Throttle, 1e-6f);
+            for (int i = 0; i < 60; i++) g.Push(0f, 1f / 60f);
+            Assert.AreEqual(0f, g.Throttle, 1e-6f);
+            // Match Velocity brakes harder than an ordinary push: the lever stops at its end, it does not leave the slot.
+            for (int i = 0; i < 60; i++) g.Push(2.4f, 1f / 60f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f);
+            // A frozen game (dt 0) and a broken number move nothing or bring it home; neither breaks it.
+            g.Push(0f, 0f);
+            Assert.AreEqual(1f, g.Throttle, 1e-6f);
+            for (int i = 0; i < 60; i++) g.Push(float.NaN, 1f / 60f);
+            Assert.AreEqual(0f, g.Throttle, 1e-6f);
+            // It does not care how long a frame is: one long frame or many short ones end in the same place.
+            var slow = new ConsoleGauges();
+            var quick = new ConsoleGauges();
+            slow.Push(1f, 0.1f);
+            for (int i = 0; i < 10; i++) quick.Push(1f, 0.01f);
+            Assert.AreEqual(slow.Throttle, quick.Throttle, 1e-3f);
+            // The readings do not touch it: it belongs to the engines, not the tanks.
+            slow.Set(new DashReadings { Fuel = 0f }, false, false);
+            Assert.AreEqual(quick.Throttle, slow.Throttle, 1e-3f);
+        }
+
+        [Test]
+        public void TheThrottleLever_StopsAtADifferentPlace_ForEachKindOfPush()
+        {
+            // The shipped dials: push 30, boost 2.5 times, Match Velocity 60 (twice), the autopilot up to 45 (one and a half).
+            const float boost = 2.5f, brake = 2f, auto = 1.5f;
+            float Lever(float stick, bool boosting = false, bool braking = false, bool autopilot = false, float asking = 0f)
+                => ConsoleGauges.LeverFor(stick, boosting, boost, braking, brake, autopilot, asking, auto);
+            Assert.AreEqual(0f, Lever(0f), 1e-6f, "hands off: right back");
+            Assert.AreEqual(0.2f, Lever(0.5f), 1e-6f);
+            Assert.AreEqual(0.4f, Lever(1f), 1e-6f, "a full ordinary push");
+            Assert.AreEqual(0.4f, Lever(3f), 1e-6f, "a stick cannot ask for more than all of it");
+            Assert.AreEqual(0.6f, Lever(0f, autopilot: true, asking: auto), 1e-6f, "the autopilot's hardest");
+            Assert.AreEqual(0.3f, Lever(1f, autopilot: true, asking: auto / 2f), 1e-6f, "the autopilot is flying: the stick is not asked");
+            Assert.AreEqual(0.6f, Lever(0f, autopilot: true, asking: 9f), 1e-6f);
+            Assert.AreEqual(0.8f, Lever(0f, braking: true), 1e-6f, "Match Velocity brakes harder than a push");
+            Assert.AreEqual(0.8f, Lever(1f, braking: true), 1e-6f);
+            Assert.AreEqual(1f, Lever(1f, boosting: true), 1e-6f, "only the boost puts it right forward");
+            Assert.AreEqual(1f, Lever(1f, boosting: true, braking: true), 1e-6f);
+            // Each harder ask stands further forward than the one before, so they can be told apart at a glance.
+            Assert.Less(Lever(1f), Lever(0f, autopilot: true, asking: auto));
+            Assert.Less(Lever(0f, autopilot: true, asking: auto), Lever(0f, braking: true));
+            Assert.Less(Lever(0f, braking: true), Lever(1f, boosting: true));
+            // Odd dials never push it out of its slot or break it: with nothing harder than an ordinary push, a full push is full.
+            Assert.AreEqual(1f, ConsoleGauges.LeverFor(1f, false, 0f, false, 0f, false, 0f, 0f), 1e-6f);
+            Assert.AreEqual(1f, ConsoleGauges.LeverFor(1f, true, float.NaN, false, float.PositiveInfinity, false, 0f, -3f), 1e-6f);
+            Assert.AreEqual(0f, ConsoleGauges.LeverFor(float.NaN, false, boost, false, brake, false, 0f, auto), 1e-6f);
+            Assert.AreEqual(0f, ConsoleGauges.LeverFor(0f, false, boost, false, brake, true, float.NaN, auto), 1e-6f);
+        }
+
+        [Test]
         public void ConsoleLamps_SayWhatTheShipIsDoing()
         {
             var g = new ConsoleGauges();

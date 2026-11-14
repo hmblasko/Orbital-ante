@@ -25,11 +25,14 @@ namespace OrbitalAnte.Ship
 
         /// <summary>
         /// A model holding fittings that stand inside the cabin, with the cabin's light already in their colours
-        /// (made by tools/bake). Today that is the body of the cockpit console, copied from the Console model.
+        /// (made by tools/bake). Today that is the cockpit console, copied from the Console model: its body and
+        /// the throttle's lever, which is lit where it stands pulled right back.
         /// </summary>
         public const string BakedFittingsModel = "LanderCabin";
-        /// <summary>The model the baked fittings are copied from, and the one piece of it that takes baked light.</summary>
+        /// <summary>The model the baked fittings are copied from, and its body.</summary>
         public const string FittingsSource = "Console", FittingsPiece = "console";
+        /// <summary>Whether a piece of the fittings model takes baked light. The parts that shine by themselves (named ...Glow) do not.</summary>
+        public static bool TakesBakedLight(string piece) => piece != null && !OrbitalAnte.Look.ModelFile.Shines(piece);
 
         /// <summary>Every baked piece of the cabin. The order is part of the baked file's format: add new pieces at the end.</summary>
         public static List<ShipPiece> InteriorPieces()

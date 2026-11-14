@@ -8,8 +8,8 @@ using UnityEngine;
 namespace OrbitalAnte.Cockpit
 {
     /// <summary>
-    /// The modelled console on the desk and its moving parts: the fuel tube's liquid, the air dial's needle
-    /// and the five picture lamps. The shapes come from the Console model (tools/blender/build_console.py);
+    /// The modelled console on the desk and its moving parts: the fuel tube's liquid, the air dial's needle,
+    /// the five picture lamps and the throttle's lever. The shapes come from the Console model (tools/blender/build_console.py);
     /// what they show comes from <see cref="ConsoleGauges"/>.
     ///
     /// The body is drawn with the cabin's baked light when the cabin is showing its shipped light (the bake
@@ -22,9 +22,9 @@ namespace OrbitalAnte.Cockpit
         readonly GameObject[] _lamps = new GameObject[ConsoleGauges.LampCount];
         readonly bool[] _lampShown = new bool[ConsoleGauges.LampCount];
         Material _bodyMaterial, _glowMaterial;
-        Transform _fuel, _needle;
-        Vector3 _needleAxis;
-        float _needleHalf, _fuelShown = -1f, _airShown = -1f;
+        Transform _fuel, _needle, _throttle;
+        Vector3 _needleAxis, _throttleTravel;
+        float _needleHalf, _fuelShown = -1f, _airShown = -1f, _throttleShown = -1f;
 
         /// <summary>Where the model says the middle of the screen is, in ship space.</summary>
         public Vector3 ScreenPlace { get; private set; }
@@ -50,6 +50,17 @@ namespace OrbitalAnte.Cockpit
                 r.sharedMaterial = lit ? made._bodyMaterial : ModelLibrary.SharedMaterial();
                 // The plain copy stands inside the hull: give it the even indoor light, not the Sun.
                 if (!lit) ModelLibrary.SetIndoors(go, true);
+            }
+            // The throttle's lever: lit like the body it stands on, and slid along its slot. A lit body with no lit
+            // lever (an old baked file) gets no lever at all sooner than a flat-lit one standing on a lit console.
+            Mesh lever = lit ? ModelLibrary.PartMesh(ShipAssembly.BakedFittingsModel, ConsoleGauges.ThrottlePiece) : ModelLibrary.PartMesh(ConsoleGauges.Model, ConsoleGauges.ThrottlePiece);
+            if (lever != null && model.TrySocket(ConsoleGauges.ThrottleIdle, out ModelSocket idle) && model.TrySocket(ConsoleGauges.ThrottleFull, out ModelSocket full))
+            {
+                GameObject go = made.Piece(ConsoleGauges.ThrottlePiece, lever, ship);
+                go.GetComponent<MeshRenderer>().sharedMaterial = lit ? made._bodyMaterial : ModelLibrary.SharedMaterial();
+                if (!lit) ModelLibrary.SetIndoors(go, true);
+                made._throttle = go.transform;
+                made._throttleTravel = V(full) - V(idle);
             }
             if (model.TrySocket(ConsoleGauges.DashSocket, out ModelSocket dash))
             {
@@ -110,6 +121,11 @@ namespace OrbitalAnte.Cockpit
             {
                 _airShown = gauges.AirTurn;
                 _needle.localRotation = Quaternion.AngleAxis(_needleHalf * 2f * Mathf.Clamp01(_airShown), _needleAxis);
+            }
+            if (_throttle != null && Mathf.Abs(gauges.Throttle - _throttleShown) > 0.0005f)
+            {
+                _throttleShown = gauges.Throttle;
+                _throttle.localPosition = _throttleTravel * Mathf.Clamp01(_throttleShown);
             }
             for (int i = 0; i < _lamps.Length; i++)
             {

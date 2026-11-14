@@ -8,6 +8,8 @@ a wing either side carries the instruments, so the ship's numbers are hardware y
 
 Pieces:
     console            everything that never moves (the bake tool lights it with the cabin's lamps)
+    throttle           the throttle's lever, modelled pulled right back: the game slides it from socket
+                       ThrottleIdle to ThrottleFull as the engines push harder (lit by the bake tool too)
     fuelLevelGlow      the liquid in the fuel tube, modelled full: the game shrinks it toward socket FuelBase
     airNeedleGlow      the air dial's needle, modelled at empty: the game turns it about socket AirDial
     lampLockGlow, lampAutoGlow, lampMatchGlow, lampFuelGlow, lampAirGlow
@@ -17,6 +19,7 @@ Sockets:
     FuelBase, FuelTop  the empty and full ends of the fuel tube
     AirDial            the needle's pivot; AirDialOut is 0.1 m out of the dial's face from it
     AirEmpty, AirHalf, AirFull   where the needle's tip points at each reading
+    ThrottleIdle, ThrottleFull   the foot of the throttle's lever at no push and at full push
 
 Ship space in the game: origin in the middle of the cabin floor, Y up, Z nose, X the pilot's right.
 Here in Blender that is X right, Y nose, Z up, so a game point (x, y, z) is written G(x, y, z).
@@ -254,7 +257,7 @@ def left_wing():
     sockets["FuelTop"] = (x0, -0.006 - fr, fz)
 
     # ---- a row of switches under the tube
-    caps = (SILVER, SILVER, RED, SILVER, ORANGE)
+    caps = (SILVER, SILVER, CREAM, SILVER, ORANGE)        # no red: red is kept for the lamps that warn
     for k, cap in enumerate(caps):
         fixed += toggle(x0 + 0.02 + 0.054 * k, -0.082, 100 + k * 2, up=k % 2 == 0, cap=cap)
     return fixed, glow, sockets
@@ -302,7 +305,8 @@ def lamp_picture(name):
 
 
 def right_wing():
-    """Picture lamps, the throttle and a guarded switch."""
+    """Picture lamps, the throttle, two knobs and the key. Returns the same three things as the left wing; the
+    second holds every piece the game moves or switches, shining or not."""
     fixed, glow = [], {}
     fixed += plate("lamp plate", -0.285, 0.265, -0.108, 0.108, 120)
     size, gap = 0.052, 0.012
@@ -319,23 +323,30 @@ def right_wing():
         glow["lamp%sGlow" % name] = [plain(lit)]
         x += size + gap
 
-    # A throttle: a slotted quadrant with a chunky orange handle.
-    tx = 0.215
-    fixed.append(metal(oa.box("throttle gate", (tx, -0.007, 0.0), (0.05, 0.012, 0.17), DARK_METAL, bevel=0.006, segments=2), 124))
-    fixed.append(plain(oa.box("throttle slot", (tx, -0.0135, 0.0), (0.012, 0.002, 0.13), FACE, bevel=0)))
-    fixed.append(metal(rod("throttle arm", (tx, -0.010, -0.048), (tx, -0.046, -0.036), 0.0065, SILVER, segments=8), 125, wear=0.3))
-    fixed.append(painted(oa.box("throttle grip", (tx, -0.051, -0.034), (0.05, 0.02, 0.024), ORANGE, bevel=0.009, segments=3), 126))
-    for k in range(5):
-        fixed.append(plain(oa.box("throttle mark", (tx + 0.031, -0.0135, -0.056 + 0.028 * k), (0.008, 0.002, 0.003), CREAM, bevel=0)))
+    # A throttle: a slotted quadrant with a chunky orange handle. It sits low on the plate and its handle stands
+    # only a little proud, because the handle rises as it is pushed and nothing on a wing may stand above the
+    # line that keeps the front window clear (the rule test slides it to full and checks).
+    tx, tz = 0.215, -0.020
+    idle, full = tz - 0.052, tz + 0.040
+    fixed.append(metal(oa.box("throttle gate", (tx, -0.007, tz + 0.002), (0.05, 0.012, 0.152), DARK_METAL, bevel=0.006, segments=2), 124))
+    fixed.append(plain(oa.box("throttle slot", (tx, -0.0135, tz + 0.002), (0.012, 0.002, 0.124), FACE, bevel=0)))
+    # The lever is a piece of its own, modelled pulled right back: the game slides it up the slot as the engines
+    # push harder (sockets ThrottleIdle and ThrottleFull are where the foot of its arm stands at each end).
+    lever = [metal(rod("throttle arm", (tx, -0.010, idle), (tx, -0.034, idle + 0.010), 0.0065, SILVER, segments=8), 125, wear=0.3),
+             painted(oa.box("throttle grip", (tx, -0.039, idle + 0.012), (0.05, 0.02, 0.024), ORANGE, bevel=0.009, segments=3), 126)]
+    glow["throttle"] = lever
+    for k in range(5):                                    # five marks, from no push to full
+        fixed.append(plain(oa.box("throttle mark", (tx + 0.031, -0.0135, idle + (full - idle) * k / 4.0), (0.008, 0.002, 0.003), CREAM, bevel=0)))
 
-    # Under the lamps: a guarded red switch, two knobs and a key.
+    # Under the lamps: a blanked-off hole, two knobs and the ship's key. Nothing here looks like a thing to
+    # press that the game will not let you press: where a guarded switch might go there is a plate screwed over
+    # the hole, and the key is already in and turned.
     gx, gz = -0.236, -0.062
-    fixed.append(plain(oa.box("guard plate", (gx, -0.005, gz), (0.05, 0.004, 0.06), (0.86, 0.72, 0.16), bevel=0.003, segments=1)))
-    for k in range(3):
-        fixed.append(plain(oa.box("guard stripe", (gx - 0.014 + 0.014 * k, -0.0075, gz), (0.005, 0.001, 0.072), CHARCOAL, bevel=0, rot=(0, 30, 0))))
-    fixed += toggle(gx, gz - 0.004, 128, up=False, cap=RED)
-    fixed.append(painted(oa.slab("guard", [(-0.006, -0.012), (-0.044, -0.002), (-0.048, 0.012), (-0.040, 0.03), (-0.006, 0.03)], 0.04, RED, bevel=0.004, segments=2, x=gx), 130))
-    fixed[-1].data.transform(Matrix.Translation((0, 0, gz)))
+    fixed.append(metal(oa.box("blank plate", (gx, -0.005, gz), (0.052, 0.005, 0.062), SILVER, bevel=0.003, segments=2), 128, wear=0.45))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            fixed.append(screw(gx + sx * 0.019, gz + sz * 0.024, 129))
+    fixed.append(plain(oa.box("blank stamp", (gx, -0.0078, gz), (0.022, 0.001, 0.004), CHARCOAL, bevel=0)))
     knob = [(0.0, 0.021), (0.005, 0.021), (0.008, 0.017), (0.022, 0.015), (0.025, 0.011), (0.025, 0.0)]
     for k, colour in enumerate((CREAM, ORANGE)):
         kx = -0.150 + 0.066 * k
@@ -345,11 +356,15 @@ def right_wing():
             a = math.radians(210 - 40 * t)
             fixed.append(plain(oa.box("knob tick", (kx + math.cos(a) * 0.031, -0.0055, gz + math.sin(a) * 0.031), (0.0025, 0.001, 0.006), CREAM, bevel=0, rot=(0, -(math.degrees(a) - 90), 0))))
     fixed.append(metal(oa.cylinder("key barrel", (0.02, -0.005, gz), (0.02, -0.014, gz), 0.014, BRASS, segments=12, bevel=0.002), 136, wear=0.5))
-    fixed.append(plain(oa.box("key slot", (0.02, -0.0145, gz), (0.003, 0.001, 0.014), FACE, bevel=0)))
+    # The key is in and turned a quarter: the ship is on. A chunky bow to hold, and a fob hanging from it.
+    fixed.append(metal(oa.box("key shank", (0.02, -0.019, gz), (0.012, 0.012, 0.004), SILVER, bevel=0.0015), 138, wear=0.3))
+    fixed.append(metal(oa.box("key bow", (0.02, -0.031, gz), (0.030, 0.014, 0.005), SILVER, bevel=0.002, segments=2), 139, wear=0.3))
+    fixed.append(metal(rod("fob ring", (0.031, -0.031, gz), (0.036, -0.026, gz - 0.016), 0.003, BRASS, segments=6), 140, wear=0.4))
+    fixed.append(painted(oa.box("fob", (0.038, -0.022, gz - 0.028), (0.020, 0.006, 0.026), ORANGE, bevel=0.003, segments=2), 141))
     fixed.append(metal(oa.box("speaker", (0.105, -0.005, gz), (0.07, 0.004, 0.05), DARK_METAL, bevel=0.003, segments=1), 137))
     for k in range(4):
         fixed.append(plain(oa.box("speaker slot", (0.105, -0.0075, gz - 0.0165 + 0.011 * k), (0.054, 0.001, 0.0045), FACE, bevel=0)))
-    return fixed, glow, {}
+    return fixed, glow, {"ThrottleIdle": (tx, -0.010, idle), "ThrottleFull": (tx, -0.010, full)}
 
 
 def screen_surround():

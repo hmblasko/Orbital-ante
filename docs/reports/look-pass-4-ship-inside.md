@@ -63,9 +63,25 @@ Pictures:
 
 ## For Matthew: three calls
 
-1. **Should the throttle on the console move with your thrust?** It is scenery now. Recommended: yes. It is a small job and makes the console feel alive.
+1. ~~Should the throttle on the console move with your thrust?~~ Done, see "Added afterwards" below. Say if you would rather it stayed still.
 2. **Should the camera view carry the notice?** When a camera fills the view, a warning such as FUEL LOW is not shown. Recommended: yes, one line at the bottom.
 3. **Keep the glow-in-the-dark stars on the ceiling?** Still open from the last pass.
+
+## Added afterwards: the throttle moves
+
+Built after the report above, and not run in Unity either. Picture: `docs/art/previews/console_right_wing.jpg`.
+
+**What changed.** The orange throttle lever on the right wing of the console slides up its slot with what the engines are being asked to do, and comes home when you let go. It stops at a different place for each kind of push: a full ordinary push is two fifths of the way, the autopilot's hardest three fifths, Match Velocity four fifths, and only the boost puts it right forward. It follows the ask, not what a dry tank can give, so it never contradicts your own hand; the Fuel lamp beside it explains a weak push. It is a display, not a control: you cannot grab it.
+
+The lever is a piece of its own in the Console model and the bake tool now lights it with the rest of the console. The two other parts that looked usable and were not have been made honest: the guarded red switch is now a plate screwed over the hole, and the key is in the lock and turned, with a fob. A red cap on a scenery switch under the fuel tube is cream, so red stays with the lamps that warn.
+
+**Why.** The designer's review found the throttle, key and guarded switch "look usable and are not". A console should tell no false stories (principle 3: no hidden rules). A lever that moves with the engines is also one more thing that makes the cabin feel alive (Milestone 9: "the cockpit looks great").
+
+**Tested.** 1,933 rule tests pass outside Unity. New: the lever is its own piece with its foot at its idle socket, slides straight up the slot away from the pilot, and stays under the window line at every point of its travel; it follows a push the way a hand would, whatever the frame rate, and stops exactly; each kind of push stops it at its own place, in order; odd dials cannot push it out of the slot; every part of the console that does not shine has baked light and nothing that shines does.
+
+**Not verified.** Nothing run in Unity. The lever's baked shade stays at the idle end of the slot when it slides forward; look for a dark patch there. Whether 0.4 of the slot for a full ordinary push looks timid is a feel question for the Deck (the dial is one number, the boost's share).
+
+**Agent review.** unity-reviewer: no blocking fault; the lever is reached every frame, comes home on every way of letting go, freezes with a pause and is destroyed with the console; noted the baked shade. game-designer: applied the different stopping places (as first built, the autopilot above half effort, Match Velocity and a full push all read "full", and the autopilot's reading included its fuel surcharge), the blanking plate, the key and the cream cap; agreed the lever should show size only (the screen's model shows direction) and that the easing suits a hand. deck-performance: one more draw call, no new material, no garbage; budget row updated.
 
 ## Try it on the Deck
 
@@ -79,3 +95,4 @@ Pictures:
 8. Look down at the hatch and press E (Y on the controller). Ride the lift down. It should take about a second and a half.
 9. On the ground, walk a few steps out from under the ship, look up at the belly and press E. The hatch should answer from anywhere between the legs.
 10. Tell me if anything thin (the fairy-light wire, the orrery's arms) shimmers as you move your head.
+11. Buckle in, look right along the console at the orange lever, and push the ship forward. The lever should slide part of the way up its slot and come home when you let go. Hold the boost and it should go right to the top. Tell me if there is a dark patch left where it was resting.

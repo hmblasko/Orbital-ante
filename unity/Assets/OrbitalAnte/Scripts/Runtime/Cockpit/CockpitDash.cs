@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using OrbitalAnte.Core;
 using OrbitalAnte.Launch;
 using OrbitalAnte.Look;
+using OrbitalAnte.Navigation;
 using OrbitalAnte.Planets;
 using OrbitalAnte.Ship;
 using OrbitalAnte.Space;
@@ -257,6 +258,12 @@ namespace OrbitalAnte.Cockpit
                 if (state == PartState.Broken || state == PartState.Lost) broken++;
             }
             Supplies.Tick(dt, push, _craft.Boosting && !Braking, onPad, broken, landed);
+            // The console's throttle lever shows what the engines are being asked for, whoever asks: not what a
+            // dry tank can give, and not the autopilot's fuel surcharge (that is a bill, not a push).
+            float ordinary = Mathf.Max(1f, _craft.Config.thrust);
+            AutopilotRules pilot = _craft.PilotRules;
+            Gauges.Push(ConsoleGauges.LeverFor(flying ? _craft.ThrustInput.magnitude : 0f, _craft.Boosting, _craft.Config.boostMultiplier,
+                Braking, _craft.Config.matchVelocityThrust / ordinary, _craft.PilotOn, _craft.Order.Effort * pilot.push / ordinary, pilot.push / ordinary), dt);
             // The suit fills up from the ship's tank, and is told how much is left in it.
             Supplies.DrawAir(_crew.TakeAirDrawn());
             _crew.ShipAir = Supplies.Oxygen;
