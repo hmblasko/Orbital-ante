@@ -183,3 +183,31 @@ def hit_kill(rng, v):
         dsp.place(x, s, secs(at), 0.8)
     x += dsp.sine(98, n) * np.exp(-t / 0.05) * 0.5
     return finish(x, -4, 0.1)
+
+
+# ----------------------------------------------------------------------------- slow motion
+
+@sfx("fx.slowmo.in", "combat", spatial=0.0, volumeDb=-9, bus="PlayerEquipment", priority=40, vacuum="suit", cooldownMs=400)
+def slowmo_in(rng, v):
+    """Time slowing down: the room's air seems to be drawn out of it, a tone sinking as it goes, and one heavy
+    heartbeat arriving at the bottom."""
+    n = secs(1.1)
+    t = np.arange(n) / SR
+    fall = 900 * np.exp(-t / 0.22) + 110
+    tone = dsp.sine(fall, n) * np.exp(-t / 0.5) * 0.5 + dsp.sine(fall * 1.5, n) * np.exp(-t / 0.3) * 0.2
+    air = dsp.svf(dsp.white(n, rng), 6000 * np.exp(-t / 0.2) + 350, 1.2, "lp", 2) * np.exp(-t / 0.35) * 0.35
+    beat = (dsp.sine(62 + 50 * np.exp(-np.maximum(t - 0.55, 0) / 0.03), n) + dsp.bandpass(dsp.white(n, rng), 300, 900) * 0.25) \
+        * np.exp(-np.maximum(t - 0.55, 0) / 0.11) * (t > 0.55) * 0.8
+    return finish(tone + air + beat, -4, 0.2)
+
+
+@sfx("fx.slowmo.out", "combat", spatial=0.0, volumeDb=-11, bus="PlayerEquipment", priority=60, vacuum="suit", cooldownMs=400)
+def slowmo_out(rng, v):
+    """Time snapping back: the same breath let go, rising fast and stopping short."""
+    n = secs(0.5)
+    t = np.arange(n) / SR
+    rise = 140 * np.exp(t / 0.19)
+    tone = dsp.sine(rise, n) * np.minimum(t / 0.25, 1) ** 2 * 0.4
+    air = dsp.svf(dsp.white(n, rng), 400 + 9000 * (t / 0.5) ** 2, 1.2, "lp", 2) * np.minimum(t / 0.3, 1) ** 2 * 0.4
+    x = (tone + air) * np.exp(-np.maximum(t - 0.4, 0) / 0.02)
+    return finish(x, -5, 0.04)

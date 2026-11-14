@@ -1,14 +1,14 @@
 """The Orbital Ante soundtrack. Each module is one composition; PIECES lists them in build order."""
-from . import combat_all_in, cues, explore_regolith, flight_burn_window, menu_house_orbits, mystery_dish  # noqa: F401
+from . import combat_all_in, cues, explore_regolith, flight_burn_window, main_long_way, mystery_dish  # noqa: F401
 
-PIECES = [explore_regolith, combat_all_in, flight_burn_window, menu_house_orbits, mystery_dish]
+PIECES = [explore_regolith, combat_all_in, flight_burn_window, main_long_way, mystery_dish]
 
 # How the game's music director uses the pieces. This is data, read by MusicBrain in the game, so the musical
 # decisions live beside the music and not in code.
 DIRECTION: dict = {
     # Which piece belongs to which situation. An empty track means "no music here": silence is a choice.
     "contexts": [
-        {"id": "menu", "track": "menu_house_orbits", "maxLoops": 0, "restSeconds": 0, "combat": False},
+        {"id": "menu", "track": "main_long_way", "maxLoops": 0, "restSeconds": 0, "combat": False},
         {"id": "surface", "track": "explore_regolith", "maxLoops": 2, "restSeconds": 50, "combat": True},
         {"id": "flight", "track": "flight_burn_window", "maxLoops": 2, "restSeconds": 40, "combat": True},
         {"id": "mystery", "track": "mystery_dish", "maxLoops": 0, "restSeconds": 0, "combat": True},

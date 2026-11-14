@@ -76,6 +76,7 @@ def main() -> None:
     # ---- music: each StartTrack is one playing instance, until its StopTrack
     live: dict[str, dict] = {}
     instances = []
+    cue_plays = []
     for c in sched["music"]:
         if c["kind"] == "StartTrack":
             inst = dict(track=c["track"], start=c["time"], offset=c.get("offset", 0.0), master=[(c["time"], c["seconds"], 1.0)] if c["seconds"] > 0 else [],
@@ -89,10 +90,20 @@ def main() -> None:
         elif c["kind"] == "StemGain" and c["track"] in live:
             live[c["track"]]["stems"].setdefault(c["stem"], []).append((c["time"], c["seconds"], c["gain"]))
         elif c["kind"] == "PlayCue":
-            x = load(cues[c["cue"]]["clip"])
-            a = int(round(c["time"] * SR))
-            b = min(n, a + len(x))
-            music[a:b] += x[: b - a]
+            cue_plays.append(dict(cue=c["cue"], start=c["time"], fade_at=None, fade=0.5))
+        elif c["kind"] == "StopCue":
+            for p in cue_plays:
+                if p["cue"] == c["cue"] and p["fade_at"] is None and p["start"] <= c["time"]:
+                    p["fade_at"], p["fade"] = c["time"], max(0.05, c["seconds"])
+    for p in cue_plays:
+        x = load(cues[p["cue"]]["clip"])
+        a = int(round(p["start"] * SR))
+        b = min(n, a + len(x))
+        x = x[: b - a].copy()
+        if p["fade_at"] is not None:
+            k = (np.arange(len(x)) / SR + p["start"] - p["fade_at"]) / p["fade"]
+            x *= np.clip(1.0 - k, 0.0, 1.0)[:, None]
+        music[a:b] += x
     for inst in instances:
         t = tracks[inst["track"]]
         a = int(round(inst["start"] * SR))

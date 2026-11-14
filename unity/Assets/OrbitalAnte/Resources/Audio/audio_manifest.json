@@ -122,6 +122,46 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "fx.slowmo.in",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/combat/fx_slowmo_in"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 40,
+   "cooldownMs": 400,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Time slowing down: the room's air seems to be drawn out of it, a tone sinking as it goes, and one heavy heartbeat arriving at the bottom."
+  },
+  {
+   "id": "fx.slowmo.out",
+   "bus": "PlayerEquipment",
+   "clips": [
+    "Audio/Sfx/combat/fx_slowmo_out"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 400,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Time snapping back: the same breath let go, rising fast and stopping short."
+  },
+  {
    "id": "gore.pop.big",
    "bus": "CombatImpacts",
    "clips": [
@@ -555,7 +595,7 @@
     "Audio/Sfx/player/player_step_metal_03",
     "Audio/Sfx/player/player_step_metal_04"
    ],
-   "volumeDb": -15,
+   "volumeDb": -7,
    "volVarDb": 2.0,
    "pitchVar": 1.0,
    "spatial": 0.0,
@@ -579,7 +619,7 @@
     "Audio/Sfx/player/player_step_regolith_04",
     "Audio/Sfx/player/player_step_regolith_05"
    ],
-   "volumeDb": -16,
+   "volumeDb": -7,
    "volVarDb": 2.0,
    "pitchVar": 1.2,
    "spatial": 0.0,
@@ -940,7 +980,7 @@
    "clips": [
     "Audio/Sfx/ship/ship_engine_loop"
    ],
-   "volumeDb": -9,
+   "volumeDb": -6,
    "volVarDb": 0.0,
    "pitchVar": 0.0,
    "spatial": 0.0,
@@ -1017,6 +1057,170 @@
    "vacuum": "suit",
    "pitchSteps": [],
    "note": "Cockpit toggle: a chunky two-stage click, the kind that feels good to flip."
+  },
+  {
+   "id": "ship.thruster.belly.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_belly_loop"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Belly thrusters firing downwards to lift the ship: a low drumming under the floor, felt in the seat."
+  },
+  {
+   "id": "ship.thruster.left.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_left_loop"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Thrusters on the LEFT side of the hull firing (the ship is being pushed to the right). Heard in the left ear."
+  },
+  {
+   "id": "ship.thruster.nose.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_nose_loop"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Nose thrusters firing forwards to brake or back away: close, bright and dead ahead."
+  },
+  {
+   "id": "ship.thruster.right.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_right_loop"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Thrusters on the RIGHT side of the hull firing (the ship is being pushed to the left). Heard in the right ear."
+  },
+  {
+   "id": "ship.thruster.roof.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_roof_loop"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Roof thrusters firing upwards to push the ship down: a thin, airy hiss overhead with a metallic edge."
+  },
+  {
+   "id": "ship.thruster.start",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_start_01",
+    "Audio/Sfx/ship/ship_thruster_start_02",
+    "Audio/Sfx/ship/ship_thruster_start_03"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 1.5,
+   "pitchVar": 1.2,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 70,
+   "cooldownMs": 60,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "A thruster opening: the valve's clack and the first cough of gas. The game pans it to the side that fired."
+  },
+  {
+   "id": "ship.thruster.stop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_stop_01",
+    "Audio/Sfx/ship/ship_thruster_stop_02",
+    "Audio/Sfx/ship/ship_thruster_stop_03"
+   ],
+   "volumeDb": -12,
+   "volVarDb": 1.5,
+   "pitchVar": 1.2,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 90,
+   "cooldownMs": 60,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "A thruster closing: the valve seats and the last gas sighs out of the line."
+  },
+  {
+   "id": "ship.thruster.turn.loop",
+   "bus": "Engines",
+   "clips": [
+    "Audio/Sfx/ship/ship_thruster_turn_loop"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 0,
+   "maxVoices": 4,
+   "loop": true,
+   "vacuum": "self",
+   "pitchSteps": [],
+   "note": "Attitude jets chattering while the ship is being turned: quick cold-gas puffs, alternating sides."
   },
   {
    "id": "ship.touchdown",
@@ -1406,7 +1610,7 @@
     "Audio/Sfx/weapons/weapon_sniper_shot_01",
     "Audio/Sfx/weapons/weapon_sniper_shot_02"
    ],
-   "volumeDb": -2,
+   "volumeDb": 0,
    "volVarDb": 0.5,
    "pitchVar": 0.2,
    "spatial": 0.65,
@@ -1638,55 +1842,64 @@
     ]
    },
    {
-    "id": "menu_house_orbits",
-    "title": "The House Always Orbits",
+    "id": "main_long_way",
+    "title": "Long Way From Anywhere",
     "context": "menu",
-    "bpm": 104.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
-    "bars": 40,
-    "key": "D major",
+    "bars": 64,
+    "key": "D minor",
     "motifs": [
-     "orbital_ante"
+     "orbital_ante (cell, in the minor)",
+     "cosmic_mystery (bars 17-32)"
     ],
     "entryBars": [
      1,
      17,
-     33
+     41
     ],
-    "samples": 4430769,
-    "seconds": 92.307688,
+    "samples": 6144000,
+    "seconds": 128.0,
     "stems": [
      {
-      "id": "rhythm",
+      "id": "beat",
       "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/rhythm"
+      "clip": "Audio/Music/main_long_way/beat"
      },
      {
-      "id": "keys",
+      "id": "bass",
       "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/keys"
+      "clip": "Audio/Music/main_long_way/bass"
      },
      {
-      "id": "melody",
-      "lo": 20,
+      "id": "chords",
+      "lo": 0,
+      "hi": 100,
+      "fadeInBars": 2,
+      "fadeOutBars": 2,
+      "clip": "Audio/Music/main_long_way/chords"
+     },
+     {
+      "id": "lead",
+      "lo": 0,
       "hi": 100,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/melody"
+      "clip": "Audio/Music/main_long_way/lead"
      },
      {
-      "id": "sparkle",
-      "lo": 60,
+      "id": "air",
+      "lo": 0,
       "hi": 100,
-      "fadeInBars": 1,
+      "fadeInBars": 2,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/menu_house_orbits/sparkle"
+      "clip": "Audio/Music/main_long_way/air"
      }
     ]
    },
@@ -1789,7 +2002,7 @@
   "contexts": [
    {
     "id": "menu",
-    "track": "menu_house_orbits",
+    "track": "main_long_way",
     "maxLoops": 0,
     "restSeconds": 0,
     "combat": false

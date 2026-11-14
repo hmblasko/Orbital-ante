@@ -31,6 +31,8 @@ namespace OrbitalAnte.Audio
         AudioManifest _manifest;
         Transform _root;
         int _nextCue;
+        readonly double[] _cueFadeAt = { double.MaxValue, double.MaxValue, double.MaxValue };
+        readonly double[] _cueFadeSeconds = { 0.5, 0.5, 0.5 };
         UnityEngine.Audio.AudioMixerGroup _group;
 
         public MusicBrain Brain { get; private set; }
@@ -166,7 +168,13 @@ namespace OrbitalAnte.Audio
                     v.Sources[i].volume = master * MixMath.FadeCurve(v.Stems[i].At(now + LookAhead));
                 }
             }
-            for (int i = 0; i < CueVoices; i++) _cues[i].volume = busGain * Duck;
+            for (int i = 0; i < CueVoices; i++)
+            {
+                float fade = 1f;
+                if (now >= _cueFadeAt[i]) fade = Mathf.Clamp01(1f - (float)((now - _cueFadeAt[i]) / _cueFadeSeconds[i]));
+                _cues[i].volume = busGain * Duck * fade;
+                if (fade <= 0f && _cues[i].isPlaying) _cues[i].Stop();
+            }
         }
 
         void Run(MusicCommand c, double now)
@@ -222,10 +230,23 @@ namespace OrbitalAnte.Audio
                     AudioClip clip = Clip(cue.Clip);
                     if (clip == null) return;
                     AudioSource s = _cues[_nextCue];
+                    _cueFadeAt[_nextCue] = double.MaxValue;
                     _nextCue = (_nextCue + 1) % CueVoices;
                     s.Stop();
                     s.clip = clip;
                     s.PlayScheduled(System.Math.Max(c.Time, now + 0.05));
+                    break;
+                }
+                case MusicCommandKind.StopCue:
+                {
+                    if (!_manifest.Cues.TryGetValue(c.Cue, out CueDef cue)) return;
+                    AudioClip clip = Clip(cue.Clip);
+                    for (int i = 0; i < CueVoices; i++)
+                    {
+                        if (clip == null || _cues[i].clip != clip || !_cues[i].isPlaying || _cueFadeAt[i] < double.MaxValue) continue;
+                        _cueFadeAt[i] = c.Time;
+                        _cueFadeSeconds[i] = System.Math.Max(0.05, c.Seconds);
+                    }
                     break;
                 }
             }

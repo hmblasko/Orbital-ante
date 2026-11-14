@@ -280,6 +280,181 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void Music_DangerThatComesAndGoesDoesNotRestartTheFightMusicEachTime()
+        {
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            // Danger high for 5 s, low for 3 s, over and over for two minutes: one fight, not fifteen.
+            List<MusicCommand> c = Drive(brain, 10, 130, t => ((t - 10) % 8) < 5 ? 75f : 15f);
+            Assert.AreEqual(1, c.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight").Count);
+            Assert.AreEqual(0, c.FindAll(x => x.Kind == MusicCommandKind.PlayCue && x.Cue == "ending").Count);
+        }
+
+        [Test]
+        public void Music_AFightThatFlaresUpAsTheEndingIsCountedIn_LetsTheEndingLandThenFadesItUnderTheRiser()
+        {
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            var all = new List<MusicCommand>();
+            var frame = new List<MusicCommand>();
+            double stopAt = -1;
+            for (double t = 10; t < 60; t += 0.02)
+            {
+                // The moment the ending is ordered (before it has landed) the shooting starts again.
+                float level = t > 14 && t < 16 ? 75f : (stopAt > 0 ? 75f : 10f);
+                frame.Clear();
+                brain.Update(t, level, frame);
+                foreach (MusicCommand c in frame)
+                {
+                    all.Add(c);
+                    if (c.Kind == MusicCommandKind.StopTrack && c.Track == "fight" && stopAt < 0) stopAt = c.Time + c.Seconds;
+                }
+            }
+            List<MusicCommand> fights = all.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight");
+            Assert.AreEqual(2, fights.Count);
+            MusicCommand riser = all.FindLast(x => x.Kind == MusicCommandKind.PlayCue && x.Cue == "riser");
+            Assert.GreaterOrEqual(riser.Time, stopAt - 1e-6, "the new riser must not start before the old fight music has finished leaving");
+            MusicCommand fade = all.Find(x => x.Kind == MusicCommandKind.StopCue);
+            Assert.AreEqual("ending", fade.Cue, "the ending still ringing is faded out under the riser");
+            Assert.Less(fade.Time, fights[1].Time);
+        }
+
+        [Test]
+        public void Intensity_DistantFireDoesNotMakeItThePlayersFight()
+        {
+            var im = new IntensityModel();
+            for (int i = 0; i < 1500; i++)
+            {
+                if (i % 10 == 0) im.Report(IntensityEvent.EnemyShotNearby, 0.3f);
+                if (i % 5 == 0) im.Report(IntensityEvent.HitDealt);
+                im.Tick(0.02f);
+                Assert.Less(im.Value, 60f);
+            }
+        }
+
+        static void Fly(ThrusterMix m, float right, float up, float forward, float turn = 0f, float seconds = 1f)
+        {
+            for (float t = 0; t < seconds; t += 0.02f) m.Update(right, up, forward, turn, 1f, 0.02f);
+        }
+
+        [Test]
+        public void Thrusters_EachDirectionOfPushHasItsOwnThruster_OnTheOppositeSide()
+        {
+            var cases = new (float r, float u, float f, Thruster expect)[]
+            {
+                (0, 0, 1, Thruster.Main), (0, 0, -1, Thruster.Nose),
+                (1, 0, 0, Thruster.Left), (-1, 0, 0, Thruster.Right),
+                (0, 1, 0, Thruster.Belly), (0, -1, 0, Thruster.Roof),
+            };
+            foreach (var c in cases)
+            {
+                var m = new ThrusterMix();
+                Fly(m, c.r, c.u, c.f);
+                for (int i = 0; i < ThrusterMix.Count; i++)
+                {
+                    if ((Thruster)i == c.expect) Assert.AreEqual(1f, m.Level((Thruster)i), 1e-4, c.expect + " should be at full");
+                    else Assert.AreEqual(0f, m.Level((Thruster)i), 1e-6, (Thruster)i + " should be silent while " + c.expect + " fires");
+                }
+            }
+            // Pushed right, the sound is in the left ear, and the other way about.
+            Assert.Less(ThrusterMix.Pan(Thruster.Left), -0.5f);
+            Assert.Greater(ThrusterMix.Pan(Thruster.Right), 0.5f);
+            // Six directions and turning: seven different sounds.
+            var names = new HashSet<string>();
+            for (int i = 0; i < ThrusterMix.Count; i++) names.Add(ThrusterMix.LoopEvent((Thruster)i));
+            Assert.AreEqual(ThrusterMix.Count, names.Count);
+        }
+
+        [Test]
+        public void Thrusters_DiagonalsMixTwo_ARestingStickIsSilent_AndALightTouchIsHeard()
+        {
+            var m = new ThrusterMix();
+            Fly(m, 0.7f, 0f, -0.7f);
+            Assert.Greater(m.Level(Thruster.Left), 0.5f);
+            Assert.Greater(m.Level(Thruster.Nose), 0.5f);
+            Assert.AreEqual(0f, m.Level(Thruster.Right));
+            Assert.AreEqual(0f, m.Level(Thruster.Main));
+
+            m = new ThrusterMix();
+            Fly(m, 0.04f, -0.03f, 0.05f, 0.02f);
+            for (int i = 0; i < ThrusterMix.Count; i++) Assert.AreEqual(0f, m.Level((Thruster)i), "stick noise must not hiss");
+
+            m = new ThrusterMix();
+            Fly(m, 0f, 0.15f, 0f);
+            Assert.Greater(m.Level(Thruster.Belly), 0.3f, "a light touch is clearly audible");
+            Fly(m, 0f, 0f, 0f, 1f);
+            Assert.Greater(m.Level(Thruster.Turn), 0.9f);
+            Assert.AreEqual(0f, m.Level(Thruster.Belly), 1e-6);
+        }
+
+        [Test]
+        public void Thrusters_ValvesClackOnceWhenOpenedAndClosed_NotOnEveryWaggle()
+        {
+            var m = new ThrusterMix();
+            int opened = 0, closed = 0;
+            // Hold right for half a second, let go for half a second.
+            for (int i = 0; i < 50; i++)
+            {
+                m.Update(i < 25 ? 1f : 0f, 0f, 0f, 0f, 1f, 0.02f);
+                if (m.Opened(Thruster.Left)) opened++;
+                if (m.Closed(Thruster.Left)) closed++;
+                Assert.IsFalse(m.Opened(Thruster.Right) || m.Opened(Thruster.Main) || m.Opened(Thruster.Turn));
+            }
+            Assert.AreEqual(1, opened);
+            Assert.AreEqual(1, closed);
+            // Waggling the stick every frame for a second: a few clacks, not fifty.
+            opened = 0;
+            for (int i = 0; i < 50; i++)
+            {
+                m.Update(i % 2 == 0 ? 1f : 0f, 0f, 0f, 0f, 1f, 0.02f);
+                if (m.Opened(Thruster.Left)) opened++;
+                if (m.Closed(Thruster.Left)) opened++;
+            }
+            Assert.LessOrEqual(opened, 6);
+            // The main engine speaks more slowly than a valve.
+            var a = new ThrusterMix();
+            a.Update(1f, 0f, 1f, 0f, 1f, 0.1f);
+            Assert.Greater(a.Level(Thruster.Left), a.Level(Thruster.Main));
+            a.Silence();
+            for (int i = 0; i < ThrusterMix.Count; i++) Assert.AreEqual(0f, a.Level((Thruster)i));
+        }
+
+        [Test]
+        public void Thrusters_EveryThrusterSoundExistsInTheManifest()
+        {
+            string dir = AudioFolder();
+            if (dir == null) Assert.Ignore("audio folder not found");
+            AudioManifest m = AudioManifest.Parse(File.ReadAllText(Path.Combine(dir, "audio_manifest.json")));
+            for (int i = 0; i < ThrusterMix.Count; i++)
+            {
+                string id = ThrusterMix.LoopEvent((Thruster)i);
+                Assert.IsTrue(m.Events.ContainsKey(id), id);
+                Assert.IsTrue(m.Events[id].Loop, id + " must be a loop");
+            }
+            Assert.IsTrue(m.Events.ContainsKey("ship.thruster.start"));
+            Assert.IsTrue(m.Events.ContainsKey("ship.thruster.stop"));
+        }
+
+        [Test]
+        public void SlowMotion_WorldSoundsSinkAndDull_ButAPauseOrAHitstopFrameIsNotSlowMotion()
+        {
+            Assert.AreEqual(0f, MixMath.SlowAmount(1f));
+            Assert.AreEqual(0f, MixMath.SlowAmount(0f), "paused is not slow motion");
+            Assert.AreEqual(0f, MixMath.SlowAmount(0.02f), "a hitstop frame is not slow motion");
+            Assert.AreEqual(1f, MixMath.SlowAmount(0.35f), 1e-4, "the deepest slow the game uses");
+            Assert.Greater(MixMath.SlowAmount(0.6f), 0.4f);
+            Assert.AreEqual(1f, MixMath.SlowPitch(0f));
+            // Time runs at about a third; sounds only drop to 0.7, so they stay recognisable.
+            Assert.AreEqual(0.7f, MixMath.SlowPitch(1f), 1e-4);
+            Assert.GreaterOrEqual(MixMath.SlowCutoff(0f), 20000f);
+            Assert.AreEqual(3200f, MixMath.SlowCutoff(1f), 1f);
+            Assert.Less(MixMath.SlowCutoff(0.5f), 9000f);
+            Assert.AreEqual(1f, MixMath.SlowMusicGain(0f));
+            Assert.Less(MixMath.SlowMusicGain(1f), 0.7f);
+            Assert.Greater(MixMath.SlowMusicGain(1f), 0.5f, "music steps back, it does not vanish");
+        }
+
+        [Test]
         public void Intensity_BandsMatchTheBrief()
         {
             Assert.AreEqual(IntensityBand.Solitude, IntensityModel.BandOf(19f));

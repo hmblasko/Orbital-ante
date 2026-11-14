@@ -104,7 +104,7 @@ namespace OrbitalAnte.Audio
             _craft = null;
             if (_worldLoops)
             {
-                d.SetLoop("ship.engine.loop", 0f, 0.3f);
+                d.StopShipThrust(0.3f);
                 d.SetLoop("ship.cabin.loop", 0f, 0.5f);
                 _worldLoops = false;
             }
@@ -142,14 +142,18 @@ namespace OrbitalAnte.Audio
                 if (_stride >= 1.9f)
                 {
                     _stride = 0f;
-                    AudioDirector.PlayLocal("player.step.regolith", 0.8f, 1f, Random.Range(-0.15f, 0.15f));
+                    AudioDirector.PlayLocal("player.step.regolith", 1f, 1f, Random.Range(-0.15f, 0.15f));
                 }
             }
             else
             {
                 _airTime += Time.deltaTime;
+                // A character controller often reports "not grounded" for a frame or two while walking on flat
+                // ground. Those frames still count towards the stride, or steps would go missing.
+                if (_airTime < 0.15f) _stride += moved.magnitude;
             }
-            _wasGrounded = grounded;
+            // Only a real time in the air counts as leaving the ground.
+            _wasGrounded = grounded || _airTime < 0.15f;
         }
 
         void Flight(AudioDirector d, Space.SolarSystemWorld world)
@@ -177,11 +181,15 @@ namespace OrbitalAnte.Audio
             else d.Space = new ListenerSpace { Air = outsideAir, Enclosure = Enclosure.Open };
             d.SetLoop("ship.cabin.loop", inCabin ? 1f : 0f, 1.5f);
 
-            float thrust = GameSession.Paused ? 0f : Mathf.Clamp01(craft.ThrustInput.magnitude) * (craft.Boosting ? 1f : 0.7f);
-            if (thrust > 0.3f && _engine < 0.05f) AudioDirector.PlayLocal("ship.engine.ignite", 0.8f);
-            _engine = Mathf.MoveTowards(_engine, thrust, Time.unscaledDeltaTime * (thrust > _engine ? 3.5f : 1.8f));
-            d.SetLoop("ship.engine.loop", _engine, 0.08f);
-            d.SetLoopPitch("ship.engine.loop", 0.85f + 0.35f * _engine);
+            // Each direction of push has its own thruster sound, heard from where that thruster sits.
+            Vector3 push = GameSession.Paused ? Vector3.zero : Vector3.ClampMagnitude(craft.ThrustInput, 1f);
+            float before = d.Thrusters.Level(Thruster.Main);
+            d.SetShipThrust(push, 0f, craft.Boosting ? 1f : 0.7f);
+            float main = d.Thrusters.Level(Thruster.Main);
+            if (push.z > 0.3f && before < 0.05f && main >= 0.05f) AudioDirector.PlayLocal("ship.engine.ignite", 0.8f);
+            // How busy the flying is, for the music: the main engine counts in full, manoeuvring jets for less.
+            _engine = main;
+            for (int i = 1; i < ThrusterMix.Count; i++) _engine = Mathf.Max(_engine, 0.6f * d.Thrusters.Level((Thruster)i));
 
             // Which music: close to the ground is exploring, caves and seas and cloud decks are the unknown,
             // everything else is flying.

@@ -19,11 +19,11 @@ Three words to test any new sound against: **grounded, groovy, generous** (it re
 
 ## 3. The four themes
 
-All four are written around the note D so any of them can follow any other. They live in one file, `tools/audio/oa_audio/motifs.py`, and the exploration, combat, flight and mystery pieces and every reward sound take their notes from there. (The menu piece states the Orbital Ante theme from its own copy of the notes; moving it onto the shared file is on the list.)
+All four are written around the note D so any of them can follow any other. They live in one file, `tools/audio/oa_audio/motifs.py`, and the exploration, combat, flight and mystery pieces and every reward sound take their notes from there. (The main theme uses the ante cell in the minor, A C D, and the Cosmic Mystery theme's wide slow intervals, written out in its own file.)
 
 | Theme | The idea | The notes (bar by bar) | Where it is now |
 |---|---|---|---|
-| **Orbital Ante** | Whimsical, adventurous. A rising three-note call (A, B, D), an answer that leans on a flattened seventh (the "wink"), the call again one step higher, then home. | `A B D` / `F# E C A` / `B D E` / `F# E D B D` | Stated in full in the flight piece and the menu piece. Appears in the minor in the third section of the combat piece. Its first three notes are the "ante cell". |
+| **Orbital Ante** | Whimsical, adventurous. A rising three-note call (A, B, D), an answer that leans on a flattened seventh (the "wink"), the call again one step higher, then home. | `A B D` / `F# E C A` / `B D E` / `F# E D B D` | Stated in full in the flight piece. Appears in the minor in the third section of the combat piece. Its first three notes are the "ante cell". |
 | **Ante cell** | The first three notes of the above: A, B, D. The game's signature. | `A B D` | The reward ladder (tier 1 is A and D together, tier 2 and the end of the score count-up are the whole cell, the bigger tiers grow out of it). |
 | **Exploration** | Wonder and curiosity. An open rising fifth that settles, then a reach up that never quite resolves, like a question. | `D A` / `G` / `C B G` / `A` | The exploration piece (bells, then electric piano). Quoted by a bell in the combat ending, to say "back to exploring". |
 | **Conflict** | Urgency. A tight figure worrying at the home note and the note a semitone above it, a drop, and a scramble back up. | `D D Eb D C A` / `Bb F E D` / `D D Eb D C F` / `G F E D` | The lead of the combat piece. |
@@ -40,7 +40,7 @@ Rules for the themes:
 | Role | Instruments | Notes |
 |---|---|---|
 | Bass | Finger bass and slap bass (sampled), doubled with synth sub or a growling synth in combat | The bass is the star of the up-tempo pieces, as the brief asks. It plays lines with gaps, octave jumps and ghost notes, not root-note thumping. (No slides yet: the sound bank cannot bend a note convincingly.) |
-| Drums | Sampled kits for realism, layered with synthesised kick, clap and hats for weight | Swung in the menu piece, straight four-on-the-floor in flight, breakbeat in combat. |
+| Drums | Sampled kits for realism, layered with synthesised kick, clap and hats for weight | Soft deep-house four-on-the-floor in the main theme, straight four-on-the-floor in flight, breakbeat in combat. |
 | Keys | Electric piano, organ stabs | The warm centre. |
 | Colour | Glass and bell tones, tremolo strings, choir pad, brass section | Bells are the sound of the unknown; brass is the sound of trouble or triumph. |
 | Synths | Pads, plucks, an acid line, a hard lead | Analogue in character, never harsh. |
@@ -54,10 +54,12 @@ Sampled instruments come from one MIT-licensed sound bank (see `docs/audio/licen
 | Regolith Lullaby | On foot, exploring | 86 | D Dorian | Walking pace. Half of the combat tempo. |
 | All In | Combat | 172 | D minor | Exactly double the exploration tempo, so the two share a bar line and the hand-over can be exact. |
 | Burn Window | Flying | 124 | D major | House tempo for the bass to dance at. |
-| The House Always Orbits | Main menu | 104 | D, swung | Laid back; the game introducing itself. |
+| Long Way From Anywhere | Main theme (menus) | 120 | D minor | Deep house: a steady, soft four-on-the-floor under slow minor ninths and one distant bell. Existential, not upbeat, as Matthew asked on 14 Nov 2026. Entirely synthesised. Replaced the first menu piece, a swung jazz number that was the wrong mood. |
 | What the Dish Heard | Caves, seas, the unknown | 60 | D Lydian | Slow enough to feel like no tempo at all. |
 
 Staying around D is what lets one piece dissolve into another without a clash.
+
+**Direction from Matthew (14 Nov 2026):** the main music should be "more existential and not upbeat, but still have a good deep house beat". The main theme was rewritten to that. The other pieces (exploration at 86, flight at 124 in a bright D major, combat at 172) were written before it and are the next to be reconsidered against it once he has heard the new theme: the likely direction is one steady deep-house tempo with the mood carried by harmony and space, which is also what the build prompt's "club DJ at a steady tempo" asks for.
 
 ## 6. How the music behaves
 
@@ -76,7 +78,7 @@ Rules the music director keeps (the code is `MusicBrain`, and each of these has 
 1. **Nothing changes off the grid.** Layers enter and leave on bar lines. Pieces hand over on a beat or a bar.
 2. **Combat arrives with a riser** that starts on the next beat and lands on the combat piece's first downbeat, about three seconds later. An ambush (the intensity is heading straight above 85, not climbing there) skips the riser and hits on the next beat. If a fight flares up again during the quiet after the last one, combat music does not wait for that quiet to finish.
 3. **Combat ends with an ending**, not a fade: a final hit at the end of a two-bar phrase, a chord that resolves, about five seconds of ring, and then the exploration piece returns from its barest layers.
-4. **No flapping.** Combat music starts at 60 and will not stop until intensity is under 38 and it has played for at least 14 seconds.
+4. **No flapping.** Combat music starts at 60 and will not stop until intensity has stayed under 38 for four seconds and it has played for at least 14 seconds.
 5. **Firing at nothing is not a battle.** The player's own shots can raise intensity only into the Exploration band, and hits, severed parts and kills on something that is not fighting back stop in the Tension band. Being shot at or taking damage is what starts combat music. A crash is a fright, not a fight, and also stops short of it.
 6. **A piece that comes back does not start over.** Each piece has two or three entry points, and takes the next one each time it returns.
 7. **Music rests.** After two times round, the exploration and flight pieces fade out at the end of their loop and stay away for most of a minute. Deep space has no music at all. The silence makes the next entry matter.
@@ -135,7 +137,7 @@ This makes a firefight on the Moon sound unmistakably different from one on Mars
 | Exploration and menu music | about -17 LUFS |
 | Mystery music | about -20 LUFS |
 | Flight and combat music | about -15 LUFS |
-| True peak of any file | no higher than -1 dB |
+| True peak of any one file | no higher than -1 dB. Music layers playing together can add up to just under full scale; the headroom below is what covers that until there is a limiter. |
 | Whole-game headroom | 4 dB kept free at the output, because Unity clips instead of limiting |
 | Sample rate | 48 kHz everywhere |
 

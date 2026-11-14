@@ -2,9 +2,9 @@
 
 Date: 13 Nov 2026. Branch `claude/audio-slice`.
 
-Status: **built and measured, never heard, not yet run in Unity.** Nothing in this report is a listening result. The system that wrote and mixed this audio cannot hear, and neither can the critics it used. Every quality statement below is a measurement or a reading of the source, and says which. Matthew's first listen decides what happens next.
+Status: **built and measured, never heard, not yet run in Unity.** Merged to main in pull request 24; this version of the report includes the follow-up round. Nothing in this report is a listening result. The system that wrote and mixed this audio cannot hear, and neither can the critics it used. Every quality statement below is a measurement or a reading of the source, and says which. Matthew's first listen decides what happens next.
 
-The honest headline: an independent critic scored the first version **6.1 out of 10 against a pass mark of 8.5**. Most of what it found is fixed. Its biggest finding is not: the "real" instruments (bass, drums, brass, electric piano) come from a free General MIDI sound bank, and that is the most likely place for the music to still sound cheap. See "The main open problem".
+The honest headline: an independent critic scored the first version **6.1 out of 10 against a pass mark of 8.5**, and a second pass after fixes scored it **6.7**. It does not pass. Its biggest finding is not: the "real" instruments (bass, drums, brass, electric piano) come from a free General MIDI sound bank, and that is the most likely place for the music to still sound cheap. See "The main open problem".
 
 ## What changed
 
@@ -49,7 +49,7 @@ Cues: a riser into combat, an ambush hit, a combat ending, a lift into flight, a
 
 | Check | Result | What it proves, and what it does not |
 |---|---|---|
-| 30 rule tests (`Tests/EditMode/AudioRulesTests.cs`), run with `dotnet test` outside Unity | All pass | The music director, intensity, rewards, vacuum, voice pool and the five-minute script behave as written. Not that Unity plays them correctly. |
+| 33 rule tests (`Tests/EditMode/AudioRulesTests.cs`), run with `dotnet test` outside Unity | All pass | The music director, intensity, rewards, vacuum, voice pool and the five-minute script behave as written. Not that Unity plays them correctly. |
 | The whole game's C# compiled against Unity reference assemblies | Compiles | No typos or missing references in runtime code. The two editor scripts could not be compiled here. |
 | `tools/audio/qa.py` over every file (`docs/audio/qa_report.md`) | Pass, 0 failures, 4 warnings | Every file is 48 kHz, no clipping, true peak at or under -1 dB, starts and ends on silence, loops wrap cleanly; music hits its loudness targets; every weapon measures further from every other weapon than from its own variations. The warnings: landing thud and engine ignition are mostly below 250 Hz and will be weak on Deck speakers. |
 | Loop exactness: each piece rendered three times round, third pass compared with the second | -212 dB or better on all five | The loops are sample-exact, so there is no click or gap at the wrap. |
@@ -84,7 +84,76 @@ The full first report is kept as written in `docs/audio/critic_report_1.md`. Sco
 | 22 | Style bible said things that were not true | **Fixed.** |
 | 14, 19, 21, 23 | Cave, facility, cabin and two music layers lack mid-range; the combat riser's drum roll clashes with flight's tempo; energy weapons have no mechanical layer; music is compressed twice | **Not done.** |
 
-**Second critic pass:** see the end of this report.
+### Second critic pass: 6.7 out of 10, still not a pass
+
+A second independent pass re-measured the merged version (`docs/audio/critic_report_2.md`). **6.7, up from 6.1, against 8.5.** It confirmed as fixed: the 12-second wait for music when a fight restarts (now 3.8 s), the ambush hit, combat music from target practice and crashes, pieces always restarting from bar 1, endings mid-phrase, the silent first instant, and the style bible's accuracy. It rated most of the sound changes "partly fixed" (vacuum gunfire is 14 dB louder on small speakers but still well under the music; the hit marker is 6 dB up but still under the two loudest energy weapons; the combat bass is still mostly below what a Deck can play). Production realism moved only from 4 to 4.5: same sound bank.
+
+It also found eight new problems caused by the fixes. What was done in this follow-up:
+
+| New problem | What was done |
+|---|---|
+| A fight that flares up again as the ending is being counted in cut the music dead and let the ending ring over the new riser | **Fixed**, with a test: the ending always lands first, then fades out under the riser. |
+| Danger that comes and goes could restart combat music every 16 seconds | **Fixed**, with a test: the danger must stay low for four seconds before a fight counts as over. |
+| A 2 to 3 dB jump in level between a medium and a hard note | **Fixed** for the hard notes (level-matched). The smaller step between soft and medium on the guitar is not. |
+| Sniper quieter than the rifle | **Changed.** Its body is back and it is 2 dB louder. |
+| The whole game is quiet, and three big sounds at once can still clip | **Not done.** Needs a limiter on the output, which needs an AudioMixer asset made in the editor. |
+| Combat layers without the top one reach -0.01 dB | **Not done.** Covered in play by the 4 dB of headroom; to be fixed with the limiter. |
+| The lift-off cue could land on bar 17 of the flight piece | **Fixed**: a piece that arrives on a riser starts from its top. |
+| One distant shot unlocked full combat intensity for ten seconds | **Fixed**, with a test. |
+
+The fixed version has **not** been re-scored a third time.
+
+**Codex review** (asked for on pull request 24): one finding, that storm wind and thunder ignored the new effects volume setting. Checked against the code, it was right, and it is fixed in this follow-up. Nothing from Codex was rejected.
+
+### Matthew's first reaction (13 Nov): "no footstep sounds"
+
+Footsteps were there (in the recording and in the arena) but far too quiet: measured, each step played about 14 dB under the music and was almost all hiss above 2 kHz, with nothing in the range a Deck's speakers play well. Changed: steps are about 14 dB louder, the dusty-ground step has a mid-range knock (40% of its energy is now between 250 Hz and 2 kHz, from 13%), and the arena's step trigger no longer loses steps when the ground check flickers for a frame. Not heard, so whether they are now right, too loud or still wrong is for Matthew's ear. Note: on main today the only place you walk is the combat arena; there is no walking in the solar system until the ship interior and suit are in.
+
+### Matthew's request (14 Nov): hear the thrusters by direction
+
+"You should hear thrusting in different direction based on the direction the thrusters are going."
+
+**What changed.** Six new looping sounds and two valve sounds, one rule class and one call:
+
+| The pilot pushes | Thruster that fires | Where and how it is heard |
+|---|---|---|
+| Forward | Main engine | The existing engine roar, low, all around |
+| Backward | Nose thrusters | Close, bright bark dead ahead |
+| Right | Left-side thrusters | Left ear (10.6 dB louder there), late and dull in the right |
+| Left | Right-side thrusters | Right ear, the same the other way round |
+| Up | Belly thrusters | Low drumming under the floor |
+| Down | Roof thrusters | Thin, airy hiss overhead |
+| Turning | Attitude jets | Quick cold-gas puffs alternating sides |
+
+A thruster is heard from the side it sits on, which is the side opposite to the push, as on a real spacecraft. If that feels backwards in play (push right, hear it on the left), it is one line to flip. Each valve clacks once when it opens and once when it closes, panned to its side. Diagonals mix two thrusters. A resting stick is silent.
+
+**For the flight code:** one call per frame, `AudioDirector.Instance.SetShipThrust(localPush, turn, boost)`, with the push the pilot is asking for in the ship's own axes (x right, y up, z forward, each -1 to 1), and `StopShipThrust()` when the player leaves the seat. The rules are in `ThrusterMix.cs` (plain C#). The craft on main already reports a three-axis push, so it is wired there now; turning is not wired, because that craft turns with the mouse and reports no turn command.
+
+**Why (principles 1 and 5).** With three-axis thruster flight the ears can confirm what the hands just did, without looking at a gauge.
+
+**Tested.** Four new rule tests (each direction fires only its own thruster, on the opposite side; diagonals; dead zone; one clack per open and close, not one per waggle; every thruster sound exists in the manifest). Measured from the files: left and right differ by 21 dB between the ears; belly sits around 360 Hz, nose around 2.4 kHz, roof around 5.1 kHz. `qa.py` passes. Thrusters and the main engine were also raised 3 to 7 dB after the footstep lesson, so they are not lost under the flight music.
+
+**Unverified.** Whether the directions can really be told apart by ear, and whether up and down read as "below" and "above" (stereo cannot place a sound above you; only the tone suggests it). Not run in Unity. A 39-second preview, `thruster_preview.ogg`, plays each direction in the order of the table, then two diagonals; it is turned up for listening on its own.
+
+### Matthew's direction (14 Nov): "The main music needs to be redone. More existential and not upbeat, but still a good deep house beat."
+
+**What changed.** The menu piece, a swung jazz number in D major, is gone. In its place is a new main theme, "Long Way From Anywhere": deep house at 120, D minor, 64 bars (2 min 8 s), five layers. A soft, round kick on every beat with off-beat hats and a distant clap; an off-beat sub bass; slow minor ninth chords (two bars each) that never settle, played as dub-echoed stabs whose filter opens and closes over sixteen bars; and one bell with long gaps, using the game's own notes (the ante cell in the minor, and the Cosmic Mystery theme's wide intervals). Eight bars in the middle drop the kick altogether. It is entirely synthesised, so it does not lean on the General MIDI sound bank the critic objected to.
+
+Also fixed while there: in the menus the old piece's melody never played at all, because it waited for an intensity the menus never reach. All five layers of the new theme play in the menus.
+
+**Why (principles 8 and 1; build prompt section 1, "a thread of horror and existential unknown").** The old theme told the player this was a jaunty game.
+
+**Tested.** Loop is sample-exact (-215 dB). -16.5 LUFS, true peak -1.5 dB. Through a 200 Hz high-pass (a stand-in for Deck speakers) the mix loses 1.5 LU; the bass layer alone loses 4.3 LU and the beat 2.7, so on a handheld the beat is carried by the kick's knock, the hats and the clap. `qa.py` passes.
+
+**Unverified.** Whether it sounds existential, or good, or like deep house to someone who loves deep house. Nobody has heard it. Listening file: `main_theme_long_way.ogg` (the piece once through, then the first quarter again so the loop point can be heard, then a fade).
+
+**Matthew's verdict (14 Nov): "Less bells but otherwise like it."** Done: the bell now stays out of more than half the piece (the first sixteen bars and the sixteen after the breakdown are groove and chords alone), its echo an octave down is kept only in the breakdown, what remains is softer (more glass tone than struck bell) and about 3 dB quieter, and the high shimmer layer is thinner. Not heard.
+
+**Not changed yet.** Exploration, flight, combat and mystery. They wait for Matthew's verdict on this one, since his direction probably applies to them too.
+
+### Slow motion ("Deep Breath", asked for by Matthew on 14 Nov; built in the core thread)
+
+When the game slows time, the world's sounds now go with it: gunshots, impacts, pops, engines and beds drop in pitch (to 0.7 at the deepest slow, less than time itself, so a gunshot is still a gunshot) and lose their top (down to 3.2 kHz). Sounds inside the suit and the interface stay exactly as they are, so the player's own head is the one thing still at full speed. Music keeps its tempo, because it runs on the audio clock, and steps back by about a third instead. Going in there is a sinking breath with one heavy heartbeat; coming out, the same breath let go. The audio reads the game's time scale and never sets it, so it also covers the headshot slow-motion with no extra wiring. One new rule test. Not heard, not run in Unity.
 
 ### The main open problem
 
@@ -115,7 +184,7 @@ The bass, drums, brass, strings, choir and electric piano are played from FluidR
 | 4 to 6 compositions | Done (5), never heard |
 | 30 to 40 sound effects | Done (68 events), never heard |
 | Adaptive music demo and five-minute sequence | Done in code and as an offline render; not run in Unity |
-| Critic pass and fixes | Done twice over; score below the 8.5 target |
+| Critic passes and fixes | Two passes (6.1, then 6.7; target 8.5) and two rounds of fixes. Below target. |
 | AudioMixer groups and snapshots | **Partial.** The eight buses exist in code with levels and sliders. A real AudioMixer asset (needed for a limiter and for snapshots) is not made: it cannot be created or checked without the editor. There is an experimental menu item, Orbital Ante > Audio, for it. |
 | Sourced recordings (real guns, real engines, real instruments) | **Blocked** from the cloud: sound-library sites are not reachable. |
 | Steam Deck findings | **Blocked** until it runs on the Deck. Estimates only, in `docs/performance_budget.md`. |
@@ -128,7 +197,7 @@ The quick way, no Unity: play the attached `orbital_ante_audio_showcase.ogg` (fi
 
 In the game:
 
-1. Open Konsole and run `cd ~/Orbital-ante && git fetch && git checkout claude/audio-slice && git pull`.
+1. Open Konsole and run `cd ~/Orbital-ante && git checkout main && git pull`.
 2. Open the project in Unity Hub as usual. The first open takes a few extra minutes while Unity imports about 160 audio files.
 3. In the top menu choose **Orbital Ante > Audio > Check Audio Files**. The Console should say how many events and pieces it found and list no errors. If it lists errors, copy them to me.
 4. Press Play. Menu music should start within a second or two.
