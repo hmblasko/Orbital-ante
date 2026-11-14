@@ -169,6 +169,11 @@ namespace OrbitalAnte.UI
                 text += (_craft.LockedTarget >= 0 ? "\nLOCKED ON " : "\nAimed at ") + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
                         (closing >= 0f ? "closing " : "pulling away ") + FormatSpeed(Mathf.Abs(closing));
             }
+            else if (_craft.NearNose >= 0)
+            {
+                // Nothing dead ahead, but Lock would still take this one: say so, so a rough aim is enough.
+                text += "\nNearest the nose: " + model.Spec(_craft.NearNose).displayName + "   (" + Key(GameInput.LockTarget) + " locks it)";
+            }
             // What the surroundings are doing to you, so nothing slows or pushes the craft without saying so.
             Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
             if (planets != null && planets.Sky != null && planets.Sky.Surface != null)
