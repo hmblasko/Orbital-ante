@@ -164,12 +164,23 @@ namespace OrbitalAnte.Tests.EditMode
             for (int i = 0; i < model.Count; i++)
             {
                 PartSpec p = model.Parts[i];
-                if (p.Kind != PartKind.Window && p.Id != "cabin" && p.Id != "base" && p.Kind != PartKind.Hatch && p.Kind != PartKind.Dish) continue;
+                if (p.Kind != PartKind.Window && p.Id != "cabin" && p.Id != "base" && p.Kind != PartKind.Dish) continue;
                 model.Damage(i, p.MaxHealth * 50f);
                 Assert.AreEqual(PartState.Broken, model.State(i), p.Id);
                 Assert.IsTrue(model.NeedsRepair(i), p.Id + " must stay mendable");
             }
             Assert.IsFalse(model.CabinIntact);
+        }
+
+        [Test]
+        public void TheHatch_NeverBreaks()
+        {
+            var model = new ShipModel();
+            int hatch = model.Find(PartKind.Hatch);
+            model.Damage(hatch, model.Parts[hatch].MaxHealth * 50f);
+            Assert.AreEqual(PartState.Sound, model.State(hatch));
+            Assert.IsFalse(model.NeedsRepair(hatch));
+            Assert.IsTrue(model.HatchWorks, "the way in and out can always be opened");
         }
 
         [Test]

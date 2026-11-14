@@ -11,7 +11,7 @@ namespace OrbitalAnte.Ship
     /// </summary>
     public sealed class ShipAudio
     {
-        const int Rate = 22050;
+        internal const int Rate = 22050;
 
         public AudioClip BeltClick, SeatHiss, BeltRelease, HatchMove, HatchThunk, LiftHum, RepairTick, RepairDone;
         public AudioClip GlassCrack, GlassShatter, Thud, Crunch, TearOff, Deny, Lever, Groan, Scrape;
@@ -114,7 +114,7 @@ namespace OrbitalAnte.Ship
 
         /// <param name="shape">Given the time in seconds and a random value from -1 to 1, returns the sound's height.</param>
         /// <param name="lowPass">0 to 1: lower removes more hiss (0 leaves the sound untouched).</param>
-        static AudioClip Make(string name, float seconds, int seed, Func<float, float, float> shape, float lowPass = 0f, bool loop = false)
+        internal static AudioClip Make(string name, float seconds, int seed, Func<float, float, float> shape, float lowPass = 0f, bool loop = false)
         {
             int count = Mathf.Max(1, Mathf.RoundToInt(seconds * Rate));
             var data = new float[count];

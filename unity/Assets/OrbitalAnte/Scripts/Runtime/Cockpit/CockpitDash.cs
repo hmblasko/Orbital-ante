@@ -257,6 +257,9 @@ namespace OrbitalAnte.Cockpit
                 if (state == PartState.Broken || state == PartState.Lost) broken++;
             }
             Supplies.Tick(dt, push, _craft.Boosting && !Braking, onPad, broken, landed);
+            // The suit fills up from the ship's tank, and is told how much is left in it.
+            Supplies.DrawAir(_crew.TakeAirDrawn());
+            _crew.ShipAir = Supplies.Oxygen;
 
             // A hard knock while a camera fills the view puts you straight back behind your own eyes: a crash is
             // lived from the seat, never watched from outside.

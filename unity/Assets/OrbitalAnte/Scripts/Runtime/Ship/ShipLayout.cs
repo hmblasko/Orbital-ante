@@ -96,6 +96,8 @@ namespace OrbitalAnte.Ship
         public static readonly P3 HatchLever = new P3(1.05f, 1.0f, -0.55f);
         /// <summary>The same control outside, on the belly beside the ring.</summary>
         public static readonly P3 OutsideHatchButton = new P3(1.35f, BellyY - 0.05f, 0f);
+        /// <summary>Where the safety tether is fixed: on the belly beside the hatch ring, opposite the button.</summary>
+        public static readonly P3 TetherAnchor = new P3(-1.2f, BellyY - 0.05f, 0f);
 
         public static readonly FloorObstacle[] Obstacles =
         {

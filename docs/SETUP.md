@@ -44,13 +44,14 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Steer | Mouse | Right stick |
+| Look around the cabin | Mouse | Click the right stick, then move it (click again to go back to turning) |
+| Turn the ship | Hold the right mouse button and move the mouse | Right stick |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
 | Look down at the camera screen (and back up) | C | D-pad down |
 | Next ship camera | V | D-pad right |
-| Next dash design (for choosing; all four are in the build) | N | Click right stick |
+| Next dash design (for choosing; all four are in the build) | N | (keyboard only) |
 | Lock on to what the nose points at (press again on it, or on empty sky, to let go) | T | X / Square |
 | Autopilot to the locked body (any thrust takes the ship back) | R | B / Circle |
 | Match velocity with what you aim at (hold) | F | A / Cross |
@@ -81,7 +82,25 @@ You start strapped into the pilot's seat. The flying controls above only work wh
 | Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
 | Shoot (test pistol, on foot only) | Left mouse | Right trigger |
 
-The lift will not lower you unless there is ground within about 4 m below the ship, because there is no jetpack until Milestone 11. Land first.
+With no ground below (in flight), the lift lowers you clear of the belly and lets go. You keep the ship's speed, and the safety tether clips on by itself.
+
+### Outside in the suit (solar system)
+
+On the ground you walk and jump as before. Off the ground the suit's jets take over. High above a body, or where almost nothing pulls, you float free: there is no "down" and you can look, and roll, any way up.
+
+| What | Keyboard | Controller |
+|---|---|---|
+| Jets forward, back, left, right | W A S D | Left stick |
+| Jets up | Hold Space | Hold A / Cross |
+| Jets down | Hold Left Ctrl | Hold B / Circle |
+| Gentle jets, for small careful moves | Hold Left Shift while pushing | Hold the left stick in |
+| Match velocity (stop against the ship if it is near or you are looking at it, otherwise against the ground) | Hold F | Hold left trigger |
+| Roll over (floating only) | Z / C | Left / right bumper |
+| Tether on or off (on: only within 40 m of the ship) | X | D-pad right |
+| Mend a part (the jets hold you beside the ship while you do) | Look at it from within 3.5 m and hold E | Hold Y / Triangle |
+| Go aboard | Fly or stand under the blue ring with the hatch open | The same |
+
+Bottom left of the screen: **AIR** (a ring), **JETS** (a bar), your speed and what it is measured against, and the tether. The jets lift you on the Moon and Mars; on Earth they only soften a fall. With the jet tank dry the jets burn your air instead. Both tanks fill in a few seconds once you are aboard. Hitting anything faster than 26 m/s in the suit is fatal, and so is running out of air.
 
 ### On-foot controls (combat arena)
 
@@ -106,8 +125,8 @@ The arena starts with the enemies **holding fire**, so you can look around. Pres
 ## E. Run the automated tests
 
 1. Menu: **Window > General > Test Runner**.
-2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light, and the launch: where the pad goes, the engine build-up and the pad's shapes, and the cockpit: fuel and air, the dash readings, the four dash designs, the cameras and the look-down view, and navigation: the autopilot, the target lock and what a crash does to the pilot (1,053 tests; they take a few seconds).
-3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch, shots fired inside the cabin and the map, and the launch: resting on the pad, the build-up, smoke and the service arm, and the cockpit: the dash and its cameras, an empty tank, and looking down at the screen, and navigation: the lock, the autopilot and hard knocks with and without the belt (86 tests). The editor will flicker into Play mode for a few minutes.
+2. Click the **EditMode** tab, then **Run All**. These check the dismemberment rules, the gun rules, seeded random numbers, the save file, the frame-time sums, and the solar system's orbits, gravity and point-of-view sums, the placed rock and tree shapes, and the planet rules: the formation index, ground, caves, tiles, air, cloud decks, seas and weather, and the ship's rules: walking about the cabin, damage and mending, glass, the hatch and lift, the seat belt, the shapes and the baked light, and the launch: where the pad goes, the engine build-up and the pad's shapes, and the cockpit: fuel and air, the dash readings, the four dash designs, the cameras and the look-down view, and navigation: the autopilot, the target lock and what a crash does to the pilot, and the suit: air and jet fuel, the jets, velocity matching, the tether, standing or floating, and its words (1,077 tests; they take a few seconds).
+3. Click the **PlayMode** tab, then **Run All**. These build a real mannequin and shoot bits off it, then check the gib pool, blood, splats, hitstop, weapons, disarming, saving, the content database, the solar system and the planets: ground appearing, landing on it, gas giants, Neptune's sea and storms, and the ship: built whole, baked light fits, the seat, damage, glass, the hatch, shots fired inside the cabin and the map, and the launch: resting on the pad, the build-up, smoke and the service arm, and the cockpit: the dash and its cameras, an empty tank, and looking down at the screen, and navigation: the lock, the autopilot and hard knocks with and without the belt, and the suit: stepping out in flight, the tether, filling up aboard, running out of air and hard knocks (91 tests). The editor will flicker into Play mode for a few minutes.
 4. Green ticks mean pass. If anything is red, click it, copy the text at the bottom, and send it to me.
 5. Or run everything without opening the editor: close Unity, then right-click `tools/check-in-unity.ps1` > **Run with PowerShell** (Mac: `bash tools/check-in-unity.sh`). It ends with `Overall: PASS` or `FAIL` and saves `unity/Logs/oa-check/summary.txt`, which you can send me. Claude Code on your own computer can run this loop and fix what fails: see `docs/CLAUDE_CODE_LOCAL.md`.
 
@@ -135,6 +154,8 @@ Planets have their own asset too: `Assets/OrbitalAnte/Resources/Planets/Planets`
 To add a gun: select one in that folder, press **Ctrl+D** to duplicate it, rename the copy (the file name is the gun's id), and change its numbers. Then menu **Orbital Ante > Check Content** tells you in plain words if any value is wrong.
 
 The ship has its own asset: `Assets/OrbitalAnte/Resources/Config/ShipConfig`. It holds the ship's weight, how much damage each part takes, how fast repairs go, walking speed in the cabin, the seat belt and hatch timings, and a **Test Pistol** tick box (untick it to walk about unarmed).
+
+The suit has its own asset: `Assets/OrbitalAnte/Resources/Config/SuitConfig`. Under **Rules**: how hard the jets push, how long the jet fuel and the air last, the tether's length, when Match Velocity picks the ship, where you start to float, and how hard a knock hurts or kills. Below that: the jets' colour and length, the visor glow and the volume.
 
 ### Saves and seeds
 

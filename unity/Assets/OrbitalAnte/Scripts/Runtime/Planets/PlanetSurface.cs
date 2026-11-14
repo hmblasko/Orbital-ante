@@ -118,7 +118,6 @@ namespace OrbitalAnte.Planets
         readonly List<Node> _scatterNodes = new List<Node>();
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
         Vec3d _viewer;
-        Vec3d _focus;
         float _solidRange;
         int _tick;
         int _bakesLeft;
@@ -393,9 +392,32 @@ namespace OrbitalAnte.Planets
         /// </summary>
         public void Tick(Vec3d viewer, Vec3d focus, float focusSpeed)
         {
+            _onePoint[0] = focus;
+            Tick(viewer, _onePoint, 1, focusSpeed);
+        }
+
+        /// <summary>The most places at once that can ask for solid ground under them.</summary>
+        public const int GroundPointLimit = 4;
+        /// <summary>
+        /// A place that needs ground splits the tiles it is over (and little else) down to the finest, so what it
+        /// stands on has the same shape whether or not the player is there to see it.
+        /// </summary>
+        const double GroundPointSplit = 0.3;
+        readonly Vec3d[] _onePoint = new Vec3d[1];
+        readonly Vec3d[] _needGround = new Vec3d[GroundPointLimit];
+        int _needGroundCount;
+
+        /// <summary>
+        /// As above, for several places that need solid ground at once. The first is the focus; the rest are
+        /// things left behind that must not sink while the player is away (the parked ship).
+        /// </summary>
+        public void Tick(Vec3d viewer, Vec3d[] ground, int count, float focusSpeed)
+        {
             if (!Near) return;
             _viewer = viewer;
-            _focus = focus;
+            _needGroundCount = Math.Min(count, GroundPointLimit);
+            for (int g = 0; g < _needGroundCount; g++) _needGround[g] = ground[g];
+            if (_needGroundCount == 0) { _needGround[0] = viewer; _needGroundCount = 1; }
             // Faster means solid ground is needed further ahead.
             _solidRange = Mathf.Min(Settings.solidGroundLimit, Mathf.Max(Settings.solidGroundRange, focusSpeed * 3f));
             _tick++;
@@ -442,6 +464,10 @@ namespace OrbitalAnte.Planets
         {
             n.SeenTick = _tick;
             bool split = TileRules.WantsSplit(SurfaceRadius, n.Level, MaxLevel, n.Centre, _viewer, Settings.splitDistance, n.Children != null);
+            for (int g = 0; !split && g < _needGroundCount; g++)
+            {
+                split = TileRules.WantsSplit(SurfaceRadius, n.Level, MaxLevel, n.Centre, _needGround[g], GroundPointSplit, n.Children != null);
+            }
             if (split)
             {
                 if (n.Children == null)
@@ -454,12 +480,16 @@ namespace OrbitalAnte.Planets
                 if (ready)
                 {
                     bool wasSolid = n.Shown && n.Solid;
+                    // The ground under something is about to change shape (finer, with different heights). A
+                    // foot that ends up under the new surface would drop through it, so the world is told and
+                    // sets whatever stands here back on top.
+                    if (wasSolid && NearGround(n) < 0 && _reshaped.Count < 8) _reshaped.Add(n);
                     Show(n, false);
                     for (int c = 0; c < 4; c++)
                     {
                         // Ground you are standing on must never stop being solid, even for one frame. Only the
                         // pieces right under the ship are done at once; the rest follow one a frame.
-                        if (wasSolid && !n.Children[c].Solid && NearFocus(n.Children[c], 25)) MakeSolid(n.Children[c]);
+                        if (wasSolid && !n.Children[c].Solid && NearGround(n.Children[c]) < 25) MakeSolid(n.Children[c]);
                         Refresh(n.Children[c]);
                     }
                     return;
@@ -484,27 +514,112 @@ namespace OrbitalAnte.Planets
             n.Go.SetActive(shown);
         }
 
+        /// <summary>
+        /// Solid ground reaches this far round a thing left behind (the parked ship). The focus gets the full,
+        /// speed-driven range, because it is the one that may be arriving fast.
+        /// </summary>
+        const double LeftBehindRange = 30;
+
         void UpdateSolid(Node n)
         {
-            double distance = Vec3d.Distance(n.Centre, _focus) - TileRules.Reach(SurfaceRadius, n.Level);
+            double reach = TileRules.Reach(SurfaceRadius, n.Level);
+            bool wanted = false, kept = false, under = false;
+            for (int g = 0; g < _needGroundCount; g++)
+            {
+                double distance = Vec3d.Distance(n.Centre, _needGround[g]) - reach;
+                double range = g == 0 ? _solidRange : LeftBehindRange;
+                wanted |= distance <= range;
+                kept |= distance <= range * 1.6 + 40;
+                under |= distance < 12;
+            }
             if (!n.Solid)
             {
-                if (distance > _solidRange) return;
-                // One new solid tile a frame keeps the cost even (one extra if the ship is right on top of it).
-                if (_bakesLeft <= (distance < 12 ? -1 : 0)) return;
-                _bakesLeft--;
+                if (!wanted) return;
+                // One new solid tile a frame keeps the cost even. Ground right under something is never made to
+                // wait its turn: a tile that is late there is a hole to fall through.
+                if (!under)
+                {
+                    if (_bakesLeft <= 0) return;
+                    _bakesLeft--;
+                }
                 MakeSolid(n);
             }
-            else if (distance > _solidRange * 1.6f + 40)
+            else if (!kept)
             {
                 n.Collider.enabled = false;
                 n.Solid = false;
             }
         }
 
-        bool NearFocus(Node n, double margin)
+        /// <summary>How far a tile's edge is from the nearest place that needs solid ground (0 or less: under it).</summary>
+        double NearGround(Node n)
         {
-            return Vec3d.Distance(n.Centre, _focus) - TileRules.Reach(SurfaceRadius, n.Level) < margin;
+            double reach = TileRules.Reach(SurfaceRadius, n.Level);
+            double nearest = double.MaxValue;
+            for (int g = 0; g < _needGroundCount; g++) nearest = Math.Min(nearest, Vec3d.Distance(n.Centre, _needGround[g]) - reach);
+            return nearest;
+        }
+
+        readonly List<Node> _reshaped = new List<Node>();
+
+        /// <summary>
+        /// True once if solid ground at this point (metres from the body's centre) was swapped for a finer shape
+        /// since the last time anyone asked. Call <see cref="ForgetReshaped"/> after asking for every mover.
+        /// </summary>
+        public bool ReshapedUnder(Vec3d point)
+        {
+            for (int i = 0; i < _reshaped.Count; i++)
+            {
+                Node n = _reshaped[i];
+                if (Vec3d.Distance(n.Centre, point) - TileRules.Reach(SurfaceRadius, n.Level) < 0) return true;
+            }
+            return false;
+        }
+
+        public bool AnyReshaped => _reshaped.Count > 0;
+        public void ForgetReshaped() => _reshaped.Clear();
+
+        /// <summary>
+        /// True if the ground showing under a point is solid and in its finest shape, so its real height is
+        /// what <see cref="GroundRadius"/> says. Coarser ground can be metres off.
+        /// </summary>
+        public bool FineSolidAt(Vec3d point)
+        {
+            if (!GroundShown || _roots == null) return false;
+            Node n = Nearest(_roots, point);
+            while (n != null && !n.Shown && n.Children != null) n = Nearest(n.Children, point);
+            return n != null && n.Shown && n.Solid && n.Level >= MaxLevel;
+        }
+
+        static Node Nearest(Node[] nodes, Vec3d point)
+        {
+            Node best = null;
+            double least = double.MaxValue;
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                if (nodes[i] == null) continue;
+                double d = Vec3d.Distance(nodes[i].Centre, point);
+                if (d < least) { least = d; best = nodes[i]; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// Makes the ground showing at a point (metres from the body's centre) solid now. Used when something
+        /// has just been put back on top of the ground, so it cannot fall straight back in.
+        /// </summary>
+        public void MakeSolidAt(Vec3d point)
+        {
+            if (!GroundShown) return;
+            for (int f = 0; f < _roots.Length; f++) MakeSolidAt(_roots[f], point);
+        }
+
+        void MakeSolidAt(Node n, Vec3d point)
+        {
+            if (n == null || Vec3d.Distance(n.Centre, point) - TileRules.Reach(SurfaceRadius, n.Level) > 2) return;
+            if (n.Shown && n.HasMesh) { if (!n.Solid) MakeSolid(n); return; }
+            if (n.Children == null) return;
+            for (int c = 0; c < 4; c++) MakeSolidAt(n.Children[c], point);
         }
 
         void MakeSolid(Node n)

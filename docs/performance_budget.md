@@ -69,7 +69,8 @@ Numbers to read off in Unity for this section are listed in `docs/reports/milest
 | Ground pieces ("tiles") drawn at once | about 150 standing on Earth, the biggest body (counted by a test program, with `Split Distance` 1.2). Each is 2,560 triangles, so about 390,000 triangles exist and roughly half are in view. Hard to exceed: the finest tile size is fixed per body. |
 | `Split Distance` on the Planets asset | 1.2. Raising it to 1.7 gives sharper far ground but 237 tiles (about 600,000 triangles). This is the first number to lower if planets are slow. |
 | New ground handed to the graphics card per frame | 2 pieces (`Uploads Per Frame`) |
-| Ground made solid per frame | 1 piece (2 when the ship is within 12 m of it). Only ground within 90 m is solid, more when moving fast, never beyond 260 m. This is the likeliest cause of a stutter while landing: it is still done on the main thread. |
+| Ground made solid per frame | 1 piece, plus any within 12 m of the ship or the suit (those never wait: a late one is a hole to fall through; up to 6 in one frame on first arrival, guessed 1 to 3 ms each on Deck). Only ground within 90 m is solid, more when moving fast, never beyond 260 m. This is the likeliest cause of a stutter while landing: it is still done on the main thread. |
+| Ground kept under the parked ship | The ship and the suit each keep the ground under them in its finest shape and solid (30 m round whichever one the player is not in): up to 15 more ground pieces drawn and 9 to 24 more solid, counted by a test program on a smooth ball, not measured. | 4 places (`GroundPointLimit`) |
 | Background workers | 3 (`Background Workers`). Painting far-away pictures never takes the last free one, so ground under you is never kept waiting. |
 | Rocks, trees and other placed shapes | 500 at most (`Feature Cap`), only within 170 m for loose rocks, and at most 24 put out per frame |
 | Solid placed shapes | only those taller than 1.2 m get a collider |
@@ -252,6 +253,20 @@ What to read off in Unity:
 4. Fly into the ground at about 20 m/s. Click the tallest spike. Note the total ms, then search `Ship.OnCollisionEnter` and note **Calls**, **Time ms** and **GC Alloc**.
 5. Click the **Audio** row in the Profiler and repeat the crash. Note the highest **Playing Audio Sources** and **Audio Voices**.
 6. **Edit > Project Settings > Physics**: note whether **Reuse Collision Callbacks** is ticked. Then **Edit > Project Settings > Time**: note the **Fixed Timestep** number.
+
+## Spacewalk (Milestone 11): estimates from reading the code, not measured
+
+| System | Cost | Cap |
+|---|---|---|
+| Suit body | one capsule, one sphere cast per physics step, no garbage. The real ground height is asked of the planets every sixth step | one suit; switched off aboard |
+| Tether line | 60 corners rewritten per frame while clipped on, 1 draw call | 14 segments |
+| Jet flames | 96 triangles, up to 12 draw calls, one material | 12 |
+| Suit readout | one canvas, guessed 5 to 8 draw calls. Gauges are only rewritten when they move by half a percent, and colours are set on the renderer, so the canvas is not rebuilt every frame | text 8 times a second |
+| Readout words | only built again when what they depend on changes | none while nothing changes |
+| Visor rim | four soft bands 90 px deep, about a third of the screen blended at most (all four only on a forward push). Guessed 0.1 to 0.3 ms on the graphics card. First thing to lower: band depth | 4 bands |
+| Suit sounds | 7 clips made at run start, guessed 27 to 80 ms once on a Deck; about 0.16 MB kept; 2 sources | once per run |
+
+What to read off in Unity (floating outside, tethered): in **Window > Analysis > Profiler**, CPU Usage, Hierarchy, search `SuitHud.LateUpdate`, `SuitFx.LateUpdate` and `Astronaut.FixedUpdate` for Time ms and GC Alloc (expect 0 B on most frames), and `Canvas.BuildBatch` while drifting and then while thrusting.
 
 ## Lighting (asked for on 11 Nov 2026)
 

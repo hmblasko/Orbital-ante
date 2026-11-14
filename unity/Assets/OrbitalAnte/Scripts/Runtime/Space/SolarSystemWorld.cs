@@ -37,6 +37,7 @@ namespace OrbitalAnte.Space
         public Ship.Ship Ship { get; private set; }
         public Astronaut Astronaut { get; private set; }
         public ShipHud ShipHud { get; private set; }
+        public OrbitalAnte.Spacewalk.SuitHud SuitHud { get; private set; }
         public OrbitalAnte.Cockpit.CockpitDash Dash { get; private set; }
         public FlightHud Hud { get; private set; }
         public SystemMap Map { get; private set; }
@@ -114,6 +115,8 @@ namespace OrbitalAnte.Space
             shipHudGo.transform.SetParent(transform, false);
             ShipHud = shipHudGo.AddComponent<ShipHud>();
             ShipHud.Build(Ship, Astronaut, Hud, Map);
+            SuitHud = shipHudGo.AddComponent<OrbitalAnte.Spacewalk.SuitHud>();
+            SuitHud.Build(Astronaut, Astronaut.SuitDials);
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();

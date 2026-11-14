@@ -21,8 +21,8 @@ namespace OrbitalAnte.Ship
         public DamageRules damage = new DamageRules();
         [Tooltip("How close (metres) you must be to a part to mend it.")]
         public float repairReach = 3.2f;
-        [Tooltip("How far away you can mend from when standing outside, in metres. Long, because the dish and thrusters are high up and there is no jetpack until Milestone 11.")]
-        public float outsideRepairReach = 7f;
+        [Tooltip("How far away you can mend from outside, in metres. Short: the suit's jets take you up to the dish and the thrusters.")]
+        public float spacewalkRepairReach = 3.5f;
         [Tooltip("How closely (degrees) you must be looking at a part to mend it.")]
         public float repairAim = 22f;
 
