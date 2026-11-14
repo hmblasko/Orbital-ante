@@ -89,6 +89,7 @@ namespace OrbitalAnte.Weapons
         /// <summary>Puts the weapon in the player's hands. The caller parents and positions it.</summary>
         public void TakeByPlayer()
         {
+            transform.localScale = Vector3.one;
             ApplyHold(WeaponHold.HeldByPlayer, null);
         }
 
@@ -103,8 +104,8 @@ namespace OrbitalAnte.Weapons
         {
             State.CancelReload();
             SetMagazineVisible(true);
+            // It keeps the size it was held at (a big enemy's gun is a big gun) so it does not shrink as it falls.
             transform.SetParent(newParent, true);
-            transform.localScale = Vector3.one;
             ApplyHold(WeaponHold.Dropped, null);
             DroppedAt = Time.unscaledTime;
             Body.linearVelocity = velocity;

@@ -275,7 +275,7 @@ namespace OrbitalAnte.Dismemberment
                 if (AddModel(go, BodyPartId.Head, modelled))
                 {
                     col.radius = ModelHeadRadius;
-                    col.center = new Vector3(0f, 0.015f, 0f);
+                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), 0f);
                     neck = 0.165f;
                 }
                 else
@@ -385,7 +385,8 @@ namespace OrbitalAnte.Dismemberment
                     if (id == BodyPartId.LeftThigh || id == BodyPartId.RightThigh) local += direction * 0.07f;
                     else if (id == BodyPartId.Head) local += direction * 0.025f;
                 }
-                parent.SetChildCap(id, AddCap(parent.gameObject, local, capRadius[i], direction, wound, modelled));
+                float capFit = _fitted ? BodyFit.Thickness(_model, id) : 1f;
+                parent.SetChildCap(id, AddCap(parent.gameObject, local, capRadius[i] * capFit, direction, wound, modelled));
             }
 
             return parts;

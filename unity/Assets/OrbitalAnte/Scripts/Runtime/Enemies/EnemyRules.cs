@@ -23,6 +23,8 @@ namespace OrbitalAnte.Enemies
         /// type (never inflated health: a tough enemy is tough in the middle, and still loses arms).
         /// </summary>
         public float toughness = 1f;
+        /// <summary>How tough the head is. 0 means the same as <see cref="toughness"/>. Kept lower on a tough body so ending it is never a slog.</summary>
+        public float headToughness;
         /// <summary>The gun it carries (a weapon's id).</summary>
         public string weapon = "Rifle";
         public float engageRange = 45f;
@@ -84,6 +86,9 @@ namespace OrbitalAnte.Enemies
     public static class EnemyRoster
     {
         /// <summary>The four kinds asked for on 14 Nov 2026: each with its own size, pace, toughness and gun.</summary>
+        /// <summary>Raise this when the defaults change, so a config asset made earlier takes the new roster.</summary>
+        public const int Version = 2;
+
         public static List<EnemyTypeSpec> Defaults()
         {
             return new List<EnemyTypeSpec>
@@ -94,7 +99,7 @@ namespace OrbitalAnte.Enemies
                 new EnemyTypeSpec { id = "Runner", model = "EnemyRunner", scale = 0.85f, speed = 1.5f, toughness = 0.7f, weapon = "Smg", engageRange = 30f,
                                     reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
                 // Big and slow: walks you down with a blast that only matters close. Hard to stop in the middle.
-                new EnemyTypeSpec { id = "Bruiser", model = "EnemyBruiser", scale = 1.3f, speed = 0.8f, toughness = 2.2f, weapon = "Shotgun", engageRange = 20f,
+                new EnemyTypeSpec { id = "Bruiser", model = "EnemyBruiser", scale = 1.3f, speed = 0.8f, toughness = 2.2f, headToughness = 1.5f, weapon = "Shotgun", engageRange = 20f,
                                     reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true },
                 // Tall, thin and still: stands off and takes one slow, painful shot. A bright line shows where it is
                 // aiming for a second before every shot, and there is never more than one in a camp.

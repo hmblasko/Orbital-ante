@@ -190,5 +190,16 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.IsTrue(squad.SawWithin(12f, 8f));
             Assert.IsFalse(squad.SawWithin(14f, 8f), "and then they lose you");
         }
+
+        [Test]
+        public void NoKindsHead_IsMoreThanHalfAgainAsToughAsTheOrdinaryOne()
+        {
+            // Constitution 3: never inflated health. The head is the only way to end an enemy, so it stays quick on every kind.
+            foreach (EnemyTypeSpec spec in EnemyRoster.Defaults())
+            {
+                float head = spec.headToughness > 0f ? spec.headToughness : spec.toughness;
+                Assert.LessOrEqual(head, 1.5f, spec.id);
+            }
+        }
     }
 }

@@ -132,3 +132,18 @@ The look thread delivered `EnemyRunner`, `EnemyBruiser` and `EnemyMarksman` (sam
 ## Base buildings and Earth scenery are in (14 Nov 2026, later)
 
 The bases thread's work is merged: five base designs (relay outpost, fuel depot, dome colony, mining works, stronghold) stand on the foundations, and Earth has twenty kinds of trees, plants, rocks and crags with taller mountains. See that thread's own report for the art. On this side, a base's guards now stand on the places its design marks: the type that holds still (the Marksman) goes up on a watchtower as a lookout and keeps its post; the others start on the marked floor places facing outward. 1974 rule tests pass on the merged tree. **Not run in Unity**: whether guards path sensibly round the buildings, and whether a lookout stays on its deck, are the first things to look at.
+
+## Guns for each kind, and fitting them to each body (14 Nov 2026, later)
+
+**What changed.** The look thread's three gun models (`Smg`, `Shotgun`, `Sniper`) are joined in; the guns already named them, so nothing else needed wiring. Its reviewers found six things in the build thread's code, all acted on:
+
+1. The place a gun is held (and the palm's length) was in metres for an ordinary body. It now follows the body's size, so the Bruiser's shotgun is not sunk in its chest plate and the Runner's arm is not locked straight.
+2. A dropped gun keeps the size it was held at and only becomes ordinary size when the player takes it, so it no longer shrinks as it falls.
+3. Wound caps follow each kind's thickness, a lone head rests at its own helmet's height, and the head's hitbox sits on the helmet you see (`BodyFit.HeadRise`).
+4. Every kind's body and gun model is read while the world loads (`EnemySpawner.Build`), not on the frame the first one stands up.
+5. The caps on enemies present (12) and loose guns stay where they are until far copies exist.
+6. The Bruiser's head is 1.5 times the ordinary one (was 2.2); its torso stays 2.2. A rule test now holds every kind's head to 1.5 or less. **Principle 3** (never inflated health).
+
+Also: the Marksman's scope glass (`LensGlow`) shines only while it lines up a shot, with the red line. An enemy config asset made before today takes the new roster by itself (`EnemyRoster.Version`, `EnemyConfig.rosterVersion`).
+
+**Tested.** Compiles against the reference assemblies; 1,984 rule tests pass. **Not run in Unity:** how the guns sit in each kind's hands, the glint, the dropped gun's size.

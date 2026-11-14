@@ -71,6 +71,9 @@ namespace OrbitalAnte.Dismemberment
             if (_owner != null) _owner.Struck -= OnStruck;
         }
 
+        /// <summary>How thick this kind's helmet is beside the ordinary one, so a lone head rests on the ground and not in it.</summary>
+        float HeadFit() => _cfg != null && !string.IsNullOrEmpty(_cfg.modelId) ? BodyFit.Thickness(_cfg.modelId, BodyPartId.Head) : 1f;
+
         public void SetWander(Bounds area, int seed)
         {
             _wanderArea = area;
@@ -368,7 +371,7 @@ namespace OrbitalAnte.Dismemberment
                 // instead of rolling right over and dipping into the floor.
                 float roll = _headRoll * Mathf.Deg2Rad;
                 head.transform.localRotation = Quaternion.Euler(22f * Mathf.Sin(roll), 0f, 9f * Mathf.Cos(roll));
-                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f + hop, 0f);
+                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f * HeadFit() + hop, 0f);
             }
             else
             {
