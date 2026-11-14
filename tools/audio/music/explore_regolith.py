@@ -1,29 +1,33 @@
-"""Regolith Lullaby: planetary exploration. 86 BPM, D Dorian, 48 bars (A, A', B), about 2 min 14 s.
+"""Regolith Lullaby: planetary exploration. 120 BPM deep house at half strength, D minor, 64 bars, 2 min 8 s.
 
-The Exploration theme on vibraphone over Rhodes, a melodic bass guitar and soft percussion. Six stems, so the
-same piece can be nearly nothing (pad and far-off bells), a warm tune, or a tense one (pulse and tremolo).
-It shares a beat grid with the combat piece (172 BPM is exactly double), so the two can hand over on a bar line.
+Rewritten on 14 Nov 2026 to Matthew's direction (existential, not upbeat, a good deep house beat). The first
+version was a vibraphone tune at 86; this one is the main theme's record heard from far away. It now shares
+one tempo and key with every other piece, so the game can mix between them on any bar line.
+
+At rest it is a pad and a few plucked notes with long gaps: the Exploration theme at half speed, a small figure
+in a large empty place. Interest brings in dub chords and the bass, then a soft four-on-the-floor. Unease adds a
+low pulse and a held minor second, without changing the beat.
 """
 from __future__ import annotations
 
 import numpy as np
 
-from oa_audio import dsp, mixing, motifs, synth
-from oa_audio.sampler import DR, GM
-from oa_audio.seq import Note, bars, chord_at, humanize, progression, shift
+from oa_audio import dsp, mixing, synth
+from oa_audio.seq import Note, bars, humanize, progression
 
-from .common import approach, balance, bars_of, calibrate, comp, held, root_of, stem
+from . import deep
+from .common import balance, calibrate, comp, held, stem
 
 ID = "explore_regolith"
-BPM = 86.0
-BARS = 48
+BPM = deep.BPM
+BARS = 64
 
 META = dict(
-    title="Regolith Lullaby", context="surface", bpm=BPM, beatsPerBar=4, bars=BARS, key="D Dorian",
-    motifs=["exploration", "orbital_ante (cell, bars 21-22)"], entryBars=[1, 17, 33],
+    title="Regolith Lullaby", context="surface", bpm=BPM, beatsPerBar=4, bars=BARS, key="D minor",
+    motifs=["exploration (half speed)", "orbital_ante (cell, bars 45-46)"], entryBars=[1, 17, 33, 49],
     stems=[
         dict(id="pad", lo=0, hi=59, fadeInBars=2, fadeOutBars=2),
-        dict(id="bells", lo=0, hi=59, fadeInBars=1, fadeOutBars=2),
+        dict(id="pluck", lo=0, hi=59, fadeInBars=1, fadeOutBars=2),
         dict(id="keys", lo=20, hi=59, fadeInBars=2, fadeOutBars=2),
         dict(id="bass", lo=20, hi=59, fadeInBars=1, fadeOutBars=2),
         dict(id="perc", lo=30, hi=59, fadeInBars=2, fadeOutBars=1),
@@ -31,168 +35,102 @@ META = dict(
     ],
 )
 
-A = [("Dm9", 8), ("G13", 8), ("Bbmaj7#11", 8), ("Am11", 8),
-     ("Dm9", 4), ("Fmaj9", 4), ("G13", 4), ("Em7", 4), ("Bbmaj7#11", 4), ("C6/9", 4), ("Am11", 4), ("A7sus4", 4)]
-B = [("Fmaj9", 8), ("Cadd9/E", 8), ("Ebmaj7#11", 8), ("Dm11", 8),
-     ("Gm9", 4), ("C13", 4), ("Fmaj9", 4), ("Bbmaj7", 4), ("Em7b5", 4), ("A7b9", 4), ("Dm9", 8)]
+SEC_A = [("Dm9", 16), ("Bbmaj9", 16)]                               # two chords, a long time on each
+SEC_B = [("Gm9", 16), ("Dm9", 8), ("Am7", 8)]
+SEC_C = [("Bbmaj9", 16), ("Gm9", 8), ("Am7", 8)]
 
-MELODY_A = motifs.EXPLORATION + [
-    "D4:2 A4:2", "G4:2 E5:2", "D5:1.5 C5:.5 A4:2", "G4:3 r:1",
-    "r:1 F4:1 A4:1 E5:1", "D5:2 C5:1 A4:1", "B4:1.5 A4:.5 F4:2", "G4:2 E4:1 D4:1",
-    "D4:2 A4:2", "G4:1 A4:1 D5:2", "C5:1.5 B4:.5 G4:1 E4:1", "D4:4",
-]
-MELODY_A2 = [
-    "D4:2 A4:2", "G4:2.5 A4:.5 r:1", "C5:1.5 B4:.5 G4:2", "A4:3 r:1",
-    "r:1 A4:.5 B4:.5 D5:2", "E5:1.5 D5:.5 A4:2", "C5:1 D5:1 E5:1 G5:1", "A5:3 r:1",
-    "G5:2 E5:2", "C5:1 A4:1 F4:2", "B4:1.5 A4:.5 F4:2", "E4:2 G4:2",
-    "D4:2 A4:2", "G4:1 A4:1 E5:2", "D5:1.5 C5:.5 A4:1 G4:1", "A4:4",
-]
-MELODY_B = [
-    "A4:1 C5:1 F5:2", "E5:1.5 C5:.5 A4:2", "G4:1 C5:1 E5:2", "D5:3 r:1",
-    "G4:1 Bb4:1 F5:2", "D5:1.5 A4:.5 G4:2", "F4:1 G4:1 A4:1 C5:1", "D5:3 r:1",
-    "Bb4:2 D5:1 F5:1", "E5:2 D5:1 Bb4:1", "A4:2 C5:1 E5:1", "D5:2 A4:2",
-    "Bb4:1.5 A4:.5 G4:2", "C#5:1 Bb4:1 G4:1 E4:1", "D4:2 A4:2", "G4:2 r:2",
-]
-BELLS = {1: "D5:2 A5:2", 5: "r:2 G5:2", 9: "C6:1.5 B5:.5 G5:2", 13: "A5:4", 17: "D5:2 A5:2", 21: "r:1 E6:3",
-         25: "r:2 F5:1 A5:1", 29: "D6:4", 33: "A5:2 C6:2", 35: "G5:4", 37: "r:2 A5:2", 39: "G5:2 D5:2",
-         41: "Bb5:2 A5:2", 45: "r:2 Bb5:2", 47: "r:2 E5:2"}
+# The Exploration theme (D A, G, C B G, A) with every note twice as long and B flattened, then a rest as long again.
+THEME = ["D4:4", "A4:4", "G4:4", "r:4", "C5:3 Bb4:1", "G4:4", "A4:4", "r:4"]
+ANSWER = ["r:4", "r:4", "r:2 F4:2", "A4:4", "r:4", "r:4", "r:2 E4:2", "D4:4"]
+HIGH = ["r:4", "A4:2 D5:2", "C5:4", "r:4", "r:4", "G4:2 C5:2", "A4:4", "r:4"]
+CELL = ["r:4", "r:4", "r:4", "r:4", "r:.5 A4:.5 C5:.5 D5:2.5", "r:4", "r:4", "r:4"]   # the ante cell, once
+
+BASS_1 = [(0.0, 1.5, 0, 96), (2.5, .4, 0, 84)]
+BASS_2 = [(0.0, 1.5, 0, 96), (2.5, .4, 0, 84), (3.5, .4, 7, 78)]
 
 
-def bassline(prog, rng) -> list[Note]:
-    """Melodic finger bass: root, a lift to the fifth or octave, and a lead-in to the next chord."""
-    notes: list[Note] = []
-    total = int(prog[-1][0] + prog[-1][1])
-    for b in range(total // 4):
-        at = b * 4.0
-        ch = chord_at(prog, at)
-        nxt = chord_at(prog, (at + 4.0) % total)
-        r = root_of(ch, 36)
-        if r > 45:
-            r -= 12
-        nr = root_of(nxt, 36)
-        if nr > 45:
-            nr -= 12
-        fifth = r + 7
-        variant = b % 4
-        if variant == 0:
-            notes += [Note(at, 1.5, r, 96), Note(at + 1.5, 0.5, fifth, 70), Note(at + 2.5, 1.0, r + 12, 82)]
-        elif variant == 1:
-            notes += [Note(at, 2.25, r, 92), Note(at + 2.5, 0.5, fifth, 74), Note(at + 3.0, 0.5, r + 12, 78)]
-        elif variant == 2:
-            notes += [Note(at, 1.5, r, 96), Note(at + 1.5, 1.0, r + 12, 76), Note(at + 3.0, 0.5, fifth, 72)]
-        else:
-            third = nearest_minor_or_major(ch, r)
-            notes += [Note(at, 1.5, r, 94), Note(at + 2.0, 0.5, third, 72), Note(at + 2.5, 0.5, fifth, 76)]
-        if nr != r:
-            notes.append(Note(at + 3.5, 0.5, approach(r, nr), 80))
-    return notes
-
-
-def nearest_minor_or_major(ch, r: int) -> int:
-    return r + (3 if ch.minor else 4)
+def drum_bar(b: int) -> dict:
+    last = b % 16 == 15
+    return dict(kick="x...x...x...x..." if not last else "x...x...x.......",
+                hat="" if b % 16 < 8 else "..x...x...x...x.",
+                shut="..o...o...o..xo." if b % 2 == 0 else "..o..xo...o...o.",
+                clap="", rim="....x.......x..." if b % 4 != 3 else "....x.....x..x..")
 
 
 def build(session_dir: str):
-    L = mixing.Loop(BPM, BARS, 4, seed=8601, tail=9.0, session_dir=session_dir)
+    L = mixing.Loop(BPM, BARS, 4, seed=8602, tail=9.0, session_dir=session_dir)
     rng = L.rng
-    prog = progression(A + A + B)
+    prog = progression(SEC_A + SEC_B + SEC_A + SEC_C)
+    out = {}
+    kick_n, k = deep.kit(L, rng, drum_bar, "perc", hard=0.0)
+    duck = L.duck(kick_n, -5.0, 0.004, 0.22)
 
-    # ---------------------------------------------------------------- pad
-    pad_notes = held(prog, low=50, count=4, vel=62, rootless=False, overlap=0.3, top=69)
-    pad = L.synth("pad", pad_notes, synth.v_pad, bright=0.75, attack=1.4, release=2.6)
-    glass = L.synth("pad_glass", shift(held(prog, low=62, count=2, vel=50, rootless=True, top=81), 0, 12), synth.v_glass,
-                    attack=1.8, release=3.0)
-    sub = L.synth("pad_sub", [Note(s, d, root_of(c, 36) if root_of(c, 36) <= 45 else root_of(c, 24), 50) for s, d, c in prog],
-                  synth.v_sub, release=0.8, drive=1.0)
-    x = L.fx(lambda p, g, s: dsp.reverb(dsp.chorus(p, L.rate(0.35), 4.0, 14.0, 0.5) + g * 0.6 + s * 0.22,
-                                        4.5, 0.42, 0.55, 0.03, 1.5, seed=101), pad, glass, sub)
-    out = {"pad": stem(L, x, 0.0, hp=45)}
+    # ---------------------------------------------------------------- pad (always there)
+    low = L.synth("pad_low", held(prog, low=45, count=3, vel=56, top=62), synth.v_pad, bright=0.6, attack=2.0, release=3.0)
+    high = L.synth("pad_high", held(prog, low=57, count=4, vel=50, rootless=True, top=76), synth.v_pad, bright=0.9, attack=2.5, release=3.0)
+    sweep = deep.breathing(L, 2.0, 700, 3400)
 
-    # ---------------------------------------------------------------- bells (far-off fragments of the theme)
-    bell_notes: list[Note] = []
-    for bar, text in BELLS.items():
-        bell_notes += bars([text], 4, bar - 1, vel=74)
-    bells = L.synth("bells", bell_notes, synth.v_bell, ratio=3.5, decay=2.8, bright=0.7)
-    pluck = L.synth("bells_harp", shift(bell_notes, 0.0, -12, 0.8), synth.v_string_pluck, bright=0.45)
-    x = L.fx(lambda b, p: dsp.reverb(dsp.delay(b + p * 0.5, L.beat * 0.75, L.beat * 1.0, 0.42, 0.4, 3200),
-                                     6.0, 0.6, 0.5, 0.04, 1.8, seed=102), bells, pluck)
-    out["bells"] = stem(L, x, 0.0, hp=250)
+    def pad_fx(a, b):
+        x = dsp.svf(a + b * 0.8, sweep(len(a)), 0.8, "lp", 2)
+        x = dsp.chorus(x, L.rate(0.13), 5.0, 16.0, 0.5)
+        return dsp.reverb(x, 6.0, 0.5, 0.6, 0.04, 1.8, seed=861)
 
-    # ---------------------------------------------------------------- keys (Rhodes comp + the theme on vibraphone)
-    def rhodes_rhythm(b):
-        if 20 <= b < 28:  # bars 21-28: a rolling, broken-chord feel
-            return [(0.0, 1.0, 1.0), (1.5, 0.5, 0.75), (2.0, 1.0, 0.9), (3.5, 0.5, 0.8)]
-        if b % 2 == 0:
-            return [(0.0, 3.0, 1.0)]
-        return [(0.0, 1.75, 0.95), (2.5, 1.25, 0.85)]
+    out["pad"] = stem(L, L.fx(pad_fx, low, high), 0.0, hp=90)
 
-    rhodes_notes = humanize(comp(prog, rhodes_rhythm, low=57, count=4, vel=70, top=76), rng, 0.012, 6, BPM)
-    rhodes = L.sf("keys_rhodes", rhodes_notes, GM["rhodes"], gain=0.9)
-    tines = L.synth("keys_tines", rhodes_notes, synth.v_tine)
-    melody = bars(MELODY_A, 4, 0, vel=92) + bars(MELODY_A2, 4, 16, vel=96) + bars(MELODY_B, 4, 32, vel=94)
-    melody = humanize(shift(melody, 0, 12), rng, 0.014, 7, BPM)
-    vibes = L.sf("keys_melody_vibes", melody, GM["vibes"], gain=0.9)
-    whistle = L.synth("keys_melody_air", [n for n in melody if n.start >= 128], synth.v_whistle)
+    # ---------------------------------------------------------------- pluck: the theme, far away, with long gaps
+    pl_n = (bars(THEME, 4, 0, vel=84) + bars(ANSWER, 4, 8, vel=74) + bars(HIGH, 4, 16, vel=80) + bars(ANSWER, 4, 24, vel=72)
+            + bars(THEME, 4, 32, vel=86) + bars(CELL, 4, 40, vel=78) + bars(HIGH, 4, 48, vel=82) + bars(ANSWER, 4, 56, vel=74))
+    pl_n = humanize(pl_n, rng, 0.012, 6, BPM)
+    pluck = L.synth("pluck_string", pl_n, synth.v_string_pluck, bright=0.5)
+    soft = L.synth("pluck_tine", pl_n, synth.v_tine, release=0.9)
 
-    def keys_fx(r, t, v, w):
-        r = dsp.chorus(r, L.rate(0.8), 1.6, 9.0, 0.3)
-        sway = 0.18 * dsp.lfo(len(r), L.rate(4.3))  # the Rhodes' stereo tremolo
-        r = r * np.stack([0.82 + sway, 0.82 - sway], axis=1)
-        lead = dsp.delay(v * 1.15 + w * 0.7, L.beat * 1.5, L.beat * 1.0, 0.25, 0.22, 3500)
-        return dsp.reverb(r * 0.9 + t * 0.35 + lead, 2.6, 0.26, 0.5, 0.02, 1.2, seed=103)
+    def pluck_fx(p, t):
+        x = dsp.lowpass(p * 0.9 + t * 0.6, 5200)
+        x = dsp.delay(x, L.beat * 1.5, L.beat * 3.0, 0.55, 0.45, 2400)
+        return dsp.reverb(x, 6.5, 0.55, 0.55, 0.05, 1.8, seed=862)
 
-    out["keys"] = stem(L, L.fx(keys_fx, rhodes, tines, vibes, whistle), 0.0, hp=110)
+    out["pluck"] = stem(L, L.fx(pluck_fx, pluck, soft), 0.0, hp=180)
 
-    # ---------------------------------------------------------------- bass
-    bass_notes = humanize(bassline(prog, rng), rng, 0.008, 5, BPM)
-    bass = L.sf("bass", bass_notes, GM["finger_bass"], gain=1.0)
-    x = L.fx(lambda b: dsp.width(dsp.compress(dsp.saturate(b, 1.3, 0.5), -20, 3.0, 0.02, 0.2, makeup_db=3), 0.2), bass)
-    out["bass"] = stem(L, x, 0.0, hp=38, lp=3800)
+    # ---------------------------------------------------------------- keys: dub chords on the off-beat
+    def stab_rhythm(b):
+        return [(1.5, .3, 0), (3.75, .25, -10)] if b % 2 == 0 else [(2.5, .3, -4)]
 
-    # ---------------------------------------------------------------- perc
-    n_bars = BARS
-    kick_n = bars_of(lambda b: "x.........x....." if b % 4 != 3 else "x.........x...o.", n_bars, DR["kick"], vel=92)
-    rim_n = bars_of(lambda b: "....x.......x..." if b % 8 != 7 else "....x.......x.xo", n_bars, DR["rim"], vel=70)
-    shaker_n = bars_of(lambda b: "o.x.o.x.o.x.o.xo", n_bars, DR["shaker"], vel=74, ghost=40)
-    tamb_n = bars_of(lambda b: "....x.......x..." if b >= 32 else "", n_bars, DR["tamb"], vel=58)
-    kick = L.hits("perc_kick", kick_n, lambda n, r: synth.kick(n.vel / 127, 50, 120, 0.22, 0.12, 1.2, r))
-    rim = L.hits("perc_rim", humanize(rim_n, rng, 0.006, 6, BPM), lambda n, r: synth.rim(n.vel / 127, r), pan=-0.25)
-    shaker = L.hits("perc_shaker", humanize(shaker_n, rng, 0.007, 8, BPM), lambda n, r: synth.shaker(n.vel / 127, 0.08, r), pan=0.35)
-    ride_n = bars_of(lambda b: "x...x...x...x.o." if b % 2 else "x...x..ox...x...", n_bars, DR["ride"], vel=46)
-    hats = L.sf("perc_ride_tamb", humanize(ride_n + tamb_n, rng, 0.008, 6, BPM), 0, drums=True, gain=0.8)
-    x = L.fx(lambda k, r, s, h: k * 0.5 + dsp.reverb(r * 0.8 + s * 0.9 + h * 1.6, 1.4, 0.2, 0.6, 0.01, 0.8, seed=104),
-             kick, rim, shaker, hats)
-    out["perc"] = stem(L, x, 0.0, hp=35)
+    keys = L.synth("keys_stab", humanize(comp(prog, stab_rhythm, low=57, count=4, vel=82, top=74), rng, 0.005, 5, BPM),
+                   synth.v_stab, bright=0.5, release=0.25)
+    k_sweep = deep.breathing(L, 4.0, 600, 2800)
 
-    # ---------------------------------------------------------------- tension (enters at intensity 40)
-    pulse_notes: list[Note] = []
-    trem_notes: list[Note] = []
-    cell_notes: list[Note] = []
-    for b in range(n_bars):
-        at = b * 4.0
-        ch = chord_at(prog, at)
-        r = root_of(ch, 36)
-        if r > 45:
-            r -= 12
-        for k in range(8):
-            pulse_notes.append(Note(at + k * 0.5, 0.3, r if k % 4 != 3 else r + 12, [100, 58, 78, 62, 92, 58, 80, 70][k]))
-        swell = 50 + 12 * (b % 4)
-        trem_notes += [Note(at, 4.0, r + 36 + 7, swell), Note(at, 4.0, r + 48, swell - 8)]
-        if b % 4 == 3:
-            trem_notes.append(Note(at + 2.0, 2.0, r + 48 + 1, swell - 4))  # the semitone rub, last half-bar of each phrase
-            # the Conflict theme's first cell, as a far-off warning
-            cell_notes += [Note(at + 2.0, 0.4, r + 36, 84), Note(at + 2.5, 0.4, r + 36, 76), Note(at + 3.0, 0.4, r + 37, 88),
-                           Note(at + 3.5, 0.5, r + 36, 80)]
-    pulse = L.synth("tension_pulse", pulse_notes, synth.v_pulse)
-    trem_s = L.synth("tension_tremolo", trem_notes, synth.v_string_trem)
-    cell = L.sf("tension_pizz", cell_notes, GM["pizzicato"], gain=0.9)
-    tick_n = bars_of(lambda b: "x.oxx.ox x.oxx.oo" if b % 2 else "x.oxx.ox x.oxxoox", n_bars, DR["hat"], vel=70, ghost=38)
-    ticks = L.hits("tension_ticks", humanize(tick_n, rng, 0.004, 5, BPM), lambda n, r: synth.hat(n.vel / 127, 0.02, 1.15, r), pan=0.15)
-    heart_n = bars_of(lambda b: "x..o............", n_bars, DR["kick"], vel=100, ghost=70)
-    heart = L.hits("tension_heart", heart_n, lambda n, r: synth.kick(n.vel / 127, 42, 60, 0.3, 0.0, 1.0, r))
-    dry = pulse * 0.7 * L.duck(heart_n, -4.0, 0.01, 0.25) + heart * 0.5 + ticks * 0.3
-    x = L.fx(lambda d, t, c: d + dsp.reverb(t * 0.9 + c * 0.8, 3.0, 0.4, 0.5, 0.02, 1.3, seed=105), dry, trem_s, cell)
-    out["tension"] = stem(L, x, 0.0, hp=40)
+    def keys_fx(s):
+        s = dsp.svf(s, k_sweep(len(s)), 1.3, "lp", 2)
+        s = dsp.delay(s, L.beat * 0.75, L.beat * 1.5, 0.6, 0.55, 2200)
+        return dsp.reverb(s, 4.0, 0.4, 0.55, 0.02, 1.6, seed=863)
 
-    out = balance(out, dict(pad=-25.0, bells=-27.0, keys=-21.5, bass=-23.0, perc=-25.5, tension=-24.5))
-    return calibrate(out, target_lufs=-17.0), L
+    out["keys"] = stem(L, L.fx(keys_fx, keys) * duck, 0.0, hp=160)
+
+    # ---------------------------------------------------------------- bass: long, low, unhurried
+    b_notes = humanize(deep.bass_notes(L, prog, lambda b: BASS_2 if b % 4 == 3 else BASS_1), rng, 0.003, 4, BPM)
+    sub = L.synth("bass_sub", b_notes, synth.v_sub, release=0.2, drive=1.3)
+    body = L.synth("bass_body", b_notes, synth.v_pulse, release=0.15)
+    out["bass"] = stem(L, L.fx(deep.bass_fx(420, 0.5, 1.3), sub, body) * duck, 0.0, hp=34, lp=4000)
+
+    # ---------------------------------------------------------------- perc: a soft four-on-the-floor heard through a wall
+    def perc_fx(*parts):
+        return deep.kit_fx(L, 864, tops_gain=2.1)(*parts)
+
+    out["perc"] = stem(L, L.fx(perc_fx, k["kick"], k["ohat"], k["chat"], k["clap"], k["rim"], k["ride"]), 0.0, hp=30)
+
+    # ---------------------------------------------------------------- tension: a pulse, and a note that should not be there
+    pulse_n = [Note(b * 4.0 + s * 0.5, 0.3, 38, 70 + 14 * (s % 4 == 0)) for b in range(BARS) for s in range(8)]
+    pulse = L.synth("tension_pulse", pulse_n, synth.v_pulse, release=0.05)
+    rub_n = [Note(b * 4.0, 15.0, 63 if (b // 4) % 2 == 0 else 68, 46) for b in range(0, BARS, 4)]     # Eb, then Ab
+    rub = L.synth("tension_rub", rub_n, synth.v_glass, attack=3.0, release=4.0, shimmer=0.4)
+
+    def tension_fx(p, r):
+        p = dsp.svf(p, 320, 1.4, "lp", 2)
+        t = np.arange(len(r)) / dsp.SR
+        r = r * (0.7 + 0.3 * np.sin(dsp.TAU * L.rate(5.0) * t))[:, None]
+        return dsp.saturate(p, 1.6, 0.7, 0.03) * 0.9 + dsp.reverb(dsp.lowpass(r, 2400), 5.0, 0.5, 0.5, 0.04, 1.6, seed=865) * 0.8
+
+    out["tension"] = stem(L, L.fx(tension_fx, pulse, rub), 0.0, hp=60)
+
+    out = balance(out, dict(pad=-21.5, pluck=-24.0, keys=-23.5, bass=-21.0, perc=-20.5, tension=-25.0))
+    return calibrate(out, target_lufs=-17.5), L

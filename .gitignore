@@ -47,3 +47,4 @@ tools/audio/sim/obj/
 tools/audio/sim/bin/
 !/tools/audio/build/demo/thruster_preview.ogg
 !/tools/audio/build/demo/main_theme_long_way.ogg
+!/tools/audio/build/demo/music_preview_deep_house.ogg

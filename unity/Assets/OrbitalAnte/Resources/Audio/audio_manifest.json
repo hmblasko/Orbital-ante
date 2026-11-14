@@ -1653,20 +1653,21 @@
     "id": "combat_all_in",
     "title": "All In",
     "context": "combat",
-    "bpm": 172.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
     "bars": 64,
     "key": "D minor",
     "motifs": [
      "conflict",
-     "orbital_ante (minor, bars 41-56)"
+     "orbital_ante (minor, bars 41-48)"
     ],
     "entryBars": [
      1,
+     17,
      41
     ],
-    "samples": 4286512,
-    "seconds": 89.302333,
+    "samples": 6144000,
+    "seconds": 128.0,
     "stems": [
      {
       "id": "drums",
@@ -1714,21 +1715,22 @@
     "id": "explore_regolith",
     "title": "Regolith Lullaby",
     "context": "surface",
-    "bpm": 86.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
-    "bars": 48,
-    "key": "D Dorian",
+    "bars": 64,
+    "key": "D minor",
     "motifs": [
-     "exploration",
-     "orbital_ante (cell, bars 21-22)"
+     "exploration (half speed)",
+     "orbital_ante (cell, bars 45-46)"
     ],
     "entryBars": [
      1,
      17,
-     33
+     33,
+     49
     ],
-    "samples": 6429767,
-    "seconds": 133.953479,
+    "samples": 6144000,
+    "seconds": 128.0,
     "stems": [
      {
       "id": "pad",
@@ -1739,12 +1741,12 @@
       "clip": "Audio/Music/explore_regolith/pad"
      },
      {
-      "id": "bells",
+      "id": "pluck",
       "lo": 0,
       "hi": 59,
       "fadeInBars": 1,
       "fadeOutBars": 2,
-      "clip": "Audio/Music/explore_regolith/bells"
+      "clip": "Audio/Music/explore_regolith/pluck"
      },
      {
       "id": "keys",
@@ -1784,20 +1786,20 @@
     "id": "flight_burn_window",
     "title": "Burn Window",
     "context": "flight",
-    "bpm": 124.0,
+    "bpm": 120.0,
     "beatsPerBar": 4,
     "bars": 64,
-    "key": "D major",
+    "key": "D minor",
     "motifs": [
-     "orbital_ante"
+     "orbital_ante (in the minor)"
     ],
     "entryBars": [
      1,
      17,
      41
     ],
-    "samples": 5945806,
-    "seconds": 123.870958,
+    "samples": 6144000,
+    "seconds": 128.0,
     "stems": [
      {
       "id": "chords",
@@ -1961,7 +1963,7 @@
    {
     "id": "hit_combat",
     "preSeconds": 0.0,
-    "bpm": 172.0,
+    "bpm": 120.0,
     "note": "Downbeat hit with no lead-in.",
     "seconds": 3.0,
     "clip": "Audio/Music/cues/hit_combat"
@@ -1969,7 +1971,7 @@
    {
     "id": "resolve_combat",
     "preSeconds": 0.0,
-    "bpm": 86.0,
+    "bpm": 120.0,
     "note": "A musical ending for combat: final hit, the chord resolves and rings out.",
     "seconds": 7.5,
     "clip": "Audio/Music/cues/resolve_combat"
@@ -1984,18 +1986,18 @@
    },
    {
     "id": "to_combat",
-    "preSeconds": 2.790698,
-    "bpm": 172.0,
-    "note": "Riser and snare roll into a downbeat hit. Starts one exploration bar before the change.",
-    "seconds": 5.9907,
+    "preSeconds": 2.0,
+    "bpm": 120.0,
+    "note": "Riser and roll into a downbeat hit. Starts one bar before the change.",
+    "seconds": 5.2,
     "clip": "Audio/Music/cues/to_combat"
    },
    {
     "id": "to_flight",
-    "preSeconds": 3.870968,
-    "bpm": 124.0,
-    "note": "Lift-off: sweep, string run and fill into the flight music's first downbeat.",
-    "seconds": 6.471,
+    "preSeconds": 4.0,
+    "bpm": 120.0,
+    "note": "Lift-off: sweep, climbing run and kicks into the flight music's first downbeat.",
+    "seconds": 6.6,
     "clip": "Audio/Music/cues/to_flight"
    }
   ],

@@ -16,11 +16,13 @@ The honest headline: an independent critic scored the first version **6.1 out of
 
 | Piece | For | Tempo | Length | Layers |
 |---|---|---|---|---|
-| Regolith Lullaby | Exploring on foot | 86 | 2:14 | 6 |
-| All In | Combat | 172 | 1:29 | 5 |
-| Burn Window | Flying | 124 | 2:04 | 5 |
+| Regolith Lullaby | Exploring on foot | 120 | 2:08 | 6 |
+| All In | Combat | 120 | 2:08 | 5 |
+| Burn Window | Flying | 120 | 2:08 | 5 |
 | The House Always Orbits | Main menu | 104 | 1:32 | 4 |
 | What the Dish Heard | Caves and the unknown | 60 | 1:36 | 4 |
+
+(This table is the state on 14 Nov, after the rewrites described under "The other three pieces" below. The menu piece was replaced by Long Way From Anywhere, 120.)
 
 Cues: a riser into combat, an ambush hit, a combat ending, a lift into flight, a settle back to calm.
 
@@ -151,11 +153,27 @@ Also fixed while there: in the menus the old piece's melody never played at all,
 
 **Not changed yet.** Exploration, flight, combat and mystery. They wait for Matthew's verdict on this one, since his direction probably applies to them too.
 
+### The other three pieces, in the mood Matthew approved (14 Nov)
+
+**What changed.** After "Less bells but otherwise like it", exploration, flight and combat were rewritten as the same deep house record as the main theme. All three are now 120 BPM in D minor, 64 bars (2 min 8 s), and synthesised entirely by this repository's code, sharing one drum machine and bass sound (`tools/audio/music/deep.py`).
+- **Exploration (Regolith Lullaby).** Was an 86 BPM vibraphone tune. Now a pad and a far-off plucked string playing the Exploration theme at half speed with long gaps; dub chords and bass come in with interest, a soft four-on-the-floor above that, and unease adds a low pulse and a held wrong note. The stem `bells` is gone (`pluck` replaces it).
+- **Flight (Burn Window).** Was 124 BPM disco in D major. Now a turning arpeggio and pad when drifting, bass and drums under thrust, and the Orbital Ante theme in the minor on a soft synth, four bars on and four off.
+- **Combat (All In).** Was 172 BPM breakbeat with brass. Now the same tempo as everything else with a heavier kick, a rolling growl of a bass, off-beat stabs, and the Conflict theme on a hard lead. Stem names and thresholds are unchanged, so the game rules did not change.
+- **Transition cues** (`to_combat`, `hit_combat`, `resolve_combat`, `to_flight`, `to_calm`) were rewritten at 120 with synthesised sounds only. The combat riser's lead-in is now one bar (2.0 s, was 2.8 s), so a fight's music answers sooner. The ending's bell became a plucked string.
+
+**Why.** Matthew's direction, and principle 8 (varied intensity) without breaking the build prompt's "blends continuously like a club DJ at a steady tempo": with one tempo and key the game can cross from any piece to any other on a bar line. It also removes the General MIDI sound bank, the critic's biggest complaint, from everything except the mystery piece, and ends the old clash between the combat riser's tempo and the piece under it.
+
+**Tested.** Each piece renders with its loop point exact (worst stem −215 dB or lower between passes). Measured full mixes: exploration −17.5 LUFS, flight −16.0, combat −15.1, all with true peak −1.5 dB. The 38 rule tests pass, including the showcase tests (riser lands exactly on the combat downbeat; combat ends between 172 and 190 s). `qa.py` passes with the same 5 warnings as before. The whole runtime compiles.
+
+**Unverified.** Everything about how it sounds. Nobody has heard these three pieces; the critic has not scored them. Exploration measures dark (about 80% of its energy under 250 Hz before the master tilt), so whether enough of it reaches the Deck's speakers needs ears. Listening file: `music_preview_deep_house.ogg` (44 s each of exploration, flight and combat, mixed into each other on bar lines), made by `tools/audio/render_music_preview.py`.
+
 ### Slow motion ("Deep Breath", asked for by Matthew on 14 Nov; built in the core thread)
 
 When the game slows time, the world's sounds now go with it: gunshots, impacts, pops, engines and beds drop in pitch (to 0.7 at the deepest slow, less than time itself, so a gunshot is still a gunshot) and lose their top (down to 3.2 kHz). Sounds inside the suit and the interface stay exactly as they are, so the player's own head is the one thing still at full speed. Music keeps its tempo, because it runs on the audio clock, and steps back by about a third instead. Going in there is a sinking breath with one heavy heartbeat; coming out, the same breath let go. The audio reads the game's time scale and never sets it, so it also covers the headshot slow-motion with no extra wiring. One new rule test. Not heard, not run in Unity.
 
 ### The main open problem
+
+**Update, 14 Nov:** the main theme, exploration, flight, combat and all the transition cues no longer use this sound bank at all (they are fully synthesised). It remains only in the mystery piece and seven reward sounds, so the problem below is now much smaller.
 
 The bass, drums, brass, strings, choir and electric piano are played from FluidR3 GM, a free General MIDI sound bank. The critic measured that a soft note and a loud note from it differ only in volume, which is what makes MIDI files sound like MIDI files. The workaround here (three tone settings and two alternating takes per note) hides the worst of it by measurement, but a workaround is what it is. If the music still sounds cheap, this is the first suspect, and the fix is better instrument recordings, which cannot be downloaded from the cloud workspace. Two ways forward, to choose after listening:
 
@@ -169,7 +187,7 @@ The bass, drums, brass, strings, choir and electric piano are played from FluidR
 - **Deck performance (read from code, nothing measured):** no memory churn per frame in play. Costs to look at on the Deck: all music is read in one go as the game starts (a guess of 0.1 to 0.5 s); the audio device restarts once at start-up to raise the voice limit; up to 13 to 15 compressed streams decode at once during a flight hand-over; sound effects take about 12.5 MB, not the 5 first written. Two small fixes made (the old engine rumble is now stopped, not just muted; the search for the listener is limited to twice a second). `docs/performance_budget.md` is corrected. Not done: setting the voice limit in project settings, building the old placeholder sounds only when needed.
 - **Game designer:** the intensity caps hold up against the constitution. Points raised, none changed without Matthew:
   1. The build prompt lists the "music system" under Phase 2. It is here because the audio brief of 13 Nov asked for it now.
-  2. **The build prompt asks for music that "blends continuously like a club DJ at a steady tempo". This slice uses a different tempo per situation (86, 172, 124, 104, 60), with risers, endings and rests, as the audio brief describes.** These pull in different directions. Question for Matthew below.
+  2. **The build prompt asks for music that "blends continuously like a club DJ at a steady tempo". This slice used a different tempo per situation (86, 172, 124, 104, 60), with risers, endings and rests, as the audio brief describes.** Settled on 14 Nov by Matthew's deep house direction: everything but the mystery piece is now one tempo (120) and one key.
   3. The reward ladder (four tiers, multiplier, common and rare loot, discovery) is ahead of the game: points and loot are Phase 2. It is audible only in the showcase. The prompt's "distinct sounds for art, cosmetics, ammo and new weapons" will need their own sounds then.
   4. Small rewards are dropped when a big one is playing. That is only acceptable if the on-screen notification always shows them. A full queue now drops its smallest entry instead of the newest (changed).
   5. With no enemy awareness in the game yet, the combat ending can play about nine seconds after the last incoming shot, while enemies may still be alive. Needs a "hostiles nearby" signal from the enemy AI.

@@ -38,9 +38,9 @@ Each shot is reduced to twelve numbers (length, tail decay, brightness, how pitc
 
 | Piece | Tempo | Bars | Length | Stems | Full mix | True peak | Under 250 Hz | Above 2 kHz | Loop exactness |
 |---|---|---|---|---|---|---|---|---|---|
-| All In | 172 | 64 | 89.3 s | 5 | -14.6 LUFS | -0.7 dB | 47% | 17% | -240.0 dB |
-| Regolith Lullaby | 86 | 48 | 134.0 s | 6 | -17.0 LUFS | -1.4 dB | 46% | 6% | -212.2 dB |
-| Burn Window | 124 | 64 | 123.9 s | 5 | -15.0 LUFS | -1.5 dB | 49% | 16% | -212.1 dB |
+| All In | 120 | 64 | 128.0 s | 5 | -15.1 LUFS | -1.2 dB | 51% | 11% | -240.0 dB |
+| Regolith Lullaby | 120 | 64 | 128.0 s | 6 | -17.5 LUFS | -1.4 dB | 59% | 7% | -215.6 dB |
+| Burn Window | 120 | 64 | 128.0 s | 5 | -16.0 LUFS | -1.2 dB | 52% | 11% | -215.3 dB |
 | Long Way From Anywhere | 120 | 64 | 128.0 s | 5 | -16.6 LUFS | -1.5 dB | 57% | 11% | -215.4 dB |
 | What the Dish Heard | 60 | 24 | 96.0 s | 4 | -20.5 LUFS | -6.8 dB | 44% | 8% | -215.7 dB |
 
@@ -48,24 +48,24 @@ Loop exactness: each piece is rendered as three joined copies and the third is c
 
 | Cue | Length | Lead-in | Loudness | True peak |
 |---|---|---|---|---|
-| hit_combat | 3.0 s | 0.00 s | -12.9 LUFS | -1.8 dB |
-| resolve_combat | 7.5 s | 0.00 s | -12.0 LUFS | -2.8 dB |
-| to_calm | 5.0 s | 0.00 s | -16.3 LUFS | -7.6 dB |
-| to_combat | 6.0 s | 2.79 s | -12.2 LUFS | -0.8 dB |
-| to_flight | 6.5 s | 3.87 s | -12.7 LUFS | -1.9 dB |
+| hit_combat | 3.0 s | 0.00 s | -14.4 LUFS | -1.9 dB |
+| resolve_combat | 7.5 s | 0.00 s | -14.1 LUFS | -2.8 dB |
+| to_calm | 5.0 s | 0.00 s | -17.4 LUFS | -7.8 dB |
+| to_combat | 5.2 s | 2.00 s | -12.0 LUFS | -1.2 dB |
+| to_flight | 6.6 s | 4.00 s | -13.1 LUFS | -1.7 dB |
 
 ## The five-minute showcase (offline preview of the game's own decisions)
 
-Whole run -23.57 LUFS. Highest peak of everything added together, with no limiter: **-4.08 dBFS**; samples over full scale: **0**.
+Whole run -23.52 LUFS. Highest peak of everything added together, with no limiter: **-3.47 dBFS**; samples over full scale: **0**.
 
 | Section | Starts | Loudness | Peak | Music alone |
 |---|---|---|---|---|
-| Exploration | 0:00 | -27.1 LUFS | -10.7 dB | -28.2 LUFS |
-| Discovery | 0:55 | -28.2 LUFS | -11.8 dB | -29.2 LUFS |
-| Rising Tension | 1:38 | -25.7 LUFS | -10.7 dB | -26.2 LUFS |
-| Combat | 2:13 | -20.7 LUFS | -4.1 dB | -23.4 LUFS |
-| Chaos | 2:32 | -21.1 LUFS | -4.3 dB | -23.7 LUFS |
-| Loot And Scoring | 3:10 | -22.9 LUFS | -9.9 dB | -24.5 LUFS |
-| Take-Off | 3:36 | -21.7 LUFS | -6.5 dB | -23.3 LUFS |
-| Return To Calm | 4:35 | -27.7 LUFS | -11.4 dB | -27.8 LUFS |
+| Exploration | 0:00 | -25.8 LUFS | -9.2 dB | -26.5 LUFS |
+| Discovery | 0:55 | -27.9 LUFS | -8.8 dB | -28.9 LUFS |
+| Rising Tension | 1:38 | -24.4 LUFS | -8.4 dB | -24.9 LUFS |
+| Combat | 2:13 | -20.3 LUFS | -4.4 dB | -22.7 LUFS |
+| Chaos | 2:32 | -20.8 LUFS | -3.5 dB | -23.0 LUFS |
+| Loot And Scoring | 3:10 | -24.4 LUFS | -10.6 dB | -28.1 LUFS |
+| Take-Off | 3:36 | -22.7 LUFS | -7.1 dB | -24.9 LUFS |
+| Return To Calm | 4:35 | -27.2 LUFS | -12.3 dB | -27.3 LUFS |
 

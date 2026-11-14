@@ -7,7 +7,7 @@ Every sound in `unity/Assets/OrbitalAnte/Resources/Audio/` is listed here by ori
 | Origin | What | Licence | Files |
 |---|---|---|---|
 | **Original synthesis** | Made from nothing by code in this repository (`tools/audio/oa_audio/`, `tools/audio/sfx/`, `tools/audio/music/`). No recordings, no samples. | Owned by the project. | Every sound effect; the synthesised layers of every piece of music. |
-| **FluidR3 GM sound bank** | Sampled instruments (basses, drum kits, electric piano, brass, strings, choir, glockenspiel, celesta) played by this repository's scores. | MIT (below). Commercial use allowed. | Layers inside every music stem and transition cue, and inside seven reward sounds. |
+| **FluidR3 GM sound bank** | Sampled instruments (basses, drum kits, electric piano, brass, strings, choir, glockenspiel, celesta) played by this repository's scores. | MIT (below). Commercial use allowed. | Layers inside the mystery piece and seven reward sounds. (The other four pieces and the transition cues stopped using it on 14 Nov 2026.) |
 
 No other source was used. In particular: **no recordings from any sound library, no commercial sample packs, no audio from any existing game, film or song, and no AI audio-generation service.** The compositions are original; the references named in the build prompt were used as a description of style only.
 
