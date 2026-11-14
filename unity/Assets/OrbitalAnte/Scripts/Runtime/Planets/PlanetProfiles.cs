@@ -11,6 +11,12 @@ namespace OrbitalAnte.Planets
     /// </summary>
     public static class PlanetProfiles
     {
+        /// <summary>
+        /// Raised whenever the defaults below change in a way players should see. A Planets asset made from older
+        /// defaults is brought up to date by itself (see <see cref="PlanetData"/>): 2 = Earth's new scenery.
+        /// </summary>
+        public const int Version = 2;
+
         static FormationUse U(string id, int count) => new FormationUse(id, count);
 
         static FormationUse L(string id, double latitude, double longitude, double size = 0, double bearing = 90)
@@ -70,10 +76,10 @@ namespace OrbitalAnte.Planets
         {
             bodyId = "Earth",
             continentHeight = 30, continentWavelength = 620, continentBias = 0.5, hillHeight = 7, hillWavelength = 90,
-            mountainHeight = 55, mountainWavelength = 260, mountainCoverage = 0.28, detailHeight = 0.45, detailWavelength = 8,
+            mountainHeight = 72, mountainWavelength = 250, mountainCoverage = 0.34, detailHeight = 0.45, detailWavelength = 8,
             hasSea = true, seaLevel = 0, seaColor = "#2274B8", seaDeepColor = "#0A2C5C", underwaterVisibility = 110,
             lowColor = "#4E8A3A", midColor = "#6E8E46", highColor = "#8A8474", cliffColor = "#6A6258", rockColor = "#7B756C",
-            shoreColor = "#D8C68E", midHeight = 14, highHeight = 38, peakHeight = 52, peakColor = "#F4F6F8",
+            shoreColor = "#D8C68E", midHeight = 14, highHeight = 40, peakHeight = 58, peakColor = "#F4F6F8",
             poleColor = "#F2F5F8", poleLatitude = 0.9, strata = 2.5,
             zones =
             {
@@ -103,13 +109,34 @@ namespace OrbitalAnte.Planets
                 U("conifer_forest", 8), U("broadleaf_forest", 8), U("palm_grove", 4), U("scrubland", 5), U("cactus_stand", 3),
                 U("desert_pavement", 1), U("talus_apron", 3), U("patterned_ground", 2), U("ice_cliff", 1),
                 U("fault_scarp", 2), U("dry_riverbed", 3), U("simple_crater", 2), U("thunderstorms", 1), U("blizzards", 1),
+                // More mountains, and the woods, meadows and crags made in Blender.
+                U("mountain_range", 1), U("massif", 2), U("isolated_peak", 1),
+                U("birch_grove", 6), U("autumn_wood", 5), U("blossom_orchard", 4), U("pine_stand", 5), U("savanna", 3),
+                U("giant_grove", 4), U("snow_forest", 5), U("ghost_wood", 3), U("flower_meadow", 6), U("reed_bed", 4),
+                U("fern_glade", 5), U("crag_ridge", 6), U("snow_peaks", 5), U("rock_ledges", 6),
             },
+            // Loose scenery. Latitude runs from 0 at the equator to 1 at the poles; "patch" makes woods with
+            // clearings between them instead of an even sprinkle. Each tree sets its own colours.
             scatter =
             {
-                new ScatterRule(FeatureKind.Boulder, 6, 0.3, 1.5) { minHeight = 1 },
-                new ScatterRule(FeatureKind.Bush, 8, 0.6, 1.5, "#4C7A34") { minHeight = 2, maxHeight = 34, maxSlope = 0.4 },
-                new ScatterRule(FeatureKind.Conifer, 2.5, 4, 9) { minHeight = 12, maxHeight = 44, maxSlope = 0.45 },
-                new ScatterRule(FeatureKind.Broadleaf, 2.5, 4, 8) { minHeight = 2, maxHeight = 22, maxSlope = 0.35 },
+                new ScatterRule(FeatureKind.Boulder, 5, 0.3, 1.5) { minHeight = 1 },
+                new ScatterRule(FeatureKind.Outcrop, 0.6, 2.2, 5) { minHeight = 10, maxSlope = 0.8 },
+                new ScatterRule(FeatureKind.Crag, 0.25, 8, 18) { minHeight = 34, maxSlope = 0.9 },
+                new ScatterRule(FeatureKind.SnowCrag, 0.3, 10, 22) { minHeight = 50, maxSlope = 0.9 },
+                new ScatterRule(FeatureKind.Bush, 6, 0.6, 1.5) { minHeight = 2, maxHeight = 34, maxSlope = 0.4, patch = 60, cover = 0.6 },
+                new ScatterRule(FeatureKind.Meadow, 9, 0.45, 0.8) { minHeight = 2, maxHeight = 26, maxSlope = 0.3, maxLatitude = 0.7, patch = 45, cover = 0.5 },
+                new ScatterRule(FeatureKind.Fern, 4, 0.6, 1.1) { minHeight = 2, maxHeight = 24, maxSlope = 0.4, maxLatitude = 0.7, patch = 40, cover = 0.35 },
+                new ScatterRule(FeatureKind.Reeds, 5, 1.2, 2.1) { minHeight = 0.3, maxHeight = 1.6, maxSlope = 0.3, maxLatitude = 0.75 },
+                new ScatterRule(FeatureKind.Broadleaf, 4, 5, 9) { minHeight = 2, maxHeight = 24, maxSlope = 0.35, minLatitude = 0.1, maxLatitude = 0.7, patch = 90, cover = 0.5 },
+                new ScatterRule(FeatureKind.Conifer, 4, 5, 10) { minHeight = 12, maxHeight = 46, maxSlope = 0.45, minLatitude = 0.3, maxLatitude = 0.85, patch = 90, cover = 0.55 },
+                new ScatterRule(FeatureKind.Birch, 2.5, 6, 9.5) { minHeight = 3, maxHeight = 30, maxSlope = 0.35, minLatitude = 0.35, maxLatitude = 0.8, patch = 70, cover = 0.35 },
+                new ScatterRule(FeatureKind.Maple, 2, 6, 9) { minHeight = 3, maxHeight = 26, maxSlope = 0.35, minLatitude = 0.3, maxLatitude = 0.65, patch = 80, cover = 0.3 },
+                new ScatterRule(FeatureKind.Pine, 1.5, 9, 13) { minHeight = 18, maxHeight = 48, maxSlope = 0.45, maxLatitude = 0.7, patch = 70, cover = 0.4 },
+                new ScatterRule(FeatureKind.Acacia, 1, 5.5, 7.5) { minHeight = 3, maxHeight = 26, maxSlope = 0.3, maxLatitude = 0.3 },
+                new ScatterRule(FeatureKind.Palm, 1.2, 6, 9) { minHeight = 0.5, maxHeight = 5, maxSlope = 0.3, maxLatitude = 0.3 },
+                new ScatterRule(FeatureKind.SnowConifer, 3.5, 5, 10) { minHeight = 2, maxHeight = 46, maxSlope = 0.45, minLatitude = 0.72, maxLatitude = 0.93, patch = 80, cover = 0.6 },
+                new ScatterRule(FeatureKind.Snag, 0.5, 4.5, 7) { minHeight = 3, maxHeight = 44, maxSlope = 0.4 },
+                new ScatterRule(FeatureKind.Log, 0.5, 0.7, 1.1) { minHeight = 3, maxHeight = 40, maxSlope = 0.25, maxLatitude = 0.85 },
             },
         };
 

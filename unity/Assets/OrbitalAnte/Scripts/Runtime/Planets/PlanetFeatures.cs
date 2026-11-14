@@ -19,6 +19,8 @@ namespace OrbitalAnte.Planets
             public MeshFilter Filter;
             public MeshRenderer Renderer;
             public MeshCollider Collider;
+            /// <summary>A tree's trunk: one capsule on a child, so it can lean the way the trunk does.</summary>
+            public CapsuleCollider Trunk;
         }
 
         readonly PlanetSurface _surface;
@@ -223,16 +225,51 @@ namespace OrbitalAnte.Planets
             t.localRotation = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, (float)(p.Yaw * Mathf.Rad2Deg), 0f);
             t.localScale = Vector3.one * scale;
 
+            // What is solid is not always what is drawn. A Blender-made tree is only its trunk (one capsule: the
+            // ship lands on these), a Blender-made rock is a simpler closed shape, small plants are nothing at all.
             bool solid = scale >= _surface.Settings.solidFeatureHeight;
+            Mesh shape = null;
+            bool hasTrunk = false;
+            SceneryModels.Trunk trunk = default;
             if (solid)
             {
+                if (SceneryModels.Drawn(p.Kind, p.Variant) == null) shape = mesh;
+                else if (!SceneryModels.TryTrunk(p.Kind, p.Variant, out trunk)) shape = SceneryModels.Solid(p.Kind, p.Variant);
+                else hasTrunk = true;
+            }
+
+            if (shape != null)
+            {
                 if (item.Collider == null) item.Collider = item.Go.AddComponent<MeshCollider>();
-                item.Collider.sharedMesh = mesh;
+                item.Collider.sharedMesh = shape;
                 item.Collider.enabled = true;
             }
             else if (item.Collider != null)
             {
                 item.Collider.enabled = false;
+            }
+
+            if (hasTrunk)
+            {
+                if (item.Trunk == null)
+                {
+                    var holder = new GameObject("Trunk");
+                    holder.layer = Layers.Default;
+                    holder.transform.SetParent(t, false);
+                    item.Trunk = holder.AddComponent<CapsuleCollider>();
+                    item.Trunk.direction = 1;
+                }
+                Vector3 along = trunk.B - trunk.A;
+                Transform h = item.Trunk.transform;
+                h.localPosition = (trunk.A + trunk.B) * 0.5f;
+                h.localRotation = along.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, along) : Quaternion.identity;
+                item.Trunk.radius = trunk.Radius;
+                item.Trunk.height = along.magnitude + trunk.Radius * 2f;
+                item.Trunk.enabled = true;
+            }
+            else if (item.Trunk != null)
+            {
+                item.Trunk.enabled = false;
             }
 
             item.Go.SetActive(true);
