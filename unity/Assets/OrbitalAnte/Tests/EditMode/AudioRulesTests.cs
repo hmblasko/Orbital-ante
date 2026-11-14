@@ -332,6 +332,109 @@ namespace OrbitalAnte.Tests
             }
         }
 
+        static void Fly(ThrusterMix m, float right, float up, float forward, float turn = 0f, float seconds = 1f)
+        {
+            for (float t = 0; t < seconds; t += 0.02f) m.Update(right, up, forward, turn, 1f, 0.02f);
+        }
+
+        [Test]
+        public void Thrusters_EachDirectionOfPushHasItsOwnThruster_OnTheOppositeSide()
+        {
+            var cases = new (float r, float u, float f, Thruster expect)[]
+            {
+                (0, 0, 1, Thruster.Main), (0, 0, -1, Thruster.Nose),
+                (1, 0, 0, Thruster.Left), (-1, 0, 0, Thruster.Right),
+                (0, 1, 0, Thruster.Belly), (0, -1, 0, Thruster.Roof),
+            };
+            foreach (var c in cases)
+            {
+                var m = new ThrusterMix();
+                Fly(m, c.r, c.u, c.f);
+                for (int i = 0; i < ThrusterMix.Count; i++)
+                {
+                    if ((Thruster)i == c.expect) Assert.AreEqual(1f, m.Level((Thruster)i), 1e-4, c.expect + " should be at full");
+                    else Assert.AreEqual(0f, m.Level((Thruster)i), 1e-6, (Thruster)i + " should be silent while " + c.expect + " fires");
+                }
+            }
+            // Pushed right, the sound is in the left ear, and the other way about.
+            Assert.Less(ThrusterMix.Pan(Thruster.Left), -0.5f);
+            Assert.Greater(ThrusterMix.Pan(Thruster.Right), 0.5f);
+            // Six directions and turning: seven different sounds.
+            var names = new HashSet<string>();
+            for (int i = 0; i < ThrusterMix.Count; i++) names.Add(ThrusterMix.LoopEvent((Thruster)i));
+            Assert.AreEqual(ThrusterMix.Count, names.Count);
+        }
+
+        [Test]
+        public void Thrusters_DiagonalsMixTwo_ARestingStickIsSilent_AndALightTouchIsHeard()
+        {
+            var m = new ThrusterMix();
+            Fly(m, 0.7f, 0f, -0.7f);
+            Assert.Greater(m.Level(Thruster.Left), 0.5f);
+            Assert.Greater(m.Level(Thruster.Nose), 0.5f);
+            Assert.AreEqual(0f, m.Level(Thruster.Right));
+            Assert.AreEqual(0f, m.Level(Thruster.Main));
+
+            m = new ThrusterMix();
+            Fly(m, 0.04f, -0.03f, 0.05f, 0.02f);
+            for (int i = 0; i < ThrusterMix.Count; i++) Assert.AreEqual(0f, m.Level((Thruster)i), "stick noise must not hiss");
+
+            m = new ThrusterMix();
+            Fly(m, 0f, 0.15f, 0f);
+            Assert.Greater(m.Level(Thruster.Belly), 0.3f, "a light touch is clearly audible");
+            Fly(m, 0f, 0f, 0f, 1f);
+            Assert.Greater(m.Level(Thruster.Turn), 0.9f);
+            Assert.AreEqual(0f, m.Level(Thruster.Belly), 1e-6);
+        }
+
+        [Test]
+        public void Thrusters_ValvesClackOnceWhenOpenedAndClosed_NotOnEveryWaggle()
+        {
+            var m = new ThrusterMix();
+            int opened = 0, closed = 0;
+            // Hold right for half a second, let go for half a second.
+            for (int i = 0; i < 50; i++)
+            {
+                m.Update(i < 25 ? 1f : 0f, 0f, 0f, 0f, 1f, 0.02f);
+                if (m.Opened(Thruster.Left)) opened++;
+                if (m.Closed(Thruster.Left)) closed++;
+                Assert.IsFalse(m.Opened(Thruster.Right) || m.Opened(Thruster.Main) || m.Opened(Thruster.Turn));
+            }
+            Assert.AreEqual(1, opened);
+            Assert.AreEqual(1, closed);
+            // Waggling the stick every frame for a second: a few clacks, not fifty.
+            opened = 0;
+            for (int i = 0; i < 50; i++)
+            {
+                m.Update(i % 2 == 0 ? 1f : 0f, 0f, 0f, 0f, 1f, 0.02f);
+                if (m.Opened(Thruster.Left)) opened++;
+                if (m.Closed(Thruster.Left)) opened++;
+            }
+            Assert.LessOrEqual(opened, 6);
+            // The main engine speaks more slowly than a valve.
+            var a = new ThrusterMix();
+            a.Update(1f, 0f, 1f, 0f, 1f, 0.1f);
+            Assert.Greater(a.Level(Thruster.Left), a.Level(Thruster.Main));
+            a.Silence();
+            for (int i = 0; i < ThrusterMix.Count; i++) Assert.AreEqual(0f, a.Level((Thruster)i));
+        }
+
+        [Test]
+        public void Thrusters_EveryThrusterSoundExistsInTheManifest()
+        {
+            string dir = AudioFolder();
+            if (dir == null) Assert.Ignore("audio folder not found");
+            AudioManifest m = AudioManifest.Parse(File.ReadAllText(Path.Combine(dir, "audio_manifest.json")));
+            for (int i = 0; i < ThrusterMix.Count; i++)
+            {
+                string id = ThrusterMix.LoopEvent((Thruster)i);
+                Assert.IsTrue(m.Events.ContainsKey(id), id);
+                Assert.IsTrue(m.Events[id].Loop, id + " must be a loop");
+            }
+            Assert.IsTrue(m.Events.ContainsKey("ship.thruster.start"));
+            Assert.IsTrue(m.Events.ContainsKey("ship.thruster.stop"));
+        }
+
         [Test]
         public void Intensity_BandsMatchTheBrief()
         {

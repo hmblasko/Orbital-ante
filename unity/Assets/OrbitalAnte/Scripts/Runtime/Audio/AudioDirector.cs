@@ -402,6 +402,41 @@ namespace OrbitalAnte.Audio
             l.PerSecond = fadeSeconds <= 0.001f ? 1000f : 1f / fadeSeconds;
         }
 
+        /// <summary>The ship's thrusters. Driven by <see cref="SetShipThrust"/>; read it for the debug panel.</summary>
+        public readonly ThrusterMix Thrusters = new ThrusterMix();
+        bool _thrustersSounding;
+
+        /// <summary>
+        /// Call every frame while the player is flying a ship. <paramref name="localPush"/> is the push the pilot is
+        /// asking for in the SHIP'S OWN axes (x right, y up, z forward), each -1 to 1: the stick or keys, not the
+        /// ship's speed. <paramref name="turn"/> is how hard the ship is being turned (0 to 1), and
+        /// <paramref name="boost"/> scales the main engine (1 = full burn). Each direction has its own sound, heard
+        /// from where that thruster sits: pushing right fires the left thrusters, in the left ear.
+        /// </summary>
+        public void SetShipThrust(Vector3 localPush, float turn = 0f, float boost = 1f)
+        {
+            if (!Ready) return;
+            Thrusters.Update(localPush.x, localPush.y, localPush.z, turn, boost, Time.unscaledDeltaTime);
+            _thrustersSounding = true;
+            for (int i = 0; i < ThrusterMix.Count; i++)
+            {
+                var t = (Thruster)i;
+                SetLoop(ThrusterMix.LoopEvent(t), Thrusters.Level(t), 0.05f);
+                if (Thrusters.Opened(t)) PlayLocal("ship.thruster.start", 0.6f + 0.4f * Thrusters.Level(t), 1f, ThrusterMix.Pan(t));
+                if (Thrusters.Closed(t)) PlayLocal("ship.thruster.stop", 0.8f, 1f, ThrusterMix.Pan(t));
+            }
+            SetLoopPitch(ThrusterMix.LoopEvent(Thruster.Main), Thrusters.MainPitch);
+        }
+
+        /// <summary>All thrusters quiet: call when the player leaves the seat, the ship is destroyed, or a run ends.</summary>
+        public void StopShipThrust(float fadeSeconds = 0.3f)
+        {
+            if (!_thrustersSounding) return;
+            _thrustersSounding = false;
+            Thrusters.Silence();
+            for (int i = 0; i < ThrusterMix.Count; i++) SetLoop(ThrusterMix.LoopEvent((Thruster)i), 0f, fadeSeconds);
+        }
+
         public void SetLoopPitch(string eventId, float pitch)
         {
             if (eventId != null && _loops.TryGetValue(eventId, out LoopVoice l)) l.Pitch = Mathf.Clamp(pitch, 0.25f, 3f);

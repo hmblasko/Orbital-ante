@@ -1,7 +1,7 @@
 {
  "peak_before_limit_db": -4.08,
  "samples_over": 0,
- "lufs": -23.73,
+ "lufs": -23.57,
  "sections": [
   {
    "section": "EXPLORATION",
@@ -48,15 +48,15 @@
   {
    "section": "TAKE-OFF",
    "start": 216,
-   "lufs": -22.2,
-   "peak": -6.7,
+   "lufs": -21.7,
+   "peak": -6.5,
    "music_lufs": -23.3
   },
   {
    "section": "RETURN TO CALM",
    "start": 275,
    "lufs": -27.7,
-   "peak": -11.5,
+   "peak": -11.4,
    "music_lufs": -27.8
   }
  ]

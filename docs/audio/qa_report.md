@@ -12,7 +12,7 @@ Written by `tools/audio/qa.py`. Every number here was measured from the files on
 
 ## Sound effects
 
-68 events, 130 files, all 48 kHz.
+76 events, 142 files, all 48 kHz.
 
 - Highest true peak in any file: -1.0 dB.
 - Clipped samples: 0 files affected.
@@ -55,7 +55,7 @@ Loop exactness: each piece is rendered as three joined copies and the third is c
 
 ## The five-minute showcase (offline preview of the game's own decisions)
 
-Whole run -23.73 LUFS. Highest peak of everything added together, with no limiter: **-4.08 dBFS**; samples over full scale: **0**.
+Whole run -23.57 LUFS. Highest peak of everything added together, with no limiter: **-4.08 dBFS**; samples over full scale: **0**.
 
 | Section | Starts | Loudness | Peak | Music alone |
 |---|---|---|---|---|
@@ -65,6 +65,6 @@ Whole run -23.73 LUFS. Highest peak of everything added together, with no limite
 | Combat | 2:13 | -20.7 LUFS | -4.1 dB | -23.4 LUFS |
 | Chaos | 2:32 | -21.1 LUFS | -4.3 dB | -23.7 LUFS |
 | Loot And Scoring | 3:10 | -22.9 LUFS | -9.9 dB | -24.5 LUFS |
-| Take-Off | 3:36 | -22.2 LUFS | -6.7 dB | -23.3 LUFS |
-| Return To Calm | 4:35 | -27.7 LUFS | -11.5 dB | -27.8 LUFS |
+| Take-Off | 3:36 | -21.7 LUFS | -6.5 dB | -23.3 LUFS |
+| Return To Calm | 4:35 | -27.7 LUFS | -11.4 dB | -27.8 LUFS |
 

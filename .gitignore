@@ -45,3 +45,4 @@ __pycache__/
 __pycache__/
 tools/audio/sim/obj/
 tools/audio/sim/bin/
+!/tools/audio/build/demo/thruster_preview.ogg

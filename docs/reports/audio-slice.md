@@ -109,6 +109,32 @@ The fixed version has **not** been re-scored a third time.
 
 Footsteps were there (in the recording and in the arena) but far too quiet: measured, each step played about 14 dB under the music and was almost all hiss above 2 kHz, with nothing in the range a Deck's speakers play well. Changed: steps are about 14 dB louder, the dusty-ground step has a mid-range knock (40% of its energy is now between 250 Hz and 2 kHz, from 13%), and the arena's step trigger no longer loses steps when the ground check flickers for a frame. Not heard, so whether they are now right, too loud or still wrong is for Matthew's ear. Note: on main today the only place you walk is the combat arena; there is no walking in the solar system until the ship interior and suit are in.
 
+### Matthew's request (14 Nov): hear the thrusters by direction
+
+"You should hear thrusting in different direction based on the direction the thrusters are going."
+
+**What changed.** Six new looping sounds and two valve sounds, one rule class and one call:
+
+| The pilot pushes | Thruster that fires | Where and how it is heard |
+|---|---|---|
+| Forward | Main engine | The existing engine roar, low, all around |
+| Backward | Nose thrusters | Close, bright bark dead ahead |
+| Right | Left-side thrusters | Left ear (10.6 dB louder there), late and dull in the right |
+| Left | Right-side thrusters | Right ear, the same the other way round |
+| Up | Belly thrusters | Low drumming under the floor |
+| Down | Roof thrusters | Thin, airy hiss overhead |
+| Turning | Attitude jets | Quick cold-gas puffs alternating sides |
+
+A thruster is heard from the side it sits on, which is the side opposite to the push, as on a real spacecraft. If that feels backwards in play (push right, hear it on the left), it is one line to flip. Each valve clacks once when it opens and once when it closes, panned to its side. Diagonals mix two thrusters. A resting stick is silent.
+
+**For the flight code:** one call per frame, `AudioDirector.Instance.SetShipThrust(localPush, turn, boost)`, with the push the pilot is asking for in the ship's own axes (x right, y up, z forward, each -1 to 1), and `StopShipThrust()` when the player leaves the seat. The rules are in `ThrusterMix.cs` (plain C#). The craft on main already reports a three-axis push, so it is wired there now; turning is not wired, because that craft turns with the mouse and reports no turn command.
+
+**Why (principles 1 and 5).** With three-axis thruster flight the ears can confirm what the hands just did, without looking at a gauge.
+
+**Tested.** Four new rule tests (each direction fires only its own thruster, on the opposite side; diagonals; dead zone; one clack per open and close, not one per waggle; every thruster sound exists in the manifest). Measured from the files: left and right differ by 21 dB between the ears; belly sits around 360 Hz, nose around 2.4 kHz, roof around 5.1 kHz. `qa.py` passes. Thrusters and the main engine were also raised 3 to 7 dB after the footstep lesson, so they are not lost under the flight music.
+
+**Unverified.** Whether the directions can really be told apart by ear, and whether up and down read as "below" and "above" (stereo cannot place a sound above you; only the tone suggests it). Not run in Unity. A 39-second preview, `thruster_preview.ogg`, plays each direction in the order of the table, then two diagonals; it is turned up for listening on its own.
+
 ### The main open problem
 
 The bass, drums, brass, strings, choir and electric piano are played from FluidR3 GM, a free General MIDI sound bank. The critic measured that a soft note and a loud note from it differ only in volume, which is what makes MIDI files sound like MIDI files. The workaround here (three tone settings and two alternating takes per note) hides the worst of it by measurement, but a workaround is what it is. If the music still sounds cheap, this is the first suspect, and the fix is better instrument recordings, which cannot be downloaded from the cloud workspace. Two ways forward, to choose after listening:
