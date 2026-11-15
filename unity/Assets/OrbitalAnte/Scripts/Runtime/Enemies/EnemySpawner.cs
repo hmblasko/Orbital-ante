@@ -210,11 +210,11 @@ namespace OrbitalAnte.Enemies
             for (int i = _guns.Count - 1; i >= 0; i--)
             {
                 if (_guns[i] == null) { _guns.RemoveAt(i); continue; }
-                if (_guns[i].Holder == null) loose++;
+                if (_guns[i].Hold == WeaponHold.Dropped) loose++;
             }
             for (int i = 0; i < _guns.Count && loose > LooseGunCap; i++)
             {
-                if (_guns[i].Holder != null) continue;
+                if (_guns[i].Hold != WeaponHold.Dropped) continue;
                 Destroy(_guns[i].gameObject);
                 loose--;
             }
@@ -223,7 +223,7 @@ namespace OrbitalAnte.Enemies
         System.Collections.IEnumerator ClearGun(Weapon gun, float after)
         {
             yield return new WaitForSeconds(after);
-            if (gun != null && gun.Holder == null) Destroy(gun.gameObject);
+            if (gun != null && gun.Hold == WeaponHold.Dropped) Destroy(gun.gameObject);
         }
 
         void Think()
@@ -259,7 +259,7 @@ namespace OrbitalAnte.Enemies
                 if (_wakingWorld == was && _wakingCamp == l.Camp) _wakingCamp = -1;
                 // Its gun goes with it, held or dropped, unless the player has taken it: left lying, it would fall
                 // through the world once the ground under it is put away.
-                if (l.Gun != null && (l.Gun.Holder == null || l.Gun.Holder is MannequinCombat)) Destroy(l.Gun.gameObject);
+                if (l.Gun != null && (l.Gun.Hold == WeaponHold.Dropped || l.Gun.Holder is MannequinCombat)) Destroy(l.Gun.gameObject);
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
@@ -354,7 +354,7 @@ namespace OrbitalAnte.Enemies
                 int m = _wakingMember++;
                 float jitter = rng.NextFloat();
                 int wanderSeed = rng.Next(), combatSeed = rng.Next();
-                if (w.Gone[camp][m]) continue;
+                if (w.Gone[camp][m] || MemberPresent(body, camp, m)) continue;
                 made = true;
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
                 EnemyTypeSpec spec = _config.roster[type];
@@ -414,6 +414,13 @@ namespace OrbitalAnte.Enemies
                 PresentCount++;
             }
             if (_wakingMember >= size) _wakingCamp = -1;
+        }
+
+        bool MemberPresent(int body, int camp, int member)
+        {
+            for (int i = 0; i < _live.Count; i++)
+                if (_live[i].Who != null && _live[i].Body == body && _live[i].Camp == camp && _live[i].Member == member) return true;
+            return false;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>
