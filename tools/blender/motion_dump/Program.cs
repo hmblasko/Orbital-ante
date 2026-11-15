@@ -12,7 +12,7 @@ using OrbitalAnte.Dismemberment;
 /// tools/blender/preview_enemy_motion.py to render as a GIF. The scenes are a stand-in for the game's own
 /// movement code (simplified: flat ground, no physics, the gun is a box), so the pictures are not game footage.
 ///
-///     dotnet run -c Release -- out.json disarm|hobble|arm|scramble_hop
+///     dotnet run -c Release -- out.json disarm|hobble|arm|walk [metres per second] [old]
 /// </summary>
 static partial class Program
 {
@@ -74,7 +74,7 @@ static partial class Program
     // ------------------------------------------------------------------ writing frames
 
     const double Dt = 1.0 / 60.0;
-    const int Every = 3;   // 20 pictures a second
+    static int Every = 3;   // 20 pictures a second ("dense" writes all 60)
 
     static readonly StringBuilder Json = new StringBuilder();
     static bool _firstFrame = true;
@@ -338,18 +338,45 @@ static partial class Program
         }
     }
 
+    /// <summary>Walking straight on at one speed (metres per second, from the third argument or 2.0), for judging the plain walk.</summary>
+    static void Walk(double speed)
+    {
+        IBody b = MakeBody(5);
+        var at = new Vec3d(0, 0, 0);
+        double heading = 200.0;
+        var s = new Sim { State = MovementState.Intact, LeftArm = true, RightArm = true, GunSide = -1 };
+        for (int i = 0; i < 60; i++) b.Step(Dt, s);
+        double t = 0;
+        int frame = 0;
+        while (t < 4.6)
+        {
+            s.Speed = speed * Smooth01(t / 0.8);
+            s.Moving = true;
+            at = at + Ahead(heading) * (s.Speed * Dt);
+            b.Step(Dt, s);
+            if (frame++ % Every == 0) Frame(b, at, heading, null, new List<(Vec3d, double)>(), speed < 3.0 ? "walking" : "running");
+            t += Dt;
+        }
+    }
+
+    static double Smooth01(double x) { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); }
+
     static void Main(string[] args)
     {
         string path = args.Length > 0 ? args[0] : "motion.json";
         string scene = args.Length > 1 ? args[1] : "disarm";
-        _old = args.Length > 2 && args[2] == "old";
+        _old = Array.IndexOf(args, "old") >= 2;
+        if (Array.IndexOf(args, "dense") >= 2) Every = 1;
+        double speedArg = 2.0;
+        for (int i = 2; i < args.Length; i++) if (double.TryParse(args[i], NumberStyles.Float, CultureInfo.InvariantCulture, out double sp)) speedArg = sp;
         Json.Append("{\"scene\":\"").Append(scene).Append(_old ? " (before)" : "").Append("\",\"seconds_per_frame\":").Append(F(Dt * Every)).Append(",\"frames\":[\n");
         switch (scene)
         {
             case "disarm": Disarm(); break;
             case "hobble": Hobble(); break;
             case "arm": Arm(); break;
-            default: throw new ArgumentException("scene: disarm, hobble or arm");
+            case "walk": Walk(speedArg); break;
+            default: throw new ArgumentException("scene: disarm, hobble, arm or walk [speed]");
         }
         Json.Append("]}");
         File.WriteAllText(path, Json.ToString());
