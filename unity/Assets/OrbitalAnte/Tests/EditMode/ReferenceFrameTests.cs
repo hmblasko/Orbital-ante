@@ -226,6 +226,10 @@ namespace OrbitalAnte.Tests
             const double start = 50.0;
             const double dt = 0.02;
             const int steps = 15000;   // five minutes
+            // The ellipse below is worked out from the real inverse-square law, so this run uses it. What is being
+            // tested is the changing point of view, which does not care how steeply gravity fades.
+            _model = new SolarSystemModel(SolarSystemDefaults.Bodies(), 11, nearFalloff: 2.0);
+            _states = _model.NewStateBuffer();
             int earth = _model.IndexOf("Earth");
             _model.Evaluate(start, _states);
 

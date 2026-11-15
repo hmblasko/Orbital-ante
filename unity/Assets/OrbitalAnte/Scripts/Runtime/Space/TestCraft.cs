@@ -211,6 +211,12 @@ namespace OrbitalAnte.Space
         /// 1): the pilot's, the autopilot's, or the brake of Match Velocity. For sound and for flames.
         /// </summary>
         public Vector3 Firing { get; private set; }
+
+        /// <summary>
+        /// How fast the pilot is turning the ship this physics step, in radians a second about its own right, up
+        /// and nose axes (zero while it cannot turn). For the turning thrusters' flames; nothing steers by it.
+        /// </summary>
+        public Vector3 TurnRate { get; private set; }
         /// <summary>How hard the ship is being turned by its pilot, 0 to 1.</summary>
         public float TurnHeard => _turnHeard;
 
@@ -524,10 +530,19 @@ namespace OrbitalAnte.Space
             }
             float turning = Mathf.Clamp01(SideScale);
             Quaternion turn = Quaternion.Euler(-_lookPending.y * turning, _lookPending.x * turning, roll * Config.rollSpeed * turning * dt);
+            Vector2 looked = _lookPending;
             _lookPending = Vector2.zero;
             // Standing on the ground with the engines idle, nothing turns the ship: a nudge of the stick or the
             // mouse must not twist its feet against the pad. Any push (the thrusters firing) and it steers again.
             bool planted = Grounded && ThrustInput.sqrMagnitude < 0.0025f && !MatchingVelocity;
+            bool steered = !(PilotOn && !Unmanned) && !Locked && !planted;
+            // How fast the pilot is turning the ship, about its own axes, for the turning thrusters' flames (ShipJets).
+            // The look comes in by real time, so it is measured against the real length of the step (slow motion
+            // shortens the step but not the hand); the roll is already a rate.
+            float step = Mathf.Max(1e-4f, Time.fixedUnscaledDeltaTime);
+            TurnRate = steered
+                ? new Vector3(-looked.y * turning / step, looked.x * turning / step, roll * Config.rollSpeed * turning) * Mathf.Deg2Rad
+                : Vector3.zero;
             if (PilotOn && !Unmanned) FlyByPilot(dt);
             else if (!Locked && !planted)
             {

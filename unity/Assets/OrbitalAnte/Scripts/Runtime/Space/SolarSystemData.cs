@@ -20,6 +20,11 @@ namespace OrbitalAnte.Space
         public List<BodySpec> bodies = SolarSystemDefaults.Bodies();
         public AsteroidBeltSpec asteroidBelt = new AsteroidBeltSpec();
 
+        [Tooltip("How steeply a planet's or moon's pull fades as you leave it: the pull goes as (radius / distance) to this power. " +
+                 "1 is Outer Wilds' way (a world drags at you from well off and the pull builds as you close in); 2 is the real law. " +
+                 "The pull at the surface is the same either way, and the Sun always keeps the real law.")]
+        [Range(1f, 2f)] public float nearFalloff = 1f;
+
         public override string DisplayName => "Solar system";
 
         public static SolarSystemData CreateDefaults()
@@ -70,7 +75,7 @@ namespace OrbitalAnte.Space
             // The deeper checks (one Sun, no loops, moons clear of their planets) need the model itself.
             try
             {
-                var model = new SolarSystemModel(BuildBodies(1), 1);
+                var model = new SolarSystemModel(BuildBodies(1), 1, nearFalloff);
                 for (int i = 1; i < model.Count; i++)
                 {
                     int parent = model.ParentOf(i);

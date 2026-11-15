@@ -52,10 +52,12 @@ namespace OrbitalAnte.Space
         public int Seed { get; }
 
         /// <param name="bodies">Every body. Order does not matter; parents are sorted in front of their children.</param>
-        public SolarSystemModel(IList<BodySpec> bodies, int seed)
+        /// <param name="nearFalloff">See <see cref="NearFalloff"/>: 1 (the default) as in Outer Wilds, 2 the real law.</param>
+        public SolarSystemModel(IList<BodySpec> bodies, int seed, double nearFalloff = 1.0)
         {
             if (bodies == null || bodies.Count == 0) throw new ArgumentException("A solar system needs at least one body.");
             Seed = seed;
+            NearFalloff = Math.Max(0.5, Math.Min(2.0, nearFalloff));
             _specs = SortParentsFirst(bodies);
             int n = _specs.Length;
             _parent = new int[n];
@@ -126,6 +128,19 @@ namespace OrbitalAnte.Space
                 _lockRadius[i] = Math.Max(s.radius * 1.5, s.radius + 60.0);
                 int parent = _parent[i];
                 reach[parent] = Math.Max(reach[parent], s.orbitRadius + _influence[i]);
+            }
+
+            // A moon rides its circle at exactly the speed its planet's pull there asks for, so a ship flying up to
+            // it inside the planet's neighbourhood falls along with it. That pull depends on the neighbourhoods
+            // (see PullStrength), which are only known now, so the moons' rates are worked out again here. The
+            // planets' rates come from the Sun, which keeps the real law, so they do not change.
+            for (int i = 0; i < n; i++)
+            {
+                BodySpec s = _specs[i];
+                if (_parent[i] < 0 || s.orbitRadius <= 0) continue;
+                double rate = Math.Sqrt(PullStrength(_parent[i], s.orbitRadius) / s.orbitRadius);
+                _orbitRate[i] = s.retrogradeOrbit ? -rate * Prograde : rate * Prograde;
+                if (s.tidallyLocked) _spinRate[i] = _orbitRate[i];
             }
         }
 
@@ -267,12 +282,48 @@ namespace OrbitalAnte.Space
             Vec3d to = states[index].Position - point;
             double distance = to.Magnitude;
             if (distance < 1e-6) return Vec3d.Zero;
-            double radius = _specs[index].radius;
-            // Above the surface: the real inverse-square law. Below it: fades evenly to nothing at the centre.
-            double strength = distance >= radius
-                ? _mu[index] / (distance * distance)
-                : _specs[index].surfaceGravity * distance / radius;
-            return to * (strength / distance);
+            return to * (PullStrength(index, distance) / distance);
+        }
+
+        /// <summary>
+        /// How steeply a planet's or moon's pull fades with distance near it: the pull goes as (radius / distance)
+        /// to this power. 2 is the real law. Matthew asked on 15 Nov 2026 for gravity "more pronounced when closer
+        /// to planet like Outer Wilds"; Outer Wilds lets most of its worlds' pull fade only as 1 / distance, so a
+        /// world drags at you well before you reach it and the pull builds steadily as you close in. The default
+        /// is 1, the same. The Sun keeps the real law, so the planets' orbits are not touched. The moons go round
+        /// faster than under the real law (Earth's Moon about twice as fast), because their rails must match the
+        /// pull a ship flying near them feels.
+        /// </summary>
+        public double NearFalloff { get; }
+
+        /// <summary>The share of a body's neighbourhood within which <see cref="NearFalloff"/> holds in full.</summary>
+        public const double NearReach = 0.6;
+
+        /// <summary>
+        /// How hard body <paramref name="index"/> pulls at <paramref name="distance"/> from its centre, as an
+        /// acceleration. The pull at the surface is always the body's <see cref="BodySpec.surfaceGravity"/>. Below
+        /// the surface it fades evenly to nothing at the centre. Above it, out to <see cref="NearReach"/> of the
+        /// neighbourhood, it fades as (radius / distance) ^ <see cref="NearFalloff"/>; from there to the edge of the
+        /// neighbourhood it eases smoothly onto the real inverse-square law, so leaving a planet's neighbourhood
+        /// (where the rule for who pulls on you changes) is never a jolt, and in open space everything pulls by
+        /// the real law.
+        /// </summary>
+        public double PullStrength(int index, double distance)
+        {
+            BodySpec spec = _specs[index];
+            double radius = spec.radius;
+            double g = spec.surfaceGravity;
+            if (distance < radius) return g * distance / radius;
+            double real = _mu[index] / (distance * distance);
+            double edge = _influence[index];
+            if (NearFalloff == 2.0 || double.IsInfinity(edge)) return real;
+            double near = g * Math.Pow(radius / distance, NearFalloff);
+            double from = Math.Max(radius, edge * NearReach);
+            if (distance <= from) return near;
+            if (distance >= edge) return real;
+            double t = (distance - from) / (edge - from);
+            double keep = 1.0 - t * t * (3.0 - 2.0 * t);
+            return real + (near - real) * keep;
         }
 
         /// <summary>
@@ -299,7 +350,11 @@ namespace OrbitalAnte.Space
         }
 
         /// <summary>Speed of a circular orbit at <paramref name="distance"/> from the centre of a body.</summary>
-        public double CircularOrbitSpeed(int index, double distance) => Math.Sqrt(_mu[index] / Math.Max(1e-6, distance));
+        public double CircularOrbitSpeed(int index, double distance)
+        {
+            distance = Math.Max(1e-6, distance);
+            return Math.Sqrt(PullStrength(index, distance) * distance);
+        }
 
         // ------------------------------------------------------------------ whose neighbourhood is this?
 

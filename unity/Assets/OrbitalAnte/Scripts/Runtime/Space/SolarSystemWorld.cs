@@ -73,6 +73,7 @@ namespace OrbitalAnte.Space
 
             _launchConfig = LaunchConfig.Load();
             Engines = LaunchFx.Attach(Ship, _launchConfig);
+            OrbitalAnte.Ship.ShipJetFx.Attach(Ship);
             _earth = System.Model.IndexOf("Earth");
             bool onPad = place == StartPlace.Pad || (place == StartPlace.FromConfig && _launchConfig.startOnPad);
             // The pad is on Earth. Its place depends on the ground, so Earth's ground is worked out first.

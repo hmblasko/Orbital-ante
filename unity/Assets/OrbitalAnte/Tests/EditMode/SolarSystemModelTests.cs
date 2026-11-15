@@ -200,9 +200,9 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void GravityFallsOffWithTheSquareOfDistance()
+        public void UnderTheRealLaw_GravityFallsOffWithTheSquareOfDistance()
         {
-            SolarSystemModel model = Build();
+            var model = new SolarSystemModel(SolarSystemDefaults.Bodies(), 1, nearFalloff: 2.0);
             BodyState[] states = At(model, 0);
             int earth = model.IndexOf("Earth");
             double r = model.Spec(earth).radius;
@@ -212,6 +212,68 @@ namespace OrbitalAnte.Tests
             double halfway = model.GravityFrom(earth, states[earth].Position + new Vec3d(0.5 * r, 0, 0), states).Magnitude;
             Assert.AreEqual(model.Spec(earth).surfaceGravity / 2, halfway, 1e-9);
             Assert.AreEqual(0, model.GravityFrom(earth, states[earth].Position, states).Magnitude, 1e-9);
+        }
+
+        [Test]
+        public void NearAWorld_ThePullFadesOnlyAsOneOverDistance_LikeOuterWilds()
+        {
+            SolarSystemModel model = Build();
+            Assert.AreEqual(1.0, model.NearFalloff, "Outer Wilds' way is the default");
+            int earth = model.IndexOf("Earth");
+            double r = model.Spec(earth).radius, g = model.Spec(earth).surfaceGravity;
+            Assert.AreEqual(g, model.PullStrength(earth, r), 1e-9, "the pull on the ground is the listed gravity");
+            Assert.AreEqual(g / 2, model.PullStrength(earth, 2 * r), 1e-9, "one radius up it is half, not a quarter");
+            Assert.AreEqual(g / 2, model.PullStrength(earth, 0.5 * r), 1e-9, "below ground it still fades evenly to the centre");
+            Assert.Greater(model.PullStrength(earth, 3 * r), 1.5 * g / 9, "it is still well felt three radii out");
+        }
+
+        [Test]
+        public void ThePull_EasesOntoTheRealLaw_ByTheEdgeOfTheNeighbourhood_WithNoJolt()
+        {
+            SolarSystemModel model = Build();
+            var real = new SolarSystemModel(SolarSystemDefaults.Bodies(), 1, nearFalloff: 2.0);
+            foreach (string id in new[] { "Earth", "Moon", "Mars", "Phobos", "Jupiter", "Titan", "Neptune" })
+            {
+                int i = model.IndexOf(id);
+                double r = model.Spec(i).radius, edge = model.InfluenceRadius(i);
+                Assert.AreEqual(real.PullStrength(i, edge), model.PullStrength(i, edge), 1e-9, id + ": at the edge it is the real law");
+                Assert.AreEqual(real.PullStrength(i, edge * 1.5), model.PullStrength(i, edge * 1.5), 1e-9, id + ": and beyond it");
+                double last = model.PullStrength(i, r);
+                for (int k = 1; k <= 2000; k++)
+                {
+                    double d = r + (edge * 1.2 - r) * k / 2000.0;
+                    double now = model.PullStrength(i, d);
+                    Assert.LessOrEqual(now, last + 1e-12, id + ": the pull never grows as you leave, at " + d);
+                    Assert.Less(Math.Abs(now - last), model.Spec(i).surfaceGravity * 0.02, id + ": no sudden step, at " + d);
+                    Assert.GreaterOrEqual(now, real.PullStrength(i, d) - 1e-12, id + ": never weaker than the real law");
+                    last = now;
+                }
+            }
+        }
+
+        [Test]
+        public void TheSun_KeepsTheRealLaw_SoThePlanetsOrbitsAreUntouched_WhileTheMoonsKeepUpWithTheirPlanetsPull()
+        {
+            SolarSystemModel model = Build();
+            var real = new SolarSystemModel(SolarSystemDefaults.Bodies(), 1, nearFalloff: 2.0);
+            int sun = model.IndexOf(SolarSystemDefaults.SunId);
+            double r = model.Spec(sun).radius;
+            foreach (double d in new[] { r, 2 * r, 5 * r, 40 * r })
+                Assert.AreEqual(real.PullStrength(sun, d), model.PullStrength(sun, d), 1e-12);
+            for (int i = 1; i < model.Count; i++)
+                if (model.ParentOf(i) == sun) Assert.AreEqual(real.OrbitPeriod(i), model.OrbitPeriod(i), 1e-9, model.Spec(i).id + " keeps its pace");
+        }
+
+        [Test]
+        public void ACircularOrbit_IsExactlyAsFastAsThePullThereAsksFor()
+        {
+            SolarSystemModel model = Build();
+            int earth = model.IndexOf("Earth");
+            foreach (double d in new[] { 600.0, 1200.0, 2400.0, 3000.0 })
+            {
+                double v = model.CircularOrbitSpeed(earth, d);
+                Assert.AreEqual(model.PullStrength(earth, d), v * v / d, 1e-9, "at " + d);
+            }
         }
 
         [Test]
@@ -242,8 +304,12 @@ namespace OrbitalAnte.Tests
                 Vec3d felt = frame.ToLocalAcceleration(local, Vec3d.Zero, model.AccelerationAt(surface, states, i), states);
                 Vec3d down = frame.ToLocalDirection((states[i].Position - surface).Normalized, states);
                 double g = model.Spec(i).surfaceGravity;
-                // The only difference is the planet's spin trying to fling you off, which is small.
-                Assert.AreEqual(g, felt.Magnitude, g * 0.13, id + ": what you feel should be close to the listed gravity.");
+                // The only difference is the body's spin trying to fling you off. On a big world that is small; a
+                // little moon that keeps one face to its planet spins as fast as it orbits, and with the Outer
+                // Wilds pull a moon close in orbits fast (Phobos: you are about a quarter lighter on its equator).
+                double spin = model.SpinRate(i) * model.SpinRate(i) * model.Spec(i).radius;
+                Assert.Less(spin, g * 0.3, id + ": spin never comes near flinging you off");
+                Assert.AreEqual(g - spin, felt.Magnitude, g * 0.05, id + ": what you feel should be the listed gravity less the spin.");
                 Assert.LessOrEqual(felt.Magnitude, g + 1e-9, id + ": spin can only make you lighter.");
                 Assert.Greater(Vec3d.Dot(felt.Normalized, down), 0.99, id + ": down should be toward the centre.");
             }

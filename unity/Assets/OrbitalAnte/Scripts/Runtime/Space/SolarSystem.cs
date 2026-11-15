@@ -69,7 +69,7 @@ namespace OrbitalAnte.Space
         public void Build(SolarSystemData data, int seed, ICollection<string> paintedLater = null)
         {
             Instance = this;
-            Model = new SolarSystemModel(data.BuildBodies(seed), seed);
+            Model = new SolarSystemModel(data.BuildBodies(seed), seed, data.nearFalloff);
             Frame = new ReferenceFrame(Model);
             States = Model.NewStateBuffer();
             SimTime = 0;

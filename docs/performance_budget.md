@@ -66,6 +66,8 @@ No timings, allocation measurements, Unity layout results or Deck frame rates ha
 | Stars | 1,680 squares in 3 meshes (3 draw calls) |
 | Solar system script time per physics step | 0.2 ms (estimate) |
 | Flight readouts | words refreshed 8 times a second, not every frame |
+| Small thruster flames (`ShipJetFx`, 15 Nov 2026) | 16 cones of 8 triangles, one shared mesh and material; each switched off while its nozzle is idle, so at most 16 extra draw calls while turning hard and none at rest. Script time about 0.01 ms a frame (estimate, not measured). |
+| Gravity near worlds (`PullStrength`, 15 Nov 2026) | one `Math.Pow` per body pulling on each mover per physics step (two or three bodies in a neighbourhood); no cost to speak of. |
 | Map, while open | 1 ms per frame (estimate), redrawn every frame |
 | Shadows | off in the solar system for now: nothing casts one yet |
 | Camera far limit | 300 km (the system is about 240 km across) |
