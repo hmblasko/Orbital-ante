@@ -40,8 +40,28 @@ namespace OrbitalAnte.Dismemberment
         public Vector3? FacePoint;
         /// <summary>Sprint to the destination if the legs allow it.</summary>
         public bool Hurry;
+        /// <summary>
+        /// Scrambling after something (a dropped gun): bent low, sprinting even over a few metres, quick short
+        /// steps, and faster, wilder hops and crawls for a body that has lost its legs.
+        /// </summary>
+        public bool Scramble;
+        /// <summary>0 to 1: bend down to take something off the ground with the hand on <see cref="ReachSide"/>.</summary>
+        public float Reach;
+        public int ReachSide = MannequinRig.Right;
+        /// <summary>Something to keep the head turned toward, if anything (a point in the world).</summary>
+        public Vector3? LookAt;
+        /// <summary>Stay on the spot (startled, or bending to pick something up), turning slowly toward <see cref="LookAt"/>.</summary>
+        public bool Hold;
+
+        // The hobble is not a metronome: each hop has its own length, and now and then it lands badly and
+        // has to catch its balance. It changes where the body is, so it draws from its own seeded stream.
+        SeededRandom _hobble = new SeededRandom(2);
+        float _hopRate = 1f;
+        int _hopIndex;
+        float _teeterUntil;
 
         float _avoidUntil;
+        bool _teetering;
         float _avoidSign = 1f;
 
         /// <summary>Current forward speed in metres per second, averaged over the gait.</summary>
@@ -57,6 +77,7 @@ namespace OrbitalAnte.Dismemberment
             _target = transform.position;
             _lastForward = transform.forward;
             _owner.Struck += OnStruck;
+            _owner.PartDetached += OnPartDetached;
             // Stand properly from the first frame rather than in the skeleton's T-pose.
             ApplyPose(_owner.State, false, 1f / 60f, 0f);
         }
@@ -68,7 +89,11 @@ namespace OrbitalAnte.Dismemberment
 
         void OnDestroy()
         {
-            if (_owner != null) _owner.Struck -= OnStruck;
+            if (_owner != null)
+            {
+                _owner.Struck -= OnStruck;
+                _owner.PartDetached -= OnPartDetached;
+            }
         }
 
         /// <summary>How thick this kind's helmet is beside the ordinary one, so a lone head rests on the ground and not in it.</summary>
@@ -83,6 +108,7 @@ namespace OrbitalAnte.Dismemberment
             string model = _cfg != null ? _cfg.modelId : null;
             _anim = new BodyAnimator(seed, string.IsNullOrEmpty(model) ? null : BodyStyle.For(model)) { Size = transform.lossyScale.y };
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
+            _hobble = new SeededRandom(seed * 31 + 7);
             PickTarget();
         }
 
@@ -124,7 +150,12 @@ namespace OrbitalAnte.Dismemberment
             float speed = 0f;
             if (Wander)
             {
-                if (FacePoint.HasValue)
+                if (Hold)
+                {
+                    _sprinting = false;
+                    if (LookAt.HasValue) TurnToward(LookAt.Value - transform.position, state, dt * 0.6f);
+                }
+                else if (FacePoint.HasValue)
                 {
                     _sprinting = false;
                     TurnToward(FacePoint.Value - transform.position, state, dt);
@@ -139,10 +170,36 @@ namespace OrbitalAnte.Dismemberment
                     speed = SpeedFor(state, _sprinting);
                 }
             }
-            CurrentSpeed = speed;
 
             // Gait: how fast the cycle runs, and how the forward motion pulses within one cycle.
             float cadence = CadenceFor(state, _sprinting);
+            bool teetering = false;
+            if (state == MovementState.OneLeg && speed > 0.01f)
+            {
+                // Scrambling hops come faster and further; each hop has its own length; a bad landing holds it
+                // on the spot, arms out, before the next.
+                if (Scramble) { cadence *= 1.3f; speed *= 1.25f; }
+                cadence *= _hopRate;
+                int hop = Mathf.FloorToInt(_phase / (Mathf.PI * 2f));
+                if (hop != _hopIndex)
+                {
+                    _hopIndex = hop;
+                    _hopRate = 0.82f + 0.36f * (float)_hobble.NextDouble();
+                    float wobbly = Scramble ? 0.16f : 0.10f;
+                    if (_hobble.NextDouble() < wobbly) _teeterUntil = Time.time + 0.35f + 0.4f * (float)_hobble.NextDouble();
+                    else if (_hobble.NextDouble() < (Scramble ? 0.07f : 0.03f)) _anim.Stumble(_hobble.NextDouble() < 0.5 ? -1.0 : 1.0);
+                }
+                teetering = Time.time < _teeterUntil;
+                if (teetering) { cadence = 0f; speed = 0f; }
+            }
+            else if (state == MovementState.Crawl || state == MovementState.Wriggle)
+            {
+                if (Scramble) { cadence *= 1.35f; speed *= 1.3f; }
+            }
+            // A stumbling body hardly gets anywhere until it has its feet again.
+            if (_anim.Stumbling) speed *= 0.3f;
+            CurrentSpeed = speed;
+            _teetering = teetering;
             _phase += dt * cadence * Mathf.PI * 2f;
             if (_phase > Mathf.PI * 2000f) _phase -= Mathf.PI * 2000f;
 
@@ -216,7 +273,8 @@ namespace OrbitalAnte.Dismemberment
             if (Time.time < _avoidUntil) heading = Quaternion.AngleAxis(80f * _avoidSign, _owner.Up) * heading;
             TurnToward(heading, state, dt);
 
-            _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > 4f * 4f;
+            // Scrambling for a gun, it sprints even the last few metres.
+            _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > (Scramble ? 1.2f * 1.2f : 4f * 4f);
             float speed = SpeedFor(state, _sprinting);
             // Do not march off sideways while still turning to face the way.
             if (Vector3.Angle(transform.forward, heading) > 70f) speed *= 0.25f;
@@ -331,7 +389,24 @@ namespace OrbitalAnte.Dismemberment
                 RightArmWorks = _owner.Model.ArmCanCrawl(false),
                 Aim = armed && FacePoint.HasValue ? 1.0 : 0.0,
                 GunSide = armed ? _combat.GunSide : -1,
+                ArmLossLeft = ArmLoss(true),
+                ArmLossRight = ArmLoss(false),
+                StumpLength = StumpLength(),
+                Scramble = Scramble ? 1.0 : 0.0,
+                Reach = Mathf.Clamp01(Reach),
+                ReachSide = ReachSide,
+                Teeter = _teetering ? 1.0 : 0.0,
             };
+            if (LookAt.HasValue)
+            {
+                // In the body's own space at the skeleton's size. Kinds are drawn wider or narrower than they are
+                // tall, so only the height scale is taken out, or the angles would be skewed.
+                Vector3 local = transform.InverseTransformDirection(LookAt.Value - transform.position) / Mathf.Max(0.01f, transform.lossyScale.y);
+                input.HasLook = true;
+                input.LookX = local.x;
+                input.LookY = local.y;
+                input.LookZ = local.z;
+            }
             _anim.Update(dt, input);
             _rig.Apply(_anim.Pose);
 
@@ -345,6 +420,53 @@ namespace OrbitalAnte.Dismemberment
             Vector3 direction = transform.InverseTransformDirection(hit.Direction);
             Vector3 point = transform.InverseTransformPoint(hit.Point);
             _anim.Flinch(direction.x, direction.z, point.y / 1.8f, Mathf.Clamp(point.x / 0.3f, -1f, 1f), severed ? 2.5f : 1f);
+        }
+
+        /// <summary>How much of an arm's weight is gone: nothing, a hand, a forearm (the upper arm left as a stump), or all of it.</summary>
+        double ArmLoss(bool left)
+        {
+            BodyModel m = _owner.Model;
+            if (!m.OnBody(left ? BodyPartId.LeftUpperArm : BodyPartId.RightUpperArm)) return 1.0;
+            if (!m.OnBody(left ? BodyPartId.LeftForearm : BodyPartId.RightForearm)) return 0.5;
+            if (!m.OnBody(left ? BodyPartId.LeftHand : BodyPartId.RightHand)) return 0.15;
+            return 0.0;
+        }
+
+        /// <summary>How much of the lost leg is left on a one-legged body: 0 none, 0.45 the thigh, 1 all but the foot.</summary>
+        double StumpLength()
+        {
+            BodyModel m = _owner.Model;
+            bool left = !m.LegWorks(true);
+            if (!m.OnBody(left ? BodyPartId.LeftThigh : BodyPartId.RightThigh)) return 0.0;
+            if (!m.OnBody(left ? BodyPartId.LeftShin : BodyPartId.RightShin)) return 0.45;
+            return 1.0;
+        }
+
+        /// <summary>A part came off the living body: it reels from the wound. Only for show.</summary>
+        void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
+        {
+            if (_anim == null || detachment.SourceGroup != 0) return;
+            double severity;
+            int side;
+            switch (detachment.Root)
+            {
+                case BodyPartId.LeftUpperArm: case BodyPartId.LeftThigh: severity = 1.0; side = MannequinRig.Left; break;
+                case BodyPartId.RightUpperArm: case BodyPartId.RightThigh: severity = 1.0; side = MannequinRig.Right; break;
+                case BodyPartId.LeftForearm: case BodyPartId.LeftShin: severity = 0.85; side = MannequinRig.Left; break;
+                case BodyPartId.RightForearm: case BodyPartId.RightShin: severity = 0.85; side = MannequinRig.Right; break;
+                case BodyPartId.LeftHand: case BodyPartId.LeftFoot: severity = 0.6; side = MannequinRig.Left; break;
+                case BodyPartId.RightHand: case BodyPartId.RightFoot: severity = 0.6; side = MannequinRig.Right; break;
+                default: return;
+            }
+            _anim.Wounded(side, severity);
+        }
+
+        /// <summary>Startled: something was just knocked out of its hands toward this point in the world.</summary>
+        public void Startle(Vector3 toward)
+        {
+            if (_anim == null) return;
+            Vector3 local = transform.InverseTransformDirection(toward - transform.position);
+            _anim.Startle(local.x, local.z);
         }
 
         /// <summary>The gun's kick, passed through the shoulder into the body.</summary>
