@@ -49,8 +49,10 @@ namespace OrbitalAnte.Space
             {
                 if (value && !_unmanned)
                 {
-                    // Nobody is flying: whatever was being asked for when the pilot left the seat is let go of.
-                    if (PilotOn) StopPilot(PilotStop.Unbuckled);
+                    // Nobody is at the controls: whatever was being asked for when the pilot left the seat is let
+                    // go of. The autopilot flies on while somebody is still aboard (Matthew, 15 Nov 2026: you can
+                    // get up and walk about while it flies); see CrewAboard.
+                    if (PilotOn && !CrewAboard) StopPilot(PilotStop.NobodyAboard);
                     ThrustInput = Vector3.zero;
                     _lookPending = Vector2.zero;
                     Boosting = false;
@@ -60,6 +62,29 @@ namespace OrbitalAnte.Space
             }
         }
         bool _unmanned;
+
+        /// <summary>
+        /// Set by the ship: somebody alive is in the seat or on foot in the cabin. The autopilot keeps flying while
+        /// this is true, even with the seat empty, and lets go the moment it is not, so the ship never flies off
+        /// and leaves you behind.
+        /// </summary>
+        public bool CrewAboard
+        {
+            get => _crewAboard;
+            set
+            {
+                _crewAboard = value;
+                if (!value && PilotOn) StopPilot(PilotStop.NobodyAboard);
+            }
+        }
+        bool _crewAboard = true;
+
+        /// <summary>
+        /// True once the pilot has turned the ship by hand during this autopilot flight. The autopilot then leaves
+        /// the nose where they put it (its push does not depend on which way the ship faces) until it is started
+        /// again or sent somewhere new.
+        /// </summary>
+        public bool PilotHoldsNose { get; private set; }
         /// <summary>How much of full up-and-down thrust is available (damaged engines give less). 0 to 1.</summary>
         public float LiftScale { get; set; } = 1f;
         /// <summary>The share of all push (and of the match-velocity brake) that fuel allows, 0 to 1. Turning is not touched: you can always steer.</summary>
@@ -129,6 +154,7 @@ namespace OrbitalAnte.Space
             _shownPhase = PilotPhase.Burning;
             _phaseHeld = 1f;
             _nextPathCheck = 0.5f;
+            PilotHoldsNose = false;
         }
 
         /// <summary>Starts the autopilot toward the locked body, or says plainly why it will not.</summary>
@@ -142,6 +168,7 @@ namespace OrbitalAnte.Space
             int blocker = FindBlocker();
             if (blocker >= 0) return Refuse(PilotStop.Blocked, blocker);
             PilotOn = true;
+            PilotHoldsNose = false;
             _shownSeconds = -1f;
             _shownPhase = PilotPhase.Burning;
             _phaseHeld = 1f;
@@ -353,8 +380,13 @@ namespace OrbitalAnte.Space
                 MatchingVelocity = false;
                 Steering = false;
                 if (Unmanned) PadSteering = false;
-                // Nobody in the seat ends the autopilot. Reading the map does not: it flies on while you look.
-                if (PilotOn && Unmanned) StopPilot(PilotStop.Unbuckled);
+                // Reading the map or walking about the cabin does not end the autopilot: it flies on. Leaving the
+                // ship does (see CrewAboard).
+                if (PilotOn)
+                {
+                    Vector3 shown = transform.InverseTransformDirection(SpaceConvert.ToVector3(Order.Push));
+                    ThrustInput = shown.sqrMagnitude > 1e-6f ? shown.normalized * Order.Effort : Vector3.zero;
+                }
             }
             else
             {
@@ -535,7 +567,8 @@ namespace OrbitalAnte.Space
             // Standing on the ground with the engines idle, nothing turns the ship: a nudge of the stick or the
             // mouse must not twist its feet against the pad. Any push (the thrusters firing) and it steers again.
             bool planted = Grounded && ThrustInput.sqrMagnitude < 0.0025f && !MatchingVelocity;
-            bool steered = !(PilotOn && !Unmanned) && !Locked && !planted;
+            // The pilot can turn the ship by hand while the autopilot flies, too (Matthew, 15 Nov 2026).
+            bool steered = !Locked && (PilotOn || !planted);
             // How fast the pilot is turning the ship, about its own axes, for the turning thrusters' flames (ShipJets).
             // The look comes in by real time, so it is measured against the real length of the step (slow motion
             // shortens the step but not the hand); the roll is already a rate.
@@ -543,7 +576,7 @@ namespace OrbitalAnte.Space
             TurnRate = steered
                 ? new Vector3(-looked.y * turning / step, looked.x * turning / step, roll * Config.rollSpeed * turning) * Mathf.Deg2Rad
                 : Vector3.zero;
-            if (PilotOn && !Unmanned) FlyByPilot(dt);
+            if (PilotOn) FlyByPilot(dt, steered ? turn : Quaternion.identity, steered && TurnRate.sqrMagnitude > 1e-6f);
             else if (!Locked && !planted)
             {
                 // Only a pilot steadies the ship. Left alone it tumbles, tips and comes to rest like any other object.
@@ -574,7 +607,7 @@ namespace OrbitalAnte.Space
             }
         }
     
-        void FlyByPilot(float dt)
+        void FlyByPilot(float dt, Quaternion pilotTurn, bool pilotTurning)
         {
             if (System == null || LockedTarget < 0) { StopPilot(PilotStop.NoTarget); return; }
             if (PushScale < 0.5f) { StopPilot(PilotStop.NoFuel); return; }
@@ -601,13 +634,20 @@ namespace OrbitalAnte.Space
             if (order.Phase != _shownPhase && _phaseHeld >= 0.3f) { _shownPhase = order.Phase; _phaseHeld = 0f; }
             order.Phase = _shownPhase;
             Order = order;
-            if (order.Arrived) { StopPilot(PilotStop.Arrived); return; }
+            // Arriving with nobody at the controls, it holds the stopping place instead of letting go, so a ship
+            // left to fly while you walk about never drops on to the world below. The moment someone is back in
+            // the seat it hands over as usual.
+            if (order.Arrived && !Unmanned) { StopPilot(PilotStop.Arrived); return; }
 
             Body.AddForce(SpaceConvert.ToVector3(order.Push), ForceMode.Acceleration);
             PilotPushShare = order.Effort * PilotRules.push * share * Mathf.Max(1f, PilotRules.fuelSurcharge) / Mathf.Max(1f, Config.thrust);
 
-            // The nose swings round to the target, so you watch it come up through the window. Bumps are steadied.
-            if (to.sqrMagnitude > 1f)
+            // The nose swings round to the target, so you watch it come up through the window, unless the pilot has
+            // taken the nose: then it goes where they point it (pitch, turn and roll) and stays there. The push
+            // above is the same whichever way the ship faces. Bumps are steadied either way.
+            if (pilotTurning) PilotHoldsNose = true;
+            if (PilotHoldsNose) Body.MoveRotation(Body.rotation * pilotTurn);
+            else if (to.sqrMagnitude > 1f)
             {
                 Quaternion want = Quaternion.LookRotation(to.normalized, Body.rotation * Vector3.up);
                 Body.MoveRotation(Quaternion.RotateTowards(Body.rotation, want, PilotRules.turnSpeed * Mathf.Clamp01(SideScale) * dt));

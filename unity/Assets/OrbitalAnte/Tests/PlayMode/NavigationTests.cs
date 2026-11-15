@@ -170,12 +170,18 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(craft.PilotOn, "opening the map must not stop the autopilot");
             craft.ControlsLocked = false;
 
-            // Unbuckle: nobody is flying, so it lets go and says so.
+            // Unbuckle and get up: the autopilot flies on while you walk about the cabin (Matthew, 15 Nov 2026).
             _world.Ship.Belt.Release();
             yield return Frames(3);
             yield return Steps(2);
+            Assert.IsTrue(craft.Unmanned, "nobody is at the controls");
+            Assert.IsTrue(craft.CrewAboard, "but the pilot is still aboard");
+            Assert.IsTrue(craft.PilotOn, "so the autopilot flies on: " + craft.LastStopWords);
+
+            // Nobody aboard at all: it lets go and says so, rather than flying off without you.
+            craft.CrewAboard = false;
             Assert.IsFalse(craft.PilotOn);
-            Assert.AreEqual(PilotStop.Unbuckled, craft.LastStop);
+            Assert.AreEqual(PilotStop.NobodyAboard, craft.LastStop);
         }
 
         [UnityTest]

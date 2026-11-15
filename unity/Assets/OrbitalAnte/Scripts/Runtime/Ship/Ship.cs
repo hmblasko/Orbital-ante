@@ -924,6 +924,8 @@ namespace OrbitalAnte.Ship
             FlightSounds(Time.deltaTime);
             if (Flight != null)
             {
+                // Somebody alive in the seat or walking the cabin keeps the autopilot flying; out of the ship, it lets go.
+                Flight.CrewAboard = Crew != null && !Crew.Dead && (Crew.Mode == AstronautMode.Seated || Crew.Mode == AstronautMode.Aboard);
                 Flight.Unmanned = !Belt.Buckled || (Crew != null && Crew.Dead);
                 Flight.LiftScale = Model.ThrustFactor * Mathf.Clamp01(LiftGate);
                 Flight.SideScale = Model.TurnFactor;

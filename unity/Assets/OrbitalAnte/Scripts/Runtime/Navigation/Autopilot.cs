@@ -26,6 +26,8 @@ namespace OrbitalAnte.Navigation
         Unbuckled,
         Knocked,
         OnGround,
+        /// <summary>Everybody has left the ship (or died): it does not fly off without them.</summary>
+        NobodyAboard,
     }
 
     [Serializable]
@@ -234,6 +236,7 @@ namespace OrbitalAnte.Navigation
                 case PilotStop.Unbuckled: return "AUTOPILOT OFF: NOBODY IN THE SEAT";
                 case PilotStop.Knocked: return "AUTOPILOT OFF: WE HIT SOMETHING";
                 case PilotStop.OnGround: return "AUTOPILOT: TAKE OFF FIRST";
+                case PilotStop.NobodyAboard: return "AUTOPILOT OFF: NOBODY ABOARD";
                 default: return string.Empty;
             }
         }
