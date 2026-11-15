@@ -15,7 +15,7 @@ Every open Codex pull request was read against `claude/playtest`. What was worth
 
 ## Waiting on Matthew
 
-PR 41's new mechanics are not taken yet: crouch, lean, wall runs and ledge climbs (`ParkourMotor`, `ParkourRules`, `StanceRules`, head and camera clearance), up to two enemy ships whose crews fly, land and board (`EnemyFleet`, `EnemyShipCrew`, `EnemyShipRules`), enemies shooting into an occupied ship, and the on-screen marker pointing to your ship (`ShipLocator`). They are new features rather than fixes, enemy ships belong with the factions in Phase 2, and none was in Matthew's requests, so they wait for his call. PR 41 stays open until then.
+Matthew chose (15 Nov) to hold these until after the Phase 1 sign-off. PR 41's new mechanics are not taken yet: crouch, lean, wall runs and ledge climbs (`ParkourMotor`, `ParkourRules`, `StanceRules`, head and camera clearance), up to two enemy ships whose crews fly, land and board (`EnemyFleet`, `EnemyShipCrew`, `EnemyShipRules`), enemies shooting into an occupied ship, and the on-screen marker pointing to your ship (`ShipLocator`). They are new features rather than fixes, enemy ships belong with the factions in Phase 2, and none was in Matthew's requests, so they wait for his call. PR 41 stays open until then.
 
 ## Already done on claude/playtest, or out of date (proposed to close)
 
