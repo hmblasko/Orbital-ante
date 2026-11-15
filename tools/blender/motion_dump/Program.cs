@@ -35,7 +35,7 @@ static partial class Program
         void Step(double dt, in Sim s);
         BodyPose Pose { get; }
         void Startle(double x, double z);
-        void Wounded(int side, double severity);
+        void Wounded(int side, double severity, bool arm = false);
         void Flinch(double x, double z, double height, double side, double strength);
         void Stumble(double side);
         bool Stumbling { get; }
@@ -48,7 +48,7 @@ static partial class Program
         public BodyPose Pose => _a.Pose;
         public bool Stumbling => _a.Stumbling;
         public void Startle(double x, double z) => _a.Startle(x, z);
-        public void Wounded(int side, double severity) => _a.Wounded(side, severity);
+        public void Wounded(int side, double severity, bool arm = false) => _a.Wounded(side, severity, arm);
         public void Flinch(double x, double z, double h, double side, double k) => _a.Flinch(x, z, h, side, k);
         public void Stumble(double side) => _a.Stumble(side);
         public void Step(double dt, in Sim s)
@@ -327,7 +327,7 @@ static partial class Program
                 gone.Add(BodyPartId.LeftUpperArm); gone.Add(BodyPartId.LeftForearm); gone.Add(BodyPartId.LeftHand);
                 s.LeftArm = false; s.LossLeft = 1.0;
                 b.Flinch(1.0, 0.3, 0.8, -0.9, 2.5);
-                if (!_old) b.Wounded(BodySkeleton.Left, 1.0);
+                if (!_old) b.Wounded(BodySkeleton.Left, 1.0, arm: true);
             }
             bool walking = t > 2.0;
             s.Speed = walking ? 1.3 : 0; s.Moving = walking;

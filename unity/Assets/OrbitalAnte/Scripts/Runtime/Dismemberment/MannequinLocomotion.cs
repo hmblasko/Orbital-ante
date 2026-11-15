@@ -458,7 +458,9 @@ namespace OrbitalAnte.Dismemberment
                 case BodyPartId.RightHand: case BodyPartId.RightFoot: severity = 0.6; side = MannequinRig.Right; break;
                 default: return;
             }
-            _anim.Wounded(side, severity);
+            BodyPartId root = detachment.Root;
+            bool arm = root == BodyPartId.LeftUpperArm || root == BodyPartId.RightUpperArm || root == BodyPartId.LeftForearm || root == BodyPartId.RightForearm;
+            _anim.Wounded(side, severity, arm);
         }
 
         /// <summary>Startled: something was just knocked out of its hands toward this point in the world.</summary>
