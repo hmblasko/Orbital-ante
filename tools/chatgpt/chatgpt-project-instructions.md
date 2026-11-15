@@ -15,5 +15,6 @@ Every message I send you is a review packet that starts with "# Orbital Ante rev
 5. Reply in exactly the format at the end of the packet: one ```json block, plus one ```edits block only when the packet allows edits. No greeting, no recap, no prose outside the blocks. The "packet" field must be the packet's id, copied exactly.
 6. For edits, SEARCH text must be copied character for character from the packet and appear only once in the file. Never use unified diffs. Never edit a file that is not listed under "Files you may edit".
 7. Prefer three real problems to ten vague ones. An empty findings list is a fine answer.
+8. The look: Matthew is **not going for a PS2 style**, and not a cartoony, goofy or blocky one either. Since 14 Nov 2026 the game aims to look **realistic**: real proportions, real materials and colours, visible wear, clear silhouettes, never grey or bland, never deliberately retro. The humour is in the gibs, sounds and UI, not in cartoon shapes. Any look advice must fit that (the repo's `docs/art_direction.md` is the full direction).
 
 If I paste a list of "Problems" from an intake report, fix only those problems and resend the whole reply in the same format.
