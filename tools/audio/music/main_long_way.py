@@ -1,4 +1,7 @@
-"""Long Way From Anywhere: the main theme (menus, upgrades). 120 BPM deep house, D minor, 64 bars, 2 min 8 s.
+"""Long Way From Anywhere: the main theme (menus, upgrades). 126 BPM deep house, D minor, 64 bars, about 2 min 2 s.
+
+Moved to 126 on the shared kit with a deeper Faust sub bass and bongos on 15 Nov 2026 (Matthew: "more deep
+house, deep bass, high bpm, kick step, rally house"). The melody, chords and mood are the ones he approved.
 
 Asked for by Matthew on 14 Nov 2026: "more existential and not upbeat, but still have a good deep house beat".
 
@@ -14,14 +17,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from oa_audio import dsp, mixing, synth
+from oa_audio import dsp, mixing, studio, synth
 from oa_audio.sampler import DR
 from oa_audio.seq import Note, bars, chord_at, humanize, progression, shift, swing, voicing
 
+from . import deep
 from .common import balance, bars_of, calibrate, comp, glue, held, presence, root_of, stem
 
 ID = "main_long_way"
-BPM = 120.0
+BPM = deep.BPM
 BARS = 64
 
 META = dict(
@@ -62,9 +66,11 @@ def drum_bar(b: int) -> dict:
     if in_break(b):
         # the floor drops away: no kick, just the hats ticking and a clap far off
         return dict(kick="x..............." if b == 32 else "", hat="..x...x...x...x." if b >= 36 else "",
-                    shut="" if b < 34 else "....o.......o...", clap="....x.......x..." if b >= 38 else "", rim="..........x.....")
+                    shut="" if b < 34 else "....o.......o...", clap="....x.......x..." if b >= 38 else "", rim="..........x.....",
+                perc="..x..o.x..x..o.x" if b >= 38 else "")
     fill = b % 8 == 7
-    return dict(kick="x...x...x...x...", hat="..x...x...x...x.",
+    return dict(kick="x...x...x...x..." if not fill else "x...x...x...x.x.", hat="..x...x...x...x.",
+                perc="" if b < 8 else "..x..o.x..x..o.x" if b % 2 else "..x....x.ox..o..",
                 shut="o.oxo.oxo.oxo.ox" if not fill else "o.oxo.oxo.oxoxox",
                 clap="....x.......x...", rim=".......x..x....." if b % 2 else "..........x..x..")
 
@@ -78,52 +84,17 @@ def build(session_dir: str):
     def lane(key, pitch, vel, **kw):
         return bars_of(lambda b: drum_bar(b)[key], BARS, pitch, vel=vel, **kw)
 
-    kick_n = lane("kick", DR["kick"], 112)
+    kick_n, k = deep.kit(L, rng, drum_bar, "beat", hard=0.25)
     duck = L.duck(kick_n, -8.0, 0.004, 0.24)       # the pump that makes it house
     duck_soft = L.duck(kick_n, -4.0, 0.004, 0.18)
 
-    # ---------------------------------------------------------------- beat
-    # A deep, round kick (long and low, hardly any click), tight hats off the beat, a clap set well back.
-    kick = L.hits("beat_kick", kick_n, lambda n, r: synth.kick(n.vel / 127, 45, 150, 0.21, 0.38, 1.9, r))
-    ohat = L.hits("beat_open_hat", lane("hat", DR["hat_open"], 78), lambda n, r: synth.hat(n.vel / 127, 0.085, 0.85, r), pan=0.15)
-    chat = L.hits("beat_hats", humanize(swing(lane("shut", DR["hat"], 70, ghost=40), 0.55, 0.25), rng, 0.003, 6, BPM),
-                  lambda n, r: synth.hat(n.vel / 127, 0.018, 0.9, r), pan=-0.2)
-    clap = L.hits("beat_clap", humanize(lane("clap", DR["clap"], 84), rng, 0.003, 4, BPM), lambda n, r: synth.clap(n.vel / 127, r, 0.1))
-    rim = L.hits("beat_rim", humanize(lane("rim", DR["rim"], 70), rng, 0.004, 6, BPM), lambda n, r: synth.rim(n.vel / 127, r), pan=0.35)
+    # ---------------------------------------------------------------- beat: the shared club kit
+    out["beat"] = stem(L, L.fx(deep.kit_fx(L, 1201), *deep.kit_parts(k)), 0.0, hp=30)
 
-    def beat_fx(k, o, h, c, r):
-        tops = o * 0.9 + h * 0.9 + c * 0.9 + r * 0.7
-        far = dsp.reverb(c * 0.9 + r * 0.8, 2.2, 1.0, 0.6, 0.03, 1.4, seed=1201, wet_only=True) * 0.45
-        echo = dsp.delay(r, L.beat * 0.75, L.beat * 1.5, 0.45, 1.0, 3000) * 0.25
-        # the kick's knock (not its boom) is what a handheld's speakers will play
-        k = k + dsp.bandpass(k, 700, 2400) * 1.2
-        return glue(k * 1.0 + tops * 2.3 + far + echo, 13.0)
-
-    out["beat"] = stem(L, L.fx(beat_fx, kick, ohat, chat, clap, rim), 0.0, hp=30)
-
-    # ---------------------------------------------------------------- bass: off the beat, under everything
-    b_notes: list[Note] = []
-    for b in range(BARS):
-        at = b * 4.0
-        r = root_of(chord_at(prog, at), 36)
-        if in_break(b):
-            if b % 4 == 0:
-                b_notes.append(Note(at, 15.0, r, 80))   # one held note, the bottom of the well
-            continue
-        for pos, ln, iv, vel in (BASS_2 if b % 4 == 3 else BASS_1):
-            b_notes.append(Note(at + pos, ln, r + iv, vel))
-    b_notes = humanize(b_notes, rng, 0.003, 4, BPM)
-    sub = L.synth("bass_sub", b_notes, synth.v_sub, release=0.1, drive=1.5)
-    body = L.synth("bass_body", b_notes, synth.v_pulse, release=0.08)
-
-    def bass_fx(s, m):
-        # the sub is for big speakers; the filtered pulse an octave up in feel is what a handheld will hear
-        m = dsp.svf(m, 520, 1.1, "lp", 2)
-        x = dsp.lowpass(s, 180) * 1.0 + m * 0.5
-        x = dsp.compress(dsp.saturate(x, 1.5, 0.7, 0.04), -18, 3.5, 0.01, 0.15, makeup_db=3)
-        return dsp.width(presence(x, level_db=-10.0), 0.1)
-
-    out["bass"] = stem(L, L.fx(bass_fx, sub, body) * duck_soft, 0.0, hp=34, lp=5000)
+    # ---------------------------------------------------------------- bass: deep, off the beat, under everything
+    b_notes = humanize(deep.bass_notes(L, prog, lambda b: BASS_2 if b % 4 == 3 else BASS_1, in_break), rng, 0.003, 4, BPM)
+    low = deep.bass(L, "bass_sub", b_notes, weight=1.25, cutoff=220, envamt=1200, drive=2.4, decay=0.16)
+    out["bass"] = stem(L, L.fx(deep.bass_fx(-9.5), low) * duck_soft, 0.0, hp=30, lp=5000)
 
     # ---------------------------------------------------------------- chords: breathing stabs over a held pad
     def stab_rhythm(b):

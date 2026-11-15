@@ -1,16 +1,16 @@
-"""All In: combat. 120 BPM, D minor, 64 bars, 2 min 8 s. The same deep house record with its teeth out.
+"""All In: combat. 126 BPM rally house, D minor, 64 bars, about 2 min 2 s.
 
-Rewritten on 14 Nov 2026 to Matthew's direction (existential, not upbeat, a good deep house beat). The first
-version was 172 BPM breakbeat with brass. This one keeps the tempo and key of everything else, so a fight is
-the record getting harder, not a different record: a heavier kick, a rolling growl of a bass, off-beat stabs,
-and the Conflict theme on a hard lead once the fight is properly on. The top layer, for the worst moments,
-is a squelching sixteenth-note line, a ride and noise.
+Matthew, 15 Nov 2026: "more deep house, deep bass, high bpm, kick step, rally house". So a fight is the record
+at full tilt: a hard tuned kick, a rolling sixteenth-note sub bass stepping around it (Faust, through a Moog
+ladder), off-beat hats and bongos, a crowd shouting "hey" on the last off-beat, Faust chord stabs, and the
+Conflict theme on a hard lead once the fight is properly on. The top layer, for the worst moments, is a
+squelching acid line, a ride and noise. Same tempo and key as every other piece, so it mixes in on a bar line.
 """
 from __future__ import annotations
 
 import numpy as np
 
-from oa_audio import dsp, mixing, motifs, synth
+from oa_audio import dsp, mixing, motifs, studio, synth
 from oa_audio.sampler import DR
 from oa_audio.seq import Note, bars, chord_at, humanize, progression
 
@@ -43,8 +43,6 @@ CF_UP = ["G5:.5 G5:.5 Ab5:.5 G5:1 F5:.5 D5:1", "Eb5:1.5 r:.5 Bb5:.5 A5:.5 G5:1",
 ANTE_MINOR = ["r:.5 A4:.5 C5:.5 D5:1.5 r:1", "F5:.75 E5:.75 C5:.5 A4:2", "r:.5 C5:.5 D5:.5 F5:1.5 r:1", "G5:.5 F5:.5 D5:1 C5:.5 D5:1.5"]
 
 # rolling sixteenths that leave the kick alone: (beat, length, semitones above the root, velocity)
-ROLL_1 = [(0.5, .2, 0, 104), (0.75, .2, 0, 84), (1.5, .2, 0, 104), (1.75, .2, 12, 80), (2.5, .2, 0, 104), (2.75, .2, 0, 84), (3.5, .2, 0, 100), (3.75, .2, 10, 84)]
-ROLL_2 = [(0.5, .2, 0, 104), (0.75, .2, 0, 84), (1.5, .2, 0, 104), (1.75, .2, 3, 84), (2.5, .2, 7, 96), (2.75, .2, 0, 84), (3.25, .2, 10, 90), (3.5, .2, 12, 96), (3.75, .2, 1, 88)]
 
 
 def in_break(b: int) -> bool:
@@ -55,11 +53,16 @@ def drum_bar(b: int) -> dict:
     if in_break(b):
         return dict(kick="x..............." if b % 4 == 0 else "x...x...x...x.x." if b == 39 else "",
                     hat="", shut="o.oxo.oxo.oxo.ox" if b >= 36 else "", clap="....x.......x..." if b >= 36 else "",
-                    rim="...x..x...x..x..")
+                    rim="...x..x...x..x..", perc="" if b < 36 else "..x..o.x..x..o.x",
+                    vox="..............x." if b in (35, 37) else "x.....x.....x.x." if b == 39 else "")
     fill = b % 8 == 7
-    return dict(kick="x...x...x...x..." if not fill else "x...x...x..xx.x.", hat="..x...x...x...x.",
+    return dict(kick="x...x...x...x..." if not fill else "x...x...x..xx.x.",     # the kick steps into each eighth bar
+                hat="..x...x...x...x.",
                 shut="oxoxoxoxoxoxoxox" if b % 2 else "o.oxo.oxoxoxo.ox",
-                clap="....x.......x..." if not fill else "....x.......x.xx", rim="...x......x..x.." if b % 2 else ".......x.....x..")
+                clap="....x.......x..." if not fill else "....x.......x.xx",
+                rim="...x......x..x.." if b % 2 else ".......x.....x..",
+                perc="..x..o.x..x..oxo" if b % 2 else "..x..o.x.ox..o.x",
+                vox="..............x." if b % 2 == 1 and not fill else "......x.......x." if fill else "")
 
 
 def build(session_dir: str):
@@ -78,24 +81,23 @@ def build(session_dir: str):
     crash = L.hits("drums_crash", crash_n, lambda n, r: synth.cymbal(n.vel / 127, 1.4, 0.9, r) * 0.6, pan=0.2)
     kfx = deep.kit_fx(L, 1721, tops_gain=2.5)
 
-    def drums_fx(kk, o, h, c, r, d, t, cr):
-        return kfx(kk, o, h, c, r, d) + dsp.saturate(t, 1.6, 0.7, 0.03) * 1.4 + dsp.reverb(cr, 2.0, 0.3, 0.5, 0.02, 1.4, seed=1722) * 0.9
+    def drums_fx(kk, o, h, c, r, d, p, v, t, cr):
+        return kfx(kk, o, h, c, r, d, p, v) + dsp.saturate(t, 1.6, 0.7, 0.03) * 1.4 + dsp.reverb(cr, 2.0, 0.3, 0.5, 0.02, 1.4, seed=1722) * 0.9
 
-    out["drums"] = stem(L, L.fx(drums_fx, k["kick"], k["ohat"], k["chat"], k["clap"], k["rim"], k["ride"], toms, crash), 0.0, hp=30)
+    out["drums"] = stem(L, L.fx(drums_fx, *deep.kit_parts(k), toms, crash), 0.0, hp=30)
 
-    # ---------------------------------------------------------------- bass: sub under a rolling growl
-    b_notes = humanize(deep.bass_notes(L, prog, lambda b: ROLL_2 if b % 4 == 3 else ROLL_1, in_break), rng, 0.002, 4, BPM)
-    sub = L.synth("bass_sub", b_notes, synth.v_sub, release=0.06, drive=1.8)
-    growl = L.synth("bass_growl", b_notes, synth.v_reese, release=0.06, move=0.45, top=1.0)
-    g_sweep = deep.breathing(L, 8.0, 500, 1900)
+    # ---------------------------------------------------------------- bass: a deep rolling sub that steps around the kick
+    b_notes = humanize(deep.bass_notes(L, prog, lambda b: deep.ROLL_TURN if b % 4 == 3 else deep.ROLL, in_break), rng, 0.002, 4, BPM)
+    low = deep.bass(L, "bass_roll", b_notes, weight=1.2, cutoff=220, envamt=1700, drive=3.2, decay=0.12, res=0.6)
+    growl = L.synth("bass_growl", b_notes, synth.v_reese, release=0.05, move=0.45, top=1.0)
+    g_sweep = deep.breathing(L, 8.0, 500, 1700)
+    bfx = deep.bass_fx(-8.0, 0.1)
 
-    def bass_fx(s, g):
-        g = dsp.svf(g, g_sweep(len(g)), 1.6, "lp", 2)
-        x = dsp.lowpass(s, 170) * 1.0 + dsp.highpass(g, 110) * 0.7
-        x = dsp.compress(dsp.saturate(x, 2.2, 0.7, 0.05), -18, 4.0, 0.006, 0.12, makeup_db=3)
-        return dsp.width(presence(x, level_db=-8.0), 0.15)
+    def bass_fx(x, g):
+        g = dsp.highpass(dsp.svf(g, g_sweep(len(g)), 1.6, "lp", 2), 160)
+        return bfx(x + g * 0.35)
 
-    out["bass"] = stem(L, L.fx(bass_fx, sub, growl) * duck_soft, 0.0, hp=34, lp=7000)
+    out["bass"] = stem(L, L.fx(bass_fx, low, growl) * duck_soft, 0.0, hp=30, lp=7000)
 
     # ---------------------------------------------------------------- stabs: off-beat minor chords through a dub echo
     def stab_rhythm(b):
@@ -103,15 +105,15 @@ def build(session_dir: str):
             return [(0.0, 3.5, -14)] if b % 2 == 0 else []
         return [(0.75, .2, 0), (1.5, .25, -6), (2.75, .2, -4), (3.5, .25, -8)] if b % 2 == 0 else [(0.75, .2, 0), (1.5, .25, -6), (3.25, .2, -6)]
 
-    stabs = L.synth("stabs_chord", humanize(comp(prog, stab_rhythm, low=57, count=4, vel=96, top=76), rng, 0.004, 5, BPM),
-                    synth.v_stab, bright=0.85, release=0.14)
+    stabs = deep.faust(L, "stabs_chord", humanize(comp(prog, stab_rhythm, low=57, count=4, vel=96, top=76), rng, 0.004, 5, BPM),
+                       studio.STAB, voices=16, cutoff=1400, envamt=3200, res=0.4, decay=0.18, release=0.1)
     pad = L.synth("stabs_pad", [Note(s, d, root_of(ch, 48) + iv, 52) for s, d, ch in prog for iv in (0, 7)], synth.v_pad, bright=0.6, attack=0.8, release=1.5)
     s_sweep = deep.breathing(L, 4.0, 900, 3600)
 
     def stabs_fx(s, p):
         s = dsp.svf(s, s_sweep(len(s)), 1.8, "lp", 2)
         s = s + dsp.delay(s, L.beat * 0.75, L.beat * 1.5, 0.4, 1.0, 2600) * 0.35
-        return dsp.reverb(s, 1.8, 0.2, 0.5, 0.012, 1.3, seed=1723) + dsp.lowpass(p, 1800) * 0.5
+        return s + studio.plate(s, 0.14, 0.01) * 0.5 + dsp.lowpass(p, 1800) * 0.5
 
     out["stabs"] = stem(L, L.fx(stabs_fx, stabs * duck_soft, pad * duck), 0.0, hp=150)
 

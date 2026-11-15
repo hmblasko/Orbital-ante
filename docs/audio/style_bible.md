@@ -51,15 +51,17 @@ Main theme, exploration, flight, combat and the transition cues are synthesised 
 
 | Piece | Situation | Tempo | Key | Why |
 |---|---|---|---|---|
-| Regolith Lullaby | On foot, exploring | 120 | D minor | The record heard from far away: pad, a plucked theme with long gaps, then dub chords, bass and a soft kick as interest rises. |
-| All In | Combat | 120 | D minor | The same record getting harder, not a different one: heavier kick, rolling bass, the Conflict theme on a hard lead. |
-| Burn Window | Flying | 120 | D minor | The record with the engines lit: a turning arpeggio, the Orbital Ante theme in the minor. |
-| Long Way From Anywhere | Main theme (menus) | 120 | D minor | Deep house: a steady, soft four-on-the-floor under slow minor ninths and one distant bell. Existential, not upbeat, as Matthew asked on 14 Nov 2026. Entirely synthesised. Replaced the first menu piece, a swung jazz number that was the wrong mood. |
-| What the Dish Heard | Caves, seas, the unknown | 120, felt at 60 | D Lydian | Slow enough to feel like no tempo at all, but on the same grid as the rest, so it mixes in and out on a bar line. Under tension, the other pieces' kick is heard through a wall. |
+| Regolith Lullaby | On foot, exploring | 126 | D minor | The record heard from far away: pad, a plucked theme with long gaps, then dub chords, bass and a soft kick as interest rises. |
+| All In | Combat | 126 | D minor | The same record getting harder, not a different one: heavier kick, rolling bass, the Conflict theme on a hard lead. |
+| Burn Window | Flying | 126 | D minor | The record with the engines lit: a turning arpeggio, the Orbital Ante theme in the minor. |
+| Long Way From Anywhere | Main theme (menus) | 126 | D minor | Deep house: a steady, soft four-on-the-floor under slow minor ninths and one distant bell. Existential, not upbeat, as Matthew asked on 14 Nov 2026. Entirely synthesised. Replaced the first menu piece, a swung jazz number that was the wrong mood. |
+| What the Dish Heard | Caves, seas, the unknown | 126, felt at 63 | D Lydian | Slow enough to feel like no tempo at all, but on the same grid as the rest, so it mixes in and out on a bar line. Under tension, the other pieces' kick is heard through a wall. |
 
 One tempo for everything (and one key for everything but the mystery piece, which stays on D with its own strange harmony) is what lets the game mix from any piece into any other on a bar line, like a DJ, which is what the build prompt asks for ("blends continuously like a club DJ at a steady tempo").
 
 **Direction from Matthew (14 Nov 2026):** the main music should be "more existential and not upbeat, but still have a good deep house beat". He heard the rewritten main theme and said "Less bells but otherwise like it". Exploration, flight and combat were then rewritten in the same mood (they had been 86 BPM vibraphone, 124 BPM D major disco and 172 BPM breakbeat with brass). His verdict on those three: "Much better". The mystery piece was then moved onto the same tempo and made fully synthesised, with its bells replaced by soft tones; he has not heard that one yet.
+
+**Direction from Matthew (15 Nov 2026):** "more deep house, deep bass, high bpm, kick step, rally house". Everything moved to 126 with a harder kick, a deep rolling sub, bongos and crowd shouts; combat is full rally house.
 
 ## 6. How the music behaves
 

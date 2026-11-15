@@ -1,15 +1,18 @@
-"""Burn Window: spaceflight. 120 BPM deep house, D minor, 64 bars, 2 min 8 s.
+"""Burn Window: spaceflight. 126 BPM deep house, D minor, 64 bars, about 2 min 2 s.
 
-Rewritten on 14 Nov 2026 to Matthew's direction (existential, not upbeat, a good deep house beat). The first
-version was bright disco in D major; this one is the same record as the main theme with the engines lit.
+Rewritten on 14 Nov 2026 (existential, a good deep house beat) and pushed harder on 15 Nov 2026 (Matthew: "more
+deep house, deep bass, high bpm, kick step, rally house"). The same record as the main theme with the engines lit.
 
-Drifting, it is a pad and a slow arpeggio turning over like something in orbit. Thrust brings in the bass,
-then the drums. The Orbital Ante theme is here in the minor on a soft synth, four bars of tune then four of
-nothing. A hard burn adds a ride and high air.
+Drifting, it is a Faust supersaw pad and a slow arpeggio turning over like something in orbit. Thrust brings in
+a deep off-beat sub bass, then the drums with bongos; after the breakdown the bass starts to roll. The Orbital
+Ante theme is here in the minor on a soft synth, four bars of tune then four of nothing. A hard burn adds a
+ride, high air and the crowd shouting.
 """
 from __future__ import annotations
 
-from oa_audio import dsp, mixing, synth
+import numpy as np
+
+from oa_audio import dsp, mixing, studio, synth
 from oa_audio.sampler import DR
 from oa_audio.seq import Note, bars, chord_at, humanize, progression, voicing
 
@@ -42,8 +45,6 @@ THEME = ["r:.5 A4:.5 C5:.5 D5:1.5 r:1", "F5:.75 E5:.75 C5:.5 A4:2", "r:.5 C5:.5 
 LINE_B = ["A5:4", "G5:3 F5:1", "E5:4", "r:4", "F5:4", "E5:2 D5:2", "C5:4", "r:4"]
 LINE_BREAK = ["r:.5 A4:.5 C5:.5 D5:2.5", "r:4", "r:4", "r:4", "r:.5 C5:.5 D5:.5 E5:2.5", "r:4", "r:4", "r:4"]
 
-BASS_1 = [(0.5, .4, 0, 104), (1.5, .4, 0, 98), (2.5, .4, 0, 100), (3.5, .4, 12, 90)]
-BASS_2 = [(0.5, .4, 0, 104), (1.5, .4, 0, 98), (2.5, .4, 7, 92), (3.0, .2, 0, 70), (3.5, .2, 10, 86), (3.75, .2, 12, 82)]
 
 
 def in_break(b: int) -> bool:
@@ -53,8 +54,10 @@ def in_break(b: int) -> bool:
 def drum_bar(b: int) -> dict:
     if in_break(b):
         return dict(kick="x..............." if b == 32 else "x...x...x...x..." if b >= 38 else "",
-                    hat="..x...x...x...x." if b >= 36 else "", shut="o.oxo.oxo.oxo.ox" if b >= 34 else "", clap="", rim="..........x.....")
-    return dict(kick="x...x...x...x...", hat="..x...x...x...x.",
+                    hat="..x...x...x...x." if b >= 36 else "", shut="o.oxo.oxo.oxo.ox" if b >= 34 else "", clap="", rim="..........x.....",
+                    perc="..x..o.x..x..o.x" if b >= 38 else "")
+    return dict(kick="x...x...x...x..." if b % 8 != 7 else "x...x...x...x.x.", hat="..x...x...x...x.",
+                perc="..x..o.x..x..o.x" if b % 2 else "..x....x.ox..o..",
                 shut="o.oxo.oxo.oxo.ox" if b % 8 != 7 else "o.oxo.oxo.oxoxox",
                 clap="....x.......x...", rim="...x......x....." if b % 2 else "......x......x..")
 
@@ -69,7 +72,7 @@ def build(session_dir: str):
     duck_soft = L.duck(kick_n, -4.0, 0.004, 0.18)
 
     # ---------------------------------------------------------------- chords: a pad and something in orbit
-    pad = L.synth("chords_pad", held(prog, low=50, count=4, vel=58, top=69), synth.v_pad, bright=0.75, attack=1.4, release=2.2)
+    pad = deep.faust(L, "chords_pad", held(prog, low=50, count=4, vel=58, top=69), studio.PAD, cutoff=1500, attack=1.4, release=2.2)
     arp_n = []
     for b in range(BARS):
         v = voicing(chord_at(prog, b * 4.0), 62, 4, True, 81)
@@ -84,20 +87,24 @@ def build(session_dir: str):
     def chords_fx(p, a):
         a = dsp.svf(a, sweep(len(a)), 1.5, "lp", 2)
         a = dsp.delay(a, L.beat * 0.75, L.beat * 1.5, 0.48, 0.4, 2800)
-        a = dsp.reverb(a, 3.0, 0.3, 0.55, 0.02, 1.5, seed=1241)
-        p = dsp.chorus(dsp.lowpass(p, 2600), L.rate(0.21), 4.0, 14.0, 0.5)
-        return a * 0.9 + dsp.reverb(p, 4.5, 0.4, 0.6, 0.03, 1.6, seed=1242) * 0.9
+        a = a + studio.plate(a, 0.2, 0.02) * 0.6
+        p = dsp.chorus(p, L.rate(0.21), 4.0, 14.0, 0.5)
+        return a * 0.9 + (p + studio.hall(p, 0.35) * 0.7) * 0.9
 
     out["chords"] = stem(L, L.fx(chords_fx, pad * duck, arp * duck_soft), 0.0, hp=140)
 
-    # ---------------------------------------------------------------- bass
-    b_notes = humanize(deep.bass_notes(L, prog, lambda b: BASS_2 if b % 4 == 3 else BASS_1, in_break), rng, 0.003, 4, BPM)
-    sub = L.synth("bass_sub", b_notes, synth.v_sub, release=0.1, drive=1.5)
-    body = L.synth("bass_body", b_notes, synth.v_pulse, release=0.08)
-    out["bass"] = stem(L, L.fx(deep.bass_fx(600, 0.6), sub, body) * duck_soft, 0.0, hp=34, lp=5000)
+    # ---------------------------------------------------------------- bass: deep and off the beat, rolling after the breakdown
+    def riff(b):
+        if b >= 40:
+            return deep.ROLL_TURN if b % 4 == 3 else deep.ROLL
+        return deep.OFFBEAT_TURN if b % 4 == 3 else deep.OFFBEAT
+
+    b_notes = humanize(deep.bass_notes(L, prog, riff, in_break), rng, 0.003, 4, BPM)
+    low = deep.bass(L, "bass_sub", b_notes, weight=1.2, cutoff=230, envamt=1300, drive=2.6, decay=0.16)
+    out["bass"] = stem(L, L.fx(deep.bass_fx(-9.0), low) * duck_soft, 0.0, hp=30, lp=5000)
 
     # ---------------------------------------------------------------- drums
-    out["drums"] = stem(L, L.fx(deep.kit_fx(L, 1243), k["kick"], k["ohat"], k["chat"], k["clap"], k["rim"], k["ride"]), 0.0, hp=30)
+    out["drums"] = stem(L, L.fx(deep.kit_fx(L, 1243), *deep.kit_parts(k)), 0.0, hp=30)
 
     # ---------------------------------------------------------------- lead: the theme, then the same length of silence
     lead_n = (bars(THEME, 4, 8, vel=92) + bars(LINE_B, 4, 16, vel=90) + bars(LINE_B, 4, 24, vel=94)
@@ -109,7 +116,7 @@ def build(session_dir: str):
     def lead_fx(a, w):
         x = dsp.lowpass(a, 3200) * 0.8 + w * 0.6
         x = dsp.delay(x, L.beat * 1.5, L.beat * 2.0, 0.5, 0.35, 3000)
-        return dsp.reverb(x, 4.5, 0.4, 0.5, 0.04, 1.8, seed=1244)
+        return studio.hall(x, 0.3, 0.06)
 
     out["lead"] = stem(L, L.fx(lead_fx, lead, under) * duck_soft, 0.0, hp=240)
 
@@ -121,12 +128,16 @@ def build(session_dir: str):
     air_n = [Note(start, dur, voicing(ch, 74, 4, True, 93)[-1], 54) for start, dur, ch in prog]
     air = L.synth("top_air", air_n, synth.v_pad, bright=1.3, attack=2.0, release=3.0)
     sw = deep.swells(L, [(16, 2), (32, 2), (40, 4), (56, 2), (64, 2)], 1240)
+    # the crowd: "hey" on the last off-beat of every other bar, never in the breakdown
+    hey_n = [Note(b * 4.0 + 3.5, 0.3, 50, 112) for b in range(1, BARS, 2) if not in_break(b)]
+    L.log("top_shout", hey_n)
+    hey = L.fold(studio.crowd(hey_n, BPM, L.n_render, np.random.default_rng(1247), 6))
 
-    def top_fx(r, s, a, w):
-        return dsp.highpass(r, 2500) * 0.8 + dsp.highpass(s, 3000) * 0.8 + dsp.reverb(dsp.highpass(a, 900), 5.0, 0.5, 0.5, 0.04, 1.8, seed=1245) \
-            + dsp.reverb(w, 3.0, 0.4, 0.5, 0.02, 1.5, seed=1246)
+    def top_fx(r, s, a, w, v):
+        return dsp.highpass(r, 2500) * 0.8 + dsp.highpass(s, 3000) * 0.8 + studio.hall(dsp.highpass(a, 900), 0.4) \
+            + dsp.reverb(w, 3.0, 0.4, 0.5, 0.02, 1.5, seed=1246) + (v + studio.plate(v, 0.12, 0.015) * 0.5) * 1.4
 
-    out["top"] = stem(L, L.fx(top_fx, ride, shaker, air * duck, sw), 0.0, hp=350)
+    out["top"] = stem(L, L.fx(top_fx, ride, shaker, air * duck, sw, hey * duck_soft), 0.0, hp=300)
 
     out = balance(out, dict(chords=-22.0, bass=-20.5, drums=-19.5, lead=-24.5, top=-26.5))
     return calibrate(out, target_lufs=-16.0), L

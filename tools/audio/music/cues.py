@@ -30,9 +30,9 @@ def _kit_hit(x, at, rng, crash=0.6):
 
 
 def to_combat() -> dict:
-    """One bar at 120: a climbing sweep and a reversed cymbal under a clap roll that doubles its speed, then
+    """One bar at 126: a climbing sweep and a reversed cymbal under a clap roll that doubles its speed, then
     the downbeat lands with a sub drop, the kick, a crash and a hard minor stab. All synthesised."""
-    bpm = 120.0
+    bpm = 126.0
     pre = 4 * 60.0 / bpm
     total = pre + 3.2
     rng = np.random.default_rng(71)
@@ -57,7 +57,7 @@ def to_combat() -> dict:
 
 def hit_combat() -> dict:
     """The downbeat hit alone, for when there is no time to play the riser."""
-    bpm = 120.0
+    bpm = 126.0
     rng = np.random.default_rng(73)
     total = 3.0
     x = np.zeros((secs(total), 2))
@@ -72,7 +72,7 @@ def hit_combat() -> dict:
 def resolve_combat() -> dict:
     """The fight is over: one last kick, then the minor chord opens out to a bare D with its ninth on a pad
     while a far-off plucked string answers with the start of the Exploration theme. A proper ending."""
-    bpm = 120.0
+    bpm = 126.0
     total = 7.5
     rng = np.random.default_rng(75)
     x = np.zeros((secs(total), 2))
@@ -88,9 +88,9 @@ def resolve_combat() -> dict:
 
 
 def to_flight() -> dict:
-    """Two bars at 120: an engines-up sweep, a climbing plucked run in D minor and four kicks, landing on the
+    """Two bars at 126: an engines-up sweep, a climbing plucked run in D minor and four kicks, landing on the
     flight music's first downbeat. All synthesised."""
-    bpm = 120.0
+    bpm = 126.0
     pre = 8 * 60.0 / bpm
     total = pre + 2.6
     rng = np.random.default_rng(79)

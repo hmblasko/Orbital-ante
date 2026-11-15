@@ -1,9 +1,9 @@
-"""A listening file for the three game pieces: 44 s each of exploration, flight and combat, mixed from one into
+"""A listening file for the game pieces: about 42 s each of the main theme, exploration, flight and combat, mixed from one into
 the next on a bar line the way the game does (they share one tempo and key).
 
     python3 tools/audio/render_music_preview.py
 
-Writes tools/audio/build/demo/music_preview_deep_house.ogg. Exploration is heard without its tension layer for
+Writes tools/audio/build/demo/music_preview_rally_house.ogg. Exploration is heard without its tension layer for
 the first half and with it for the second; combat without its top layer for the first half.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from oa_audio import dsp, mixing
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MUSIC = os.path.join(HERE, "..", "..", "unity", "Assets", "OrbitalAnte", "Resources", "Audio", "Music")
-BAR = 2.0          # seconds, at 120
+BAR = 4 * 60.0 / 126.0   # seconds per bar at the shared tempo
 PART = 22          # bars of each piece
 CROSS = 2          # bars of overlap
 HALF = (PART // 2) * BAR
@@ -41,7 +41,7 @@ def piece(name: str, start_bar: int, late: tuple[str, ...]) -> np.ndarray:
 
 
 def main() -> None:
-    parts = [piece("explore_regolith", 0, ("tension",)), piece("flight_burn_window", 8, ()), piece("combat_all_in", 16, ("chaos",))]
+    parts = [piece("main_long_way", 16, ()), piece("explore_regolith", 0, ("tension",)), piece("flight_burn_window", 8, ()), piece("combat_all_in", 16, ("chaos",))]
     step = dsp.secs(PART * BAR)
     cross = dsp.secs(CROSS * BAR)
     total = np.zeros((step * len(parts) + cross, 2))
@@ -55,7 +55,7 @@ def main() -> None:
         at = i * step
         total[at:at + len(p)] += p[:len(total) - at]
     total *= 10 ** (-4 / 20)        # the game's headroom
-    path = os.path.join(HERE, "build", "demo", "music_preview_deep_house.ogg")
+    path = os.path.join(HERE, "build", "demo", "music_preview_rally_house.ogg")
     mixing.write_ogg(path, total)
     print(f"{path}: {len(total) / dsp.SR:.0f} s, peak {20 * np.log10(np.max(np.abs(total)) + 1e-9):.1f} dB")
 

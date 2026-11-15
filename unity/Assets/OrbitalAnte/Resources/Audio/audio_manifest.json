@@ -1653,7 +1653,7 @@
     "id": "combat_all_in",
     "title": "All In",
     "context": "combat",
-    "bpm": 120.0,
+    "bpm": 126.0,
     "beatsPerBar": 4,
     "bars": 64,
     "key": "D minor",
@@ -1666,8 +1666,8 @@
      17,
      41
     ],
-    "samples": 6144000,
-    "seconds": 128.0,
+    "samples": 5851429,
+    "seconds": 121.904771,
     "stems": [
      {
       "id": "drums",
@@ -1715,7 +1715,7 @@
     "id": "explore_regolith",
     "title": "Regolith Lullaby",
     "context": "surface",
-    "bpm": 120.0,
+    "bpm": 126.0,
     "beatsPerBar": 4,
     "bars": 64,
     "key": "D minor",
@@ -1729,8 +1729,8 @@
      33,
      49
     ],
-    "samples": 6144000,
-    "seconds": 128.0,
+    "samples": 5851429,
+    "seconds": 121.904771,
     "stems": [
      {
       "id": "pad",
@@ -1786,7 +1786,7 @@
     "id": "flight_burn_window",
     "title": "Burn Window",
     "context": "flight",
-    "bpm": 120.0,
+    "bpm": 126.0,
     "beatsPerBar": 4,
     "bars": 64,
     "key": "D minor",
@@ -1798,8 +1798,8 @@
      17,
      41
     ],
-    "samples": 6144000,
-    "seconds": 128.0,
+    "samples": 5851429,
+    "seconds": 121.904771,
     "stems": [
      {
       "id": "chords",
@@ -1847,7 +1847,7 @@
     "id": "main_long_way",
     "title": "Long Way From Anywhere",
     "context": "menu",
-    "bpm": 120.0,
+    "bpm": 126.0,
     "beatsPerBar": 4,
     "bars": 64,
     "key": "D minor",
@@ -1860,8 +1860,8 @@
      17,
      41
     ],
-    "samples": 6144000,
-    "seconds": 128.0,
+    "samples": 5851429,
+    "seconds": 121.904771,
     "stems": [
      {
       "id": "beat",
@@ -1909,7 +1909,7 @@
     "id": "mystery_dish",
     "title": "What the Dish Heard",
     "context": "mystery",
-    "bpm": 120.0,
+    "bpm": 126.0,
     "beatsPerBar": 4,
     "bars": 48,
     "key": "D Lydian",
@@ -1921,8 +1921,8 @@
      1,
      33
     ],
-    "samples": 4608000,
-    "seconds": 96.0,
+    "samples": 4388571,
+    "seconds": 91.428562,
     "stems": [
      {
       "id": "drone",
@@ -1963,7 +1963,7 @@
    {
     "id": "hit_combat",
     "preSeconds": 0.0,
-    "bpm": 120.0,
+    "bpm": 126.0,
     "note": "Downbeat hit with no lead-in.",
     "seconds": 3.0,
     "clip": "Audio/Music/cues/hit_combat"
@@ -1971,7 +1971,7 @@
    {
     "id": "resolve_combat",
     "preSeconds": 0.0,
-    "bpm": 120.0,
+    "bpm": 126.0,
     "note": "A musical ending for combat: final hit, the chord resolves and rings out.",
     "seconds": 7.5,
     "clip": "Audio/Music/cues/resolve_combat"
@@ -1986,18 +1986,18 @@
    },
    {
     "id": "to_combat",
-    "preSeconds": 2.0,
-    "bpm": 120.0,
+    "preSeconds": 1.904762,
+    "bpm": 126.0,
     "note": "Riser and roll into a downbeat hit. Starts one bar before the change.",
-    "seconds": 5.2,
+    "seconds": 5.1048,
     "clip": "Audio/Music/cues/to_combat"
    },
    {
     "id": "to_flight",
-    "preSeconds": 4.0,
-    "bpm": 120.0,
+    "preSeconds": 3.809524,
+    "bpm": 126.0,
     "note": "Lift-off: sweep, climbing run and kicks into the flight music's first downbeat.",
-    "seconds": 6.6,
+    "seconds": 6.4095,
     "clip": "Audio/Music/cues/to_flight"
    }
   ],

@@ -1,4 +1,4 @@
-"""What the Dish Heard: discovery and cosmic mystery. 120 BPM felt at half speed, around D, 48 bars, 1 min 36 s.
+"""What the Dish Heard: discovery and cosmic mystery. 126 BPM felt at half speed, around D, 48 bars, about 1 min 31 s.
 
 Reworked on 14 Nov 2026 to sit in the same record as everything else (Matthew: existential, a good deep house
 beat, fewer bells). It keeps its own strange harmony, but it now lives on the shared 120 grid, so the game can
@@ -19,7 +19,9 @@ from oa_audio.seq import Note, bars, progression, shift
 from .common import balance, bars_of, calibrate, held, root_of, stem
 
 ID = "mystery_dish"
-BPM = 120.0
+from . import deep
+
+BPM = deep.BPM
 BARS = 48
 
 META = dict(
@@ -47,7 +49,7 @@ BELLS = motifs.COSMIC_MYSTERY + [
 def build(session_dir: str):
     L = mixing.Loop(BPM, BARS, 4, seed=6001, tail=12.0, session_dir=session_dir)
     rng = L.rng
-    slow = lambda notes: [Note(n.start * 2, n.dur * 2, n.pitch, n.vel) for n in notes]   # written at 60, played on the 120 grid
+    slow = lambda notes: [Note(n.start * 2, n.dur * 2, n.pitch, n.vel) for n in notes]   # written at half speed, played on the shared grid
     prog = progression(PROG)
     out = {}
 

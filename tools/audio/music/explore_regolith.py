@@ -1,4 +1,6 @@
-"""Regolith Lullaby: planetary exploration. 120 BPM deep house at half strength, D minor, 64 bars, 2 min 8 s.
+"""Regolith Lullaby: planetary exploration. 126 BPM deep house at half strength, D minor, 64 bars, about 2 min 2 s.
+
+Moved to 126 with a deeper Faust sub and bongos on 15 Nov 2026 (Matthew: "more deep house, deep bass, high bpm").
 
 Rewritten on 14 Nov 2026 to Matthew's direction (existential, not upbeat, a good deep house beat). The first
 version was a vibraphone tune at 86; this one is the main theme's record heard from far away. It now shares
@@ -12,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from oa_audio import dsp, mixing, synth
+from oa_audio import dsp, mixing, studio, synth
 from oa_audio.seq import Note, bars, humanize, progression
 
 from . import deep
@@ -45,8 +47,8 @@ ANSWER = ["r:4", "r:4", "r:2 F4:2", "A4:4", "r:4", "r:4", "r:2 E4:2", "D4:4"]
 HIGH = ["r:4", "A4:2 D5:2", "C5:4", "r:4", "r:4", "G4:2 C5:2", "A4:4", "r:4"]
 CELL = ["r:4", "r:4", "r:4", "r:4", "r:.5 A4:.5 C5:.5 D5:2.5", "r:4", "r:4", "r:4"]   # the ante cell, once
 
-BASS_1 = [(0.0, 1.5, 0, 96), (2.5, .4, 0, 84)]
-BASS_2 = [(0.0, 1.5, 0, 96), (2.5, .4, 0, 84), (3.5, .4, 7, 78)]
+BASS_1 = [(0.5, .45, 0, 100), (1.5, .45, 0, 92), (2.5, .45, 0, 100), (3.5, .4, 0, 90)]
+BASS_2 = [(0.5, .45, 0, 100), (1.5, .45, 0, 92), (2.5, .4, 7, 94), (3.5, .4, 12, 90)]
 
 
 def drum_bar(b: int) -> dict:
@@ -54,7 +56,8 @@ def drum_bar(b: int) -> dict:
     return dict(kick="x...x...x...x..." if not last else "x...x...x.......",
                 hat="" if b % 16 < 8 else "..x...x...x...x.",
                 shut="..o...o...o..xo." if b % 2 == 0 else "..o..xo...o...o.",
-                clap="", rim="....x.......x..." if b % 4 != 3 else "....x.....x..x..")
+                clap="", rim="....x.......x..." if b % 4 != 3 else "....x.....x..x..",
+                perc="" if b % 16 < 8 else "..x....x..x..o..")
 
 
 def build(session_dir: str):
@@ -108,15 +111,14 @@ def build(session_dir: str):
 
     # ---------------------------------------------------------------- bass: long, low, unhurried
     b_notes = humanize(deep.bass_notes(L, prog, lambda b: BASS_2 if b % 4 == 3 else BASS_1), rng, 0.003, 4, BPM)
-    sub = L.synth("bass_sub", b_notes, synth.v_sub, release=0.2, drive=1.3)
-    body = L.synth("bass_body", b_notes, synth.v_pulse, release=0.15)
-    out["bass"] = stem(L, L.fx(deep.bass_fx(420, 0.5, 1.3), sub, body) * duck, 0.0, hp=34, lp=4000)
+    low = deep.bass(L, "bass_sub", b_notes, weight=1.3, cutoff=200, envamt=900, drive=2.0, decay=0.22)
+    out["bass"] = stem(L, L.fx(deep.bass_fx(-10.0), low) * duck, 0.0, hp=30, lp=4000)
 
     # ---------------------------------------------------------------- perc: a soft four-on-the-floor heard through a wall
     def perc_fx(*parts):
         return deep.kit_fx(L, 864, tops_gain=2.1)(*parts)
 
-    out["perc"] = stem(L, L.fx(perc_fx, k["kick"], k["ohat"], k["chat"], k["clap"], k["rim"], k["ride"]), 0.0, hp=30)
+    out["perc"] = stem(L, L.fx(perc_fx, *deep.kit_parts(k)), 0.0, hp=30)
 
     # ---------------------------------------------------------------- tension: a pulse, and a note that should not be there
     pulse_n = [Note(b * 4.0 + s * 0.5, 0.3, 38, 70 + 14 * (s % 4 == 0)) for b in range(BARS) for s in range(8)]
