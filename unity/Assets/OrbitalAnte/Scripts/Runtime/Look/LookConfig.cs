@@ -50,7 +50,7 @@ namespace OrbitalAnte.Look
         [Range(0f, 2f)] public float bounceLight = 1f;
 
         [Header("Realism")]
-        [Tooltip("How strongly smooth surfaces shine: the Sun's highlight and the sky seen in metal, visors and glass. 0 lights everything like chalk, as the game did before models said what they are made of.")]
+        [Tooltip("How strongly smooth surfaces shine: the Sun's highlight and the sky seen in metal, visors and glass. 0 lights everything like chalk, as the game did before models said what they are made of, and draws models with the ground's shader again (after Play is stopped and started): use it if models turn magenta.")]
         [Range(0f, 2f)] public float shine = 1f;
         [Tooltip("How firmly the edge of a shadow is drawn. 1 is a clear band between light and dark, like an illustration. 0 is a soft fall-off, like a photograph. 0.6 is how the game looked before this dial existed.")]
         [Range(0f, 1f)] public float lightBand = 0.6f;
@@ -69,6 +69,8 @@ namespace OrbitalAnte.Look
         public bool farCopies = true;
         [Tooltip("The most enemy bodies drawn in full at once, the nearest in view first. Past this number even a close enemy wears its simpler copy, so raise it if you can see that happen and the Budget line on F3 has room.")]
         [Range(0, 40)] public int fullBodies = DetailRule.FullBodies;
+        [Tooltip("The most triangles of enemy bodies drawn in full at once. A finer enemy model uses this up sooner, so fewer of it are full: 180,000 is twelve of the first enemy model or eight of the realistic one. Raise it if close enemies wear their simpler copies and the Budget line on F3 has room. To switch far copies off altogether, untick Far Copies.")]
+        [Range(20000, 600000)] public int fullTriangles = DetailRule.FullTriangles;
         [Tooltip("How far off things change to their simpler copies. 1 is 24 m for an enemy and 9 m for a gun; 2 is twice as far. Raise it if you can see the change happen.")]
         [Range(0.5f, 4f)] public float farCopyDistance = 1f;
 

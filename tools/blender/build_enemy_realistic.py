@@ -1,18 +1,27 @@
-"""The common enemy drawn again in the realistic look, to be judged beside the current one before anything is replaced.
+"""Builds the game's common enemy in the realistic look: a soldier in a pressure suit, in fourteen breakable pieces.
+Matthew said yes to this level of realism on 14 Nov 2026, and since then this script, not build_enemy.py, writes
+Resources/Models/Enemy.bytes and its far copy EnemyFar.bytes. build_enemy.py still holds the skeleton, the wound
+and the helpers every enemy script uses, and can still draw the first enemy model for comparison.
 
-    blender -b -P tools/blender/build_enemy_realistic.py -- --compare <folder>
-    blender -b -P tools/blender/build_enemy_realistic.py -- --compare <folder> --pose <kinds.json> ready
-                                    (both stand as the game's animator holds them; the file is pose_dump's, mode "kinds")
+    blender -b -P tools/blender/build_enemy_realistic.py            (writes Enemy.bytes and EnemyFar.bytes into the game)
+    blender -b -P tools/blender/build_enemy_realistic.py -- --write-to <folder>
+                                    (writes them somewhere else, to try the rule tests on them: OA_MODELS=<folder>)
+    blender -b -P tools/blender/build_enemy_realistic.py -- --compare <folder> [--pose <kinds.json> ready]
+                                    (pictures of the first enemy model and this one, in the same light; with a pose,
+                                     both stand as the game's animator holds them; the file is pose_dump's, mode "kinds")
+    blender -b -P tools/blender/build_enemy_realistic.py -- --sheet <folder> --pose <kinds.json>
+                                    (at the game's own size from 5, 10, 24 and 40 m: "Reading a fight" in docs/art_direction.md)
+    blender -b -P tools/blender/build_enemy_realistic.py -- --far-preview <folder> --pose <kinds.json>
+                                    (the full model beside its far copy from 3, 5, 9 and 24 m)
 
-writes pictures of the current enemy (left) and this one (right) from the same place in the same light. It writes
-no game file: the game still draws Enemy.bytes until Matthew has said yes to this level of realism.
+Every write prints how often the far copy is seen from inside, which must be 0.00%, and which shapes are to blame.
 
 What "realistic" means here (docs/art_direction.md): the proportions of a person in a real pressure suit, standing
 on the game's own skeleton (BodySkeleton.cs, copied in build_enemy.py); cloth that hangs and gathers at the joints;
 the hardware a suit really has (bearing rings, a chest control box with hoses to a life-support pack, a gold sun
 visor, a wrist disconnect, blue silicone fingertips and soles); a soldier's kit worn over it (magazines on the belt,
-a pistol on the thigh, knee pads); colours as they are in photographs, with dust, shadow and wear worked into the
-paint. The pieces are the same fourteen, cut at the same joints, so the dismemberment system does not change.
+knee pads); colours as they are in photographs, with dust, shadow and wear worked into the paint. Hands, feet and
+the places it comes apart are dark, so a lost limb shows. The pieces are the same fourteen, cut at the same joints.
 """
 import bpy, sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -225,7 +234,7 @@ def torso():
     o.append(webbing(oa.box("hip pouch", (-0.196, -0.010, 1.000), (0.050, 0.110, 0.120), WEB, bevel=0.016, segments=3), 44))
     o.append(webbing(small("hip pouch flap", (-0.200, -0.010, 1.046), (0.056, 0.116, 0.036), (0.33, 0.29, 0.20), bevel=0.012), 45))
 
-    # The life-support pack: a cloth-covered box as wide as the shoulders, an aerial.
+    # The life-support pack: a cloth-covered box as wide as the shoulders.
     pack = oa.box("pack", (0, -0.232, 1.248), (0.390, 0.190, 0.472), FABRIC_PACK, bevel=0.034, segments=3)
     oa.densify(pack, 0.10)
     R.displace(pack, R.creases(0.003, (9, 9, 9), seed=6))
@@ -238,8 +247,7 @@ def torso():
         o.append(metal(oa.cylinder("plate bolt", (0.040 + dx, -0.333, 1.290 + dz), (0.040 + dx, -0.338, 1.290 + dz), 0.007, ALU, segments=6), 51))
     o.append(hard(tiny("warning label", (-0.125, -0.3285, 1.380), (0.070, 0.002, 0.040), (0.70, 0.56, 0.16)), 52))
     o.append(metal(oa.cylinder("canister", (-0.150, -0.250, 1.020), (0.150, -0.250, 1.020), 0.046, (0.42, 0.44, 0.40), segments=14, bevel=0.012), 53))
-    o.append(rubber(oa.cylinder("aerial", (0.130, -0.250, 1.480), (0.152, -0.264, 1.760), 0.006, RUBBER, radius_end=0.004, segments=6), 54))
-    o.append(hard(oa.cylinder("aerial base", (0.128, -0.249, 1.476), (0.131, -0.251, 1.506), 0.013, STEEL, segments=8, bevel=0.002), 55))
+    # (No aerial: the torso piece must stay within 0.75 m top to bottom, as every breakable piece must.)
     # The pack's straps come over the shoulders and down the chest to the waist ring.
     for sx in (-1, 1):
         x = sx * 0.118
@@ -297,6 +305,12 @@ def right_arm():
     path = R.smooth_path([p, p + Vector((0.030, 0.026, -0.010)), p + Vector((0.054, 0.036, -0.026)), p + Vector((0.068, 0.036, -0.046))], 2)
     hand.append(fabric(R.sweep("thumb", path[:5], 0.015, GLOVE, n=6, radii=[0.0165, 0.0160, 0.0150, 0.0142, 0.0138]), 76))
     hand.append(rubber(R.sweep("thumb tip", path[4:], 0.014, SILICONE, n=6, radii=[0.0145, 0.0140, 0.0095]), 77))
+    # A pressure glove is bulkier than a hand. This much makes it fill the hand's hitbox (0.082 m), so that what
+    # looks hit is hit; the hitbox is the game's and is the same for the model this one replaces.
+    grow = Matrix.Translation(w) @ Matrix.Scale(1.07, 4) @ Matrix.Translation(-w)
+    for o in hand:
+        o.data.transform(grow)
+        o.data.update()
     return upper, fore, hand
 
 
@@ -387,6 +401,21 @@ def make():
     R.crowd_shadow(everything, strength=0.62, reach=0.20)
     R.dust(everything, DUST, top=0.80, amount=0.62, on_top=0.10, seed=5)
     return parts
+
+
+# The far copy (see oa.thin). Kept whole: the helmet, the visor let into it and the thin shells and straps that
+# open into holes when thinned. Thinned though small: the fingers,
+# which are many and round. Left out: fittings that are a pixel or two from where a far copy is seen.
+FAR_KEEP = ("helmet", "visor", "rear cover", "crown stripe", "harness")
+FAR_THIN_TOO = ("finger", "fingertip", "thumb", "thumb tip")
+FAR_LEAVE_OUT = ("palm strap", "harness buckle", "switch guard", "neck latch", "checklist rings", "label", "warning label",
+                 "pouch flap", "hip pouch flap", "pocket flap", "buckle", "strap buckle", "wrist lock")
+
+
+def write_far(parts, folder=None):
+    if folder:
+        be.OUT = folder
+    return be.write_far(parts, "Enemy", keep=FAR_KEEP, leave_out=FAR_LEAVE_OUT, thin_too=FAR_THIN_TOO)
 
 
 def triangles(parts):
@@ -520,6 +549,46 @@ def sheet(folder, poses):
     scene.render.use_border = False
 
 
+def far_preview(folder, pose):
+    """The full model beside its far copy, from the front and from behind, at the game's width of view from
+    3, 5, 9 and 24 m (the far copy is first shown at 24 m, but in a crowd it can be shown close). Left to right:
+    full, far, full from behind, far from behind."""
+    import bpy
+    full = make()
+    far = be.far_parts(full, "Enemy", keep=FAR_KEEP, leave_out=FAR_LEAVE_OUT, thin_too=FAR_THIN_TOO)
+    shown = []
+    gap = 1.3
+    for i, (parts, turn) in enumerate(((full, 0), (far, 0), (full, 180), (far, 180))):
+        figure = _copy(parts)
+        stand(figure, pose)
+        place = Matrix.Translation(Vector((1.5 * gap - i * gap, 0, 0))) @ Matrix.Rotation(math.radians(turn), 4, 'Z')
+        for name in be.ORDER:
+            for o in figure[name]:
+                o.data.transform(place)
+                o.data.update()
+                shown.append(o)
+    for parts in (full, far):
+        for name in be.ORDER:
+            for o in parts[name]:
+                bpy.data.objects.remove(o)
+    floor = be.ground()
+    os.makedirs(folder, exist_ok=True)
+    scene = bpy.context.scene
+    width, height = 1280, 800
+    lens = 18.0 / (math.tan(math.radians(40.0)) * width / height)
+    for distance in (3, 5, 9, 24):
+        per_metre = (height * 0.5) / (distance * math.tan(math.radians(40.0)))
+        half_w = min(0.5, ((2 * gap + 0.7) * per_metre * 1.1) / width)
+        scene.render.use_border = True
+        scene.render.use_crop_to_border = True
+        scene.render.border_min_x, scene.render.border_max_x = 0.5 - half_w, 0.5 + half_w
+        scene.render.border_min_y = 0.5 - min(0.5, (1.72 * per_metre + 8) / height)
+        scene.render.border_max_y = 0.5 + min(0.5, (0.45 * per_metre + 8) / height)
+        oa.render_preview(os.path.join(folder, "far_%02d.png" % distance), shown + [floor], (0.0, distance, 1.62), (0.0, 0.0, 1.62),
+                          lens=lens, size=(width, height), samples=48)
+    scene.render.use_border = False
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     oa.reset_scene()
@@ -531,18 +600,21 @@ if __name__ == "__main__":
                 kinds = json.load(f)["kinds"]
             pose = [k for k in kinds if k["model"] == "Enemy"][0][args[args.index("--pose") + 2]]
         compare(args[args.index("--compare") + 1], pose)
+    elif "--far-preview" in args:
+        import json
+        with open(args[args.index("--pose") + 1]) as f:
+            kinds = json.load(f)["kinds"]
+        far_preview(args[args.index("--far-preview") + 1], [k for k in kinds if k["model"] == "Enemy"][0]["ready"])
     elif "--sheet" in args:
         import json
         with open(args[args.index("--pose") + 1]) as f:
             kinds = json.load(f)["kinds"]
         sheet(args[args.index("--sheet") + 1], [k for k in kinds if k["model"] == "Enemy"][0])
-    elif "--write-to" in args:
-        # Writes Enemy.bytes and EnemyFar.bytes into a folder of your choosing, to try the game's rule tests on
-        # them (OA_MODELS=<folder>). It never writes into the game's own Resources folder.
-        be.OUT = os.path.abspath(args[args.index("--write-to") + 1])
-        assert "Resources" not in be.OUT, "this script does not replace the game's enemy; see the top of the file"
+    else:
+        if "--write-to" in args:
+            be.OUT = os.path.abspath(args[args.index("--write-to") + 1])
         parts = make()
         be.write(parts, be.stump(), "Enemy")
-        be.write_far(parts, "Enemy")
-    else:
-        print("OA realistic enemy: %d triangles" % triangles(make()))
+        far = write_far(parts)
+        holes = oa.inside_out_where([o for name in be.ORDER for o in far[name]])
+        print("OA far copy, seen from inside:", holes if holes else "nothing")

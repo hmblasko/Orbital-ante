@@ -1,13 +1,17 @@
-"""Builds the game's enemy: a stout, patched-up suit raider in fourteen breakable pieces, plus the wound stump.
+"""The first enemy model (a stout, patched-up suit raider), and what every enemy script shares: the skeleton, the
+wound stump, and how a body and its far copy are written.
 
-    blender -b -P tools/blender/build_enemy.py                       (writes Resources/Models/Enemy.bytes)
-    blender -b -P tools/blender/build_enemy.py -- --preview <folder> (also renders pictures of the rest pose)
+Since 14 Nov 2026 the game's Enemy.bytes is written by build_enemy_realistic.py, not by this script. Run by itself
+this script now writes the first model under another name, EnemyClassic, into a folder you give it, so it can be
+looked at or tried, and never into the game:
+
+    blender -b -P tools/blender/build_enemy.py -- --classic <folder>                    (EnemyClassic.bytes and its far copy)
+    blender -b -P tools/blender/build_enemy.py -- --classic <folder> --preview <folder> (and pictures of the rest pose)
     blender -b -P tools/blender/build_enemy.py -- --poses <file.json> --preview <folder>
-                                                                     (renders the poses a C# pose dump describes)
-    blender -b -P tools/blender/build_enemy.py -- --far-only         (writes only the far copy, EnemyFar.bytes)
+                                                                     (pictures of the poses a C# pose dump describes)
 
-Every build also writes the far copy (EnemyFar.bytes): the same fourteen pieces thinned to about 4,500 triangles,
-which the game draws in place of the full ones on enemies a long way off (Look/DetailRule.cs).
+A build writes the far copy beside the full one: the same fourteen pieces thinned to about 4,500 triangles, which
+the game draws in place of the full ones on enemies a long way off (Look/DetailRule.cs).
 
 The figure is modelled standing at the origin in a T-pose, facing +Y, in metres, with the joints exactly where
 the game's skeleton has them (Scripts/Runtime/Dismemberment/BodySkeleton.cs). Each piece is then written in its
@@ -356,16 +360,17 @@ FAR_LEAVE_OUT = {
 }
 
 
-def far_parts(parts, file_name="Enemy"):
+def far_parts(parts, file_name="Enemy", keep=None, leave_out=None, thin_too=()):
     """The same body thinned to FAR_TRIANGLES for the far copy (new objects; the full ones are left alone)."""
     thinned = oa.thin([(name, parts[name]) for name in ORDER], FAR_TRIANGLES,
-                      keep=FAR_KEEP.get(file_name, ()), leave_out=FAR_LEAVE_OUT.get(file_name, ()))
+                      keep=FAR_KEEP.get(file_name, ()) if keep is None else keep,
+                      leave_out=FAR_LEAVE_OUT.get(file_name, ()) if leave_out is None else leave_out, thin_too=thin_too)
     return dict(thinned)
 
 
-def write_far(parts, file_name="Enemy"):
+def write_far(parts, file_name="Enemy", keep=None, leave_out=None, thin_too=()):
     """Writes the far copy beside the full one: the same pieces on the same joints, no wound (the full file has it)."""
-    far = far_parts(parts, file_name)
+    far = far_parts(parts, file_name, keep, leave_out, thin_too)
     listed, sockets = [], []
     for name in ORDER:
         origin = Vector(ORIGINS[name])
@@ -429,10 +434,15 @@ if __name__ == "__main__":
     stump_objects = stump()
     if poses and previews:
         render_poses(parts, stump_objects, poses, previews)
+    elif "--classic" not in args:
+        print("OA: the game's Enemy is written by build_enemy_realistic.py now. To write the first enemy model somewhere "
+              "else, pass -- --classic <folder>. Nothing was written.")
     else:
+        OUT = os.path.abspath(args[args.index("--classic") + 1])
+        assert "Resources" not in OUT, "the first enemy model is not written into the game"
         if "--far-only" not in args:
-            write(parts, stump_objects)
-        far = write_far(parts)
+            write(parts, stump_objects, "EnemyClassic")
+        far = write_far(parts, "EnemyClassic", keep=FAR_KEEP["Enemy"])
         if previews:
             # Only the far copy shows: the full pieces stand in the same place, and the wound is not part of a body.
             for o in stump_objects + [o for name in ORDER for o in parts[name]]:

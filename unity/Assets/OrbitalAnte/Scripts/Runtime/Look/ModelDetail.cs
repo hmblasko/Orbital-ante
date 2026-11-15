@@ -40,12 +40,16 @@ namespace OrbitalAnte.Look
         /// <summary>How many bodies are drawn in full, and the most that may be (the Look asset's dial).</summary>
         public static int FullBodiesShown => Bodies - BodiesFar;
         public static int FullBodiesAllowed { get; private set; } = DetailRule.FullBodies;
+        /// <summary>The triangles of the bodies drawn in full, and the most they may come to (the Look asset's dial; 0 is no limit).</summary>
+        public static int FullTrianglesShown { get; private set; }
+        public static int FullTrianglesAllowed { get; private set; } = DetailRule.FullTriangles;
 
         /// <summary>One line for the debug readout (F3). Makes a string: only call it while the readout shows.</summary>
         public static string Describe()
         {
             if (FullBodiesAllowed == int.MaxValue) return "Far copies: switched off on the Look asset (everything is drawn in full)";
             return "Far copies: bodies " + BodiesFar + " of " + Bodies + " (full " + FullBodiesShown + "/" + FullBodiesAllowed +
+                   ", " + (FullTrianglesShown / 1000) + "k" + (FullTrianglesAllowed > 0 ? "/" + (FullTrianglesAllowed / 1000) + "k" : string.Empty) + " triangles" +
                    (NearestFarBody >= 0f ? ", nearest far one " + NearestFarBody.ToString("0") + " m" : string.Empty) +
                    ")   guns " + OthersFar + " of " + Others + "   loose pieces " + LooseFar + " of " + _looseCount;
         }
@@ -60,7 +64,7 @@ namespace OrbitalAnte.Look
 
         static readonly List<ModelDetail> Live = new List<ModelDetail>();
         // Room for 30 enemies, their guns and the guns lying about without ever being re-made.
-        static float[] _distance = new float[128], _range = new float[128], _scratch = new float[128];
+        static float[] _distance = new float[128], _range = new float[128], _scratch = new float[128], _cost = new float[128];
         static bool[] _counted = new bool[128], _unseen = new bool[128], _far = new bool[128];
         static Loose[] _loose = new Loose[64];
         static int _looseCount;
@@ -72,6 +76,8 @@ namespace OrbitalAnte.Look
         MeshFilter[] _filters;
         Mesh[] _full, _thin;
         float _rangeMetres;
+        float _triangles;   // what the full copy of the pieces still held costs to draw
+        int[] _pieceTriangles;   // the same, piece by piece, matching _filters
         bool _countedBody;
         int _held = -1;     // pieces still under the root; -1 until Attach has filled it in
 
@@ -87,6 +93,8 @@ namespace OrbitalAnte.Look
             Bodies = BodiesFar = Others = OthersFar = LooseFar = 0;
             NearestFarBody = -1f;
             FullBodiesAllowed = DetailRule.FullBodies;
+            FullTrianglesShown = 0;
+            FullTrianglesAllowed = DetailRule.FullTriangles;
             _runner = null;
             _lookNow = false;
         }
@@ -107,6 +115,7 @@ namespace OrbitalAnte.Look
             var filters = new List<MeshFilter>();
             var fullMeshes = new List<Mesh>();
             var thinMeshes = new List<Mesh>();
+            var pieceTriangles = new List<int>();
             MeshFilter[] found = root.GetComponentsInChildren<MeshFilter>(true);
             // Ask each piece what it is wearing once, not once for every piece of the model.
             if (_shown.Length < found.Length) _shown = new Mesh[Mathf.NextPowerOfTwo(found.Length)];
@@ -127,6 +136,7 @@ namespace OrbitalAnte.Look
                     filters.Add(found[i]);
                     fullMeshes.Add(a);
                     thinMeshes.Add(b);
+                    pieceTriangles.Add(full.Parts[p].TriangleCount);
                 }
             }
             System.Array.Clear(_shown, 0, found.Length);
@@ -137,7 +147,12 @@ namespace OrbitalAnte.Look
             detail._filters = filters.ToArray();
             detail._full = fullMeshes.ToArray();
             detail._thin = thinMeshes.ToArray();
-            detail._rangeMetres = range;
+            detail._pieceTriangles = pieceTriangles.ToArray();
+            // Only what can be swapped is counted: not the wound, which an unhurt body never shows, nor what shines.
+            int triangles = 0;
+            for (int i = 0; i < detail._pieceTriangles.Length; i++) triangles += detail._pieceTriangles[i];
+            detail._triangles = triangles;
+            detail._rangeMetres = countedBody ? DetailRule.RangeFor(range, triangles) : range;
             detail._countedBody = countedBody;
             detail._held = detail._filters.Length;
             detail.Far = false;
@@ -185,6 +200,8 @@ namespace OrbitalAnte.Look
                 if (_looseCount == _loose.Length) System.Array.Resize(ref _loose, _loose.Length * 2);
                 _loose[_looseCount++] = new Loose { Filter = filter, Full = _full[i], Thin = _thin[i], Range = _rangeMetres * scale, Far = Far };
                 _filters[i] = null;
+                // A body that has lost a limb costs less, so it does not keep a whole body's share of the limit.
+                if (_pieceTriangles != null && i < _pieceTriangles.Length) _triangles = Mathf.Max(0f, _triangles - _pieceTriangles[i]);
             }
             _held = held;
             return held;
@@ -211,6 +228,7 @@ namespace OrbitalAnte.Look
             LookConfig look = LookConfig.Load();
             float reach = look.farCopies ? Mathf.Max(0.1f, look.farCopyDistance) : 0f;   // a range of 0 means always full
             FullBodiesAllowed = look.farCopies ? Mathf.Max(0, look.fullBodies) : int.MaxValue;
+            FullTrianglesAllowed = look.farCopies ? Mathf.Max(0, look.fullTriangles) : 0;
 
             // First, what has come off: it must not be swapped with the body it left, and an emptied body leaves the list.
             for (int i = Live.Count - 1; i >= 0; i--)
@@ -224,7 +242,7 @@ namespace OrbitalAnte.Look
             if (_distance.Length < count)
             {
                 int room = Mathf.NextPowerOfTwo(count);
-                _distance = new float[room]; _range = new float[room]; _scratch = new float[room];
+                _distance = new float[room]; _range = new float[room]; _scratch = new float[room]; _cost = new float[room];
                 _counted = new bool[room]; _unseen = new bool[room]; _far = new bool[room];
             }
             for (int i = 0; i < count; i++)
@@ -236,19 +254,21 @@ namespace OrbitalAnte.Look
                 // A body drawn half as big again can be told from its far copy half as far again.
                 _range[i] = d._rangeMetres * Mathf.Max(0.1f, t.lossyScale.y) * reach;
                 _counted[i] = d._countedBody;
+                _cost[i] = d._triangles;
                 _unseen[i] = d._countedBody && DetailRule.Unseen(Vector3.Dot(to, ahead), _distance[i]);
                 _far[i] = d.Far;
             }
-            DetailRule.Pick(_distance, _range, _counted, _unseen, _far, _scratch, count, FullBodiesAllowed);
+            DetailRule.Pick(_distance, _range, _counted, _unseen, _far, _scratch, count, FullBodiesAllowed, _cost, FullTrianglesAllowed);
 
             int bodies = 0, bodiesFar = 0, others = 0, othersFar = 0;
+            float fullTriangles = 0f;
             float nearestFar = -1f;
             for (int i = 0; i < count; i++)
             {
                 if (!_counted[i]) continue;
                 Live[i].Show(_far[i]);
                 bodies++;
-                if (!_far[i]) continue;
+                if (!_far[i]) { fullTriangles += _cost[i]; continue; }
                 bodiesFar++;
                 if (nearestFar < 0f || _distance[i] < nearestFar) nearestFar = _distance[i];
             }
@@ -290,6 +310,7 @@ namespace OrbitalAnte.Look
             }
 
             Bodies = bodies; BodiesFar = bodiesFar; Others = others; OthersFar = othersFar;
+            FullTrianglesShown = Mathf.RoundToInt(fullTriangles);
             LooseFar = looseFar;
             NearestFarBody = nearestFar;
         }

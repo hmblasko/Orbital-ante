@@ -44,11 +44,79 @@ namespace OrbitalAnte.Tests
             Assert.IsFalse(DetailRule.Far(float.NaN, 10f, false));
         }
 
+        [Test]
+        public void AFinerBody_GoesOverToItsFarCopySooner_SoItsTrianglesAreNoSmallerOnScreen()
+        {
+            Assert.AreEqual(DetailRule.BodyRange, DetailRule.RangeFor(DetailRule.BodyRange, 14848), 1e-5f, "the older kinds keep their range");
+            Assert.AreEqual(DetailRule.BodyRange, DetailRule.RangeFor(DetailRule.BodyRange, DetailRule.RangeTriangles), 1e-5f);
+            float trooper = DetailRule.RangeFor(DetailRule.BodyRange, 21176);
+            Assert.AreEqual(20.86f, trooper, 0.05f, "the realistic trooper changes at about 20.9 m");
+            // Triangles a pixel at the change: the body's triangles over the area it covers, and that area falls
+            // with distance squared, so triangles times distance squared.
+            float atCap = DetailRule.RangeTriangles * DetailRule.BodyRange * DetailRule.BodyRange;
+            Assert.AreEqual(atCap, 21176f * trooper * trooper, atCap * 1e-3f);
+            Assert.AreEqual(0f, DetailRule.RangeFor(0f, 30000), "a range of 0 (always full) stays 0");
+        }
+
         static void Pick(float[] distance, bool[] counted, bool[] far, int cap, float range = DetailRule.BodyRange, bool[] unseen = null)
         {
             var ranges = new float[distance.Length];
             for (int i = 0; i < ranges.Length; i++) ranges[i] = range;
             DetailRule.Pick(distance, ranges, counted, unseen, far, new float[distance.Length], distance.Length, cap);
+        }
+
+        [Test]
+        public void AFinerBody_UsesUpTheFullPlacesSooner_SoTheWorstFrameStaysTheSameSize()
+        {
+            // Twelve bodies at arm's length to 12 m. Twelve of the first enemy model fit in full, as they always did.
+            var distance = new float[12];
+            var ranges = new float[12];
+            var counted = new bool[12];
+            var cost = new float[12];
+            for (int i = 0; i < 12; i++) { distance[i] = 1f + i; ranges[i] = DetailRule.BodyRange; counted[i] = true; cost[i] = 14848f; }
+            var far = new bool[12];
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[12], 12, DetailRule.FullBodies, cost, DetailRule.FullTriangles);
+            for (int i = 0; i < 12; i++) Assert.IsFalse(far[i], "body " + i + " of the first model should be full");
+
+            // Twelve of the realistic trooper do not: the nearest eight are full and the rest wear the far copy.
+            for (int i = 0; i < 12; i++) cost[i] = 21460f;
+            far = new bool[12];
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[12], 12, DetailRule.FullBodies, cost, DetailRule.FullTriangles);
+            float spent = 0f;
+            for (int i = 0; i < 12; i++)
+            {
+                Assert.AreEqual(i >= 8, far[i], "body " + i);
+                if (!far[i]) spent += cost[i];
+            }
+            Assert.LessOrEqual(spent, DetailRule.FullTriangles);
+        }
+
+        [Test]
+        public void TheSizeLimit_OnlyCountsBodies_AndCanBeSwitchedOff()
+        {
+            var distance = new[] { 2f, 3f, 4f };
+            var ranges = new[] { DetailRule.BodyRange, DetailRule.GunRange, DetailRule.BodyRange };
+            var counted = new[] { true, false, true };
+            var cost = new[] { 100f, 100000f, 100f };
+            var far = new bool[3];
+            // The gun in the middle is not counted, so its cost is nobody's business.
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, cost, 250f);
+            Assert.IsFalse(far[0]); Assert.IsFalse(far[1]); Assert.IsFalse(far[2]);
+            // A limit of 150 has room for one body: the nearer.
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, cost, 150f);
+            Assert.IsFalse(far[0]); Assert.IsTrue(far[2]);
+            // No limit (zero), no list of costs, or a list too short: only the count applies.
+            far = new bool[3];
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, cost, 0f);
+            Assert.IsFalse(far[0]); Assert.IsFalse(far[2]);
+            DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, null, 150f);
+            Assert.IsFalse(far[0]); Assert.IsFalse(far[2]);
+            Assert.DoesNotThrow(() => DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, new float[1], 150f));
+            Assert.IsFalse(far[0]); Assert.IsFalse(far[2]);
+            // A cost that makes no sense (negative, not a number) is taken as nothing rather than breaking the sum.
+            cost = new[] { float.NaN, 0f, -5f };
+            Assert.DoesNotThrow(() => DetailRule.Pick(distance, ranges, counted, null, far, new float[3], 3, 12, cost, 150f));
+            Assert.IsFalse(far[0]); Assert.IsFalse(far[2]);
         }
 
         [Test]

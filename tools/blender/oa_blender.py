@@ -295,7 +295,8 @@ def export(path, parts, sockets=()):
             report.append("%s: %d corners, %d triangles" % (name, count, len(triangles) // 3))
         f.write(struct.pack("<i", len(sockets)))
         for s in sockets:
-            _write_string(f, s.name.replace("socket_", ""))
+            # (Blender adds ".001" to a second empty of the same name, as when the far copy is written after the full one.)
+            _write_string(f, s.name.replace("socket_", "").split(".")[0])
             f.write(struct.pack("<3f", s.location.x, s.location.z, s.location.y))
     print("OA wrote", path, os.path.getsize(path), "bytes;", "; ".join(report))
 
@@ -462,6 +463,35 @@ def inside_out_share(objects, rays=4000, seed=7):
     return backs / float(hits) if hits else 0.0
 
 
+def inside_out_where(objects, rays=20000, seed=7):
+    """Which shapes are seen from inside, and how often (out of `rays`): for finding the hole that
+    inside_out_share reports. Returns a list of (name, times), most first."""
+    found = {}
+    owner, corners, triangles = [], [], []
+    for o in objects:
+        mesh = o.data
+        mesh.calc_loop_triangles()
+        base = len(corners)
+        corners.extend(v.co.copy() for v in mesh.vertices)
+        for t in mesh.loop_triangles:
+            triangles.append(tuple(base + i for i in t.vertices))
+            owner.append(o.name)
+    if not triangles:
+        return []
+    tree = BVHTree.FromPolygons(corners, triangles)
+    lo = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    hi = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    reach = (hi - lo).length
+    rng = random.Random(seed)
+    for _ in range(rays):
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
+        aim = Vector((rng.uniform(lo.x, hi.x), rng.uniform(lo.y, hi.y), rng.uniform(lo.z, hi.z)))
+        hit, normal, index, _ = tree.ray_cast(aim - d * (reach + 1.0), d, 2.0 * reach + 2.0)
+        if hit is not None and normal.dot(d) > 0.0:
+            found[owner[index]] = found.get(owner[index], 0) + 1
+    return sorted(found.items(), key=lambda item: -item[1])
+
+
 def _carry_paint(full, thinned):
     """Gives each corner of the thinned mesh the paint of the full mesh round the same spot.
 
@@ -504,7 +534,7 @@ def _carry_paint(full, thinned):
             layer.data[i].color = c
 
 
-def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=()):
+def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=(), thin_too=()):
     """The far copy of a model: the same pieces by the same names, in about `target` triangles in all.
 
     parts is a list of (name, [objects]) as export() takes it; the result is another, made of new objects (the
@@ -523,14 +553,17 @@ def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out
     else, the rounded shapes that carry most of the triangles and thin gracefully, is thinned by the same
     share, found by trying, with none taken below `least` triangles. A shape named in `leave_out` is not in
     the far copy at all: for one that barely shows in the full model and pokes through its cover when thinned.
+    A shape named in `thin_too` is thinned however small it is: for small rounded things there are many of
+    (fingers), which thin without crumpling and would otherwise take the triangles the limbs need.
 
     The line it prints says how often the far copy is seen from inside (see inside_out_share). It should say
     0.00%, as the full model does: anything else is a hole to go and look for in the preview, in magenta.
     """
-    keep, leave_out = set(keep), set(leave_out)
+    keep, leave_out, thin_too = set(keep), set(leave_out), set(thin_too)
 
     def kept_whole(o, n):
-        return n <= whole or o.name.split(".")[0] in keep
+        base = o.name.split(".")[0]
+        return (n <= whole and base not in thin_too) or base in keep
 
     plain, fixed = [], 0
     for name, objects in parts:

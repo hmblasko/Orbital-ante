@@ -93,9 +93,11 @@ namespace OrbitalAnte.Planets
             _atmosphere = _simple ? null : Find("OA_Atmosphere", "OrbitalAnte/Atmosphere");
             _water = _simple ? null : Find("OA_Water", "OrbitalAnte/Water");
             _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
-            // Models fall back to the ground's shader (no shine) if theirs cannot be used.
-            _model = _simple || _terrain == null ? null : Find("OA_Model", "OrbitalAnte/Model");
-            if (!_simple && _terrain != null && _model == null)
+            // Models fall back to the ground's shader (no shine) if theirs cannot be used, and go back to it when
+            // Shine is turned right down on the Look asset: the way out if the model shader misbehaves on a machine.
+            bool shineOff = OrbitalAnte.Look.LookConfig.Load().shine <= 0f;
+            _model = _simple || _terrain == null || shineOff ? null : Find("OA_Model", "OrbitalAnte/Model");
+            if (!_simple && _terrain != null && _model == null && !shineOff)
             {
                 Debug.LogWarning("Orbital Ante: the model shader (OA_Model) could not be used on this machine, so models are drawn with the ground's shader and nothing shines.");
             }
@@ -116,6 +118,10 @@ namespace OrbitalAnte.Planets
         {
             Shader shader = Resources.Load<Shader>("Shaders/" + file);
             if (shader == null) shader = Shader.Find(shaderName);
+#if UNITY_EDITOR
+            // A shader that failed to compile can still say it is supported; in the editor ask about errors too.
+            if (shader != null && UnityEditor.ShaderUtil.ShaderHasError(shader)) return null;
+#endif
             return shader != null && shader.isSupported ? shader : null;
         }
 
