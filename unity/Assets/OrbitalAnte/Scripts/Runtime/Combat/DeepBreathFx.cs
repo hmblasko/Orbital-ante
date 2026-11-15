@@ -141,7 +141,7 @@ namespace OrbitalAnte.Combat
             _rim.type = Image.Type.Simple;
             _rim.enabled = false;
 
-            // The meter: a thin bar low in the middle, above the health bar and below the suit's notice.
+            // The meter: a thin bar low in the middle, above the visor gauges' words and below the suit's notice.
             _panel = UiKit.NewRect("Breath", _canvas.transform);
             UiKit.Pin(_panel, new Vector2(0.5f, 0f), new Vector2(0f, 112f), new Vector2(BarWidth, 12f));
             _back = UiKit.AddImage(_panel, new Color(0f, 0f, 0f, 0.55f), UiKit.Rounded);

@@ -455,8 +455,7 @@ namespace OrbitalAnte.Cockpit
                 if (!ReferenceEquals(word.text, t.Text) && word.text != t.Text) word.text = t.Text;
                 int size = Mathf.Max(6, Mathf.RoundToInt(t.Size));
                 if (word.fontSize != size) word.fontSize = size;
-                FontStyle style = t.Bold ? FontStyle.Bold : FontStyle.Normal;
-                if (word.fontStyle != style) word.fontStyle = style;
+                UiKit.SetStyle(word, t.Bold ? FontStyle.Bold : FontStyle.Normal);
                 TextAnchor anchor = t.Align == DashAlign.Left ? TextAnchor.MiddleLeft : t.Align == DashAlign.Right ? TextAnchor.MiddleRight : TextAnchor.MiddleCenter;
                 if (word.alignment != anchor) word.alignment = anchor;
                 var colour = new Color(t.Color.R, t.Color.G, t.Color.B, t.Color.A);

@@ -39,8 +39,7 @@ namespace OrbitalAnte.UI
         Text _weaponText;
         Text _promptText;
         Text _bannerText;
-        Image _healthFill;
-        RectTransform _healthBar;
+        VisorGauge _health;
         Image _hurtFlash;
         static readonly Color DisarmColor = new Color(0.45f, 0.85f, 1f);
 
@@ -113,18 +112,8 @@ namespace OrbitalAnte.UI
             UiKit.Pin((RectTransform)_weaponText.transform, new Vector2(1f, 0f), new Vector2(-26f, 84f), new Vector2(420f, 28f));
             AddShadow(_weaponText);
 
-            // Health, bottom centre: a chunky bar.
-            _healthBar = UiKit.NewRect("HealthBar", _arenaOnly);
-            UiKit.Pin(_healthBar, new Vector2(0.5f, 0f), new Vector2(0f, 78f), new Vector2(288f, 22f));
-            UiKit.AddImage(_healthBar, new Color(0f, 0f, 0f, 0.6f), UiKit.Rounded);
-            var fill = UiKit.NewRect("Fill", _healthBar);
-            // Pivot on the left edge first, so the bar empties from right to left when it is scaled.
-            fill.pivot = new Vector2(0f, 0.5f);
-            fill.anchorMin = new Vector2(0f, 0f);
-            fill.anchorMax = new Vector2(1f, 1f);
-            fill.offsetMin = new Vector2(4f, 4f);
-            fill.offsetMax = new Vector2(-4f, -4f);
-            _healthFill = UiKit.AddImage(fill, UiKit.Cream);
+            // Health, lower right: the same arc of suit plates as outside the ship (see VisorGauge).
+            _health = VisorGauge.Build(_arenaOnly, false, "SUIT", UiKit.Cream, 380f, 110f);
 
             // "Pick up" prompt under the crosshair, and a banner at the top for arena state.
             _promptText = UiKit.Label(_arenaOnly, string.Empty, 22, UiKit.Cream);
@@ -139,9 +128,7 @@ namespace OrbitalAnte.UI
 
         static void AddShadow(Text text)
         {
-            var shadow = text.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
-            shadow.effectDistance = new Vector2(1.5f, -1.5f);
+            UiKit.Halo(text);
         }
 
         void OnDestroy()
@@ -203,7 +190,9 @@ namespace OrbitalAnte.UI
             {
                 FirearmState state = weapon.State;
                 _weaponText.text = weapon.Data.displayName;
-                _ammoText.text = state.Reloading ? "RELOADING" : state.Ammo + " / " + state.Spec.MagazineSize;
+                // Short enough to stay clear of the suit plates at the same size (a size change would grow the
+                // font's glyph sheet mid-fight).
+                _ammoText.text = state.Reloading ? "RELOAD" : state.Ammo + " / " + state.Spec.MagazineSize;
                 _ammoText.color = state.Reloading || state.Ammo == 0 ? UiKit.PanelEdge : UiKit.Cream;
             }
             else
@@ -227,10 +216,11 @@ namespace OrbitalAnte.UI
 
             if (Health != null)
             {
-                _healthBar.gameObject.SetActive(true);
+                _health.SetActive(true);
                 float f = Health.Fraction;
-                _healthFill.rectTransform.localScale = new Vector3(f, 1f, 1f);
-                _healthFill.color = f > 0.35f ? UiKit.Cream : UiKit.Danger;
+                bool blink = Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.5f;
+                bool justHit = Time.unscaledTime - Health.LastHitUnscaledTime < 0.25f;
+                _health.Show(f, VisorReadout.SuitLine(f), VisorReadout.SuitTone(f), !justHit || blink);
 
                 // A quick red pulse on each hit, and a steady tint while knocked down.
                 float sinceHit = Time.unscaledTime - Health.LastHitUnscaledTime;
@@ -243,7 +233,7 @@ namespace OrbitalAnte.UI
             }
             else
             {
-                _healthBar.gameObject.SetActive(false);
+                _health.SetActive(false);
                 _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, 0f);
                 _bannerText.text = string.Empty;
             }
