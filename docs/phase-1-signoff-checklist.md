@@ -116,7 +116,7 @@ If Unity shows red errors in the Console before you can press Play, stop and sen
 
 | # | Check | |
 |---|---|---|
-| J1 | Deep Breath (hold Q, or click the right stick) slows the world and your aim stays quick | |
+| J1 | Focus (hold Q, or click the right stick) slows the world and your aim stays quick | |
 | J2 | It feels limited: the bar runs out, and a kill buys a little back | |
 | J3 | Holding the right stick click while aiming is comfortable on the Deck (if not, say what button you would rather) | |
 | J4 | Bases can be found on every world; guards stand on them | |

@@ -161,7 +161,7 @@ namespace OrbitalAnte.Core
             // Q sits beside W A S D and was free. On the controller every face button, bumper, trigger and
             // D-pad way is taken on foot and Select is kept for the upgrade screen, so the last free control is
             // the right stick's click: it is under the aiming thumb already.
-            DeepBreath = AddButton(Gameplay, "Deep Breath (hold)", "<Keyboard>/q", "<Gamepad>/rightStickPress");
+            DeepBreath = AddButton(Gameplay, "Focus (hold)", "<Keyboard>/q", "<Gamepad>/rightStickPress");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");

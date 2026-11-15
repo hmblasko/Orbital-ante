@@ -171,7 +171,7 @@ namespace OrbitalAnte.Combat
             mark.sizeDelta = new Vector2(2f, 0f);
             _mark = UiKit.AddImage(mark, UiKit.Ink);
 
-            _label = UiKit.Label(_panel, "BREATH", 13, UiKit.Muted, TextAnchor.MiddleRight);
+            _label = UiKit.Label(_panel, "FOCUS", 13, UiKit.Muted, TextAnchor.MiddleRight);
             UiKit.Pin((RectTransform)_label.transform, new Vector2(0f, 0.5f), new Vector2(-70f, 0f), new Vector2(62f, 16f));
 
             _panel.gameObject.SetActive(false);

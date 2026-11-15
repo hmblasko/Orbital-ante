@@ -81,7 +81,7 @@ You start strapped into the pilot's seat. The flying controls above only work wh
 | Ride the lift up | Stand under the blue ring with the hatch open | The same |
 | Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
 | Shoot (the rifle outside the ship, on foot only) | Left mouse | Right trigger |
-| Deep Breath: slow the world (hold; on foot only; the bar refills only by fighting) | Q | Click the right stick |
+| Focus: slow the world (hold; on foot only; the bar refills only by fighting) | Q | Click the right stick |
 
 With no ground below (in flight), the lift lowers you clear of the belly and lets go. You keep the ship's speed, and the safety tether clips on by itself.
 
