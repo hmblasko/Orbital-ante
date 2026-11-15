@@ -240,6 +240,7 @@ namespace OrbitalAnte.Dismemberment
         double _startleAge = 99.0, _startleSide;
         double _stumbleAge = 99.0, _stumbleSide = 1.0;
         double _shock, _woundSide;
+        double _reelAge = 99.0, _reelSize;
         double _exertion;
         double _scramble, _reach, _teeter, _lookWeight;
         double _lookYawTo, _lookPitchTo;
@@ -258,12 +259,36 @@ namespace OrbitalAnte.Dismemberment
 
         /// <summary>
         /// A part came off. Side is BodySkeleton.Left or Right; severity 1 for a whole limb, less for a hand or a
-        /// foot. For a few seconds the body curls round the wound and moves like it hurts.
+        /// foot. For a few seconds the body curls round the wound and moves like it hurts. An arm also spins the
+        /// trunk back on that side and doubles it over for about a second, and the head turns to look at the
+        /// stump (a leg has its own lurch, see Stumble).
         /// </summary>
-        public void Wounded(int side, double severity)
+        public void Wounded(int side, double severity, bool arm = false)
         {
             _shock = Math.Max(_shock, Clamp01(severity));
             _woundSide = side == BodySkeleton.Left ? -1.0 : 1.0;
+            if (arm)
+            {
+                _reelAge = 0.0;
+                _reelSize = Clamp01(severity);
+            }
+        }
+
+        /// <summary>How much of the reel from losing an arm is showing: in at once, gone over about a second.</summary>
+        double ReelAmount()
+        {
+            double a = _reelAge;
+            if (a >= 2.5) return 0.0;
+            return _reelSize * (a < 0.07 ? a / 0.07 : Math.Exp(-(a - 0.07) / 0.45));
+        }
+
+        /// <summary>How much the head is turned to the stump: after the first jolt, held for most of a second, then back.</summary>
+        double GlanceAmount()
+        {
+            double a = _reelAge;
+            if (a >= 1.7) return 0.0;
+            double up = Clamp01((a - 0.08) / 0.2), down = Clamp01((1.7 - a) / 0.6);
+            return _reelSize * Smooth(Math.Min(up, down));
         }
 
         /// <summary>Loses its footing for a second: pitches forward, arms flung out, then catches itself. Side is which way it lurches (-1 left, 1 right).</summary>
@@ -587,16 +612,18 @@ namespace OrbitalAnte.Dismemberment
 
             // ---- upper body
             double breathSize = 1.0 + 2.0 * _exertion + 1.5 * _shock;
+            // Losing an arm: the hit spins that shoulder back and doubles the trunk over, then the head turns to the stump.
+            double reel = ReelAmount(), glance = GlanceAmount() * (1.0 - _lookWeight);
             double spinePitch = 1.1 * breath * breathSize * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch
-                                + 14.0 * startle + 22.0 * reach + 8.0 * scramble + 12.0 * stumble + 9.0 * _shock + 4.0 * lostArm;
-            double spineRoll = -0.8 * hipRoll + Guard(input, lossLeft, lossRight);
+                                + 14.0 * startle + 22.0 * reach + 8.0 * scramble + 12.0 * stumble + 9.0 * _shock + 4.0 * lostArm + 12.0 * reel;
+            double spineRoll = -0.8 * hipRoll + Guard(input, lossLeft, lossRight) - _woundSide * 8.0 * reel;
             double counter = 1.0 + 0.3 * lostArm;
             double lookYaw = _lookWeight * _lookYawTo;
-            pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw * counter + 0.3 * lookYaw) * Qx(spinePitch) * Qz(spineRoll);
+            pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw * counter + 0.3 * lookYaw + _woundSide * 26.0 * reel) * Qx(spinePitch) * Qz(spineRoll);
             double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle) * (1.0 - _lookWeight);
             double headPitch = -(0.9 * lean + 0.6 * spinePitch) + _lookPitch * look + 10.0 * startle + 10.0 * _shock * (1.0 - _lookWeight)
-                               + _lookWeight * (_lookPitchTo - 0.1 * lean - 0.4 * spinePitch);
-            pose.Local[(int)BodyBone.Head] = Qy(0.7 * gaitYaw - stanceYaw + _lookYaw * look + 0.7 * lookYaw)
+                               + _lookWeight * (_lookPitchTo - 0.1 * lean - 0.4 * spinePitch) + 22.0 * glance;
+            pose.Local[(int)BodyBone.Head] = Qy(0.7 * gaitYaw - stanceYaw + _lookYaw * look + 0.7 * lookYaw + _woundSide * 50.0 * glance)
                                              * Qx(Clamp(headPitch, -60.0, 50.0))
                                              * Qz(-0.3 * spineRoll);
             double trunk = lean + spinePitch;
@@ -650,8 +677,8 @@ namespace OrbitalAnte.Dismemberment
             double weight = Clamp01(_shock * 1.4) * (1.0 - 0.6 * scramble) * (1.0 - reach) * (1.0 - stumble);
             if (weight <= 0.001) return;
             double hx = hurt == BodySkeleton.Left ? -1.0 : 1.0;
-            // On the front of the wounded shoulder, in the trunk's own space, rising and falling with the breath.
-            var target = new Vec3d(hx * (BodySkeleton.ShoulderX - 0.05), BodySkeleton.ShoulderY - BodySkeleton.SpineY - 0.10 + 0.01 * breath, 0.15);
+            // Over the stump, on the front of the wounded shoulder, in the trunk's own space, rising and falling with the breath.
+            var target = new Vec3d(hx * (BodySkeleton.ShoulderX + 0.01), BodySkeleton.ShoulderY - BodySkeleton.SpineY - 0.03 + 0.01 * breath, 0.08);
             ArmToPoint(pose, good, target, out QuatD upper, out QuatD fore);
             int u = (int)BodySkeleton.UpperArm(good), f = (int)BodySkeleton.Forearm(good);
             pose.Local[u] = BodyPose.Nlerp(pose.Local[u], upper, weight);
@@ -1016,6 +1043,7 @@ namespace OrbitalAnte.Dismemberment
         {
             _startleAge += dt;
             _stumbleAge += dt;
+            _reelAge += dt;
             // Shock fades over a few seconds; it never quite leaves a body that has lost an arm (see Guard).
             _shock *= Math.Exp(-dt / 2.4);
             if (_shock < 1e-3) _shock = 0.0;

@@ -585,6 +585,31 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void LosingAnArm_SpinsThatShoulderBack_AndTheHeadTurnsToTheStump_ThenSettles([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
+        {
+            var a = new BodyAnimator(8);
+            BodyAnimInput input = Standing(0);
+            for (int i = 0; i < 90; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spineBefore);
+            if (side == BodySkeleton.Left) input.ArmLossLeft = 1.0; else input.ArmLossRight = 1.0;
+            a.Wounded(side, 1.0, arm: true);
+            double sign = side == BodySkeleton.Left ? -1.0 : 1.0;
+            for (int i = 0; i < 9; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spine);
+            Assert.Greater((spine.Rotate(Vec3d.Forward).X - spineBefore.Rotate(Vec3d.Forward).X) * sign, 0.2, "the hit should turn the chest toward the lost arm's side at once");
+            for (int i = 0; i < 27; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Head, out _, out QuatD head);
+            a.Pose.World(BodyBone.Spine, out _, out spine);
+            Vec3d look = head.Rotate(Vec3d.Forward);
+            Assert.Greater((look.X - spine.Rotate(Vec3d.Forward).X) * sign, 0.4, "then the head should turn to the stump");
+            Assert.Less(look.Y, -0.2, "looking down at it");
+            for (int i = 0; i < 180; i++) { a.Update(Dt, input); AssertSound(a.Pose, "reeling"); }
+            a.Pose.World(BodyBone.Head, out _, out head);
+            a.Pose.World(BodyBone.Spine, out _, out spine);
+            Assert.Less(Math.Abs(head.Rotate(Vec3d.Forward).X - spine.Rotate(Vec3d.Forward).X), 0.15, "and after a few seconds look ahead again");
+        }
+
+        [Test]
         public void OnOneLeg_ItLeansOutOverTheLegItHasLeft([Values(BodySkeleton.Left, BodySkeleton.Right)] int standing)
         {
             var a = new BodyAnimator(2);

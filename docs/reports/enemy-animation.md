@@ -2,7 +2,7 @@
 
 Matthew, 15 Nov 2026: "See how you can improve the enemy animations. See about researching open source animations that make their movement look realistic. When they drop weapons, they simply walk around and that doesn't look good. They should look startled when dropping the weapon and scramble to get it back. They should also have a more interesting hobble when losing limbs. They should also lean some naturally when losing limbs. They are just stiff and it makes it look unrealistic when shooting limbs off."
 
-**Nothing here has been run in Unity.** It compiles against the Unity reference assemblies and the animation rule tests pass (58, of which 17 are new). The pictures are offline renders of the animation rules, not game footage.
+**Nothing here has been run in Unity.** It compiles against the Unity reference assemblies and the animation rule tests pass (60, of which 19 are new). The pictures are offline renders of the animation rules, not game footage.
 
 ## Why they wandered
 
@@ -18,7 +18,7 @@ After a disarm, `MannequinCombat` ignored a freshly dropped gun for 0.8 s ("let 
 5. No hands, or no gun it can get: it runs for cover, and where there is none, eight metres straight away from the player (one place, kept until reached), looking back over its shoulder, but only while it can see the player or saw them within the chase memory. It never knows where the player is through a hill.
 
 **Losing limbs (BodyAnimator, MannequinLocomotion)**
-1. Losing an arm or forearm: for a few seconds (the shock fades over about 2.4 s) the trunk curls toward the wound, the head drops, the breathing is heavy and the good hand is pressed to the wound (a small arm IK), more loosely while it runs for its gun. A hand holding a gun stays on the gun. A slight lean toward the missing weight stays for good, and the arm that is left swings wider.
+1. Losing an arm or forearm: the hit spins that shoulder back (about 26 degrees) and doubles the trunk over, gone within about a second, and the head turns down to look at the stump for most of a second before looking ahead again (`Wounded(side, severity, arm: true)`). For a few seconds (the shock fades over about 2.4 s) the trunk curls toward the wound, the head drops, the breathing is heavy and the good hand is pressed to the wound (a small arm IK), more loosely while it runs for its gun. A hand holding a gun stays on the gun. A slight lean toward the missing weight stays for good, and the arm that is left swings wider.
 2. Losing a leg: a lurch first (arms flung up, trunk thrown forward), then the hobble.
 3. The hobble is no longer a metronome: each hop has its own length (82 to 118% of the usual), now and then a bad landing holds it on the spot teetering with its arms flung out (10% of hops, 16% while scrambling), and rarely it stumbles (3%, 7% scrambling). These change where the body is, so they draw from a seeded stream per enemy, not Unity's random. It leans out over the good leg, hardest just after landing and more when the whole thigh is gone. What is left of the other leg swings on its hip like a pendulum, lagging the hop and overshooting.
 4. Crawling and wriggling scramble faster after a gun and look at it.
@@ -55,12 +55,14 @@ If hand-animated clips are ever wanted (for example a death or a taunt), the Qua
 
 ## Previews
 
-`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif`. Not game footage: flat ground, no physics, the gun is a box, a shot-off part is just not drawn (no wound cap, no flying limb), and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
+`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif`. Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
+
+Matthew, 15 Nov 2026: "The first two animation demos look great. Redo the arm shoot off one." The first arm preview was seen from the wrong side, far away, and the arm simply vanished. The redo: the camera is in front on the wounded side and closer, the arm flies off as one piece and bounces, the model's wound stump shows at the shoulder, and the reaction is stronger (the spin back, the doubling over, the look at the stump, the good hand pressed on the stump itself rather than the chest).
 
 ## How it was tested
 
 - Compile: all runtime scripts against UnityEngine.Modules 2021.3.33 and LethalCompany.GameLibs.Steam (only the three known IHittable name-clash errors from that library).
-- `BodyAnimatorTests`: 58 pass, 17 new: startle flinches at once and settles; looking turns the head; reaching puts a hand near the ground with the feet left planted (both hands); scrambling is quicker footed, bent low, and planted feet still do not skate; losing an arm leans toward the wound with the other hand at it and a small lean that lasts (both sides); on one leg the head sits over the good leg (both sides); a bad landing throws the arms out and keeps the foot down; losing a leg lurches then recovers; every reaction together in every way of moving gives a sound pose.
+- `BodyAnimatorTests`: 60 pass, 19 new (two added with the redone arm preview: the hit turns the chest toward the lost arm and the head to the stump, then it looks ahead again; checked to fail without the change): startle flinches at once and settles; looking turns the head; reaching puts a hand near the ground with the feet left planted (both hands); scrambling is quicker footed, bent low, and planted feet still do not skate; losing an arm leans toward the wound with the other hand at it and a small lean that lasts (both sides); on one leg the head sits over the good leg (both sides); a bad landing throws the arms out and keeps the foot down; losing a leg lurches then recovers; every reaction together in every way of moving gives a sound pose.
 
 ## Still unverified (needs Unity on the Deck)
 
