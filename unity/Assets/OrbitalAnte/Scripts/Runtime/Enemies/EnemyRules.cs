@@ -36,6 +36,8 @@ namespace OrbitalAnte.Enemies
         public bool rushes, holdsStill;
         /// <summary>Keeps walking at the player until it is inside <see cref="keepFar"/>, instead of side-stepping at range.</summary>
         public bool closesIn;
+        /// <summary>0 to 1, how far it drops into the tactical hunch while fighting (knees bent, low, gun up). The big ones walk you down more upright.</summary>
+        public float hunch = 1f;
         /// <summary>Width against height (1: as modelled). Only for a kind with no body model of its own.</summary>
         public float width = 1f;
         /// <summary>The colour of its chest on the stand-in shapes, 0 to 1 each. All zero: the ordinary colour.</summary>
@@ -87,7 +89,7 @@ namespace OrbitalAnte.Enemies
     {
         /// <summary>The four kinds asked for on 14 Nov 2026: each with its own size, pace, toughness and gun.</summary>
         /// <summary>Raise this when the defaults change, so a config asset made earlier takes the new roster.</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         public static List<EnemyTypeSpec> Defaults()
         {
@@ -97,14 +99,14 @@ namespace OrbitalAnte.Enemies
                 new EnemyTypeSpec { id = "Trooper", share = 4f },
                 // Small and quick: runs straight in and sprays from close up. Falls apart fast.
                 new EnemyTypeSpec { id = "Runner", model = "EnemyRunner", scale = 0.85f, speed = 1.5f, toughness = 0.7f, weapon = "Smg", engageRange = 30f,
-                                    reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, share = 3f },
+                                    reactionTime = 0.45f, aimError = 5f, keepFar = 9f, keepNear = 3f, rushes = true, closesIn = true, hunch = 0.8f, share = 3f },
                 // Big and slow: walks you down with a blast that only matters close. Hard to stop in the middle.
                 new EnemyTypeSpec { id = "Bruiser", model = "EnemyBruiser", scale = 1.3f, speed = 0.8f, toughness = 2.2f, headToughness = 1.5f, weapon = "Shotgun", engageRange = 20f,
-                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true },
+                                    reactionTime = 0.9f, aimError = 2f, keepFar = 10f, keepNear = 2f, closesIn = true, hunch = 0.35f, share = 2f, atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true },
                 // Tall, thin and still: stands off and takes one slow, painful shot. A bright line shows where it is
                 // aiming for a second before every shot, and there is never more than one in a camp.
                 new EnemyTypeSpec { id = "Marksman", model = "EnemyMarksman", scale = 1.2f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
-                                    reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, share = 1f,
+                                    reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, hunch = 0.3f, share = 1f,
                                     aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true },
             };
         }

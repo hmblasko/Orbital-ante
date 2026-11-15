@@ -442,6 +442,7 @@ namespace OrbitalAnte.Enemies
             config.rushes = spec.rushes;
             config.holdsStill = spec.holdsStill;
             config.closesIn = spec.closesIn;
+            config.tacticalHunch = Mathf.Clamp01(spec.hunch);
             config.modelId = spec.model ?? "";
             config.aimTell = spec.aimTell;
             if (spec.red + spec.green + spec.blue > 0f) config.torsoColor = new Color(spec.red, spec.green, spec.blue);

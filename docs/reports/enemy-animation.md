@@ -47,6 +47,22 @@ Rule tests changed with it: running takes "more than 12 steps in 5 s" (was 15) a
 
 Still unverified: all of it in Unity; how the walk looks on the realistic trooper model and the other kinds at Deck size; the run's knee speed.
 
+## Tactical hunch (third request, 15 Nov 2026)
+
+Matthew, after the new walk: "Maybe have be able to do a tactical hunch". Read as: a low, gun-up combat walk used in a fight, next to the upright walk.
+
+**What it is (`BodyAnimInput.Tactical`, 0 to 1, eased in over about half a second and out over about a second).** The usual pattern of a trained close-quarters walk: knees bent at least 25 degrees all the way through (the hips about 7.5 cm lower), the pelvis tipped forward and the chest over the toes (the trunk about 25 degrees forward) with the head carried level so the eyes look ahead, strides a fifth shorter with the feet down a little longer so the body glides, a quarter of the usual rise and fall, less sway and twist, the chest kept square to the front, the stance a little wider, a flatter, quieter foot roll. At a full run it keeps a little over half of it. Arms that hold no gun are carried bent and close; the gun is carried higher (`MannequinCombat.LowReadyDirection`: 14 degrees below level instead of 37, just under the line of sight).
+
+**When.** `MannequinCombat` sets it while an armed enemy can see the player, and while it hunts the player after losing sight; it stands upright on patrol, when startled, unarmed or scrambling for a gun. How far each kind goes is `EnemyTypeSpec.hunch` (copied to `MannequinConfig.tacticalHunch`): Trooper 1, Runner 0.8, Bruiser 0.35 (it walks you down more upright), Marksman 0.3 (tall and still: its silhouette has to read at 110 m). `EnemyRoster.Version` is 3 so older EnemyConfig assets take it. Movement speed, hitboxes and aim are unchanged; the head is about 10 cm lower in the hunch.
+
+**Tests.** `TheTacticalHunch_IsLowOnBentKnees_WithALevelHead_AndPlantedFeet` (standing, walking and sprinting: hips lower, knees bent, the head's rise and fall under three quarters of the upright walk's, trunk forward but eyes ahead, planted feet do not slide, quicker steps) and `TheTacticalHunch_EasesInAndOut_NotSnapped`; the hunch is added to the every-reaction-together test. 64 animator tests pass.
+
+**Preview.** `enemy_motion_hunch.gif`: patrolling upright with the rifle low, then it sees you and advances, then stops and aims; left without the hunch (the game before), right with it. The preview poses the rifle arms with a copy of the game's two-bone arm solve (`motion_dump` `HoldRifle`), the first preview that shows them.
+
+**Agent review.** Unity reviewer: nothing blocking; old MannequinConfig assets load the new field at 1 (Unity keeps the initialiser for missing keys), old rosters are replaced by the version bump, Think runs every 0.12 to 0.22 s and sets the value within one call so it never flickers, nulls are guarded. Game designer: the Marksman should stay mostly upright (taken: 0.3, was 1); the hunch is a readable tell ("hunched = alerted, upright = unaware", whole squads drop together), now a rule in `docs/art_direction.md`; the 10 cm lower head is under a degree at 10 m; check the raised rifle does not cover the face from the front (checked in a front render at the advance and the aim: the head is clear). Deck performance: not asked separately; the hunch is a handful of multiplies in code already counted.
+
+Still unverified: all of it in Unity, including how the game's own arm solve looks on the hunched shoulders and whether the lower head changes how hard headshots feel.
+
 ## Research: where motion could come from, and the licences
 
 | Source | Licence | Can it ship in a commercial game? |
@@ -79,7 +95,7 @@ If hand-animated clips are ever wanted (for example a death or a taunt), the Qua
 
 ## Previews
 
-`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif` (disarm, hobble, arm, walk, run). Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
+`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif` (disarm, hobble, arm, walk, run, hunch). Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
 
 Matthew, 15 Nov 2026: "The first two animation demos look great. Redo the arm shoot off one." The first arm preview was seen from the wrong side, far away, and the arm simply vanished. The redo: the camera is in front on the wounded side and closer, the arm flies off as one piece and bounces, the model's wound stump shows at the shoulder, and the reaction is stronger (the spin back, the doubling over, the look at the stump). Matthew then asked (same day) to keep the look at the stump but drop the good hand reaching over to the wound: the hand-on-wound arm IK is gone, and the good arm is thrown out for balance instead.
 

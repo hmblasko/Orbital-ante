@@ -264,6 +264,8 @@ namespace OrbitalAnte.AI
         void Think()
         {
             MovementState state = _owner.State;
+            // Only an armed body in a fight hunches; ThinkArmed says when.
+            _loco.Tactical = 0f;
             if (state == MovementState.HeadOnly)
             {
                 // A head on its own has nothing to fight with. It just rolls about.
@@ -323,8 +325,11 @@ namespace OrbitalAnte.AI
                                || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
                 _loco.Destination = hunting ? CombatWorld.PlayerEye.position : (Vector3?)null;
                 _loco.Hurry = hunting && _cfg.rushes;
+                // Coming to look for the player: low and careful, gun up.
+                _loco.Tactical = hunting ? _cfg.tacticalHunch : 0f;
                 return;
             }
+            _loco.Tactical = _cfg.tacticalHunch;
             _lastSaw = now;
             if (Squad != null) Squad.Saw(now);
             if (!_seesPlayer)
@@ -702,7 +707,9 @@ namespace OrbitalAnte.AI
         Vector3 LowReadyDirection()
         {
             bool prone = _owner.State == MovementState.Crawl || _owner.State == MovementState.Wriggle;
-            Vector3 dir = transform.forward + (prone ? transform.up * 0.05f : (-transform.up) * 0.75f);
+            // In the tactical hunch the gun is carried higher, just under the line of sight.
+            float down = Mathf.Lerp(0.75f, 0.25f, _loco != null ? _loco.TacticalShown : 0f);
+            Vector3 dir = transform.forward + (prone ? transform.up * 0.05f : (-transform.up) * down);
             return dir.normalized;
         }
 

@@ -12,7 +12,7 @@ using OrbitalAnte.Dismemberment;
 /// tools/blender/preview_enemy_motion.py to render as a GIF. The scenes are a stand-in for the game's own
 /// movement code (simplified: flat ground, no physics, the gun is a box), so the pictures are not game footage.
 ///
-///     dotnet run -c Release -- out.json disarm|hobble|arm|walk [metres per second] [old]
+///     dotnet run -c Release -- out.json disarm|hobble|arm|walk|hunch [metres per second] [old]
 /// </summary>
 static partial class Program
 {
@@ -24,7 +24,7 @@ static partial class Program
         public bool Moving;
         public int StandingLeg, GunSide;
         public bool LeftArm, RightArm;
-        public double Aim, LossLeft, LossRight, Stump, Scramble, Reach, Teeter;
+        public double Aim, LossLeft, LossRight, Stump, Scramble, Reach, Teeter, Tactical;
         public int ReachSide;
         public bool HasLook;
         public Vec3d Look;
@@ -39,6 +39,8 @@ static partial class Program
         void Flinch(double x, double z, double height, double side, double strength);
         void Stumble(double side);
         bool Stumbling { get; }
+        /// <summary>How far into the tactical hunch it is (0 for an animator from before the hunch).</summary>
+        double Tactical { get; }
     }
 
     sealed class NewBody : IBody
@@ -47,6 +49,7 @@ static partial class Program
         public NewBody(int seed) { _a = new BodyAnimator(seed); }
         public BodyPose Pose => _a.Pose;
         public bool Stumbling => _a.Stumbling;
+        public double Tactical => _a.Tactical;
         public void Startle(double x, double z) => _a.Startle(x, z);
         public void Wounded(int side, double severity, bool arm = false) => _a.Wounded(side, severity, arm);
         public void Flinch(double x, double z, double h, double side, double k) => _a.Flinch(x, z, h, side, k);
@@ -58,7 +61,7 @@ static partial class Program
                 State = s.State, ForwardSpeed = s.Speed, TurnRate = s.Turn, Phase = s.Phase, Moving = s.Moving,
                 WalkSpeed = 2.0, SprintSpeed = 4.6, StandingLeg = s.StandingLeg, LeftArmWorks = s.LeftArm, RightArmWorks = s.RightArm,
                 Aim = s.Aim, GunSide = s.GunSide, ArmLossLeft = s.LossLeft, ArmLossRight = s.LossRight, StumpLength = s.Stump,
-                Scramble = s.Scramble, Reach = s.Reach, ReachSide = s.ReachSide, Teeter = s.Teeter,
+                Scramble = s.Scramble, Reach = s.Reach, ReachSide = s.ReachSide, Teeter = s.Teeter, Tactical = s.Tactical,
                 HasLook = s.HasLook, LookX = s.Look.X, LookY = s.Look.Y, LookZ = s.Look.Z,
             };
             _a.Update(dt, input);
@@ -81,7 +84,7 @@ static partial class Program
 
     static string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
 
-    static void Frame(IBody body, Vec3d at, double headingDegrees, HashSet<BodyPartId> gone, List<(Vec3d at, double heading)> guns, string caption)
+    static void Frame(IBody body, Vec3d at, double headingDegrees, HashSet<BodyPartId> gone, List<(Vec3d at, double heading)> guns, string caption, double heldPitch = double.NaN)
     {
         if (!_firstFrame) Json.Append(",\n");
         _firstFrame = false;
@@ -110,7 +113,9 @@ static partial class Program
         {
             if (g > 0) Json.Append(',');
             Json.Append("{\"at\":[").Append(F(guns[g].at.X)).Append(',').Append(F(guns[g].at.Y)).Append(',').Append(F(guns[g].at.Z))
-                .Append("],\"heading\":").Append(F(guns[g].heading)).Append('}');
+                .Append("],\"heading\":").Append(F(guns[g].heading));
+            if (!double.IsNaN(heldPitch)) Json.Append(",\"pitch\":").Append(F(heldPitch));
+            Json.Append('}');
         }
         Json.Append("]}");
     }
@@ -359,6 +364,92 @@ static partial class Program
         }
     }
 
+    /// <summary>
+    /// A rifle held in both hands the way MannequinCombat.PoseWeapon holds it in the game: the grip in front of the
+    /// right shoulder pointing along <paramref name="aim"/> (the body's own space), and both arms bent to reach it
+    /// (the same two-bone solve, elbows down and out). Returns the grip, in the body's own space.
+    /// </summary>
+    static Vec3d HoldRifle(IBody body, Vec3d aim)
+    {
+        BodyPose pose = body.Pose;
+        int side = BodySkeleton.Right;
+        pose.World(BodySkeleton.UpperArm(side), out Vec3d shoulder, out _);
+        Vec3d grip = shoulder + aim * 0.30 + new Vec3d(0, -0.10, 0) + new Vec3d(-0.07, 0, 0);
+        Solve(pose, side, grip);
+        // The support hand on the fore-end, about a forearm's length further along.
+        Solve(pose, BodySkeleton.Left, grip + aim * 0.30 + new Vec3d(0, 0.02, 0));
+        return grip;
+    }
+
+    static void Solve(BodyPose pose, int side, Vec3d target)
+    {
+        BodyBone upper = BodySkeleton.UpperArm(side), fore = BodySkeleton.Forearm(side), hand = BodySkeleton.Hand(side);
+        pose.World(upper, out Vec3d shoulder, out _);
+        pose.World(fore, out Vec3d elbowRest, out _);
+        pose.World(hand, out Vec3d wrist, out _);
+        double upperLength = Vec3d.Distance(shoulder, elbowRest);
+        double foreLength = Vec3d.Distance(elbowRest, wrist) + 0.07;
+        Vec3d to = target - shoulder;
+        double distance = Math.Max(Math.Abs(upperLength - foreLength) + 0.01, Math.Min(upperLength + foreLength - 0.005, to.Magnitude));
+        Vec3d dir = to * (1.0 / Math.Max(1e-6, to.Magnitude));
+        double cos = (upperLength * upperLength + distance * distance - foreLength * foreLength) / (2 * upperLength * distance);
+        double angle = Math.Acos(Math.Max(-1, Math.Min(1, cos)));
+        Vec3d outward = new Vec3d(side == BodySkeleton.Left ? -1 : 1, 0, 0);
+        Vec3d bend = (new Vec3d(0, -1, 0) + outward * 0.6);
+        Vec3d axis = Vec3d.Cross(dir, bend * (1.0 / bend.Magnitude));
+        axis = axis * (1.0 / Math.Max(1e-6, axis.Magnitude));
+        Vec3d upperDir = QuatD.AngleAxis(axis, angle).Rotate(dir);
+        Vec3d elbow = shoulder + upperDir * upperLength;
+        Vec3d foreDir = shoulder + dir * distance - elbow;
+        foreDir = foreDir * (1.0 / Math.Max(1e-6, foreDir.Magnitude));
+        Vec3d boneAxis = side == BodySkeleton.Left ? new Vec3d(-1, 0, 0) : new Vec3d(1, 0, 0);
+        QuatD upperWorld = QuatD.FromTo(boneAxis, upperDir), foreWorld = QuatD.FromTo(boneAxis, foreDir);
+        pose.World((BodyBone)BodySkeleton.Parent(upper), out _, out QuatD parent);
+        pose.Local[(int)upper] = (parent.Inverse * upperWorld).Normalized;
+        pose.Local[(int)fore] = (upperWorld.Inverse * foreWorld).Normalized;
+        pose.Local[(int)hand] = QuatD.Identity;
+    }
+
+    /// <summary>
+    /// The tactical hunch: patrolling upright with the rifle low, then it sees you, drops into the hunch and
+    /// advances, gun up, and stops to aim. With "old" it does the same thing without the hunch (the game before it).
+    /// </summary>
+    static void Hunch()
+    {
+        IBody b = MakeBody(5);
+        var at = new Vec3d(0, 0, 0);
+        double heading = 200.0;
+        var s = new Sim { State = MovementState.Intact, LeftArm = true, RightArm = true, GunSide = BodySkeleton.Right };
+        for (int i = 0; i < 60; i++) b.Step(Dt, s);
+        double t = 0;
+        int frame = 0;
+        const double spotted = 1.4, stop = 4.4, end = 5.6;
+        while (t < end)
+        {
+            bool fighting = t >= spotted && !_old;
+            s.Tactical = fighting ? 1.0 : 0.0;
+            double pace = t < spotted ? 1.4 : t < stop ? 1.6 : 0.0;
+            s.Speed += (pace - s.Speed) * (1.0 - Math.Exp(-6.0 * Dt));
+            s.Moving = s.Speed > 0.05;
+            s.Aim = t >= stop ? 1.0 : 0.0;
+            at = at + Ahead(heading) * (s.Speed * Dt);
+            b.Step(Dt, s);
+            // The gun: low ready, raised to just under the eyes in the hunch, levelled at the target when aiming.
+            double down = 0.75 + (0.25 - 0.75) * b.Tactical;
+            Vec3d aim = t >= stop ? new Vec3d(0.05, -0.04, 1.0) : new Vec3d(0, -down, 1.0);
+            aim = aim * (1.0 / aim.Magnitude);
+            Vec3d grip = HoldRifle(b, aim);
+            if (frame++ % Every == 0)
+            {
+                Vec3d world = at + QuatD.AngleAxis(Vec3d.Up, heading * Math.PI / 180.0).Rotate(grip + aim * 0.12);
+                double pitch = Math.Asin(aim.Y) * 180.0 / Math.PI;
+                string caption = t < spotted ? "patrolling" : t < stop ? (_old ? "advancing" : "advancing, hunched") : "aiming";
+                Frame(b, at, heading, null, new List<(Vec3d, double)> { (world, heading) }, caption, pitch);
+            }
+            t += Dt;
+        }
+    }
+
     static double Smooth01(double x) { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); }
 
     static void Main(string[] args)
@@ -376,7 +467,8 @@ static partial class Program
             case "hobble": Hobble(); break;
             case "arm": Arm(); break;
             case "walk": Walk(speedArg); break;
-            default: throw new ArgumentException("scene: disarm, hobble, arm or walk [speed]");
+            case "hunch": Hunch(); break;
+            default: throw new ArgumentException("scene: disarm, hobble, arm, walk [speed] or hunch");
         }
         Json.Append("]}");
         File.WriteAllText(path, Json.ToString());

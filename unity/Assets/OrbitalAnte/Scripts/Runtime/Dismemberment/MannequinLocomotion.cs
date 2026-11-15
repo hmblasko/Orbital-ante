@@ -52,6 +52,10 @@ namespace OrbitalAnte.Dismemberment
         public Vector3? LookAt;
         /// <summary>Stay on the spot (startled, or bending to pick something up), turning slowly toward <see cref="LookAt"/>.</summary>
         public bool Hold;
+        /// <summary>0 to 1: move and stand in the tactical hunch (knees bent, low, gun up, head level). Set by the fight.</summary>
+        public float Tactical;
+        /// <summary>How far into the hunch the body really is (it eases in and out), for posing the gun.</summary>
+        public float TacticalShown => _anim != null ? (float)_anim.Tactical : 0f;
 
         // The hobble is not a metronome: each hop has its own length, and now and then it lands badly and
         // has to catch its balance. It changes where the body is, so it draws from its own seeded stream.
@@ -396,6 +400,7 @@ namespace OrbitalAnte.Dismemberment
                 Reach = Mathf.Clamp01(Reach),
                 ReachSide = ReachSide,
                 Teeter = _teetering ? 1.0 : 0.0,
+                Tactical = Mathf.Clamp01(Tactical),
             };
             if (LookAt.HasValue)
             {

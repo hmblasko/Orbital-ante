@@ -1,9 +1,9 @@
 # Motion dump
 
-A small console program that runs the enemy's animation rules (`BodyAnimator`) through short scenes outside Unity (a disarm and scramble, a leg shot off, an arm shot off, a plain walk or run at a given speed), moving the body the way `MannequinLocomotion` and `MannequinCombat` would, and writes every frame to JSON:
+A small console program that runs the enemy's animation rules (`BodyAnimator`) through short scenes outside Unity (a disarm and scramble, a leg shot off, an arm shot off, a plain walk or run at a given speed, the tactical hunch with the rifle held), moving the body the way `MannequinLocomotion` and `MannequinCombat` would, and writes every frame to JSON:
 
-    dotnet run -c Release -- disarm.json disarm      (or: hobble, arm, or walk 2.0 for a walk at 2 m/s)
-    add "dense" to write all 60 frames a second (for tools/gait_measure), "old" for the older animator
+    dotnet run -c Release -- disarm.json disarm      (or: hobble, arm, hunch, or walk 2.0 for a walk at 2 m/s)
+    add "dense" to write all 60 frames a second (for tools/gait_measure), "old" for the older animator (for hunch, "old" means the same scene without the hunch)
     blender -b -P tools/blender/preview_enemy_motion.py -- disarm.json <folder> --eye 2.0,1.3,-3.2 --lens 50 --follow --size 360x440
     ffmpeg -framerate 20 -i <folder>/f%03d.png ... (or any tool) to make a GIF
 

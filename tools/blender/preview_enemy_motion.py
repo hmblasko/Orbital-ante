@@ -174,7 +174,8 @@ def main():
         if fr["guns"]:
             g = fr["guns"][0]
             gun.location = (g["at"][0], g["at"][2], g["at"][1])
-            gun.rotation_euler = (0, 0, math.radians(-g["heading"]))
+            # A held gun carries its pitch (muzzle up positive); one on the ground lies flat.
+            gun.rotation_euler = (math.radians(g.get("pitch", 0.0)), 0, math.radians(-g["heading"]))
         if only and i not in only:
             continue
         oa.render_preview(os.path.join(folder, "f%03d.png" % i), shown,

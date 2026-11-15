@@ -92,3 +92,4 @@ How Blender models are made: each is built by a script in `tools/blender/` (so i
 - Anything that shines by itself is drawn brighter than white so it blooms, rather than given a glow sprite.
 - Every new cost goes in `docs/performance_budget.md`.
 - Nothing is called finished on looks until it has passed the visual quality gate on real captures.
+- An enemy's posture says what it knows: hunched with the gun up means it is alerted to the player (it sees them, heard them, or its squad did); upright with the gun low means unaware. Every new kind keeps that tell (`EnemyTypeSpec.hunch`; a kind may hunch less, never not at all, and never hunched on patrol).
