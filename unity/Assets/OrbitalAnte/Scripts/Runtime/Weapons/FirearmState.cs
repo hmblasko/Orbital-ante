@@ -54,15 +54,24 @@ namespace OrbitalAnte.Weapons
     public sealed class FirearmState
     {
         readonly FirearmSpec _spec;
-        float _cooldown;
+        readonly double _shotInterval;
+        // A continuing automatic burst keeps its fractional scheduling lateness between frames.
+        double _cooldown;
+        // Interrupted fire starts from the last real shot, not a shortened scheduled interval.
+        double _actualCooldown;
+        bool _continuingAutomatic;
+        bool _firedSinceTick;
+        float _burstBloom;
         float _reloadLeft;
         float _reloadTotal;
 
         public FirearmState(FirearmSpec spec, int startingAmmo = -1)
         {
             if (spec.MagazineSize < 1) throw new ArgumentException("A magazine holds at least one round.", nameof(spec));
-            if (spec.ShotsPerSecond <= 0f) throw new ArgumentException("Fire rate must be above zero.", nameof(spec));
+            if (spec.ShotsPerSecond <= 0f || float.IsNaN(spec.ShotsPerSecond) || float.IsInfinity(spec.ShotsPerSecond))
+                throw new ArgumentException("Fire rate must be finite and above zero.", nameof(spec));
             _spec = spec;
+            _shotInterval = 1d / spec.ShotsPerSecond;
             Ammo = startingAmmo < 0 ? spec.MagazineSize : Math.Min(startingAmmo, spec.MagazineSize);
         }
 
@@ -74,7 +83,7 @@ namespace OrbitalAnte.Weapons
         /// <summary>Extra aim error built up by recent shots, in degrees.</summary>
         public float Bloom { get; private set; }
         /// <summary>Seconds until the next shot is allowed.</summary>
-        public float Cooldown => _cooldown;
+        public float Cooldown => (float)Math.Min(float.MaxValue, Math.Max(0d, _cooldown));
 
         static int ClampHands(int hands) => hands < 0 ? 0 : hands > 2 ? 2 : hands;
 
@@ -110,15 +119,20 @@ namespace OrbitalAnte.Weapons
         /// <returns>True on the frame a reload completes.</returns>
         public bool Tick(float dt)
         {
-            if (dt <= 0f) return false;
+            if (dt <= 0f || float.IsNaN(dt) || float.IsInfinity(dt)) return false;
+            _firedSinceTick = false;
             // Between shots of a burst the built-up spread does not settle, so holding the trigger really
-            // does make the gun wander. It only settles in the time left over once the gun has gone quiet.
-            float quiet = dt;
-            if (_cooldown > 0f)
+            // does make the gun wander. Quiet recovery is applied now, but a continuing shot can undo the
+            // fraction caused only by rendering that shot after its scheduled time.
+            float quiet = (float)Math.Max(0d, dt - _actualCooldown);
+            _actualCooldown = Math.Max(0d, _actualCooldown - dt);
+            _cooldown -= dt;
+            if (_continuingAutomatic)
             {
-                quiet = Math.Max(0f, dt - _cooldown);
-                _cooldown = Math.Max(0f, _cooldown - dt);
+                // Missing a whole extra shot is a stall, not a debt to pay with a catch-up burst.
+                if (_cooldown <= -_shotInterval) EndAutomaticBurst();
             }
+            else _cooldown = Math.Max(0d, _cooldown);
             if (quiet > 0f && Bloom > 0f) Bloom = Math.Max(0f, Bloom - _spec.BloomRecovery * quiet);
 
             if (_reloadLeft > 0f)
@@ -140,14 +154,21 @@ namespace OrbitalAnte.Weapons
         /// <param name="hands">Usable hands on the gun: 0, 1 or 2.</param>
         /// <param name="triggerHeld">The trigger is down this frame.</param>
         /// <param name="triggerPressed">The trigger went down this frame (needed for non-automatic guns).</param>
+        /// <remarks>Pass observed releases and fresh pulls; trigger changes between calls cannot be inferred.</remarks>
         public FireResult TryFire(int hands, bool triggerHeld, bool triggerPressed)
         {
             var result = new FireResult();
             hands = ClampHands(hands);
-            if (hands == 0 || Reloading) return result;
-
             bool wants = _spec.Automatic ? (triggerHeld || triggerPressed) : triggerPressed;
-            if (!wants || _cooldown > 0f) return result;
+            if (hands == 0 || Reloading || !wants)
+            {
+                EndAutomaticBurst();
+                return result;
+            }
+
+            // A fresh pull starts from the actual shot time, even if the old burst was nearly ready.
+            if (!_spec.Automatic || !triggerHeld || triggerPressed || Ammo <= 0) EndAutomaticBurst();
+            if (_firedSinceTick || _cooldown > 0d) return result;
 
             if (Ammo <= 0)
             {
@@ -156,20 +177,32 @@ namespace OrbitalAnte.Weapons
                 return result;
             }
 
+            if (_continuingAutomatic) Bloom = _burstBloom;
             result.Fired = true;
             result.SpreadDegrees = SpreadFor(hands);
             result.RecoilScale = RecoilScaleFor(hands);
 
             Ammo--;
-            _cooldown = 1f / _spec.ShotsPerSecond;
+            _cooldown = (_continuingAutomatic ? _cooldown : 0d) + _shotInterval;
+            _actualCooldown = _shotInterval;
+            _firedSinceTick = true;
             Bloom = Math.Min(Math.Max(0f, _spec.MaxBloom), Bloom + _spec.SpreadPerShot);
+            _burstBloom = Bloom;
+            _continuingAutomatic = _spec.Automatic && triggerHeld && Ammo > 0;
             return result;
+        }
+
+        void EndAutomaticBurst()
+        {
+            _continuingAutomatic = false;
+            _cooldown = Math.Max(_actualCooldown, _cooldown);
         }
 
         /// <summary>Starts a reload if this many hands can do one. Returns true if it started.</summary>
         public bool StartReload(int hands)
         {
             if (!CanReload(hands)) return false;
+            EndAutomaticBurst();
             _reloadTotal = ReloadSecondsFor(hands);
             _reloadLeft = _reloadTotal;
             if (_reloadLeft <= 0f)
@@ -183,6 +216,8 @@ namespace OrbitalAnte.Weapons
         /// <summary>Abandons a reload in progress (the gun was dropped or knocked away). The magazine keeps what it had.</summary>
         public void CancelReload()
         {
+            // Dropping a weapon also calls this when it was not reloading.
+            EndAutomaticBurst();
             _reloadLeft = 0f;
         }
 
@@ -193,6 +228,7 @@ namespace OrbitalAnte.Weapons
         public void HandsChanged(int hands)
         {
             hands = ClampHands(hands);
+            if (hands == 0) EndAutomaticBurst();
             if (!Reloading) return;
             if (hands == 0 || (hands == 1 && !_spec.OneHandCanReload)) CancelReload();
         }

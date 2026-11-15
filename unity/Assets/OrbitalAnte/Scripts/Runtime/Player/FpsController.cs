@@ -9,6 +9,7 @@ namespace OrbitalAnte.Player
     /// (Planet gravity, the suit and the jetpack replace this in later milestones.)
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
+    [DefaultExecutionOrder(-240)] // The current eye pose must exist before PlayerWeapons.Update casts a shot.
     public sealed class FpsController : MonoBehaviour
     {
         public Camera Eye { get; private set; }
@@ -25,6 +26,13 @@ namespace OrbitalAnte.Player
         float _recoilReturnPitch;
         float _recoilReturnYaw;
         float _recoilRecovery = 14f;
+        float _standingHeight, _standingEye, _standingStep, _lean, _visibleLean;
+        Vector3 _standingCenter;
+        readonly CameraClearance _clearance = new CameraClearance();
+        readonly ParkourMotor _parkour = new ParkourMotor();
+        public bool Crouched => _controller != null && _controller.height < _standingHeight - 0.001f;
+        public bool WallRunning => _parkour.WallRunning;
+        public bool Climbing => _parkour.Climbing;
 
         /// <summary>When true the player cannot move or look (used for the moment after being shot down).</summary>
         public bool Frozen { get; set; }
@@ -38,6 +46,10 @@ namespace OrbitalAnte.Player
             _controller = GetComponent<CharacterController>();
             _yaw = transform.eulerAngles.y;
             _pitch = 0f;
+            _standingHeight = _controller.height;
+            _standingCenter = _controller.center;
+            _standingStep = _controller.stepOffset;
+            _standingEye = Eye.transform.localPosition.y;
         }
 
         void Update()
@@ -47,6 +59,7 @@ namespace OrbitalAnte.Player
             if (dt <= 0f) return;
             if (Frozen)
             {
+                _parkour.Stop();
                 _horizontalVelocity = Vector3.zero;
                 return;
             }
@@ -54,7 +67,9 @@ namespace OrbitalAnte.Player
             Look(dt);
             SettleRecoil(dt);
             transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
+            UpdateStance(TimeFlow.PlayerDelta(dt));
             Move(dt);
+            ApplyBasePose();
         }
 
         /// <summary>
@@ -108,7 +123,14 @@ namespace OrbitalAnte.Player
             _recoilReturnYaw = 0f;
             _horizontalVelocity = Vector3.zero;
             _verticalVelocity = 0f;
+            _parkour.Reset();
             transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
+            _controller.height = _standingHeight;
+            _controller.center = _standingCenter;
+            _controller.stepOffset = _standingStep;
+            _lean = _visibleLean = 0f;
+            Eye.transform.localPosition = new Vector3(0f, _standingEye, 0f);
+            Eye.transform.localRotation = Quaternion.identity;
         }
 
         void Look(float dt)
@@ -140,20 +162,100 @@ namespace OrbitalAnte.Player
 
         void LateUpdate()
         {
-            if (Eye == null || GameSession.Paused) return;
+            if (Eye == null || GameSession.Paused || Frozen) return;
+            // Recoil may have arrived after Update; rebuild once, then layer the final shake on top.
+            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
+            ApplyBasePose();
             // Applied every frame so camera shake can ride on top of where the player is looking.
             Quaternion shake = Shake != null ? Shake.Offset : Quaternion.identity;
-            Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f) * shake;
+            Eye.transform.localRotation *= shake;
+        }
+
+        void UpdateStance(float dt)
+        {
+            float crouch = StanceRules.CrouchHeight(Config.crouchHeight, _standingHeight, _controller.radius);
+            bool wantCrouch = GameInput.JetDown.IsPressed() && (_controller.isGrounded || Climbing);
+            float wanted = wantCrouch ? crouch : _standingHeight;
+            float next = Mathf.MoveTowards(_controller.height, wanted, StanceRules.NonNegative(Config.stanceSpeed) * dt);
+            Vector3 feet = transform.TransformPoint(_standingCenter - Vector3.up * (_standingHeight * 0.5f));
+            if (!Mathf.Approximately(next, _controller.height) &&
+                (next < _controller.height || _parkour.CanOccupy(feet, transform.up, next, _controller.radius, transform, _controller.skinWidth)))
+            {
+                _controller.height = next;
+                _controller.center = _standingCenter + Vector3.up * ((next - _standingHeight) * 0.5f);
+                _controller.stepOffset = Mathf.Min(_standingStep, next * 0.5f);
+            }
+            int lean = StanceRules.Lean(GameInput.SuitRollLeft.IsPressed(), GameInput.SuitRollRight.IsPressed());
+            _lean = Mathf.MoveTowards(_lean, lean, StanceRules.NonNegative(Config.leanSpeed) * dt);
+        }
+
+        void ApplyBasePose()
+        {
+            float crouch = StanceRules.CrouchHeight(Config.crouchHeight, _standingHeight, _controller.radius);
+            float eyeHeight = StanceRules.EyeHeight(_controller.height, _standingHeight, _standingEye, crouch, Config.crouchEyeHeight);
+            Vector3 feet = transform.TransformPoint(_standingCenter - Vector3.up * (_standingHeight * 0.5f));
+            float radius = CameraClearance.Radius(Eye, Config.headClearanceRadius);
+            Vector3 centre = feet + transform.up * (_controller.height * 0.5f);
+            Vector3 uprightEye = _clearance.Clip(centre, feet + transform.up * eyeHeight, radius, transform);
+            float distance = StanceRules.NonNegative(Config.leanDistance);
+            Vector3 eye = _clearance.Clip(uprightEye, uprightEye + transform.right * (_lean * distance), radius, transform);
+            _visibleLean = distance > 0f ? Vector3.Dot(eye - uprightEye, transform.right) / distance : 0f;
+            Eye.transform.position = eye;
+            Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, -_visibleLean * StanceRules.NonNegative(Config.leanDegrees));
         }
 
         void Move(float dt)
         {
             Vector2 input = Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f);
             bool grounded = _controller.isGrounded;
-            if (grounded) _lastGroundedTime = Time.time;
+            bool jump = GameInput.Jump.WasPressedThisFrame();
+            bool down = GameInput.JetDown.IsPressed();
+            if (grounded && !Climbing)
+            {
+                _lastGroundedTime = Time.time;
+                _parkour.State.Grounded();
+            }
+            _parkour.Tick(dt);
+            Vector3 feet = transform.TransformPoint(_standingCenter - Vector3.up * (_standingHeight * 0.5f));
+            bool climbAllowed = Config.parkourEnabled && ParkourRules.GravityAllows(Config.gravity, Config.parkourMinimumGravity);
+            bool parkourAllowed = climbAllowed && !down && !Crouched;
+            if (Climbing && (!climbAllowed || !GameInput.Jump.IsPressed()))
+            {
+                Vector3 release = _parkour.ClimbExitVelocity;
+                _parkour.Stop();
+                _horizontalVelocity = Vector3.ProjectOnPlane(release, Vector3.up);
+                _verticalVelocity = release.y;
+            }
+            if (!Climbing && climbAllowed && !grounded && jump && input.y > 0.3f)
+                _parkour.TryBeginClimb(feet, Vector3.up, transform.forward, _controller.height, _controller.radius, transform, Velocity, Config, _controller.skinWidth);
+            if (Climbing)
+            {
+                _lastGroundedTime = -10f;
+                if (_parkour.TryClimbStep(feet, Vector3.up, _controller.height, _controller.radius, transform, Config, dt, out Vector3 climb, _controller.skinWidth))
+                {
+                    Vector3 before = transform.position;
+                    _controller.Move(climb);
+                    Vector3 actual = transform.position - before;
+                    _horizontalVelocity = Vector3.ProjectOnPlane(actual, Vector3.up) / dt;
+                    _verticalVelocity = actual.y / dt;
+                    // A controller collision can shorten a query-approved step. Do not continue driving into it.
+                    if ((actual - climb).sqrMagnitude > 0.0004f)
+                    {
+                        Vector3 release = _parkour.ClimbExitVelocity;
+                        _parkour.Stop();
+                        _horizontalVelocity = Vector3.ProjectOnPlane(release, Vector3.up);
+                        _verticalVelocity = release.y;
+                    }
+                    return;
+                }
+                Vector3 exit = _parkour.ClimbExitVelocity;
+                _horizontalVelocity = Vector3.ProjectOnPlane(exit, Vector3.up);
+                _verticalVelocity = exit.y;
+            }
 
-            bool sprinting = GameInput.Sprint.IsPressed() && input.y > 0.3f;
+            bool sprinting = !Crouched && GameInput.Sprint.IsPressed() && input.y > 0.3f;
             float speed = sprinting ? Config.sprintSpeed : Config.walkSpeed;
+            if (Crouched) speed *= Mathf.Clamp01(StanceRules.NonNegative(Config.crouchSpeedShare));
             Vector3 wish = (transform.right * input.x + transform.forward * input.y) * speed;
 
             float acceleration = grounded ? Config.groundAcceleration : Config.airAcceleration;
@@ -162,7 +264,7 @@ namespace OrbitalAnte.Player
             if (grounded && _verticalVelocity < 0f) _verticalVelocity = -2f;
 
             bool canJump = Time.time - _lastGroundedTime <= Config.coyoteTime;
-            if (canJump && GameInput.Jump.WasPressedThisFrame())
+            if (canJump && jump)
             {
                 _verticalVelocity = Mathf.Sqrt(2f * Config.gravity * Config.jumpHeight);
                 _lastGroundedTime = -10f;
@@ -171,6 +273,10 @@ namespace OrbitalAnte.Player
             _verticalVelocity -= Config.gravity * dt;
 
             Vector3 velocity = _horizontalVelocity + Vector3.up * _verticalVelocity;
+            _parkour.TryWallRun(feet, Vector3.up, transform.forward, _controller.height, _controller.radius,
+                transform, Config, parkourAllowed, grounded, sprinting, input.y, Crouched, jump, Config.gravity, dt, ref velocity);
+            _horizontalVelocity = Vector3.ProjectOnPlane(velocity, Vector3.up);
+            _verticalVelocity = velocity.y;
             CollisionFlags flags = _controller.Move(velocity * dt);
             if ((flags & CollisionFlags.Above) != 0 && _verticalVelocity > 0f) _verticalVelocity = 0f;
         }

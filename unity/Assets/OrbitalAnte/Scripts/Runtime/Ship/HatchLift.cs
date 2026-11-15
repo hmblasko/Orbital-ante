@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace OrbitalAnte.Ship
 {
@@ -34,6 +35,64 @@ namespace OrbitalAnte.Ship
         public P3 Rider { get; private set; }
         float _rideBottom;
         bool _mustStepAway;
+        readonly object _legacyActor = new object();
+        readonly List<object> _mustLeaveRing = new List<object>();
+        object _finishedActor;
+        LiftRide _finishedRide;
+        public object RiderActor { get; private set; }
+
+        /// <summary>Actor-owned entry points are shared by the player and NPCs. A request never replaces a rider.</summary>
+        public bool TryBeginUp(object actor, P3 feet)
+        {
+            if (actor == null || !WantOpen || PendingActorCompletion || !CanPickUp(actor, feet)) return false;
+            RiderActor = actor;
+            _finishedActor = null;
+            Ride = LiftRide.Up;
+            Rider = feet;
+            return true;
+        }
+
+        public bool TryBeginDown(object actor, P3 feet, float bottomY)
+        {
+            if (actor == null || !Open || !WantOpen || Ride != LiftRide.None || RiderActor != null || PendingActorCompletion) return false;
+            RiderActor = actor;
+            _finishedActor = null;
+            Ride = LiftRide.Down;
+            Rider = new P3(feet.X, 0f, feet.Z);
+            _rideBottom = Math.Max(ShipLayout.BellyY - Reach, Math.Min(bottomY, ShipLayout.BellyY - 0.2f));
+            return true;
+        }
+
+        public bool FinishedFor(object actor, LiftRide ride)
+        {
+            if (!ReferenceEquals(actor, _finishedActor) || ride != _finishedRide) return false;
+            _finishedActor = null;
+            return true;
+        }
+
+        // The finishing actor still owns this transfer until it has consumed the result. Otherwise an
+        // earlier-updating actor could replace Rider and erase the completion before its owner reads it.
+        bool PendingActorCompletion => _finishedActor != null && !ReferenceEquals(_finishedActor, _legacyActor);
+
+        public void Release(object actor)
+        {
+            if (ReferenceEquals(RiderActor, actor)) { RiderActor = null; Ride = LiftRide.None; }
+            if (ReferenceEquals(_finishedActor, actor)) _finishedActor = null;
+        }
+
+        /// <summary>Final actor disposal also drops its step-away memory.</summary>
+        public void Forget(object actor)
+        {
+            Release(actor);
+            for (int i = _mustLeaveRing.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(actor, _mustLeaveRing[i])) _mustLeaveRing.RemoveAt(i);
+        }
+
+        bool MustLeaveRing(object actor)
+        {
+            for (int i = 0; i < _mustLeaveRing.Count; i++) if (ReferenceEquals(actor, _mustLeaveRing[i])) return true;
+            return false;
+        }
 
         /// <summary>Asks the doors to open or close. Returns false (and does nothing) if the hatch is broken.</summary>
         public bool Set(bool open, bool hatchWorks)
@@ -51,21 +110,31 @@ namespace OrbitalAnte.Ship
         /// True when someone standing with their feet at <paramref name="feet"/> (ship space) is where the lift
         /// would pick them up: under the ring, within reach, with the doors open.
         /// </summary>
-        public bool CanPickUp(P3 feet)
+        public bool CanPickUp(P3 feet) => CanPickUp(_legacyActor, feet);
+
+        public bool CanPickUp(object actor, P3 feet)
         {
             float d = (float)Math.Sqrt(feet.X * feet.X + feet.Z * feet.Z);
             bool under = d < ShipLayout.ShaftRadius - 0.1f && feet.Y < ShipLayout.BellyY + 0.3f && feet.Y > ShipLayout.BellyY - Reach;
             if (!under)
             {
                 // Having been set down, you have to step out from under the ring before it will take you again.
-                if (d > ShipLayout.ShaftRadius + 0.15f || feet.Y < ShipLayout.BellyY - Reach) _mustStepAway = false;
+                if (d > ShipLayout.ShaftRadius + 0.15f || feet.Y < ShipLayout.BellyY - Reach)
+                {
+                    if (ReferenceEquals(actor, _legacyActor)) _mustStepAway = false;
+                    for (int i = _mustLeaveRing.Count - 1; i >= 0; i--)
+                        if (ReferenceEquals(actor, _mustLeaveRing[i])) _mustLeaveRing.RemoveAt(i);
+                }
                 return false;
             }
-            return Open && Ride == LiftRide.None && !_mustStepAway;
+            return Open && Ride == LiftRide.None && RiderActor == null && !PendingActorCompletion
+                && !(ReferenceEquals(actor, _legacyActor) && _mustStepAway) && !MustLeaveRing(actor);
         }
 
         public void BeginUp(P3 feet)
         {
+            if (Ride != LiftRide.None || RiderActor != null) return;
+            RiderActor = _legacyActor;
             Ride = LiftRide.Up;
             Rider = feet;
         }
@@ -73,6 +142,8 @@ namespace OrbitalAnte.Ship
         /// <param name="bottomY">How far down (ship space) the lift should set the rider down: the ground, or as far as it reaches.</param>
         public void BeginDown(P3 feet, float bottomY)
         {
+            if (Ride != LiftRide.None || RiderActor != null) return;
+            RiderActor = _legacyActor;
             Ride = LiftRide.Down;
             Rider = new P3(feet.X, 0f, feet.Z);
             _rideBottom = Math.Max(ShipLayout.BellyY - Reach, Math.Min(bottomY, ShipLayout.BellyY - 0.2f));
@@ -87,6 +158,13 @@ namespace OrbitalAnte.Ship
         public LiftRide Tick(float dt, bool hatchWorks = true)
         {
             LastFinished = TickInner(dt, hatchWorks);
+            if (LastFinished != LiftRide.None)
+            {
+                _finishedActor = RiderActor;
+                _finishedRide = LastFinished;
+                if (LastFinished == LiftRide.Down && !MustLeaveRing(RiderActor)) _mustLeaveRing.Add(RiderActor);
+                RiderActor = null;
+            }
             return LastFinished;
         }
 
@@ -169,7 +247,7 @@ namespace OrbitalAnte.Ship
 
         public bool Release()
         {
-            if (State != BeltState.Buckled) return false;
+            if (State != BeltState.Buckled && State != BeltState.Buckling) return false;
             State = BeltState.Unbuckling;
             return true;
         }

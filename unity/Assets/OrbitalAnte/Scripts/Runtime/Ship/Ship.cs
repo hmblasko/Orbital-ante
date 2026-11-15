@@ -19,6 +19,57 @@ namespace OrbitalAnte.Ship
     [DefaultExecutionOrder(-300)]
     public sealed class Ship : MonoBehaviour
     {
+        static readonly List<Ship> _all = new List<Ship>();
+        public static IReadOnlyList<Ship> All => _all;
+        public object PilotOwner { get; private set; }
+        bool _npcShip;
+        void OnEnable() { if (!_all.Contains(this)) _all.Add(this); }
+        void OnDisable()
+        {
+            _all.Remove(this);
+            if (PilotOwner != null) ReleasePilot(PilotOwner);
+            if (Hatch != null && Hatch.RiderActor != null) Hatch.Release(Hatch.RiderActor);
+        }
+
+        public void SetNpcShip()
+        {
+            _npcShip = true;
+            Flight.UseExternalControl = true;
+            Flight.SpatialSound = true;
+            if (_tick != null) _tick.spatialBlend = 1f;
+        }
+
+        public bool TryClaimPilot(object actor, bool external = false)
+        {
+            if (actor == null || (PilotOwner != null && !ReferenceEquals(PilotOwner, actor))) return false;
+            if (Crew != null && !ReferenceEquals(Crew, actor) && !Crew.Dead && Crew.Mode == AstronautMode.Seated) return false;
+            PilotOwner = actor;
+            Flight.UseExternalControl = external;
+            return true;
+        }
+
+        public void ReleasePilot(object actor)
+        {
+            if (!ReferenceEquals(PilotOwner, actor)) return;
+            PilotOwner = null;
+            Belt.Release();
+            Flight.Unmanned = true;
+            Flight.ClearExternalCommand();
+            Flight.UseExternalControl = _npcShip;
+        }
+
+        public static Ship FindInCabin(Vector3 point)
+        {
+            for (int i = 0; i < _all.Count; i++)
+            {
+                Ship ship = _all[i];
+                if (ship == null || ship.Model == null) continue;
+                Vector3 p = ship.transform.InverseTransformPoint(point);
+                float r = new Vector2(p.x, p.z).magnitude;
+                if (r < ShipLayout.WalkRadius + ShipLayout.PersonRadius && p.y >= 0f && p.y <= ShipLayout.CeilingAt(r)) return ship;
+            }
+            return null;
+        }
         public ShipConfig Config { get; private set; }
         public Rigidbody Body { get; private set; }
         public GravityBody Gravity { get; private set; }
@@ -28,6 +79,7 @@ namespace OrbitalAnte.Ship
         public HatchLift Hatch { get; private set; }
         public SeatBelt Belt { get; private set; }
         public ShipAudio Sounds { get; private set; }
+        public OrbitalAnte.Cockpit.ShipSupplies Supplies { get; private set; }
         /// <summary>True once the cabin is wearing its properly baked light (false while a stand-in is showing).</summary>
         public bool LightBaked { get; private set; }
 
@@ -98,6 +150,7 @@ namespace OrbitalAnte.Ship
             ship.Hatch = new HatchLift { DoorSeconds = config.doorSeconds, LiftSpeed = LiftSpeedOf(config), Reach = ReachOf(config) };
             ship.Belt = new SeatBelt { BuckleSeconds = config.buckleSeconds, UnbuckleSeconds = config.unbuckleSeconds };
             ship.Sounds = ShipAudio.Build();
+            ship.Supplies = new OrbitalAnte.Cockpit.ShipSupplies(OrbitalAnte.Cockpit.CockpitConfig.Load().supplies);
             ship.Build();
 
             // Low and central, so it sits steadily on its legs.
@@ -475,10 +528,8 @@ namespace OrbitalAnte.Ship
         /// <summary>A bullet (or anything else that says how hard it hits) struck a part.</summary>
         public HitOutcome HitPart(int index, in HitInfo hit)
         {
-            // A shot fired in the cabin that misses the glass has hit the cabin wall, whatever the physics says:
-            // the hull's collision shape is solid, so from inside a ray leaves it without touching it and would
-            // otherwise strike your own legs or dish.
-            if (CrewAboard && Model.Parts[index].Kind != PartKind.Window) index = Model.IndexOf("cabin");
+            // Interior ray correction is done by ballistics using its source ship. A direct collider hit always
+            // damages the authored part, regardless of who happens to be aboard.
             DamageResult result = Model.Damage(index, hit.Damage);
             ShowDamage(index, result, hit.Point, hit.Normal, bullet: true);
             return new HitOutcome
@@ -924,7 +975,8 @@ namespace OrbitalAnte.Ship
             FlightSounds(Time.deltaTime);
             if (Flight != null)
             {
-                Flight.Unmanned = !Belt.Buckled || (Crew != null && Crew.Dead);
+                Flight.Unmanned = !Belt.Buckled || (PilotOwner == null && (Crew == null || Crew.Dead || Crew.Mode != AstronautMode.Seated))
+                    || (ReferenceEquals(PilotOwner, Crew) && Crew != null && Crew.Dead);
                 Flight.LiftScale = Model.ThrustFactor * Mathf.Clamp01(LiftGate);
                 Flight.SideScale = Model.TurnFactor;
                 Flight.PushScale = Mathf.Clamp01(FuelGate);
@@ -1036,6 +1088,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            _all.Remove(this);
             if (Boarded == this) Boarded = null;
             if (_bakeJob != null) _bakeJob.Cancel();
             if (_panes != null)

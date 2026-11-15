@@ -274,7 +274,10 @@ namespace OrbitalAnte.Core
                     if (binding.isComposite) continue;
                     if (!InGroup(binding, group)) continue;
 
-                    string label = action.name;
+                    // Labels may explain context without changing the logical name (saved binding identity).
+                    string label = action == JetDown ? "Crouch (ground) / Jets Down (air)"
+                        : action == SuitRollLeft ? "Lean Left / Roll Left (floating)"
+                        : action == SuitRollRight ? "Lean Right / Roll Right (floating)" : action.name;
                     if (binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
                     {
                         label = action.name + " " + Capitalize(binding.name);
