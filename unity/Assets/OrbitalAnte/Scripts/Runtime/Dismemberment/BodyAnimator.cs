@@ -97,11 +97,11 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>The ordinary soldier: changes nothing.</summary>
         public static readonly BodyStyle Trooper = new BodyStyle();
         /// <summary>Small and quick: leans into its run, knees bent, arms pumping, never quite still.</summary>
-        public static readonly BodyStyle Runner = new BodyStyle(lean: 9.0, crouch: 0.035, stride: 1.12, armSwing: 1.25, bob: 0.8, stance: 0.9, idle: 1.3, girth: 0.88);
-        /// <summary>Huge and heavy: feet wide, arms held out round its own bulk, rolling from foot to foot.</summary>
-        public static readonly BodyStyle Bruiser = new BodyStyle(lean: 3.0, hunch: 9.0, armsOut: 20.0, elbowBend: 20.0, stance: 1.55, stride: 0.9, bob: 1.5, sway: 1.5, armSwing: 0.7, idle: 0.8, girth: 1.25);
+        public static readonly BodyStyle Runner = new BodyStyle(lean: 9.0, crouch: 0.035, stride: 1.0, armSwing: 1.25, bob: 0.8, stance: 0.9, idle: 1.3, girth: 0.88);
+        /// <summary>Huge and heavy: feet wide, arms held out round its own bulk, rolling from foot to foot on long, slow strides.</summary>
+        public static readonly BodyStyle Bruiser = new BodyStyle(lean: 3.0, hunch: 9.0, armsOut: 20.0, elbowBend: 20.0, stance: 1.55, stride: 1.18, bob: 1.5, sway: 1.5, armSwing: 0.7, idle: 0.8, girth: 1.25);
         /// <summary>Tall and still: bolt upright, feet together, gliding more than walking, hardly moving at rest.</summary>
-        public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.05, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.4, girth: 0.90);
+        public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.15, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.4, girth: 0.90);
 
         /// <summary>The style that goes with a body model, by the model's name. Anything unknown walks like a trooper.</summary>
         public static BodyStyle For(string model)
@@ -457,35 +457,53 @@ namespace OrbitalAnte.Dismemberment
             double walk = Math.Max(0.1, input.WalkSpeed / _size);
             double sprint = Math.Max(walk + 0.1, input.SprintSpeed / _size);
             double v = _speed;
-            double moveAmount = Clamp01(v / (walk * 0.5));
-            double straight = v <= walk
-                ? Lerp(1.15, 1.75, v / walk)
-                : Lerp(1.75, 2.70, Clamp01((v - walk) / (sprint - walk)));
             double turnAmount = Clamp01((Math.Abs(_turn) - 20.0) / 50.0);
             // Shuffle round fast enough that a planted foot never twists more than about 30 degrees each way.
             double turning = Math.Min(2.4, Math.Abs(_turn) * 0.62 / 60.0);
-            Pace(walk, sprint, RunAmount(v, walk, sprint), out double quicken, out _);
             // Scrambling takes quick, short steps: the same ground covered in more of them.
             double frantic = 1.0 + 0.22 * _scramble;
-            return Math.Max(straight * quicken * moveAmount * frantic / (_strideScale * _style.Stride), turning * turnAmount);
+            double stride = StrideLength(v, RunAmount(v, walk, sprint)) * _strideScale * _style.Stride / frantic;
+            return Math.Max(v / stride, turning * turnAmount);
         }
 
-        /// <summary>The walk and sprint speeds the gait was tuned at: the trooper's, at the skeleton's own size.</summary>
-        const double TunedWalk = 2.0, TunedSprint = 4.6;
-
-        static double RunAmount(double v, double walk, double sprint) => Smooth((v - walk * 1.2) / Math.Max(0.1, sprint * 0.95 - walk * 1.2));
+        /// <summary>Hip joint to ankle, straight: the length every stride is measured in.</summary>
+        const double LegLength = BodySkeleton.ThighLength + BodySkeleton.ShinLength;
+        /// <summary>Where the foot rolls over: the ball of the foot ahead of the ankle, and the heel behind it.</summary>
+        const double BallAhead = 0.14, HeelBehind = 0.07;
 
         /// <summary>
-        /// What a body quicker or slower than the trooper for its size does about it. A small quick one cannot
-        /// take strides twice as long as its legs, so its legs go faster (<paramref name="quicken"/>, up to a
-        /// third faster) and past that it spends less of each stride on the ground (<paramref name="over"/>). A
-        /// big slow one takes the same long strides more slowly. For the trooper both are exactly 1.
+        /// How long one stride (two steps) is at a speed, in metres at the skeleton's size. Measured from CMU walks
+        /// and runs (02_01, 07_01, 08_01, 16_15, 09_01, 35_17), in leg lengths: walking, 1.25 times the square
+        /// root of the speed in leg lengths a second (1.5 to 1.8 legs a stride at an ordinary to brisk walk);
+        /// running, half a leg plus 0.6 of the speed (2.7 to 2.9 legs at a jog). Below the stride a person really
+        /// takes, the steps look quick, short and mechanical.
         /// </summary>
-        static void Pace(double walk, double sprint, double run, out double quicken, out double over)
+        static double StrideLength(double v, double run)
         {
-            double ratio = Lerp(walk / TunedWalk, sprint / TunedSprint, run);
-            quicken = Clamp(ratio, 0.6, 1.35);
-            over = Math.Max(1.0, ratio / quicken);
+            double legs = Math.Max(0.0, v) / LegLength;
+            double walking = 1.25 * Math.Sqrt(legs);
+            // Past a fast run the stride stops growing much and the legs turn over faster instead.
+            double running = Math.Min(0.5 + 0.6 * legs, 3.4 + 0.15 * legs);
+            // Never so short that a crawl of a walk ticks over like a sewing machine.
+            return Math.Max(0.35, Lerp(walking, running, run)) * LegLength;
+        }
+
+        /// <summary>
+        /// 0 walking to 1 running: from where the speed sits between the body's own walk and sprint, but never a
+        /// walk past what legs can walk (people break into a run at about 2.6 to 3 leg lengths a second).
+        /// </summary>
+        static double RunAmount(double v, double walk, double sprint) =>
+            Math.Max(Smooth((v - walk * 1.2) / Math.Max(0.1, sprint * 0.95 - walk * 1.2)), Smooth((v / LegLength - 2.6) / 1.0));
+
+        /// <summary>
+        /// How much of a stride a foot spends on the ground: 61% walking; running, about 35% at a jog down to
+        /// about a fifth at a flat-out sprint (CMU runs, and the usual contact times of 0.2 s at 4 to 5 m/s
+        /// and 0.11 s at 8 m/s).
+        /// </summary>
+        static double Duty(double v, double run)
+        {
+            double running = Clamp(0.42 - 0.02 * Math.Max(0.0, v) / LegLength, 0.2, 0.36);
+            return Lerp(0.61, running, run);
         }
 
         void BuildStanding(BodyPose pose, in BodyAnimInput input)
@@ -503,9 +521,10 @@ namespace OrbitalAnte.Dismemberment
             double aimStill = _aim * (1.0 - moveAmount);
             double gunSign = input.GunSide == BodySkeleton.Left ? -1.0 : 1.0;
 
-            Pace(walk, sprint, run, out _, out double over);
-            double duty = Lerp(0.62, 0.36, run) / over;
-            double stanceTime = duty / Math.Max(_cadence, 0.6);
+            double duty = Duty(v, run);
+            double stanceTime = duty / Math.Max(_cadence, 0.4);
+            // A runner lands nearly under itself and pushes off far behind; a walker's step is about even.
+            double centre = Lerp(0.42, 0.32, run);
             double g = _gait;
 
             // ---- pelvis over the feet
@@ -513,15 +532,28 @@ namespace OrbitalAnte.Dismemberment
             double weight = Math.Sin(TwoPi * (_time + _timeOffset) / 7.3) + 0.35 * Math.Sin(TwoPi * (_time + _timeOffset) / 3.1);
             double idle = still * (1.0 - 0.7 * _aim) * style.Idle;
 
-            double mid = g - duty * 0.5;                       // 0 at the middle of the left foot's time on the ground
+            double mid = g - duty * centre;                    // 0 when the left foot is right under the body
             double perStep = Math.Cos(2.0 * TwoPi * mid);      // 1 at the middle of either foot's time on the ground
             double perStride = Math.Cos(TwoPi * mid);          // 1 over the left foot, -1 over the right
-            double bob = (0.020 * (1.0 - run) - 0.045 * run) * moveAmount * perStep * style.Bob;
-            double drop = 0.012 + 0.036 * moveAmount + 0.022 * run + 0.045 * aimStill + 0.02 * turnAmount * (1.0 - moveAmount) + style.Crouch;
-            double sway = -(0.022 * moveAmount * (1.0 - 0.6 * run) + 0.018 * turnAmount * (1.0 - moveAmount)) * perStride * style.Sway
+            // Most of a walk's rise and fall comes from the legs themselves (a straight leg vaulting over its foot,
+            // see the sink below); this adds a little. A run is lowest in the middle of each landing.
+            double bob = (0.012 * (1.0 - run) - 0.040 * run) * moveAmount * perStep * style.Bob;
+            // Taking the weight: just after each heel strike the knee gives about 15 degrees and straightens again.
+            double load = 0.0;
+            for (int f = 0; f < 2; f++)
+            {
+                double k = Frac(g + 0.5 * f) / Math.Max(duty, 0.05);
+                if (k < 0.45) load = Math.Max(load, Math.Sin(Math.PI * k / 0.45));
+            }
+            bob -= 0.014 * load * moveAmount * (1.0 - run) * style.Bob;
+            // Walking on nearly straight legs; only a run carries the hips a little lower.
+            double drop = 0.004 + 0.008 * moveAmount + 0.022 * run + 0.045 * aimStill + 0.02 * turnAmount * (1.0 - moveAmount) + style.Crouch;
+            double sway = -(0.017 * moveAmount * (1.0 - 0.6 * run) + 0.018 * turnAmount * (1.0 - moveAmount)) * perStride * style.Sway
                           + 0.030 * weight * idle;
-            double hipRoll = -3.2 * moveAmount * perStride * style.Sway + 2.2 * weight * idle;
-            double gaitYaw = (5.0 + 5.0 * run) * moveAmount * Math.Cos(TwoPi * g);
+            // The hip over the swinging leg drops about 4 degrees, and the pelvis turns about 7 degrees each way,
+            // the leading leg's side forward (CMU: 4 to 7 and 4 to 10).
+            double hipRoll = -4.2 * moveAmount * perStride * style.Sway + 2.2 * weight * idle;
+            double gaitYaw = (7.0 + 3.0 * run) * moveAmount * Math.Cos(TwoPi * g);
             double stanceYaw = gunSign * 16.0 * aimStill;
             double lean = style.Lean + 2.0 * moveAmount + 9.0 * run + _lean * moveAmount;
 
@@ -548,48 +580,81 @@ namespace OrbitalAnte.Dismemberment
 
             // ---- feet on the ground, legs bent to reach them
             double halfWidth = (Lerp(Lerp(0.125, 0.098, moveAmount), 0.072, run) + 0.03 * aimStill) * style.Stance;
-            double lift = 0.045 * turnAmount * (1.0 - moveAmount) + 0.07 * moveAmount + 0.20 * run;
-            double strikeToeUp = (14.0 + 6.0 * run) * moveAmount;
-            double rollOff = (30.0 + 22.0 * run) * moveAmount;
+            // Heel down, roll over the foot, push off the ball, and the ankle carried high early in the swing so the
+            // knee folds (about 60 degrees walking, more running), then the leg reaches out straight for the heel.
+            double kick = 0.025 * turnAmount * (1.0 - moveAmount) + (0.07 + 0.22 * run) * moveAmount;
+            double strikeToeUp = (18.0 + 4.0 * run) * moveAmount;
+            double rollOff = (52.0 + 20.0 * run) * moveAmount;
             Vec3d ankleLeft = Vec3d.Zero, ankleRight = Vec3d.Zero;
             QuatD footLeft = QuatD.Identity, footRight = QuatD.Identity;
+            // How much each leg may pull the hips down to reach its foot: a planted leg fully, a swinging leg only
+            // as its heel comes down (otherwise the body would dip for a leg that is still in the air).
+            double holdLeft = 1.0, holdRight = 1.0;
             for (int s = 0; s < 2; s++)
             {
                 double sx = s == BodySkeleton.Left ? -1.0 : 1.0;
                 double u = Frac(g + (s == BodySkeleton.Right ? 0.5 : 0.0));
+                double hold = u < duty ? 1.0 : Smooth(((u - duty) / (1.0 - duty) - 0.7) / 0.3);
+                if (s == BodySkeleton.Left) holdLeft = hold; else holdRight = hold;
                 // Standing still, one foot sits a little ahead of the other; aiming, the gun-side foot drops back.
                 double zBias = (s == BodySkeleton.Left ? _stagger : -_stagger) * (1.0 - moveAmount) * (1.0 - _aim)
                                + (sx == gunSign ? -0.11 : 0.08) * aimStill;
                 double restYaw = sx == gunSign ? gunSign * 32.0 * aimStill : 0.0;
 
-                Vec3d foot;
-                double yaw, pitch, rise;
+                Vec3d ankle;
+                double yaw, pitch;
                 if (u < duty)
                 {
                     double k = u / duty;
-                    double tau = (k - 0.5) * stanceTime;
-                    foot = StancePoint(sx * halfWidth, zBias, tau, v, turnRadians, out yaw);
-                    double toeUp = strikeToeUp * (1.0 - Smooth(k / 0.22));
-                    double toeDown = rollOff * Smooth((k - 0.58) / 0.42);
+                    Vec3d ground = StancePoint(sx * halfWidth, zBias, (k - centre) * stanceTime, v, turnRadians, out yaw);
+                    // Heel strike, flat by a sixth of the way through, the heel coming up from 60% of the way and
+                    // quickest at the end, rolling over the ball (the knee stays nearly straight until the other
+                    // heel is down).
+                    double toeUp = strikeToeUp * (1.0 - Smooth(k / 0.16));
+                    double toeDown = rollOff * Math.Pow(Clamp01((k - 0.6) / 0.4), 1.6);
                     pitch = toeDown - toeUp;
-                    // Rolling up onto the ball of the foot lifts the ankle.
-                    rise = Math.Sin(toeDown * Deg) * 0.12;
+                    ankle = ground + Rolled(yaw, toeDown, toeUp);
                 }
                 else
                 {
                     double k = (u - duty) / (1.0 - duty);
-                    Vec3d from = StancePoint(sx * halfWidth, zBias, stanceTime * 0.5, v, turnRadians, out double yawFrom);
-                    Vec3d to = StancePoint(sx * halfWidth, zBias, -stanceTime * 0.5, v, turnRadians, out double yawTo);
+                    Vec3d from = StancePoint(sx * halfWidth, zBias, (1.0 - centre) * stanceTime, v, turnRadians, out double yawFrom)
+                                 + Rolled(yawFrom, rollOff, 0.0);
+                    Vec3d to = StancePoint(sx * halfWidth, zBias, -centre * stanceTime, v, turnRadians, out double yawTo)
+                               + Rolled(yawTo, 0.0, strikeToeUp);
+                    // The swing carries on from the push-off and lands still: the ankle leaves moving the way the
+                    // rolling foot was moving (back with the ground, and rising), and arrives moving back at the
+                    // ground's speed, so neither the toe-off nor the heel strike jerks or slides.
+                    double perSwing = (1.0 - duty) / Math.Max(duty, 0.05);
+                    double rollRate = 4.0 * rollOff * Deg;          // how fast the foot was rocking at the end, per stance
+                    double ra = rollOff * Deg;
+                    var leave = new Vec3d(0.0, (BallAhead * Math.Cos(ra) - BodySkeleton.AnkleY * Math.Sin(ra)) * rollRate,
+                                          -v * stanceTime + (BallAhead * Math.Sin(ra) + BodySkeleton.AnkleY * Math.Cos(ra)) * rollRate) * perSwing;
+                    var land = new Vec3d(0.0, 0.0, -v * stanceTime) * perSwing;
+                    // A runner's foot keeps travelling back after it leaves and is still behind it at the top of the
+                    // kick; it comes through late and fast.
+                    leave = leave + new Vec3d(0.0, 0.0, -1.2 * run * Math.Abs(to.Z - from.Z));
+                    double k2 = k * k, k3 = k2 * k;
+                    ankle = from * (2.0 * k3 - 3.0 * k2 + 1.0) + leave * (k3 - 2.0 * k2 + k)
+                            + to * (3.0 * k2 - 2.0 * k3) + land * (k3 - k2);
                     double e = Smooth(k);
-                    foot = from + (to - from) * e;
                     yaw = Lerp(yawFrom, yawTo, e);
-                    // A run kicks the heel up early in the swing; a walk lifts evenly.
-                    double arc = Math.Sin(Math.PI * Math.Pow(k, Lerp(1.0, 0.72, run)));
-                    rise = lift * arc + Math.Sin(rollOff * Deg) * 0.12 * (1.0 - Smooth(k / 0.35));
-                    pitch = Lerp(rollOff, -strikeToeUp, Smooth(k)) + 18.0 * run * arc;
+                    // The heel kicked up behind early, down to the heel's height by the end; smooth at both ends.
+                    // Running, the kick comes sooner, while the foot is still behind: the heel folds up toward the
+                    // seat rather than the knee coming up in front.
+                    double late = 1.0 - k;
+                    double walkLift = 16.0 * k2 * late * late * (1.0 + 0.6 * late) / 1.3;
+                    double runLift = 45.56 * k2 * late * late * late * late;
+                    ankle = ankle + new Vec3d(0.0, kick * Lerp(walkLift, runLift, run), 0.0);
+                    // The toes go on pointing down a little after they leave (the push carries on), then come up for
+                    // the next heel strike.
+                    double kp = Clamp01(k / 0.7);
+                    double pitchRate = rollRate / Deg * perSwing * 0.7;
+                    pitch = rollOff * (2.0 * kp * kp * kp - 3.0 * kp * kp + 1.0) + Math.Min(pitchRate, 140.0) * (kp * kp * kp - 2.0 * kp * kp + kp)
+                            - strikeToeUp * (3.0 * kp * kp - 2.0 * kp * kp * kp) + 14.0 * run * Math.Sin(Math.PI * k);
                 }
 
-                Vec3d ankle = new Vec3d(foot.X, BodySkeleton.AnkleY + rise, foot.Z);
+                ankle = new Vec3d(ankle.X, BodySkeleton.AnkleY + ankle.Y, ankle.Z);
                 if (s == BodySkeleton.Left) { ankleLeft = ankle; footLeft = Qy(yaw + restYaw) * Qx(pitch); }
                 else { ankleRight = ankle; footRight = Qy(yaw + restYaw) * Qx(pitch); }
             }
@@ -598,7 +663,7 @@ namespace OrbitalAnte.Dismemberment
             // enough for both legs to reach their feet: the dip at each footfall comes from the legs themselves.
             Vec3d jointLeft = hipsPosition + hips.Rotate(BodySkeleton.RestOffset(BodyBone.LeftThigh));
             Vec3d jointRight = hipsPosition + hips.Rotate(BodySkeleton.RestOffset(BodyBone.RightThigh));
-            double sink = Math.Max(SinkToReach(jointLeft, ankleLeft), SinkToReach(jointRight, ankleRight));
+            double sink = Math.Max(SinkToReach(jointLeft, ankleLeft) * holdLeft, SinkToReach(jointRight, ankleRight) * holdRight);
             if (sink > 0.0)
             {
                 var down = new Vec3d(0.0, sink, 0.0);
@@ -606,6 +671,10 @@ namespace OrbitalAnte.Dismemberment
                 jointLeft = jointLeft - down;
                 jointRight = jointRight - down;
             }
+            // A leg in the air never snaps straight: near full stretch it eases out, so the knee straightens at
+            // the end of the swing as a person's does rather than in one frame.
+            ankleLeft = SoftReach(jointLeft, ankleLeft, 1.0 - holdLeft);
+            ankleRight = SoftReach(jointRight, ankleRight, 1.0 - holdRight);
             SolveLeg(pose, BodySkeleton.Left, hips, jointLeft, ankleLeft, footLeft);
             SolveLeg(pose, BodySkeleton.Right, hips, jointRight, ankleRight, footRight);
 
@@ -619,7 +688,7 @@ namespace OrbitalAnte.Dismemberment
             double spineRoll = -0.8 * hipRoll + Guard(input, lossLeft, lossRight) - _woundSide * 8.0 * reel;
             double counter = 1.0 + 0.3 * lostArm;
             double lookYaw = _lookWeight * _lookYawTo;
-            pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw * counter + 0.3 * lookYaw + _woundSide * 26.0 * reel) * Qx(spinePitch) * Qz(spineRoll);
+            pose.Local[(int)BodyBone.Spine] = Qy(-1.5 * gaitYaw * counter + 0.3 * lookYaw + _woundSide * 26.0 * reel) * Qx(spinePitch) * Qz(spineRoll);
             double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle) * (1.0 - _lookWeight);
             double headPitch = -(0.9 * lean + 0.6 * spinePitch) + _lookPitch * look + 10.0 * startle + 10.0 * _shock * (1.0 - _lookWeight)
                                + _lookWeight * (_lookPitchTo - 0.1 * lean - 0.4 * spinePitch) + 22.0 * glance;
@@ -628,7 +697,12 @@ namespace OrbitalAnte.Dismemberment
                                              * Qz(-0.3 * spineRoll);
             double trunk = lean + spinePitch;
 
-            double swingSize = (16.0 + 26.0 * run) * moveAmount * _armScale * style.ArmSwing;
+            // The arms swing further the faster it walks, a little more behind than in front; running, the elbows
+            // are bent to about 100 degrees and the arms pump mostly behind the body (CMU walks and runs, as above).
+            double legsPerSecond = v / LegLength;
+            double walkSwing = Clamp(-4.0 + 12.0 * legsPerSecond, 0.0, 26.0) * moveAmount;
+            double swingSize = Lerp(walkSwing, 24.0, run) * _armScale * style.ArmSwing;
+            double swingBack = Lerp(5.0 * moveAmount, 20.0, run);
             double lag = 0.04;
             for (int s = 0; s < 2; s++)
             {
@@ -636,8 +710,8 @@ namespace OrbitalAnte.Dismemberment
                 double wave = sign * Math.Cos(TwoPi * (g - lag));      // -1 is this arm fully forward
                 double forward = Math.Max(0.0, -wave);
                 double down = 79.0 - style.ArmsOut - 3.0 * run + 1.2 * breath * still * style.Idle;
-                double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still * style.Idle - 4.0 * run;
-                double elbow = 14.0 + style.ElbowBend + 6.0 * moveAmount + 60.0 * run + 16.0 * moveAmount * forward;
+                double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still * style.Idle + swingBack;
+                double elbow = 14.0 + style.ElbowBend + 6.0 * moveAmount + 78.0 * run + 16.0 * moveAmount * forward;
                 // The arm that is left swings wider to balance the one that is not.
                 double otherLoss = s == BodySkeleton.Left ? lossRight : lossLeft;
                 swing *= 1.0 + 0.35 * otherLoss;
@@ -733,6 +807,31 @@ namespace OrbitalAnte.Dismemberment
             double c = Math.Cos(angle), s = Math.Sin(angle);
             yawDegrees = angle / Deg;
             return new Vec3d(x * c + z * s, 0.0, -x * s + z * c - speed * tau);
+        }
+
+        /// <summary>
+        /// How far the ankle is lifted and carried from where it sits over a flat foot when the foot rocks: up on
+        /// the ball by <paramref name="toeDown"/> degrees (heel up, the ball stays put), or back on the heel by
+        /// <paramref name="toeUp"/> degrees (toes up, the heel stays put). Turned to the foot's heading.
+        /// </summary>
+        static Vec3d Rolled(double yawDegrees, double toeDown, double toeUp)
+        {
+            double h = BodySkeleton.AnkleY;
+            double z = 0.0, y = 0.0;
+            if (toeDown > 0.0)
+            {
+                double a = toeDown * Deg;
+                z += -BallAhead * Math.Cos(a) + h * Math.Sin(a) + BallAhead;
+                y += BallAhead * Math.Sin(a) + h * Math.Cos(a) - h;
+            }
+            if (toeUp > 0.0)
+            {
+                double a = toeUp * Deg;
+                z += HeelBehind * Math.Cos(a) - h * Math.Sin(a) - HeelBehind;
+                y += HeelBehind * Math.Sin(a) + h * Math.Cos(a) - h;
+            }
+            double yaw = yawDegrees * Deg;
+            return new Vec3d(z * Math.Sin(yaw), y, z * Math.Cos(yaw));
         }
 
         double _lastHopSin;
@@ -954,7 +1053,7 @@ namespace OrbitalAnte.Dismemberment
             double m = Math.Sqrt(t.X * t.X + t.Y * t.Y);
             double spread = Math.Atan2(t.X, -t.Y);
             double reach = Math.Sqrt(m * m + t.Z * t.Z);
-            reach = Clamp(reach, Math.Abs(thigh - shin) + 0.02, thigh + shin - 0.004);
+            reach = Clamp(reach, Math.Abs(thigh - shin) + 0.02, thigh + shin - 0.002);
             double toward = Math.Atan2(t.Z, m);
             double atHip = Math.Acos(Clamp((thigh * thigh + reach * reach - shin * shin) / (2.0 * thigh * reach), -1.0, 1.0));
             double atKnee = Math.Acos(Clamp((thigh * thigh + shin * shin - reach * reach) / (2.0 * thigh * shin), -1.0, 1.0));
@@ -967,10 +1066,27 @@ namespace OrbitalAnte.Dismemberment
             pose.Local[(int)BodySkeleton.Foot(side)] = (above.Inverse * footTurn).Normalized;
         }
 
+        /// <summary>
+        /// Brings an ankle target that is nearly out of reach a little closer, easing in over the last 4 cm, so a
+        /// leg reaching for it straightens smoothly instead of locking straight in one frame. Amount 0 changes
+        /// nothing (a planted foot must be reached exactly), 1 is the whole easing.
+        /// </summary>
+        static Vec3d SoftReach(Vec3d joint, Vec3d ankle, double amount)
+        {
+            if (amount <= 0.0) return ankle;
+            const double longest = BodySkeleton.ThighLength + BodySkeleton.ShinLength - 0.004;
+            const double width = 0.04;
+            Vec3d d = ankle - joint;
+            double m = d.Magnitude;
+            if (m <= longest - width || m < 1e-6) return ankle;
+            double soft = longest - width * Math.Exp(-(m - (longest - width)) / width);
+            return joint + d * (Lerp(m, Math.Min(m, soft), Clamp01(amount)) / m);
+        }
+
         /// <summary>How far a hip must come down for a nearly straight leg to reach from it to an ankle (0 if it already can).</summary>
         static double SinkToReach(Vec3d joint, Vec3d ankle)
         {
-            const double longest = BodySkeleton.ThighLength + BodySkeleton.ShinLength - 0.012;
+            const double longest = BodySkeleton.ThighLength + BodySkeleton.ShinLength - 0.007;
             double dx = ankle.X - joint.X, dz = ankle.Z - joint.Z;
             double flat = dx * dx + dz * dz;
             double room = longest * longest - flat;

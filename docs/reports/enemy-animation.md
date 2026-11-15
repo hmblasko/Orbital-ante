@@ -25,6 +25,28 @@ After a disarm, `MannequinCombat` ignored a freshly dropped gun for 0.8 s ("let 
 
 **Less stiff everywhere**: a lean into turns, a lean with the head toward whatever it is looking at, breathing that gets heavier after running.
 
+## Walking and running (second request, 15 Nov 2026)
+
+Matthew, after the arm preview: "Much better. Also, fix the walking generally. It's way too rigid and unnatural. Make it look better."
+
+**What was wrong, measured.** The plain walk was compared with CMU walks and runs on the same definitions (`tools/gait_measure`). At the trooper's walk (2.0 m/s) it took 1.75 strides a second of 1.14 m, where people take about 1.1 a second of about 1.8 m: quick, short, sewing-machine steps. The planted knee sat at one bend the whole time and never straightened, so the body moved like it was on stilts with bent knees. The feet barely left the ground (7 cm), there was no roll from heel to toe, the thigh never went behind the hip, and the run was a high-kneed jog at nearly twice the real step rate.
+
+**What changed (all in `BodyAnimator`, plain C#):**
+1. Strides follow measured lengths (`StrideLength`): walking 1.25 times the square root of the speed in leg lengths a second, running half a leg plus 0.6 of the speed, levelling off past a fast run. Time on the ground per stride (`Duty`) is 61% walking and about 35% at a jog down to a fifth at a sprint. Past about 2.6 leg lengths a second a body runs whatever its kind's own walk speed says.
+2. The planted leg is nearly straight (knee about 10 degrees), gives about 15 degrees as the weight comes on after the heel strike, and straightens again. The pelvis rises over the planted leg and dips between steps from the legs themselves, not from a sine wave.
+3. Heel to toe: the heel strikes with the toes up, the foot goes flat, and from 60% of the way through the heel lifts and the foot rolls over the ball (`Rolled` moves the ankle about the ball or the heel, so the contact point stays put).
+4. The swing is one smooth curve that leaves the ground moving the way the rolling foot was moving and lands moving back at the ground's speed, so neither toe-off nor heel strike jerks or slides; the heel kicks up behind (higher and sooner running) and the knee folds about 60 degrees walking. A leg in the air eases out near full stretch (`SoftReach`) instead of locking straight in one frame, and only pulls the hips down as its heel comes down.
+5. The pelvis turns about 7 degrees each way and the hip over the swinging leg drops about 4 degrees; the shoulders turn against it. The arms swing more the faster it walks, a little more behind than in front; running, the elbows bend to about 100 degrees and the arms pump mostly behind.
+6. The kinds: the Runner's stride 1.12 to 1.0 (busier legs), the Bruiser's 0.9 to 1.18 (long, slow, heavy strides), the Marksman's 1.05 to 1.15 (gliding). Cadence at walk and sprint: trooper 1.25 and 1.46 strides a second, Runner 1.40 and 2.02, Bruiser 0.83 and 1.14, Marksman 0.94 and 1.21.
+
+**Measured against CMU after the change** (trooper; people in brackets): at 1.2 m/s, 1.48 leg lengths a stride (1.50 to 1.59), knee 15 to 69 degrees (9 to 72), hip -4 to 41 (-17 to 32); at 2.0 m/s, 1.91 (1.76), knee 9 to 69 (16 to 67), hip -21 to 43 (-16 to 34); running at 4.6 m/s, 3.79 legs a stride at 1.46 a second (2.86 at 1.45 for a slower runner), knee 8 to 104 (0 to 116), hip -24 to 53 (-35 to 41). The run still lifts the knee a little high and does not drive the leg as far behind as a real runner. The knee's quickest change from one frame to the next is now 8 to 16 degrees walking and up to about 21 running, against 6 to 12 and about 11 for people (99th percentile): close for the walk, still a little brisk for the run (20).
+
+Rule tests changed with it: running takes "more than 12 steps in 5 s" (was 15) and sprinting turns the legs over "more than 1.1 times" as fast as walking (was 1.3), because people running take longer strides as well as quicker ones (measured: 1.15 to 1.35 times). Everything else passes unchanged, including feet that do not slide, kinds that never squat to reach their stride, and every reaction in every way of moving.
+
+**Agent review of the walk.** Unity reviewer (code and a frame-by-frame probe at 60 and 30 frames a second, every kind, 0 to 2.3 times walk speed and turning on the spot): no NaN, joins continuous, planted feet slide less than before and no longer dip below the ground; it found the foot snapping up at toe-off (4.7 cm and 22 degrees of knee in one frame walking, 14 cm and 50 degrees running) and the knee being twitchy with very straight legs. Fixed: the smooth swing curve above, a 7 mm margin in `SinkToReach` and the eased reach; now about 2 to 4 cm and 15 to 22 degrees a frame, which is the swing's own speed. Game designer: the Bruiser at 0.78 strides a second could read as slow motion and be mistaken for Deep Breath, so its stride went from 1.25 to 1.18; the Runner should look busy (1.12 to 1.0); speed and aim, not cadence, carry the threat. Deck performance: about 16 to 20 more trig calls and one or two `Pow` per enemy, an estimated 5 to 15 microseconds for 30 enemies (counted, not timed), no garbage; budget line updated.
+
+Still unverified: all of it in Unity; how the walk looks on the realistic trooper model and the other kinds at Deck size; the run's knee speed.
+
 ## Research: where motion could come from, and the licences
 
 | Source | Licence | Can it ship in a commercial game? |
@@ -48,6 +70,8 @@ Why measurements and not clips: the enemies have no Animator or Humanoid avatar;
 | 91_24, 77_19, 77_20, 91_16 | hurt-leg walks and limps | a lasting 10 degree lean to one side, a slower, bent gait |
 | 91_26 | hurt-stomach walk | one hand held to the body, a 6 degree lean toward it |
 | 79_73, 91_32, 22_12, 91_59 | scared walk, stumbles into someone | checked, not used directly |
+| 02_01, 07_01, 08_01, 16_15, 35_01 | ordinary to brisk walks | stride length against speed, time on the ground, knee, hip, pelvis, arm and foot curves through the stride |
+| 09_01, 35_17 | runs and jogs | the same for running |
 
 The startle follows the classic pattern described by Landis and Hunt (1939): shoulders up, elbows bent, trunk and knees flexed within about a tenth of a second, over within about half a second.
 
@@ -55,7 +79,7 @@ If hand-animated clips are ever wanted (for example a death or a taunt), the Qua
 
 ## Previews
 
-`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif`. Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
+`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif` (disarm, hobble, arm, walk, run). Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
 
 Matthew, 15 Nov 2026: "The first two animation demos look great. Redo the arm shoot off one." The first arm preview was seen from the wrong side, far away, and the arm simply vanished. The redo: the camera is in front on the wounded side and closer, the arm flies off as one piece and bounces, the model's wound stump shows at the shoulder, and the reaction is stronger (the spin back, the doubling over, the look at the stump). Matthew then asked (same day) to keep the look at the stump but drop the good hand reaching over to the wound: the hand-on-wound arm IK is gone, and the good arm is thrown out for balance instead.
 
