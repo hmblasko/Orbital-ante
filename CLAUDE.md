@@ -59,7 +59,7 @@ The earlier Godot 4 + Rust version of this game is kept on the `godot-archive` b
 What changed, why, which constitution principle it serves, what was tested (and how), and what is still unverified. Say plainly when something was not run in Unity.
 
 ## Verifying without the editor
-Cloud sessions have no Unity Editor. What can be done there: compile the C# against reference assemblies, and run the EditMode rule tests with `dotnet test`. Anything that needs the engine (PlayMode tests, feel, frame times) must be run on Matthew's machine and reported as unverified until then.
+Cloud sessions have no Unity Editor. What can be done there: compile the C# against reference assemblies, and run the EditMode rule tests with `dotnet test tools/rules-tests` (see `tools/rules-tests/README.md`; it picks up every Unity-free rule file and test by itself). Anything that needs the engine (PlayMode tests, feel, frame times) must be run on Matthew's machine and reported as unverified until then.
 
 ## Running on Matthew's machine
 `tools/check-in-unity.ps1` (Windows) and `tools/check-in-unity.sh` (macOS/Linux) run setup (`ProjectSetup.SetUpFromCommandLine`), the EditMode tests and the PlayMode tests in batch mode and write `unity/Logs/oa-check/summary.txt`. A local Claude Code session uses the `unity-refine` skill (`.claude/skills/unity-refine/`) to run them, fix failures and report real counts. Matthew's guide: `docs/CLAUDE_CODE_LOCAL.md`. Models, assets (Blender), feel passes, cockpit dash designs and design calls are kept for Fable 5.2.
