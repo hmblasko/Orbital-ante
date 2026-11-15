@@ -50,6 +50,26 @@ namespace OrbitalAnte.AI
         float _kick;
         bool _magazineOut;
 
+        // Losing the gun: a startled beat looking after it, then a scramble to get it back, then a quick crouch
+        // to snatch it off the ground (about half the time a calm pick-up takes: it is in a hurry).
+        const float StartleSeconds = 0.55f;
+        // Long enough to read as the player's last chance to deny the gun (shoot it away, or the reaching arm).
+        const float GrabSeconds = 0.4f;
+        const float ProneGrabSeconds = 0.35f;
+        Weapon _lostGun;
+        float _startledUntil = -1f;
+        float _grabAt = -1f;
+        Weapon _grabbing;
+        float _glanceUntil = -1f;
+        Weapon _scrambleFor;
+        // Giving up on a gun it cannot get to (on a ledge, down a pit, behind a wall).
+        Weapon _chasing;
+        float _chaseStart, _chaseBest;
+        Weapon _givenUp;
+        // Running away: one place, kept until reached.
+        Vector3? _fleePoint;
+        float _fleeUntil;
+
         /// <summary>The gun in hand, or null.</summary>
         public Weapon Weapon { get; private set; }
         /// <summary>Which arm holds the gun: MannequinRig.Left or MannequinRig.Right.</summary>
@@ -106,6 +126,16 @@ namespace OrbitalAnte.AI
             weapon.transform.localScale = Vector3.one;
             weapon.State.HandsChanged(Hands);
             _magazineOut = false;
+            _lostGun = null;
+            _grabbing = null;
+            _grabAt = -1f;
+            if (_loco != null)
+            {
+                _loco.Scramble = false;
+                _loco.Reach = 0f;
+                _loco.LookAt = null;
+                _loco.Hold = false;
+            }
             _aimedAtTarget = false;
             _seesPlayer = false;
             _aimDirection = LowReadyDirection();
@@ -134,7 +164,33 @@ namespace OrbitalAnte.AI
         {
             if (weapon != Weapon) return;
             Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : -transform.forward;
-            DropWeapon(dir * _cfg.disarmKnockSpeed + transform.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
+            KnockedOutOfHands(dir * _cfg.disarmKnockSpeed + transform.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
+        }
+
+        /// <summary>The gun is gone from its hands while it lives: it drops, and the character is startled.</summary>
+        void KnockedOutOfHands(Vector3 extraVelocity, float spin)
+        {
+            Weapon weapon = Weapon;
+            DropWeapon(extraVelocity, spin);
+            if (weapon == null || _owner == null || !_owner.Alive) return;
+            _lostGun = weapon;
+            _startledUntil = Time.time + StartleSeconds;
+            _grabbing = null;
+            _grabAt = -1f;
+            if (_loco != null)
+            {
+                // Toward where the gun is going, not where it still is (in its hand).
+                _loco.Startle(weapon.transform.position + extraVelocity * 0.5f);
+                _loco.Hold = true;
+                _loco.LookAt = weapon.transform.position;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                _loco.Hurry = false;
+                _loco.Scramble = false;
+                _loco.Reach = 0f;
+            }
+            // Think again as soon as the startle is over, not on the next round of thinking.
+            _thinkTimer = StartleSeconds + 0.02f;
         }
 
         void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
@@ -145,7 +201,7 @@ namespace OrbitalAnte.AI
             if (!_owner.Model.HandUsable(_gunSide == MannequinRig.Left))
             {
                 Vector3 dir = hit.Direction.sqrMagnitude > 0.0001f ? hit.Direction.normalized : Vector3.zero;
-                DropWeapon(dir * 2f + transform.up * 2f, 7f);
+                KnockedOutOfHands(dir * 2f + transform.up * 2f, 7f);
                 return;
             }
 
@@ -160,6 +216,10 @@ namespace OrbitalAnte.AI
             {
                 _loco.Destination = null;
                 _loco.FacePoint = null;
+                _loco.Scramble = false;
+                _loco.Reach = 0f;
+                _loco.LookAt = null;
+                _loco.Hold = false;
             }
         }
 
@@ -172,6 +232,13 @@ namespace OrbitalAnte.AI
             if (dt <= 0f) return;
 
             if (Weapon != null) TickReload(dt);
+            else if (_grabbing != null) TickGrab();
+            else if (_scrambleFor != null && _loco.Scramble && _scrambleFor.Hold == WeaponHold.Dropped && Reachable(_scrambleFor)
+                     && Vector3.ProjectOnPlane(_scrambleFor.transform.position - transform.position, transform.up).magnitude <= _cfg.pickupReach)
+            {
+                // Arrived: stop now rather than at the next round of thinking, or a sprint carries it past the gun.
+                _thinkTimer = 0f;
+            }
 
             _thinkTimer -= dt;
             if (_thinkTimer <= 0f)
@@ -205,7 +272,17 @@ namespace OrbitalAnte.AI
             }
 
             if (Weapon != null) ThinkArmed(state);
-            else ThinkUnarmed();
+            else if (Time.time < _startledUntil)
+            {
+                // The startled beat: rooted to the spot, eyes on where the gun went.
+                _loco.Hold = true;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                _loco.Hurry = false;
+                _loco.Scramble = false;
+                if (_lostGun != null) _loco.LookAt = _lostGun.transform.position;
+            }
+            else if (_grabbing == null) ThinkUnarmed();
         }
 
         void ClearGoals()
@@ -213,6 +290,11 @@ namespace OrbitalAnte.AI
             _loco.Destination = null;
             _loco.FacePoint = null;
             _loco.Hurry = false;
+            _loco.Scramble = false;
+            _loco.Reach = 0f;
+            _loco.LookAt = null;
+            _loco.Hold = false;
+            _grabbing = null;
             _seesPlayer = false;
         }
 
@@ -297,21 +379,61 @@ namespace OrbitalAnte.AI
         {
             _seesPlayer = false;
             _loco.FacePoint = null;
+            _loco.Reach = 0f;
+            _loco.Hold = false;
 
             if (Hands > 0)
             {
-                Weapon nearest = NearestDroppedWeapon();
-                if (nearest != null)
+                // Its own gun first, if it is still lying there; otherwise the nearest one.
+                Weapon gun = _lostGun != null && _lostGun != _givenUp && _lostGun.Hold == WeaponHold.Dropped && Reachable(_lostGun)
+                             && (_lostGun.transform.position - transform.position).sqrMagnitude <= _cfg.weaponSeekRange * _cfg.weaponSeekRange
+                    ? _lostGun
+                    : NearestDroppedWeapon();
+                if (gun != null && !_loco.Wander)
                 {
-                    Vector3 to = Vector3.ProjectOnPlane(nearest.transform.position - transform.position, transform.up);
-                    if (to.magnitude <= _cfg.pickupReach && TryPickUp(nearest)) return;
-                    _loco.Destination = nearest.transform.position;
+                    // A lookout does not leave its post: it stares at the gun it cannot go and get.
+                    _loco.Scramble = false;
+                    _loco.LookAt = gun.transform.position;
+                    return;
+                }
+                if (gun != null && GivingUp(gun)) gun = null;
+                if (gun != null)
+                {
+                    Vector3 to = Vector3.ProjectOnPlane(gun.transform.position - transform.position, transform.up);
+                    if (to.magnitude <= _cfg.pickupReach)
+                    {
+                        // Close enough: stop and snatch it up.
+                        _grabbing = gun;
+                        bool prone = _owner.State == MovementState.Crawl || _owner.State == MovementState.Wriggle;
+                        _grabAt = Time.time + (prone ? ProneGrabSeconds : GrabSeconds);
+                        _loco.Destination = null;
+                        _loco.Hurry = false;
+                        _loco.Scramble = false;
+                        _loco.LookAt = gun.transform.position;
+                        _loco.ReachSide = _owner.Model.HandUsable(false) ? MannequinRig.Right : MannequinRig.Left;
+                        _loco.Reach = 1f;
+                        _loco.Hold = true;
+                        return;
+                    }
+                    _loco.Destination = gun.transform.position;
                     _loco.Hurry = true;
+                    _loco.Scramble = true;
+                    _scrambleFor = gun;
+                    // Eyes on the gun, with a nervous glance back at the player now and then.
+                    float now = Time.time;
+                    if (now >= _glanceUntil + 0.9f && CombatWorld.PlayerPresent && _rng.NextDouble() < 0.25) _glanceUntil = now + 0.35f;
+                    _loco.LookAt = now < _glanceUntil && CombatWorld.PlayerPresent ? CombatWorld.PlayerEye.position : gun.transform.position;
                     return;
                 }
             }
 
-            // Nothing to shoot with: get out of the line of fire.
+            _loco.Scramble = false;
+            // Nothing to shoot with: get out of the line of fire, looking back over its shoulder while it can see
+            // the player. It never knows where the player is through a hill.
+            bool seen = CombatWorld.PlayerPresent && SeesPlayer();
+            if (seen) _lastSaw = Time.time;
+            bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
+            _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
             if (CombatWorld.PlayerPresent && CombatWorld.FindCover != null)
             {
                 Vector3? cover = CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position);
@@ -322,8 +444,89 @@ namespace OrbitalAnte.AI
                     return;
                 }
             }
+            if (threatened)
+            {
+                // No cover anywhere: run away from the player rather than wander about in front of them. One
+                // place, eight metres off, kept until it gets there; then it thinks again.
+                bool arrived = _fleePoint.HasValue && Vector3.ProjectOnPlane(_fleePoint.Value - transform.position, transform.up).sqrMagnitude < 1f;
+                if (!_fleePoint.HasValue || arrived || Time.time > _fleeUntil)
+                {
+                    Vector3 away = Vector3.ProjectOnPlane(transform.position - CombatWorld.PlayerEye.position, transform.up);
+                    away = away.sqrMagnitude > 0.01f ? away.normalized : -transform.forward;
+                    _fleePoint = arrived && !seen ? (Vector3?)null : transform.position + away * 8f;
+                    _fleeUntil = Time.time + 4f;
+                }
+                if (_fleePoint.HasValue)
+                {
+                    _loco.Destination = _fleePoint;
+                    _loco.Hurry = true;
+                    return;
+                }
+            }
+            _fleePoint = null;
             _loco.Destination = null;
             _loco.Hurry = false;
+        }
+
+        bool SeesPlayer()
+        {
+            Vector3 head = HeadPosition, eye = CombatWorld.PlayerEye.position;
+            return Vector3.Distance(head, eye) <= _cfg.engageRange && !Physics.Linecast(head, eye, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+        }
+
+        /// <summary>Not too far above or below to bend down to (a gun on a ledge or down a pit is out of reach).</summary>
+        bool Reachable(Weapon gun)
+        {
+            float up = Vector3.Dot(gun.transform.position - transform.position, transform.up);
+            return Mathf.Abs(up) <= 1.2f * transform.lossyScale.y;
+        }
+
+        /// <summary>
+        /// True once it has chased this gun for six seconds without getting any closer (it is behind something
+        /// it cannot get round): it gives up on that gun and does something else.
+        /// </summary>
+        bool GivingUp(Weapon gun)
+        {
+            float distance = Vector3.ProjectOnPlane(gun.transform.position - transform.position, transform.up).magnitude;
+            if (gun != _chasing)
+            {
+                _chasing = gun;
+                _chaseStart = Time.time;
+                _chaseBest = distance;
+                return false;
+            }
+            if (distance < _chaseBest - 0.5f)
+            {
+                _chaseBest = distance;
+                _chaseStart = Time.time;
+            }
+            if (Time.time - _chaseStart < 6f) return false;
+            _givenUp = gun;
+            _chasing = null;
+            return true;
+        }
+
+        /// <summary>Bent down over a gun: takes it at the bottom of the reach, or gives up if it has been knocked away.</summary>
+        void TickGrab()
+        {
+            Weapon gun = _grabbing;
+            if (gun == null || gun.Hold != WeaponHold.Dropped || Hands == 0
+                || Vector3.ProjectOnPlane(gun.transform.position - transform.position, transform.up).magnitude > _cfg.pickupReach * 1.6f
+                || !Reachable(gun))
+            {
+                _grabbing = null;
+                _grabAt = -1f;
+                _loco.Reach = 0f;
+                _loco.Hold = false;
+                _thinkTimer = 0f;
+                return;
+            }
+            _loco.LookAt = gun.transform.position;
+            if (Time.time < _grabAt) return;
+            _grabbing = null;
+            _grabAt = -1f;
+            // TryPickUp clears the reach, so the body straightens up with the gun at low ready.
+            if (!TryPickUp(gun)) { _loco.Reach = 0f; _loco.Hold = false; _thinkTimer = 0f; }
         }
 
         Weapon NearestDroppedWeapon()
@@ -334,9 +537,9 @@ namespace OrbitalAnte.AI
             for (int i = 0; i < all.Count; i++)
             {
                 Weapon w = all[i];
-                if (w == null || w.Hold != WeaponHold.Dropped) continue;
+                if (w == null || w.Hold != WeaponHold.Dropped || w == _givenUp || !Reachable(w)) continue;
                 // Give a freshly dropped gun a moment to land (and the player a moment to enjoy the disarm).
-                if (Time.unscaledTime - w.DroppedAt < 0.8f) continue;
+                if (Time.unscaledTime - w.DroppedAt < 0.4f) continue;
                 float sqr = (w.transform.position - transform.position).sqrMagnitude;
                 if (sqr < bestSqr)
                 {
