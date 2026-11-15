@@ -38,6 +38,9 @@ namespace OrbitalAnte.Dismemberment
         Collider _bodyBlocker;
 
         public int ActiveGibCount => _gibs.Count;
+        // True while a chunk is being handed out. The gib cap can remove one of this character's own chunks then,
+        // before the new one is registered, and a dead character must not take that as its last chunk going.
+        bool _spawningGib;
 
         public void Initialize(MannequinConfig config, MannequinRig rig, BodyPart[] parts, Collider bodyBlocker)
         {
@@ -176,7 +179,10 @@ namespace OrbitalAnte.Dismemberment
                 : transform.position;
 
             GibManager manager = GibManager.GetOrCreate();
-            Gib gib = manager.Spawn(this, detachment.Group, rootPart.transform.position, rootPart.transform.rotation);
+            _spawningGib = true;
+            Gib gib;
+            try { gib = manager.Spawn(this, detachment.Group, rootPart.transform.position, rootPart.transform.rotation, source); }
+            finally { _spawningGib = false; }
             Rigidbody body = gib.Body;
 
             for (int i = 0; i < detachment.Members.Length; i++)
@@ -252,7 +258,7 @@ namespace OrbitalAnte.Dismemberment
                 _gibs.Remove(group);
             }
             // Once a dead character's last loose part has been cleaned up, nothing of it is left.
-            if (Model != null && !Model.Alive && _gibs.Count == 0 && this != null)
+            if (!_spawningGib && Model != null && !Model.Alive && _gibs.Count == 0 && this != null)
             {
                 Destroy(gameObject);
             }
