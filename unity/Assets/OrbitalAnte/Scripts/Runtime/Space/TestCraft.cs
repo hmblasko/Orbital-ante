@@ -18,6 +18,29 @@ namespace OrbitalAnte.Space
         /// <summary>The camera used to work out what the nose is pointing at. The ship sets this to the pilot's eyes.</summary>
         public Camera Eye { get; set; }
         public TestCraftConfig Config { get; private set; }
+        /// <summary>NPC authority bypasses every global input read, including roll and target-lock actions.</summary>
+        public bool UseExternalControl { get; set; }
+        public bool SpatialSound
+        {
+            set
+            {
+                if (_thrusterSound != null) { _thrusterSound.spatialBlend = value ? 1f : 0f; _thrusterSound.maxDistance = 200f; }
+                if (_jetSound != null) { _jetSound.spatialBlend = value ? 1f : 0f; _jetSound.maxDistance = 120f; }
+            }
+        }
+        Quaternion _externalRotation = Quaternion.identity;
+        float _externalAt = float.NegativeInfinity;
+        public void SetExternalCommand(Vector3 worldAcceleration, Quaternion rotation)
+        {
+            if (!UseExternalControl || Config == null) return;
+            if (!Finite(worldAcceleration.x) || !Finite(worldAcceleration.y) || !Finite(worldAcceleration.z)) worldAcceleration = Vector3.zero;
+            ThrustInput = Vector3.ClampMagnitude((Quaternion.Inverse(Body.rotation) * worldAcceleration) / Mathf.Max(0.1f, Config.thrust), 1f);
+            _externalRotation = rotation;
+            _externalAt = Time.time;
+            Boosting = MatchingVelocity = false;
+        }
+        public void ClearExternalCommand() { ThrustInput = Vector3.zero; _externalAt = float.NegativeInfinity; }
+        static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 
         /// <summary>The push being asked for right now, in the craft's own axes, each from -1 to 1.</summary>
         public Vector3 ThrustInput { get; private set; }
@@ -327,6 +350,18 @@ namespace OrbitalAnte.Space
 
         void Update()
         {
+            if (UseExternalControl)
+            {
+                if (GameSession.Paused || Unmanned || Time.time - _externalAt > 0.25f) ThrustInput = Vector3.zero;
+                _lookPending = Vector2.zero;
+                Boosting = MatchingVelocity = Steering = false;
+                if (PilotOn) StopPilot(PilotStop.PilotTookOver);
+                Firing = ThrustInput;
+                Heard = ThrusterHeard.For(ThrustInput.x, ThrustInput.y, ThrustInput.z, 0f);
+                if (_thrusterSound != null) _thrusterSound.volume = Heard.Main * Config.thrusterVolume;
+                if (_jetSound != null) _jetSound.volume = Heard.Jets * Config.thrusterVolume * 0.8f;
+                return;
+            }
             if (GameInput.Asset == null) return;
             if (GameSession.Paused)
             {
@@ -515,6 +550,15 @@ namespace OrbitalAnte.Space
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
+            if (UseExternalControl)
+            {
+                if (GameSession.Paused || Locked || Time.time - _externalAt > 0.25f) { ThrustInput = Vector3.zero; return; }
+                Body.MoveRotation(Quaternion.RotateTowards(Body.rotation, _externalRotation, Config.rollSpeed * Mathf.Clamp01(SideScale) * dt));
+                Body.angularVelocity = Vector3.Lerp(Body.angularVelocity, Vector3.zero, 1f - Mathf.Exp(-Config.spinDamping * dt));
+                Vector3 commanded = new Vector3(ThrustInput.x * SideScale, ThrustInput.y * LiftScale, ThrustInput.z * SideScale);
+                Body.AddRelativeForce(commanded * (Config.thrust * PushScale), ForceMode.Acceleration);
+                return;
+            }
 
             // Turning is direct: the nose goes where you point it. Any spin picked up from a bump is steadied.
             float roll = 0f;

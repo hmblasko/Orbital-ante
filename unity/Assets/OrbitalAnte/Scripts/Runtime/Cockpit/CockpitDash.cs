@@ -102,7 +102,7 @@ namespace OrbitalAnte.Cockpit
             dash._craft = world.Craft;
             dash.Config = config;
             dash.Model = new DashModel();
-            dash.Supplies = new ShipSupplies(config.supplies);
+            dash.Supplies = dash._ship.Supplies;
             dash.View = new ScreenView();
             dash.Drawing = new DashDrawing();
             dash.Style = config.style;
@@ -243,7 +243,7 @@ namespace OrbitalAnte.Cockpit
             bool onPad = engines != null && engines.Settled && _world.Base != null && _world.Base.OverPad(_ship.transform.position);
             // The autopilot pushes harder than a pilot's ordinary push, and pays for it.
             // (It flies on, and goes on burning fuel, while the pilot's hands are off to read the map.)
-            float push = _craft.PilotOn ? _craft.PilotPushShare : flying ? Mathf.Clamp01(_craft.ThrustInput.magnitude) : 0f;
+            float push = _craft.PilotOn ? _craft.PilotPushShare : flying || _craft.UseExternalControl ? Mathf.Clamp01(_craft.ThrustInput.magnitude) : 0f;
             // Braking to match speed burns fuel like any other push. Nothing the engines do is free.
             Braking = flying && _craft.MatchingVelocity && _craft.RelativeVelocity().sqrMagnitude > 0.25f;
             // It brakes twice as hard as an ordinary push, and is charged for it.

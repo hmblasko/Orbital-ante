@@ -99,13 +99,49 @@ namespace OrbitalAnte.Weapons
         }
 
         /// <summary>A shot fired by an enemy. It can hit the world or the player.</summary>
-        public static ShotResult FireFromEnemy(WeaponData data, Vector3 origin, Vector3 direction)
+        public static ShotResult FireFromEnemy(WeaponData data, Vector3 origin, Vector3 direction,
+            Ship.Ship sourceShip = null)
         {
             var result = new ShotResult { End = origin + direction * data.range };
-            if (!Physics.Raycast(origin, direction, out RaycastHit hit, data.range, Layers.EnemyShootMask, QueryTriggerInteraction.Ignore))
+            bool physical = Physics.Raycast(origin, direction, out RaycastHit hit, data.range,
+                Layers.EnemyShootMask, QueryTriggerInteraction.Ignore);
+            float nearest = physical ? hit.distance : data.range + 0.01f;
+
+            // An enemy standing in a cabin obeys the same solid interior walls as the player.
+            float interiorDistance = 0f;
+            Vector3 interiorPoint = origin, interiorNormal = -direction;
+            bool wall = sourceShip != null && sourceShip.InteriorWall(origin, direction,
+                out interiorDistance, out interiorPoint, out interiorNormal)
+                && interiorDistance <= data.range && interiorDistance < nearest;
+            if (wall)
             {
+                nearest = interiorDistance;
+            }
+
+            // Suit physics is intentionally off aboard. Logical body/head volumes preserve cabin combat
+            // and leaning exposure, but never outrank a nearer hull, terrain, window or other solid.
+            if (OrbitalAnte.AI.CombatWorld.RaycastPlayer(origin, direction, data.range,
+                    out float playerDistance, out Vector3 playerPoint, out Vector3 playerNormal)
+                && playerDistance < nearest - 0.0001f)
+            {
+                result.HitAnything = true;
+                result.HitPlayer = true;
+                result.End = playerPoint;
+                OrbitalAnte.AI.CombatWorld.Player.TakeDamage(data.playerDamage, direction);
                 return result;
             }
+            WeaponFx fx = WeaponFx.Instance;
+            if (wall)
+            {
+                result.HitAnything = true;
+                result.End = interiorPoint;
+                var info = new HitInfo { Damage = data.torsoDamage, Point = interiorPoint,
+                    Direction = direction, Normal = interiorNormal };
+                result.Outcome = sourceShip.HitPart(sourceShip.CabinPart, info);
+                if (fx != null) fx.Impact(interiorPoint, interiorNormal);
+                return result;
+            }
+            if (!physical) return result;
 
             result.HitAnything = true;
             result.End = hit.point;
@@ -119,7 +155,13 @@ namespace OrbitalAnte.Weapons
             }
             else
             {
-                WeaponFx fx = WeaponFx.Instance;
+                IHittable target = hit.collider.GetComponentInParent<IHittable>();
+                if (target != null)
+                {
+                    var info = new HitInfo { Damage = data.torsoDamage, Point = hit.point,
+                        Direction = direction, Normal = hit.normal };
+                    result.Outcome = target.Hit(info);
+                }
                 if (fx != null) fx.Impact(hit.point, hit.normal);
             }
             return result;

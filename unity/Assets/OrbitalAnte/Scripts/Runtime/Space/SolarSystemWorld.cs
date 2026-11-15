@@ -38,11 +38,13 @@ namespace OrbitalAnte.Space
         public Astronaut Astronaut { get; private set; }
         public ShipHud ShipHud { get; private set; }
         public OrbitalAnte.Spacewalk.SuitHud SuitHud { get; private set; }
+        public ShipLocator Locator { get; private set; }
         public OrbitalAnte.Cockpit.CockpitDash Dash { get; private set; }
         public FlightHud Hud { get; private set; }
         public SystemMap Map { get; private set; }
         public PlanetWorld Planets { get; private set; }
         public OrbitalAnte.Enemies.EnemySpawner Enemies { get; private set; }
+        public OrbitalAnte.Enemies.EnemyFleet Fleet => Enemies != null ? Enemies.Fleet : null;
         public OrbitalAnte.Bases.PlanetBases Bases { get; private set; }
 
         public void Build(int seed, StartPlace place = StartPlace.FromConfig)
@@ -119,6 +121,7 @@ namespace OrbitalAnte.Space
             ShipHud.Build(Ship, Astronaut, Hud, Map);
             SuitHud = shipHudGo.AddComponent<OrbitalAnte.Spacewalk.SuitHud>();
             SuitHud.Build(Astronaut, Astronaut.SuitDials);
+            Locator = ShipLocator.Attach(Astronaut);
             Bases = OrbitalAnte.Bases.PlanetBases.Build(this, null);
             // Read the base models while the run is being got ready, not on the frame the first base comes into range.
             OrbitalAnte.Bases.BaseView.Warm();

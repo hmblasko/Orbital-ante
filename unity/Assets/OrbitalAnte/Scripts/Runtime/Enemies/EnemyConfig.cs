@@ -21,6 +21,14 @@ namespace OrbitalAnte.Enemies
         public EnemyFieldRules field = new EnemyFieldRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
+        [Header("NPC ships — trial settings for Fable")]
+        public bool enemyShips = true;
+        [Range(0, 2)] public int shipCap = 2;
+        public EnemyShipTuning shipFlight = new EnemyShipTuning();
+        public float shipHoverSeconds = 4f;
+        public float crewOutsideSeconds = 18f;
+        public float crewCabinSeconds = 12f;
+        public float boardingSeekRange = 12f;
 
         static EnemyConfig _cached;
 
@@ -38,6 +46,7 @@ namespace OrbitalAnte.Enemies
                 _cached.roster = EnemyRoster.Defaults();
                 _cached.rosterVersion = EnemyRoster.Version;
             }
+            if (_cached.shipFlight == null) _cached.shipFlight = new EnemyShipTuning();
             return _cached;
         }
 

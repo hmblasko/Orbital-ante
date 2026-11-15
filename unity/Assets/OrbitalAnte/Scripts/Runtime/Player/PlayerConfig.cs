@@ -22,6 +22,43 @@ namespace OrbitalAnte.Player
         [Tooltip("Seconds after walking off an edge during which a jump still works.")]
         public float coyoteTime = 0.1f;
 
+        [Header("Crouch and lean — initial trials for Fable's feel review")]
+        [Tooltip("Trial crouched capsule height; clamped to at least its diameter, with the boots kept in place.")]
+        public float crouchHeight = 1.15f;
+        public float crouchEyeHeight = 1.02f;
+        public float crouchSpeedShare = 0.5f;
+        [Tooltip("Trial stance transition speed in metres per second. A blocked stand retries until clear.")]
+        public float stanceSpeed = 3.5f;
+        [Tooltip("Trial sideways peek distance in metres. Solid geometry always limits it.")]
+        public float leanDistance = 0.28f;
+        public float leanDegrees = 12f;
+        [Tooltip("Trial lean transitions per second.")]
+        public float leanSpeed = 7f;
+        [Tooltip("Trial head clearance radius. The camera near-plane corners are always protected too.")]
+        public float headClearanceRadius = 0.14f;
+
+        [Header("Parkour — initial trials for Fable's feel review")]
+        public bool parkourEnabled = true;
+        [Tooltip("Trial minimum pull for upright wall-running and climbing; floating controls keep priority below it.")]
+        public float parkourMinimumGravity = 1f;
+        [Tooltip("Trial side-wall reach, measured beyond the capsule radius.")]
+        public float wallReach = 0.22f;
+        public float wallMinimumSpeed = 3.5f;
+        public float wallRunSeconds = 0.9f;
+        [Tooltip("Trial share of gravity while running; no upward boost is applied.")]
+        public float wallGravityShare = 0.3f;
+        public float wallFallSpeed = 2.5f;
+        [Tooltip("Trial maximum absolute dot between forward and the wall normal: smaller means more parallel.")]
+        public float wallParallelDot = 0.35f;
+        public float wallJumpAwaySpeed = 4f;
+        public float wallJumpUpSpeed = 5f;
+        [Tooltip("Climbing needs a fresh airborne Jump press and forward input. Keep Jump held to finish; release to drop.")]
+        public float climbReach = 0.65f;
+        public float climbMinimumRise = 0.45f;
+        public float climbMaximumRise = 1.65f;
+        public float climbSpeed = 2.8f;
+        public float climbSeconds = 1.5f;
+
         [Header("Looking")]
         [Tooltip("Degrees turned per unit of mouse movement.")]
         public float mouseSensitivity = 0.09f;

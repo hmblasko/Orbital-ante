@@ -59,6 +59,16 @@ namespace OrbitalAnte.Ship
         Transform _world;
         GravityBody _suitGravity;
         readonly InteriorWalker _walker = new InteriorWalker();
+        readonly CameraClearance _clearance = new CameraClearance();
+        readonly DownJetLatch _downJet = new DownJetLatch();
+        readonly ParkourMotor _parkour = new ParkourMotor();
+        CapsuleCollider _suitCapsule;
+        Vector3 _suitCentreOfMass;
+        float _stanceHeight = ShipLayout.PersonHeight, _lean;
+        public bool Crouched => _stanceHeight < ShipLayout.PersonHeight - 0.001f;
+        public float StanceHeight => _stanceHeight;
+        public bool WallRunning => _parkour.WallRunning;
+        public bool Climbing => _parkour.Climbing;
 
         float _yaw, _pitch;
         // Where the head is turned while buckled in, measured from straight ahead.
@@ -111,7 +121,9 @@ namespace OrbitalAnte.Ship
         Quaternion _viewLocal = Quaternion.identity;
         bool _mendingNow;
         Vector3 _jetLocal;
-        static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
+        Vector3 EyeLocal => new Vector3(0f, StanceRules.EyeHeight(_stanceHeight, ShipLayout.PersonHeight,
+            ShipLayout.EyeHeight, StanceRules.CrouchHeight(_look.crouchHeight, ShipLayout.PersonHeight,
+                ShipLayout.PersonRadius), _look.crouchEyeHeight), 0f);
 
         Transform _strapLeft, _strapRight, _strapLap, _buckle;
         Material _webbing;
@@ -121,8 +133,7 @@ namespace OrbitalAnte.Ship
         static readonly Vector3 HipRight = new Vector3(0.3f, 0.52f, 1.22f);
         static readonly Vector3 Lap = new Vector3(0f, 0.6f, 1.44f);
 
-        readonly RaycastHit[] _hits = new RaycastHit[6];
-        readonly Collider[] _overlaps = new Collider[6];
+        readonly RaycastHit[] _hits = new RaycastHit[32];
 
         // ------------------------------------------------------------------ building
 
@@ -165,6 +176,10 @@ namespace OrbitalAnte.Ship
             capsule.center = new Vector3(0f, ShipLayout.PersonHeight * 0.5f, 0f);
             capsule.height = ShipLayout.PersonHeight;
             capsule.radius = ShipLayout.PersonRadius;
+            a._suitCapsule = capsule;
+            a._suitCentreOfMass = capsule.center;
+            // Changing stance must not silently change tether distances or the inertial reference point.
+            a.Suit.centerOfMass = a._suitCentreOfMass;
             // Slippery, so the suit slides along walls instead of sticking to them. Walking speed is set directly.
             capsule.sharedMaterial = new PhysicsMaterial("Suit") { dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             a._suitGravity = suitGo.AddComponent<GravityBody>();
@@ -172,7 +187,7 @@ namespace OrbitalAnte.Ship
             // The suit can be shot. It takes what the test player takes and mends after a few quiet seconds.
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
-            a.Armour.Died += () => a.Die("Shot down outside the ship.");
+            a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Outside ? "Shot down outside the ship." : "Shot down in the cabin.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
             a._suitGravity.SunkBelow = -0.7f;
@@ -233,10 +248,21 @@ namespace OrbitalAnte.Ship
 
         void SetMode(AstronautMode mode)
         {
+            if (Mode == AstronautMode.Lift && mode != AstronautMode.Lift) Ship.Hatch.Release(this);
+            if (Mode == AstronautMode.Seated && mode != AstronautMode.Seated) Ship.ReleasePilot(this);
             Mode = mode;
+            _parkour.Reset();
+            _jumpQueued = false;
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
+            if (mode == AstronautMode.Seated || mode == AstronautMode.Lift)
+            {
+                _lean = 0f;
+                SetStanceHeight(ShipLayout.PersonHeight);
+                // Carry a held crouch safely through the lift: it is not a request to descend on exit.
+                _downJet.Read(true, GameInput.JetDown.IsPressed());
+            }
             if (_system != null) _system.Focus = outside ? _suitGravity : Ship.Gravity;
 
             bool armed = mode == AstronautMode.Aboard || mode == AstronautMode.Outside;
@@ -256,8 +282,9 @@ namespace OrbitalAnte.Ship
 
         void EnterSeat(bool instant)
         {
+            if (!Ship.TryClaimPilot(this)) { Say("The pilot's seat is occupied."); return; }
             transform.SetParent(Ship.transform, false);
-            _standFrom = instant ? V(ShipLayout.SeatedEye) : transform.localPosition + Vector3.up * ShipLayout.EyeHeight;
+            _standFrom = instant ? V(ShipLayout.SeatedEye) : Ship.transform.InverseTransformPoint(Eye.transform.position);
             _yawFrom = Mathf.DeltaAngle(0f, _yaw);
             _pitchFrom = _pitch;
             SetMode(AstronautMode.Seated);
@@ -320,13 +347,14 @@ namespace OrbitalAnte.Ship
 
         void BoardLift(Vector3 feetInShip)
         {
+            if (!Ship.Hatch.TryBeginUp(this, new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
+            { Say("The lift is occupied or closing."); return; }
             // Keep looking the same way as the view moves from the suit's space to the ship's.
             Vector3 forward = Ship.transform.InverseTransformDirection(transform.forward);
             _yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
             transform.SetParent(Ship.transform, false);
             // Safe aboard: the suit is patched up (it cannot mend itself while it is put away).
             if (Armour != null && !Dead) Armour.Revive();
-            Ship.Hatch.BeginUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z));
             // The line reels itself in as the lift takes you.
             SetTether(false, quiet: !Tethered);
             Jets.Reset();
@@ -358,6 +386,8 @@ namespace OrbitalAnte.Ship
         {
             if (Dead) return;
             Dead = true;
+            Ship.Hatch.Release(this);
+            Ship.ReleasePilot(this);
             DeathCause = cause ?? string.Empty;
             _deadFor = 0f;
             Prompt = string.Empty;
@@ -397,7 +427,8 @@ namespace OrbitalAnte.Ship
 
         void Update()
         {
-            if (Ship == null || GameInput.Asset == null || GameSession.Paused) return;
+            if (Ship == null || GameInput.Asset == null) return;
+            if (GameSession.Paused) { _jumpQueued = false; return; }
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             Prompt = string.Empty;
@@ -587,6 +618,7 @@ namespace OrbitalAnte.Ship
         {
             ReadLook(dt, out float yawDelta);
             _yaw += yawDelta;
+            UpdateAboardStance(TimeFlow.PlayerDelta(dt));
 
             Vector2 move = Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f);
             float rad = _yaw * Mathf.Deg2Rad;
@@ -603,8 +635,8 @@ namespace OrbitalAnte.Ship
                 // of the belly and lets go: the suit's jets and the tether take it from there.
                 float bottom = Ship.FindLiftBottom();
                 if (float.IsNaN(bottom)) bottom = ShipLayout.BellyY - ShipLayout.PersonHeight - 0.35f;
-                Ship.Hatch.BeginDown(new P3(_walker.X, 0f, _walker.Z), bottom);
-                SetMode(AstronautMode.Lift);
+                if (Ship.Hatch.TryBeginDown(this, new P3(_walker.X, 0f, _walker.Z), bottom)) SetMode(AstronautMode.Lift);
+                else Say("The lift is occupied or closing.");
                 return;
             }
 
@@ -634,8 +666,44 @@ namespace OrbitalAnte.Ship
         {
             transform.localPosition = new Vector3(_walker.X, _walker.Y, _walker.Z);
             transform.localRotation = Quaternion.Euler(0f, _yaw, 0f);
-            Eye.transform.localPosition = new Vector3(0f, ShipLayout.EyeHeight, 0f);
+            Eye.transform.localPosition = EyeLocal;
             Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            float radius = CameraClearance.Radius(Eye, _look.headClearanceRadius);
+            P3 feet = new P3(_walker.X, _walker.Y, _walker.Z);
+            P3 centre = feet + new P3(0f, _stanceHeight * 0.5f, 0f);
+            P3 baseEye = CabinHeadClearance.Clip(centre, feet + new P3(0f, EyeLocal.y, 0f), radius);
+            Vector3 right = Quaternion.Euler(0f, _yaw, 0f) * Vector3.right;
+            float distance = StanceRules.NonNegative(_look.leanDistance);
+            P3 leaned = CabinHeadClearance.Clip(baseEye, baseEye + new P3(right.x, 0f, right.z) * (_lean * distance), radius);
+            Eye.transform.position = Ship.transform.TransformPoint(V(leaned));
+            float share = distance > 0f ? Vector3.Dot(V(leaned - baseEye), right) / distance : 0f;
+            Eye.transform.localRotation *= Quaternion.Euler(0f, 0f, -share * StanceRules.NonNegative(_look.leanDegrees));
+        }
+
+        void SetStanceHeight(float height)
+        {
+            if (Mathf.Approximately(height, _stanceHeight)) return;
+            _stanceHeight = height;
+            _walker.Height = height;
+            if (_suitCapsule == null) return;
+            _suitCapsule.height = height;
+            _suitCapsule.center = Vector3.up * (height * 0.5f);
+            Suit.centerOfMass = _suitCentreOfMass;
+        }
+
+        void UpdateAboardStance(float dt)
+        {
+            bool held = GameInput.JetDown.IsPressed();
+            _downJet.Read(true, held);
+            float crouch = StanceRules.CrouchHeight(_look.crouchHeight, ShipLayout.PersonHeight, ShipLayout.PersonRadius);
+            float wanted = held && _walker.Grounded ? crouch : ShipLayout.PersonHeight;
+            float next = Mathf.MoveTowards(_stanceHeight, wanted, StanceRules.NonNegative(_look.stanceSpeed) * dt);
+            if (!Mathf.Approximately(next, _stanceHeight) &&
+                (next < _stanceHeight || CabinHeadClearance.Fits(new P3(_walker.X, _walker.Y, _walker.Z), next, ShipLayout.PersonRadius)))
+                SetStanceHeight(next);
+            _walker.WalkSpeed = _config.walkSpeed * (Crouched ? Mathf.Clamp01(StanceRules.NonNegative(_look.crouchSpeedShare)) : 1f);
+            int lean = StanceRules.Lean(GameInput.SuitRollLeft.IsPressed(), GameInput.SuitRollRight.IsPressed());
+            _lean = Mathf.MoveTowards(_lean, lean, StanceRules.NonNegative(_look.leanSpeed) * dt);
         }
 
         void UpdateLift()
@@ -643,14 +711,13 @@ namespace OrbitalAnte.Ship
             ReadLook(Time.deltaTime, out float yawDelta);
             _yaw += yawDelta;
             PoseLift();
-            LiftRide finished = Ship.LastRideFinished;
-            if (finished == LiftRide.Up)
+            if (Ship.Hatch.FinishedFor(this, LiftRide.Up))
             {
                 _walker.Place(0f, 0f);
                 SetMode(AstronautMode.Aboard);
                 PoseAboard();
             }
-            else if (finished == LiftRide.Down)
+            else if (Ship.Hatch.FinishedFor(this, LiftRide.Down))
             {
                 // Measured again now: the ship may have settled or slid while you rode down. With no ground
                 // there at all, you are let go where the lift stopped.
@@ -675,18 +742,21 @@ namespace OrbitalAnte.Ship
             ReadLookRaw(dt, out float yawDelta, out float pitchDelta);
             if (Posture == Posture.Free)
             {
+                _lean = 0f;
                 // Floating: there is no "up", so the head turns any way at all, and can roll over.
                 float roll = (GameInput.SuitRollLeft.IsPressed() ? 1f : 0f) - (GameInput.SuitRollRight.IsPressed() ? 1f : 0f);
                 _viewLocal = _viewLocal * Quaternion.Euler(pitchDelta, yawDelta, roll * SuitDials.rollSpeed * dt);
             }
             else
             {
+                int lean = !Dazed ? StanceRules.Lean(GameInput.SuitRollLeft.IsPressed(), GameInput.SuitRollRight.IsPressed()) : 0;
+                _lean = Mathf.MoveTowards(_lean, lean, StanceRules.NonNegative(_look.leanSpeed) * TimeFlow.PlayerDelta(dt));
                 // Turning is applied to the view at once. The suit's body only keeps you upright.
                 _pendingYaw += yawDelta;
                 _pitch = Mathf.Clamp(_pitch + pitchDelta, -88f, 88f);
                 _rollEase = Mathf.LerpAngle(_rollEase, 0f, 1f - Mathf.Exp(-5f * dt));
             }
-            if (GameInput.Jump.WasPressedThisFrame()) _jumpQueued = true;
+            if (!Dazed && GameInput.Jump.WasPressedThisFrame()) _jumpQueued = true;
             PoseOutside();
 
             // Floating, there are no "feet": the lift takes you by where your middle is.
@@ -694,7 +764,7 @@ namespace OrbitalAnte.Ship
                 ? Suit.position + Suit.rotation * (Vector3.up * (ShipLayout.PersonHeight * 0.5f)) - Ship.Body.rotation * (Vector3.up * (ShipLayout.PersonHeight * 0.5f))
                 : Suit.position;
             Vector3 feetInShip = Quaternion.Inverse(Ship.Body.rotation) * (feetWorld - Ship.Body.position);
-            if (Ship.Hatch.CanPickUp(new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
+            if (Ship.Hatch.CanPickUp(this, new P3(feetInShip.x, feetInShip.y, feetInShip.z)))
             {
                 BoardLift(feetInShip);
                 return;
@@ -758,6 +828,15 @@ namespace OrbitalAnte.Ship
                 Eye.transform.localPosition = EyeLocal;
                 Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, _rollEase);
             }
+            float radius = CameraClearance.Radius(Eye, _look.headClearanceRadius);
+            Vector3 centre = Suit.transform.TransformPoint(Vector3.up * (_stanceHeight * 0.5f));
+            Vector3 baseEye = _clearance.Clip(centre, Eye.transform.position, radius, Suit.transform);
+            float distance = Posture == Posture.Upright ? StanceRules.NonNegative(_look.leanDistance) : 0f;
+            Vector3 right = transform.right;
+            Vector3 eye = _clearance.Clip(baseEye, baseEye + right * (_lean * distance), radius, Suit.transform);
+            Eye.transform.position = eye;
+            float share = distance > 0f ? Vector3.Dot(eye - baseEye, right) / distance : 0f;
+            Eye.transform.localRotation *= Quaternion.Euler(0f, 0f, -share * StanceRules.NonNegative(_look.leanDegrees));
         }
 
         void ToggleTether()
@@ -875,8 +954,9 @@ namespace OrbitalAnte.Ship
 
         void FixedUpdate()
         {
-            if (Mode != AstronautMode.Outside || Ship == null) return;
+            if (Mode != AstronautMode.Outside || Ship == null || GameSession.Paused) return;
             float dt = Time.fixedDeltaTime;
+            if (dt <= 0f) return;
             SuitRules rules = SuitDials.rules;
 
             // What is pulling, how hard, and how high above its ground you are.
@@ -910,7 +990,7 @@ namespace OrbitalAnte.Ship
                 float nearest = float.MaxValue;
                 for (int i = 0; i < hits; i++)
                 {
-                    if (_hits[i].rigidbody == Suit || _hits[i].distance >= nearest) continue;
+                    if (hits == _hits.Length || _hits[i].rigidbody == Suit || _hits[i].distance >= nearest || Vector3.Dot(_hits[i].normal, _up) < 0.6f) continue;
                     nearest = _hits[i].distance;
                     _grounded = true;
                     groundVelocity = _hits[i].rigidbody != null ? _hits[i].rigidbody.GetPointVelocity(_hits[i].point) : Vector3.zero;
@@ -927,7 +1007,7 @@ namespace OrbitalAnte.Ship
                     int hits = Physics.SphereCastNonAlloc(Suit.worldCenterOfMass, 0.25f, down, _hits, ShipLayout.PersonHeight * 0.5f + 0.15f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
                     for (int i = 0; i < hits; i++)
                     {
-                        if (_hits[i].rigidbody != Suit) _grounded = true;
+                        if (hits < _hits.Length && _hits[i].rigidbody != Suit && Vector3.Dot(_hits[i].normal, -down) >= 0.6f) _grounded = true;
                     }
                 }
                 frame = Suit.rotation * _viewLocal;
@@ -936,7 +1016,21 @@ namespace OrbitalAnte.Ship
             // A blow that winds you costs you the controls for as long as it lasts.
             bool live = GameInput.Asset != null && !GameSession.Paused && !Dead && !Dazed;
             Vector2 move = live ? Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
-            bool jetUp = live && GameInput.Jump.IsPressed(), jetDown = live && GameInput.JetDown.IsPressed();
+            if (_grounded && !Climbing) _parkour.State.Grounded();
+            _parkour.Tick(dt);
+            bool onFoot = Posture == Posture.Upright && _grounded && !Climbing;
+            bool physicalDown = GameInput.Asset != null && GameInput.JetDown.IsPressed();
+            bool downHeld = live && physicalDown;
+            float crouchHeight = StanceRules.CrouchHeight(_look.crouchHeight, ShipLayout.PersonHeight, ShipLayout.PersonRadius);
+            float wantedHeight = (onFoot || Climbing) && downHeld ? crouchHeight : ShipLayout.PersonHeight;
+            float nextHeight = Mathf.MoveTowards(_stanceHeight, wantedHeight, StanceRules.NonNegative(_look.stanceSpeed) * dt);
+            Vector3 capsuleUp = Posture == Posture.Upright ? _up : Suit.rotation * Vector3.up;
+            if (live && !Mathf.Approximately(nextHeight, _stanceHeight) &&
+                (nextHeight < _stanceHeight || _parkour.CanOccupy(Suit.position, capsuleUp, nextHeight, ShipLayout.PersonRadius, Suit.transform)))
+                SetStanceHeight(nextHeight);
+            bool jetUp = live && GameInput.Jump.IsPressed();
+            bool jetDownRequested = _downJet.Read(onFoot || Climbing || WallRunning, physicalDown);
+            bool jetDown = live && jetDownRequested;
             bool matchHeld = live && (GameInput.SuitMatch.IsPressed() || _mendingNow);
 
             // What Match Velocity would match, and your speed against it (shown on the suit's readout).
@@ -957,14 +1051,41 @@ namespace OrbitalAnte.Ship
 
             Vector3 jets = Vector3.zero;
             float factor = SuitTanks.PushFactor;
-            if (_grounded)
+            bool climbAllowed = live && _look.parkourEnabled && Posture == Posture.Upright &&
+                ParkourRules.GravityAllows(weight, _look.parkourMinimumGravity) && !matchHeld;
+            bool parkourAllowed = climbAllowed && !downHeld && !Crouched;
+            if (Climbing && (!climbAllowed || !GameInput.Jump.IsPressed()))
+            {
+                Suit.linearVelocity = _parkour.ClimbExitVelocity;
+                _parkour.Stop();
+            }
+            if (!Climbing && climbAllowed && !_grounded && _jumpQueued && move.y > 0.3f)
+                _parkour.TryBeginClimb(Suit.position, _up, frame * Vector3.forward, _stanceHeight,
+                    ShipLayout.PersonRadius, Suit.transform, Suit.linearVelocity, _look);
+            bool traversing = false;
+            if (Climbing)
+            {
+                if (_parkour.TryClimbStep(Suit.position, _up, _stanceHeight, ShipLayout.PersonRadius,
+                    Suit.transform, _look, dt, out Vector3 climb))
+                {
+                    // Keep the suit dynamic and registered with GravityBody. CCD and the bounded full-capsule
+                    // sweep both protect each step; no pose teleport or world-velocity reset is needed.
+                    Suit.linearVelocity = climb / dt;
+                    Suit.AddForce(-pull, ForceMode.Acceleration);
+                    _grounded = false;
+                    traversing = true;
+                }
+                else Suit.linearVelocity = _parkour.ClimbExitVelocity;
+            }
+            if (!traversing && _grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
+                float pace = _config.outsideWalkSpeed * (Crouched ? Mathf.Clamp01(StanceRules.NonNegative(_look.crouchSpeedShare)) : 1f);
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * pace;
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);
-                if (_jumpQueued)
+                if (live && _jumpQueued)
                 {
                     // The same push off whatever the gravity, so low gravity means high, slow jumps.
                     vertical = _up * Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
@@ -972,9 +1093,17 @@ namespace OrbitalAnte.Ship
                 }
                 Suit.linearVelocity = groundVelocity + level + vertical;
             }
-            else
+            else if (!traversing)
             {
-                if (matchHeld)
+                Vector3 wallVelocity = Suit.linearVelocity;
+                if (_parkour.TryWallRun(Suit.position, _up, frame * Vector3.forward, _stanceHeight, ShipLayout.PersonRadius,
+                    Suit.transform, _look, parkourAllowed, _grounded, live && GameInput.Sprint.IsPressed(), move.y,
+                    Crouched, _jumpQueued, weight, dt, ref wallVelocity))
+                {
+                    Suit.linearVelocity = wallVelocity;
+                    traversing = true;
+                }
+                else if (matchHeld)
                 {
                     P3 push = Jetpack.Match(rules, new P3(relative.x, relative.y, relative.z), dt, factor);
                     jets = new Vector3(push.X, push.Y, push.Z);
@@ -1010,10 +1139,21 @@ namespace OrbitalAnte.Ship
                 P3 change = Tether.Pull(rules, new P3(offset.x, offset.y, offset.z), new P3(against.x, against.y, against.z), out bool taut, out P3 back);
                 if (taut)
                 {
+                    if (Climbing)
+                    {
+                        Suit.linearVelocity = _parkour.ClimbExitVelocity;
+                        _parkour.Stop();
+                    }
                     Suit.linearVelocity += new Vector3(change.X, change.Y, change.Z);
                     // Only a real overrun is put right by moving you (a fast drift can pass the end in one
                     // step). Small ones are left alone: moving the body every step would shake the view.
-                    if (back.Length > 0.05f) Suit.position += new Vector3(back.X, back.Y, back.Z);
+                    if (back.Length > 0.05f)
+                    {
+                        Vector3 correction = new Vector3(back.X, back.Y, back.Z);
+                        Vector3 capsuleAxis = Posture == Posture.Upright ? _up : Suit.rotation * Vector3.up;
+                        if (_parkour.CanSweep(Suit.position, Suit.position + correction, capsuleAxis, _stanceHeight,
+                            ShipLayout.PersonRadius, Suit.transform)) Suit.position += correction;
+                    }
                     // Coming up short on the line at speed is a blow like any other, though the harness
                     // spreads it: it can wind you, never kill you.
                     float jolt = change.Length;
@@ -1080,7 +1220,8 @@ namespace OrbitalAnte.Ship
             else
             {
                 Quaternion view = Suit.rotation * _viewLocal;
-                Vector3 eye = Suit.position + Suit.rotation * EyeLocal;
+                // The rendered suit is interpolated; carry the current local eye offset into the physics pose.
+                Vector3 eye = Suit.position + Suit.rotation * Suit.transform.InverseTransformPoint(Eye.transform.position);
                 Vector3 up = weight > 0.01f ? -pull / weight : view * Vector3.up;
                 Vector3 forward = view * Vector3.forward;
                 Vector3 flat = Vector3.ProjectOnPlane(forward, up);
@@ -1095,14 +1236,7 @@ namespace OrbitalAnte.Ship
                 // The body turns about your eyes, so what you see does not move.
                 Vector3 feet = eye - upright * EyeLocal;
                 // If standing up would put the body through something (the hull beside you), wait until it is clear.
-                if (!_grounded)
-                {
-                    int touching = Physics.OverlapCapsuleNonAlloc(feet + upright * (Vector3.up * 0.35f), feet + upright * (Vector3.up * (ShipLayout.PersonHeight - 0.35f)), 0.28f, _overlaps, Layers.WorldMask, QueryTriggerInteraction.Ignore);
-                    for (int i = 0; i < touching; i++)
-                    {
-                        if (_overlaps[i].attachedRigidbody != Suit) return;
-                    }
-                }
+                if (!_parkour.CanOccupy(feet, up, _stanceHeight, ShipLayout.PersonRadius, Suit.transform)) return;
                 Suit.transform.SetPositionAndRotation(feet, upright);
                 Suit.position = feet;
                 Suit.rotation = upright;
@@ -1157,6 +1291,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            if (Ship != null) { Ship.Hatch.Release(this); Ship.ReleasePilot(this); }
             if (Suit != null)
             {
                 var capsule = Suit.GetComponent<CapsuleCollider>();

@@ -22,6 +22,8 @@ namespace OrbitalAnte.Ship
         public float Acceleration = 26f;
         public float Gravity = 9.0f;
         public float JumpHeight = 0.45f;
+        /// <summary>Effective stance height. The feet and floor-plan radius do not move when crouching.</summary>
+        public float Height = ShipLayout.PersonHeight;
 
         public void Place(float x, float z)
         {
@@ -62,7 +64,7 @@ namespace OrbitalAnte.Ship
             Y += VelocityY * dt;
 
             float distance = (float)Math.Sqrt(X * X + Z * Z);
-            float head = ShipLayout.CeilingAt(distance + 0.2f) - ShipLayout.PersonHeight;
+            float head = ShipLayout.CeilingAt(distance + 0.2f) - Height;
             if (Y > head)
             {
                 // Also when drifting under the lower edge of the roof on the way down.

@@ -47,6 +47,7 @@ namespace OrbitalAnte.AI
         // Gives each one-handed wobble its own rhythm (set on first use: Unity forbids Random in constructors). Visual only.
         float _wobblePhase = -1f;
         bool _aimedAtTarget;
+        int _targetRevision = int.MinValue;
         float _kick;
         bool _magazineOut;
 
@@ -105,6 +106,18 @@ namespace OrbitalAnte.AI
                 _owner.PartDetached -= OnPartDetached;
                 _owner.Died -= OnDied;
             }
+        }
+
+        void OnDisable()
+        {
+            // Piloting and lift travel stow this component. No warning beam or held burst may survive it.
+            if (_loco != null) ClearGoals();
+            _seesPlayer = _triggerHeld = _triggerPressed = _telling = _aimedAtTarget = false;
+            _lastSaw = -1000f;
+            _thinkTimer = 0f;
+            _nextTriggerAt = 0f;
+            if (Weapon != null && Weapon.State != null) Weapon.State.TryFire(0, false, false);
+            ShowTell(false);
         }
 
         float Rand(float min, float max) => min + (float)_rng.NextDouble() * (max - min);
@@ -231,6 +244,17 @@ namespace OrbitalAnte.AI
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
+            if (_targetRevision != CombatWorld.TargetRevision)
+            {
+                _targetRevision = CombatWorld.TargetRevision;
+                ClearGoals();
+                _lastSaw = -1000f;
+                _triggerHeld = _triggerPressed = _telling = _aimedAtTarget = false;
+                _nextTriggerAt = 0f;
+                _thinkTimer = 0f;
+                ShowTell(false);
+            }
+
             if (Weapon != null) TickReload(dt);
             else if (_grabbing != null) TickGrab();
             else if (_scrambleFor != null && _loco.Scramble && _scrambleFor.Hold == WeaponHold.Dropped && Reachable(_scrambleFor)
@@ -259,7 +283,7 @@ namespace OrbitalAnte.AI
             }
         }
 
-        Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position - transform.up * 0.3f;
+        Vector3 PlayerAimPoint => CombatWorld.AimPointFrom(HeadPosition, transform.up);
 
         void Think()
         {
@@ -309,8 +333,7 @@ namespace OrbitalAnte.AI
             Vector3 target = PlayerAimPoint;
             Vector3 head = HeadPosition;
             float distance = Vector3.Distance(head, target);
-            bool sees = distance <= _cfg.engageRange
-                        && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool sees = distance <= _cfg.engageRange && CombatWorld.VisibleFrom(head, target);
 
             float now = Time.time;
             if (!sees)
@@ -470,8 +493,8 @@ namespace OrbitalAnte.AI
 
         bool SeesPlayer()
         {
-            Vector3 head = HeadPosition, eye = CombatWorld.PlayerEye.position;
-            return Vector3.Distance(head, eye) <= _cfg.engageRange && !Physics.Linecast(head, eye, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            Vector3 head = HeadPosition, target = PlayerAimPoint;
+            return Vector3.Distance(head, target) <= _cfg.engageRange && CombatWorld.VisibleFrom(head, target);
         }
 
         /// <summary>Not too far above or below to bend down to (a gun on a ledge or down a pit is out of reach).</summary>
@@ -632,7 +655,8 @@ namespace OrbitalAnte.AI
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
             Vector3 direction = Ballistics.SpreadDirection(toTarget, shot.SpreadDegrees + _cfg.aimError, _rng);
 
-            ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
+            ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction,
+                GetComponentInParent<OrbitalAnte.Ship.Ship>());
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
             _kick = Mathf.Min(2.5f, shot.RecoilScale);
             if (_loco != null) _loco.Kick(_kick, _gunSide);
