@@ -646,7 +646,6 @@ namespace OrbitalAnte.Dismemberment
                 ReactArms(s, input, lossLeft, lossRight, trunk, startle, stumble, reach, scramble, breath, ref down, ref swing, ref elbow);
                 SetArm(pose, s, down, swing, elbow);
             }
-            Clutch(pose, input, lossLeft, lossRight, scramble, reach, stumble, breath);
 
             AddKnocks(pose, 1.0);
         }
@@ -664,57 +663,9 @@ namespace OrbitalAnte.Dismemberment
         }
 
         /// <summary>
-        /// For a few seconds after losing an arm (or a forearm) the good hand is pressed to the wound, if it is
-        /// not holding a gun and has nothing more urgent to do.
-        /// </summary>
-        void Clutch(BodyPose pose, in BodyAnimInput input, double lossLeft, double lossRight, double scramble, double reach, double stumble, double breath)
-        {
-            int hurt = lossLeft >= 0.4 && lossLeft >= lossRight ? BodySkeleton.Left : lossRight >= 0.4 ? BodySkeleton.Right : -1;
-            if (hurt < 0) return;
-            int good = 1 - hurt;
-            if ((good == BodySkeleton.Left ? lossLeft : lossRight) >= 0.4 || input.GunSide == good) return;
-            // It keeps a hand to the wound even running for its gun, if less firmly.
-            double weight = Clamp01(_shock * 1.4) * (1.0 - 0.6 * scramble) * (1.0 - reach) * (1.0 - stumble);
-            if (weight <= 0.001) return;
-            double hx = hurt == BodySkeleton.Left ? -1.0 : 1.0;
-            // Over the stump, on the front of the wounded shoulder, in the trunk's own space, rising and falling with the breath.
-            var target = new Vec3d(hx * (BodySkeleton.ShoulderX + 0.01), BodySkeleton.ShoulderY - BodySkeleton.SpineY - 0.03 + 0.01 * breath, 0.08);
-            ArmToPoint(pose, good, target, out QuatD upper, out QuatD fore);
-            int u = (int)BodySkeleton.UpperArm(good), f = (int)BodySkeleton.Forearm(good);
-            pose.Local[u] = BodyPose.Nlerp(pose.Local[u], upper, weight);
-            pose.Local[f] = BodyPose.Nlerp(pose.Local[f], fore, weight);
-        }
-
-        /// <summary>
-        /// Bends an arm (two bones) so that its palm reaches a point given in the trunk's own space, the elbow
-        /// down and out. In the rest pose each arm bone lies along its own x axis, away from the body.
-        /// </summary>
-        static void ArmToPoint(BodyPose pose, int side, Vec3d target, out QuatD upperLocal, out QuatD foreLocal)
-        {
-            double sx = side == BodySkeleton.Left ? -1.0 : 1.0;
-            const double upperLength = BodySkeleton.UpperArmLength;
-            const double foreLength = BodySkeleton.ForearmLength + 0.07;
-            Vec3d shoulder = BodySkeleton.RestPosition(BodySkeleton.UpperArm(side)) - BodySkeleton.RestPosition(BodyBone.Spine);
-            Vec3d to = target - shoulder;
-            double distance = Clamp(to.Magnitude, Math.Abs(upperLength - foreLength) + 0.01, upperLength + foreLength - 0.005);
-            Vec3d dir = to.SqrMagnitude > 1e-8 ? to.Normalized : Vec3d.Forward;
-            double cos = (upperLength * upperLength + distance * distance - foreLength * foreLength) / (2.0 * upperLength * distance);
-            double angle = Math.Acos(Clamp(cos, -1.0, 1.0));
-            Vec3d hint = new Vec3d(sx * 0.6, -1.0, 0.0).Normalized;
-            Vec3d axis = Vec3d.Cross(dir, hint);
-            axis = axis.SqrMagnitude > 1e-8 ? axis.Normalized : Vec3d.Up;
-            Vec3d upperDir = dir.RotatedAround(axis, angle);
-            Vec3d elbow = shoulder + upperDir * upperLength;
-            Vec3d foreDir = shoulder + dir * distance - elbow;
-            foreDir = foreDir.SqrMagnitude > 1e-8 ? foreDir.Normalized : upperDir;
-            var boneAxis = new Vec3d(sx, 0.0, 0.0);
-            upperLocal = QuatD.FromTo(boneAxis, upperDir);
-            foreLocal = (upperLocal.Inverse * QuatD.FromTo(boneAxis, foreDir)).Normalized;
-        }
-
-        /// <summary>
-        /// The arm reactions, laid over whatever the arm was doing: a lost arm's stump held in, the other hand
-        /// clutching at it, the startled flinch, the stumble's flailing and the reach down to the ground.
+        /// The arm reactions, laid over whatever the arm was doing: a lost arm's stump held in, the other arm
+        /// thrown out for balance as the hit spins the body, the startled flinch, the stumble's flailing and the
+        /// reach down to the ground. The other hand never reaches across to the wound (Matthew, 15 Nov 2026).
         /// </summary>
         void ReactArms(int s, in BodyAnimInput input, double lossLeft, double lossRight, double trunk, double startle, double stumble,
                        double reach, double scramble, double breath, ref double down, ref double swing, ref double elbow)
@@ -729,6 +680,13 @@ namespace OrbitalAnte.Dismemberment
                 swing = Lerp(swing, -8.0 + twitch, 0.8);
                 elbow = Lerp(elbow, 35.0, 0.8);
                 return;
+            }
+            if (otherLoss >= 0.4)
+            {
+                // The arm that is left is thrown out a little for balance while the hit spins the body.
+                double reel = ReelAmount();
+                down -= 22.0 * reel;
+                elbow += 15.0 * reel;
             }
             if (startle > 0.0)
             {
@@ -871,7 +829,6 @@ namespace OrbitalAnte.Dismemberment
                 ReactArms(s, input, lossLeft, lossRight, trunk, startle, stumble, reach, scramble, breath, ref down, ref swing, ref elbow);
                 SetArm(pose, s, down, swing, elbow);
             }
-            Clutch(pose, input, lossLeft, lossRight, scramble, reach, stumble, breath);
 
             AddKnocks(pose, 1.0);
         }
