@@ -41,6 +41,7 @@ namespace OrbitalAnte.UI
         Text _bannerText;
         VisorGauge _health;
         Image _hurtFlash;
+        DamageFeedback _damage;
         static readonly Color DisarmColor = new Color(0.45f, 0.85f, 1f);
 
         /// <summary>Extra line for the debug readout, supplied by whichever test world is running.</summary>
@@ -58,6 +59,9 @@ namespace OrbitalAnte.UI
         public void Build(Transform uiRoot)
         {
             _canvas = UiKit.CreateCanvas("HUD", uiRoot, 10);
+            // Hits on the player: direction arcs, edge glow, visor cracks, hurt sound. Its own canvas, so it
+            // works in the solar system too, where the arena-only parts are hidden.
+            _damage = DamageFeedback.Create(uiRoot);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
             _arenaOnly = UiKit.NewRect("ArenaOnly", _canvas.transform);
             UiKit.Stretch(_arenaOnly);
@@ -134,6 +138,12 @@ namespace OrbitalAnte.UI
         void OnDestroy()
         {
             CombatEvents.PlayerHitSomething -= OnPlayerHit;
+        }
+
+        /// <summary>Shows hits on <paramref name="health"/> as seen from <paramref name="view"/>; null stops.</summary>
+        public void WatchHurt(PlayerHealth health, Transform view, System.Func<bool> visible = null)
+        {
+            if (_damage != null) _damage.Watch(health, view, visible);
         }
 
         public void SetVisible(bool visible)
@@ -222,10 +232,9 @@ namespace OrbitalAnte.UI
                 bool justHit = Time.unscaledTime - Health.LastHitUnscaledTime < 0.25f;
                 _health.Show(f, VisorReadout.SuitLine(f), VisorReadout.SuitTone(f), !justHit || blink);
 
-                // A quick red pulse on each hit, and a steady tint while knocked down.
-                float sinceHit = Time.unscaledTime - Health.LastHitUnscaledTime;
-                float alpha = Health.Alive ? Mathf.Clamp01(1f - sinceHit / 0.35f) * 0.28f : 0.5f;
-                _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, alpha);
+                // Hits are shown by DamageFeedback; this is only the steady tint while knocked down.
+                float alpha = Health.Alive ? 0f : 0.5f;
+                if (!Mathf.Approximately(_hurtFlash.color.a, alpha)) _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, alpha);
 
                 if (!Health.Alive) _bannerText.text = "KNOCKED DOWN.  Back on your feet in a moment.";
                 else if (CombatWorld.EnemiesHoldFire) _bannerText.text = "Enemies are holding fire.  H or D-Pad Down starts the fight.";
@@ -234,7 +243,7 @@ namespace OrbitalAnte.UI
             else
             {
                 _health.SetActive(false);
-                _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, 0f);
+                if (_hurtFlash.color.a > 0f) _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, 0f);
                 _bannerText.text = string.Empty;
             }
         }

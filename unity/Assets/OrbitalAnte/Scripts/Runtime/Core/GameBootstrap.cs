@@ -258,6 +258,13 @@ namespace OrbitalAnte.Core
                 _space.Build(seed);
                 _hud.SetArenaMode(false);
                 _hud.ExtraDebug = _space.DescribeForDebug;
+                Ship.Astronaut astronaut = _space.Astronaut;
+                if (astronaut != null)
+                {
+                    // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
+                    _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
+                        () => astronaut.Mode == Ship.AstronautMode.Outside && !Cockpit.CockpitDash.WatchingScreen);
+                }
             }
             else
             {
@@ -266,6 +273,7 @@ namespace OrbitalAnte.Core
                 _hud.SetArenaMode(true);
                 _hud.Weapons = _arena.Weapons;
                 _hud.Health = _arena.Health;
+                _hud.WatchHurt(_arena.Health, _arena.PlayerCamera != null ? _arena.PlayerCamera.transform : null);
             }
             _hud.SetVisible(true);
 
@@ -292,6 +300,7 @@ namespace OrbitalAnte.Core
                 _hud.ExtraDebug = null;
                 _hud.Weapons = null;
                 _hud.Health = null;
+                _hud.WatchHurt(null, null);
             }
         }
 
