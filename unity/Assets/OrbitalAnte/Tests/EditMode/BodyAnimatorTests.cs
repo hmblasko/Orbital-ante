@@ -482,5 +482,210 @@ namespace OrbitalAnte.Tests
             for (int i = 0; i < 200; i++) a.Update(Dt, Standing(Sprint));
             AssertSound(a.Pose, "a wild style");
         }
+
+        // ------------------------------------------------------------------ reactions (startle, scramble, wounds)
+
+        static Vec3d Where(BodyPose pose, BodyBone bone)
+        {
+            pose.World(bone, out Vec3d p, out _);
+            return p;
+        }
+
+        /// <summary>The palm: the hand joint plus a little along the hand.</summary>
+        static Vec3d Palm(BodyPose pose, int side)
+        {
+            pose.World(BodySkeleton.Hand(side), out Vec3d p, out QuatD q);
+            return p + q.Rotate(new Vec3d(side == BodySkeleton.Left ? -0.07 : 0.07, 0, 0));
+        }
+
+        [Test]
+        public void Startled_ItFlinchesAtOnce_ThenSettles()
+        {
+            var a = new BodyAnimator(4);
+            for (int i = 0; i < 120; i++) a.Update(Dt, Standing(0));
+            double handsBefore = Palm(a.Pose, 0).Y + Palm(a.Pose, 1).Y;
+            double hipsBefore = Where(a.Pose, BodyBone.Hips).Y;
+            a.Startle(1.0, 0.5);
+            for (int i = 0; i < 9; i++) a.Update(Dt, Standing(0));     // 0.15 s
+            Assert.Greater(Palm(a.Pose, 0).Y + Palm(a.Pose, 1).Y, handsBefore + 0.15, "the hands should come up within a tenth of a second or so");
+            Assert.Less(Where(a.Pose, BodyBone.Hips).Y, hipsBefore - 0.03, "the knees should give");
+            for (int i = 0; i < 90; i++) a.Update(Dt, Standing(0));    // 1.65 s
+            Assert.AreEqual(handsBefore, Palm(a.Pose, 0).Y + Palm(a.Pose, 1).Y, 0.06, "the startle should be over within a second or two");
+            AssertSound(a.Pose, "after a startle");
+        }
+
+        [Test]
+        public void Looking_TurnsTheHeadTowardThePoint()
+        {
+            var a = new BodyAnimator(4);
+            BodyAnimInput input = Standing(0);
+            input.HasLook = true;
+            input.LookX = 3.0; input.LookY = 0.0; input.LookZ = 2.0;   // on the ground, ahead and to its right
+            for (int i = 0; i < 120; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Head, out _, out QuatD head);
+            Vec3d face = head.Rotate(Vec3d.Forward);
+            Assert.Greater(face.X, 0.4, "the face should turn to the right");
+            Assert.Less(face.Y, -0.15, "and down toward the ground");
+        }
+
+        [Test]
+        public void Reaching_PutsAHandNearTheGround_WithTheFeetLeftWhereTheyAre([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
+        {
+            var a = new BodyAnimator(6);
+            for (int i = 0; i < 90; i++) a.Update(Dt, Standing(0));
+            Vec3d left = Ankle(a.Pose, BodySkeleton.Left), right = Ankle(a.Pose, BodySkeleton.Right);
+            BodyAnimInput input = Standing(0);
+            input.Reach = 1.0;
+            input.ReachSide = side;
+            for (int i = 0; i < 30; i++) a.Update(Dt, input);          // half a second
+            AssertSound(a.Pose, "reaching");
+            Vec3d palm = Palm(a.Pose, side);
+            Assert.Less(palm.Y, 0.45, "the reaching hand should get down near a gun on the ground");
+            Assert.Greater(palm.Y, 0.0, "but not through the ground");
+            Assert.Greater(palm.Z, 0.05, "and ahead of the body, not behind it");
+            Assert.Less(palm.Y, Palm(a.Pose, 1 - side).Y, "the reaching hand should be the lower one");
+            Assert.Less(Vec3d.Distance(left, Ankle(a.Pose, BodySkeleton.Left)), 0.01, "the feet stay planted while it bends");
+            Assert.Less(Vec3d.Distance(right, Ankle(a.Pose, BodySkeleton.Right)), 0.01);
+        }
+
+        [Test]
+        public void Scrambling_TakesQuickerShorterSteps_AndThePlantedFeetStillDoNotSkate()
+        {
+            BodyAnimInput input = Standing(Sprint);
+            input.Scramble = 1.0;
+            var a = new BodyAnimator(3);
+            double worst = WorstFootSlide(a, 1.0, input, 5.0, out int steps);
+            Assert.Less(worst, 0.05, "feet slide over the ground while scrambling");
+            var plain = new BodyAnimator(3);
+            for (int i = 0; i < 120; i++) plain.Update(Dt, Standing(Sprint));
+            Assert.Greater(a.Cadence, plain.Cadence * 1.1, "a scramble should be quicker footed than a plain sprint");
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spine);
+            Assert.Greater(spine.Rotate(Vec3d.Up).Z, 0.35, "and bent low over it");
+        }
+
+        [Test]
+        public void LosingAnArm_TheBodyLeansTowardTheWound_AndTheOtherHandStaysOnItsOwnSide([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
+        {
+            var a = new BodyAnimator(8);
+            BodyAnimInput input = Standing(0);
+            for (int i = 0; i < 90; i++) a.Update(Dt, input);
+            double headBefore = Where(a.Pose, BodyBone.Head).X;
+            if (side == BodySkeleton.Left) input.ArmLossLeft = 1.0; else input.ArmLossRight = 1.0;
+            a.Wounded(side, 1.0);
+            for (int i = 0; i < 40; i++) a.Update(Dt, input);
+            double sign = side == BodySkeleton.Left ? -1.0 : 1.0;
+            Assert.Greater((Where(a.Pose, BodyBone.Head).X - headBefore) * sign, 0.04, "the trunk should curl toward the lost arm");
+            // Matthew (15 Nov 2026): the other arm does not reach over to the wound.
+            for (int i = 0; i < 120; i++)
+            {
+                a.Update(Dt, input);
+                Assert.Less(Palm(a.Pose, 1 - side).X * sign, -0.1, "the good hand should stay on its own side, frame " + i);
+            }
+            // Years later (well, ten seconds) the shock is gone but the weight is still missing.
+            for (int i = 0; i < 600; i++) a.Update(Dt, input);
+            Assert.Less(a.Shock, 0.05);
+            Assert.Greater((Where(a.Pose, BodyBone.Head).X - headBefore) * sign, 0.005, "a slight lean stays, for the weight that is gone");
+        }
+
+        [Test]
+        public void LosingAnArm_SpinsThatShoulderBack_AndTheHeadTurnsToTheStump_ThenSettles([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
+        {
+            var a = new BodyAnimator(8);
+            BodyAnimInput input = Standing(0);
+            for (int i = 0; i < 90; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spineBefore);
+            if (side == BodySkeleton.Left) input.ArmLossLeft = 1.0; else input.ArmLossRight = 1.0;
+            a.Wounded(side, 1.0, arm: true);
+            double sign = side == BodySkeleton.Left ? -1.0 : 1.0;
+            for (int i = 0; i < 9; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spine);
+            Assert.Greater((spine.Rotate(Vec3d.Forward).X - spineBefore.Rotate(Vec3d.Forward).X) * sign, 0.2, "the hit should turn the chest toward the lost arm's side at once");
+            for (int i = 0; i < 27; i++) a.Update(Dt, input);
+            a.Pose.World(BodyBone.Head, out _, out QuatD head);
+            a.Pose.World(BodyBone.Spine, out _, out spine);
+            Vec3d look = head.Rotate(Vec3d.Forward);
+            Assert.Greater((look.X - spine.Rotate(Vec3d.Forward).X) * sign, 0.4, "then the head should turn to the stump");
+            Assert.Less(look.Y, -0.2, "looking down at it");
+            for (int i = 0; i < 180; i++) { a.Update(Dt, input); AssertSound(a.Pose, "reeling"); }
+            a.Pose.World(BodyBone.Head, out _, out head);
+            a.Pose.World(BodyBone.Spine, out _, out spine);
+            Assert.Less(Math.Abs(head.Rotate(Vec3d.Forward).X - spine.Rotate(Vec3d.Forward).X), 0.15, "and after a few seconds look ahead again");
+        }
+
+        [Test]
+        public void OnOneLeg_ItLeansOutOverTheLegItHasLeft([Values(BodySkeleton.Left, BodySkeleton.Right)] int standing)
+        {
+            var a = new BodyAnimator(2);
+            BodyAnimInput input = Hurt(MovementState.OneLeg, 0.0);
+            input.StandingLeg = standing;
+            double sumX = 0;
+            int n = 0;
+            for (int i = 0; i < 360; i++)
+            {
+                input.Phase = i * Dt * 1.8 * Math.PI * 2.0;
+                a.Update(Dt, input);
+                AssertSound(a.Pose, "hopping");
+                if (i > 60) { sumX += Where(a.Pose, BodyBone.Head).X; n++; }
+                double ankle = Ankle(a.Pose, standing).Y;
+                Assert.Greater(ankle, BodySkeleton.AnkleY - 0.012, "the foot it stands on sank into the ground");
+            }
+            double sign = standing == BodySkeleton.Left ? -1.0 : 1.0;
+            Assert.Greater(sumX / n * sign, 0.02, "the head should sit out over the leg that is left");
+        }
+
+        [Test]
+        public void OnOneLeg_ABadLanding_ThrowsTheArmsOut_ButKeepsTheFootDown()
+        {
+            var a = new BodyAnimator(2);
+            BodyAnimInput input = Hurt(MovementState.OneLeg, 0.0);
+            for (int i = 0; i < 60; i++) a.Update(Dt, input);
+            double armsBefore = Palm(a.Pose, 0).Y + Palm(a.Pose, 1).Y;
+            input.Teeter = 1.0;
+            double highest = 0;
+            for (int i = 0; i < 60; i++)
+            {
+                a.Update(Dt, input);
+                AssertSound(a.Pose, "teetering");
+                Assert.Less(Ankle(a.Pose, BodySkeleton.Left).Y, BodySkeleton.AnkleY + 0.02, "teetering is on the spot, the foot stays down");
+                highest = Math.Max(highest, Palm(a.Pose, 0).Y + Palm(a.Pose, 1).Y);
+            }
+            Assert.Greater(highest, armsBefore + 0.15, "the arms should fly up and out to catch its balance");
+        }
+
+        [Test]
+        public void LosingALeg_ItLurches_ThenHopsOn()
+        {
+            var a = new BodyAnimator(2);
+            for (int i = 0; i < 60; i++) a.Update(Dt, Standing(Walk));
+            BodyAnimInput input = Hurt(MovementState.OneLeg, 0.0);
+            input.StandingLeg = BodySkeleton.Left;
+            a.Update(Dt, input);
+            Assert.IsTrue(a.Stumbling, "losing a leg should knock it off balance");
+            for (int i = 0; i < 90; i++)
+            {
+                input.Phase = i * Dt * 1.8 * Math.PI * 2.0;
+                a.Update(Dt, input);
+                AssertSound(a.Pose, "lurching");
+            }
+            Assert.IsFalse(a.Stumbling, "and it should have caught itself after a second and a half");
+        }
+
+        [Test]
+        public void EveryReaction_TogetherInEveryWayOfMoving_GivesASoundPose([Values] MovementState state)
+        {
+            var a = new BodyAnimator(11);
+            BodyAnimInput input = Hurt(state, 0.0);
+            input.ArmLossLeft = 0.5; input.StumpLength = 0.45; input.Scramble = 1; input.Reach = 1; input.Teeter = 1;
+            input.HasLook = true; input.LookX = -1; input.LookY = 2; input.LookZ = -0.5;
+            a.Startle(-1, -1);
+            a.Wounded(BodySkeleton.Left, 1);
+            a.Stumble(-1);
+            for (int i = 0; i < 200; i++)
+            {
+                input.Phase = i * 0.1;
+                a.Update(Dt, input);
+                AssertSound(a.Pose, state + " frame " + i);
+            }
+        }
     }
 }

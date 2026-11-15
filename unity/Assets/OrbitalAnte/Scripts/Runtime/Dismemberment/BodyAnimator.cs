@@ -25,6 +25,22 @@ namespace OrbitalAnte.Dismemberment
         public double Aim;
         /// <summary>The side that holds the gun (BodySkeleton.Left or Right), or -1 for none.</summary>
         public int GunSide;
+
+        /// <summary>How much of each arm's weight is gone: 0 whole, about 0.15 for a hand, 0.5 a forearm, 1 the whole arm.</summary>
+        public double ArmLossLeft, ArmLossRight;
+        /// <summary>One leg: how much of the lost leg is left, 0 (thigh gone) to 1 (only the foot gone).</summary>
+        public double StumpLength;
+        /// <summary>True when there is something to look at: <see cref="LookX"/>, <see cref="LookY"/>, <see cref="LookZ"/>.</summary>
+        public bool HasLook;
+        /// <summary>The point to look at, in the character's space at the skeleton's size (x right, y up from the feet, z ahead).</summary>
+        public double LookX, LookY, LookZ;
+        /// <summary>0 to 1: hurrying bent low after something (a dropped gun), with quick short steps.</summary>
+        public double Scramble;
+        /// <summary>0 to 1: bending down to take something off the ground with the hand on <see cref="ReachSide"/>.</summary>
+        public double Reach;
+        public int ReachSide;
+        /// <summary>0 to 1, one leg only: it landed badly and is fighting to keep its balance on the spot.</summary>
+        public double Teeter;
     }
 
     /// <summary>
@@ -205,6 +221,125 @@ namespace OrbitalAnte.Dismemberment
             _dip.V += (1.0 - Clamp01(height)) * 0.9 * strength;
         }
 
+        // ------------------------------------------------------------------ reactions
+        //
+        // Timings and angles below were measured from the CMU Graphics Lab Motion Capture Database (free for
+        // research and commercial projects; see docs/reports/enemy-animation.md for the clips and numbers):
+        // a calm pick-up takes 0.7 s down and 0.6 s up (69_70, 69_73), a stumble throws the trunk 40-65
+        // degrees forward with the arms flung above the shoulders for about a second and a half (104_13),
+        // balancing on one leg holds the arms about 70 degrees out from the sides with the trunk 20 degrees
+        // forward and the free knee bent about 95 degrees (49_18), a one-footed hop takes about 0.55 s and
+        // lifts the hips about a sixth of a leg (49_02), a hurt walk leans about 10 degrees to one side (91_24),
+        // and a hand is held to a hurt body (91_26). The startle itself is the classic pattern (Landis and
+        // Hunt, 1939): within a tenth of a second the shoulders come up, the elbows bend, the trunk curls
+        // forward and the knees give, and it is over within about half a second.
+
+        const double StartleTime = 0.7;
+        const double StumbleTime = 1.25;
+
+        double _startleAge = 99.0, _startleSide;
+        double _stumbleAge = 99.0, _stumbleSide = 1.0;
+        double _shock, _woundSide;
+        double _reelAge = 99.0, _reelSize;
+        double _exertion;
+        double _scramble, _reach, _teeter, _lookWeight;
+        double _lookYawTo, _lookPitchTo;
+        Spring _stumpSwing;
+
+        /// <summary>
+        /// Startled: something was knocked out of its hands. The direction is where the thing went, in the
+        /// character's own space (x right, z ahead); the body flinches away from it and the head goes after it.
+        /// </summary>
+        public void Startle(double towardX, double towardZ)
+        {
+            _startleAge = 0.0;
+            _startleSide = towardX > 0.05 ? 1.0 : towardX < -0.05 ? -1.0 : 0.0;
+            _hitPitch.V += (towardZ >= 0 ? -60.0 : 60.0);
+        }
+
+        /// <summary>
+        /// A part came off. Side is BodySkeleton.Left or Right; severity 1 for a whole limb, less for a hand or a
+        /// foot. For a few seconds the body curls round the wound and moves like it hurts. An arm also spins the
+        /// trunk back on that side and doubles it over for about a second, and the head turns to look at the
+        /// stump (a leg has its own lurch, see Stumble).
+        /// </summary>
+        public void Wounded(int side, double severity, bool arm = false)
+        {
+            _shock = Math.Max(_shock, Clamp01(severity));
+            _woundSide = side == BodySkeleton.Left ? -1.0 : 1.0;
+            if (arm)
+            {
+                _reelAge = 0.0;
+                _reelSize = Clamp01(severity);
+            }
+        }
+
+        /// <summary>How much of the reel from losing an arm is showing: in at once, gone over about a second.</summary>
+        double ReelAmount()
+        {
+            double a = _reelAge;
+            if (a >= 2.5) return 0.0;
+            return _reelSize * (a < 0.07 ? a / 0.07 : Math.Exp(-(a - 0.07) / 0.45));
+        }
+
+        /// <summary>How much the head is turned to the stump: after the first jolt, held for most of a second, then back.</summary>
+        double GlanceAmount()
+        {
+            double a = _reelAge;
+            if (a >= 1.7) return 0.0;
+            double up = Clamp01((a - 0.08) / 0.2), down = Clamp01((1.7 - a) / 0.6);
+            return _reelSize * Smooth(Math.Min(up, down));
+        }
+
+        /// <summary>Loses its footing for a second: pitches forward, arms flung out, then catches itself. Side is which way it lurches (-1 left, 1 right).</summary>
+        public void Stumble(double side)
+        {
+            if (_stumbleAge < StumbleTime * 0.6) return;
+            _stumbleAge = 0.0;
+            _stumbleSide = side < 0 ? -1.0 : 1.0;
+        }
+
+        /// <summary>True while it is stumbling and should hardly be moved forward.</summary>
+        public bool Stumbling => _stumbleAge < StumbleTime * 0.7;
+        /// <summary>0 to 1, how shaken it is by its last wound.</summary>
+        public double Shock => _shock;
+        /// <summary>0 to 1, how out of breath it is.</summary>
+        public double Exertion => _exertion;
+
+        /// <summary>How much of the startle is showing, 0 to 1: up in a tenth of a second, held, then gone by 0.7 s.</summary>
+        double StartleAmount()
+        {
+            double t = _startleAge;
+            if (t >= StartleTime) return 0.0;
+            if (t < 0.08) return Smooth(t / 0.08);
+            if (t < 0.25) return 1.0;
+            return 1.0 - Smooth((t - 0.25) / (StartleTime - 0.25));
+        }
+
+        /// <summary>How much of the stumble is showing: a fast lurch (a quarter of a second), then a slower recovery.</summary>
+        double StumbleAmount()
+        {
+            double t = _stumbleAge;
+            if (t >= StumbleTime) return 0.0;
+            if (t < 0.22) return Smooth(t / 0.22);
+            return 1.0 - Smooth((t - 0.22) / (StumbleTime - 0.22));
+        }
+
+        /// <summary>
+        /// The head's turn toward the look point, as yaw and pitch in the character's space (pitch positive
+        /// looks down). Eyes are taken to be just above the neck.
+        /// </summary>
+        static void LookAngles(in BodyAnimInput input, double eyeY, double previousYaw, out double yaw, out double pitch)
+        {
+            double flat = Math.Sqrt(input.LookX * input.LookX + input.LookZ * input.LookZ);
+            yaw = Clamp(Math.Atan2(input.LookX, Math.Max(-0.2, input.LookZ) + 1e-6) / Deg, -80.0, 80.0);
+            // Something nearly straight behind: keep looking back over the same shoulder rather than whipping
+            // the head from one to the other as it crosses the middle.
+            if (input.LookZ < 0.0 && Math.Abs(input.LookX) < 0.35 * -input.LookZ && Math.Abs(previousYaw) > 20.0)
+                yaw = Math.Sign(previousYaw) * Math.Abs(yaw);
+            pitch = Clamp(Math.Atan2(eyeY - input.LookY, Math.Max(0.15, flat)) / Deg, -35.0, 70.0);
+        }
+
         /// <summary>Advances the animation by one frame and fills <see cref="Pose"/>.</summary>
         public void Update(double dt, in BodyAnimInput input)
         {
@@ -251,6 +386,7 @@ namespace OrbitalAnte.Dismemberment
             _pushZ.Limit(0.07);
             _dip.Limit(0.12);
             StepLook(dt);
+            StepReactions(dt, input);
 
             if (input.State == MovementState.Intact)
             {
@@ -275,6 +411,13 @@ namespace OrbitalAnte.Dismemberment
                 // Falling over takes a little longer than changing step.
                 _blendTime = wasUpright == isUpright ? 0.22 : 0.42;
                 if (input.State == MovementState.HeadOnly) _blendTime = 0.12;
+                // Losing a leg from under it: it lurches over the leg it has left before it finds the hop.
+                if (_state == MovementState.Intact && input.State == MovementState.OneLeg)
+                {
+                    _blendTime = 0.3;
+                    _stumbleAge = 99.0;
+                    Stumble(input.StandingLeg == BodySkeleton.Left ? 1.0 : -1.0);
+                }
                 _state = input.State;
             }
 
@@ -322,7 +465,9 @@ namespace OrbitalAnte.Dismemberment
             // Shuffle round fast enough that a planted foot never twists more than about 30 degrees each way.
             double turning = Math.Min(2.4, Math.Abs(_turn) * 0.62 / 60.0);
             Pace(walk, sprint, RunAmount(v, walk, sprint), out double quicken, out _);
-            return Math.Max(straight * quicken * moveAmount / (_strideScale * _style.Stride), turning * turnAmount);
+            // Scrambling takes quick, short steps: the same ground covered in more of them.
+            double frantic = 1.0 + 0.22 * _scramble;
+            return Math.Max(straight * quicken * moveAmount * frantic / (_strideScale * _style.Stride), turning * turnAmount);
         }
 
         /// <summary>The walk and sprint speeds the gait was tuned at: the trooper's, at the skeleton's own size.</summary>
@@ -380,8 +525,23 @@ namespace OrbitalAnte.Dismemberment
             double stanceYaw = gunSign * 16.0 * aimStill;
             double lean = style.Lean + 2.0 * moveAmount + 9.0 * run + _lean * moveAmount;
 
+            // ---- reactions laid over the gait
+            double startle = StartleAmount();
+            double stumble = StumbleAmount();
+            double reach = _reach;
+            double scramble = _scramble * (1.0 - reach);
+            double lossLeft = Clamp01(input.ArmLossLeft), lossRight = Clamp01(input.ArmLossRight);
+            double lostArm = Math.Max(lossLeft, lossRight);
+            // Bent low and driving forward after the gun; bent right over to pick it up; thrown forward by a stumble.
+            lean += 20.0 * scramble + 40.0 * reach + 28.0 * stumble;
+            drop += 0.05 * scramble + 0.27 * reach + 0.06 * startle + 0.05 * stumble + 0.03 * _shock;
+            // Leans into a turn like anyone running round a bend (half of what the bend would really ask for).
+            double bank = Clamp(Math.Atan(v * turnRadians / 9.81) / Deg * 0.5, -12.0, 12.0) * moveAmount;
+            hipRoll += -bank - _stumbleSide * 12.0 * stumble * Math.Sin(Math.PI * Math.Min(1.0, _stumbleAge / 0.6));
+
             pose.RootRotation = QuatD.Identity;
-            pose.RootPosition = new Vec3d(sway + _pushX.X, bob - drop - Math.Max(0.0, _dip.X), _pushZ.X - 0.03 * run);
+            pose.RootPosition = new Vec3d(sway + _pushX.X, bob - drop - Math.Max(0.0, _dip.X),
+                                          _pushZ.X - 0.03 * run - 0.05 * startle + 0.05 * stumble + 0.04 * reach);
             QuatD hips = Qy(gaitYaw + stanceYaw) * Qx(lean) * Qz(hipRoll);
             pose.Local[(int)BodyBone.Hips] = hips;
             Vec3d hipsPosition = pose.RootPosition + new Vec3d(0, BodySkeleton.HipsY, 0);
@@ -451,13 +611,22 @@ namespace OrbitalAnte.Dismemberment
 
 
             // ---- upper body
-            double spinePitch = 1.1 * breath * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch;
-            double spineRoll = -0.8 * hipRoll;
-            pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw) * Qx(spinePitch) * Qz(spineRoll);
-            double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle);
-            pose.Local[(int)BodyBone.Head] = Qy(0.7 * gaitYaw - stanceYaw + _lookYaw * look)
-                                             * Qx(-(0.9 * lean + 0.6 * spinePitch) + _lookPitch * look)
+            double breathSize = 1.0 + 2.0 * _exertion + 1.5 * _shock;
+            // Losing an arm: the hit spins that shoulder back and doubles the trunk over, then the head turns to the stump.
+            double reel = ReelAmount(), glance = GlanceAmount() * (1.0 - _lookWeight);
+            double spinePitch = 1.1 * breath * breathSize * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch
+                                + 14.0 * startle + 22.0 * reach + 8.0 * scramble + 12.0 * stumble + 9.0 * _shock + 4.0 * lostArm + 12.0 * reel;
+            double spineRoll = -0.8 * hipRoll + Guard(input, lossLeft, lossRight) - _woundSide * 8.0 * reel;
+            double counter = 1.0 + 0.3 * lostArm;
+            double lookYaw = _lookWeight * _lookYawTo;
+            pose.Local[(int)BodyBone.Spine] = Qy(-1.7 * gaitYaw * counter + 0.3 * lookYaw + _woundSide * 26.0 * reel) * Qx(spinePitch) * Qz(spineRoll);
+            double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle) * (1.0 - _lookWeight);
+            double headPitch = -(0.9 * lean + 0.6 * spinePitch) + _lookPitch * look + 10.0 * startle + 10.0 * _shock * (1.0 - _lookWeight)
+                               + _lookWeight * (_lookPitchTo - 0.1 * lean - 0.4 * spinePitch) + 22.0 * glance;
+            pose.Local[(int)BodyBone.Head] = Qy(0.7 * gaitYaw - stanceYaw + _lookYaw * look + 0.7 * lookYaw + _woundSide * 50.0 * glance)
+                                             * Qx(Clamp(headPitch, -60.0, 50.0))
                                              * Qz(-0.3 * spineRoll);
+            double trunk = lean + spinePitch;
 
             double swingSize = (16.0 + 26.0 * run) * moveAmount * _armScale * style.ArmSwing;
             double lag = 0.04;
@@ -469,10 +638,88 @@ namespace OrbitalAnte.Dismemberment
                 double down = 79.0 - style.ArmsOut - 3.0 * run + 1.2 * breath * still * style.Idle;
                 double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still * style.Idle - 4.0 * run;
                 double elbow = 14.0 + style.ElbowBend + 6.0 * moveAmount + 60.0 * run + 16.0 * moveAmount * forward;
+                // The arm that is left swings wider to balance the one that is not.
+                double otherLoss = s == BodySkeleton.Left ? lossRight : lossLeft;
+                swing *= 1.0 + 0.35 * otherLoss;
+                swing -= 12.0 * scramble;
+                elbow += 15.0 * scramble;
+                ReactArms(s, input, lossLeft, lossRight, trunk, startle, stumble, reach, scramble, breath, ref down, ref swing, ref elbow);
                 SetArm(pose, s, down, swing, elbow);
             }
 
             AddKnocks(pose, 1.0);
+        }
+
+        /// <summary>
+        /// How far the trunk leans sideways over a lost arm: a little toward the missing side for the weight
+        /// that is gone, and more, for a few seconds, curling round the wound.
+        /// </summary>
+        double Guard(in BodyAnimInput input, double lossLeft, double lossRight)
+        {
+            // Qz turns the trunk toward -x, so leaning toward a side means turning by minus that side's sign.
+            double weight = 3.5 * lossLeft - 3.5 * lossRight;
+            double curl = -_woundSide * 9.0 * _shock;
+            return weight + curl;
+        }
+
+        /// <summary>
+        /// The arm reactions, laid over whatever the arm was doing: a lost arm's stump held in, the other arm
+        /// thrown out for balance as the hit spins the body, the startled flinch, the stumble's flailing and the
+        /// reach down to the ground. The other hand never reaches across to the wound (Matthew, 15 Nov 2026).
+        /// </summary>
+        void ReactArms(int s, in BodyAnimInput input, double lossLeft, double lossRight, double trunk, double startle, double stumble,
+                       double reach, double scramble, double breath, ref double down, ref double swing, ref double elbow)
+        {
+            double myLoss = s == BodySkeleton.Left ? lossLeft : lossRight;
+            double otherLoss = s == BodySkeleton.Left ? lossRight : lossLeft;
+            if (myLoss >= 0.4)
+            {
+                // A stump is held in tight to the body, twitching while the shock lasts.
+                double twitch = Math.Sin(TwoPi * (_time + _timeOffset) * 3.3) * 6.0 * _shock;
+                down = Lerp(down, 84.0, 0.8);
+                swing = Lerp(swing, -8.0 + twitch, 0.8);
+                elbow = Lerp(elbow, 35.0, 0.8);
+                return;
+            }
+            if (otherLoss >= 0.4)
+            {
+                // The arm that is left is thrown out a little for balance while the hit spins the body.
+                double reel = ReelAmount();
+                down -= 22.0 * reel;
+                elbow += 15.0 * reel;
+            }
+            if (startle > 0.0)
+            {
+                // Hands come up and in.
+                down -= 35.0 * startle;
+                elbow += 50.0 * startle;
+                swing -= 25.0 * startle;
+            }
+            if (stumble > 0.0)
+            {
+                // Arms flung out and up, windmilling, one beat apart.
+                double w = TwoPi * 1.6 * _stumbleAge + (s == BodySkeleton.Left ? 0.0 : Math.PI);
+                down = Lerp(down, -20.0 + 35.0 * Math.Sin(w), stumble);
+                swing = Lerp(swing, -35.0 * Math.Cos(w), stumble);
+                elbow = Lerp(elbow, 20.0, stumble);
+            }
+            if (reach > 0.0)
+            {
+                // The reaching hand hangs straight down to the ground ahead; the other braces on the knee.
+                bool reaching = s == (input.ReachSide == BodySkeleton.Left ? BodySkeleton.Left : BodySkeleton.Right);
+                if (reaching)
+                {
+                    down = Lerp(down, 84.0, reach);
+                    swing = Lerp(swing, -0.95 * trunk - 10.0, reach);
+                    elbow = Lerp(elbow, 8.0, reach);
+                }
+                else
+                {
+                    down = Lerp(down, 74.0, reach);
+                    swing = Lerp(swing, -0.55 * trunk, reach);
+                    elbow = Lerp(elbow, 50.0, reach);
+                }
+            }
         }
 
         /// <summary>
@@ -488,6 +735,15 @@ namespace OrbitalAnte.Dismemberment
             return new Vec3d(x * c + z * s, 0.0, -x * s + z * c - speed * tau);
         }
 
+        double _lastHopSin;
+
+        /// <summary>
+        /// The hobble on one leg. The body rocks forward over the planted foot and the foot swings through under
+        /// it in the air; the trunk leans out over the good leg, hardest just after landing; the arms are held
+        /// out for balance and flap with each hop; whatever is left of the other leg swings on its hip like a
+        /// pendulum. A bad landing (Teeter) holds it on the spot fighting for balance, and a stumble throws it
+        /// forward with the arms flung up.
+        /// </summary>
         void BuildOneLeg(BodyPose pose, in BodyAnimInput input)
         {
             int standing = input.StandingLeg == BodySkeleton.Left ? BodySkeleton.Left : BodySkeleton.Right;
@@ -495,42 +751,83 @@ namespace OrbitalAnte.Dismemberment
             double sx = standing == BodySkeleton.Left ? -1.0 : 1.0;
             double cycle = Frac(input.Phase / TwoPi);
             double sin = Math.Sin(input.Phase);
-            double air = input.Moving ? Math.Max(0.0, sin) : 0.0;        // 1 at the top of the hop
-            double crouch = input.Moving ? Math.Max(0.0, -sin) : 0.0;    // winding up on the ground
-            double wobble = Math.Sin((_time + _timeOffset) * 2.3) + 0.5 * Math.Sin((_time + _timeOffset) * 3.7);
-            double still = input.Moving ? 0.0 : 1.0;
+            bool hopping = input.Moving && _teeter < 0.5;
+            double air = hopping ? Math.Max(0.0, sin) : 0.0;        // 1 at the top of the hop
+            double crouch = hopping ? Math.Max(0.0, -sin) : 0.0;    // winding up on the ground
+            double teeter = _teeter;
+            double wobbleRate = 1.0 + 1.4 * teeter;
+            double wobble = Math.Sin((_time + _timeOffset) * 2.3 * wobbleRate) + 0.5 * Math.Sin((_time + _timeOffset) * 3.7 * wobbleRate);
+            double still = hopping ? 0.0 : 1.0;
+            double startle = StartleAmount();
+            double stumble = StumbleAmount();
+            double reach = _reach;
+            double scramble = _scramble * (1.0 - reach);
+            double lossLeft = Clamp01(input.ArmLossLeft), lossRight = Clamp01(input.ArmLossRight);
+            double stump = Clamp01(input.StumpLength);
 
-            // The body rocks forward over the planted foot, then the foot swings through under it in the air.
+            // Landing: the stump is thrown forward and swings back; the body drops onto the knee.
+            // (Negative swings it forward.)
+            if (hopping && _lastHopSin > 0.0 && sin <= 0.0) _stumpSwing.V -= 140.0 + 60.0 * scramble;
+            if (hopping && _lastHopSin <= 0.0 && sin > 0.0) _stumpSwing.V += 90.0;
+            _lastHopSin = hopping ? sin : 0.0;
+
             double rock;
-            if (!input.Moving) rock = 0.0;
+            if (!hopping) rock = 0.0;
             else if (cycle < 0.5) rock = Lerp(0.07, -0.07, cycle * 2.0);
             else rock = Lerp(-0.07, 0.07, Smooth((cycle - 0.5) * 2.0));
 
-            double height = air * 0.20 - crouch * 0.11 - 0.025 - Math.Max(0.0, _dip.X);
-            double roll = sx * -8.0 + wobble * 1.6 * still;   // lean over the good leg
-            double lean = 7.0 + 9.0 * air - 5.0 * crouch;
-            pose.RootPosition = new Vec3d(sx * 0.035 + _pushX.X + wobble * 0.008 * still, height, rock + _pushZ.X);
+            // A hop lifts the hips about a sixth of a leg (measured: 0.14 m on this skeleton).
+            double height = air * 0.15 - crouch * 0.11 - 0.025 - Math.Max(0.0, _dip.X)
+                            - 0.06 * stumble - 0.18 * reach - 0.03 * _shock - 0.02 * teeter;
+            // Out over the good leg: more with less of the other leg to balance it, most just after landing,
+            // and swaying wide while it fights for balance.
+            double over = 7.0 + 3.0 * (1.0 - stump) + 5.0 * crouch + 3.0 * scramble;
+            double roll = sx * -over + wobble * (1.6 * still + 5.0 * teeter)
+                          - _stumbleSide * 10.0 * stumble * Math.Sin(Math.PI * Math.Min(1.0, _stumbleAge / 0.6));
+            // Forward: about 20 degrees standing on one leg (measured), more mid-hop, more in a hurry or a stumble.
+            double lean = 12.0 + 9.0 * air - 5.0 * crouch + 10.0 * scramble + 28.0 * stumble + 45.0 * reach + 6.0 * _shock;
+            pose.RootPosition = new Vec3d(sx * 0.035 + _pushX.X + wobble * (0.008 * still + 0.02 * teeter), height,
+                                          rock + _pushZ.X - 0.04 * startle + 0.04 * stumble + 0.05 * reach);
             QuatD hips = Qx(lean) * Qz(roll);
             pose.Local[(int)BodyBone.Hips] = hips;
             Vec3d hipsPosition = pose.RootPosition + new Vec3d(0, BodySkeleton.HipsY, 0);
 
-            Vec3d ankle = new Vec3d(sx * 0.045, BodySkeleton.AnkleY + air * 0.26, 0.0);
+            Vec3d ankle = new Vec3d(sx * 0.045, BodySkeleton.AnkleY + air * 0.20, 0.0);
             Vec3d joint = hipsPosition + hips.Rotate(BodySkeleton.RestOffset(BodySkeleton.Thigh(standing)));
             SolveLeg(pose, standing, hips, joint, ankle, Qx(26.0 * air));
 
-            // Whatever is left of the other leg flails.
-            pose.Local[(int)BodySkeleton.Thigh(missing)] = Qx(-28.0 + 30.0 * Math.Sin(input.Phase + 1.0) + 6.0 * wobble * still) * Qz(sx * 10.0);
-            pose.Local[(int)BodySkeleton.Shin(missing)] = Qx(34.0 + 20.0 * crouch);
+            // Whatever is left of the other leg hangs forward with the knee bent (about 95 degrees, measured)
+            // and swings with the hops.
+            double thighAngle = -32.0 + 14.0 * Math.Sin(input.Phase + 1.0) * (hopping ? 1.0 : 0.0) + _stumpSwing.X
+                                + 6.0 * wobble * still - 20.0 * reach;
+            pose.Local[(int)BodySkeleton.Thigh(missing)] = Qx(Clamp(thighAngle, -80.0, 25.0)) * Qz(sx * (10.0 + 6.0 * teeter));
+            pose.Local[(int)BodySkeleton.Shin(missing)] = Qx(70.0 + 25.0 * crouch - 0.25 * _stumpSwing.X);
 
-            pose.Local[(int)BodyBone.Spine] = Qx(-4.0 * air + 8.0 * crouch) * Qz(-0.6 * roll);
-            pose.Local[(int)BodyBone.Head] = Qx(-(lean * 0.8)) * Qz(-0.3 * roll);
+            double spinePitch = -4.0 * air + 8.0 * crouch + 10.0 * stumble + 20.0 * reach + 8.0 * _shock + 6.0 * scramble + 12.0 * startle;
+            double spineRoll = -0.6 * roll + Guard(input, lossLeft, lossRight);
+            double lookYaw = _lookWeight * _lookYawTo;
+            pose.Local[(int)BodyBone.Spine] = Qy(0.3 * lookYaw) * Qx(spinePitch) * Qz(spineRoll);
+            double headPitch = -(lean * 0.8) + 10.0 * startle + _lookWeight * (_lookPitchTo - 0.2 * lean - 0.6 * spinePitch);
+            pose.Local[(int)BodyBone.Head] = Qy(0.7 * lookYaw) * Qx(Clamp(headPitch, -60.0, 50.0)) * Qz(-0.3 * roll);
+            double trunk = lean + spinePitch;
 
-            // Arms out and flapping for balance, a beat apart.
+            // Arms out for balance (about 70 degrees from the sides, measured), flapping a beat apart with each
+            // hop, flung higher and wider while it teeters.
+            double breath = Math.Sin(TwoPi * (_time + _timeOffset) / Lerp(3.7, 1.6, Math.Max(_exertion, _shock)));
             for (int s = 0; s < 2; s++)
             {
                 double beat = Math.Sin(input.Phase + (s == standing ? 0.0 : 0.9));
-                double down = 50.0 - 30.0 * air + 12.0 * crouch + 5.0 * beat * (input.Moving ? 1.0 : 0.0) - 4.0 * wobble * still * (s == standing ? 1.0 : -1.0);
-                SetArm(pose, s, down, -8.0 + 14.0 * crouch - 10.0 * air, 24.0 + 26.0 * crouch);
+                double flail = Math.Sin(TwoPi * 1.3 * (_time + _timeOffset) + s * 2.1);
+                double down = 44.0 - 22.0 * air + 12.0 * crouch + 6.0 * beat * (hopping ? 1.0 : 0.0)
+                              - 4.0 * wobble * still * (s == standing ? 1.0 : -1.0) - teeter * (14.0 + 18.0 * flail);
+                double swing = -8.0 + 14.0 * crouch - 10.0 * air - 18.0 * teeter * Math.Cos(TwoPi * 1.3 * (_time + _timeOffset) + s * 2.1);
+                double elbow = 24.0 + 26.0 * crouch - 8.0 * teeter;
+                // The one arm left does the balancing for both.
+                double otherLoss = s == BodySkeleton.Left ? lossRight : lossLeft;
+                down -= 12.0 * otherLoss;
+                swing -= 18.0 * scramble;
+                ReactArms(s, input, lossLeft, lossRight, trunk, startle, stumble, reach, scramble, breath, ref down, ref swing, ref elbow);
+                SetArm(pose, s, down, swing, elbow);
             }
 
             AddKnocks(pose, 1.0);
@@ -562,6 +859,12 @@ namespace OrbitalAnte.Dismemberment
                 {
                     // A stump, or nothing: let it trail.
                     SetArm(pose, s, 55.0, 14.0 + 6.0 * sin, 20.0);
+                    continue;
+                }
+                if (_reach > 0.05 && s == (input.ReachSide == BodySkeleton.Left ? BodySkeleton.Left : BodySkeleton.Right))
+                {
+                    // Stretching out along the ground for the gun.
+                    SetArm(pose, s, Lerp(-42.0, -82.0, _reach), Lerp(-30.0, -8.0, _reach), Lerp(62.0, 6.0, _reach));
                     continue;
                 }
                 if (!input.Moving)
@@ -596,7 +899,8 @@ namespace OrbitalAnte.Dismemberment
             pose.Local[(int)BodyBone.RightThigh] = Qx(-9.0 * sin) * Qz(6.0);
             pose.Local[(int)BodyBone.Spine] = Qx(-6.0 - 3.0 * heave) * Qz(-4.0 * sin);
             // Head up, looking where it is going, straining with each pull.
-            pose.Local[(int)BodyBone.Head] = Qy(-9.0 * sin + _lookYaw * (input.Moving ? 0.0 : 0.6)) * Qx(-40.0 + 7.0 * heave);
+            pose.Local[(int)BodyBone.Head] = Qy(-9.0 * sin + _lookYaw * (input.Moving ? 0.0 : 0.6) * (1.0 - _lookWeight) + 0.8 * _lookWeight * _lookYawTo)
+                                             * Qx(-40.0 + 7.0 * heave - 12.0 * StartleAmount());
             AddKnocks(pose, 0.5);
         }
 
@@ -690,6 +994,41 @@ namespace OrbitalAnte.Dismemberment
                 int arm = (int)BodySkeleton.UpperArm(s);
                 pose.Local[arm] = Qz(-sign * fling) * pose.Local[arm];
             }
+        }
+
+        void StepReactions(double dt, in BodyAnimInput input)
+        {
+            _startleAge += dt;
+            _stumbleAge += dt;
+            _reelAge += dt;
+            // Shock fades over a few seconds; it never quite leaves a body that has lost an arm (see Guard).
+            _shock *= Math.Exp(-dt / 2.4);
+            if (_shock < 1e-3) _shock = 0.0;
+
+            double quick = 1.0 - Math.Exp(-10.0 * dt);
+            _scramble += (Clamp01(input.Scramble) - _scramble) * quick;
+            // Bending down is quick (about a third of a second, half the calm pick-up: it is in a hurry); the
+            // smoothing gives the ease in and out.
+            _reach += (Clamp01(input.Reach) - _reach) * (1.0 - Math.Exp(-9.0 * dt));
+            _teeter += (Clamp01(input.Teeter) - _teeter) * (1.0 - Math.Exp(-8.0 * dt));
+            _lookWeight += ((input.HasLook ? 1.0 : 0.0) - _lookWeight) * (1.0 - Math.Exp(-7.0 * dt));
+            if (input.HasLook)
+            {
+                LookAngles(input, BodySkeleton.NeckY + 0.12, _lookYawTo, out double yaw, out double pitch);
+                // The head snaps toward what it wants to see (faster while startled).
+                double k = 1.0 - Math.Exp(-(StartleAmount() > 0.0 ? 16.0 : 9.0) * dt);
+                _lookYawTo += (yaw - _lookYawTo) * k;
+                _lookPitchTo += (pitch - _lookPitchTo) * k;
+            }
+
+            // Out of breath after running, scrambling or hopping; it comes back slowly.
+            double effort = input.State == MovementState.OneLeg && input.Moving ? 0.8
+                            : Math.Max(Clamp01((_speed - input.WalkSpeed / _size) / Math.Max(0.1, (input.SprintSpeed - input.WalkSpeed) / _size)), _scramble);
+            _exertion += effort > _exertion ? (effort - _exertion) * dt / 4.0 : -_exertion * dt / 9.0;
+            _exertion = Clamp01(_exertion);
+
+            // What is left of a lost leg swings on its hip like a pendulum: it lags the hop and overshoots.
+            _stumpSwing.Step(dt, 2.1, 0.22);
         }
 
         void StepLook(double dt)

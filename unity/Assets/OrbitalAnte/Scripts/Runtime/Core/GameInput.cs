@@ -239,6 +239,9 @@ namespace OrbitalAnte.Core
             UiScroll = UI.AddAction("Scroll", InputActionType.PassThrough, expectedControlLayout: "Vector2");
             UiScroll.AddBinding("<Mouse>/scroll");
 
+            // Code-built bindings otherwise receive random IDs on every launch, so saved overrides cannot match.
+            InputBindingIdentity.Assign(Gameplay);
+            InputBindingIdentity.Assign(Flight);
             LoadBindings();
 
             SystemMap.Enable();
