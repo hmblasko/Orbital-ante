@@ -81,6 +81,28 @@ namespace OrbitalAnte.Planets
         {
             _alsoClear.Add(centre);
             _alsoClearRadius.Add(radius);
+            // Anything already standing there (the ground near a base can be shown before the base is placed) goes now.
+            Vector3 c = SpaceConvert.ToVector3(centre);
+            float r2 = (float)(radius * radius);
+            foreach (KeyValuePair<object, List<Item>> group in _groups)
+            {
+                List<Item> items = group.Value;
+                for (int i = items.Count - 1; i >= 0; i--)
+                {
+                    Item item = items[i];
+                    if (item == null || item.Go == null || (item.Go.transform.localPosition - c).sqrMagnitude >= r2) continue;
+                    Retire(item);
+                    items.RemoveAt(i);
+                }
+            }
+            if (_fixedItems == null) return;
+            for (int i = 0; i < _fixedItems.Length; i++)
+            {
+                Item item = _fixedItems[i];
+                if (item == null || item.Go == null || (item.Go.transform.localPosition - c).sqrMagnitude >= r2) continue;
+                Retire(item);
+                _fixedItems[i] = null;
+            }
         }
 
         bool Cleared(Vec3d position)
