@@ -179,13 +179,17 @@ namespace OrbitalAnte.Gore
                 default: scale = 1f; break;
             }
 
+            // The player's own head carries the view: no spray straight into the lens.
+            bool lens = mannequin.KeepsHeadClean && detachment.Root == BodyPartId.Head;
+            if (lens) scale = 0f;
+
             if (scale > 0f)
             {
                 Burst(wound, direction, Mathf.RoundToInt(Config.burstCount * scale), Config.burstSpeed * Mathf.Lerp(1f, 1.3f, scale - 1f));
             }
 
             // Both sides of the break keep spraying for a moment: the loose chunk and the stump it left behind.
-            if (root != null && root.ProximalCap != null) AddBleeder(root.ProximalCap.transform, Config.trailDuration);
+            if (!lens && root != null && root.ProximalCap != null) AddBleeder(root.ProximalCap.transform, Config.trailDuration);
             if (BodyLayout.HasParent(detachment.Root))
             {
                 BodyPart parent = mannequin.Part(BodyLayout.Parent(detachment.Root));

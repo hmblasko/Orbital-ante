@@ -147,7 +147,8 @@ namespace OrbitalAnte.Tests
             yield return Frames(3);
             Assert.IsTrue(crew.Dead);
             Assert.AreEqual(SuitKnock.NoAir, crew.DeathCause);
-            yield return new WaitForSeconds(2.2f);
+            // The body bursts first and the screen waits while you see it (DeathBurst.Hold).
+            yield return new WaitForSeconds(DeathBurst.Hold + 0.4f);
             Assert.AreEqual(SuitKnock.NoAir, _death);
         }
 

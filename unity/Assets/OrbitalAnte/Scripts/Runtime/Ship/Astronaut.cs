@@ -78,6 +78,9 @@ namespace OrbitalAnte.Ship
         public static void ResetStatics() => OnDeath = null;
         float _dazed, _deadFor;
         bool _posed, _deathTold;
+        // The way the last blow pushed (world), and the burst of the body when you die (null if it could not be made).
+        Vector3 _lastBlow;
+        PlayerBurstFx _burst;
         float _pendingYaw;
         bool _jumpQueued;
         Vector3 _up = Vector3.up;
@@ -172,6 +175,7 @@ namespace OrbitalAnte.Ship
             // The suit can be shot. It takes what the test player takes and mends after a few quiet seconds.
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
+            a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
             a.Armour.Died += () => a.Die("Shot down outside the ship.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
@@ -349,11 +353,16 @@ namespace OrbitalAnte.Ship
             bool buckled = Mode == AstronautMode.Seated && Ship.Belt.Buckled;
             // A blow from below or from ahead throws the head forward; from the side, sideways.
             var fate = Crash.Hit(knock, buckled, from.x, Mathf.Clamp(from.z - from.y, -1f, 1f));
+            // The blow came from there, so it threw you the other way.
+            _lastBlow = -Ship.transform.TransformDirection(from);
             if (fate == OrbitalAnte.Navigation.PilotFate.Thrown) _dazed = Mathf.Max(_dazed, Crash.Rules.dazedSeconds);
             else if (fate == OrbitalAnte.Navigation.PilotFate.Killed) Die(OrbitalAnte.Navigation.CrashModel.Cause(Crash.LastKnock, buckled));
         }
 
-        /// <summary>Ends the run. Always first person: the view slumps where you were, then the screen says why.</summary>
+        /// <summary>
+        /// Ends the run. Always first person: your body bursts (see <see cref="DeathBurst"/>) and the view rides
+        /// your head as it flies; then the screen says why. If the body cannot be made the view slumps instead.
+        /// </summary>
         public void Die(string cause)
         {
             if (Dead) return;
@@ -362,6 +371,53 @@ namespace OrbitalAnte.Ship
             _deadFor = 0f;
             Prompt = string.Empty;
             PromptProgress = -1f;
+            Burst();
+        }
+
+        void Burst()
+        {
+            if (Eye == null || Ship == null) return;
+            try
+            {
+                bool outside = Mode == AstronautMode.Outside;
+                // In the lift you may be in the shaft or under the belly, not in the cabin: the cage is only for the cabin.
+                bool inCabin = !outside && Ship.transform.InverseTransformPoint(Eye.transform.position).y > 1f;
+                Vector3 up = outside ? Suit.rotation * Vector3.up : Ship.transform.up;
+                Vector3 facing = Vector3.ProjectOnPlane(Eye.transform.forward, up);
+                if (facing.sqrMagnitude < 1e-4f) facing = Vector3.ProjectOnPlane(Eye.transform.up, up);
+                Quaternion rotation = Quaternion.LookRotation(facing.normalized, up);
+                // The body is put so its head is where your eye was (see PlayerBurstFx.Begin), whether you stood or sat.
+                Vector3 feet = Eye.transform.position - up * ShipLayout.EyeHeight;
+                Vector3 velocity = outside ? Suit.linearVelocity : Ship.Body.GetPointVelocity(Eye.transform.position);
+                Vector3 blow = _lastBlow.sqrMagnitude > 1e-6f ? _lastBlow : -Eye.transform.forward;
+
+                // The gun goes too: outside it is flung away and keeps your speed; inside it is put out of sight
+                // (dropped there it would start inside the hull's solid shapes).
+                if (Weapons != null)
+                {
+                    Weapon held = Weapons.Current;
+                    if (held != null)
+                    {
+                        if (outside)
+                        {
+                            Weapons.DropCurrent();
+                            var gunBody = held.GetComponent<Rigidbody>();
+                            if (gunBody != null) gunBody.linearVelocity += velocity;
+                        }
+                        else held.gameObject.SetActive(false);
+                    }
+                    Weapons.enabled = false;
+                }
+                GravityBody pull = outside ? _suitGravity : Ship.Gravity;
+                _burst = PlayerBurstFx.Begin(_world, feet, rotation, velocity, blow, Eye, inCabin ? Ship : null,
+                    () => pull != null ? pull.FeltGravity : Physics.gravity);
+            }
+            catch (Exception e)
+            {
+                // Never let the death itself fail: fall back to the slump.
+                Debug.LogWarning("Orbital Ante: the player's body could not burst (" + e.Message + "); slumping instead.");
+                _burst = null;
+            }
         }
 
         void PoseOnly()
@@ -383,6 +439,7 @@ namespace OrbitalAnte.Ship
             bool shake = FeelSettings.CameraShake;
             float pitch = shake ? Crash.KickPitch : 0f, roll = shake ? Crash.KickRoll : 0f;
             float slump = 0f;
+            if (Dead && _burst != null) return;   // the view is on the flying head
             if (Dead) slump = Mathf.SmoothStep(0f, 1f, _deadFor / 1.1f);
             else if (_dazed > 0f) slump = 0.35f * Mathf.Sin(Mathf.Clamp01(_dazed / Mathf.Max(0.1f, Crash.Rules.dazedSeconds)) * Mathf.PI);
             if (slump > 0f)
@@ -407,9 +464,13 @@ namespace OrbitalAnte.Ship
             if (Dead)
             {
                 _deadFor += dt;
-                PoseOnly();
-                _posed = true;
-                if (!_deathTold && _deadFor > 1.8f)
+                // Riding the head, the view is placed by the burst; otherwise it slumps where you were.
+                if (_burst == null)
+                {
+                    PoseOnly();
+                    _posed = true;
+                }
+                if (!_deathTold && _deadFor > (_burst != null ? DeathBurst.Hold : 1.8f))
                 {
                     _deathTold = true;
                     OnDeath?.Invoke(DeathCause);
@@ -816,6 +877,7 @@ namespace OrbitalAnte.Ship
             SuitKnock.Result result = SuitKnock.For(SuitDials.rules, speed);
             if (speed > 2.5f && _fx != null) _fx.Play(_fx.Sounds.Bump, Mathf.Clamp01(speed / SuitDials.rules.hurtSpeed));
             if (result == SuitKnock.Result.Nothing) return;
+            if (from.sqrMagnitude > 1e-6f) _lastBlow = -from.normalized;
             // The view takes the blow the same way it does in the cabin.
             Vector3 local = Eye.transform.InverseTransformDirection(from);
             if (Crash != null) Crash.Hit(speed, false, local.x, Mathf.Clamp(local.z - local.y, -1f, 1f));
@@ -876,6 +938,8 @@ namespace OrbitalAnte.Ship
         void FixedUpdate()
         {
             if (Mode != AstronautMode.Outside || Ship == null) return;
+            // The suit coasts on with nobody in it: no jets, no posture, just what pulls it.
+            if (Dead) return;
             float dt = Time.fixedDeltaTime;
             SuitRules rules = SuitDials.rules;
 

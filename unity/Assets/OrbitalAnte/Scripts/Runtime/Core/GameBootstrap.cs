@@ -43,6 +43,7 @@ namespace OrbitalAnte.Core
             // Unity can keep static values between Play sessions; start clean every time.
             Instance = null;
             GameSession.ResetStatics();
+            OrbitalAnte.Ship.PlayerBurstFx.ResetStatics();
             CombatEvents.ResetStatics();
             Audio.AudioDirector.ResetStatics();
             Audio.AudioDemoSequence.ResetStatics();

@@ -298,6 +298,7 @@ What to read off in Unity (floating outside, tethered): in **Window > Analysis >
 | Placing camps | 1 to 3.5 ms on Earth at 70 camps, 7 ms on Neptune, measured on a desktop outside Unity; guessed under 40 ms on Deck | once per body; 120 camps |
 | Dropped enemy guns | about 1,500 to 2,000 triangles each beyond 9 m, up to 7,696 within, and a moving body each | 12 loose; cleared with their owner |
 | Aim line (Marksman) | one line renderer while aiming | 1 per Marksman, 1 Marksman per camp |
+| Player death burst (`PlayerBurstFx`, `DeathBurst`; 15 Nov 2026) | Once a run, then the death page pauses the game. Frame 0: one breakable body (about 87 objects, 16 colliders), about 6 detachments, and aboard a kinematic cage of 98 boxes; guessed 2 to 6 ms on the Deck, plus 5 to 30 ms the first time `OA_Model`, blood or decals are drawn in a run (nothing warms them yet). Then 8 single splits over 0.31 s; 14 gibs, about 300 droplets, 14 pops over 8 voices; the cage moved each physics step for 2.6 s; 10 to 30 KB of garbage on frame 0 only. Estimated from the code | 1 body a run; 98 cage boxes; gibs within `maxActiveGibs` 40; frame 0 under 25 ms (if not: warm the shaders, then build the cage ahead, switched off) |
 
 ## Earth scenery (14 Nov 2026): estimates from reading the code, not measured in Unity
 

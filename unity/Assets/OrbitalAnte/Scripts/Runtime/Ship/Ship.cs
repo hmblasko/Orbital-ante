@@ -623,6 +623,8 @@ namespace OrbitalAnte.Ship
             {
                 for (int b = 0; b < mine.Length; b++) Physics.IgnoreCollision(loose[a], mine[b], true);
             }
+            // Nor may the cage that holds a dead player's pieces in the cabin push it (it is loose, like they are).
+            PlayerBurstFx.IgnoreCage(loose);
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 60f;
             rb.useGravity = false;

@@ -56,6 +56,9 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>The gib a group id belongs to, or null if it has already been cleaned up.</summary>
         /// <summary>What this character stands on: flat arena ground unless it was put on a planet.</summary>
         public Footing Footing = Footing.Flat;
+
+        /// <summary>No blood out of the head's own wound: set on the player's remains, whose head carries the view.</summary>
+        public bool KeepsHeadClean { get; set; }
         /// <summary>Which way is up where it stands.</summary>
         public Vector3 Up => Footing.Up(transform.position);
 

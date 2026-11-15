@@ -206,7 +206,30 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(crew.Dead);
             StringAssert.Contains("not buckled in", crew.DeathCause);
             Assert.IsNull(_death, "the screen waits a moment, so you see what happened first");
-            yield return new WaitForSeconds(2.2f);
+
+            // Your body bursts, and you watch from your own head (first person, never a camera outside you).
+            yield return new WaitForSeconds(0.5f);
+            var remains = Object.FindAnyObjectByType<PlayerBurstFx>();
+            Assert.IsNotNull(remains, "dying should burst the player's body");
+            Assert.AreSame(crew.transform, crew.Eye.transform.parent, "the view is placed on the head, never parented to a piece");
+            var mannequin = remains.GetComponent<OrbitalAnte.Dismemberment.Mannequin>();
+            Assert.IsFalse(mannequin.Alive);
+            for (int i = 0; i < OrbitalAnte.Dismemberment.BodyLayout.Count; i++)
+                Assert.AreNotEqual(0, mannequin.Model.Group((OrbitalAnte.Dismemberment.BodyPartId)i), "every part has come off");
+            var head = mannequin.Part(OrbitalAnte.Dismemberment.BodyPartId.Head).transform;
+            Assert.Less(Vector3.Distance(head.position, crew.Eye.transform.position), 0.3f, "the view rides the head");
+
+            // In the cabin the pieces stay in the cabin.
+            yield return new WaitForSeconds(0.8f);
+            for (int i = 0; i < OrbitalAnte.Dismemberment.BodyLayout.Count; i++)
+            {
+                Vector3 local = _world.Ship.transform.InverseTransformPoint(mannequin.Part((OrbitalAnte.Dismemberment.BodyPartId)i).transform.position);
+                Assert.Less(new Vector2(local.x, local.z).magnitude, ShipLayout.CabinRadius + 0.3f, "a piece left through the wall: " + (OrbitalAnte.Dismemberment.BodyPartId)i);
+                Assert.Greater(local.y, -0.4f, "a piece fell through the floor");
+                Assert.Less(local.y, ShipLayout.CeilingPeak + 0.4f, "a piece left through the roof");
+            }
+            Assert.IsNull(_death);
+            yield return new WaitForSeconds(DeathBurst.Hold - 1.3f + 0.4f);
             Assert.AreEqual(crew.DeathCause, _death, "the cause should have been handed to the death screen");
             yield return Frames(2);
             Assert.IsTrue(_world.Craft.Unmanned, "nobody is flying the ship now");

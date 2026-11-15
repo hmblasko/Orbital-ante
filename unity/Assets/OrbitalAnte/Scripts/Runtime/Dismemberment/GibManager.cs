@@ -57,6 +57,8 @@ namespace OrbitalAnte.Dismemberment
                 Gib gib = _active[i];
                 if (gib == null) continue;
                 gib.transform.position += by;
+                // The body too, or an interpolated chunk is drawn part way back along its old path for a frame.
+                if (gib.Body != null) gib.Body.position += by;
             }
         }
 
