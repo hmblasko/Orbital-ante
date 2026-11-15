@@ -23,16 +23,25 @@ namespace OrbitalAnte.Planets
             public CapsuleCollider Trunk;
         }
 
+        sealed class Group
+        {
+            public List<Item> Items;
+            public List<Placement> Placements;
+            public Vec3d[] Positions;
+            public SpawnBudget.Group Progress;
+        }
+
         readonly PlanetSurface _surface;
         readonly Transform _root;
         readonly Stack<Item> _spare = new Stack<Item>();
-        readonly Dictionary<object, List<Item>> _groups = new Dictionary<object, List<Item>>();
+        readonly Dictionary<object, Group> _groups = new Dictionary<object, Group>();
+        readonly List<Group> _pending = new List<Group>();
         readonly Stack<List<Item>> _spareLists = new Stack<List<Item>>();
+        readonly SpawnBudget _spawnBudget = new SpawnBudget();
         PlanetTerrain _terrain;
         Vec3d[] _fixedPositions;
         Item[] _fixedItems;
         int _cursor;
-        int _spawnsLeft;
         bool _active;
 
         /// <summary>How many rocks, trees and so on exist right now.</summary>
@@ -84,9 +93,9 @@ namespace OrbitalAnte.Planets
             // Anything already standing there (the ground near a base can be shown before the base is placed) goes now.
             Vector3 c = SpaceConvert.ToVector3(centre);
             float r2 = (float)(radius * radius);
-            foreach (KeyValuePair<object, List<Item>> group in _groups)
+            foreach (Group group in _groups.Values)
             {
-                List<Item> items = group.Value;
+                List<Item> items = group.Items;
                 for (int i = items.Count - 1; i >= 0; i--)
                 {
                     Item item = items[i];
@@ -124,13 +133,16 @@ namespace OrbitalAnte.Planets
             if (active) return;
 
             // Leaving the body: put everything away and let the objects go.
-            foreach (KeyValuePair<object, List<Item>> group in _groups)
+            foreach (Group group in _groups.Values)
             {
-                for (int i = 0; i < group.Value.Count; i++) Retire(group.Value[i]);
-                group.Value.Clear();
-                _spareLists.Push(group.Value);
+                group.Progress.Cancel();
+                for (int i = 0; i < group.Items.Count; i++) Retire(group.Items[i]);
+                group.Items.Clear();
+                _spareLists.Push(group.Items);
             }
             _groups.Clear();
+            _pending.Clear();
+            _spawnBudget.BeginFrame(0);
             if (_fixedItems != null)
             {
                 for (int i = 0; i < _fixedItems.Length; i++)
@@ -148,38 +160,59 @@ namespace OrbitalAnte.Planets
         {
             // The objects are children of the body and go with it.
             _groups.Clear();
+            _pending.Clear();
             _spare.Clear();
         }
 
         /// <summary>Call at the start of each frame: resets the count of things put out this frame.</summary>
-        public void BeginFrame() => _spawnsLeft = Mathf.Max(1, _surface.Settings.featuresPerFrame);
+        public void BeginFrame() => _spawnBudget.BeginFrame(_surface.Settings.featuresPerFrame);
 
         /// <summary>
-        /// Puts out the loose scatter that belongs to one piece of ground. Returns false, having done nothing, if
-        /// this frame's allowance is already used up (the caller tries again next frame).
+        /// Accepts the loose scatter for one piece of ground. True includes a partly shown group: Tick carries
+        /// on next frame, and the caller must HideGroup if it is no longer wanted. False leaves it unaccepted.
         /// </summary>
         public bool ShowGroup(object key, List<Placement> placements, Vec3d[] positions)
         {
             if (!_active) return false;
             if (_groups.ContainsKey(key)) return true;
-            if (_spawnsLeft <= 0) return false;
-            _spawnsLeft -= placements.Count;
-            List<Item> items = _spareLists.Count > 0 ? _spareLists.Pop() : new List<Item>();
-            for (int i = 0; i < placements.Count; i++)
+            // Finish accepted groups first; otherwise a stream of new tiles could starve a partial group.
+            if (placements.Count > 0 && (_pending.Count > 0 || _spawnBudget.Remaining <= 0)) return false;
+            var group = new Group
             {
-                Item item = Spawn(placements[i], positions[i]);
-                if (item != null) items.Add(item);
-            }
-            _groups[key] = items;
+                Items = _spareLists.Count > 0 ? _spareLists.Pop() : new List<Item>(),
+                Placements = placements,
+                Positions = positions,
+                Progress = new SpawnBudget.Group(placements.Count),
+            };
+            _groups.Add(key, group);
+            ShowMore(group);
+            if (!group.Progress.Complete) _pending.Add(group);
             return true;
+        }
+
+        void ShowMore(Group group)
+        {
+            int count = group.Progress.Take(_spawnBudget, out int first);
+            for (int i = first; i < first + count; i++)
+            {
+                Item item = Spawn(group.Placements[i], group.Positions[i]);
+                if (item != null) group.Items.Add(item);
+            }
+            if (group.Progress.Complete)
+            {
+                group.Placements = null;
+                group.Positions = null;
+            }
         }
 
         public void HideGroup(object key)
         {
-            if (!_groups.TryGetValue(key, out List<Item> items)) return;
-            for (int i = 0; i < items.Count; i++) Retire(items[i]);
-            items.Clear();
-            _spareLists.Push(items);
+            if (!_groups.TryGetValue(key, out Group group)) return;
+            group.Progress.Cancel();
+            _pending.Remove(group);
+            for (int i = 0; i < group.Items.Count; i++) Retire(group.Items[i]);
+            group.Items.Clear();
+            _spareLists.Push(group.Items);
             _groups.Remove(key);
         }
 
@@ -189,7 +222,16 @@ namespace OrbitalAnte.Planets
         /// </summary>
         public void Tick(Vec3d viewer)
         {
-            if (!_active || _fixedPositions == null || _fixedPositions.Length == 0) return;
+            if (!_active) return;
+            // The surface has now hidden unwanted groups, so only still-visible partial groups continue.
+            for (int i = 0; i < _pending.Count && _spawnBudget.Remaining > 0;)
+            {
+                Group group = _pending[i];
+                ShowMore(group);
+                if (group.Progress.Complete) _pending.RemoveAt(i);
+                else i++;
+            }
+            if (_fixedPositions == null || _fixedPositions.Length == 0) return;
             double range = _surface.Settings.featureRange;
             double show = range * range, hide = range * 1.15 * range * 1.15;
             int steps = Mathf.Min(_fixedPositions.Length, 160);
@@ -202,9 +244,9 @@ namespace OrbitalAnte.Planets
                 {
                     // Tall landmarks show from further off than small ones.
                     double tall = 1 + _terrain.Placements[i].Scale / 12.0;
-                    if (d < show * tall && _spawnsLeft > 0 && !Cleared(_fixedPositions[i]))
+                    if (d < show * tall && _spawnBudget.Remaining > 0 && !Cleared(_fixedPositions[i]))
                     {
-                        _spawnsLeft--;
+                        _spawnBudget.Take(1);
                         _fixedItems[i] = Spawn(_terrain.Placements[i], _fixedPositions[i]);
                     }
                 }
