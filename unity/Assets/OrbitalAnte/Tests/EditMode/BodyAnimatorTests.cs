@@ -564,7 +564,7 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void LosingAnArm_TheBodyLeansTowardTheWound_AndTheOtherHandGoesToIt([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
+        public void LosingAnArm_TheBodyLeansTowardTheWound_AndTheOtherHandStaysOnItsOwnSide([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
         {
             var a = new BodyAnimator(8);
             BodyAnimInput input = Standing(0);
@@ -575,9 +575,12 @@ namespace OrbitalAnte.Tests
             for (int i = 0; i < 40; i++) a.Update(Dt, input);
             double sign = side == BodySkeleton.Left ? -1.0 : 1.0;
             Assert.Greater((Where(a.Pose, BodyBone.Head).X - headBefore) * sign, 0.04, "the trunk should curl toward the lost arm");
-            Vec3d palm = Palm(a.Pose, 1 - side);
-            Assert.Less(Math.Abs(palm.X - sign * BodySkeleton.ShoulderX), 0.25, "the good hand should be over at the wounded side");
-            Assert.Greater(palm.Z, 0.0, "in front of the body");
+            // Matthew (15 Nov 2026): the other arm does not reach over to the wound.
+            for (int i = 0; i < 120; i++)
+            {
+                a.Update(Dt, input);
+                Assert.Less(Palm(a.Pose, 1 - side).X * sign, -0.1, "the good hand should stay on its own side, frame " + i);
+            }
             // Years later (well, ten seconds) the shock is gone but the weight is still missing.
             for (int i = 0; i < 600; i++) a.Update(Dt, input);
             Assert.Less(a.Shock, 0.05);
