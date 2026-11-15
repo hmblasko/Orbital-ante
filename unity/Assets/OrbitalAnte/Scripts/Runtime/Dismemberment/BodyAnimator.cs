@@ -41,6 +41,11 @@ namespace OrbitalAnte.Dismemberment
         public int ReachSide;
         /// <summary>0 to 1, one leg only: it landed badly and is fighting to keep its balance on the spot.</summary>
         public double Teeter;
+        /// <summary>
+        /// 0 to 1, how far it moves in a tactical hunch: knees bent, hips low, trunk forward over the gun, short
+        /// gliding steps that keep the head level and the shoulders square to the front. For moving in a fight.
+        /// </summary>
+        public double Tactical;
     }
 
     /// <summary>
@@ -242,7 +247,7 @@ namespace OrbitalAnte.Dismemberment
         double _shock, _woundSide;
         double _reelAge = 99.0, _reelSize;
         double _exertion;
-        double _scramble, _reach, _teeter, _lookWeight;
+        double _scramble, _reach, _teeter, _lookWeight, _tactical;
         double _lookYawTo, _lookPitchTo;
         Spring _stumpSwing;
 
@@ -305,6 +310,8 @@ namespace OrbitalAnte.Dismemberment
         public double Shock => _shock;
         /// <summary>0 to 1, how out of breath it is.</summary>
         public double Exertion => _exertion;
+        /// <summary>0 to 1, how far into the tactical hunch it is right now (it eases in and out over about half a second).</summary>
+        public double Tactical => _tactical;
 
         /// <summary>How much of the startle is showing, 0 to 1: up in a tenth of a second, held, then gone by 0.7 s.</summary>
         double StartleAmount()
@@ -462,7 +469,10 @@ namespace OrbitalAnte.Dismemberment
             double turning = Math.Min(2.4, Math.Abs(_turn) * 0.62 / 60.0);
             // Scrambling takes quick, short steps: the same ground covered in more of them.
             double frantic = 1.0 + 0.22 * _scramble;
-            double stride = StrideLength(v, RunAmount(v, walk, sprint)) * _strideScale * _style.Stride / frantic;
+            double run = RunAmount(v, walk, sprint);
+            // Hunched, the bent legs take shorter steps (a tactical walk is about four fifths of the stride).
+            double hunched = 1.0 - 0.2 * TacticalAmount(run);
+            double stride = StrideLength(v, run) * _strideScale * _style.Stride * hunched / frantic;
             return Math.Max(v / stride, turning * turnAmount);
         }
 
@@ -506,6 +516,9 @@ namespace OrbitalAnte.Dismemberment
             return Lerp(0.61, running, run);
         }
 
+        /// <summary>How much of the hunch shows at this pace: all of it walking, a little over half at a full run.</summary>
+        double TacticalAmount(double run) => _tactical * (1.0 - 0.45 * run);
+
         void BuildStanding(BodyPose pose, in BodyAnimInput input)
         {
             BodyStyle style = _style;
@@ -521,7 +534,12 @@ namespace OrbitalAnte.Dismemberment
             double aimStill = _aim * (1.0 - moveAmount);
             double gunSign = input.GunSide == BodySkeleton.Left ? -1.0 : 1.0;
 
-            double duty = Duty(v, run);
+            // The tactical hunch (measured from the usual pattern of a trained close-quarters walk: knees bent
+            // about 30 to 45 degrees all the way through, hips low and pitched forward, chest over the toes, the
+            // head carried level with almost no rise and fall, and the shoulders kept square to the front while
+            // the hips do the turning). Its feet stay on the ground a little longer, so the body glides.
+            double hunch = TacticalAmount(run);
+            double duty = Duty(v, run) + 0.05 * hunch * (1.0 - run);
             double stanceTime = duty / Math.Max(_cadence, 0.4);
             // A runner lands nearly under itself and pushes off far behind; a walker's step is about even.
             double centre = Lerp(0.42, 0.32, run);
@@ -557,6 +575,15 @@ namespace OrbitalAnte.Dismemberment
             double stanceYaw = gunSign * 16.0 * aimStill;
             double lean = style.Lean + 2.0 * moveAmount + 9.0 * run + _lean * moveAmount;
 
+            // The hunch: down on bent knees, the pelvis tipped forward, little rise and fall, sway or twist.
+            double level = 1.0 - 0.75 * hunch;
+            bob *= level;
+            drop += 0.075 * hunch;
+            lean += 16.0 * hunch;
+            sway *= 1.0 - 0.4 * hunch;
+            hipRoll *= 1.0 - 0.5 * hunch;
+            gaitYaw *= 1.0 - 0.5 * hunch;
+
             // ---- reactions laid over the gait
             double startle = StartleAmount();
             double stumble = StumbleAmount();
@@ -579,12 +606,13 @@ namespace OrbitalAnte.Dismemberment
             Vec3d hipsPosition = pose.RootPosition + new Vec3d(0, BodySkeleton.HipsY, 0);
 
             // ---- feet on the ground, legs bent to reach them
-            double halfWidth = (Lerp(Lerp(0.125, 0.098, moveAmount), 0.072, run) + 0.03 * aimStill) * style.Stance;
+            double halfWidth = (Lerp(Lerp(0.125, 0.098, moveAmount), 0.072, run) + 0.03 * aimStill + 0.03 * hunch) * style.Stance;
             // Heel down, roll over the foot, push off the ball, and the ankle carried high early in the swing so the
             // knee folds (about 60 degrees walking, more running), then the leg reaches out straight for the heel.
-            double kick = 0.025 * turnAmount * (1.0 - moveAmount) + (0.07 + 0.22 * run) * moveAmount;
-            double strikeToeUp = (18.0 + 4.0 * run) * moveAmount;
-            double rollOff = (52.0 + 20.0 * run) * moveAmount;
+            // Hunched, the feet are rolled and lifted less: a flatter, quieter step.
+            double kick = (0.025 * turnAmount * (1.0 - moveAmount) + (0.07 + 0.22 * run) * moveAmount) * (1.0 - 0.3 * hunch);
+            double strikeToeUp = (18.0 + 4.0 * run) * moveAmount * (1.0 - 0.3 * hunch);
+            double rollOff = (52.0 + 20.0 * run) * moveAmount * (1.0 - 0.35 * hunch);
             Vec3d ankleLeft = Vec3d.Zero, ankleRight = Vec3d.Zero;
             QuatD footLeft = QuatD.Identity, footRight = QuatD.Identity;
             // How much each leg may pull the hips down to reach its foot: a planted leg fully, a swinging leg only
@@ -683,10 +711,11 @@ namespace OrbitalAnte.Dismemberment
             double breathSize = 1.0 + 2.0 * _exertion + 1.5 * _shock;
             // Losing an arm: the hit spins that shoulder back and doubles the trunk over, then the head turns to the stump.
             double reel = ReelAmount(), glance = GlanceAmount() * (1.0 - _lookWeight);
-            double spinePitch = 1.1 * breath * breathSize * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch
+            double spinePitch = 1.1 * breath * breathSize * still * style.Idle + 0.25 * lean + 5.0 * aimStill + style.Hunch + 8.0 * hunch
                                 + 14.0 * startle + 22.0 * reach + 8.0 * scramble + 12.0 * stumble + 9.0 * _shock + 4.0 * lostArm + 12.0 * reel;
             double spineRoll = -0.8 * hipRoll + Guard(input, lossLeft, lossRight) - _woundSide * 8.0 * reel;
-            double counter = 1.0 + 0.3 * lostArm;
+            // The chest stays square to the front in the hunch, so the trunk takes out the hips' turn entirely.
+            double counter = (1.0 + 0.3 * lostArm) * (1.0 + 0.35 * hunch);
             double lookYaw = _lookWeight * _lookYawTo;
             pose.Local[(int)BodyBone.Spine] = Qy(-1.5 * gaitYaw * counter + 0.3 * lookYaw + _woundSide * 26.0 * reel) * Qx(spinePitch) * Qz(spineRoll);
             double look = (1.0 - _aim) * still * Math.Min(1.0, style.Idle) * (1.0 - _lookWeight);
@@ -712,6 +741,10 @@ namespace OrbitalAnte.Dismemberment
                 double down = 79.0 - style.ArmsOut - 3.0 * run + 1.2 * breath * still * style.Idle;
                 double swing = swingSize * wave + 2.0 * Math.Sin(TwoPi * (_time + _timeOffset) / 5.1 + s) * still * style.Idle + swingBack;
                 double elbow = 14.0 + style.ElbowBend + 6.0 * moveAmount + 78.0 * run + 16.0 * moveAmount * forward;
+                // Hunched, empty arms are carried bent and close, hardly swinging (a held gun's arms are posed by the fight).
+                swing = Lerp(swing, 0.3 * swing + 8.0, hunch);
+                elbow += 30.0 * hunch;
+                down -= 6.0 * hunch;
                 // The arm that is left swings wider to balance the one that is not.
                 double otherLoss = s == BodySkeleton.Left ? lossRight : lossLeft;
                 swing *= 1.0 + 0.35 * otherLoss;
@@ -1127,6 +1160,9 @@ namespace OrbitalAnte.Dismemberment
             // smoothing gives the ease in and out.
             _reach += (Clamp01(input.Reach) - _reach) * (1.0 - Math.Exp(-9.0 * dt));
             _teeter += (Clamp01(input.Teeter) - _teeter) * (1.0 - Math.Exp(-8.0 * dt));
+            // Dropping into the hunch is quicker than standing out of it.
+            double hunchGoal = Clamp01(input.Tactical);
+            _tactical += (hunchGoal - _tactical) * (1.0 - Math.Exp(-(hunchGoal > _tactical ? 6.0 : 3.5) * dt));
             _lookWeight += ((input.HasLook ? 1.0 : 0.0) - _lookWeight) * (1.0 - Math.Exp(-7.0 * dt));
             if (input.HasLook)
             {

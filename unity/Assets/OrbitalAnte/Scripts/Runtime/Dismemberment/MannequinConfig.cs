@@ -67,6 +67,8 @@ namespace OrbitalAnte.Dismemberment
         public string modelId = "";
         [Tooltip("Keeps coming at the player until it is inside Keep Far, instead of side-stepping at range.")]
         public bool closesIn = false;
+        [Tooltip("0 to 1: how far it drops into the tactical hunch (knees bent, low, gun up) while it is fighting or hunting the player. 0: always upright.")]
+        [Range(0f, 1f)] public float tacticalHunch = 1f;
         [Tooltip("Seconds a bright line shows where it is aiming before every shot. 0: none. For slow, heavy single shots only.")]
         public float aimTell = 0f;
         [Tooltip("Out of sight, it only comes after the player if it saw them this many seconds ago or less...")]

@@ -565,6 +565,72 @@ namespace OrbitalAnte.Tests
             Assert.Greater(spine.Rotate(Vec3d.Up).Z, 0.35, "and bent low over it");
         }
 
+        /// <summary>Walks a few seconds and returns the lowest and highest the head goes, the average hip height and the furthest hip to ankle.</summary>
+        static void Gait(BodyAnimator a, BodyAnimInput input, out double headLow, out double headHigh, out double hipsAverage, out double longestLeg)
+        {
+            for (int i = 0; i < 120; i++) a.Update(Dt, input);
+            headLow = double.MaxValue; headHigh = double.MinValue; hipsAverage = 0; longestLeg = 0;
+            int frames = 240;
+            for (int i = 0; i < frames; i++)
+            {
+                a.Update(Dt, input);
+                Vec3d head = Where(a.Pose, BodyBone.Head);
+                headLow = Math.Min(headLow, head.Y);
+                headHigh = Math.Max(headHigh, head.Y);
+                hipsAverage += Where(a.Pose, BodyBone.Hips).Y / frames;
+                for (int s = 0; s < 2; s++)
+                    longestLeg = Math.Max(longestLeg, Vec3d.Distance(Where(a.Pose, BodySkeleton.Thigh(s)), Ankle(a.Pose, s)));
+            }
+        }
+
+        [Test]
+        public void TheTacticalHunch_IsLowOnBentKnees_WithALevelHead_AndPlantedFeet([Values(0.0, Walk, Sprint)] double speed)
+        {
+            BodyAnimInput plainInput = Standing(speed), hunchInput = Standing(speed);
+            hunchInput.Tactical = 1.0;
+            Gait(new BodyAnimator(3), plainInput, out double plainLow, out double plainHigh, out double plainHips, out _);
+            var a = new BodyAnimator(3);
+            Gait(a, hunchInput, out double low, out double high, out double hips, out double longest);
+
+            Assert.Less(hips, plainHips - (speed > Walk ? 0.015 : 0.045), "the hunch carries the hips lower");
+            if (speed <= Walk)
+            {
+                Assert.Less(longest, 0.975 * (BodySkeleton.ThighLength + BodySkeleton.ShinLength), "the knees stay bent (25 degrees or more) all the way through");
+                if (speed > 0)
+                    Assert.Less(high - low, 0.75 * (plainHigh - plainLow), "and the head rises and falls less than in an upright walk");
+            }
+            a.Pose.World(BodyBone.Spine, out _, out QuatD spine);
+            a.Pose.World(BodyBone.Head, out _, out QuatD head);
+            Assert.Greater(spine.Rotate(Vec3d.Up).Z, 0.2, "the trunk is bent forward over the gun");
+            Assert.Less(Math.Abs(head.Rotate(Vec3d.Forward).Y), 0.3, "but the eyes still look ahead, not at the ground");
+
+            if (speed > 0)
+            {
+                double worst = WorstFootSlide(new BodyAnimator(3), 1.0, hunchInput, 5.0, out int steps);
+                Assert.Less(worst, 0.05, "planted feet slide in the hunch");
+                Assert.Greater(steps, 4);
+                var plain = new BodyAnimator(3);
+                for (int i = 0; i < 120; i++) plain.Update(Dt, plainInput);
+                Assert.Greater(a.Cadence, plain.Cadence * 1.05, "shorter, quicker steps than upright");
+            }
+        }
+
+        [Test]
+        public void TheTacticalHunch_EasesInAndOut_NotSnapped()
+        {
+            var a = new BodyAnimator(5);
+            BodyAnimInput input = Standing(Walk);
+            for (int i = 0; i < 120; i++) a.Update(Dt, input);
+            input.Tactical = 1.0;
+            a.Update(Dt, input);
+            Assert.Less(a.Tactical, 0.2, "one frame in, it has only started to drop");
+            for (int i = 0; i < 60; i++) a.Update(Dt, input);
+            Assert.Greater(a.Tactical, 0.9, "down within a second");
+            input.Tactical = 0.0;
+            for (int i = 0; i < 120; i++) a.Update(Dt, input);
+            Assert.Less(a.Tactical, 0.05, "and back up within two");
+        }
+
         [Test]
         public void LosingAnArm_TheBodyLeansTowardTheWound_AndTheOtherHandStaysOnItsOwnSide([Values(BodySkeleton.Left, BodySkeleton.Right)] int side)
         {
@@ -678,7 +744,7 @@ namespace OrbitalAnte.Tests
             var a = new BodyAnimator(11);
             BodyAnimInput input = Hurt(state, 0.0);
             input.ArmLossLeft = 0.5; input.StumpLength = 0.45; input.Scramble = 1; input.Reach = 1; input.Teeter = 1;
-            input.HasLook = true; input.LookX = -1; input.LookY = 2; input.LookZ = -0.5;
+            input.HasLook = true; input.LookX = -1; input.LookY = 2; input.LookZ = -0.5; input.Tactical = 1;
             a.Startle(-1, -1);
             a.Wounded(BodySkeleton.Left, 1);
             a.Stumble(-1);
