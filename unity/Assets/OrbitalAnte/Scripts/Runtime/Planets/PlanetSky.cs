@@ -64,6 +64,8 @@ namespace OrbitalAnte.Planets
             PlanetSurface s = _world.SurfaceOf(system.Frame.Anchor);
             if (s != null && !s.Ready) s = null;
             Surface = s;
+            // The light inside the cave network nearest the eye, if there is one (the Sun cannot reach through rock).
+            CaveLight.Apply(eye);
 
             Color sunlight = SkyGlobals.SunColor * SkyGlobals.SunIntensity;
             Color ambient = SkyGlobals.SpaceAmbient;
@@ -154,10 +156,11 @@ namespace OrbitalAnte.Planets
                     dark = 1f - day;
                 }
 
-                // In a cave your eyes adjust: what little daylight leaks in is all there is.
+                // In a cave your eyes adjust: what little daylight leaks in is all there is. A cave network's own
+                // light box already darkens its inside, so the fill light is not taken down twice there.
                 if (ground.InCave)
                 {
-                    ambient *= 0.3f;
+                    if (CaveLight.Current == null) ambient *= 0.3f;
                     dark = 1f;
                 }
             }
@@ -234,6 +237,7 @@ namespace OrbitalAnte.Planets
             if (_live != null && _live != this) return;
             _live = null;
             SkyGlobals.Reset();
+            CaveLight.Off();
         }
     }
 }

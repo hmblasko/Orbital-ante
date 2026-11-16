@@ -117,13 +117,41 @@ half3 OA_Paint(half3 albedo, float3 place, float range, half amount)
     return lerp(albedo, painted, amount);
 }
 
-// ---------------------------------------------------------------------------------------------- light
+// ---------------------------------------------------------------------------------------------- cave light
 
 // Tells the graphics card to really skip the work inside an "if". Unity's own library defines it; this is for
 // a shader that includes this file without that library.
 #ifndef UNITY_BRANCH
 #define UNITY_BRANCH
 #endif
+
+// Inside a cave network the Sun and sky cannot reach through the rock. The game works out, for the network the
+// eye is nearest to, a box of 2 m cells (CaveLightVolume): a is how much open sky reaches each place (1 outside,
+// next to nothing deep inside), rgb the light of the cave's own work lamps and glowing crystals, carried through
+// the cave's air only, stored divided by _OA_CaveOn.y. _OA_CaveOn.x is 0 when there is no cave near: then nothing
+// is read and nothing changes. Outside the box nothing changes either. Set by CaveLight (CaveNetworkView.cs).
+float4x4 _OA_CaveToVolume;
+half4 _OA_CaveOn;
+TEXTURE3D(_OA_CaveLight);
+SAMPLER(sampler_OA_CaveLight);
+
+half4 OA_CaveLight(float3 positionWS)
+{
+    half4 cave = half4(0.0, 0.0, 0.0, 1.0);
+    UNITY_BRANCH
+    if (_OA_CaveOn.x > 0.5)
+    {
+        float3 uvw = mul(_OA_CaveToVolume, float4(positionWS, 1.0)).xyz;
+        if (all(uvw > 0.0) && all(uvw < 1.0))
+        {
+            half4 cell = SAMPLE_TEXTURE3D_LOD(_OA_CaveLight, sampler_OA_CaveLight, uvw, 0);
+            cave = half4(cell.rgb * _OA_CaveOn.y, cell.a);
+        }
+    }
+    return cave;
+}
+
+// ---------------------------------------------------------------------------------------------- light
 
 // The ship's floodlights: a soft-edged cone that fades out with distance (Ship/ShipLights.Reaching is the same
 // sum, for tests). Skipped entirely while they are off, which is most of the time.
@@ -150,6 +178,9 @@ half3 OA_Beam(half3 normal, float3 positionWS)
 // multiplied by the surface's colour.
 half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
 {
+    // In a cave, only as much of the sky's light as reaches this spot, and the cave's own lamps.
+    half4 cave = OA_CaveLight(positionWS);
+    sunAmount *= cave.a;
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
     float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
     half facing = dot(normal, toSun);
@@ -164,7 +195,8 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
 
     // More sky light on faces that look up than on faces that look down.
     half upward = dot(normal, up);
-    half3 light = _OA_Ambient.rgb * (0.85 + 0.3 * upward);
+    half3 light = _OA_Ambient.rgb * ((0.85 + 0.3 * upward) * (0.03 + 0.97 * cave.a));
+    light += cave.rgb * (0.8 + 0.2 * upward);
 
     // Sunlit ground throws warm light back up onto overhangs and shadowed walls.
     half dayHere = saturate(dot(up, toSun) * 2.0 + 0.2);
@@ -199,7 +231,9 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
 half OA_DaylitSky(float3 positionWS, float3 up)
 {
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
-    return dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
+    half sky = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
+    // No daylit sky to mirror deep in a cave.
+    return sky * OA_CaveLight(positionWS).a;
 }
 
 // How much of the shine a surface of this smoothness gets: none at all up to 0.1 (cloth, webbing, rubber, dust:
@@ -233,6 +267,8 @@ half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half 
     UNITY_BRANCH
     if (amount > 0.0)
     {
+        // A cave keeps the Sun and the sky out of its reflections too (the lamp still glints).
+        sunAmount *= OA_CaveLight(positionWS).a;
         float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
         float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
         half facingEye = saturate(dot(normal, toEye));

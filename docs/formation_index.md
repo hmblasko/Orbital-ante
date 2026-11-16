@@ -2,7 +2,7 @@
 
 Generated from `FormationIndex.cs`. Do not edit by hand: change the index in code and regenerate.
 
-There are **162 formations**. Each is a recipe the planet builder knows how to make. A body's profile (the Planets asset) lists which ones it has and how many; landmarks are fixed in place, the rest are placed by the run seed.
+There are **165 formations**. Each is a recipe the planet builder knows how to make. A body's profile (the Planets asset) lists which ones it has and how many; landmarks are fixed in place, the rest are placed by the run seed.
 
 ## Impact craters and basins (17)
 
@@ -54,7 +54,7 @@ There are **162 formations**. Each is a recipe the planet builder knows how to m
 | Arachnoid | `arachnoid` | A shallow ring with cracks radiating from it like a spider's web. Found on Venus. | bowl cut into the ground | Venus |
 | Shield field | `shield_field` | A crowd of small, low volcanoes. | cone raised from the ground | Venus, Io |
 
-## Caves (7)
+## Caves (10)
 
 | Formation | Id | What it is | How it is made | Found on |
 |---|---|---|---|---|
@@ -64,6 +64,9 @@ There are **162 formations**. Each is a recipe the planet builder knows how to m
 | Cavern | `cavern` | A tunnel that opens into a great underground hall, with stone spikes rising from its floor. | tunnel under the ground | Earth, Jupiter |
 | Ice cave | `ice_cave` | A blue-walled tunnel melted through ice. | tunnel under the ground | Europa, Saturn, Enceladus |
 | Crystal grotto | `crystal_grotto` | An underground hall lined with giant crystals, like the Cave of the Crystals in Mexico. | tunnel under the ground | Earth, Uranus |
+| Karst cave system | `karst_cave_system` | Rooms and winding passages dissolved out of limestone on two or three levels, with stone spikes and flowstone, like Mammoth Cave or Carlsbad Caverns. | network of rooms, passages and shafts under the ground | Earth |
+| Lava tube network | `lava_tube_network` | Broad, flat-floored tunnels left by rivers of lava, branching and stacked, with roof collapses letting light in. Thought to lie under the Moon and Mars. | network of rooms, passages and shafts under the ground | Moon, Mars |
+| Ice cave system | `ice_cave_system` | Halls and passages melted through ice, glowing blue, with crystals growing from the floors. | network of rooms, passages and shafts under the ground | Ganymede |
 | Natural bridge | `natural_bridge` | A great span of rock left when the cave around it collapsed. | placed shapes (rocks, spires, plants) | Earth, Jupiter |
 
 ## Tectonic: faults, rifts and mountains (16)

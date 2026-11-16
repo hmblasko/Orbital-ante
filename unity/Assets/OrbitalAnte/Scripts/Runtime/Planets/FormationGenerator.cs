@@ -360,9 +360,19 @@ namespace OrbitalAnte.Planets
 
             for (int i = 0; i < work.Caves.Count; i++)
             {
-                Cave cave = CavePath.Build(terrain, work.Caves[i].Formation, work.Caves[i].Random);
+                Formation f = work.Caves[i].Formation;
+                Cave cave = f.CaveStyle != CaveStyle.None
+                    ? CaveNetwork.Build(terrain, f, work.Caves[i].Random)?.AsCave()
+                    : CavePath.Build(terrain, f, work.Caves[i].Random);
                 if (cave == null) continue;
                 terrain.Caves.Add(cave);
+                if (cave.Network != null)
+                {
+                    // Each of a network's holes has its own size.
+                    foreach (CaveOpening o in cave.Network.Openings)
+                        terrain.Holes.Add(new TerrainHole { Direction = o.Direction, Radius = o.Radius });
+                    continue;
+                }
                 for (int m = 0; m < cave.Mouths.Length; m++)
                     terrain.Holes.Add(new TerrainHole { Direction = cave.Mouths[m], Radius = cave.MouthRadius });
             }

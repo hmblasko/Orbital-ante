@@ -340,8 +340,7 @@ namespace OrbitalAnte.AI
             Vector3 head = HeadPosition;
             float distance = Vector3.Distance(head, target);
             float now = Time.time;
-            bool sees = distance <= SightRange(now)
-                        && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool sees = distance <= SightRange(now) && ClearSight(head, target);
 
             if (!sees)
             {
@@ -522,7 +521,7 @@ namespace OrbitalAnte.AI
         bool SeesPlayer()
         {
             Vector3 head = HeadPosition, eye = CombatWorld.PlayerEye.position;
-            return Vector3.Distance(head, eye) <= SightRange(Time.time) && !Physics.Linecast(head, eye, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            return Vector3.Distance(head, eye) <= SightRange(Time.time) && ClearSight(head, eye);
         }
 
         /// <summary>
@@ -534,6 +533,17 @@ namespace OrbitalAnte.AI
         {
             bool aware = now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
             return aware ? _cfg.engageRange : _cfg.engageRange * Mathf.Clamp(CombatWorld.PlayerSeenFrom, 0.05f, 1f);
+        }
+
+        /// <summary>
+        /// Nothing solid between two points, looking both ways. Ground and cave walls are solid from one side only
+        /// (the side you can stand on or see), so one look from inside a cave would go straight up through the
+        /// ground to someone standing on it.
+        /// </summary>
+        static bool ClearSight(Vector3 a, Vector3 b)
+        {
+            return !Physics.Linecast(a, b, Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                   && !Physics.Linecast(b, a, Layers.WorldMask, QueryTriggerInteraction.Ignore);
         }
 
         /// <summary>Not too far above or below to bend down to (a gun on a ledge or down a pit is out of reach).</summary>

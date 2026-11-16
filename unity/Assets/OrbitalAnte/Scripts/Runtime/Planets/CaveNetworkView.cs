@@ -1,0 +1,269 @@
+using System;
+using System.Collections.Generic;
+using OrbitalAnte.Core;
+using OrbitalAnte.Space;
+using UnityEngine;
+
+namespace OrbitalAnte.Planets
+{
+    /// <summary>What a cave network needs built in the background before it can be shown.</summary>
+    public sealed class CaveBuild
+    {
+        public List<CaveChunk> Chunks;
+        public CaveLightVolume Light;
+    }
+
+    /// <summary>
+    /// A cave network in the world: its blocks of wall (each drawn and solid on its own, so blocks out of view are
+    /// skipped), its work lamps, and the box of light the shaders read while the player is near it (see
+    /// <see cref="CaveLight"/>). The walls go up a couple of blocks a frame, so a network arriving is never a hitch;
+    /// it only counts as ready (solid, and safe for enemies to stand in) once every block is up.
+    /// A child of the body's detail, in the body's own space.
+    /// </summary>
+    public sealed class CaveNetworkView : MonoBehaviour
+    {
+        public CaveNetwork Network { get; private set; }
+        public Cave Cave { get; private set; }
+        public bool Ready { get; private set; }
+
+        CaveBuild _build;
+        int _next;
+        Action<Cave> _onReady;
+        Material _wall;
+        readonly List<Mesh> _meshes = new List<Mesh>();
+        Texture3D _light;
+        Matrix4x4 _bodyToVolume;
+        Vector3 _boxMin, _boxMax;   // local frame of the network, metres
+        const int BlocksPerFrame = 2;
+
+        static Mesh _lampBody, _lampGlow;
+
+        public static CaveNetworkView Create(Transform parent, Cave cave, CaveBuild build, bool linear, Action<Cave> onReady)
+        {
+            var go = new GameObject("Cave network " + cave.Formation);
+            go.transform.SetParent(parent, false);
+            var view = go.AddComponent<CaveNetworkView>();
+            view.Network = cave.Network;
+            view.Cave = cave;
+            view._build = build;
+            view._onReady = onReady;
+            // Lit by the shared light, which the cave's own box of light then darkens where the sky cannot reach.
+            view._wall = PlanetMaterials.VertexColour(Color.white, 1f);
+            if (linear) ToLinear(build);
+            view.MakeLight();
+            return view;
+        }
+
+        static void ToLinear(CaveBuild build)
+        {
+            foreach (CaveChunk chunk in build.Chunks)
+            {
+                float[] colors = chunk.Shape.Colors;
+                for (int i = 0; i < colors.Length; i++) colors[i] = SkyGlobals.ToLinear(colors[i]);
+            }
+        }
+
+        void Update()
+        {
+            if (Ready || _build == null) return;
+            for (int n = 0; n < BlocksPerFrame && _next < _build.Chunks.Count; n++) MakeBlock(_build.Chunks[_next++]);
+            if (_next < _build.Chunks.Count) return;
+            MakeLamps();
+            Ready = true;
+            _build.Chunks = null;
+            _onReady?.Invoke(Cave);
+        }
+
+        void MakeBlock(CaveChunk chunk)
+        {
+            ShapeData shape = chunk.Shape;
+            int count = shape.VertexCount;
+            var vertices = new Vector3[count];
+            var normals = new Vector3[count];
+            var colors = new Color[count];
+            for (int i = 0; i < count; i++)
+            {
+                int o = i * 3;
+                vertices[i] = new Vector3(shape.Positions[o], shape.Positions[o + 1], shape.Positions[o + 2]);
+                normals[i] = new Vector3(shape.Normals[o], shape.Normals[o + 1], shape.Normals[o + 2]);
+                colors[i] = new Color(shape.Colors[o], shape.Colors[o + 1], shape.Colors[o + 2], 1f);
+            }
+            var mesh = new Mesh { name = "Cave " + Cave.Formation };
+            if (count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(shape.Triangles, 0);
+            mesh.RecalculateBounds();
+            _meshes.Add(mesh);
+
+            var go = new GameObject("Cave");
+            go.transform.SetParent(transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = _wall;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+        }
+
+        void MakeLamps()
+        {
+            if (_lampBody == null) _lampBody = ToMesh(CaveProps.WorkLamp(out ShapeData glow), "Cave lamp");
+            if (_lampGlow == null) _lampGlow = ToMesh(CaveProps.WorkLampGlow(), "Cave lamp glow");
+            Material body = PlanetMaterials.VertexColour(Color.white, 1f);
+            Material glowing = PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
+            foreach (CaveLamp lamp in Network.Lamps)
+            {
+                if (lamp.Crystal) continue;
+                Vector3 up = SpaceConvert.ToVector3(lamp.Up);
+                Vector3 facing = SpaceConvert.ToVector3(lamp.Facing);
+                var go = new GameObject("Cave lamp");
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = SpaceConvert.ToVector3(lamp.Position);
+                go.transform.localRotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(facing, up).normalized, up);
+                go.AddComponent<MeshFilter>().sharedMesh = _lampBody;
+                go.AddComponent<MeshRenderer>().sharedMaterial = body;
+                var head = new GameObject("Glow");
+                head.transform.SetParent(go.transform, false);
+                head.AddComponent<MeshFilter>().sharedMesh = _lampGlow;
+                head.AddComponent<MeshRenderer>().sharedMaterial = glowing;
+            }
+        }
+
+        static Mesh ToMesh(ShapeData shape, string name)
+        {
+            int count = shape.VertexCount;
+            var vertices = new Vector3[count];
+            var colors = new Color[count];
+            for (int i = 0; i < count; i++)
+            {
+                int o = i * 3;
+                vertices[i] = new Vector3(shape.Positions[o], shape.Positions[o + 1], shape.Positions[o + 2]);
+                colors[i] = new Color(shape.Colors[o], shape.Colors[o + 1], shape.Colors[o + 2], 1f);
+                if (QualitySettings.activeColorSpace == ColorSpace.Linear) colors[i] = colors[i].linear;
+            }
+            var mesh = new Mesh { name = name };
+            mesh.SetVertices(vertices);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(shape.Triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>The box of light as a 3D texture, and the sum from the body's space into it.</summary>
+        void MakeLight()
+        {
+            CaveLightVolume v = _build.Light;
+            if (v == null) return;
+            _light = new Texture3D(v.Nx, v.Ny, v.Nz, TextureFormat.RGBA32, false)
+            {
+                name = "Cave light " + Cave.Formation, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear,
+            };
+            _light.SetPixelData(v.Rgba, 0);
+            _light.Apply(false, true);
+            _build.Light = null;
+
+            CaveNetwork n = Network;
+            Vector3 size = new Vector3(v.Nx, v.Ny, v.Nz) * (float)CaveLightVolume.Cell;
+            // body point -> local frame (east, up, north) from the network's origin -> 0..1 across the box.
+            var toLocal = new Matrix4x4();
+            toLocal.SetRow(0, Row(n.East, n.Origin));
+            toLocal.SetRow(1, Row(n.Up, n.Origin));
+            toLocal.SetRow(2, Row(n.North, n.Origin));
+            toLocal.SetRow(3, new Vector4(0, 0, 0, 1));
+            Vector3 origin = SpaceConvert.ToVector3(v.LocalOrigin);
+            Matrix4x4 toBox = Matrix4x4.Scale(new Vector3(1f / size.x, 1f / size.y, 1f / size.z)) * Matrix4x4.Translate(-origin);
+            _bodyToVolume = toBox * toLocal;
+            _boxMin = origin;
+            _boxMax = origin + size;
+        }
+
+        static Vector4 Row(Vec3d axis, Vec3d origin)
+        {
+            return new Vector4((float)axis.X, (float)axis.Y, (float)axis.Z, (float)-Vec3d.Dot(axis, origin));
+        }
+
+        /// <summary>How far a point (world space) is outside this network's box of light, in metres; 0 inside.</summary>
+        public float OutsideBy(Vector3 world)
+        {
+            if (_light == null) return float.MaxValue;
+            Vector3 body = transform.InverseTransformPoint(world);
+            Vec3d local = Network.ToLocal(SpaceConvert.ToVec3d(body));
+            float dx = Mathf.Max(_boxMin.x - (float)local.X, 0f, (float)local.X - _boxMax.x);
+            float dy = Mathf.Max(_boxMin.y - (float)local.Y, 0f, (float)local.Y - _boxMax.y);
+            float dz = Mathf.Max(_boxMin.z - (float)local.Z, 0f, (float)local.Z - _boxMax.z);
+            return Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        public Texture3D LightTexture => _light;
+        /// <summary>From world space to 0..1 across the box of light, for this frame.</summary>
+        public Matrix4x4 WorldToVolume => _bodyToVolume * transform.worldToLocalMatrix;
+
+        void OnEnable() => CaveLight.Add(this);
+        void OnDisable() => CaveLight.Remove(this);
+
+        void OnDestroy()
+        {
+            CaveLight.Remove(this);
+            for (int i = 0; i < _meshes.Count; i++) if (_meshes[i] != null) Destroy(_meshes[i]);
+            _meshes.Clear();
+            if (_light != null) Destroy(_light);
+        }
+    }
+
+    /// <summary>
+    /// Hands the shaders the box of light of the cave network the eye is in or nearest to, once a frame; or tells
+    /// them there is none, and then they read nothing. Called by <see cref="PlanetSky"/>.
+    /// </summary>
+    public static class CaveLight
+    {
+        static readonly List<CaveNetworkView> Views = new List<CaveNetworkView>();
+        static readonly int TextureId = Shader.PropertyToID("_OA_CaveLight");
+        static readonly int MatrixId = Shader.PropertyToID("_OA_CaveToVolume");
+        static readonly int OnId = Shader.PropertyToID("_OA_CaveOn");
+        static Texture3D _blank;
+        /// <summary>The view whose light is in use this frame, or null.</summary>
+        public static CaveNetworkView Current { get; private set; }
+
+        public static void Add(CaveNetworkView view) { if (!Views.Contains(view)) Views.Add(view); }
+        public static void Remove(CaveNetworkView view) { Views.Remove(view); if (Current == view) Current = null; }
+
+        /// <summary>Sets the shaders' cave light for an eye in world space.</summary>
+        public static void Apply(Vector3 eye)
+        {
+            CaveNetworkView best = null;
+            float nearest = 30f;   // a network further than this outside its box cannot be seen into
+            for (int i = 0; i < Views.Count; i++)
+            {
+                CaveNetworkView v = Views[i];
+                if (v == null || v.LightTexture == null) continue;
+                float d = v.OutsideBy(eye);
+                if (d < nearest) { nearest = d; best = v; }
+            }
+            Current = best;
+            if (best == null)
+            {
+                Off();
+                return;
+            }
+            Shader.SetGlobalTexture(TextureId, best.LightTexture);
+            Shader.SetGlobalMatrix(MatrixId, best.WorldToVolume);
+            Shader.SetGlobalVector(OnId, new Vector4(1f, CaveLightVolume.LightScale, 0f, 0f));
+        }
+
+        public static void Off()
+        {
+            if (_blank == null)
+            {
+                _blank = new Texture3D(1, 1, 1, TextureFormat.RGBA32, false) { name = "No cave light" };
+                _blank.SetPixel(0, 0, 0, new Color(0f, 0f, 0f, 1f));
+                _blank.Apply(false, true);
+            }
+            Current = null;
+            Shader.SetGlobalTexture(TextureId, _blank);
+            Shader.SetGlobalVector(OnId, Vector4.zero);
+        }
+    }
+}

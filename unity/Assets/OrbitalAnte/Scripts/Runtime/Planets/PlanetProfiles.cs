@@ -14,9 +14,9 @@ namespace OrbitalAnte.Planets
         /// <summary>
         /// Raised whenever the defaults below change in a way players should see. A Planets asset made from older
         /// defaults is brought up to date by itself (see <see cref="PlanetData"/>): 2 = Earth's new scenery,
-        /// 3 = worn, natural ground on every world and more landforms.
+        /// 3 = worn, natural ground on every world and more landforms, 4 = cave networks with enemies in them.
         /// </summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
         static FormationUse U(string id, int count) => new FormationUse(id, count);
 
@@ -52,6 +52,8 @@ namespace OrbitalAnte.Planets
                 if (use.landmark) continue;
                 Formation f = FormationIndex.Get(use.formation);
                 if (f == null) continue;
+                // Cave networks are big and full of enemies: a world gets exactly as many as it lists.
+                if (f.CaveStyle != CaveStyle.None) continue;
                 switch (f.Category)
                 {
                     case FormationCategory.RiversAndWater:
@@ -139,7 +141,7 @@ namespace OrbitalAnte.Planets
                 U("stratovolcano", 2), U("cinder_cone", 3), U("mesa", 5), U("butte", 6), U("hoodoo_field", 3),
                 U("natural_arch", 3), U("natural_bridge", 1), U("slot_canyon", 2), U("sand_sea", 1), U("barchan_dunes", 2),
                 U("star_dunes", 1), U("badlands", 2), U("inselberg", 2), U("tors", 3), U("balanced_rocks", 3),
-                U("boulder_field", 6), U("tower_karst", 2), U("sinkhole", 4), U("cave", 3), U("through_cave", 2),
+                U("boulder_field", 6), U("tower_karst", 2), U("sinkhole", 4), U("cave", 3), U("through_cave", 2), U("karst_cave_system", 2),
                 U("cavern", 2), U("crystal_grotto", 1), U("glacier", 3), U("hot_spring", 4), U("geyser_field", 2),
                 U("salt_flat", 1), U("delta", 3), U("alluvial_fan", 3), U("sea_stacks", 3), U("columnar_basalt", 2),
                 U("seamount", 3), U("ocean_trench", 1), U("submarine_canyon", 1), U("guyot", 1), U("icebergs", 3),
@@ -191,7 +193,7 @@ namespace OrbitalAnte.Planets
                 L("lava_plain", 22, -12, 70), U("lava_plain", 3), L("rayed_crater", -43, -11, 16), U("simple_crater", 80),
                 U("complex_crater", 6), U("peak_ring_basin", 1), U("concentric_crater", 3), U("crater_chain", 3),
                 U("secondary_craters", 6), U("ghost_crater", 4), U("dark_halo_crater", 5), U("sinuous_rille", 4),
-                U("wrinkle_ridge", 5), U("lava_tube_skylight", 3), U("lava_dome", 4), U("fractured_floor_crater", 2),
+                U("wrinkle_ridge", 5), U("lava_tube_skylight", 3), U("lava_tube_network", 1), U("lava_dome", 4), U("fractured_floor_crater", 2),
                 U("massif", 2), U("boulder_field", 8), U("regolith_garden", 4), U("graben", 2), U("cave", 1),
                 U("elongated_crater", 2),
             },
@@ -217,7 +219,7 @@ namespace OrbitalAnte.Planets
                 U("simple_crater", 30), U("complex_crater", 3), U("outflow_channel", 2), U("dry_riverbed", 4),
                 U("chaos_terrain", 2), U("mesa", 5), U("butte", 5), U("yardang_field", 3), U("barchan_dunes", 3),
                 U("sand_sea", 1), U("dust_devil_tracks", 4), U("gullies", 4), U("swiss_cheese_terrain", 2),
-                U("polar_spiders", 3), U("fossae", 2), U("graben", 2), U("lava_tube_skylight", 3), U("through_cave", 1),
+                U("polar_spiders", 3), U("fossae", 2), U("graben", 2), U("lava_tube_skylight", 3), U("through_cave", 1), U("lava_tube_network", 2),
                 U("boulder_field", 6), U("ventifacts", 5), U("rock_spires", 2), U("alluvial_fan", 2),
                 U("patterned_ground", 2), U("ice_cliff", 2), U("natural_arch", 1), U("hoodoo_field", 1),
                 U("lava_flow_field", 2), U("dust_storms", 1),
@@ -337,7 +339,7 @@ namespace OrbitalAnte.Planets
             {
                 L("grooved_terrain", 12, 40, 150), U("grooved_terrain", 6), U("palimpsest", 3), U("rayed_crater", 3), U("simple_crater", 35),
                 U("complex_crater", 3), U("dark_halo_crater", 3), U("fossae", 2), U("ice_boulders", 4), U("crater_chain", 2),
-                U("pedestal_crater", 2), U("secondary_craters", 3),
+                U("pedestal_crater", 2), U("secondary_craters", 3), U("ice_cave_system", 1),
             },
             scatter = { new ScatterRule(FeatureKind.Boulder, 6, 0.3, 1.3), new ScatterRule(FeatureKind.IceShard, 4, 0.4, 1.6, "#C8D4DC") },
         };

@@ -282,7 +282,9 @@ namespace OrbitalAnte.Dismemberment
                 _avoidUntil = Time.time + 0.9f;
             }
 
-            Vector3 heading = to.normalized;
+            // In a cave the way there follows the passages, not a straight line through the rock.
+            Vector3 via = Level(_owner.Footing.Toward(transform.position, destination) - transform.position);
+            Vector3 heading = via.sqrMagnitude > 0.01f ? via.normalized : to.normalized;
             if (Time.time < _avoidUntil) heading = Quaternion.AngleAxis(80f * _avoidSign, _owner.Up) * heading;
             TurnToward(heading, state, dt);
 

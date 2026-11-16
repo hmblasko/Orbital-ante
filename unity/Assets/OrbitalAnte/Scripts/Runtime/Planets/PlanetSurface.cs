@@ -887,6 +887,16 @@ namespace OrbitalAnte.Planets
             for (int i = 0; i < Terrain.Caves.Count; i++)
             {
                 Cave cave = Terrain.Caves[i];
+                if (cave.Network != null)
+                {
+                    // A whole network: blocks of wall and a box of light, put up over a few frames once worked out.
+                    _caveJobs.Add(PlanetJobs.Run(() => new CaveBuild
+                    {
+                        Chunks = CaveNetworkMesher.Build(cave.Network, terrain),
+                        Light = CaveLightVolume.Build(cave.Network, terrain),
+                    }, build => OnCaveNetwork(cave, build), () => (float)Vec3d.Distance(cave.Centres[0], _viewer) - 1e6f));
+                    continue;
+                }
                 _caveJobs.Add(PlanetJobs.Run(() =>
                 {
                     ShapeData shape = CaveMesher.Build(cave, terrain);
@@ -995,6 +1005,26 @@ namespace OrbitalAnte.Planets
             AddRenderer(go, PlanetMaterials.VertexColour(Color.white, 0f));
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             _readyCaves.Add(cave);
+        }
+
+        void OnCaveNetwork(Cave cave, CaveBuild build)
+        {
+            if (this == null || !Near || Terrain == null) return;
+            // Only counted as there (solid, safe for enemies) once its last block of wall is up.
+            CaveNetworkView.Create(_detailRoot, cave, build, _linear, ready =>
+            {
+                if (this != null && Near) _readyCaves.Add(ready);
+            });
+        }
+
+        /// <summary>True once a cave's walls are up and solid.</summary>
+        public bool CaveReady(Cave cave) => _readyCaves.Contains(cave);
+
+        /// <summary>True once a cave network's walls are up and solid.</summary>
+        public bool NetworkReady(CaveNetwork network)
+        {
+            foreach (Cave cave in _readyCaves) if (cave.Network == network) return true;
+            return false;
         }
 
         static void AddRenderer(GameObject go, Material material)

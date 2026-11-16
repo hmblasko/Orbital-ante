@@ -39,6 +39,12 @@ namespace OrbitalAnte.Dismemberment
         }
 
         /// <summary>
+        /// Where to head next on the way to a destination: the destination itself on open ground, the next turn of
+        /// a passage in a cave (see CaveFooting).
+        /// </summary>
+        public virtual Vector3 Toward(Vector3 from, Vector3 destination) => destination;
+
+        /// <summary>
         /// A place to be remembered across frames. On a planet the whole world can be moved under the player,
         /// so places are kept in the planet's own space; on flat ground they are kept as they are.
         /// </summary>
