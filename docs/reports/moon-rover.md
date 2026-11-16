@@ -112,7 +112,7 @@ The controls reuse the on-foot buttons, so nothing new appears on the rebinding 
 
 ## Tested here
 
-- `dotnet test tools/rules-tests`: 2,445 passed, 1 skipped. That includes 10 new rover tests:
+- `dotnet test tools/rules-tests`: 2,451 passed, 1 skipped. That includes 10 new rover tests:
   - steering
   - top speeds
   - the hold toward the ground on the Moon and on Earth
