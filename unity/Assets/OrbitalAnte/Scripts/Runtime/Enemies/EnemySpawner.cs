@@ -446,6 +446,17 @@ namespace OrbitalAnte.Enemies
             if (_wakingMember >= size) _wakingCamp = -1;
         }
 
+        /// <summary>Where the living enemies on a body are standing, in world space (for meteor strikes to aim at).</summary>
+        public void LivePositions(int body, List<Vector3> into)
+        {
+            into.Clear();
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Body == body && l.Who != null && l.Who.Alive) into.Add(l.Who.transform.position);
+            }
+        }
+
         bool MemberPresent(int body, int camp, int member)
         {
             for (int i = 0; i < _live.Count; i++)

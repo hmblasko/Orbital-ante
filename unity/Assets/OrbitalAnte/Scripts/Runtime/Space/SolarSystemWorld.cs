@@ -46,6 +46,8 @@ namespace OrbitalAnte.Space
         public PlanetWorld Planets { get; private set; }
         public OrbitalAnte.Enemies.EnemySpawner Enemies { get; private set; }
         public OrbitalAnte.Bases.PlanetBases Bases { get; private set; }
+        /// <summary>Meteor strikes on the world the player is on (Matthew, 16 Nov 2026).</summary>
+        public OrbitalAnte.Meteors.MeteorShower Meteors { get; private set; }
 
         public void Build(int seed, StartPlace place = StartPlace.FromConfig)
         {
@@ -131,6 +133,7 @@ namespace OrbitalAnte.Space
             // Read the base models while the run is being got ready, not on the frame the first base comes into range.
             OrbitalAnte.Bases.BaseView.Warm();
             Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
+            Meteors = OrbitalAnte.Meteors.MeteorShower.Build(this, OrbitalAnte.Meteors.MeteorConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();
@@ -180,7 +183,8 @@ namespace OrbitalAnte.Space
                    (Ship != null ? "\n" + Ship.DescribeForDebug() : string.Empty) +
                    (Engines != null ? "   engines " + Engines.Model.State + " burn " + Mathf.RoundToInt(Engines.Model.Burn * 100f) + "%" : string.Empty) +
                    (Astronaut != null ? "   " + Astronaut.DescribeForDebug() : string.Empty) +
-                   (Rover != null ? "\n" + Rover.DescribeForDebug() : string.Empty);
+                   (Rover != null ? "\n" + Rover.DescribeForDebug() : string.Empty) +
+                   (Meteors != null ? "\n" + Meteors.DescribeForDebug() : string.Empty);
         }
     }
 }

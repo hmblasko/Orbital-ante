@@ -58,6 +58,8 @@ namespace OrbitalAnte.Enemies
         {
             Vec3d dir = SpaceConvert.ToVec3d(inBodySpace).Normalized;
             double ground = _surface.GroundRadius(dir);
+            // Meteor craters stand on the ground: walk over a rim, not through it.
+            ground += OrbitalAnte.Meteors.CraterRegistry.LiftAt(_surface.Body.Spec.id, dir, _surface.SurfaceRadius);
             if (_floorRadius > 0f)
             {
                 // Where the line from the body's middle meets the floor's flat top.
