@@ -353,6 +353,17 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Carried guns (16 Nov 2026) | hidden objects under the player's hand, nothing per frame; a switch is one object shown and one hidden | one per ladder step climbed (4 with the default ladder) |
 | Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
 
+## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Loose limbs and guns pulled by the solar system (`GravityBody` with `Sank`) | per physics step each awake one gets a neighbourhood search and a pull over the body list; on a world, the air, sea and wind sample, and one full ground height question one step in four. Guessed 0.2 to 0.4 ms per step at the caps on Earth with everything awake. Resting ones are put to sleep after 0.5 s still and then cost nothing | 40 gibs + 12 loose guns |
+| Sleeping | target: Profiler Physics **Active Dynamic Bodies** back under 15 within 60 s of a fight ending (if not: the ground's own `MovePosition` may be keeping them awake; look again) | - |
+| Marks that follow what they are on (`StuckMarks`) | 48 bullet marks + 48 splats, one transform write each per frame while live, guessed under 0.1 ms; no garbage | 96 |
+| Re-centre with blood in the air | up to 500 blood + 160 spark particles copied out and back once per re-centre, guessed under 0.2 ms; the buffers are made when the systems are built | once per 2 km |
+| Blood decals (URP Decal feature, Screen Space) | 48 at most, one instanced material, drawn within 60 m. Needs the camera depth texture: a depth copy after opaques is expected (guessed 0.1 to 0.3 ms GPU at 1280 x 800). A depth prepass is not allowed: if the Frame Debugger shows one, set Depth Texture Mode to After Opaques with Depth Priming off, or use edge smoothing Fast on the Deck. Never switch on decal rendering layers | 48 |
+| `Physics.gravity` (blood and sparks only) | written when the felt pull has changed by more than 0.5 m/s squared | - |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

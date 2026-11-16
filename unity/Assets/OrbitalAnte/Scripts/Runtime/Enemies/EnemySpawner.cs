@@ -57,6 +57,9 @@ namespace OrbitalAnte.Enemies
         void OnWorldShifted(Vector3 by)
         {
             if (_gibs != null) _gibs.Shift(by);
+            // Droplets and sparks in the air; splats and bullet marks follow what they are on by themselves.
+            if (Gore.GoreFx.Instance != null) Gore.GoreFx.Instance.Shift(by);
+            if (Weapons.WeaponFx.Instance != null) Weapons.WeaponFx.Instance.Shift(by);
         }
         // The camp being woken, one enemy a frame so nobody arrives as a hitch.
         World _wakingWorld;
@@ -93,12 +96,15 @@ namespace OrbitalAnte.Enemies
             spawner._world = world;
             spawner._config = config;
             CombatWorld.Reset();
+            // Loose guns are kept under the spawner, which never moves (see CombatWorld.DropParent).
+            CombatWorld.DropParent = go.transform;
             // The loose chunks, the blood and the gunfire effects live and die with this world.
             GoreConfig gore = GoreConfig.Load();
             spawner._gibs = GibManager.Create(go.transform, gore);
             GoreFx.Create(go.transform, gore);
             WeaponFx.Create(go.transform);
             if (world.System != null) world.System.WorldShifted += spawner.OnWorldShifted;
+            CombatWorld.PlayerDroppedGun += spawner.CountLooseGun;
             // Every kind's body and gun is read now, while the world loads, and not on the frame the first one stands up.
             OrbitalAnte.Look.ModelLibrary.Find("Enemy");
             foreach (EnemyTypeSpec spec in config.roster)
@@ -250,8 +256,10 @@ namespace OrbitalAnte.Enemies
                 at = local.Normalized;
                 radius = surface.GroundRadius(at);
                 height = local.Magnitude - radius;
-                CombatWorld.DropParent = w.Root;
+                CombatWorld.GroundParent = w.Root;
             }
+            // Away from any world nothing loose is laid still on a ground.
+            else CombatWorld.GroundParent = null;
 
             // Put away whoever the player has left behind (or everyone, on leaving the world).
             for (int i = _live.Count - 1; i >= 0; i--)
@@ -270,11 +278,7 @@ namespace OrbitalAnte.Enemies
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
-            if (w == null || height > _config.field.wakeRange)
-            {
-                ReleaseGravity();
-                return;
-            }
+            if (w == null || height > _config.field.wakeRange) return;
 
             // Wake the nearest sleeping camp that still has anyone in it, one a think, so the cost is spread.
             // A base's guards come first, and room is kept for the guards of a base the player is heading for:
@@ -482,27 +486,56 @@ namespace OrbitalAnte.Enemies
 
         void FixedUpdate()
         {
-            // Limbs and dropped guns fall the way the player feels "down" while there is anyone to shoot.
-            if ((LiveCount <= 0 && !_gravityTaken) || _world == null || _world.System == null || _world.System.Focus == null) return;
+            // Limbs, corpses and dropped guns are pulled toward their own world by the solar system (Gib.UseOwnPull,
+            // Weapon.UseOwnPull); no rigidbody here uses Unity's gravity. What is left on it is the blood's spray
+            // and drips (particles), which fall the way the player feels "down": nothing at all in open space.
+            // It is never handed back mid-run, or blood would suddenly fall along Unity's -Y.
+            if (_world == null || _world.System == null || _world.System.Focus == null) return;
             if (!_gravityTaken)
             {
                 _gravityBefore = Physics.gravity;
                 _gravityTaken = true;
             }
             // Only when it has really changed: setting it wakes every sleeping limb and gun.
-            Vector3 felt = _world.System.Focus.FeltGravity;
-            if ((felt - Physics.gravity).sqrMagnitude > 0.01f) Physics.gravity = felt;
+            GravityBody focus = _world.System.Focus;
+            Vector3 felt = focus.FeltGravity;
+            // Only particles read it now, so half a metre a second squared of change is close enough.
+            if ((felt - Physics.gravity).sqrMagnitude > 0.25f) Physics.gravity = felt;
+
+            // How much of that pull the player really feels: the pull less the way they are being moved. Standing
+            // on the ground nothing moves them and they feel all of it; in orbit or on a free jump they fall with
+            // it and feel none. Blood and sparks only take their extra weight from the felt part (GoreFx.Weight).
+            float dt = Time.fixedDeltaTime;
+            Vector3 velocity = focus.Body != null ? focus.Body.linearVelocity : Vector3.zero;
+            float pull = felt.magnitude;
+            float weight = 0f;
+            if (_hadVelocity && dt > 0f && pull > 0.05f)
+            {
+                Vector3 moved = (velocity - _lastVelocity) / dt;
+                weight = Mathf.Clamp01((felt - moved).magnitude / pull);
+            }
+            _lastVelocity = velocity;
+            _hadVelocity = true;
+            // Eased over about a third of a second, so a bump or a re-centre does not flick the blood about.
+            GoreFx.Weight = Mathf.Lerp(GoreFx.Weight, weight, 1f - Mathf.Exp(-dt / 0.3f));
         }
 
-        void ReleaseGravity()
+        Vector3 _lastVelocity;
+        bool _hadVelocity;
+
+        /// <summary>A gun the player let go of counts toward the cap on loose guns, and is cleared with the rest.</summary>
+        void CountLooseGun(Weapon gun)
         {
-            if (!_gravityTaken) return;
-            Physics.gravity = _gravityBefore;
-            _gravityTaken = false;
+            // Never the one rare gun of the run: it does not come back once gone, so it is never cleared away.
+            if (gun == null || (gun.Data != null && gun.Data.Id == WeaponData.WildcardId)) return;
+            if (!_guns.Contains(gun)) _guns.Add(gun);
         }
 
         void OnDestroy()
         {
+            CombatWorld.PlayerDroppedGun -= CountLooseGun;
+            if (CombatWorld.DropParent == transform) CombatWorld.DropParent = null;
+            GoreFx.Weight = 1f;
             if (_gravityTaken) Physics.gravity = _gravityBefore;
             if (_world != null && _world.System != null) _world.System.WorldShifted -= OnWorldShifted;
             if (_typeConfigs != null)

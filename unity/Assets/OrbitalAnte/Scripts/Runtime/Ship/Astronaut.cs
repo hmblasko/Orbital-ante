@@ -237,11 +237,18 @@ namespace OrbitalAnte.Ship
         void BuildPistol()
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
+            // The small kick of the view when a limb pops (Milestone 2), as in the arena; Pause > Feel switches it off.
+            _hitShake = Eye.gameObject.AddComponent<CameraShake>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
             Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
             // A rare gun that blows up ends the run, like any other death, with the cause on the death page.
             Weapons.Backfired += Die;
+            Weapons.CarriedVelocity = () => Mode == AstronautMode.Outside ? Suit.linearVelocity
+                : Ship != null ? Ship.Body.GetPointVelocity(Eye.transform.position) : Vector3.zero;
+            Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
+                : Ship != null ? Ship.transform.up : Vector3.up;
+            Weapons.InShip = () => Mode != AstronautMode.Outside;
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -417,9 +424,8 @@ namespace OrbitalAnte.Ship
                     {
                         if (outside)
                         {
+                            // It leaves with the suit's speed already (PlayerWeapons.CarriedVelocity).
                             Weapons.DropCurrent();
-                            var gunBody = held.GetComponent<Rigidbody>();
-                            if (gunBody != null) gunBody.linearVelocity += velocity;
                         }
                         else held.gameObject.SetActive(false);
                     }
@@ -467,7 +473,11 @@ namespace OrbitalAnte.Ship
                 Eye.transform.localPosition += Vector3.down * (0.55f * slump);
             }
             if (pitch != 0f || roll != 0f) Eye.transform.localRotation *= Quaternion.Euler(pitch, 0f, roll);
+            // Laid on last, over the pose made this frame, so it never piles up. Only where you can shoot.
+            if (_hitShake != null && (Mode == AstronautMode.Outside || Mode == AstronautMode.Aboard)) Eye.transform.localRotation *= _hitShake.Offset;
         }
+
+        CameraShake _hitShake;
 
         void Update()
         {

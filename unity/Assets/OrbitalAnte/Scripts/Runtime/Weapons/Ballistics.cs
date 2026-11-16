@@ -51,7 +51,7 @@ namespace OrbitalAnte.Weapons
                 result.End = wallPoint;
                 var wallHit = new HitInfo { Damage = data.torsoDamage, Point = wallPoint, Direction = direction, Normal = wallNormal };
                 result.Outcome = boarded.HitPart(boarded.CabinPart, wallHit);
-                if (fx != null) fx.Impact(wallPoint, wallNormal);
+                if (fx != null) fx.Impact(wallPoint, wallNormal, boarded.transform);
                 if (result.Outcome.Hit) CombatEvents.RaisePlayerHit(result.Outcome);
                 return result;
             }
@@ -64,7 +64,7 @@ namespace OrbitalAnte.Weapons
             var target = hit.collider.GetComponentInParent<IHittable>();
             if (target == null)
             {
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
                 return result;
             }
 
@@ -121,7 +121,7 @@ namespace OrbitalAnte.Weapons
             else
             {
                 WeaponFx fx = WeaponFx.Instance;
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
             }
             return result;
         }

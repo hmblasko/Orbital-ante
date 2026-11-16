@@ -256,9 +256,9 @@ namespace OrbitalAnte.Bases
                 gun.transform.localPosition = places[0] + Vector3.up * 0.12f;
                 gun.transform.localRotation = Quaternion.Euler(0f, (site.Seed & 255) * 1.4f, 90f);
                 // Lying on show: no falling through a floor that is not solid yet, and it goes with the base.
-                gun.Body.isKinematic = true;
-                // No interpolation while it rides the turning, origin-shifting base, or it lags a step behind.
-                gun.Body.interpolation = RigidbodyInterpolation.None;
+                // No interpolation while it rides the turning, origin-shifting base, or it lags a step behind; and no
+                // pull of its own, or a re-centre would move it once with the base and again by itself.
+                gun.HoldStill();
                 w.Rare[index] = gun;
             }
             catch (Exception e) { Debug.LogException(e); }

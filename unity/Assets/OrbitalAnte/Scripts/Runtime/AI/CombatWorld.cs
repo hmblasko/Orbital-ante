@@ -13,8 +13,20 @@ namespace OrbitalAnte.AI
         /// <summary>The player's camera. Null when there is no player (menus, some tests).</summary>
         public static Transform PlayerEye;
         public static PlayerHealth Player;
-        /// <summary>Parent for weapons lying in the world, so resetting the arena can clear them.</summary>
+        /// <summary>
+        /// Parent for weapons lying in the world, so resetting the arena can clear them. In the solar system it is
+        /// the enemy spawner, which never moves: a loose gun there is moved by the solar system itself (its own
+        /// pull), and a parent that moved with a world would move it a second time.
+        /// </summary>
         public static Transform DropParent;
+        /// <summary>
+        /// In the solar system, the world the player is on (null away from any): a loose gun that has come to rest
+        /// on ground that is not solid is laid still there and handed to it, so it turns with the ground.
+        /// </summary>
+        public static Transform GroundParent;
+        /// <summary>Raised when the player lets go of a gun, so whoever keeps count of loose guns can count it too.</summary>
+        public static event Action<OrbitalAnte.Weapons.Weapon> PlayerDroppedGun;
+        public static void RaisePlayerDroppedGun(OrbitalAnte.Weapons.Weapon gun) => PlayerDroppedGun?.Invoke(gun);
         /// <summary>When true, enemies keep their guns but do not shoot. A playtest switch.</summary>
         public static bool EnemiesHoldFire;
         /// <summary>Given where a character is and where the threat is, returns a spot out of sight, or null.</summary>
@@ -36,6 +48,8 @@ namespace OrbitalAnte.AI
             PlayerEye = null;
             Player = null;
             DropParent = null;
+            GroundParent = null;
+            PlayerDroppedGun = null;
             EnemiesHoldFire = false;
             FindCover = null;
             PlayerSeenFrom = 1f;

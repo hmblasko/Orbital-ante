@@ -28,6 +28,22 @@ namespace OrbitalAnte.Space
         public float SunkBelow = -2.5f;
         /// <summary>How far above the ground its origin is put when it is put back.</summary>
         public float PutBackAt = 2f;
+        /// <summary>
+        /// For loose things nobody rides (limbs, dropped guns): what to do instead of putting it back on top when it
+        /// has sunk into ground that is not solid where it lies. It is handed the place on top of the ground, in
+        /// Unity's coordinates. Called during a physics step while the movers are being walked: it must not
+        /// switch the object off there (that changes the list), only note it or lay the object down.
+        /// Null: put it back like the ship and the suit.
+        /// </summary>
+        public System.Action<Vector3, Transform> Sank;
+        /// <summary>
+        /// A loose thing (a limb, a dropped gun: anything with <see cref="Sank"/>). Once it has lain still on the
+        /// ground for half a second it is put to sleep, and a sleeping one is neither pulled nor checked (a force
+        /// every step would keep it awake for ever). A knock, a shot or the frame turning wakes it.
+        /// </summary>
+        public bool Loose => Sank != null;
+        /// <summary>How long a loose thing has lain still on the ground, in seconds.</summary>
+        [System.NonSerialized] public float StillFor;
 
         void Awake()
         {

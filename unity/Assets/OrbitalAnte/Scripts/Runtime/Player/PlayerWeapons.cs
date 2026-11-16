@@ -84,6 +84,12 @@ namespace OrbitalAnte.Player
 
         /// <summary>Where dropped guns are parented (the arena's weapon folder).</summary>
         public void SetDropParent(Transform parent) => _dropParent = parent;
+        /// <summary>The speed the player is carrying, for a gun they let go of (set by the suit; null in the arena).</summary>
+        public System.Func<Vector3> CarriedVelocity;
+        /// <summary>The player's "up" right now (set by the suit; null in the arena, where it is +Y).</summary>
+        public System.Func<Vector3> UpNow;
+        /// <summary>True while the player is inside a ship, where a gun let go of is carried instead.</summary>
+        public System.Func<bool> InShip;
 
         static Vector3 RestPosition(WeaponData data)
         {
@@ -187,13 +193,25 @@ namespace OrbitalAnte.Player
             if (Current == null) return;
             Weapon weapon = Current;
             Current = null;
+            // In the cabin nothing loose is kept (the player walks there by rule, with no furniture to rest on):
+            // a gun let go of aboard is put away and carried instead, and can be dropped outside.
+            if (InShip != null && InShip())
+            {
+                Stow(weapon);
+                return;
+            }
 
-            Vector3 velocity = (_controller != null ? _controller.Velocity : Vector3.zero)
-                               + _eye.transform.forward * _config.dropTossSpeed + Vector3.up * 1.5f;
+            // In the solar system the gun leaves with the suit's own speed and is tossed up from the suit's "up",
+            // not Unity's +Y; it lies with the world it falls on (CombatWorld.DropParent), not in the player's space.
+            Vector3 carried = CarriedVelocity != null ? CarriedVelocity() : _controller != null ? _controller.Velocity : Vector3.zero;
+            Vector3 up = UpNow != null ? UpNow() : Vector3.up;
+            Vector3 velocity = carried + _eye.transform.forward * _config.dropTossSpeed + up * 1.5f;
             Vector3 spin = new Vector3(Random.Range(-4f, 4f), Random.Range(-4f, 4f), Random.Range(-4f, 4f));
             // Let go from a little in front of the face, so it does not start inside the player.
             weapon.transform.position = _eye.transform.position + _eye.transform.forward * 0.5f - _eye.transform.up * 0.15f;
-            weapon.Drop(_dropParent, velocity, spin);
+            Transform parent = AI.CombatWorld.DropParent != null && CarriedVelocity != null ? AI.CombatWorld.DropParent : _dropParent;
+            weapon.Drop(parent, velocity, spin);
+            AI.CombatWorld.RaisePlayerDroppedGun(weapon);
         }
 
         // ------------------------------------------------------------------ per frame
@@ -339,7 +357,7 @@ namespace OrbitalAnte.Player
             if (fx != null)
             {
                 fx.Shot(weapon.Data, at, at);
-                fx.Impact(at, -_eye.transform.forward);
+                fx.Impact(at, -_eye.transform.forward, (Transform)null);
             }
             Audio.AudioDirector.PlayLocal("impact.metal", 1f, 0.6f);
             Gore.GoreFx gore = Gore.GoreFx.Instance;

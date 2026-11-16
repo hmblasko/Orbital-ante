@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
 using OrbitalAnte.Gore;
+using OrbitalAnte.Space;
 using UnityEngine;
 
 namespace OrbitalAnte.Dismemberment
@@ -55,7 +56,8 @@ namespace OrbitalAnte.Dismemberment
             for (int i = 0; i < _active.Count; i++)
             {
                 Gib gib = _active[i];
-                if (gib == null) continue;
+                // A chunk the solar system pulls is moved by it too: moving it here as well would move it twice.
+                if (gib == null || gib.OwnPull) continue;
                 gib.transform.position += by;
                 // The body too, or an interpolated chunk is drawn part way back along its old path for a frame.
                 if (gib.Body != null) gib.Body.position += by;
@@ -116,6 +118,7 @@ namespace OrbitalAnte.Dismemberment
             EnforceCap(splittingFrom);
 
             Gib gib = _free.Count > 0 ? _free.Pop() : NewContainer();
+            gib.UseOwnPull(SolarSystem.Instance != null);
             gib.transform.SetPositionAndRotation(position, rotation);
             gib.Activate(owner, group, _cfg.decalsPerGib);
             gib.gameObject.SetActive(true);
@@ -182,6 +185,9 @@ namespace OrbitalAnte.Dismemberment
             {
                 Gib gib = _active[i];
                 gib.Age += dt;
+                // Sank through ground that is only solid near the player, far from anyone: it lies still on top
+                // and fades there quickly (it no longer follows the ground's turn, so it is not kept).
+                if (gib.Sunk && !gib.Fading) gib.BeginFade(_cfg.overflowFadeTime);
 
                 if (!gib.Fading && gib.Age >= _cfg.gibLifetime)
                 {

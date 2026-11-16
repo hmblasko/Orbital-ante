@@ -462,7 +462,11 @@ namespace OrbitalAnte.EditorTools
             for (int i = 0; i < features.arraySize; i++)
             {
                 UnityEngine.Object existing = features.GetArrayElementAtIndex(i).objectReferenceValue;
-                if (existing != null && featureType.IsInstanceOfType(existing)) return true;
+                if (existing != null && featureType.IsInstanceOfType(existing))
+                {
+                    UseScreenSpaceDecals(existing);
+                    return true;
+                }
             }
 
             // The same steps the "Add Renderer Feature" button performs.
@@ -480,8 +484,31 @@ namespace OrbitalAnte.EditorTools
                 map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
             }
             serialized.ApplyModifiedPropertiesWithoutUndo();
+            UseScreenSpaceDecals(feature);
             EditorUtility.SetDirty(rendererData);
             return true;
+        }
+
+        /// <summary>
+        /// The game's own shaders do not read URP's decal buffer (the "DBuffer" way, which "Automatic" picks on a
+        /// desktop and on the Deck), so splats drawn that way would not show on the ground or the ship. "Screen
+        /// Space" draws them over whatever is already drawn, whatever its shader.
+        /// </summary>
+        static void UseScreenSpaceDecals(UnityEngine.Object feature)
+        {
+            var so = new SerializedObject(feature);
+            SerializedProperty technique = so.FindProperty("m_Settings.technique");
+            if (technique == null)
+            {
+                Debug.LogWarning("Orbital Ante setup: could not find the Decal feature's technique; set it to Screen Space by hand (docs/SETUP.md, \"Blood decals\").");
+                return;
+            }
+            // DecalTechniqueOption: 0 Automatic, 1 DBuffer, 2 Screen Space.
+            const int ScreenSpace = 2;
+            if (technique.propertyType == SerializedPropertyType.Enum) technique.enumValueIndex = ScreenSpace;
+            else technique.intValue = ScreenSpace;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(feature);
         }
 
         static void CreateAssetIfMissing<T>(string path) where T : ScriptableObject
