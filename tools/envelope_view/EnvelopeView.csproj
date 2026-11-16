@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Draws the envelope pieces and the scene's draw lists offline (no Unity). See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OARoot>$(MSBuildThisFileDirectory)../../unity/Assets/OrbitalAnte/Scripts/Runtime/</OARoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(OARoot)Items/ItemRules.cs;$(OARoot)Items/ItemCatalog.cs;$(OARoot)Items/EnvelopeRules.cs;$(OARoot)Items/EnvelopeArt.cs;$(OARoot)Items/EnvelopeScene.cs" />
+    <Compile Include="$(OARoot)Core/SeededRandom.cs;$(OARoot)Save/SaveData.cs" />
+    <Compile Include="$(OARoot)Ante/*.cs" Exclude="$(OARoot)Ante/AnteBalanceData.cs" />
+  </ItemGroup>
+</Project>

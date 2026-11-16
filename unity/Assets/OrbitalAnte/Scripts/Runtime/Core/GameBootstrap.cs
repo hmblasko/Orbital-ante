@@ -34,6 +34,8 @@ namespace OrbitalAnte.Core
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
+        Items.EnvelopeDirector _envelopes;
+        CollectionPage _collection;
 
         public TestArena Arena => _arena;
         public Space.SolarSystemWorld Space => _space;
@@ -84,6 +86,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Combat.GunLadderFx.ResetStatics();
             OrbitalAnte.Rover.RoverConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
+            OrbitalAnte.Items.EnvelopeDirector.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -192,6 +195,24 @@ namespace OrbitalAnte.Core
             _mainMenu.ReplayRequested = StartRun;
             _mainMenu.QuitRequested = QuitToDesktop;
 
+            // Envelopes: one sealed at every run start, opened after Ante 9; the collection keeps the prizes.
+            _envelopes = gameObject.AddComponent<Items.EnvelopeDirector>();
+            _envelopes.Build(_uiRoot);
+            var collectionGo = new GameObject("CollectionController");
+            collectionGo.transform.SetParent(_uiRoot, false);
+            _collection = collectionGo.AddComponent<CollectionPage>();
+            _collection.Build(_uiRoot);
+            _collection.BackRequested = () =>
+            {
+                _collection.SetVisible(false);
+                _mainMenu.SetVisible(true);
+            };
+            _mainMenu.CollectionRequested = () =>
+            {
+                _mainMenu.SetVisible(false);
+                _collection.SetVisible(true);
+            };
+
             var showcaseGo = new GameObject("AudioShowcaseController");
             showcaseGo.transform.SetParent(_uiRoot, false);
             _audioShowcase = showcaseGo.AddComponent<Audio.AudioDemoSequence>();
@@ -229,6 +250,7 @@ namespace OrbitalAnte.Core
             _menuCamera.gameObject.SetActive(true);
             _menuListener.enabled = true;
             _hud.SetVisible(false);
+            if (_collection != null) _collection.SetVisible(false);
             _mainMenu.SetVisible(true);
             SetCursorLocked(false);
         }
@@ -252,6 +274,8 @@ namespace OrbitalAnte.Core
             save.lastSeed = seed;
             save.lastScenario = (int)scenario;
             save.runsStarted++;
+            // Number this run's envelope before the save is written, so a number is never handed out twice.
+            if (_envelopes != null) _envelopes.RunStarted();
             BankPlayTime();
             Save.SaveSystem.Save();
 
@@ -259,6 +283,7 @@ namespace OrbitalAnte.Core
             _menuListener.enabled = false;
             _menuCamera.gameObject.SetActive(false);
             _mainMenu.SetVisible(false);
+            if (_collection != null) _collection.SetVisible(false);
 
             _world = new GameObject("World");
             if (scenario == Scenario.SolarSystem)
@@ -298,6 +323,8 @@ namespace OrbitalAnte.Core
             if (_deepBreath != null) _deepBreath.ResetForNewRun();
             // ...and with the first gun of the ladder.
             if (_gunLadder != null) _gunLadder.ResetForNewRun();
+            // A run ending before Ante 9 loses its sealed envelope.
+            if (_envelopes != null) _envelopes.RunEnded();
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
