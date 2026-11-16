@@ -32,6 +32,7 @@ namespace OrbitalAnte.Look
         Camera[] _cameras = new Camera[8];
         FinishSettings _lastApplied;
         bool _hasApplied, _active;
+        int _missingReported;
         float _nextSettingsCheck;
 
         public static void ResetStatics()
@@ -166,8 +167,12 @@ namespace OrbitalAnte.Look
             _volume.enabled = true;
             foreach (var pair in _prepared) if (pair.Key != null) ApplyCamera(pair.Value);
             Status = Missing.Count == 0 ? "on" : "on, but missing: " + string.Join(", ", Missing);
-            if (Missing.Count > 0)
+            // Told once per new missing name, not on every live edit of the Look asset.
+            if (Missing.Count > _missingReported)
+            {
+                _missingReported = Missing.Count;
                 Debug.LogWarning("Orbital Ante: some picture finish settings were not found in this version of the render pipeline: " + string.Join(", ", Missing));
+            }
         }
 
         void LateUpdate()

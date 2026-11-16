@@ -165,7 +165,7 @@ namespace OrbitalAnte.Planets
         }
 
         /// <summary>Call at the start of each frame: resets the count of things put out this frame.</summary>
-        public void BeginFrame() => _spawnBudget.BeginFrame(_surface.Settings.featuresPerFrame);
+        public void BeginFrame() => _spawnBudget.BeginFrame(Mathf.Max(1, _surface.Settings.featuresPerFrame));
 
         /// <summary>
         /// Accepts the loose scatter for one piece of ground. True includes a partly shown group: Tick carries
