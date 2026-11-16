@@ -41,6 +41,13 @@ namespace OrbitalAnte.Player
         public IHittable AimedAt { get; private set; }
         /// <summary>A dropped gun close enough to pick up, or null.</summary>
         public Weapon NearbyPickup { get; private set; }
+        /// <summary>How good a pick-up <see cref="NearbyPickup"/> is (lower is better: degrees off the view plus ten a metre).</summary>
+        public float NearbyPickupScore { get; private set; } = float.MaxValue;
+        /// <summary>
+        /// Asked before Interact takes the gun on the ground, with its score: true when something else the player
+        /// could take is better (a melee item lying closer to the crosshair), so one press takes only one thing.
+        /// </summary>
+        public System.Func<float, bool> YieldPickup;
         /// <summary>Guns carried but not in hand (the ladder's earlier guns), next out first.</summary>
         public IReadOnlyList<Weapon> Carried => _carried;
         /// <summary>
@@ -226,7 +233,8 @@ namespace OrbitalAnte.Player
             UpdatePickup();
 
             bool canAct = _health == null || _health.Alive;
-            if (canAct && NearbyPickup != null && GameInput.Interact.WasPressedThisFrame())
+            if (canAct && NearbyPickup != null && GameInput.Interact.WasPressedThisFrame()
+                && (YieldPickup == null || !YieldPickup(NearbyPickupScore)))
             {
                 Equip(NearbyPickup);
             }
@@ -258,6 +266,7 @@ namespace OrbitalAnte.Player
         void UpdatePickup()
         {
             NearbyPickup = null;
+            NearbyPickupScore = float.MaxValue;
             Vector3 eye = _eye.transform.position;
             Vector3 forward = _eye.transform.forward;
             float best = float.MaxValue;
@@ -282,6 +291,7 @@ namespace OrbitalAnte.Player
                 {
                     best = score;
                     NearbyPickup = w;
+                    NearbyPickupScore = score;
                 }
             }
         }

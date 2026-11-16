@@ -353,6 +353,16 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Carried guns (16 Nov 2026) | hidden objects under the player's hand, nothing per frame; a switch is one object shown and one hidden | one per ladder step climbed (4 with the default ladder) |
 | Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
 
+## Melee (16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| The melee slot (`PlayerMelee`) while an item is held | one overlap sphere (reach + 0.6 m, hitbox, gib and item layers) a frame, a closest-point and a line-of-sight ray per collider it finds, the targeting sort; guessed under 0.1 ms with a crowd of three enemies in reach (about 40 hitboxes) | 96 colliders a frame (`_overlaps`); nothing at all with no item in hand but the pick-up search over the few melee items |
+| A swing's contact | the same hits as bullets (`Mannequin.ApplyHit`), once per swing | 3 things a swing (the mailbox) |
+| Knocked-down enemies | one ray a frame per sliding body | lasts about 1.2 s |
+| Melee HUD | its own canvas, 6 elements; text rebuilt only when the item or the lock changes | - |
+| Melee items in the world | one stand-in object (a few primitives) per item lying about; at most one per world at a base, five in the arena | 1 per world |
+
 ## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity
 
 | System | Cost | Cap |

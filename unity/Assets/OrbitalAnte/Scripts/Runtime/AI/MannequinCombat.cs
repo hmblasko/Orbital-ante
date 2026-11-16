@@ -89,6 +89,61 @@ namespace OrbitalAnte.AI
         /// <summary>Shots fired so far (for tests and tuning).</summary>
         public int ShotsFired { get; private set; }
 
+        // Knocked down by a melee hit: cannot shoot or move by itself until this time (Time.time).
+        float _downUntil = -1f;
+        bool _down;
+
+        /// <summary>True while knocked down by a melee hit (the bat, the mailbox): no shooting, no walking.</summary>
+        public bool KnockedDown => _owner != null && _owner.Alive && Time.time < _downUntil;
+
+        /// <summary>
+        /// True when it (or its squad) has seen the player lately: the same memory that keeps a spotted player
+        /// hunted. The butterfly knife's takedown and its HUD cue both ask this.
+        /// </summary>
+        public bool AwareOfPlayer
+        {
+            get
+            {
+                float now = Time.time;
+                return now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
+            }
+        }
+
+        /// <summary>It was just hit up close by the player: it knows where they are now.</summary>
+        public void Noticed()
+        {
+            _lastSaw = Time.time;
+            if (Squad != null) Squad.Saw(_lastSaw);
+        }
+
+        /// <summary>
+        /// Knocked off its feet by a melee hit: it slides along the ground at <paramref name="shove"/> (m/s),
+        /// cannot shoot for <paramref name="seconds"/>, then gets up and carries on. Keeps its gun if it still has
+        /// a hand for it (a launched enemy that keeps its gun gets up and shoots: the bat's weakness).
+        /// </summary>
+        public void KnockDown(Vector3 shove, float seconds, float friction)
+        {
+            if (_owner == null || !_owner.Alive) return;
+            DropCover();
+            _downUntil = Mathf.Max(_downUntil, Time.time + Mathf.Max(0.1f, seconds));
+            _down = true;
+            _triggerHeld = false;
+            _telling = false;
+            ShowTell(false);
+            Noticed();
+            if (_loco != null)
+            {
+                _loco.Shove(shove, friction);
+                _loco.Hold = true;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                _loco.Hurry = false;
+                _loco.Reach = 0f;
+            }
+            // Think again as soon as it is back up.
+            _thinkTimer = Mathf.Max(_thinkTimer, seconds + 0.02f);
+        }
+
         public void Initialize(Mannequin owner, MannequinLocomotion locomotion)
         {
             _owner = owner;
@@ -283,6 +338,20 @@ namespace OrbitalAnte.AI
                 LeaveSquad();
                 ClearGoals();
                 return;
+            }
+
+            if (KnockedDown)
+            {
+                // Down on the ground after a melee hit: nothing until it is back up.
+                _loco.Hold = true;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                return;
+            }
+            if (_down)
+            {
+                _down = false;
+                _loco.Hold = false;
             }
 
             TickSquad(state, Time.time);
@@ -677,7 +746,7 @@ namespace OrbitalAnte.AI
         void UpdateShooting()
         {
             int hands = Hands;
-            bool wantsToShoot = hands > 0 && _seesPlayer && _aimedAtTarget && _loco.FacePoint.HasValue
+            bool wantsToShoot = hands > 0 && !KnockedDown && _seesPlayer && _aimedAtTarget && _loco.FacePoint.HasValue
                                 && Time.time >= _reactAt && CombatWorld.PlayerPresent && !CombatWorld.EnemiesHoldFire;
 
             float now = Time.time;
