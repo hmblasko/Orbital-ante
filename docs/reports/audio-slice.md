@@ -177,6 +177,14 @@ Also fixed while there: in the menus the old piece's melody never played at all,
 
 **Tested.** Every piece loops exactly to −135 dB or better, full mixes −15.1 to −20.5 LUFS with true peak −1.5 dB or lower, 38 rule tests and `qa.py` pass, showcase has no samples over full scale. **Unverified:** how any of it sounds, in particular the synthesised crowd shouts, which could sound robotic. Listening file: `music_preview_rally_house.ogg` (main theme, exploration, flight, combat, mixed into each other).
 
+### Matthew (16 Nov): the solar-system music is "too upbeat and friendly and goofy"
+
+**Finding first.** The game on the playtest branch still plays the first flight piece (124 BPM disco in D major): none of the music rewrites since 14 Nov had reached that branch, because pull request 28 is not merged. So the feedback is about the old piece, and also a fair note on the newer rally-house version, which had crowd shouts in flight.
+
+**What changed.** Burn Window (flight, the music of the solar system) rewritten again, dark and hypnotic: no shouts or bongos; one minor-ninth stab on the off-beat into a long dotted dub echo under a filter that opens and closes over sixteen bars; a deep rolling sub whose growl breathes every eight bars; swung hats and a three-against-four rim figure; harmony through D minor, B flat and the flat-second E flat, never resolving; the theme an octave lower; a quiet acid line in the hard-burn layer. Stem names and thresholds unchanged.
+
+**Tested.** Loops exactly (−138 dB), −15.5 LUFS, true peak −1.5 dB; 38 rule tests and `qa.py` pass. **Unverified:** how it sounds. Listening file: `solar_system_music_preview.ogg` (the piece building from drifting to a hard burn).
+
 ### Slow motion ("Deep Breath", asked for by Matthew on 14 Nov; built in the core thread)
 
 When the game slows time, the world's sounds now go with it: gunshots, impacts, pops, engines and beds drop in pitch (to 0.7 at the deepest slow, less than time itself, so a gunshot is still a gunshot) and lose their top (down to 3.2 kHz). Sounds inside the suit and the interface stay exactly as they are, so the player's own head is the one thing still at full speed. Music keeps its tempo, because it runs on the audio clock, and steps back by about a third instead. Going in there is a sinking breath with one heavy heartbeat; coming out, the same breath let go. The audio reads the game's time scale and never sets it, so it also covers the headshot slow-motion with no extra wiring. One new rule test. Not heard, not run in Unity.

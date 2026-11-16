@@ -40,7 +40,7 @@ Each shot is reduced to twelve numbers (length, tail decay, brightness, how pitc
 |---|---|---|---|---|---|---|---|---|---|
 | All In | 126 | 64 | 121.9 s | 5 | -15.1 LUFS | -1.3 dB | 46% | 8% | -136.5 dB |
 | Regolith Lullaby | 126 | 64 | 121.9 s | 6 | -17.5 LUFS | -1.5 dB | 55% | 5% | -138.7 dB |
-| Burn Window | 126 | 64 | 121.9 s | 5 | -16.0 LUFS | -1.2 dB | 47% | 7% | -135.6 dB |
+| Burn Window | 126 | 64 | 121.9 s | 5 | -15.6 LUFS | -1.3 dB | 59% | 11% | -138.1 dB |
 | Long Way From Anywhere | 126 | 64 | 121.9 s | 5 | -16.5 LUFS | -1.3 dB | 49% | 8% | -136.0 dB |
 | What the Dish Heard | 126 | 48 | 91.4 s | 4 | -20.5 LUFS | -7.1 dB | 44% | 5% | -214.2 dB |
 
@@ -56,7 +56,7 @@ Loop exactness: each piece is rendered as three joined copies and the third is c
 
 ## The five-minute showcase (offline preview of the game's own decisions)
 
-Whole run -23.58 LUFS. Highest peak of everything added together, with no limiter: **-4.53 dBFS**; samples over full scale: **0**.
+Whole run -23.51 LUFS. Highest peak of everything added together, with no limiter: **-4.53 dBFS**; samples over full scale: **0**.
 
 | Section | Starts | Loudness | Peak | Music alone |
 |---|---|---|---|---|
@@ -66,6 +66,6 @@ Whole run -23.58 LUFS. Highest peak of everything added together, with no limite
 | Combat | 2:13 | -20.4 LUFS | -4.7 dB | -23.0 LUFS |
 | Chaos | 2:32 | -20.8 LUFS | -4.5 dB | -23.1 LUFS |
 | Loot And Scoring | 3:10 | -24.2 LUFS | -10.5 dB | -27.5 LUFS |
-| Take-Off | 3:36 | -22.9 LUFS | -7.0 dB | -25.1 LUFS |
-| Return To Calm | 4:35 | -27.4 LUFS | -9.7 dB | -27.4 LUFS |
+| Take-Off | 3:36 | -22.6 LUFS | -7.0 dB | -24.7 LUFS |
+| Return To Calm | 4:35 | -27.2 LUFS | -9.7 dB | -27.3 LUFS |
 
