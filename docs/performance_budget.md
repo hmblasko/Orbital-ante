@@ -340,6 +340,15 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Rim round the view | one full-screen see-through layer while slowed; guessed 0.1 to 0.3 ms on the Deck's graphics card | 6 s a full meter |
 | Meter | its own canvas, 5 elements; rewritten at most 33 times a second while draining | 200 steps |
 
+## Gun ladder (16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Counting kills | one check per player hit; nothing per frame | - |
+| Handing over a gun | one gun destroyed and one built (the same work as picking a gun up), at most once per kill | 4 times a run with the default ladder |
+| Readout and banner | their own canvas, 2 labels; the line's text is rebuilt only when it changes (a kill) | - |
+| Finding the player's guns | a scene search at most twice a second, and only while none is known | - |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

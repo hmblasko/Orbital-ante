@@ -56,7 +56,7 @@ namespace OrbitalAnte.Arena
             CombatWorld.EnemiesHoldFire = true;
 
             SpawnMannequins();
-            Weapons.Equip(Weapon.Create(WeaponData.Rifle, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed));
+            Weapons.Equip(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed));
             PlaceSpareWeapon();
         }
 

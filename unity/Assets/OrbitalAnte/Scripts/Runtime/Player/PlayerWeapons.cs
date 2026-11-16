@@ -44,6 +44,12 @@ namespace OrbitalAnte.Player
             _holder.SetParent(eye.transform, false);
         }
 
+        /// <summary>
+        /// True while the player is inside the ship's hull, where guns take the cabin's even light. Set by the
+        /// astronaut; a gun handed over later follows it.
+        /// </summary>
+        public bool Indoors { get; set; }
+
         /// <summary>Where dropped guns are parented (the arena's weapon folder).</summary>
         public void SetDropParent(Transform parent) => _dropParent = parent;
 
@@ -68,11 +74,37 @@ namespace OrbitalAnte.Player
             weapon.transform.localPosition = Vector3.zero;
             weapon.transform.localRotation = Quaternion.identity;
             weapon.transform.localScale = Vector3.one;
+            OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
             _holder.localPosition = RestPosition(weapon.Data);
             _holder.localRotation = Quaternion.identity;
             _magazineOut = false;
             _kick = 0f;
             if (NearbyPickup == weapon) NearbyPickup = null;
+        }
+
+        /// <summary>
+        /// Hands the player a brand new gun (the gun ladder's next one), fully loaded. With
+        /// <paramref name="dropHeld"/> the gun in hand is tossed down as usual; without it the gun is gone, so the
+        /// ground does not fill up with the guns you climbed past. Returns the new gun, or null if there is
+        /// nowhere to hold it yet.
+        /// </summary>
+        public Weapon TakeNewGun(WeaponData data, bool dropHeld)
+        {
+            if (data == null || _holder == null) return null;
+            Weapon old = Current;
+            bool shown = old == null || old.gameObject.activeSelf;
+            if (old != null && dropHeld && shown) DropCurrent();
+            else
+            {
+                Current = null;
+                if (old != null) Destroy(old.gameObject);
+            }
+
+            Weapon weapon = Weapon.Create(data, _dropParent, true);
+            Equip(weapon);
+            // In the pilot's seat the held gun is put out of sight; a gun handed over there stays out of sight too.
+            weapon.gameObject.SetActive(shown);
+            return weapon;
         }
 
         /// <summary>Tosses the held gun forward as a physics object.</summary>

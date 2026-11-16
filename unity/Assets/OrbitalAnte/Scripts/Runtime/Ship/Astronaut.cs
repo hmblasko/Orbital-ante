@@ -229,8 +229,8 @@ namespace OrbitalAnte.Ship
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
-            // The rifle: with enemies on every world, the test pistol is not enough gun.
-            Weapons.Equip(Weapon.Create(WeaponData.Rifle, _world, true));
+            // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
+            Weapons.Equip(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -253,6 +253,8 @@ namespace OrbitalAnte.Ship
                     // Inside the hull the Sun cannot reach the gun: it takes the cabin's even light instead.
                     OrbitalAnte.Look.ModelLibrary.SetIndoors(Weapons.Current.gameObject, !outside);
                 }
+                // A gun handed over later (the gun ladder) takes the same light.
+                Weapons.Indoors = !outside;
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);

@@ -30,6 +30,7 @@ namespace OrbitalAnte.Core
         Space.SolarSystemWorld _space;
         TimeFx _timeFx;
         Combat.DeepBreathFx _deepBreath;
+        Combat.GunLadderFx _gunLadder;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
@@ -77,6 +78,8 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Bases.PlanetBases.ResetStatics();
             OrbitalAnte.Combat.DeepBreathConfig.ResetStatics();
             OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
+            OrbitalAnte.Combat.GunLadderConfig.ResetStatics();
+            OrbitalAnte.Combat.GunLadderFx.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 
@@ -115,6 +118,8 @@ namespace OrbitalAnte.Core
             // Deep Breath lives here, not on a player, so it works the same wherever the on-foot controls are
             // live: the combat arena, walking the cabin, and outside the ship in the solar system.
             _deepBreath = gameObject.AddComponent<Combat.DeepBreathFx>();
+            // The gun ladder lives here too, so kills count wherever you fight and the ladder ends with the run.
+            _gunLadder = gameObject.AddComponent<Combat.GunLadderFx>();
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
             OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
@@ -288,6 +293,8 @@ namespace OrbitalAnte.Core
             if (_timeFx != null) _timeFx.Clear();
             // Every run starts with a full breath.
             if (_deepBreath != null) _deepBreath.ResetForNewRun();
+            // ...and with the first gun of the ladder.
+            if (_gunLadder != null) _gunLadder.ResetForNewRun();
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
