@@ -18,8 +18,11 @@ namespace OrbitalAnte.Enemies
         readonly PlanetSurface _surface;
         readonly CaveNetwork _network;
         readonly int _room;
-        Vector3 _routeFrom, _routeTo, _routeStep;
-        float _routeAt = -10f;   // below 0: never planned, so the first plan is never refused
+        // One camp shares this footing, and each member is going somewhere of its own (cover, a flank), so a few
+        // routes are remembered, each found again by where it starts and ends.
+        const int Routes = 8;
+        readonly Vector3[] _routeFrom = new Vector3[Routes], _routeTo = new Vector3[Routes], _routeStep = new Vector3[Routes];
+        readonly float[] _routeAt = { -10f, -10f, -10f, -10f, -10f, -10f, -10f, -10f };   // below 0: never planned
 
         public CaveFooting(Transform body, PlanetSurface surface, CaveNetwork network, int room)
         {
@@ -59,6 +62,19 @@ namespace OrbitalAnte.Enemies
             return false;
         }
 
+        /// <summary>
+        /// True if one can walk straight from one point to another in the cave's air (no wall, pit or other level
+        /// in between). Points are in world space, at the feet.
+        /// </summary>
+        public bool WalkClear(Vector3 a, Vector3 b)
+        {
+            Vec3d la = SpaceConvert.ToVec3d(_body.InverseTransformPoint(a)), lb = SpaceConvert.ToVec3d(_body.InverseTransformPoint(b));
+            // ClearBetween wants points in the air a little above the floor.
+            la += la.Normalized * 1.0;
+            lb += lb.Normalized * 1.0;
+            return _network.InsideAir(lb, 0.3) && _network.ClearBetween(la, lb);
+        }
+
         /// <summary>A spot on the floor of the camp's room, in world space.</summary>
         public Vector3 InRoom(double angle, double fraction)
         {
@@ -75,16 +91,31 @@ namespace OrbitalAnte.Enemies
             // Kept in the body's own space, so the world turning under it or a recentre never makes it stale.
             Vector3 fromHere = _body.InverseTransformPoint(from);
             Vector3 toHere = _body.InverseTransformPoint(destination);
-            bool reached = (_routeStep - fromHere).sqrMagnitude <= 0.8f * 0.8f;
+            // This walker's route: the one starting and ending nearest to here (else the oldest is reused).
+            int r = 0;
+            float bestFit = float.MaxValue, oldest = float.MaxValue;
+            int oldestAt = 0;
+            for (int i = 0; i < Routes; i++)
+            {
+                if (_routeAt[i] < oldest) { oldest = _routeAt[i]; oldestAt = i; }
+                if (_routeAt[i] < 0f) continue;
+                float fit = (fromHere - _routeFrom[i]).sqrMagnitude + (toHere - _routeTo[i]).sqrMagnitude;
+                if (fit < bestFit) { bestFit = fit; r = i; }
+            }
+            bool mine = bestFit < 8f;
+            if (!mine) r = oldestAt;
+            bool reached = (_routeStep[r] - fromHere).sqrMagnitude <= 0.8f * 0.8f;
             // Worked out again only when the step is reached, either end has moved a couple of metres or a second
             // has gone by: it is a search through the network, and every enemy in a fight asks every frame.
-            bool fresh = Time.time - _routeAt < 1f && (fromHere - _routeFrom).sqrMagnitude < 4f && (toHere - _routeTo).sqrMagnitude < 4f;
-            if (_routeAt >= 0f && (fresh && !reached || !TakePlan())) return _body.TransformPoint(_routeStep);
-            _routeAt = Time.time;
-            _routeFrom = fromHere;
-            _routeTo = toHere;
-            _routeStep = SpaceConvert.ToVector3(_network.NextStep(SpaceConvert.ToVec3d(fromHere), SpaceConvert.ToVec3d(toHere)));
-            return _body.TransformPoint(_routeStep);
+            bool fresh = mine && Time.time - _routeAt[r] < 1f && (fromHere - _routeFrom[r]).sqrMagnitude < 4f && (toHere - _routeTo[r]).sqrMagnitude < 4f;
+            if (mine && _routeAt[r] >= 0f && (fresh && !reached || !TakePlan())) return _body.TransformPoint(_routeStep[r]);
+            // Somebody else's route is no use: with no plan free this frame, head straight for it for now.
+            if (!mine && _routeAt[r] >= 0f && !TakePlan()) return destination;
+            _routeAt[r] = Time.time;
+            _routeFrom[r] = fromHere;
+            _routeTo[r] = toHere;
+            _routeStep[r] = SpaceConvert.ToVector3(_network.NextStep(SpaceConvert.ToVec3d(fromHere), SpaceConvert.ToVec3d(toHere)));
+            return _body.TransformPoint(_routeStep[r]);
         }
 
         /// <summary>At most this many searches through any network a frame, shared by every enemy in every cave.</summary>

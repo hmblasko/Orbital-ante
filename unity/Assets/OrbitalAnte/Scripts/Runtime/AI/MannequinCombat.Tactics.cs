@@ -144,7 +144,12 @@ namespace OrbitalAnte.AI
                 if (role == SquadRole.Flank && !Squad.IsFlankDone(_member) && Flank(eye, distance, sees, now)) return true;
             }
 
-            if (!t.cover || !KindUsesCover) return false;
+            if (!t.cover || !KindUsesCover)
+            {
+                // Cover switched off mid-fight: let go of the hold it may have set, or the enemy stays rooted.
+                if (_hasCover) DropCover();
+                return false;
+            }
             // The quick ones close in first and look for cover only once near.
             if (_cfg.closesIn && distance > _cfg.keepFar * 1.5f && !_hasCover) return false;
 
@@ -182,7 +187,8 @@ namespace OrbitalAnte.AI
                 Threat = eye,
                 Footing = FootingNow,
                 Size = Size,
-                NeedsPeek = !prone,
+                // Armed, even on the ground: a spot it cannot shoot from leaves a downed enemy safe and harmless.
+                NeedsPeek = true,
                 Prone = prone,
                 KeepNear = _cfg.rushes ? Mathf.Max(_cfg.keepNear, Tactics.rusherCoverNearest) : _cfg.keepNear,
                 KeepFar = Mathf.Min(_cfg.keepFar, _cfg.engageRange),
@@ -310,14 +316,14 @@ namespace OrbitalAnte.AI
             // Ran into the player close up, or taking too long: fight from here.
             if (since > t.flankGiveUp || (sees && distance < _cfg.keepNear))
             {
-                EndFlank();
+                EndFlank(false);
                 return false;
             }
             Footing f = FootingNow;
             if (!_flanking || now - _flankPlannedAt > 2f) PlanFlank(eye, distance, now);
             if (!_flanking)
             {
-                EndFlank();
+                EndFlank(false);
                 return false;
             }
 
@@ -332,7 +338,7 @@ namespace OrbitalAnte.AI
             if (!_flankHasVia && Flat(goal - transform.position).sqrMagnitude < 0.8f * 0.8f)
             {
                 // There. If the goal was cover, it is now this one's cover; it fights from it with the rest.
-                EndFlank();
+                EndFlank(_flankToCover);
                 if (_flankToCover)
                 {
                     _hasCover = true;
@@ -355,10 +361,12 @@ namespace OrbitalAnte.AI
             return true;
         }
 
-        void EndFlank()
+        void EndFlank(bool intoCover)
         {
             _flanking = false;
-            _flankFirstLook = true;
+            // Only a flank that ends in cover there shoots first from that cover, with the longer beat.
+            _flankFirstLook = intoCover;
+            if (!intoCover && Squad != null && _member >= 0) Squad.Unclaim(_member);
             if (Squad != null && _member >= 0) Squad.FlankDone(_member);
         }
 
@@ -383,6 +391,8 @@ namespace OrbitalAnte.AI
                 Vector3 roughUp = f.Up(rough);
                 if (!f.Ground(rough, roughUp, out Vector3 goal)) continue;
                 if (Mathf.Abs(Vector3.Dot(goal - transform.position, roughUp)) > 6f) continue;
+                // In a cave, only a place in this part of the cave (not the ground above, nor another level).
+                if (f is CaveFooting cf && (Mathf.Abs(Vector3.Dot(goal - transform.position, roughUp)) > 1.5f || !cf.WalkClear(eye - roughUp * 1.5f, goal))) continue;
 
                 _flankToCover = false;
                 bool wantsCover = t.cover && KindUsesCover;
@@ -395,6 +405,7 @@ namespace OrbitalAnte.AI
                 }
                 if (searching)
                 {
+                    if (Squad != null) Squad.Unclaim(_member);
                     var q = BaseQuery(eye, goal, 8f, false);
                     q.Bearing = bearing;
                     if (CoverFinder.Find(q, out CoverSpot spot))
@@ -455,7 +466,7 @@ namespace OrbitalAnte.AI
             float now = Time.time;
             Vector3 eye = CombatWorld.PlayerEye.position;
             Footing f = FootingNow;
-            bool stale = !_hasHide || now - _hideAt > 2f;
+            bool stale = now - _hideAt > 2f;   // a search that found nothing waits too
             if (stale && CoverFinder.TakeSearch())
             {
                 _hideAt = now;

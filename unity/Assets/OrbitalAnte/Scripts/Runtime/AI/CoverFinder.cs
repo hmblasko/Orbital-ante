@@ -47,8 +47,9 @@ namespace OrbitalAnte.AI
     /// solid things nearby (the far side of each from the player) and a ring of points round the centre; they
     /// are ranked by <see cref="CoverScore"/> after line checks against the world.
     ///
-    /// Cost: one search a frame for every enemy in every place (<see cref="SearchesPerFrame"/>); a search
-    /// stops after <see cref="MostTried"/> places, about 40 to 150 short line and shape checks.
+    /// Cost: one search a frame for every enemy in every place (<see cref="SearchesPerFrame"/>). A search finds the
+    /// ground under at most <see cref="MostGrounded"/> places (one ray each) and line-checks at most
+    /// <see cref="MostTried"/> of them (up to about 14 checks each): typically 40 to 80 checks, at worst about 160.
     /// </summary>
     public static class CoverFinder
     {
@@ -56,8 +57,11 @@ namespace OrbitalAnte.AI
         public const int MostTried = 10;
         const int RingPoints = 10;
         const int MostColliders = 24;
-        /// <summary>Solid things bigger than this (ground tiles, cave blocks) give no "far side" spot; the ring still finds them.</summary>
+        /// <summary>Solid things bigger than this (ground tiles) give no "far side" spot; the ring still finds them.
+        /// In a cave no solid thing gives one (the wall blocks are about 16 m and their far side is rock).</summary>
         const float BiggestObject = 18f;
+        /// <summary>Places that get the ground found under them and a first ranking.</summary>
+        const int MostGrounded = 14;
 
         static int _frame = -1, _searches;
         static readonly Collider[] Nearby = new Collider[48];
@@ -94,8 +98,9 @@ namespace OrbitalAnte.AI
             Ranked.Clear();
             Vector3 upHere = q.Footing.Up(q.Centre);
 
+            var cave = q.Footing as CaveFooting;
             // The far side of each solid thing nearby, straight behind it and round each edge a little.
-            int count = Physics.OverlapSphereNonAlloc(q.Centre, q.Radius, Nearby, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            int count = cave != null ? 0 : Physics.OverlapSphereNonAlloc(q.Centre, q.Radius, Nearby, Layers.WorldMask, QueryTriggerInteraction.Ignore);
             int used = 0;
             for (int i = 0; i < count && used < MostColliders; i++)
             {
@@ -128,19 +133,44 @@ namespace OrbitalAnte.AI
             }
             if ((q.Centre - q.From).sqrMagnitude > 1f) Places.Add(q.Centre);
 
-            // Cheap ranking first, as if every place were good cover; the line checks then go best first.
+            // Cheap ranking first, as if every place were good cover, on the raw places (no casts); then the ground
+            // is found under the best few, ranked again, and the line checks go best first.
             for (int i = 0; i < Places.Count; i++)
             {
                 Vector3 up = q.Footing.Up(Places[i]);
-                if (!q.Footing.Ground(Places[i], up, out Vector3 g)) continue;
+                CoverCandidate c = Measure(q, Places[i], up, Vector3.ProjectOnPlane(Places[i] - q.From, up).magnitude);
+                c.ChestHidden = c.HeadHidden = c.CanPeek = true;
+                float s = CoverScore.Of(c, q.NeedsPeek, q.KeepNear, q.KeepFar);
+                if (float.IsInfinity(s)) continue;
+                Ranked.Add(new KeyValuePair<float, Vector3>(s, Places[i]));
+            }
+            Ranked.Sort((x, y) => x.Key.CompareTo(y.Key));
+            int grounded = 0;
+            for (int i = 0; i < Ranked.Count && grounded < MostGrounded; i++)
+            {
+                Vector3 p = Ranked[i].Value;
+                Vector3 up = q.Footing.Up(p);
+                if (!q.Footing.Ground(p, up, out Vector3 g)) continue;
                 Vector3 step = g - q.From;
                 float rise = Vector3.Dot(step, up), along = Vector3.ProjectOnPlane(step, up).magnitude;
-                if (Mathf.Abs(rise) > 1.2f + 0.55f * along) continue;   // a ledge or a pit: not walkable
+                // A ledge or a pit: not walkable. In a cave, never another level, and only where the cave's own
+                // shape says it is a straight walk (the way there then follows the passages).
+                if (Mathf.Abs(rise) > (cave != null ? 1.0f : 1.2f + 0.55f * along)) continue;
+                if (cave != null && !cave.WalkClear(q.From, g)) continue;
                 CoverCandidate c = Measure(q, g, up, along);
                 c.ChestHidden = c.HeadHidden = c.CanPeek = true;
                 float s = CoverScore.Of(c, q.NeedsPeek, q.KeepNear, q.KeepFar);
                 if (float.IsInfinity(s)) continue;
-                Ranked.Add(new KeyValuePair<float, Vector3>(s, g));
+                // Places is no longer needed for the raw points (Ranked holds copies), so the grounded ones go there.
+                Places[grounded++] = g;
+            }
+            Ranked.Clear();
+            for (int i = 0; i < grounded; i++)
+            {
+                Vector3 g = Places[i], up = q.Footing.Up(g);
+                CoverCandidate c = Measure(q, g, up, Vector3.ProjectOnPlane(g - q.From, up).magnitude);
+                c.ChestHidden = c.HeadHidden = c.CanPeek = true;
+                Ranked.Add(new KeyValuePair<float, Vector3>(CoverScore.Of(c, q.NeedsPeek, q.KeepNear, q.KeepFar), g));
             }
             Ranked.Sort((x, y) => x.Key.CompareTo(y.Key));
 
@@ -217,15 +247,16 @@ namespace OrbitalAnte.AI
 
             // Full cover: a short step out to one side or the other to shoot.
             Vector3 across = Vector3.Cross(up, Vector3.ProjectOnPlane(q.Threat - g, up)).normalized;
-            for (int s = 0; s < 4 && !c.CanPeek; s++)
+            for (int s = 0; s < 2 && !c.CanPeek; s++)
             {
-                float sign = (s & 1) == 0 ? 1f : -1f, stepOut = (s < 2 ? 1.1f : 1.8f) * q.Size;
+                float sign = s == 0 ? 1f : -1f, stepOut = 1.4f * q.Size;
                 Vector3 p = g + across * (sign * stepOut);
                 Vector3 pUp = q.Footing.Up(p);
                 if (!q.Footing.Ground(p, pUp, out Vector3 pg)) continue;
                 if (Mathf.Abs(Vector3.Dot(pg - g, pUp)) > 0.8f) continue;
                 if (!Clear(q.Threat, pg + pUp * HeadHeight(q))) continue;
                 if (Physics.Linecast(g + up * waist, pg + pUp * waist, Layers.WorldMask, QueryTriggerInteraction.Ignore)) continue;
+                if (q.Footing is CaveFooting cf && !cf.WalkClear(g, pg)) continue;
                 if (!RoomAt(q, pg, pUp)) continue;
                 spot.Peek = pg;
                 c.CanPeek = true;

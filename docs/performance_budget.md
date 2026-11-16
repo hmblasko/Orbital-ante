@@ -426,3 +426,14 @@ Note: in the Unity editor the numbers are worse than a real build, because the e
 Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. This is one save slot at run start, menu return and quit, with no added per-frame work. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
 
 Current save data is small. File size, allocations, storage latency and checkpoint-frame time have not been measured in Unity or on Deck; there is no promised maximum file-size cost. Profile `SaveSystem.Save`, `SaveFileStore.Write` and `FileStream.Flush` on internal storage and microSD. See `docs/reviews/save-recovery-and-version-protection.md` for the regression evidence and target-runtime checks.
+
+## Enemy cover and flanking (16 Nov 2026): estimates from reading the code, not measured
+
+| | Cap or expected cost |
+|---|---|
+| Cover searches | 1 a frame for every enemy in every place (`CoverFinder.SearchesPerFrame`); an enemy searches again only when the player has moved 6 m, after 9 s, when its cover is exposed or after 2 s with nothing found |
+| One search | one overlap sphere (none in caves), at most 14 ground rays, at most 10 places line-checked at up to about 14 checks each: typically 40 to 80 physics queries, at worst about 160 (estimate 0.1 to 0.3 ms on the Deck, not measured) |
+| Hiding enemies | two short line checks each, twice a second (is the cover still hiding it) |
+| Squad roles | plain C#, a loop over the squad's members per think; no allocations after the squad is built |
+| Cave routes | 8 remembered routes per camp, searches still capped at `CaveFooting.PlansPerFrame` (2) |
+
