@@ -39,7 +39,7 @@ namespace OrbitalAnte.AI
         // A flank under way.
         bool _flanking;
         Vector3 _flankGoal, _flankVia;
-        bool _flankHasVia, _flankToCover;
+        bool _flankHasVia, _flankToCover, _flankFirstLook;
         float _flankPlannedAt;
 
         // Cover for one with no gun (only hiding).
@@ -134,20 +134,13 @@ namespace OrbitalAnte.AI
             }
 
             Vector3 eye = CombatWorld.PlayerEye.position;
-            // Each look out (and every first sight) has its own beat before a shot: never an instant shot from cover.
-            if (sees && !_seesPlayer)
-            {
-                _seesPlayer = true;
-                _reactAt = now + _cfg.reactionTime * 0.7f;
-            }
-            else if (!sees) _seesPlayer = false;
             _heardAt = null;
             SetHeardBeat(false, null);
 
             // Sent round the side?
             if (Squad != null && t.flank && onFeet && _member >= 0)
             {
-                SquadRole role = Squad.RoleOf(_member, now, t.flankAfter, SideOfFront(eye));
+                SquadRole role = Squad.RoleOf(_member, now, t.flankAfter, SideOfFront(eye), t.nextWave);
                 if (role == SquadRole.Flank && !Squad.IsFlankDone(_member) && Flank(eye, distance, sees, now)) return true;
             }
 
@@ -166,6 +159,15 @@ namespace OrbitalAnte.AI
                 }
             }
             if (!_hasCover) return false;
+            // Each look out from cover has its own beat before a shot, a little shorter than a first sighting (it
+            // knows where the player is); a flanker's first look gets a longer one. Never an instant shot from cover.
+            if (sees && !_seesPlayer)
+            {
+                _seesPlayer = true;
+                _reactAt = now + (_flankFirstLook ? _cfg.reactionTime + t.flankFirstShotDelay : _cfg.reactionTime * 0.7f);
+                _flankFirstLook = false;
+            }
+            else if (!sees) _seesPlayer = false;
             FightFromCover(eye, sees, prone, now);
             return true;
         }
@@ -182,7 +184,7 @@ namespace OrbitalAnte.AI
                 Size = Size,
                 NeedsPeek = !prone,
                 Prone = prone,
-                KeepNear = _cfg.keepNear,
+                KeepNear = _cfg.rushes ? Mathf.Max(_cfg.keepNear, Tactics.rusherCoverNearest) : _cfg.keepNear,
                 KeepFar = Mathf.Min(_cfg.keepFar, _cfg.engageRange),
                 Squad = Squad,
                 Member = _member,
@@ -250,7 +252,10 @@ namespace OrbitalAnte.AI
             if (now >= _coverPhaseEnd)
             {
                 _wantPeek = !_wantPeek;
-                _coverPhaseEnd = now + (_wantPeek ? Rand(t.peekMin, t.peekMax) : Rand(t.hideMin, t.hideMax));
+                // A heavy shot is lined up for a second first: it stays out long enough to finish it, or the
+                // tell would glow and nothing come (which would teach the player the tell lies).
+                float leastOut = _cfg.aimTell > 0f ? _cfg.reactionTime * 0.7f + _cfg.aimTell + 0.5f : 0f;
+                _coverPhaseEnd = now + (_wantPeek ? Mathf.Max(leastOut, Rand(t.peekMin, t.peekMax)) : Rand(t.hideMin, t.hideMax));
             }
             bool reloading = Weapon == null || Weapon.State.Reloading || Weapon.State.Ammo == 0;
             bool turnsFull = Squad != null && Squad.TurnsTaken(now) >= Squad.Shooters && now >= _myTurnUntil;
@@ -353,6 +358,7 @@ namespace OrbitalAnte.AI
         void EndFlank()
         {
             _flanking = false;
+            _flankFirstLook = true;
             if (Squad != null && _member >= 0) Squad.FlankDone(_member);
         }
 

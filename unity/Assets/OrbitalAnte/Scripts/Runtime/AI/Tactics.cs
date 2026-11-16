@@ -16,7 +16,7 @@ namespace OrbitalAnte.AI
         public bool flank = true;
 
         /// <summary>How far from itself (metres) an enemy looks for cover.</summary>
-        public float coverSearch = 13f;
+        public float coverSearch = 10f;
         /// <summary>How far an enemy that has lost a leg will drag itself for cover.</summary>
         public float crawlCoverSearch = 5f;
         /// <summary>Seconds hidden behind cover between looks out (a range: shortest, longest).</summary>
@@ -30,16 +30,25 @@ namespace OrbitalAnte.AI
         /// <summary>Seconds an enemy in cover keeps waiting for the player to show again before it comes looking.</summary>
         public float waitInCover = 4f;
         /// <summary>Two of a squad never take spots closer together than this (metres).</summary>
-        public float spacing = 2.2f;
+        public float spacing = 3.5f;
 
-        /// <summary>Seconds a squad fights face on before anyone is sent round the side, so first contact is readable.</summary>
-        public float flankAfter = 2.5f;
+        /// <summary>Seconds a squad must have had the player in sight, face on, before anyone is sent round the side,
+        /// so first contact is readable and the player has had time to answer it.</summary>
+        public float flankAfter = 6f;
         /// <summary>How far round the player (degrees from the squad's side) a flanker heads.</summary>
-        public float flankAngle = 80f;
+        public float flankAngle = 70f;
         /// <summary>Seconds a flank may take before the flanker gives up and fights from where it is.</summary>
         public float flankGiveUp = 14f;
         /// <summary>Seconds before a flanker who fell is replaced by another member.</summary>
-        public float flankRefill = 5f;
+        public float flankRefill = 8f;
+        /// <summary>Seconds after the last flank of a fight ended before the squad may send another wave (so two sides
+        /// in cover never trade looks forever).</summary>
+        public float nextWave = 12f;
+        /// <summary>Seconds added to a flanker's first beat before it shoots, on top of its kind's reaction time: a
+        /// shot from the side must never come straight away.</summary>
+        public float flankFirstShotDelay = 0.6f;
+        /// <summary>The closest to the player a kind that rushes (the Runner) will take cover; it is not there to hide.</summary>
+        public float rusherCoverNearest = 6f;
 
         /// <summary>Whether a kind uses cover at all. A kind that walks you down (closes in without rushing: the
         /// Bruiser) stays the squad's frontal pressure and never hides.</summary>

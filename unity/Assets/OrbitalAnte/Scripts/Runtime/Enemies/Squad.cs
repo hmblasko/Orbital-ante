@@ -33,6 +33,7 @@ namespace OrbitalAnte.Enemies
         float _lastSaw = float.NegativeInfinity;
         float _engagedSince = float.NegativeInfinity;
         float _refillAt = float.NegativeInfinity;
+        float _seenFor, _lastFlankEnd = float.NegativeInfinity;
         /// <summary>A gap longer than this between sightings starts a new fight (and new flanking plans).</summary>
         public const float NewFightGap = 10f;
 
@@ -84,8 +85,13 @@ namespace OrbitalAnte.Enemies
         public void Saw(float now)
         {
             if (now - _lastSaw > NewFightGap) StartNewFight(now);
+            // Time in sight adds up only while someone keeps seeing the player (sightings come every think).
+            else if (now > _lastSaw && now - _lastSaw < 0.5f) _seenFor += now - _lastSaw;
             if (now > _lastSaw) _lastSaw = now;
         }
+
+        /// <summary>Seconds this fight's player has been in sight of someone in the squad.</summary>
+        public float SeenFor => _seenFor;
 
         /// <summary>When the fight going on now began (the first sighting after a long gap).</summary>
         public float EngagedSince => _engagedSince;
@@ -93,7 +99,9 @@ namespace OrbitalAnte.Enemies
         void StartNewFight(float now)
         {
             _engagedSince = now;
+            _seenFor = 0f;
             _refillAt = float.NegativeInfinity;
+            _lastFlankEnd = float.NegativeInfinity;
             for (int i = 0; i < _members.Count; i++)
             {
                 _members[i].Role = SquadRole.Hold;
@@ -136,6 +144,7 @@ namespace OrbitalAnte.Enemies
             if (!Valid(id) || !_members[id].Active) return;
             Member m = _members[id];
             if (m.Role == SquadRole.Flank && !m.Done) _refillAt = now + refillDelay;
+            if (m.Role == SquadRole.Flank) _lastFlankEnd = now;
             m.Active = false;
             m.Role = SquadRole.Hold;
             m.HasSpot = false;
@@ -157,14 +166,16 @@ namespace OrbitalAnte.Enemies
         }
 
         /// <summary>
-        /// What this member should be doing now. Hold until the squad has been in this fight for
-        /// <paramref name="flankAfter"/> seconds; then the flanking places are handed out, keenest first.
+        /// What this member should be doing now. Hold until the squad has had the player in sight for
+        /// <paramref name="flankAfter"/> seconds; then the flanking places are handed out, keenest first. Once every
+        /// flank of a wave is over, another wave may go <paramref name="nextWave"/> seconds after the last ended.
         /// </summary>
         /// <param name="preferredSide">-1 or +1: the side of the squad this member is already on, so it goes round its own side.</param>
-        public SquadRole RoleOf(int id, float now, float flankAfter, int preferredSide)
+        public SquadRole RoleOf(int id, float now, float flankAfter, int preferredSide, float nextWave = 12f)
         {
             if (!Valid(id) || !_members[id].Active) return SquadRole.Hold;
-            if (!SawWithin(now, NewFightGap) || now - _engagedSince < flankAfter) return _members[id].Role;
+            if (!SawWithin(now, NewFightGap) || _seenFor < flankAfter) return _members[id].Role;
+            NextWave(now, nextWave);
             Assign(now, id, preferredSide);
             return _members[id].Role;
         }
@@ -175,7 +186,30 @@ namespace OrbitalAnte.Enemies
         /// <summary>The flanker got there (or gave up): it keeps its place, so no one else is sent that way this fight.</summary>
         public void FlankDone(int id)
         {
-            if (Valid(id) && _members[id].Role == SquadRole.Flank) _members[id].Done = true;
+            if (!Valid(id) || _members[id].Role != SquadRole.Flank || _members[id].Done) return;
+            _members[id].Done = true;
+            _lastFlankEnd = _lastSaw;
+        }
+
+        /// <summary>Every flank out is over and the fight has dragged on: the flankers' places are freed for a new wave.</summary>
+        void NextWave(float now, float wait)
+        {
+            bool any = false;
+            for (int i = 0; i < _members.Count; i++)
+            {
+                Member m = _members[i];
+                if (!m.Active || m.Role != SquadRole.Flank) continue;
+                if (!m.Done) return;
+                any = true;
+            }
+            if (!any || now - _lastFlankEnd < wait) return;
+            for (int i = 0; i < _members.Count; i++)
+                if (_members[i].Role == SquadRole.Flank)
+                {
+                    _members[i].Role = SquadRole.Hold;
+                    _members[i].Done = false;
+                    _members[i].Side = 0;
+                }
         }
 
         /// <summary>True once this member's flank is over.</summary>
