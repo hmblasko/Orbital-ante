@@ -542,8 +542,11 @@ namespace OrbitalAnte.AI
         /// </summary>
         static bool ClearSight(Vector3 a, Vector3 b)
         {
-            return !Physics.Linecast(a, b, Layers.WorldMask, QueryTriggerInteraction.Ignore)
-                   && !Physics.Linecast(b, a, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            if (Physics.Linecast(a, b, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return false;
+            // A cave's walls face inward, and a line only hits a face from its front: from inside a cave to the
+            // ground outside, the way back is the one that finds the rock. Only needed while a cave network is built.
+            return !OrbitalAnte.Planets.CaveLight.AnyBuilt
+                   || !Physics.Linecast(b, a, Layers.WorldMask, QueryTriggerInteraction.Ignore);
         }
 
         /// <summary>Not too far above or below to bend down to (a gun on a ledge or down a pit is out of reach).</summary>

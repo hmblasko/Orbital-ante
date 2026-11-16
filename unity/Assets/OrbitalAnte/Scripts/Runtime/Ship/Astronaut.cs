@@ -857,7 +857,9 @@ namespace OrbitalAnte.Ship
 
             bool moving = onFoot && _walkingAt > 0.15f;
             bool shot = Weapons != null && Time.time - Weapons.LastShotTime < rules.shotLoudFor;
-            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules);
+            // In the dark of a cave network you are picked out only from closer.
+            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
+                                         * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
             CombatWorld.PlayerAimBelowEye = Mathf.Min(0.3f, Stances.Eye * 0.5f);
         }

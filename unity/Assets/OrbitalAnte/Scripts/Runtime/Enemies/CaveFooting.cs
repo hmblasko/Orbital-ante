@@ -19,7 +19,7 @@ namespace OrbitalAnte.Enemies
         readonly CaveNetwork _network;
         readonly int _room;
         Vector3 _routeFrom, _routeTo, _routeStep;
-        float _routeAt = -10f;
+        float _routeAt = -10f;   // below 0: never planned, so the first plan is never refused
 
         public CaveFooting(Transform body, PlanetSurface surface, CaveNetwork network, int room)
         {
@@ -72,17 +72,31 @@ namespace OrbitalAnte.Enemies
 
         public override Vector3 Toward(Vector3 from, Vector3 destination)
         {
-            // Worked out again only when either end has moved a couple of metres or a second has gone by: it is a
-            // search through the network, and every enemy in a fight asks every frame.
-            if (Time.time - _routeAt < 1f && (from - _routeFrom).sqrMagnitude < 4f && (destination - _routeTo).sqrMagnitude < 4f)
-                return (_routeStep - from).sqrMagnitude > 0.8f * 0.8f ? _routeStep : destination;
+            // Kept in the body's own space, so the world turning under it or a recentre never makes it stale.
+            Vector3 fromHere = _body.InverseTransformPoint(from);
+            Vector3 toHere = _body.InverseTransformPoint(destination);
+            bool reached = (_routeStep - fromHere).sqrMagnitude <= 0.8f * 0.8f;
+            // Worked out again only when the step is reached, either end has moved a couple of metres or a second
+            // has gone by: it is a search through the network, and every enemy in a fight asks every frame.
+            bool fresh = Time.time - _routeAt < 1f && (fromHere - _routeFrom).sqrMagnitude < 4f && (toHere - _routeTo).sqrMagnitude < 4f;
+            if (_routeAt >= 0f && (fresh && !reached || !TakePlan())) return _body.TransformPoint(_routeStep);
             _routeAt = Time.time;
-            _routeFrom = from;
-            _routeTo = destination;
-            Vec3d a = SpaceConvert.ToVec3d(_body.InverseTransformPoint(from));
-            Vec3d b = SpaceConvert.ToVec3d(_body.InverseTransformPoint(destination));
-            _routeStep = _body.TransformPoint(SpaceConvert.ToVector3(_network.NextStep(a, b)));
-            return _routeStep;
+            _routeFrom = fromHere;
+            _routeTo = toHere;
+            _routeStep = SpaceConvert.ToVector3(_network.NextStep(SpaceConvert.ToVec3d(fromHere), SpaceConvert.ToVec3d(toHere)));
+            return _body.TransformPoint(_routeStep);
+        }
+
+        /// <summary>At most this many searches through any network a frame, shared by every enemy in every cave.</summary>
+        public const int PlansPerFrame = 2;
+        static int _planFrame = -1, _plansThisFrame;
+
+        static bool TakePlan()
+        {
+            if (_planFrame != Time.frameCount) { _planFrame = Time.frameCount; _plansThisFrame = 0; }
+            if (_plansThisFrame >= PlansPerFrame) return false;
+            _plansThisFrame++;
+            return true;
         }
 
         public override Vector3 Hold(Vector3 world) => _body.InverseTransformPoint(world);

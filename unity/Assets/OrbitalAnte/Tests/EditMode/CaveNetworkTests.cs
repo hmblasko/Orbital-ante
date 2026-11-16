@@ -282,6 +282,28 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
+        public void InTheDark_YouAreSeenFromCloser_ButNeverInvisible()
+        {
+            Assert.AreEqual(1f, CaveLightVolume.Visibility(1f, 0f, 0f, 0f), 1e-4f, "Under open sky nothing changes.");
+            float dark = CaveLightVolume.Visibility(0f, 0f, 0f, 0f);
+            Assert.AreEqual(0.35f, dark, 1e-4f);
+            foreach (string id in WithNetworks)
+            {
+                PlanetTerrain t = World(id, Seeds[0]);
+                foreach (CaveNetwork net in Networks(t))
+                {
+                    CaveLightVolume light = CaveLightVolume.Build(net, t);
+                    for (int i = 0; i < net.Chambers.Count; i++)
+                    {
+                        if (!net.Chambers[i].Camp) continue;
+                        light.Sample(net, net.Chambers[i].Floor + net.Chambers[i].Up * 1.5, out float sky, out float r, out float g, out float b);
+                        Assert.Greater(CaveLightVolume.Visibility(sky, r, g, b), 0.6f, id + ": someone in a lit camp is hard to see.");
+                    }
+                }
+            }
+        }
+
+        [Test]
         public void EveryLivedInRoom_GetsACamp()
         {
             var roster = OrbitalAnte.Enemies.EnemyRoster.Defaults();

@@ -60,6 +60,17 @@ namespace OrbitalAnte.Planets
             }
         }
 
+        /// <summary>
+        /// How far off someone standing in this light can be picked out, against how far they could be in daylight:
+        /// 1 under open sky or in a lit camp, down to 0.35 in the dark (never nothing: a shape still moves against
+        /// the dark, and the player's own lamp shows). Multiplies the stance's own figure.
+        /// </summary>
+        public static float Visibility(float sky, float r, float g, float b)
+        {
+            double seen = sky * 1.5 + (0.3 * r + 0.59 * g + 0.11 * b) * 8.0;   // a camp lamp lights its room to about 0.1
+            return (float)(0.35 + 0.65 * Math.Max(0, Math.Min(1, seen)));
+        }
+
         static int Clamp(int v, int n) => v < 0 ? 0 : v >= n ? n - 1 : v;
 
         enum Kind : byte { Rock, Cave, Open, Crust }

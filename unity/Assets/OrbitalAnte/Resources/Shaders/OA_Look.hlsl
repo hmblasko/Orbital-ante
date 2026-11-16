@@ -176,10 +176,10 @@ half3 OA_Beam(half3 normal, float3 positionWS)
 // Soft light with a warm edge to the shadow, sky light from above, warm light bounced up from sunlit ground,
 // the lamp, and a rim of sky colour where a surface turns away from the eye. Returns the light, to be
 // multiplied by the surface's colour.
-half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
+// cave is OA_CaveLight(positionWS): a shader that needs it more than once reads it once and hands it in.
+half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half4 cave)
 {
     // In a cave, only as much of the sky's light as reaches this spot, and the cave's own lamps.
-    half4 cave = OA_CaveLight(positionWS);
     sunAmount *= cave.a;
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
     float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
@@ -223,17 +223,28 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     return light;
 }
 
+half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
+{
+    return OA_LightIn(normal, positionWS, up, sunAmount, OA_CaveLight(positionWS));
+}
+
 // ---------------------------------------------------------------------------------------------- shine
 
 
 // How much daylit sky there is over a place for a surface to mirror: 1 by day on a world, falling to 0 through
 // dusk, and 0 in open space, where the sky is black.
-half OA_DaylitSky(float3 positionWS, float3 up)
+// caveSky is OA_CaveLight(positionWS).a.
+half OA_DaylitSkyIn(float3 positionWS, float3 up, half caveSky)
 {
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
     half sky = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
     // No daylit sky to mirror deep in a cave.
-    return sky * OA_CaveLight(positionWS).a;
+    return sky * caveSky;
+}
+
+half OA_DaylitSky(float3 positionWS, float3 up)
+{
+    return OA_DaylitSkyIn(positionWS, up, OA_CaveLight(positionWS).a);
 }
 
 // How much of the shine a surface of this smoothness gets: none at all up to 0.1 (cloth, webbing, rubber, dust:
@@ -260,7 +271,8 @@ half OA_Highlight(half3 normal, float3 toLight, float3 toEye, half spread)
 // highlight is spread by that much, so one on a thin barrel far away is a soft gleam, not a flicker. Returns
 // light to add (not to multiply by the surface's colour). A surface that is not smooth (see OA_ShineAmount) gets
 // exactly nothing, so models that say nothing about their finish look as they always did.
-half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen)
+// caveSky is OA_CaveLight(positionWS).a (1 where there is no cave).
+half3 OA_ShineIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen, half caveSky)
 {
     half amount = OA_ShineAmount(gloss);
     half3 shine = half3(0.0, 0.0, 0.0);
@@ -268,7 +280,7 @@ half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half 
     if (amount > 0.0)
     {
         // A cave keeps the Sun and the sky out of its reflections too (the lamp still glints).
-        sunAmount *= OA_CaveLight(positionWS).a;
+        sunAmount *= caveSky;
         float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
         float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
         half facingEye = saturate(dot(normal, toEye));
@@ -307,6 +319,11 @@ half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half 
         shine = mirror * light * amount;
     }
     return shine;
+}
+
+half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen)
+{
+    return OA_ShineIn(normal, positionWS, up, sunAmount, gloss, metal, albedo, widen, OA_CaveLight(positionWS).a);
 }
 
 // ---------------------------------------------------------------------------------------------- haze

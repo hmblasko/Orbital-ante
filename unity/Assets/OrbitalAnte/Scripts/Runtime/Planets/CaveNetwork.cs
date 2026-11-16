@@ -367,27 +367,29 @@ namespace OrbitalAnte.Planets
         /// <summary>The waypoint nearest a point that can be walked to from it in a straight line (as far as the rules can tell).</summary>
         public int NearestWaypoint(Vec3d p)
         {
-            int best = -1;
-            double bestD = double.MaxValue;
+            // Nearest first, stopping at the first that can be walked to: the line test is the dear part, so it is
+            // only run on the few waypoints nearer than the answer. Only those within reach are looked at.
+            const double Reach = 15 * 15;
+            var near = new List<(double d, int i)>();
+            int closest = -1;
+            double closestD = double.MaxValue;
             for (int i = 0; i < Waypoints.Count; i++)
             {
                 double d = (Waypoints[i] - p).SqrMagnitude;
-                if (d >= bestD || Links[i].Count == 0) continue;
+                if (d < closestD) { closestD = d; closest = i; }
+                if (d > Reach || Links[i].Count == 0) continue;
                 // Not one overhead or underfoot on another level (where passages cross): it cannot be walked to.
                 double rise = Math.Abs(Waypoints[i].Magnitude - p.Magnitude);
                 double level = Math.Sqrt(Math.Max(0, d - rise * rise));
                 if (rise > 0.8 + 0.7 * level) continue;
-                if (d > 4 && !ClearBetween(p, Waypoints[i])) continue;
-                bestD = d;
-                best = i;
+                near.Add((d, i));
             }
-            if (best >= 0) return best;
-            for (int i = 0; i < Waypoints.Count; i++)
+            near.Sort((x, y) => x.d.CompareTo(y.d));
+            foreach ((double d, int i) in near)
             {
-                double d = (Waypoints[i] - p).SqrMagnitude;
-                if (d < bestD) { bestD = d; best = i; }
+                if (d <= 4 || ClearBetween(p, Waypoints[i])) return i;
             }
-            return best;
+            return closest;
         }
 
         /// <summary>True if the straight line between two points stays in the cave's air, a metre above a floor all the way.</summary>
@@ -751,13 +753,14 @@ namespace OrbitalAnte.Planets
             for (int i = 0; i < count; i++)
             {
                 CaveChamber c = Chambers[i];
-                // Enemies live in the bigger rooms, and never in the one you walk into first.
-                c.Camp = i != EntranceRoom && (i == 1 || r.Chance(0.55));
+                // Enemies live in the bigger rooms, never in the one you walk into first, and never under the hole
+                // in the roof (dropping in from above is a way in, not a fall into a camp).
+                c.Camp = i != EntranceRoom && !c.Skylight && (i == 1 || r.Chance(0.55));
                 if (c.Camp) camps++;
             }
             if (camps == 0)
                 for (int i = 1; i < count && camps == 0; i++)
-                    if (i != EntranceRoom) { Chambers[i].Camp = true; camps++; }
+                    if (i != EntranceRoom && !Chambers[i].Skylight) { Chambers[i].Camp = true; camps++; }
             for (int i = 0; i < count; i++)
             {
                 CaveChamber c = Chambers[i];

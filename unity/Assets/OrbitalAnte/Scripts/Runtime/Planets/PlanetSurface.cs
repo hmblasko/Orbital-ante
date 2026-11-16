@@ -415,6 +415,10 @@ namespace OrbitalAnte.Planets
         readonly int[] _groundY = new int[GroundPointLimit];
         readonly double[] _groundAltitude = new double[GroundPointLimit];
         int _needGroundCount;
+        /// <summary>How many places need solid ground this frame (see <see cref="Tick(Vec3d, Vec3d[], int, float)"/>).</summary>
+        public int NeedGroundCount => _needGroundCount;
+        /// <summary>One of the places that need solid ground, in the body's own space.</summary>
+        public Vec3d NeedGroundAt(int i) => _needGround[i];
 
         /// <summary>
         /// As above, for several places that need solid ground at once. The first is the focus; the rest are
@@ -890,11 +894,18 @@ namespace OrbitalAnte.Planets
                 if (cave.Network != null)
                 {
                     // A whole network: blocks of wall and a box of light, put up over a few frames once worked out.
-                    _caveJobs.Add(PlanetJobs.Run(() => new CaveBuild
+                    // Patient and ordered by distance only: a network is seconds of work and is never waited for when
+                    // a run starts (the player cannot be inside one yet), so it never holds up the first ground.
+                    _caveJobs.Add(PlanetJobs.Run(() =>
                     {
-                        Chunks = CaveNetworkMesher.Build(cave.Network, terrain),
-                        Light = CaveLightVolume.Build(cave.Network, terrain),
-                    }, build => OnCaveNetwork(cave, build), () => (float)Vec3d.Distance(cave.Centres[0], _viewer) - 1e6f));
+                        var build = new CaveBuild
+                        {
+                            Chunks = CaveNetworkMesher.Build(cave.Network, terrain),
+                            Light = CaveLightVolume.Build(cave.Network, terrain),
+                        };
+                        if (linear) CaveNetworkView.ToLinear(build);
+                        return build;
+                    }, build => OnCaveNetwork(cave, build), () => (float)Vec3d.Distance(cave.Centres[0], _viewer), patient: true));
                     continue;
                 }
                 _caveJobs.Add(PlanetJobs.Run(() =>
@@ -1010,15 +1021,37 @@ namespace OrbitalAnte.Planets
         void OnCaveNetwork(Cave cave, CaveBuild build)
         {
             if (this == null || !Near || Terrain == null) return;
-            // Only counted as there (solid, safe for enemies) once its last block of wall is up.
-            CaveNetworkView.Create(_detailRoot, cave, build, _linear, ready =>
+            // Only counted as there (safe for enemies) once its last block of wall is drawn; blocks are made solid near the player.
+            CaveNetworkView.Create(_detailRoot, this, cave, build, ready =>
             {
                 if (this != null && Near) _readyCaves.Add(ready);
             });
         }
 
-        /// <summary>True once a cave's walls are up and solid.</summary>
+        /// <summary>True once a cave's walls are up (a network's blocks are made solid as the player nears them).</summary>
         public bool CaveReady(Cave cave) => _readyCaves.Contains(cave);
+
+        /// <summary>
+        /// For the debug readout: how far it is over the ground to the nearest way into a cave network on this body
+        /// (from the last place the ground was built round), or empty if this body has none. Watch it shrink.
+        /// </summary>
+        public string NearestNetworkForDebug()
+        {
+            if (Terrain == null || _viewer.SqrMagnitude < 1) return string.Empty;
+            Vec3d here = _viewer.Normalized;
+            double best = double.MaxValue;
+            foreach (Cave cave in Terrain.Caves)
+            {
+                if (cave.Network == null) continue;
+                foreach (CaveOpening o in cave.Network.Openings)
+                {
+                    double d = Vec3d.Distance(o.Direction, here) * SurfaceRadius;
+                    if (d < best) best = d;
+                }
+            }
+            if (best == double.MaxValue) return string.Empty;
+            return "   cave way in " + (best < 1000 ? best.ToString("0") + " m" : (best / 1000).ToString("0.0") + " km");
+        }
 
         /// <summary>True once a cave network's walls are up and solid.</summary>
         public bool NetworkReady(CaveNetwork network)

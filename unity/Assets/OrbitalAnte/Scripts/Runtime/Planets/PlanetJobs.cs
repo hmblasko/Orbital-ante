@@ -111,20 +111,41 @@ namespace OrbitalAnte.Planets
         /// Stops and waits until every queued piece of work has finished and been handed back, including work
         /// queued by those results. Used when a world is first built and by tests; never during play.
         /// </summary>
-        public static void FinishAll()
+        public static void FinishAll() => Finish(false);
+
+        /// <summary>
+        /// As <see cref="FinishAll"/>, but leaves patient work (see <see cref="Run{T}"/>) to carry on in the
+        /// background: for the first moment of a run, which must not wait seconds for a cave network nobody is in.
+        /// </summary>
+        public static void FinishUrgent() => Finish(true);
+
+        static bool UrgentLeft(List<Handle> handles)
+        {
+            for (int i = 0; i < handles.Count; i++) if (!handles[i].Patient && !handles[i].Cancelled) return true;
+            return false;
+        }
+
+        static void Finish(bool urgentOnly)
         {
             int guard = 0;
             int oldLimit = MaxRunning;
             // While everything is being waited for, there is no urgent work to keep a core free for.
-            MaxRunning = Mathf.Max(2, MaxRunning) + 1;
-            while (!Idle && guard++ < 100000)
+            if (!urgentOnly) MaxRunning = Mathf.Max(2, MaxRunning) + 1;
+            while ((urgentOnly ? UrgentLeft(Waiting) || UrgentLeft(Running) : !Idle) && guard++ < 100000)
             {
                 Pump(int.MaxValue);
                 if (Running.Count > 0)
                 {
                     try
                     {
-                        Task.WaitAny(TasksOf(Running));
+                        if (urgentOnly)
+                        {
+                            var urgent = Running.FindAll(h => !h.Patient);
+                            if (urgent.Count > 0) Task.WaitAny(TasksOf(urgent));
+                            else if (!UrgentLeft(Waiting)) break;
+                            else Task.WaitAny(TasksOf(Running));
+                        }
+                        else Task.WaitAny(TasksOf(Running));
                     }
                     catch (AggregateException)
                     {
