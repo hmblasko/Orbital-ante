@@ -148,7 +148,7 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(_mannequin.Part(BodyPartId.Torso).ChildCap(BodyPartId.LeftThigh).activeSelf, "stump cap on the torso");
             Assert.IsFalse(shin.ProximalCap.activeSelf, "knee is intact");
 
-            Assert.AreEqual(MovementState.OneLeg, _mannequin.State);
+            Assert.AreEqual(MovementState.Crawl, _mannequin.State, "one leg left: down and crawling");
             Assert.AreEqual(1, _mannequin.ActiveGibCount);
 
             // Let physics run for a moment to prove nothing explodes or throws.
@@ -187,14 +187,15 @@ namespace OrbitalAnte.Tests
             Assert.Greater(sprint, walk);
 
             _mannequin.DamagePart(BodyPartId.LeftShin, Big, Vector3.forward);
-            Assert.AreEqual(MovementState.OneLeg, _mannequin.State);
+            Assert.AreEqual(MovementState.Crawl, _mannequin.State, "one leg left: down and crawling, no hop");
             Assert.IsFalse(_mannequin.Model.CanSprint);
-            Assert.Less(locomotion.SpeedFor(MovementState.OneLeg, true), walk, "hopping is slower than walking, sprint or not");
+            float oneLegCrawl = locomotion.SpeedFor(MovementState.Crawl, true);
+            Assert.Less(oneLegCrawl, walk, "crawling is slower than walking, sprint or not");
             yield return null;
 
             _mannequin.DamagePart(BodyPartId.RightThigh, Big, Vector3.forward);
             Assert.AreEqual(MovementState.Crawl, _mannequin.State);
-            Assert.Less(locomotion.SpeedFor(MovementState.Crawl, false), locomotion.SpeedFor(MovementState.OneLeg, false));
+            Assert.Less(locomotion.SpeedFor(MovementState.Crawl, false), oneLegCrawl, "slower with no leg to push with");
             yield return null;
 
             _mannequin.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward);

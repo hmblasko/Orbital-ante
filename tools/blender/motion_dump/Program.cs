@@ -12,7 +12,7 @@ using OrbitalAnte.Dismemberment;
 /// tools/blender/preview_enemy_motion.py to render as a GIF. The scenes are a stand-in for the game's own
 /// movement code (simplified: flat ground, no physics, the gun is a box), so the pictures are not game footage.
 ///
-///     dotnet run -c Release -- out.json disarm|hobble|arm|walk|hunch [metres per second] [old]
+///     dotnet run -c Release -- out.json disarm|hobble|legcrawl|arm|walk|hunch [metres per second] [old]
 /// </summary>
 static partial class Program
 {
@@ -25,6 +25,7 @@ static partial class Program
         public int StandingLeg, GunSide;
         public bool LeftArm, RightArm;
         public double Aim, LossLeft, LossRight, Stump, Scramble, Reach, Teeter, Tactical;
+        public bool PushingLeg;
         public int ReachSide;
         public bool HasLook;
         public Vec3d Look;
@@ -61,7 +62,7 @@ static partial class Program
                 State = s.State, ForwardSpeed = s.Speed, TurnRate = s.Turn, Phase = s.Phase, Moving = s.Moving,
                 WalkSpeed = 2.0, SprintSpeed = 4.6, StandingLeg = s.StandingLeg, LeftArmWorks = s.LeftArm, RightArmWorks = s.RightArm,
                 Aim = s.Aim, GunSide = s.GunSide, ArmLossLeft = s.LossLeft, ArmLossRight = s.LossRight, StumpLength = s.Stump,
-                Scramble = s.Scramble, Reach = s.Reach, ReachSide = s.ReachSide, Teeter = s.Teeter, Tactical = s.Tactical,
+                Scramble = s.Scramble, Reach = s.Reach, ReachSide = s.ReachSide, Teeter = s.Teeter, Tactical = s.Tactical, PushingLeg = s.PushingLeg,
                 HasLook = s.HasLook, LookX = s.Look.X, LookY = s.Look.Y, LookZ = s.Look.Z,
             };
             _a.Update(dt, input);
@@ -314,6 +315,53 @@ static partial class Program
         }
     }
 
+    /// <summary>
+    /// Walking, then the right leg is shot off at the thigh: it goes down and crawls on, the arms hauling and the
+    /// left leg pushing (the game since 16 Nov 2026; "hobble" is the hop it replaced).
+    /// </summary>
+    static void LegCrawl()
+    {
+        IBody b = MakeBody(3);
+        var at = new Vec3d(-1.2, 0, 4.0);
+        double heading = 168.0;
+        var s = new Sim { State = MovementState.Intact, LeftArm = true, RightArm = true, GunSide = -1, StandingLeg = BodySkeleton.Left };
+        var gone = new HashSet<BodyPartId>();
+        for (int i = 0; i < 120; i++) { s.Speed = 2.0; s.Moving = true; b.Step(Dt, s); }
+        double t = 0, lost = 0.6, phase = 0, down = 0;
+        int frame = 0;
+        while (t < 6.5)
+        {
+            if (t >= lost && s.State == MovementState.Intact)
+            {
+                s.State = MovementState.Crawl;
+                s.PushingLeg = true;
+                gone.Add(BodyPartId.RightThigh); gone.Add(BodyPartId.RightShin); gone.Add(BodyPartId.RightFoot);
+                s.Stump = 0;
+                b.Flinch(0.2, -1.0, 0.2, 0.4, 2.5);
+                b.Wounded(BodySkeleton.Right, 1.0);
+                down = t;
+            }
+            double speed;
+            if (s.State == MovementState.Intact) speed = 2.0;
+            else
+            {
+                // MannequinLocomotion: the crawl's cycle at 0.9 a second, a pull per arm, the one-leg crawl speed.
+                // It skids on a little as it goes down, then crawls.
+                phase += Dt * 0.9 * Math.PI * 2;
+                double pulse = 1.0 + 0.75 * Math.Cos(phase * 2.0);
+                double falling = Math.Max(0.0, 1.0 - (t - down) / 0.55);
+                speed = 0.85 * pulse * (1.0 - falling) + 2.0 * falling * falling;
+                s.Phase = phase;
+            }
+            s.Speed = speed;
+            s.Moving = true;
+            at = at + Ahead(heading) * (speed * Dt);
+            b.Step(Dt, s);
+            if (frame++ % Every == 0) Frame(b, at, heading, gone, new List<(Vec3d, double)>(), t < lost ? "walking" : t < lost + 1.2 ? "leg shot off" : "crawling on");
+            t += Dt;
+        }
+    }
+
     /// <summary>Standing, then the left arm is shot off at the shoulder: it reels, holds the wound, walks on hurt.</summary>
     static void Arm()
     {
@@ -468,7 +516,8 @@ static partial class Program
             case "arm": Arm(); break;
             case "walk": Walk(speedArg); break;
             case "hunch": Hunch(); break;
-            default: throw new ArgumentException("scene: disarm, hobble, arm, walk [speed] or hunch");
+            case "legcrawl": LegCrawl(); break;
+            default: throw new ArgumentException("scene: disarm, hobble, legcrawl, arm, walk [speed] or hunch");
         }
         Json.Append("]}");
         File.WriteAllText(path, Json.ToString());

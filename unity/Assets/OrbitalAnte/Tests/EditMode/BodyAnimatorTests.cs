@@ -681,6 +681,34 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void CrawlingOnOneLeg_TheLegStaysOnTheGround_AndDrawsUpAndPushes([Values(BodySkeleton.Left, BodySkeleton.Right)] int kept)
+        {
+            var a = new BodyAnimator(4);
+            BodyAnimInput input = Hurt(MovementState.Crawl, 0.0);
+            input.PushingLeg = true;
+            input.StandingLeg = kept;
+            double nearest = double.MaxValue, furthest = 0, highest = 0, widest = 0;
+            for (int i = 0; i < 400; i++)
+            {
+                input.Phase = i * 0.04;
+                a.Update(Dt, input);
+                AssertSound(a.Pose, "frame " + i);
+                if (i < 60) continue;
+                Vec3d hip = Where(a.Pose, BodySkeleton.Thigh(kept));
+                Vec3d knee = Where(a.Pose, BodySkeleton.Shin(kept));
+                Vec3d ankle = Ankle(a.Pose, kept);
+                double behind = hip.Z - ankle.Z;
+                nearest = Math.Min(nearest, behind);
+                furthest = Math.Max(furthest, behind);
+                highest = Math.Max(highest, Math.Max(knee.Y, ankle.Y));
+                widest = Math.Max(widest, (kept == BodySkeleton.Left ? -1 : 1) * (knee.X - hip.X));
+            }
+            Assert.Less(highest, 0.32, "the leg is never kicked up in the air");
+            Assert.Greater(furthest - nearest, 0.2, "the foot is drawn up and pushed back");
+            Assert.Greater(widest, 0.2, "the knee comes up out to its own side, along the ground");
+        }
+
+        [Test]
         public void OnOneLeg_ItLeansOutOverTheLegItHasLeft([Values(BodySkeleton.Left, BodySkeleton.Right)] int standing)
         {
             var a = new BodyAnimator(2);

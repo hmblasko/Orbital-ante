@@ -26,11 +26,14 @@ namespace OrbitalAnte.Dismemberment
     {
         /// <summary>Both legs work: walk and sprint.</summary>
         Intact,
-        /// <summary>Exactly one working leg: limp/hop, slower, no sprint.</summary>
+        /// <summary>
+        /// Exactly one working leg, hopping. No longer chosen by <see cref="BodyModel.State"/>: Matthew (16 Nov 2026)
+        /// found the hop silly, so a body that loses a leg goes down and crawls. Kept so the hop can come back.
+        /// </summary>
         OneLeg,
-        /// <summary>No working legs, at least one upper arm: crawl.</summary>
+        /// <summary>At most one working leg and at least one upper arm: crawl (a leg that is left pushes).</summary>
         Crawl,
-        /// <summary>No working legs and no arms: torso wriggle.</summary>
+        /// <summary>At most one working leg and no arms: torso wriggle.</summary>
         Wriggle,
         /// <summary>Torso gone: the head rolls and hops.</summary>
         HeadOnly,
