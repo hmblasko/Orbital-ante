@@ -201,6 +201,23 @@ namespace OrbitalAnte.Dismemberment
             return result;
         }
 
+        /// <summary>
+        /// A one-hit-kill shot: the part takes its damage as usual, and if it struck the living body and the
+        /// character is still alive, the head is destroyed too. Everything that came off is in the one result.
+        /// A shot at a loose piece or a corpse does nothing extra.
+        /// </summary>
+        public DamageResult ApplyLethal(BodyPartId id, float damage)
+        {
+            bool struckLivingBody = Alive && _group[(int)id] == 0;
+            DamageResult result = ApplyDamage(id, Math.Max(damage, 0.01f));
+            if (!struckLivingBody || !Alive) return result;
+
+            DamageResult head = ApplyDamage(BodyPartId.Head, _hp[(int)BodyPartId.Head] + 1f);
+            result.Killed |= head.Killed;
+            result.Detachments.AddRange(head.Detachments);
+            return result;
+        }
+
         void KillByHead(DamageResult result)
         {
             result.Killed = true;

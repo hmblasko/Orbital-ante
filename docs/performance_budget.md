@@ -350,6 +350,8 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Handing over a gun | one gun destroyed and one built (the same work as picking a gun up), at most once per kill | 4 times a run with the default ladder |
 | Readout and banner | their own canvas, 2 labels; the line's text is rebuilt only when it changes (a kill) | - |
 | Finding the player's guns | a scene search at most twice a second, and only while none is known | - |
+| Carried guns (16 Nov 2026) | hidden objects under the player's hand, nothing per frame; a switch is one object shown and one hidden | one per ladder step climbed (4 with the default ladder) |
+| Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
 
 ## Lighting (asked for on 11 Nov 2026)
 

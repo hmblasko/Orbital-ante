@@ -286,6 +286,8 @@ namespace OrbitalAnte.Arena
             Weapons = eyeGo.AddComponent<PlayerWeapons>();
             // Dropped guns are parented to the arena's weapon folder, which is (re)made with the mannequins.
             Weapons.Initialize(config, PlayerCamera, Player, Health, null);
+            // A rare gun that blows up knocks the test player down like any other death here.
+            Weapons.Backfired += cause => { if (Health.Alive) Health.TakeDamage(Health.Max * 10f, -PlayerCamera.transform.forward); };
         }
 
         // ------------------------------------------------------------------ gore
@@ -375,6 +377,14 @@ namespace OrbitalAnte.Arena
             WeaponData spare = holdingPistol ? WeaponData.Rifle : WeaponData.Pistol;
             Weapon weapon = Weapon.Create(spare, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed);
             weapon.transform.SetPositionAndRotation(PlayerStart + new Vector3(1.6f, 0.4f, 2.5f), Quaternion.Euler(0f, 60f, 90f));
+
+            // The rare one-hit gun lies on the other side, so it can be tried here without hunting a base for it.
+            WeaponData rare = OrbitalAnte.Content.ContentDatabase.Get<WeaponData>(WeaponData.WildcardId);
+            if (rare != null)
+            {
+                Weapon wildcard = Weapon.Create(rare, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed);
+                wildcard.transform.SetPositionAndRotation(PlayerStart + new Vector3(-1.6f, 0.4f, 2.5f), Quaternion.Euler(0f, -60f, 90f));
+            }
         }
 
         bool IsClear(Vector3 position, float margin)

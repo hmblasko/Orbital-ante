@@ -240,6 +240,8 @@ namespace OrbitalAnte.Ship
             Weapons.Initialize(_look, Eye, null, Armour, _world);
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
             Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
+            // A rare gun that blows up ends the run, like any other death, with the cause on the death page.
+            Weapons.Backfired += Die;
         }
 
         // ------------------------------------------------------------------ changing mode

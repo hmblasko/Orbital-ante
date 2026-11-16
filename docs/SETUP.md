@@ -118,7 +118,8 @@ Bottom left of the screen: **AIR** (a ring), **JETS** (a bar), your speed and wh
 | Fire | Left mouse button | Right trigger |
 | Reload | R | X / Square |
 | Pick up / swap weapon | E | Y / Triangle |
-| Respawn dummies | T | D-pad up |
+| Respawn dummies | T | (keyboard only) |
+| Switch gun (the ladder's earlier guns) | 1 | D-pad up |
 | Enemies hold fire on/off | H | D-pad down |
 | Pause menu | Esc | Start / Menu |
 | Debug readout on/off | F3 | (none) |

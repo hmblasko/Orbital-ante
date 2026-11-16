@@ -359,17 +359,58 @@ namespace OrbitalAnte.Tests
             Weapon pickedUp = NewWeapon(WeaponData.Pistol, new Vector3(14f, 1f, 15f));
             weapons.Equip(pickedUp);
 
-            Weapon next = weapons.TakeNewGun(WeaponData.Rifle);
+            Weapon next = weapons.TakeNewGun(WeaponData.Rifle, keepOld: false);
             Assert.AreSame(next, weapons.Current);
             Assert.AreSame(next, weapons.IssuedGun);
             Assert.IsTrue(pickedUp != null, "the picked-up gun is kept, though it is the same kind as the issued one");
             Assert.AreEqual(WeaponHold.Dropped, pickedUp.Hold, "and dropped at the player's feet");
 
             // The ladder's own gun, by contrast, is used up when the next one comes.
-            Weapon after = weapons.TakeNewGun(WeaponData.Pistol);
+            Weapon after = weapons.TakeNewGun(WeaponData.Pistol, keepOld: false);
             yield return null;
             Assert.IsTrue(next == null, "the issued gun is gone");
             Assert.AreSame(after, weapons.Current);
+        }
+
+        [UnityTest]
+        public IEnumerator GunLadder_KeepsTheGunsYouClimbPast_AndSwitchGunBringsThemBack()
+        {
+            yield return null;
+            GameInput.Initialize();
+            var playerGo = new GameObject("Player");
+            playerGo.transform.SetParent(_root.transform, false);
+            playerGo.transform.position = new Vector3(-14f, 0f, 14f);
+            playerGo.AddComponent<CharacterController>();
+            var eyeGo = new GameObject("Eye");
+            eyeGo.transform.SetParent(playerGo.transform, false);
+            eyeGo.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            var camera = eyeGo.AddComponent<Camera>();
+            var controller = playerGo.AddComponent<FpsController>();
+            controller.Initialize(PlayerConfig.Load(), camera);
+            var weapons = eyeGo.AddComponent<PlayerWeapons>();
+            weapons.Initialize(PlayerConfig.Load(), camera, controller, null, _root.transform);
+
+            Weapon first = NewWeapon(WeaponData.Pistol, new Vector3(-14f, 1f, 15f));
+            weapons.EquipIssued(first);
+            Weapon second = weapons.TakeNewGun(WeaponData.Rifle);
+            yield return null;
+
+            Assert.AreSame(second, weapons.Current);
+            Assert.AreEqual(1, weapons.Carried.Count);
+            Assert.AreSame(first, weapons.Carried[0], "the first gun is carried, not lost");
+            Assert.IsFalse(first.gameObject.activeSelf, "and put out of sight");
+
+            Assert.IsTrue(weapons.SwitchGun());
+            Assert.AreSame(first, weapons.Current, "switching brings it back out");
+            Assert.IsTrue(first.gameObject.activeSelf);
+            Assert.AreSame(second, weapons.Carried[0]);
+
+            // Picking a gun up off the ground swaps only the one in hand; the carried one stays.
+            Weapon ground = NewWeapon(WeaponData.Rifle, new Vector3(-14f, 1f, 15f));
+            weapons.Equip(ground);
+            Assert.AreSame(ground, weapons.Current);
+            Assert.AreEqual(WeaponHold.Dropped, first.Hold, "the gun in hand is dropped");
+            Assert.AreSame(second, weapons.Carried[0], "the carried gun is still carried");
         }
 
         [UnityTest]

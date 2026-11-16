@@ -11,6 +11,8 @@ namespace OrbitalAnte.Core
         /// <summary>Normalised travel direction of the bullet.</summary>
         public Vector3 Direction;
         public Vector3 Normal;
+        /// <summary>Kills a living character wherever it lands (a one-hit-kill gun).</summary>
+        public bool Lethal;
     }
 
     /// <summary>What happened when something was hit, so the shooter can give feedback.</summary>

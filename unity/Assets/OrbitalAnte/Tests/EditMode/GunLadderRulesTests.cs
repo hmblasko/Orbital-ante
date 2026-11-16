@@ -129,6 +129,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ByDefault_TheGunsYouClimbPast_AreKept()
+        {
+            Assert.IsTrue(new GunLadderRules().keepOldGuns, "Matthew, 16 Nov 2026: the old gun stays in your inventory");
+        }
+
+        [Test]
         public void ShortName_DropsThePlaceholderTag()
         {
             Assert.AreEqual("AK-ish", GunLadder.ShortName("AK-ish (name TBD)"));

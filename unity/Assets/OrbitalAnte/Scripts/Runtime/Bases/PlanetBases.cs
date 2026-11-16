@@ -42,6 +42,11 @@ namespace OrbitalAnte.Bases
             public GameObject[] Built;
             /// <summary>Each base's foundation, kept once made so coming back to a base does not make it again.</summary>
             public Mesh[] Foundations;
+            /// <summary>The rare gun lying at a base that holds one, while the base stands; and whether it has been taken this run.</summary>
+            public Weapons.Weapon[] Rare;
+            public bool[] RareTaken;
+            /// <summary>The one base on this world that holds the rare gun, or -1.</summary>
+            public int RareBase = -1;
         }
 
         SolarSystemWorld _world;
@@ -98,6 +103,11 @@ namespace OrbitalAnte.Bases
             w = new World { Sites = BaseField.Build(Rules, surface.Terrain, random, Kinds, pad) };
             w.Built = new GameObject[w.Sites.Count];
             w.Foundations = new Mesh[w.Sites.Count];
+            w.Rare = new Weapons.Weapon[w.Sites.Count];
+            w.RareTaken = new bool[w.Sites.Count];
+            var seeds = new List<int>(w.Sites.Count);
+            for (int i = 0; i < w.Sites.Count; i++) seeds.Add(w.Sites[i].Seed);
+            w.RareBase = Combat.RareGuns.PickBase(seeds);
             // Nothing natural grows through a base's floor.
             if (surface.Features != null)
             {
@@ -171,6 +181,10 @@ namespace OrbitalAnte.Bases
         void PutAway(World w, int i)
         {
             if (w.Built[i] == null) return;
+            // The rare gun is gone from the base if it is no longer lying in it (picked up, or carried off).
+            if (w.Rare != null && w.Rare[i] != null && !w.Rare[i].transform.IsChildOf(w.Built[i].transform)) w.RareTaken[i] = true;
+            else if (w.Rare != null && w.Rare[i] == null && w.RareBase == i) w.RareTaken[i] = true;
+            if (w.Rare != null) w.Rare[i] = null;
             Destroy(w.Built[i]);
             w.Built[i] = null;
             ShownCount--;
@@ -217,7 +231,37 @@ namespace OrbitalAnte.Bases
                 try { BuildView(site, go.transform); }
                 catch (Exception e) { Debug.LogException(e); }
             }
+            PlaceRareGun(w, index, go.transform);
             return go;
+        }
+
+        /// <summary>
+        /// At most one base per world holds the rare one-hit gun, lying at its first loot point (Matthew, 16 Nov
+        /// 2026: "a gun you found that is rare"; see <see cref="Combat.RareGuns.PickBase"/>). It lies still until
+        /// picked up, and once taken it does not come back this run.
+        /// </summary>
+        void PlaceRareGun(World w, int index, Transform baseRoot)
+        {
+            if (w.Rare == null || w.RareTaken[index]) return;
+            if (w.RareBase != index) return;
+            BaseSite site = w.Sites[index];
+            var places = new List<Vector3>();
+            BaseView.Places(site, BaseKinds.Loot, places);
+            if (places.Count == 0) return;
+            Weapons.WeaponData data = Content.ContentDatabase.Get<Weapons.WeaponData>(Weapons.WeaponData.WildcardId);
+            if (data == null) return;
+            try
+            {
+                Weapons.Weapon gun = Weapons.Weapon.Create(data, baseRoot, true);
+                gun.transform.localPosition = places[0] + Vector3.up * 0.12f;
+                gun.transform.localRotation = Quaternion.Euler(0f, (site.Seed & 255) * 1.4f, 90f);
+                // Lying on show: no falling through a floor that is not solid yet, and it goes with the base.
+                gun.Body.isKinematic = true;
+                // No interpolation while it rides the turning, origin-shifting base, or it lags a step behind.
+                gun.Body.interpolation = RigidbodyInterpolation.None;
+                w.Rare[index] = gun;
+            }
+            catch (Exception e) { Debug.LogException(e); }
         }
 
         /// <summary>Poured-concrete grey, a little warm. The models bring their own colours.</summary>

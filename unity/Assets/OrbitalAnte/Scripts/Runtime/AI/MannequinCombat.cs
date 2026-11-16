@@ -613,6 +613,8 @@ namespace OrbitalAnte.AI
             {
                 Weapon w = all[i];
                 if (w == null || w.Hold != WeaponHold.Dropped || w == _givenUp || !Reachable(w)) continue;
+                // Rare guns (one-hit, may blow up) are the player's find: enemies never pick them up.
+                if (w.Data != null && (w.Data.oneHitKill || w.Data.backfireChance > 0f)) continue;
                 // Give a freshly dropped gun a moment to land (and the player a moment to enjoy the disarm).
                 if (Time.unscaledTime - w.DroppedAt < 0.4f) continue;
                 float sqr = (w.transform.position - transform.position).sqrMagnitude;

@@ -89,7 +89,7 @@ namespace OrbitalAnte.Dismemberment
             MovementState before = Model.State;
             int groupBefore = Model.Group(part.Id);
             bool torsoWasOnBody = Model.OnBody(BodyPartId.Torso);
-            DamageResult result = Model.ApplyDamage(part.Id, hit.Damage);
+            DamageResult result = hit.Lethal ? Model.ApplyLethal(part.Id, hit.Damage) : Model.ApplyDamage(part.Id, hit.Damage);
 
             for (int i = 0; i < result.Detachments.Count; i++)
             {

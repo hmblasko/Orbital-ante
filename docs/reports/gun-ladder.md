@@ -62,3 +62,69 @@ Playtest protocol (principle 10): problem, kills changed nothing about your kit;
 One code read covering the Unity, design and Deck viewpoints (Fable agents are on a usage limit, so Opus). Fixed from it: the ladder deleted guns the player had picked up (now dropped); the readout built strings every frame (now only on a kill); the scene search ran every frame with no player (now twice a second, and a missed handover is retried); the order ended on the sniper, the worst gun to be stuck with in close fights (now ends on the rifle, counts raised from 18 to 22). Left open: the sniper and shotgun view-model place (needs the editor).
 
 Codex review of PR 49 (one P2, checked and real): the handover compared gun kinds, so a same-kind pickup (an enemy's shotgun swapped for the ladder's shotgun) was deleted instead of dropped. Fixed in a follow-up: `PlayerWeapons.IssuedGun` remembers the very gun the run handed out (start guns go in through `EquipIssued`), and only that object is used up. PlayMode regression test `WeaponTests.GunLadder_UsesUpOnlyTheGunItIssued_EvenWhenAPickupIsTheSameKind` (written, not run: needs Unity).
+
+---
+
+# Carried guns and the Wildcard (16 Nov 2026)
+
+Matthew asked two things: "you can still revert back to your old gun (it's part of your inventory)", and a rare found gun that "is a one hit kill but there is .1% chance it will blow up and kill you with each shot".
+
+## What changed
+
+- **Carried guns.** When the ladder hands you a new gun, the old one is now put away and carried instead of deleted. **Switch Gun** (keyboard 1, controller D-pad up) brings out the next carried gun and puts the one in hand away. The ladder line shows "+N GUNS (1 / D-pad up: SWITCH)". Picking a gun up off the ground still swaps only the gun in hand (one gun in hand at a time, Part B section 9). There is a toggle, `GunLadderConfig > Rules > Keep Old Guns`. Turning it off puts back the old rule, where the old gun is used up. A decision card is open about which of the two should be the default.
+- **D-pad up moved.** Respawn Dummies (arena only) gave up D-pad up and is now on keyboard T only, because no other on-foot controller button was free.
+- **The Wildcard** (a placeholder name; it uses the pistol's model until it has its own):
+  - Any hit on a living enemy kills it, because the head is destroyed after the struck part takes its damage (`BodyModel.ApplyLethal`).
+  - Each shot has a 1 in 1,000 chance of blowing up. That destroys the gun and kills you, and the death page says "Your Wildcard blew up in your hands."
+  - Each shot is one fair roll. The rolls do not come from the run's seed, so restarting a seed cannot teach you which shot blows up.
+  - It fires semi-auto, has 6 rounds and a slow reload.
+  - Where it lies: next to the arena start, and on each world at the first loot point of at most one base (about one base in six qualifies). Once taken, it does not come back that run.
+  - Enemies never pick it up.
+  - While you look at it or hold it, a red line states the risk in plain words.
+
+Constitution:
+- 2 (a real trade-off: certain kills against a small, stated risk of losing the run).
+- 5 and 9 (the odds are written on screen, and the roll is fair and not hidden).
+- 4 (a find worth looking for).
+- 2 again for carried guns (the guns you earned stay yours to choose between).
+
+## Tested
+
+- The whole suite passes under `dotnet test tools/rules-tests`: 2,416 passed, 1 skipped. The new rule tests are `RareGunRulesTests` and `GunLadderRulesTests.ByDefault_TheGunsYouClimbPast_AreKept`. They cover:
+  - one-hit kills on hands, the head, loose pieces and corpses;
+  - a normal hit being unchanged;
+  - the backfire edges, and about 400 blow-ups in 400,000 shots;
+  - the one-per-world base pick.
+- The runtime scripts compile against the reference assemblies. The only errors are the known IHittable name clash.
+
+## Not verified (needs Unity)
+
+Nothing has been run in Unity.
+
+- Two PlayMode tests are written but have not been run: `GunLadder_KeepsTheGunsYouClimbPast_AndSwitchGunBringsThemBack`, and the PR 51 test, which is now set to `keepOld: false`.
+- The look and sound of the blow-up have not been checked.
+- How the Wildcard lies at a base has not been checked.
+- Whether a 1 in 1,000 chance feels right.
+
+Playtest protocol:
+- Problem: the ladder threw away guns you had earned, and there was no high-stakes find.
+- Hypothesis: keeping earned guns adds choice, and a stated risk makes the Wildcard thrilling rather than unfair.
+- Smallest test: one arena run that climbs two steps and switches back, then fires the Wildcard 30 times.
+- Acceptance:
+  - switching takes no more than one press per gun;
+  - the warning is read before the first shot;
+  - a blow-up never feels like a hidden rule.
+
+## Agent review
+
+- **game-designer:**
+  - It found that "one base in six" would put the Wildcard on many bases per world. Changed to at most one per world.
+  - It found that rolls from the seed would repeat on a restart. Changed so the rolls are drawn fresh each run.
+  - It advised against adding a shot counter, and none was added.
+- **unity-reviewer** (all its findings were fixed):
+  - The view-model update read the gun after a blow-up and would have thrown a null error.
+  - Disarmed guards could pick up the Wildcard. Enemies now skip rare guns.
+  - The lying gun kept interpolation while kinematic and could lag behind the base. It is now off.
+  - The switch hint went stale after a rebind. It is now rebuilt after the pause menu.
+  - Also noted: a ground pickup drops the gun in hand rather than carrying it. This is left as designed (one gun in hand; pickups swap).
+- **deck-performance:** not run separately. The new cost is at most one hidden gun per ladder step and one lying gun per world, logged in `docs/performance_budget.md`.

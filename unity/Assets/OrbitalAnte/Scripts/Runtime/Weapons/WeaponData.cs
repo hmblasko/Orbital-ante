@@ -24,6 +24,8 @@ namespace OrbitalAnte.Weapons
         public const string SmgId = "Smg";
         public const string ShotgunId = "Shotgun";
         public const string SniperId = "Sniper";
+        /// <summary>The rare found gun: kills with any hit, and now and then blows up in your hands.</summary>
+        public const string WildcardId = "Wildcard";
 
         [Header("Identity")]
         [Tooltip("Name shown on the HUD. Placeholder until the real roster is named.")]
@@ -42,6 +44,14 @@ namespace OrbitalAnte.Weapons
         public float footDamage = 34f;
         [Tooltip("Damage to the player when an enemy fires this gun.")]
         public float playerDamage = 4f;
+
+        [Header("Rare guns")]
+        [Tooltip("Any hit on a living enemy kills it, wherever it lands (the head is destroyed too).")]
+        public bool oneHitKill = false;
+        [Tooltip("The chance, from 0 to 1, that a shot blows the gun up in the player's hands and kills them. 0.001 is 1 in 1,000.")]
+        [Range(0f, 1f)] public float backfireChance = 0f;
+        [Tooltip("A short warning shown when looking at this gun on the ground and while holding it. Empty for none.")]
+        public string pickupNote = "";
 
         [Header("Firing")]
         [Tooltip("Hold to fire. Off means one shot per trigger pull.")]
@@ -125,6 +135,8 @@ namespace OrbitalAnte.Weapons
             }
             if (recoilReturn < 0f || recoilReturn > 1f) problems.Add("recoil return must be between 0 and 1.");
             if (mass <= 0f) problems.Add("mass must be above zero.");
+            if (backfireChance < 0f || backfireChance > 1f) problems.Add("backfire chance must be between 0 and 1.");
+            if (backfireChance > 0f && string.IsNullOrEmpty(pickupNote)) problems.Add("a gun that can blow up must say so in its pickup note.");
         }
 
         public float DamageFor(BodyPartId id)
@@ -306,6 +318,41 @@ namespace OrbitalAnte.Weapons
             w.muzzleFlashSize = 0.3f;
             w.shotPitch = 0.55f; w.shotVolume = 1f;
             w.mass = 5.5f;
+            return w;
+        }
+
+        /// <summary>
+        /// The rare found gun (Matthew, 16 Nov 2026): one hit kills, and each shot has a 1 in 1,000 chance of
+        /// blowing up and killing you. A slow six-shooter, so the gamble is taken a shot at a time. Placeholder
+        /// name; it borrows the pistol's model until it has its own.
+        /// </summary>
+        public static WeaponData CreateWildcardDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = WildcardId;
+            w.displayName = "Wildcard (name TBD)";
+            w.twoHanded = false;
+            w.placeholderShape = WeaponShape.Pistol;
+            w.modelFile = PistolId;
+            w.oneHitKill = true;
+            w.backfireChance = 0.001f;
+            w.pickupNote = "Kills in one hit. 1 in 1,000 shots blows up and kills you.";
+            // Damage only matters for what is not a living enemy (walls, the ship, loose pieces).
+            w.headDamage = 120f; w.torsoDamage = 60f; w.upperArmDamage = 60f; w.forearmDamage = 60f;
+            w.handDamage = 60f; w.thighDamage = 60f; w.shinDamage = 60f; w.footDamage = 60f;
+            w.playerDamage = 30f;
+            w.automatic = false;
+            w.shotsPerSecond = 1.4f;
+            w.range = 160f;
+            w.baseSpread = 0.15f; w.spreadPerShot = 0.8f; w.maxBloom = 2f; w.bloomRecovery = 4f;
+            w.recoilPitch = 3.2f; w.recoilYaw = 0.6f; w.recoilReturn = 0.7f; w.recoilRecovery = 12f;
+            w.magazineSize = 6; w.reloadSeconds = 2.2f;
+            w.oneHandSpreadMultiplier = 1.5f; w.oneHandRecoilMultiplier = 1.3f; w.oneHandReloadMultiplier = 1.8f;
+            w.tracerColor = new Color(1f, 0.82f, 0.2f);
+            w.muzzleFlashSize = 0.26f;
+            w.shotEvent = "weapon.handcannon.shot";
+            w.shotPitch = 0.8f; w.shotVolume = 0.95f;
+            w.mass = 1.6f;
             return w;
         }
 

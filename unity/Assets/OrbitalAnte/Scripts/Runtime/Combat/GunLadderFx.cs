@@ -27,7 +27,9 @@ namespace OrbitalAnte.Combat
         GunLadderConfig _config;
         Canvas _canvas;
         Text _line, _banner;
-        int _shownRung = -1, _shownKills = -1;
+        int _shownRung = -1, _shownKills = -1, _shownCarried = -1;
+        WeaponData _shownHeld, _shownLooked;
+        Text _note;
         float _bannerLeft;
         float _nextSearch;
         // A step was climbed but the gun could not be handed over yet (no player found): try again each frame.
@@ -83,6 +85,9 @@ namespace OrbitalAnte.Combat
             _bannerLeft = 0f;
             _shownRung = -1;
             _shownKills = -1;
+            _shownCarried = -1;
+            _shownHeld = null;
+            _shownLooked = null;
         }
 
         void OnPlayerHit(HitOutcome outcome)
@@ -103,7 +108,7 @@ namespace OrbitalAnte.Combat
             if (weapons == null) return false;
             // The ladder's own old gun (the very one it handed out, not just the same kind) is used up; any other
             // gun in hand was picked up by the player, so it is dropped, not lost.
-            Weapon given = weapons.TakeNewGun(data);
+            Weapon given = weapons.TakeNewGun(data, _config.rules.keepOldGuns);
             if (given == null) return false;
 
             // Bigger steps, bigger fanfare: the four reward tiers follow the ladder up.
@@ -146,8 +151,14 @@ namespace OrbitalAnte.Combat
             UiKit.Pin((RectTransform)_banner.transform, new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(900f, 50f));
             UiKit.Halo(_banner, true);
 
+            // A warning line for a rare gun, above the ladder line: shown while looking at one or holding one.
+            _note = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Danger, TextAnchor.MiddleCenter);
+            UiKit.Pin((RectTransform)_note.transform, new Vector2(0.5f, 0f), new Vector2(0f, 222f), new Vector2(720f, 22f));
+            UiKit.Halo(_note);
+
             _line.gameObject.SetActive(false);
             _banner.gameObject.SetActive(false);
+            _note.gameObject.SetActive(false);
         }
 
         void Update()
@@ -162,21 +173,49 @@ namespace OrbitalAnte.Combat
                         && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen;
 
             if (_line.gameObject.activeSelf != show) _line.gameObject.SetActive(show);
+            // The pause menu is where Switch Gun is rebound: build the line again after it, so the key is current.
+            if (GameSession.Paused) _shownCarried = -1;
             if (show)
             {
-                // Rebuilt only when a kill changes it, so a fight makes no garbage here.
-                if (Ladder.Rung != _shownRung || Ladder.KillsOnRung != _shownKills)
+                // Rebuilt only when a kill or a switch changes it, so a fight makes no garbage here.
+                int carried = weapons.Carried.Count;
+                if (Ladder.Rung != _shownRung || Ladder.KillsOnRung != _shownKills || carried != _shownCarried)
                 {
                     _shownRung = Ladder.Rung;
                     _shownKills = Ladder.KillsOnRung;
-                    _line.text = Describe(Ladder);
+                    _shownCarried = carried;
+                    _line.text = Describe(Ladder) + Carrying(carried);
                 }
+            }
+
+            // A rare gun's warning: what it is looking at on the ground first, then what is in hand.
+            WeaponData looked = show && weapons.NearbyPickup != null ? weapons.NearbyPickup.Data : null;
+            WeaponData held = show && weapons.Current != null ? weapons.Current.Data : null;
+            WeaponData warn = looked != null && !string.IsNullOrEmpty(looked.pickupNote) ? looked
+                            : held != null && !string.IsNullOrEmpty(held.pickupNote) ? held : null;
+            if (_note.gameObject.activeSelf != (warn != null)) _note.gameObject.SetActive(warn != null);
+            if (warn != null && (warn != _shownHeld || looked != _shownLooked))
+            {
+                _shownHeld = warn;
+                _shownLooked = looked;
+                _note.text = (warn == looked ? "ON THE GROUND: " : "IN HAND: ")
+                             + GunLadder.ShortName(warn.DisplayName).ToUpperInvariant() + ". " + warn.pickupNote;
             }
 
             if (_bannerLeft > 0f) _bannerLeft -= Time.unscaledDeltaTime;
             bool bannerOn = show && _bannerLeft > 0f;
             if (_banner.gameObject.activeSelf != bannerOn) _banner.gameObject.SetActive(bannerOn);
             if (bannerOn) _banner.canvasRenderer.SetAlpha(Mathf.Clamp01(_bannerLeft / 0.5f));
+        }
+
+        /// <summary>The carried guns and the key that brings them out, or nothing when none are carried.</summary>
+        static string Carrying(int carried)
+        {
+            if (carried <= 0 || GameInput.SwitchGun == null) return string.Empty;
+            string key = GameInput.SwitchGun.GetBindingDisplayString(0);
+            string pad = GameInput.SwitchGun.GetBindingDisplayString(1);
+            string keys = string.IsNullOrEmpty(pad) ? key : key + " / " + pad;
+            return "   +" + carried + (carried == 1 ? " GUN" : " GUNS") + " (" + keys + ": SWITCH)";
         }
 
         /// <summary>The readout: which step, and how far to the next gun.</summary>

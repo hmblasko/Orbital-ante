@@ -29,6 +29,12 @@ namespace OrbitalAnte.Combat
         public bool enabled = true;
 
         /// <summary>
+        /// On: the gun you climb off is carried, and Switch Gun brings it back out (Matthew, 16 Nov 2026). Off: it
+        /// is gone when the next one comes, and a gun you picked up is dropped instead.
+        /// </summary>
+        public bool keepOldGuns = true;
+
+        /// <summary>
         /// The guns in the order they are handed out. Defaults (a first guess, not playtested), ordered by how much
         /// they put out in a long fight, with the specialists early so each step plays differently:
         /// test pistol 4 kills, Double Zapper 5, Long Shot 6, Buzz Gun 7, then the AK-ish to the end of the run.
@@ -53,8 +59,9 @@ namespace OrbitalAnte.Combat
     /// - A run starts on the first step, holding its gun.
     /// - Each enemy you kill counts one, whatever gun you killed it with (a gun picked up off the ground counts).
     /// - When the kills on a step reach its number, you are handed the next step's gun at once, fully loaded.
-    ///   The ladder's old gun is gone; a gun you picked up yourself is dropped at your feet instead, so you can
-    ///   take it back if you prefer it. The count starts again from nothing on the new step.
+    ///   The gun you were holding is put away and carried, and Switch Gun brings it back out (with
+    ///   <see cref="GunLadderRules.keepOldGuns"/> off it is gone instead, or dropped if you had picked it up).
+    ///   The count starts again from nothing on the new step.
     /// - The last step's gun stays with you for the rest of the run. Kills there are still counted.
     /// - You never go back down. Dying ends the run, and a new run starts at the bottom.
     ///

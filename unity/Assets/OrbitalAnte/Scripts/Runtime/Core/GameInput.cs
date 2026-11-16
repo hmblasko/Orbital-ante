@@ -33,6 +33,7 @@ namespace OrbitalAnte.Core
         public static InputAction Fire { get; private set; }
         public static InputAction Reload { get; private set; }
         public static InputAction Interact { get; private set; }
+        public static InputAction SwitchGun { get; private set; }
         public static InputAction RespawnDummies { get; private set; }
         public static InputAction HoldFire { get; private set; }
         /// <summary>Opens or closes the ship's belly hatch, from inside or from nearby outside.</summary>
@@ -154,7 +155,11 @@ namespace OrbitalAnte.Core
             Fire = AddButton(Gameplay, "Fire", "<Mouse>/leftButton", "<Gamepad>/rightTrigger");
             Reload = AddButton(Gameplay, "Reload", "<Keyboard>/r", "<Gamepad>/buttonWest");
             Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
-            RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
+            // Switch Gun (Matthew, 16 Nov 2026: the ladder's earlier guns stay in your inventory) takes D-pad up,
+            // the only controller input on foot that was not for play: Respawn Dummies is an arena test tool and
+            // keeps T on the keyboard.
+            SwitchGun = AddButton(Gameplay, "Switch Gun", "<Keyboard>/1", "<Gamepad>/dpad/up");
+            RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", null);
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
             Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
             // On the ground the same button crouches (tap) and lies you down (hold): the jets only work off it.

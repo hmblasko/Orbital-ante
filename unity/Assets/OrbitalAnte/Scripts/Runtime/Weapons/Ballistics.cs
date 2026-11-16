@@ -76,6 +76,7 @@ namespace OrbitalAnte.Weapons
                 Point = hit.point,
                 Direction = direction,
                 Normal = hit.normal,
+                Lethal = data.oneHitKill,
             };
             result.Outcome = target.Hit(info);
 
