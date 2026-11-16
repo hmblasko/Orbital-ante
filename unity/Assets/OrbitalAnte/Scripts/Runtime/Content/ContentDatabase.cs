@@ -65,6 +65,9 @@ namespace OrbitalAnte.Content
             if (Find<WeaponData>(WeaponData.SmgId) == null) Register(WeaponData.CreateSmgDefaults(), "built-in");
             if (Find<WeaponData>(WeaponData.ShotgunId) == null) Register(WeaponData.CreateShotgunDefaults(), "built-in");
             if (Find<WeaponData>(WeaponData.SniperId) == null) Register(WeaponData.CreateSniperDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.SmgAId) == null) Register(WeaponData.CreateSmgADefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.RifleAId) == null) Register(WeaponData.CreateRifleADefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.HeavyGunAId) == null) Register(WeaponData.CreateHeavyGunADefaults(), "built-in");
             // ...and the rare found gun.
             if (Find<WeaponData>(WeaponData.WildcardId) == null) Register(WeaponData.CreateWildcardDefaults(), "built-in");
             // ...and so must the solar system.

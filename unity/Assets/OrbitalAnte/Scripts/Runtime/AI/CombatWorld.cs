@@ -27,6 +27,12 @@ namespace OrbitalAnte.AI
         /// <summary>Raised when the player lets go of a gun, so whoever keeps count of loose guns can count it too.</summary>
         public static event Action<OrbitalAnte.Weapons.Weapon> PlayerDroppedGun;
         public static void RaisePlayerDroppedGun(OrbitalAnte.Weapons.Weapon gun) => PlayerDroppedGun?.Invoke(gun);
+        /// <summary>
+        /// A signal flare went up (Faction A's Scout): where it was fired, how far it is heard, and where the player
+        /// was at that moment. Listeners get a place to go and look, never a live track.
+        /// </summary>
+        public static event Action<Vector3, float, Vector3, string> Alarm;
+        public static void RaiseAlarm(Vector3 at, float radius, Vector3 playerAt, string faction) => Alarm?.Invoke(at, radius, playerAt, faction);
         /// <summary>When true, enemies keep their guns but do not shoot. A playtest switch.</summary>
         public static bool EnemiesHoldFire;
         /// <summary>Given where a character is and where the threat is, returns a spot out of sight, or null.</summary>
@@ -50,6 +56,7 @@ namespace OrbitalAnte.AI
             DropParent = null;
             GroundParent = null;
             PlayerDroppedGun = null;
+            Alarm = null;
             EnemiesHoldFire = false;
             FindCover = null;
             PlayerSeenFrom = 1f;

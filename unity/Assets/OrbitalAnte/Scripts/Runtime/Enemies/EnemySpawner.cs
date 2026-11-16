@@ -135,20 +135,21 @@ namespace OrbitalAnte.Enemies
                 else if (surface.Body.Spec.id == "Earth") pad = OrbitalAnte.Launch.LaunchSite.Find(terrain).Up;
                 var random = GameSession.Stream("enemies." + surface.Body.Spec.id);
                 double radius = surface.SurfaceRadius;
-                w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad) };
+                w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad, _config.factions, surface.Body.Spec.id) };
                 // Every base has its guards, standing on its floor.
                 IReadOnlyList<BaseSite> sites = _world.Bases != null ? _world.Bases.SitesOn(body) : null;
                 if (sites != null)
                 {
                     BaseFieldRules baseRules = _world.Bases.Rules;
                     for (int i = 0; i < sites.Count; i++)
-                        EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size), (int)sites[i].Size);
+                        EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size), (int)sites[i].Size,
+                            _config.factions, surface.Body.Spec.id);
                 }
                 // The rooms of cave networks where enemies live, from a stream of their own so the camps above
                 // the ground stay where they were before there were networks.
                 var caveRandom = GameSession.Stream("enemies.caves." + surface.Body.Spec.id);
                 for (int c = 0; c < terrain.Caves.Count; c++)
-                    if (terrain.Caves[c].Network != null) EnemyField.AddCaveCamps(w.Camps, _config.roster, caveRandom, terrain.Caves[c].Network);
+                    if (terrain.Caves[c].Network != null) EnemyField.AddCaveCamps(w.Camps, _config.roster, caveRandom, terrain.Caves[c].Network, _config.factions, surface.Body.Spec.id);
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
                 w.Gone = new bool[w.Camps.Count][];
@@ -413,6 +414,7 @@ namespace OrbitalAnte.Enemies
 
                 Weapon gun = null;
                 Mannequin who = MannequinFactory.Create(position, rotation, w.Root, config, spec.id + " " + camp + "." + m);
+                if (!string.IsNullOrEmpty(spec.faction)) FactionLook.Band(who, _config.factions);
                 who.Footing = footing;
                 float tall = Mathf.Max(0.5f, spec.scale), wide = tall * Mathf.Clamp(spec.width, 0.6f, 1.8f);
                 who.transform.localScale = new Vector3(wide, tall, wide);
@@ -428,6 +430,8 @@ namespace OrbitalAnte.Enemies
                 {
                     combat.SetSeed(combatSeed);
                     combat.Squad = _wakingSquad;
+                    combat.Ability = spec.ability;
+                    combat.Faction = c.Faction;
                     WeaponData data = ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
                     Weapon weapon = Weapon.Create(data, w.Root, config.oneHandedReloadAllowed);
                     weapon.transform.position = position + worldUp * 1.2f;

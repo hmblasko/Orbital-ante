@@ -54,6 +54,8 @@ namespace OrbitalAnte.Dismemberment
         public bool Hold;
         /// <summary>0 to 1: move and stand in the tactical hunch (knees bent, low, gun up, head level). Set by the fight.</summary>
         public float Tactical;
+        /// <summary>Degrees a second it may turn at most, 0 for no cap (a braced Heavy spinning its gun up). Set by the fight.</summary>
+        public float MaxTurnRate;
         /// <summary>How far into the hunch the body really is (it eases in and out), for posing the gun.</summary>
         public float TacticalShown => _anim != null ? (float)_anim.Tactical : 0f;
 
@@ -259,6 +261,7 @@ namespace OrbitalAnte.Dismemberment
             {
                 Quaternion want = Quaternion.LookRotation(to.normalized, _owner.Up);
                 float turn = _cfg.turnSpeed * TurnScaleFor(state);
+                if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
             }
         }
@@ -309,6 +312,7 @@ namespace OrbitalAnte.Dismemberment
             if (direction.sqrMagnitude < 0.0001f) return;
             Quaternion want = Quaternion.LookRotation(direction.normalized, _owner.Up);
             float turn = _cfg.turnSpeed * TurnScaleFor(state);
+            if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
         }
 

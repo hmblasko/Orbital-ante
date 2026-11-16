@@ -21,6 +21,14 @@ namespace OrbitalAnte.Enemies
         public EnemyFieldRules field = new EnemyFieldRules();
         [Tooltip("How enemies take cover and go round your side. Untick Cover or Flank to compare with the old way of fighting.")]
         public OrbitalAnte.AI.TacticsRules tactics = new OrbitalAnte.AI.TacticsRules();
+        [Tooltip("Where Faction A lives (its home world) and what share of camps elsewhere are its squads.")]
+        public FactionFieldRules factions = new FactionFieldRules();
+        [Tooltip("Faction A's Scout: how long it raises its flare, and how far the flare is heard.")]
+        public FlareRules flare = new FlareRules();
+        [Tooltip("Faction A's Heavy: how long its gun spins up, how long it fires, how slowly it turns while braced.")]
+        public SpinUpRules spinUp = new SpinUpRules();
+        [Tooltip("Faction A's Line: its covering fire while a squadmate is out on a flank.")]
+        public SuppressRules suppress = new SuppressRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
 

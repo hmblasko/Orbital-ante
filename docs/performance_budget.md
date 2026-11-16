@@ -352,6 +352,7 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Readout and banner | their own canvas, 2 labels; the line's text is rebuilt only when it changes (a kill) | - |
 | Finding the player's guns | a scene search at most twice a second, and only while none is known | - |
 | Carried guns (16 Nov 2026) | hidden objects under the player's hand, nothing per frame; a switch is one object shown and one hidden | one per ladder step climbed (4 with the default ladder) |
+| Faction A abilities (16 Nov 2026) | No garbage per frame; a few comparisons per enemy (those without an ability return at once); no physics queries. One unlit sphere (about 760 triangles, 1 draw call, no shadow, one shared material) per raised hand and per flare in the air; a property block on each Faction A body's torso and head (2 renderers each leave the SRP batcher). A flare reaches every awake enemy once through one event. Not measured in Unity | One flare per Scout per life, 9.2 s each: at most 12 at the live cap |
 | Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
 
 ## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity

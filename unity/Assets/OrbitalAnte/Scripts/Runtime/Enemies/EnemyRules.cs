@@ -51,8 +51,12 @@ namespace OrbitalAnte.Enemies
         public int atMediumBase, atLargeBase;
         /// <summary>Never among the drawn guards of a small base (the heavy types are kept for the bigger ones).</summary>
         public bool notAtSmallBase;
-        /// <summary>How often this type turns up, against the others.</summary>
+        /// <summary>How often this type turns up, against the others of its faction.</summary>
         public float share = 1f;
+        /// <summary>The faction it belongs to (<see cref="Factions"/>; empty: none). A camp is all one faction.</summary>
+        public string faction = Factions.None;
+        /// <summary>What it does that nobody else does (Faction A's tiers).</summary>
+        public FactionAbility ability = FactionAbility.None;
     }
 
     /// <summary>The dials of how thickly the worlds are populated.</summary>
@@ -87,13 +91,17 @@ namespace OrbitalAnte.Enemies
         /// <summary>For a camp inside a cave network: the network, and the room it lives in. Null for any other camp.</summary>
         public CaveNetwork Cave;
         public int Room;
+        /// <summary>The faction every member belongs to (empty: none).</summary>
+        public string Faction;
     }
 
     public static class EnemyRoster
     {
-        /// <summary>The four kinds asked for on 14 Nov 2026: each with its own size, pace, toughness and gun.</summary>
         /// <summary>Raise this when the defaults change, so a config asset made earlier takes the new roster.</summary>
-        public const int Version = 3;
+        public const int Version = 4;
+
+        /// <summary>Faction A's three tiers (Milestone 13), by id.</summary>
+        public const string ScoutA = "ScoutA", LineA = "LineA", HeavyA = "HeavyA";
 
         public static List<EnemyTypeSpec> Defaults()
         {
@@ -112,23 +120,105 @@ namespace OrbitalAnte.Enemies
                 new EnemyTypeSpec { id = "Marksman", model = "EnemyMarksman", scale = 1.2f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
                                     reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, hunch = 0.3f, share = 1f,
                                     aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true },
+
+                // Faction A (Soviet-spacesuit inspired; placeholder, no name). Three tiers of clearly different
+                // size, each with one thing it does that the others do not. Limbs come off as easily as on
+                // anyone: the tiers differ in size, gun, ability and how they fight, never in limb health.
+                // They wear the unaligned kinds' bodies as stand-ins until their own suits are modelled.
+
+                // Scout: small and quick, goes round the side first, and signals: on first sight it raises its
+                // free arm (1 s, the hand glows) and fires a flare that rouses its own side near by. Take the hand,
+                // the forearm or the gun, or the Scout, during the raise and no flare goes up.
+                new EnemyTypeSpec { id = ScoutA, faction = Factions.A, ability = FactionAbility.Flare, model = "EnemyRunner", scale = 0.85f, speed = 1.4f,
+                                    toughness = 0.7f, weapon = "SmgA", engageRange = 32f, reactionTime = 0.5f, aimError = 4f, keepFar = 10f, keepNear = 4f,
+                                    rushes = true, closesIn = true, hunch = 0.8f, share = 3f, mostPerCamp = 2 },
+                // Line: the backbone. Fights from cover with a rifle, and while a squadmate is round the side it
+                // lays down long, wide covering fire: the long burst means someone is coming.
+                new EnemyTypeSpec { id = LineA, faction = Factions.A, ability = FactionAbility.Suppress, weapon = "RifleA", share = 4f },
+                // Heavy: big and planted. Before every burst it braces and spins its gun up for 1.2 s (the cell
+                // glows brighter, it whines), then fires for 3 s, turning no faster than 20 degrees a second (circle it from close in, or break line of sight).
+                // Circle it, take a leg (it drops and the spin stops), or shoot the gun out of its hands.
+                new EnemyTypeSpec { id = HeavyA, faction = Factions.A, ability = FactionAbility.SpinUp, model = "EnemyBruiser", scale = 1.3f, speed = 0.75f,
+                                    toughness = 2f, headToughness = 1.4f, weapon = "HeavyGunA", engageRange = 40f, reactionTime = 0.9f, aimError = 2.5f,
+                                    keepFar = 32f, keepNear = 6f, closesIn = true, hunch = 0.35f, share = 1f, mostPerCamp = 1,
+                                    atMediumBase = 1, atLargeBase = 2, notAtSmallBase = true },
             };
         }
 
-        /// <summary>Picks a type by its share. <paramref name="roll"/> is 0 to 1.</summary>
-        public static int Pick(IReadOnlyList<EnemyTypeSpec> roster, double roll)
+        /// <summary>The first type of a faction: the one that stands in when a type is past its limit in a camp.</summary>
+        public static int FirstOf(IReadOnlyList<EnemyTypeSpec> roster, string faction)
         {
-            double total = 0;
-            for (int i = 0; i < roster.Count; i++) total += Math.Max(0f, roster[i].share);
-            if (total <= 0) return 0;
-            double at = roll * total;
+            // The faction's commonest type, so a camp past a limit is filled with its backbone.
+            int best = -1;
             for (int i = 0; i < roster.Count; i++)
             {
+                if (!Factions.Same(roster[i].faction, faction) || roster[i].mostPerCamp > 0 || roster[i].notAtSmallBase) continue;
+                if (best < 0 || roster[i].share > roster[best].share) best = i;
+            }
+            if (best >= 0) return best;
+            for (int i = 0; i < roster.Count; i++) if (Factions.Same(roster[i].faction, faction)) return i;
+            return 0;
+        }
+
+        /// <summary>True if the roster has any type of this faction.</summary>
+        public static bool Has(IReadOnlyList<EnemyTypeSpec> roster, string faction)
+        {
+            for (int i = 0; i < roster.Count; i++) if (Factions.Same(roster[i].faction, faction)) return true;
+            return false;
+        }
+
+        /// <summary>Picks a type of one faction by its share. <paramref name="roll"/> is 0 to 1.</summary>
+        public static int Pick(IReadOnlyList<EnemyTypeSpec> roster, double roll, string faction)
+        {
+            double total = 0;
+            for (int i = 0; i < roster.Count; i++) if (Factions.Same(roster[i].faction, faction)) total += Math.Max(0f, roster[i].share);
+            if (total <= 0) return FirstOf(roster, faction);
+            double at = roll * total;
+            int last = -1;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (!Factions.Same(roster[i].faction, faction)) continue;
+                last = i;
                 at -= Math.Max(0f, roster[i].share);
                 if (at < 0) return i;
             }
-            return roster.Count - 1;
+            return last >= 0 ? last : 0;
         }
+
+        /// <summary>
+        /// Which faction a camp on this world belongs to. Every camp on a faction's home world is the faction's;
+        /// elsewhere a seeded share are. With no faction rules (or a roster with no faction types) nothing is
+        /// drawn at all, so worlds stay exactly as they were.
+        /// </summary>
+        public static string CampFaction(IReadOnlyList<EnemyTypeSpec> roster, FactionFieldRules factions, string bodyId, SeededRandom random)
+        {
+            if (factions == null || !Has(roster, Factions.A)) return Factions.None;
+            if (!string.IsNullOrEmpty(bodyId) && bodyId == factions.homeA) return Factions.A;
+            return random.NextDouble() < factions.shareA ? Factions.A : Factions.None;
+        }
+
+        /// <summary>Fills a camp of one faction, keeping each type within its per-camp limit.</summary>
+        internal static void Fill(int[] members, int from, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random, string faction, bool smallBase)
+        {
+            int stand = FirstOf(roster, faction);
+            for (int m = from; m < members.Length; m++)
+            {
+                int type = Pick(roster, random.NextDouble(), faction);
+                // Some types are only fair in ones (the Marksman, the Heavy): past the limit the faction's backbone stands in.
+                int most = roster[type].mostPerCamp;
+                if (most > 0)
+                {
+                    int already = 0;
+                    for (int k = 0; k < m; k++) if (members[k] == type) already++;
+                    if (already >= most) type = stand;
+                }
+                if (smallBase && roster[type].notAtSmallBase) type = stand;
+                members[m] = type;
+            }
+        }
+
+        /// <summary>Picks an unaligned type by its share. <paramref name="roll"/> is 0 to 1.</summary>
+        public static int Pick(IReadOnlyList<EnemyTypeSpec> roster, double roll) => Pick(roster, roll, Factions.None);
     }
 
     /// <summary>
@@ -147,8 +237,11 @@ namespace OrbitalAnte.Enemies
         /// <param name="radius">The body's ground radius, metres.</param>
         /// <param name="dry">True if a direction is on dry ground (null: everywhere is).</param>
         /// <param name="keepClear">A direction to stay away from (the launch pad), or zero for none.</param>
+        /// <param name="factions">Where the factions live (null: every camp unaligned, as before factions).</param>
+        /// <param name="bodyId">The world's id, to know a faction's home.</param>
         public static List<EnemyCamp> Build(EnemyFieldRules rules, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random,
-                                            double radius, Func<Vec3d, bool> dry, Vec3d keepClear)
+                                            double radius, Func<Vec3d, bool> dry, Vec3d keepClear,
+                                            FactionFieldRules factions = null, string bodyId = null)
         {
             var camps = new List<EnemyCamp>();
             int count = CampCount(rules, radius);
@@ -167,20 +260,9 @@ namespace OrbitalAnte.Enemies
 
                 int size = random.Range(rules.squadLeast, Math.Max(rules.squadLeast, rules.squadMost) + 1);
                 var members = new int[size];
-                for (int m = 0; m < size; m++)
-                {
-                    int type = EnemyRoster.Pick(roster, random.NextDouble());
-                    // Some types are only fair in ones (the Marksman): past its limit the ordinary type stands in.
-                    int most = roster[type].mostPerCamp;
-                    if (most > 0)
-                    {
-                        int already = 0;
-                        for (int k = 0; k < m; k++) if (members[k] == type) already++;
-                        if (already >= most) type = 0;
-                    }
-                    members[m] = type;
-                }
-                camps.Add(new EnemyCamp { Direction = dir, Members = members, Seed = random.Next() });
+                string faction = EnemyRoster.CampFaction(roster, factions, bodyId, random);
+                EnemyRoster.Fill(members, 0, roster, random, faction, false);
+                camps.Add(new EnemyCamp { Direction = dir, Members = members, Seed = random.Next(), Faction = faction });
             }
             return camps;
         }
@@ -190,7 +272,8 @@ namespace OrbitalAnte.Enemies
         /// crowd it is taken away, so a base is one fight and not two on top of each other.
         /// </summary>
         public static void AddGarrison(List<EnemyCamp> camps, EnemyFieldRules rules, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random,
-                                       double radius, Vec3d direction, double homeRadius, int guards, int baseSize = 0)
+                                       double radius, Vec3d direction, double homeRadius, int guards, int baseSize = 0,
+                                       FactionFieldRules factions = null, string bodyId = null)
         {
             double spacing = Math.Min(rules.campSpacing, radius * Math.PI / 3) / radius;
             for (int i = camps.Count - 1; i >= 0; i--)
@@ -198,27 +281,19 @@ namespace OrbitalAnte.Enemies
                 if (camps[i].HomeRadius <= 0 && Angle(camps[i].Direction, direction) < spacing) camps.RemoveAt(i);
             }
             var members = new int[Math.Max(1, guards)];
+            string faction = EnemyRoster.CampFaction(roster, factions, bodyId, random);
             // The ones a base of this size always has come first; the rest are drawn.
             int placed = 0;
             for (int t = 0; t < roster.Count && baseSize > 0; t++)
             {
+                if (!Factions.Same(roster[t].faction, faction)) continue;
                 int always = baseSize >= 2 ? roster[t].atLargeBase : roster[t].atMediumBase;
                 for (int k = 0; k < always && placed < members.Length; k++) members[placed++] = t;
             }
-            for (int m = placed; m < members.Length; m++)
-            {
-                int type = EnemyRoster.Pick(roster, random.NextDouble());
-                int most = roster[type].mostPerCamp;
-                if (most > 0)
-                {
-                    int already = 0;
-                    for (int k = 0; k < m; k++) if (members[k] == type) already++;
-                    if (already >= most) type = 0;
-                }
-                if (baseSize == 0 && roster[type].notAtSmallBase) type = 0;
-                members[m] = type;
-            }
-            camps.Add(new EnemyCamp { Direction = direction.Normalized, Members = members, Seed = random.Next(), HomeRadius = homeRadius });
+            // Past a type's limit or at a small base: the faction's backbone stands in. The "always" guards are
+            // already counted, so a drawn one never takes a type over its limit.
+            EnemyRoster.Fill(members, placed, roster, random, faction, baseSize == 0);
+            camps.Add(new EnemyCamp { Direction = direction.Normalized, Members = members, Seed = random.Next(), HomeRadius = homeRadius, Faction = faction });
         }
 
         /// <summary>
@@ -226,7 +301,8 @@ namespace OrbitalAnte.Enemies
         /// "where enemies will reside"): two to four in a room, five in a great hall, by the light of their lamps.
         /// Their home is the middle of the room's floor; they never wander out of it on their own.
         /// </summary>
-        public static void AddCaveCamps(List<EnemyCamp> camps, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random, CaveNetwork network)
+        public static void AddCaveCamps(List<EnemyCamp> camps, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random, CaveNetwork network,
+                                        FactionFieldRules factions = null, string bodyId = null)
         {
             if (network == null) return;
             for (int room = 0; room < network.Chambers.Count; room++)
@@ -235,23 +311,13 @@ namespace OrbitalAnte.Enemies
                 if (!c.Camp) continue;
                 int size = c.LongRadius > 11 ? random.Range(4, 6) : random.Range(2, 5);
                 var members = new int[size];
-                for (int m = 0; m < size; m++)
-                {
-                    int type = EnemyRoster.Pick(roster, random.NextDouble());
-                    int most = roster[type].mostPerCamp;
-                    if (most > 0)
-                    {
-                        int already = 0;
-                        for (int k = 0; k < m; k++) if (members[k] == type) already++;
-                        if (already >= most) type = 0;
-                    }
-                    members[m] = type;
-                }
+                string faction = EnemyRoster.CampFaction(roster, factions, bodyId, random);
+                EnemyRoster.Fill(members, 0, roster, random, faction, false);
                 Vec3d floor = c.Floor;
                 camps.Add(new EnemyCamp
                 {
                     Direction = floor.Normalized, Members = members, Seed = random.Next(), HomeRadius = floor.Magnitude,
-                    Cave = network, Room = room,
+                    Cave = network, Room = room, Faction = faction,
                 });
             }
         }

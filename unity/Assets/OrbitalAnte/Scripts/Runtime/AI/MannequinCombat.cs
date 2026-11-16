@@ -98,6 +98,7 @@ namespace OrbitalAnte.AI
             _aimDirection = transform.forward;
             _owner.PartDetached += OnPartDetached;
             _owner.Died += OnDied;
+            SubscribeFaction();
         }
 
         public void SetSeed(int seed)
@@ -108,6 +109,7 @@ namespace OrbitalAnte.AI
 
         void OnDestroy()
         {
+            UnsubscribeFaction();
             if (_owner != null)
             {
                 _owner.PartDetached -= OnPartDetached;
@@ -156,6 +158,7 @@ namespace OrbitalAnte.AI
         {
             if (Weapon == null) return;
             Weapon weapon = Weapon;
+            LetGoOfGunAbilities();
             Weapon = null;
             _triggerHeld = false;
             _telling = false;
@@ -220,6 +223,7 @@ namespace OrbitalAnte.AI
 
         void OnDied(Mannequin mannequin)
         {
+            EndAbilities();
             DropCover();
             LeaveSquad();
             DropWeapon(transform.up * 1.5f, 5f);
@@ -258,6 +262,7 @@ namespace OrbitalAnte.AI
                 Think();
             }
 
+            TickAbilities(Time.time);
             if (Weapon != null) UpdateShooting();
         }
 
@@ -349,8 +354,20 @@ namespace OrbitalAnte.AI
             bool sees = distance <= SightRange(now) && ClearSight(head, target);
             if (sees)
             {
+                // Faction A's Scout fires its flare on a fresh sighting, unless its squad is already on to the player.
+                // "Already" means the squad had the player before this moment, not a squadmate who looked a
+                // fraction of a second earlier in the same sighting.
+                if (now - _lastSaw > _cfg.chaseMemory)
+                    FirstSight(now, Squad != null && Squad.SawWithin(now, _cfg.chaseMemory) && !Squad.SawWithin(now, 1f));
                 _lastSaw = now;
                 if (Squad != null) Squad.Saw(now);
+            }
+            if (_flare.Raising && CombatWorld.PlayerEye != null)
+            {
+                // Rooted, arm up, facing the player: the window to stop it.
+                _loco.FacePoint = CombatWorld.PlayerEye.position;
+                _loco.LookAt = CombatWorld.PlayerEye.position;
+                return;
             }
             // Cover and flanking (MannequinCombat.Tactics.cs); when they do not apply, the fight below goes on as before.
             if (ThinkTactics(state, sees, distance, now)) return;
@@ -372,7 +389,7 @@ namespace OrbitalAnte.AI
                     _heardAt = CombatWorld.PlayerEye.position;
                     _heardTime = now;
                 }
-                if (_heardAt != null && now - _heardTime > _cfg.chaseMemory) _heardAt = null;
+                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) _heardAt = null;
 
                 bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
                 SetHeardBeat(pausing, _heardAt);
@@ -400,7 +417,9 @@ namespace OrbitalAnte.AI
             }
 
             bool onFeet = state == MovementState.Intact || state == MovementState.OneLeg;
-            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill)
+            // A braced Heavy stays planted until its burst is done (MannequinCombat.Faction.cs).
+            bool braced = _spin.Braced;
+            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill && !braced)
             {
                 // Alternate between standing to shoot and shifting position, so nobody is a statue.
                 _shootPhase = !_shootPhase;
@@ -408,7 +427,7 @@ namespace OrbitalAnte.AI
                 if (!_shootPhase) _movePoint = PickMovePoint(distance);
             }
 
-            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar)
+            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar && !braced)
             {
                 // The ones that fight close do not dance at range: they come straight at you, and you can see it.
                 _loco.FacePoint = null;
@@ -681,8 +700,18 @@ namespace OrbitalAnte.AI
                                 && Time.time >= _reactAt && CombatWorld.PlayerPresent && !CombatWorld.EnemiesHoldFire;
 
             float now = Time.time;
+            if (_flare.Raising) wantsToShoot = false;
             _triggerPressed = false;
-            if (!wantsToShoot)
+            bool spinReady = SpinGate(wantsToShoot, now);
+            bool covering = wantsToShoot && Covering(now);
+            if (Ability == OrbitalAnte.Enemies.FactionAbility.SpinUp && wantsToShoot)
+            {
+                // The Heavy: nothing while it spins up, then the trigger held down through the whole burst.
+                _telling = false;
+                _triggerPressed = spinReady && !_triggerHeld;
+                _triggerHeld = spinReady;
+            }
+            else if (!wantsToShoot)
             {
                 _triggerHeld = false;
                 _telling = false;
@@ -692,11 +721,11 @@ namespace OrbitalAnte.AI
                 if (now >= _triggerUntil)
                 {
                     _triggerHeld = false;
-                    _nextTriggerAt = now + Rand(_cfg.burstPause);
+                    _nextTriggerAt = now + (covering ? Dials.suppress.pauseSeconds : Rand(_cfg.burstPause));
                 }
             }
             else if (now >= _nextTriggerAt && !_telling && Squad != null
-                     && !TakeSquadTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
+                     && !TakeSquadTurn(now, covering ? Dials.suppress.burstSeconds + 0.2f : _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
             {
                 // Somebody else's turn to shoot: ask again in a moment.
                 _nextTriggerAt = now + 0.25f;
@@ -713,7 +742,7 @@ namespace OrbitalAnte.AI
                 _triggerHeld = true;
                 _triggerPressed = true;
                 // Automatic guns fire a burst; other guns fire one shot per pull.
-                _triggerUntil = now + (Weapon.Data.automatic ? Rand(_cfg.burstSeconds) : 0.05f);
+                _triggerUntil = now + (Weapon.Data.automatic ? (covering ? Dials.suppress.burstSeconds : Rand(_cfg.burstSeconds)) : 0.05f);
             }
 
             ShowTell(_telling);
@@ -723,7 +752,7 @@ namespace OrbitalAnte.AI
             Vector3 muzzle = Weapon.Muzzle.position;
             Vector3 toTarget = PlayerAimPoint - muzzle;
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
-            Vector3 direction = Ballistics.SpreadDirection(toTarget, shot.SpreadDegrees + _cfg.aimError, _rng);
+            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + _cfg.aimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
 
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
@@ -790,6 +819,7 @@ namespace OrbitalAnte.AI
         {
             if (Weapon == null || _owner == null || !_owner.Alive) return;
             PoseWeapon(Time.deltaTime, false);
+            PoseFlareArm();
         }
 
         Vector3 LowReadyDirection()

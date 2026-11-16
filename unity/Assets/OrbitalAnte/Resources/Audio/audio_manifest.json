@@ -122,6 +122,66 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "enemy.flare.fire",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/enemy/enemy_flare_fire"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.3,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 180,
+   "priority": 60,
+   "cooldownMs": 400,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The flare goes up: a hollow thump and a hiss climbing away, then a soft high pop where it bursts."
+  },
+  {
+   "id": "enemy.flare.raise",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/enemy/enemy_flare_raise"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.3,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 180,
+   "priority": 60,
+   "cooldownMs": 200,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Scout strikes its flare: a scratch and a rising fizz that lasts as long as the raise (1 s), so the player hears how long they have to stop it."
+  },
+  {
+   "id": "enemy.heavy.spinup",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/enemy/enemy_heavy_spinup"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 180,
+   "priority": 60,
+   "cooldownMs": 300,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Heavy's gun spinning up: a motor whine and a rattle of barrels, both rising over the 1.2 s spin, so the end of the climb is the moment it fires."
+  },
+  {
    "id": "fx.slowmo.in",
    "bus": "PlayerEquipment",
    "clips": [

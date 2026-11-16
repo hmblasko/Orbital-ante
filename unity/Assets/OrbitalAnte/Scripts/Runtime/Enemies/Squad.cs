@@ -132,6 +132,18 @@ namespace OrbitalAnte.Enemies
             }
         }
 
+        /// <summary>Living members out on a flank now (the Line's covering fire runs while this is above 0).</summary>
+        public int FlankersOut
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < _members.Count; i++)
+                    if (_members[i].Active && _members[i].Role == SquadRole.Flank && !_members[i].Done) n++;
+                return n;
+            }
+        }
+
         /// <summary>How many may be out flanking at once in a squad with this many fighting.</summary>
         public static int FlankersFor(int active) => active >= 4 ? 2 : active >= 2 ? 1 : 0;
 

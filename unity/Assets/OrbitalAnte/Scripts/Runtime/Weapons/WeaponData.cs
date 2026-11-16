@@ -26,6 +26,10 @@ namespace OrbitalAnte.Weapons
         public const string SniperId = "Sniper";
         /// <summary>The rare found gun: kills with any hit, and now and then blows up in your hands.</summary>
         public const string WildcardId = "Wildcard";
+        /// <summary>Faction A's guns (Milestone 13): the Scout's, the Line's and the Heavy's. Placeholder names.</summary>
+        public const string SmgAId = "SmgA";
+        public const string RifleAId = "RifleA";
+        public const string HeavyGunAId = "HeavyGunA";
 
         [Header("Identity")]
         [Tooltip("Name shown on the HUD. Placeholder until the real roster is named.")]
@@ -291,6 +295,67 @@ namespace OrbitalAnte.Weapons
             w.muzzleFlashSize = 0.34f;
             w.shotPitch = 0.7f; w.shotVolume = 0.95f;
             w.mass = 4.5f;
+            return w;
+        }
+
+        // ------------------------------------------------------------------ Faction A's guns
+        // Each borrows a model until Fable builds Faction A's own; what differs is how they fire.
+
+        /// <summary>The Scout's gun: lighter and more accurate than the Runner's, because the Scout's job is the flare, not the spray.</summary>
+        public static WeaponData CreateSmgADefaults()
+        {
+            WeaponData w = CreateSmgDefaults();
+            w.name = SmgAId;
+            w.displayName = "Scout Carbine (name TBD)";
+            w.shotsPerSecond = 11f;
+            w.baseSpread = 1.0f;
+            w.range = 70f;
+            w.tracerColor = new Color(1f, 0.45f, 0.3f);
+            w.shotPitch = 1.7f;
+            return w;
+        }
+
+        /// <summary>The Line's gun: a steady rifle a little slower and heavier than the AK-ish, built for long covering bursts.</summary>
+        public static WeaponData CreateRifleADefaults()
+        {
+            WeaponData w = CreateRifleDefaults();
+            w.name = RifleAId;
+            w.displayName = "Line Rifle (name TBD)";
+            w.modelFile = RifleId;
+            w.shotsPerSecond = 7f;
+            w.headDamage = 40f;
+            w.torsoDamage = 40f;
+            w.magazineSize = 40;
+            w.tracerColor = new Color(1f, 0.7f, 0.4f);
+            w.shotPitch = 0.9f;
+            return w;
+        }
+
+        /// <summary>
+        /// The Heavy's gun: spins up, then pours out a long, steady stream. It has the cell that glows through the
+        /// spin (the Shotgun model's CellGlow piece) until it has a model of its own.
+        /// </summary>
+        public static WeaponData CreateHeavyGunADefaults()
+        {
+            WeaponData w = CreateShotgunDefaults();
+            w.name = HeavyGunAId;
+            w.displayName = "Spinner (name TBD)";
+            w.shotEvent = "";
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = ShotgunId;
+            w.headDamage = 50f; w.torsoDamage = 50f; w.upperArmDamage = 50f; w.forearmDamage = 50f;
+            w.handDamage = 50f; w.thighDamage = 50f; w.shinDamage = 50f; w.footDamage = 50f;
+            w.playerDamage = 6.5f;
+            w.automatic = true;
+            w.shotsPerSecond = 6f;
+            w.range = 45f;
+            w.baseSpread = 1.6f; w.spreadPerShot = 0.15f; w.maxBloom = 3.5f; w.bloomRecovery = 6f;
+            w.recoilPitch = 0.6f; w.recoilYaw = 0.3f;
+            w.magazineSize = 40; w.reloadSeconds = 3f;
+            w.tracerColor = new Color(1f, 0.55f, 0.25f);
+            w.muzzleFlashSize = 0.3f;
+            w.shotPitch = 0.6f; w.shotVolume = 0.85f;
+            w.mass = 9f;
             return w;
         }
 
