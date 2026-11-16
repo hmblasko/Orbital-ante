@@ -336,6 +336,43 @@ namespace OrbitalAnte.Tests
         }
 
         [UnityTest]
+        public IEnumerator GunLadder_UsesUpOnlyTheGunItIssued_EvenWhenAPickupIsTheSameKind()
+        {
+            yield return null;
+            GameInput.Initialize();
+            var playerGo = new GameObject("Player");
+            playerGo.transform.SetParent(_root.transform, false);
+            playerGo.transform.position = new Vector3(14f, 0f, 14f);
+            playerGo.AddComponent<CharacterController>();
+            var eyeGo = new GameObject("Eye");
+            eyeGo.transform.SetParent(playerGo.transform, false);
+            eyeGo.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            var camera = eyeGo.AddComponent<Camera>();
+            var controller = playerGo.AddComponent<FpsController>();
+            controller.Initialize(PlayerConfig.Load(), camera);
+            var weapons = eyeGo.AddComponent<PlayerWeapons>();
+            weapons.Initialize(PlayerConfig.Load(), camera, controller, null, _root.transform);
+
+            // The run issues a pistol; the player swaps it for another pistol off the ground (same kind, own gun).
+            Weapon issued = NewWeapon(WeaponData.Pistol, new Vector3(14f, 1f, 15f));
+            weapons.EquipIssued(issued);
+            Weapon pickedUp = NewWeapon(WeaponData.Pistol, new Vector3(14f, 1f, 15f));
+            weapons.Equip(pickedUp);
+
+            Weapon next = weapons.TakeNewGun(WeaponData.Rifle);
+            Assert.AreSame(next, weapons.Current);
+            Assert.AreSame(next, weapons.IssuedGun);
+            Assert.IsTrue(pickedUp != null, "the picked-up gun is kept, though it is the same kind as the issued one");
+            Assert.AreEqual(WeaponHold.Dropped, pickedUp.Hold, "and dropped at the player's feet");
+
+            // The ladder's own gun, by contrast, is used up when the next one comes.
+            Weapon after = weapons.TakeNewGun(WeaponData.Pistol);
+            yield return null;
+            Assert.IsTrue(next == null, "the issued gun is gone");
+            Assert.AreSame(after, weapons.Current);
+        }
+
+        [UnityTest]
         public IEnumerator Recoil_KicksTheViewUp_AndPartlySettles()
         {
             yield return null;
