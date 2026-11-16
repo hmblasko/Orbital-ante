@@ -124,7 +124,9 @@ namespace OrbitalAnte.Space
                     _lockRadius[i] = 0;   // Nobody lands on the Sun, so nothing ever turns with it.
                     continue;
                 }
-                _influence[i] = Math.Max(Math.Max(s.radius * InfluenceRadii, s.radius + 80.0), reach[i] * 1.15);
+                bool planet = _parent[i] == 0 && (s.kind == BodyKind.Planet || s.kind == BodyKind.GasGiant);
+                double radii = planet ? PlanetInfluenceRadii : InfluenceRadii;
+                _influence[i] = Math.Max(Math.Max(s.radius * radii, s.radius + 80.0), reach[i] * 1.15);
                 _lockRadius[i] = Math.Max(s.radius * 1.5, s.radius + 60.0);
                 int parent = _parent[i];
                 reach[parent] = Math.Max(reach[parent], s.orbitRadius + _influence[i]);
@@ -133,7 +135,8 @@ namespace OrbitalAnte.Space
             // A moon rides its circle at exactly the speed its planet's pull there asks for, so a ship flying up to
             // it inside the planet's neighbourhood falls along with it. That pull depends on the neighbourhoods
             // (see PullStrength), which are only known now, so the moons' rates are worked out again here. The
-            // planets' rates come from the Sun, which keeps the real law, so they do not change.
+            // planets' rates come from the Sun, which keeps the real law, so they do not change. (Since 16 Nov 2026
+            // Earth's Moon goes round in about 240 seconds.)
             for (int i = 0; i < n; i++)
             {
                 BodySpec s = _specs[i];
@@ -146,6 +149,14 @@ namespace OrbitalAnte.Space
 
         /// <summary>A body's neighbourhood reaches at least this many of its own radii from its centre.</summary>
         public const double InfluenceRadii = 3.5;
+
+        /// <summary>
+        /// A planet's neighbourhood reaches at least this many of its own radii. Wider than a moon's or a rock's
+        /// (<see cref="InfluenceRadii"/>) so that every planet has a deep band of calm space to orbit in
+        /// (Matthew, 16 Nov 2026: "such that a ship can truly orbit"); a moon's must stay small enough not to
+        /// overlap its neighbours'.
+        /// </summary>
+        public const double PlanetInfluenceRadii = 5.0;
 
         static double Radians(double degrees) => degrees * Math.PI / 180.0;
 
@@ -290,23 +301,39 @@ namespace OrbitalAnte.Space
         /// to this power. 2 is the real law. Matthew asked on 15 Nov 2026 for gravity "more pronounced when closer
         /// to planet like Outer Wilds"; Outer Wilds lets most of its worlds' pull fade only as 1 / distance, so a
         /// world drags at you well before you reach it and the pull builds steadily as you close in. The default
-        /// is 1, the same. The Sun keeps the real law, so the planets' orbits are not touched. The moons go round
-        /// faster than under the real law (Earth's Moon about twice as fast), because their rails must match the
-        /// pull a ship flying near them feels.
+        /// is 1, the same. The Sun keeps the real law, so the planets' orbits are not touched.
         /// </summary>
         public double NearFalloff { get; }
 
-        /// <summary>The share of a body's neighbourhood within which <see cref="NearFalloff"/> holds in full.</summary>
-        public const double NearReach = 0.6;
+        /// <summary>
+        /// Where a world's pull turns from <see cref="NearFalloff"/> to the inverse-square law, as a share of its
+        /// neighbourhood. Matthew asked on 16 Nov 2026 for the pull to be "more pronounced such that a ship can
+        /// truly orbit". Before, the pull dropped off a cliff in the outer part of the neighbourhood, to meet the
+        /// real law at its edge: it fell faster than 1 / distance cubed there, and an orbit with that is not stable
+        /// (a circle a little too low falls in, a little too high flies off). Now the pull bends over gently and
+        /// never falls faster than 1 / distance squared anywhere, so every circle round a world is stable, high or
+        /// low. The price is that a world pulls harder than the real law far from it too (Earth about seven times),
+        /// which is what "more pronounced" asks for.
+        /// </summary>
+        public const double ReachScale = 1.0;
+
+        /// <summary>
+        /// The share of a body's neighbourhood with no outside tug at all. Beyond it, the tug of the body it
+        /// orbits (and of its neighbours) is eased in, so at the edge, where the rule for who pulls on you changes,
+        /// the pull is the same on both sides. Inside it, an orbit is a clean, repeating loop.
+        /// </summary>
+        public const double CalmReach = 0.7;
 
         /// <summary>
         /// How hard body <paramref name="index"/> pulls at <paramref name="distance"/> from its centre, as an
-        /// acceleration. The pull at the surface is always the body's <see cref="BodySpec.surfaceGravity"/>. Below
-        /// the surface it fades evenly to nothing at the centre. Above it, out to <see cref="NearReach"/> of the
-        /// neighbourhood, it fades as (radius / distance) ^ <see cref="NearFalloff"/>; from there to the edge of the
-        /// neighbourhood it eases smoothly onto the real inverse-square law, so leaving a planet's neighbourhood
-        /// (where the rule for who pulls on you changes) is never a jolt, and in open space everything pulls by
-        /// the real law.
+        /// acceleration. The pull at the surface is always the body's <see cref="BodySpec.surfaceGravity"/>, so each
+        /// world keeps its own weight on the ground (Matthew, 16 Nov 2026: "certain planets will have more or less
+        /// gravity"). Below the surface it fades evenly to nothing at the centre. Above it, it fades as
+        /// (radius / distance) ^ <see cref="NearFalloff"/> at first and bends smoothly over to the inverse-square
+        /// law far away, the bend centred at <see cref="ReachScale"/> of the neighbourhood:
+        ///   g (r / d)^n ((1 + r / s) / (1 + d / s))^(2 - n).
+        /// How steeply it falls runs smoothly from n near the world to 2 far off, never steeper, so circular
+        /// orbits are stable at every height. The Sun keeps the real law.
         /// </summary>
         public double PullStrength(int index, double distance)
         {
@@ -314,39 +341,64 @@ namespace OrbitalAnte.Space
             double radius = spec.radius;
             double g = spec.surfaceGravity;
             if (distance < radius) return g * distance / radius;
-            double real = _mu[index] / (distance * distance);
             double edge = _influence[index];
-            if (NearFalloff == 2.0 || double.IsInfinity(edge)) return real;
-            double near = g * Math.Pow(radius / distance, NearFalloff);
-            double from = Math.Max(radius, edge * NearReach);
-            if (distance <= from) return near;
-            if (distance >= edge) return real;
-            double t = (distance - from) / (edge - from);
-            double keep = 1.0 - t * t * (3.0 - 2.0 * t);
-            return real + (near - real) * keep;
+            if (NearFalloff == 2.0 || double.IsInfinity(edge)) return _mu[index] / (distance * distance);
+            double s = edge * ReachScale;
+            double bend = (1.0 + radius / s) / (1.0 + distance / s);
+            // Outer Wilds' way (the default) needs no powers: this runs for every loose object every physics step.
+            if (NearFalloff == 1.0) return g * radius / distance * bend;
+            return g * Math.Pow(radius / distance, NearFalloff) * Math.Pow(bend, 2.0 - NearFalloff);
         }
 
         /// <summary>
         /// The true acceleration of a loose object at <paramref name="point"/> that is in the neighbourhood of
         /// body <paramref name="neighbourhood"/> (see <see cref="NeighbourhoodOf"/>).
         ///
-        /// The rule, chosen to be easy to learn: inside a body's neighbourhood, only that body and its own moons
-        /// pull on you, and you are carried along with the body as it travels. In open space (the Sun's
-        /// neighbourhood) the Sun and every planet and asteroid pull on you.
+        /// The rule, chosen to be easy to learn: deep inside a body's neighbourhood, only that body and its own
+        /// moons pull on you, and you are carried along with the body as it travels. In open space (the Sun's
+        /// neighbourhood) everything pulls on you.
         ///
-        /// What is left out is the "tide": the small difference between how hard the Sun pulls on you and how
+        /// What is left out deep inside is the "tide": the difference between how hard the Sun pulls on you and how
         /// hard it pulls on the planet next to you. In a solar system shrunk this much, tides would be strong
         /// enough to drag a low orbit into the ground within minutes, which reads as the game being broken, not
-        /// as physics. Without them an orbit round a planet is a clean, repeatable loop.
+        /// as physics. Without them an orbit round a planet is a clean, repeatable loop. In the outer part of
+        /// the neighbourhood (beyond <see cref="CalmReach"/>) the outside world's pull is eased in, so that at the
+        /// edge it is exactly what the next neighbourhood out would give, and crossing it is never a jolt.
         /// </summary>
         public Vec3d AccelerationAt(Vec3d point, BodyState[] states, int neighbourhood)
         {
-            Vec3d total = states[neighbourhood].Acceleration + GravityFrom(neighbourhood, point, states);
-            for (int i = 1; i < _specs.Length; i++)
+            Vec3d inside = states[neighbourhood].Acceleration;
+            Vec3d centre = states[neighbourhood].Position;
+            for (int i = 0; i < _specs.Length; i++)
             {
-                if (_parent[i] == neighbourhood) total += GravityFrom(i, point, states);
+                if (!IsSelfOrAncestor(neighbourhood, i)) continue;
+                inside += GravityFrom(i, point, states);
+                // A world rides its rails and is not pulled about by its own moons, so near it only the difference
+                // a moon makes between here and the world's centre is felt (its tide). Feeling the whole of it would
+                // tug every low orbit out of round once each time the moon came by.
+                if (i != neighbourhood && neighbourhood != 0) inside -= GravityFrom(i, centre, states);
             }
-            return total;
+            int parent = _parent[neighbourhood];
+            if (parent < 0) return inside;
+            double w = OutsideShare(neighbourhood, (point - states[neighbourhood].Position).Magnitude);
+            if (w <= 0) return inside;
+            return inside * (1.0 - w) + AccelerationAt(point, states, parent) * w;
+        }
+
+        /// <summary>
+        /// How much of the outside world's pull is felt at <paramref name="distance"/> from body
+        /// <paramref name="index"/>'s centre: 0 within <see cref="CalmReach"/> of its neighbourhood, rising
+        /// smoothly to 1 at the edge. Always 0 for the Sun.
+        /// </summary>
+        public double OutsideShare(int index, double distance)
+        {
+            double edge = _influence[index];
+            if (_parent[index] < 0 || double.IsInfinity(edge)) return 0;
+            double from = edge * CalmReach;
+            if (distance <= from) return 0;
+            if (distance >= edge) return 1;
+            double t = (distance - from) / (edge - from);
+            return t * t * (3.0 - 2.0 * t);
         }
 
         /// <summary>Speed of a circular orbit at <paramref name="distance"/> from the centre of a body.</summary>

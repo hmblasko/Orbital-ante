@@ -72,7 +72,7 @@ namespace OrbitalAnte.UI
             UiKit.Pin((RectTransform)_where.transform, new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(900f, 34f));
 
             _readout = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 22, UiKit.Cream, TextAnchor.LowerLeft));
-            UiKit.Pin((RectTransform)_readout.transform, new Vector2(0f, 0f), new Vector2(22f, 52f), new Vector2(760f, 110f));
+            UiKit.Pin((RectTransform)_readout.transform, new Vector2(0f, 0f), new Vector2(22f, 52f), new Vector2(860f, 168f));
 
             _state = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge));
             UiKit.Pin((RectTransform)_state.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -150f), new Vector2(1000f, 32f));
@@ -163,6 +163,7 @@ namespace OrbitalAnte.UI
             string text =
                 "Speed  " + FormatSpeed(speed) + "   against " + against + "\n" +
                 "Pull   " + pull.ToString("0.0") + " m/s\u00B2";
+            if (anchor > 0) text += DescribeOrbit(model, anchor, position);
             if (target >= 0)
             {
                 float closing = _craft.ClosingSpeed;
@@ -240,6 +241,39 @@ namespace OrbitalAnte.UI
                              "     Boost: " + Key(GameInput.Boost) + "     Match velocity: hold " + Key(GameInput.MatchVelocity) +
                              "     Lock: " + Key(GameInput.LockTarget) + "     Autopilot: " + Key(GameInput.Autopilot) + "     Map: " + Key(GameInput.ToggleMap);
             }
+        }
+
+        /// <summary>
+        /// The orbit aid (Matthew, 16 Nov 2026): what speed across the world's face holds a circle at this height,
+        /// how fast you are really going across it, and where the path you are coasting on goes. Measured against
+        /// the world's centre, not its spinning ground, because that is what an orbit is.
+        /// </summary>
+        string DescribeOrbit(SolarSystemModel model, int anchor, Vector3 position)
+        {
+            Vec3d local = SpaceConvert.ToVec3d(position);
+            BodyState[] states = _system.States;
+            Vec3d offset = _system.Frame.ToTruePosition(local, states) - states[anchor].Position;
+            Vec3d velocity = _system.Frame.ToTrueVelocity(local, SpaceConvert.ToVec3d(_craft.Body.linearVelocity), states) - states[anchor].Velocity;
+            Navigation.OrbitReading orbit = Navigation.OrbitPath.Read(model, anchor, offset, velocity);
+            string text = "\nOrbit  a circle here needs " + FormatSpeed((float)orbit.CircleSpeed) + " across   you: " + FormatSpeed((float)orbit.SideSpeed);
+            string name = model.Spec(anchor).displayName;
+            switch (orbit.Kind)
+            {
+                case Navigation.OrbitKind.Orbit:
+                    text += "\nIN ORBIT   low point " + SpaceConvert.Distance(orbit.LowHeight) + "   high point " + SpaceConvert.Distance(orbit.HighHeight);
+                    break;
+                case Navigation.OrbitKind.Tugged:
+                    text += "\nOrbit, but the high point (" + SpaceConvert.Distance(orbit.HighHeight) + ") reaches where the " +
+                            (model.ParentOf(anchor) == 0 ? "Sun" : model.Spec(model.ParentOf(anchor)).displayName) + " tugs at it";
+                    break;
+                case Navigation.OrbitKind.MeetsGround:
+                    text += "\nThis path comes down to the ground: go faster across to stay up";
+                    break;
+                case Navigation.OrbitKind.Leaves:
+                    text += "\nThis path leaves " + name + ": slow down across to stay";
+                    break;
+            }
+            return text;
         }
 
         int _pilotKey = -1;
