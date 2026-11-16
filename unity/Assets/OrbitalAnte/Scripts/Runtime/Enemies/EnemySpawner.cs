@@ -173,8 +173,8 @@ namespace OrbitalAnte.Enemies
         {
             if (_world == null || _config == null || _world.Astronaut == null) return;
             Astronaut crew = _world.Astronaut;
-            bool outside = crew.Mode == AstronautMode.Outside && !crew.Dead;
-            // Enemies only react to someone they could see: a player on foot. (The ship as a target comes later.)
+            bool outside = crew.InTheOpen && !crew.Dead;
+            // Enemies only react to someone they could see: a player on foot or driving the rover. (The ship as a target comes later.)
             CombatWorld.PlayerEye = outside && crew.Eye != null ? crew.Eye.transform : null;
             CombatWorld.Player = crew.Armour;
 

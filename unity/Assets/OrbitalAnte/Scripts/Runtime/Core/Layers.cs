@@ -18,13 +18,20 @@ namespace OrbitalAnte.Core
         public const int CharacterBody = 11;
         /// <summary>Loose things lying in the world that can be shot and picked up, such as dropped weapons.</summary>
         public const int Item = 12;
+        /// <summary>
+        /// Vehicles the player drives (the moon rover). Solid to the ground, the ship, the player on foot, gibs and
+        /// dropped guns, but not to characters' bodies: people are run over, not driven into like walls (the rover
+        /// hurts them itself, see Rover/MoonRover). Not in <see cref="WorldMask"/>, so nothing stands on it or
+        /// takes cover behind it, and bullets pass through its open frame.
+        /// </summary>
+        public const int Vehicle = 13;
 
         public const int WorldMask = 1 << Default;
         public const int ShootMask = (1 << Default) | (1 << Hitbox) | (1 << Gib) | (1 << Item);
         /// <summary>What an enemy's bullet can hit: the world and the player.</summary>
         public const int EnemyShootMask = (1 << Default) | (1 << Player);
 
-        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item" };
+        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item", "Vehicle" };
         public const int FirstNamedLayer = 8;
 
         public static void Configure()
@@ -39,6 +46,7 @@ namespace OrbitalAnte.Core
             // Dropped weapons land on the world and on each other, but are never in anyone's way.
             Physics.IgnoreLayerCollision(Item, Player, true);
             Physics.IgnoreLayerCollision(Item, CharacterBody, true);
+            Physics.IgnoreLayerCollision(Vehicle, CharacterBody, true);
         }
 
         public static void SetLayerRecursively(GameObject root, int layer)

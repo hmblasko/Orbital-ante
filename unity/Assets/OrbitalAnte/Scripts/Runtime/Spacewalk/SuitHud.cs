@@ -175,16 +175,19 @@ namespace OrbitalAnte.Spacewalk
             if (_astronaut == null || _panel == null) return;
             SuitInputs s = _astronaut.SuitState;
             bool outside = _astronaut.Mode == AstronautMode.Outside;
+            // Driving the rover you are still in the open in the suit: air and armour show, the jet panel does not.
+            bool open = _astronaut.InTheOpen;
             float now = Time.unscaledTime;
             // Aboard, it stays a moment while the tanks fill, so you see the suit drink from the ship.
-            if (outside || _astronaut.SuitTanks.Filling || s.AirLow) _shownUntil = now + 1.5f;
+            if (open || _astronaut.SuitTanks.Filling || s.AirLow) _shownUntil = now + 1.5f;
             bool show = !_astronaut.Dead && now < _shownUntil && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen;
-            if (_panel.gameObject.activeSelf != show) _panel.gameObject.SetActive(show);
+            bool panel = show && _astronaut.Mode != AstronautMode.Driving;
+            if (_panel.gameObject.activeSelf != panel) _panel.gameObject.SetActive(panel);
             _airGauge.SetActive(show);
-            // The armour only counts outside, where you can be shot.
-            bool armourShown = show && outside && _astronaut.Armour != null;
+            // The armour only counts in the open, where you can be shot.
+            bool armourShown = show && open && _astronaut.Armour != null;
             _suitGauge.SetActive(armourShown);
-            bool shade = show && outside && _config.visorShade > 0.001f;
+            bool shade = show && open && _config.visorShade > 0.001f;
             for (int i = 0; i < 2; i++) if (_shade[i].enabled != shade) _shade[i].enabled = shade;
 
             Rim(outside && show);
