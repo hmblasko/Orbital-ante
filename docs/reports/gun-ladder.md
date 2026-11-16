@@ -60,3 +60,5 @@ Playtest protocol (principle 10): problem, kills changed nothing about your kit;
 ## Agent review
 
 One code read covering the Unity, design and Deck viewpoints (Fable agents are on a usage limit, so Opus). Fixed from it: the ladder deleted guns the player had picked up (now dropped); the readout built strings every frame (now only on a kill); the scene search ran every frame with no player (now twice a second, and a missed handover is retried); the order ended on the sniper, the worst gun to be stuck with in close fights (now ends on the rifle, counts raised from 18 to 22). Left open: the sniper and shotgun view-model place (needs the editor).
+
+Codex review of PR 49 (one P2, checked and real): the handover compared gun kinds, so a same-kind pickup (an enemy's shotgun swapped for the ladder's shotgun) was deleted instead of dropped. Fixed in a follow-up: `PlayerWeapons.IssuedGun` remembers the very gun the run handed out (start guns go in through `EquipIssued`), and only that object is used up. PlayMode regression test `WeaponTests.GunLadder_UsesUpOnlyTheGunItIssued_EvenWhenAPickupIsTheSameKind` (written, not run: needs Unity).

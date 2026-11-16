@@ -239,7 +239,7 @@ namespace OrbitalAnte.Ship
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
-            Weapons.Equip(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
+            Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
         }
 
         // ------------------------------------------------------------------ changing mode
