@@ -725,6 +725,9 @@ namespace OrbitalAnte.Ship
             // Only the speed straight into the surface counts. Sliding along the ground is not a crash.
             ContactPoint contact = collision.GetContact(0);
             float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+            // A building or a tree gives way to a hard enough knock (each keeps count of its own damage).
+            IRammable rammed = collision.collider != null ? collision.collider.GetComponentInParent<IRammable>() : null;
+            if (rammed != null) rammed.Rammed(speed, Body.mass, -contact.normal);
             // The same knock often arrives as several touches (four footpads, two pieces of ground). Count it once.
             if (Time.time - _lastCrash < 0.2f && speed <= _lastCrashSpeed) speed = 0f;
             FeelKnock(collision);

@@ -161,6 +161,18 @@ namespace OrbitalAnte.Spacewalk
             return drawn;
         }
 
+        /// <summary>Adds air from outside the ship (a base's air station), as a share of a full tank. Returns what went in.</summary>
+        public float TopUp(float amount)
+        {
+            if (amount <= 0f || float.IsNaN(amount)) return 0f;
+            float gain = Math.Min(amount, 1f - Air);
+            if (gain <= 0f) return 0f;
+            Air += gain;
+            Filling = true;
+            Starved = 0f;
+            return gain;
+        }
+
         public void Set(float air, float fuel)
         {
             Air = air < 0f ? 0f : air > 1f ? 1f : air;

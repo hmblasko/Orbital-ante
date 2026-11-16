@@ -65,6 +65,8 @@ namespace OrbitalAnte.Core
             Planets.PlanetMaterials.ResetStatics();
             Planets.PlanetSurface.ResetStatics();
             Planets.FeatureMeshes.ResetStatics();
+            Planets.FallingTop.ResetStatics();
+            Planets.PlanetFeatures.Felling = new Planets.FellingRules();
             OrbitalAnte.Ship.ShipConfig.ResetStatics();
             OrbitalAnte.Ship.ShipMeshes.ResetStatics();
             OrbitalAnte.Look.LookConfig.ResetStatics();

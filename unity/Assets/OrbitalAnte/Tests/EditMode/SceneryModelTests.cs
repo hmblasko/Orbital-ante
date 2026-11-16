@@ -119,6 +119,26 @@ namespace OrbitalAnte.Tests
             }
         }
 
+        [TestCaseSource(nameof(AllScenery))]
+        public void EveryTree_CanBeFelled_IntoAStumpAndATop_CutAcrossItsTrunk(FeatureKind kind, int variant)
+        {
+            if (SceneryKinds.ModelOf(kind) != SceneryKinds.Trees) return;
+            ModelFile file = Load(SceneryKinds.Trees);
+            string name = SceneryKinds.Piece(kind, variant);
+            ModelPart stump = file.Part(name + "Stump"), top = file.Part(name + "Top");
+            Assert.IsNotNull(stump, name + " has no stump: Matthew asked for the trees to be destructible.");
+            Assert.IsNotNull(top, name + " has no top to fall.");
+            Assert.IsTrue(file.TrySocket(name + "Cut", out ModelSocket cut), name + " does not say where it is cut.");
+            Assert.That(cut.Y, Is.InRange(0.02f, 0.15f), name + ": cut at the foot of the trunk.");
+            Assert.LessOrEqual(top.TriangleCount, SceneryKinds.TriangleCap(kind) + 160, name + "'s falling top is over its cap.");
+            Assert.Less(stump.TriangleCount, 400, name + "'s stump should be a short piece of trunk.");
+            float stumpTop = float.MinValue, topBottom = float.MaxValue;
+            for (int i = 0; i < stump.VertexCount; i++) stumpTop = Math.Max(stumpTop, stump.Positions[i * 3 + 1]);
+            for (int i = 0; i < top.VertexCount; i++) topBottom = Math.Min(topBottom, top.Positions[i * 3 + 1]);
+            Assert.AreEqual(cut.Y, stumpTop, 0.005f, name + ": the stump ends at the cut.");
+            Assert.AreEqual(cut.Y, topBottom, 0.005f, name + ": the top starts at the cut.");
+        }
+
         [Test]
         public void Earth_GrowsEveryKindOfScenery()
         {

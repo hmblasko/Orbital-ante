@@ -11,6 +11,8 @@ Every piece is 1 unit tall and stands on the origin; the game scales it by its h
 What is solid is described apart from what is drawn:
 - trees: three sockets per piece, "<piece>A" and "<piece>B" (the two ends of the trunk) and "<piece>R"
   (x = the trunk's radius), which the game turns into one capsule;
+- trees can be felled: "<piece>Stump" (what is left standing) and "<piece>Top" (what falls) are the tree
+  cut across near its foot, the cut closed with pale fresh wood, and "<piece>Cut" is the middle of the cut;
 - rocks: a second, much simpler closed piece called "<piece>Hit".
 Small plants have neither: you walk through them.
 """
@@ -18,6 +20,7 @@ import bpy, bmesh, sys, os, math, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import oa_blender as oa
 import oa_nature as nat
+import oa_fracture as frac
 from oa_nature import mix
 from mathutils import Vector, Matrix, noise
 
@@ -723,6 +726,20 @@ TYPICAL = {"Conifer": 9, "SnowConifer": 9, "Broadleaf": 8, "Palm": 8, "Birch": 8
            "Pine": 11, "Acacia": 6.5, "GiantTree": 26, "Snag": 6, "Bush": 1.4, "Cactus": 4, "Meadow": 0.6,
            "Reeds": 1.8, "Fern": 0.9, "Log": 0.9, "Crag": 16, "SnowCrag": 22, "Outcrop": 5}
 
+FRESH_WOOD = (0.74, 0.62, 0.44)   # the pale inside of a trunk, where it is cut or snapped
+FELL_HEIGHT = 0.05                  # where a tree breaks, as a share of its height: knee height on a 9 m tree
+
+
+def fell(tree):
+    """The stump and the falling top of a tree, and the middle of the cut (on the trunk's line)."""
+    a, b, r = tree.hit
+    z = max(FELL_HEIGHT, a.z + r * 0.5)
+    stump, top = frac.split_at(tree.objects, z, FRESH_WOOD, tree.name, seed=len(tree.name))
+    t = (z - a.z) / max(1e-6, b.z - a.z)
+    cut = a.lerp(b, max(0.0, min(1.0, t)))
+    return stump, top, (cut.x, cut.y, z)
+
+
 FAMILIES = [("EarthTrees", TREES, "tree"), ("EarthPlants", PLANTS, "plant"), ("EarthRocks", ROCKS, "rock")]
 
 
@@ -749,6 +766,16 @@ def main():
                 if tree.hit:
                     a, b, r = tree.hit
                     sockets += [oa.socket(tree.name + "A", a), oa.socket(tree.name + "B", b), oa.socket(tree.name + "R", (r, 0, 0))]
+                if tree.hit and cap == "tree":
+                    # Felling: the stump left standing and the rest that falls, cut across the trunk near its foot
+                    # (the game swaps the whole tree for these two when it comes down).
+                    stump, top, cut = fell(tree)
+                    parts.append((tree.name + "Stump", stump))
+                    parts.append((tree.name + "Top", top))
+                    sockets.append(oa.socket(tree.name + "Cut", cut))
+                    count_top = nat.triangles(top)
+                    if count_top > CAP[cap] + 160:
+                        over.append("%s's falling top has %d triangles; the cap for a tree is %d" % (tree.name, count_top, CAP[cap]))
                 if tree.hit_objects:
                     hit = nat.triangles(tree.hit_objects)
                     if hit > CAP["hit"]:

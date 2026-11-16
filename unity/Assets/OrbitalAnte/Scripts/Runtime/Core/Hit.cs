@@ -41,6 +41,16 @@ namespace OrbitalAnte.Core
         string DescribeForDebug();
     }
 
+    /// <summary>
+    /// Something that gives way when a heavy thing (the ship) drives into it: a base's building, a tree. The
+    /// one striking it calls this with the speed straight into the surface (m/s), its own mass (kg) and the way
+    /// it was going.
+    /// </summary>
+    public interface IRammable
+    {
+        void Rammed(float speed, float mass, Vector3 direction);
+    }
+
     /// <summary>Loose coupling between combat and feedback (HUD, hitstop, camera shake).</summary>
     public static class CombatEvents
     {

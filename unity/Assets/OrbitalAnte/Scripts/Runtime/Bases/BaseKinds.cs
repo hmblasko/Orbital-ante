@@ -23,21 +23,24 @@ namespace OrbitalAnte.Bases
     /// The designs of base, by size, and what every base model must contain. Plain rules, no Unity types.
     ///
     /// A base model is built in base space (origin in the middle of the floor, +Y up, +Z north) to stand on the
-    /// round foundation <see cref="PlanetBases"/> makes: it brings no floor of its own. Pieces: Shell, Frame and
-    /// Detail are drawn; WindowGlow and LampGlow shine; Hit is what is solid (closed boxes and drums, never drawn).
-    /// Points: Spawn0.., Guard0.., Loot0.., Door, Pad. Nothing in a model says whose base it is.
+    /// round foundation <see cref="PlanetBases"/> makes: it brings no floor of its own. It is a list of
+    /// structures (<see cref="BaseStructures"/>: a pod, a mast, a run of wall), each drawn, solid, breakable
+    /// into pieces cut ahead of time and leaving a ruin, some with a room, a door and an air station; plus the
+    /// Ground pieces that cannot be broken. Points: Spawn0.., Guard0.., Loot0.., Door, Pad. Nothing in a
+    /// model says whose base it is.
     /// </summary>
     public static class BaseKinds
     {
-        public const string Shell = "Shell", Frame = "Frame", Detail = "Detail", WindowGlow = "WindowGlow", LampGlow = "LampGlow", Hit = "Hit";
         public const string Spawn = "Spawn", Guard = "Guard", Loot = "Loot", Door = "Door", Pad = "Pad";
 
-        public static readonly string[] Drawn = { Shell, Frame, Detail };
-        public static readonly string[] Lit = { WindowGlow, LampGlow };
-
-        /// <summary>The most triangles a base may draw, by size, and the most its solid piece may have (the build script enforces the same).</summary>
-        public static int TriangleCap(BaseSize size) => size == BaseSize.Small ? 9000 : size == BaseSize.Medium ? 16000 : 34000;
-        public static int SolidTriangleCap(BaseSize size) => size == BaseSize.Large ? 1400 : 700;
+        /// <summary>
+        /// The most triangles a base may draw outside (everything standing, by daylight), by size; the most its
+        /// rooms may have (drawn only near); and the most its solid shapes may have. The build script enforces the
+        /// same numbers.
+        /// </summary>
+        public static int TriangleCap(BaseSize size) => size == BaseSize.Small ? 16000 : size == BaseSize.Medium ? 30000 : 60000;
+        public static int InsideTriangleCap(BaseSize size) => size == BaseSize.Small ? 9000 : size == BaseSize.Medium ? 25000 : 32000;
+        public static int SolidTriangleCap(BaseSize size) => size == BaseSize.Small ? 900 : size == BaseSize.Medium ? 1400 : 2400;
 
         /// <summary>The radius of the floor each size is built for, metres (the same numbers as <see cref="BaseFieldRules"/>' defaults).</summary>
         public static float FloorRadius(BaseSize size) => size == BaseSize.Small ? 10f : size == BaseSize.Medium ? 18f : 30f;
@@ -51,7 +54,7 @@ namespace OrbitalAnte.Bases
             },
             new[]
             {
-                new BaseKind { Model = "BaseDomes", Name = "Dome colony", Size = BaseSize.Medium, Yard = 3.0f, Spawns = 6, Guards = 0, Loot = 1, Pad = true, PadRadius = 4.2f },
+                new BaseKind { Model = "BaseDomes", Name = "Dome colony", Size = BaseSize.Medium, Yard = 2.6f, Spawns = 6, Guards = 0, Loot = 1, Pad = true, PadRadius = 4.2f },
                 new BaseKind { Model = "BaseMine", Name = "Mining works", Size = BaseSize.Medium, Yard = 2.5f, Spawns = 6, Guards = 1, Loot = 1, Pad = true, PadRadius = 3.6f },
             },
             new[]
