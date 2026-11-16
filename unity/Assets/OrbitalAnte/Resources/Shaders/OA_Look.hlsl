@@ -14,6 +14,9 @@ half4 _OA_SpaceAmbient;
 half4 _OA_Veil;            // a is how completely the sky hides what is beyond the air
 float4 _OA_LampPosition;   // w is one over the lamp's reach
 half4 _OA_LampColor;
+float4 _OA_BeamPosition;   // the ship's floodlights: xyz where the beam starts, w one over its reach
+float4 _OA_BeamDirection;  // xyz the way it points, w the cosine of its outer edge
+half4 _OA_BeamColor;       // rgb its colour and brightness (black when off), a one over (cos inner - cos outer)
 
 half4 _OA_SkyZenith;       // sky colour straight up
 half4 _OA_SkyHorizon;      // sky colour at the horizon
@@ -116,6 +119,32 @@ half3 OA_Paint(half3 albedo, float3 place, float range, half amount)
 
 // ---------------------------------------------------------------------------------------------- light
 
+// Tells the graphics card to really skip the work inside an "if". Unity's own library defines it; this is for
+// a shader that includes this file without that library.
+#ifndef UNITY_BRANCH
+#define UNITY_BRANCH
+#endif
+
+// The ship's floodlights: a soft-edged cone that fades out with distance (Ship/ShipLights.Reaching is the same
+// sum, for tests). Skipped entirely while they are off, which is most of the time.
+half3 OA_Beam(half3 normal, float3 positionWS)
+{
+    half3 light = half3(0.0, 0.0, 0.0);
+    UNITY_BRANCH
+    if (_OA_BeamColor.r + _OA_BeamColor.g + _OA_BeamColor.b > 0.0001)
+    {
+        float3 away = positionWS - _OA_BeamPosition.xyz;
+        float beamDistance = max(0.001, length(away));
+        float3 along = away / beamDistance;
+        half cone = saturate((dot(along, _OA_BeamDirection.xyz) - _OA_BeamDirection.w) * _OA_BeamColor.a);
+        half fade = saturate(1.0 - beamDistance * _OA_BeamPosition.w);
+        // Only faces turned toward the lamps: with no shadows, any wrap round would light a cave through its rock.
+        half facing = saturate(dot(normal, -along) * 1.1 - 0.1);
+        light = _OA_BeamColor.rgb * (cone * cone * fade * fade * facing);
+    }
+    return light;
+}
+
 // Soft light with a warm edge to the shadow, sky light from above, warm light bounced up from sunlit ground,
 // the lamp, and a rim of sky colour where a surface turns away from the eye. Returns the light, to be
 // multiplied by the surface's colour.
@@ -158,16 +187,12 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     half lamp = saturate(1.0 - lampDistance * _OA_LampPosition.w);
     lamp = lamp * lamp * saturate(dot(normal, toLamp / lampDistance) * 0.7 + 0.3);
     light += _OA_LampColor.rgb * lamp;
+    light += OA_Beam(normal, positionWS);
     return light;
 }
 
 // ---------------------------------------------------------------------------------------------- shine
 
-// Tells the graphics card to really skip the work inside an "if". Unity's own library defines it; this is for
-// a shader that includes this file without that library.
-#ifndef UNITY_BRANCH
-#define UNITY_BRANCH
-#endif
 
 // How much daylit sky there is over a place for a surface to mirror: 1 by day on a world, falling to 0 through
 // dusk, and 0 in open space, where the sky is black.

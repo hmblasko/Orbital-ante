@@ -236,6 +236,26 @@ namespace OrbitalAnte.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheFloodlights_LightTheWayAhead_WhenThePilotSwitchesThemOn()
+        {
+            yield return Frames(4);
+            var lights = _world.Ship.GetComponent<ShipLightFx>();
+            Assert.IsNotNull(lights, "the ship has floodlights");
+            Assert.IsTrue(lights.Press(), "out in space it is not dark near any ground, so a press puts them on");
+            yield return new WaitForSeconds(0.5f);
+            Vector4 color = Shader.GetGlobalVector("_OA_BeamColor");
+            Assert.Greater(color.x + color.y + color.z, 0.1f, "the beam is handed to the shaders");
+            Vector3 at = Shader.GetGlobalVector("_OA_BeamPosition");
+            Assert.Less(Vector3.Distance(at, _world.Ship.transform.position), 4f, "it starts at the ship");
+            Vector3 way = Shader.GetGlobalVector("_OA_BeamDirection");
+            Assert.Greater(Vector3.Dot(way, _world.Ship.transform.forward), 0.5f, "and points ahead of it");
+            Assert.IsFalse(lights.Press());
+            yield return new WaitForSeconds(0.5f);
+            color = Shader.GetGlobalVector("_OA_BeamColor");
+            Assert.Less(color.x + color.y + color.z, 0.001f, "off, the shaders skip it");
+        }
+
+        [UnityTest]
         public IEnumerator ALooseBodyInAMiddlingKnock_IsThrownAndDazed_ThenGetsUp()
         {
             yield return Frames(4);

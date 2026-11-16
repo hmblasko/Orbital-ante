@@ -71,6 +71,9 @@ namespace OrbitalAnte.Ship
         [Header("Sound")]
         [Range(0f, 1f)] public float volume = 0.7f;
 
+        [Header("Floodlights: the lamps on the front of the base")]
+        public FloodRules floodlights = new FloodRules();
+
         [Header("Crashes: what a knock does to the person inside")]
         public OrbitalAnte.Navigation.CrashRules crash = new OrbitalAnte.Navigation.CrashRules();
 

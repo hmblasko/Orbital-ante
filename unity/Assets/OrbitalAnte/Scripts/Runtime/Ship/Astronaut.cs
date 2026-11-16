@@ -505,6 +505,9 @@ namespace OrbitalAnte.Ship
             PoseBelt();
         }
 
+        /// <summary>Shows a notice, the way the cabin's own controls do (for the ship's fittings).</summary>
+        public void Tell(string notice) => Say(notice);
+
         void Say(string notice)
         {
             Notice = notice;

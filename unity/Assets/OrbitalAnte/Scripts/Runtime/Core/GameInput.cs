@@ -66,6 +66,7 @@ namespace OrbitalAnte.Core
         public static InputAction CockpitScreen { get; private set; }
         public static InputAction NextCamera { get; private set; }
         public static InputAction NextDash { get; private set; }
+        public static InputAction Floodlights { get; private set; }
         public static InputAction LockTarget { get; private set; }
         public static InputAction Autopilot { get; private set; }
 
@@ -193,6 +194,8 @@ namespace OrbitalAnte.Core
             CockpitScreen = AddButton(Flight, "Look Down At Camera Screen", "<Keyboard>/c", "<Gamepad>/dpad/down");
             NextCamera = AddButton(Flight, "Next Ship Camera", "<Keyboard>/v", "<Gamepad>/dpad/right");
             NextDash = AddButton(Flight, "Next Dash Design", "<Keyboard>/n", null);
+            // Select is free until the end-of-ante upgrade screen (Phase 2) needs it.
+            Floodlights = AddButton(Flight, "Floodlights", "<Keyboard>/l", "<Gamepad>/select");
             LockTarget = AddButton(Flight, "Lock Target", "<Keyboard>/t", "<Gamepad>/buttonWest");
             Autopilot = AddButton(Flight, "Autopilot To Locked Target", "<Keyboard>/r", "<Gamepad>/buttonEast");
             Play = Gameplay;

@@ -51,6 +51,7 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Boost (hold) | Left Shift | Click left stick |
 | Look down at the camera screen (and back up) | C | D-pad down |
 | Next ship camera | V | D-pad right |
+| Floodlights (on or off; they also come on by themselves in the dark) | L | View (Select) |
 | Next dash design (for choosing; all four are in the build) | N | (keyboard only) |
 | Lock on to what the nose points at (press again on it, or on empty sky, to let go) | T | X / Square |
 | Autopilot to the locked body (any thrust takes the ship back) | R | B / Circle |
