@@ -21,6 +21,8 @@ namespace OrbitalAnte.Enemies
         public EnemyFieldRules field = new EnemyFieldRules();
         [Tooltip("How enemies take cover and go round your side. Untick Cover or Flank to compare with the old way of fighting.")]
         public OrbitalAnte.AI.TacticsRules tactics = new OrbitalAnte.AI.TacticsRules();
+        [Tooltip("How far an enemy that has not seen you lately sees behind its back, against its sight ahead (1 = all round). Makes a sneak up for a knife takedown possible.")]
+        [Range(0.1f, 1f)] public float behindSight = 0.3f;
         [Tooltip("Where Faction A lives (its home world) and what share of camps elsewhere are its squads.")]
         public FactionFieldRules factions = new FactionFieldRules();
         [Tooltip("Faction A's Scout: how long it raises its flare, and how far the flare is heard.")]

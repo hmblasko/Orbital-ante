@@ -83,6 +83,7 @@ You start strapped into the pilot's seat. The flying controls above only work wh
 | Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
 | Shoot (the rifle outside the ship, on foot only) | Left mouse | Right trigger |
 | Focus: slow the world (hold; on foot only; the bar refills only by fighting) | Q | Click the right stick |
+| Swing the melee item (once you have found one) | V or the mouse's back side button | Right bumper |
 
 With no ground below (in flight), the lift lowers you clear of the belly and lets go. You keep the ship's speed, and the safety tether clips on by itself.
 
@@ -101,6 +102,7 @@ On the ground you walk and jump as before. Off the ground the suit's jets take o
 | Gentle jets, for small careful moves | Hold Left Shift while pushing | Hold the left stick in |
 | Match velocity (stop against the ship if it is near or you are looking at it, otherwise against the ground) | Hold F | Hold left trigger |
 | Roll over (floating only) | Z / C | Left / right bumper |
+| Swing the melee item (floating free, the right bumper rolls instead) | V or the mouse's back side button | Right bumper on the ground |
 | Tether on or off (on: only within 40 m of the ship) | X | D-pad right |
 | Mend a part (the jets hold you beside the ship while you do) | Look at it from within 3.5 m and hold E | Hold Y / Triangle |
 | Go aboard | Fly or stand under the blue ring with the hatch open | The same |
@@ -117,7 +119,8 @@ Bottom left of the screen: **AIR** (a ring), **JETS** (a bar), your speed and wh
 | Sprint | Left Shift | Click left stick |
 | Fire | Left mouse button | Right trigger |
 | Reload | R | X / Square |
-| Pick up / swap weapon | E | Y / Triangle |
+| Pick up / swap weapon (a gun, or a melee item: whichever you look at) | E | Y / Triangle |
+| Swing the melee item | V or the mouse's back side button | Right bumper |
 | Respawn dummies | T | (keyboard only) |
 | Switch gun (the ladder's earlier guns) | 1 | D-pad up |
 | Enemies hold fire on/off | H | D-pad down |
@@ -125,6 +128,8 @@ Bottom left of the screen: **AIR** (a ring), **JETS** (a bar), your speed and wh
 | Debug readout on/off | F3 | (none) |
 
 Everything except the last two rows can be changed in **Pause > Controls**.
+
+All five melee items lie in a row a few steps ahead of the start (frying pan, butterfly knife, baseball bat, mailbox, laser sword); look at one and press E to take it. In the solar system they are rare finds at bases.
 
 The arena starts with the enemies **holding fire**, so you can look around. Press **H** (or D-pad down) to start the fight, and again to calm things down.
 

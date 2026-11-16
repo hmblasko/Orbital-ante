@@ -35,6 +35,7 @@ namespace OrbitalAnte.EditorTools
         const string GoreConfigPath = ConfigFolder + "/GoreConfig.asset";
         const string DecalMaterialPath = MaterialsFolder + "/OA_Decal.mat";
         const string WeaponsFolder = ResourcesFolder + "/Weapons";
+        const string MeleeFolder = ResourcesFolder + "/" + OrbitalAnte.Melee.MeleeData.ResourceFolder;
         const string ThirdPartyWeaponsFolder = "Assets/ThirdParty/Weapons";
         const string TriedThisSessionKey = "OrbitalAnte.SetupTriedThisSession";
 
@@ -152,6 +153,7 @@ namespace OrbitalAnte.EditorTools
             Step("base materials", problems, SetUpMaterials);
             Step("config assets", problems, SetUpConfigAssets);
             Step("weapon data", problems, SetUpWeapons);
+            Step("melee data", problems, SetUpMelee);
             Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
@@ -326,6 +328,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Meteors.MeteorConfig>(ConfigFolder + "/MeteorConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
@@ -379,6 +382,21 @@ namespace OrbitalAnte.EditorTools
             CreateWeaponIfMissing(WeaponData.SmgId, WeaponData.CreateSmgDefaults);
             CreateWeaponIfMissing(WeaponData.ShotgunId, WeaponData.CreateShotgunDefaults);
             CreateWeaponIfMissing(WeaponData.SniperId, WeaponData.CreateSniperDefaults);
+        }
+
+        /// <summary>
+        /// One data asset per found melee item, with the built-in numbers. An asset already there is left alone,
+        /// so numbers changed in the Inspector are kept.
+        /// </summary>
+        static void SetUpMelee()
+        {
+            EnsureFolder(MeleeFolder);
+            foreach (string id in OrbitalAnte.Melee.MeleeCatalog.Ids)
+            {
+                string path = MeleeFolder + "/" + id + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<OrbitalAnte.Melee.MeleeData>(path) == null)
+                    AssetDatabase.CreateAsset(OrbitalAnte.Melee.MeleeData.CreateDefaults(id), path);
+            }
         }
 
         static void CreateWeaponIfMissing(string id, System.Func<WeaponData> make)

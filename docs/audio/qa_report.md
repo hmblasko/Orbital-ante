@@ -2,10 +2,13 @@
 
 Written by `tools/audio/qa.py`. Every number here was measured from the files on disk. **None of it is a listening result**: these checks can prove a file is clean, level, loops exactly and measures differently from its neighbours. They cannot say it sounds good.
 
-**Result: PASS** (0 failed checks, 5 warnings).
+**Result: PASS** (0 failed checks, 8 warnings).
 
 ## Warnings
 - Audio/Sfx/combat/fx_slowmo_in: 86% of its energy is under 250 Hz, so little of it would reach Deck speakers
+- Audio/Sfx/melee/melee_butterfly_knife_takedown: 100% of its energy is under 250 Hz, so little of it would reach Deck speakers
+- Audio/Sfx/melee/melee_hit_wall_01: 100% of its energy is under 250 Hz, so little of it would reach Deck speakers
+- Audio/Sfx/melee/melee_laser_sword_ready: 86% of its energy is under 250 Hz, so little of it would reach Deck speakers
 - Audio/Sfx/player/player_land_01: 89% of its energy is under 250 Hz, so little of it would reach Deck speakers
 - Audio/Sfx/player/player_land_02: 87% of its energy is under 250 Hz, so little of it would reach Deck speakers
 - Audio/Sfx/ship/ship_engine_ignite_01: 90% of its energy is under 250 Hz, so little of it would reach Deck speakers
@@ -13,7 +16,7 @@ Written by `tools/audio/qa.py`. Every number here was measured from the files on
 
 ## Sound effects
 
-86 events, 158 files, all 48 kHz.
+111 events, 205 files, all 48 kHz.
 
 - Highest true peak in any file: -1.0 dB.
 - Clipped samples: 0 files affected.

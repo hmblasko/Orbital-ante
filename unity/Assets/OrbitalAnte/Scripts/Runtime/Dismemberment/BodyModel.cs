@@ -218,6 +218,18 @@ namespace OrbitalAnte.Dismemberment
             return result;
         }
 
+        /// <summary>
+        /// A cut (the laser sword, the mailbox's crush): an arm or leg part takes the joint above it apart
+        /// whatever hit points it has left, so it always comes off with everything below it. The head and the
+        /// torso are not limbs: there it is an ordinary hit of <paramref name="damage"/>. The top of a loose
+        /// chunk has no joint above it, so nothing happens there, as with any hit.
+        /// </summary>
+        public DamageResult ApplySever(BodyPartId id, float damage)
+        {
+            if (id == BodyPartId.Head || id == BodyPartId.Torso) return ApplyDamage(id, damage);
+            return ApplyDamage(id, Math.Max(damage, _hp[(int)id]));
+        }
+
         void KillByHead(DamageResult result)
         {
             result.Killed = true;

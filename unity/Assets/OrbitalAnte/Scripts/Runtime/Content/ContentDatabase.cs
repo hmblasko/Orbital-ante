@@ -16,7 +16,7 @@ namespace OrbitalAnte.Content
     public static class ContentDatabase
     {
         /// <summary>Resources sub-folders that hold content assets. New kinds of content add a line here.</summary>
-        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder, Planets.PlanetData.ResourceFolder };
+        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder, Planets.PlanetData.ResourceFolder, Melee.MeleeData.ResourceFolder };
 
         static readonly Dictionary<Type, Dictionary<string, ContentDefinition>> ByType =
             new Dictionary<Type, Dictionary<string, ContentDefinition>>();
@@ -70,6 +70,9 @@ namespace OrbitalAnte.Content
             if (Find<WeaponData>(WeaponData.HeavyGunAId) == null) Register(WeaponData.CreateHeavyGunADefaults(), "built-in");
             // ...and the rare found gun.
             if (Find<WeaponData>(WeaponData.WildcardId) == null) Register(WeaponData.CreateWildcardDefaults(), "built-in");
+            // ...and the five found melee items.
+            foreach (string id in Melee.MeleeCatalog.Ids)
+                if (Find<Melee.MeleeData>(id) == null) Register(Melee.MeleeData.CreateDefaults(id), "built-in");
             // ...and so must the solar system.
             if (Find<Space.SolarSystemData>(Space.SolarSystemData.DefaultId) == null) Register(Space.SolarSystemData.CreateDefaults(), "built-in");
             // ...and what each planet's surface is like.

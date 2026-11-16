@@ -38,7 +38,7 @@ These currently borrow existing models: `SmgA` uses the Smg, `RifleA` the Rifle,
 
 ## 3. Melee weapons: five models
 
-The game currently uses stand-in shapes. Each model is one file, built in a new script `tools/blender/build_melee.py`, held as `Resources/Models/Melee*.bytes`. The exact socket names the code expects are in `docs/reports/melee.md`. Use that report if it differs from this one.
+The game currently uses stand-in shapes. Each model is one file, built in a new script `tools/blender/build_melee.py`, held as `Resources/Models/Melee*.bytes`. Each needs the sockets `Grip` (where the hand holds it) and `Tip` (the far end, where the swing reaches), as the stand-ins have; see `docs/reports/melee.md`.
 
 | Weapon | Real reference | Must read |
 |---|---|---|
