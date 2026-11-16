@@ -16,7 +16,7 @@ Written by `tools/audio/qa.py`. Every number here was measured from the files on
 
 ## Sound effects
 
-106 events, 194 files, all 48 kHz.
+111 events, 205 files, all 48 kHz.
 
 - Highest true peak in any file: -1.0 dB.
 - Clipped samples: 0 files affected.

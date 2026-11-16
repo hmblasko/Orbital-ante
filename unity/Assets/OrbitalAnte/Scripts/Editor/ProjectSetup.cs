@@ -329,6 +329,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Meteors.MeteorConfig>(ConfigFolder + "/MeteorConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);

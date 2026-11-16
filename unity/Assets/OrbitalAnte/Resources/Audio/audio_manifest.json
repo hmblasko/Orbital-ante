@@ -1043,6 +1043,112 @@
    "note": "Taking a melee weapon in hand: a grip creak and a soft knock."
   },
   {
+   "id": "meteor.breakup",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/meteor/meteor_breakup_01",
+    "Audio/Sfx/meteor/meteor_breakup_02"
+   ],
+   "volumeDb": -1,
+   "volVarDb": 0.0,
+   "pitchVar": 0.6,
+   "spatial": 1.0,
+   "minDist": 30,
+   "maxDist": 1400,
+   "priority": 25,
+   "cooldownMs": 80,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The rock bursting apart: a sharp crack like a rifle shot, a split second of breaking stone, then thunder that rolls away."
+  },
+  {
+   "id": "meteor.debris",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/meteor/meteor_debris_01",
+    "Audio/Sfx/meteor/meteor_debris_02",
+    "Audio/Sfx/meteor/meteor_debris_03",
+    "Audio/Sfx/meteor/meteor_debris_04"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 2,
+   "pitchVar": 1.5,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 160,
+   "priority": 120,
+   "cooldownMs": 50,
+   "maxVoices": 4,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A thrown rock coming back down: a dull knock on the ground and a skitter of grit."
+  },
+  {
+   "id": "meteor.impact",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/meteor/meteor_impact_01",
+    "Audio/Sfx/meteor/meteor_impact_02",
+    "Audio/Sfx/meteor/meteor_impact_03"
+   ],
+   "volumeDb": 0,
+   "volVarDb": 0.0,
+   "pitchVar": 0.8,
+   "spatial": 1.0,
+   "minDist": 30,
+   "maxDist": 1500,
+   "priority": 20,
+   "cooldownMs": 60,
+   "maxVoices": 3,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A rock hitting the ground: a deep punch felt in the chest, the crunch of ground blown apart and stones raining down, then a long low rumble."
+  },
+  {
+   "id": "meteor.roar",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/meteor/meteor_roar"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 1.0,
+   "minDist": 25,
+   "maxDist": 1100,
+   "priority": 30,
+   "cooldownMs": 0,
+   "maxVoices": 1,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A rock tearing down through the sky: deep roar, a ragged sizzle on top and crackle. The game follows the biggest falling piece."
+  },
+  {
+   "id": "meteor.splash",
+   "bus": "Environment",
+   "clips": [
+    "Audio/Sfx/meteor/meteor_splash"
+   ],
+   "volumeDb": -2,
+   "volVarDb": 0.0,
+   "pitchVar": 0.6,
+   "spatial": 1.0,
+   "minDist": 25,
+   "maxDist": 1200,
+   "priority": 30,
+   "cooldownMs": 80,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A rock landing in water: a heavy slap, a column of water thrown up and falling back, and a steam hiss."
+  },
+  {
    "id": "player.breath.loop",
    "bus": "PlayerEquipment",
    "clips": [

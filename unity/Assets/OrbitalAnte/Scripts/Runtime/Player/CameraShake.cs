@@ -38,6 +38,13 @@ namespace OrbitalAnte.Player
             _trauma = Mathf.Clamp01(_trauma + add);
         }
 
+        /// <summary>A shake from something outside (a meteor landing near), 0 to 1. Adds to whatever shake is already going.</summary>
+        public void Rumble(float amount)
+        {
+            if (!FeelSettings.CameraShake || !(amount > 0f)) return;
+            _trauma = Mathf.Clamp01(_trauma + amount);
+        }
+
         void Update()
         {
             if (_trauma <= 0f)

@@ -108,6 +108,8 @@ namespace OrbitalAnte.Planets
         Transform _detailRoot;
         Node[] _roots;
         Material _ground;
+        /// <summary>The ground tiles' own material (null until the terrain is built), for things laid on the ground to share.</summary>
+        public Material GroundMaterial => _ground;
         Texture2D _picture;
         GameObject _sea;
         Material _seaMaterial;

@@ -515,7 +515,7 @@ namespace OrbitalAnte.Ship
             }
             if (pitch != 0f || roll != 0f) Eye.transform.localRotation *= Quaternion.Euler(pitch, 0f, roll);
             // Laid on last, over the pose made this frame, so it never piles up. Only where you can shoot.
-            if (_hitShake != null && (Mode == AstronautMode.Outside || Mode == AstronautMode.Aboard)) Eye.transform.localRotation *= _hitShake.Offset;
+            if (_hitShake != null && (Mode == AstronautMode.Outside || Mode == AstronautMode.Aboard || Mode == AstronautMode.Seated || Mode == AstronautMode.Driving)) Eye.transform.localRotation *= _hitShake.Offset;
         }
 
         CameraShake _hitShake;

@@ -449,3 +449,16 @@ Current save data is small. File size, allocations, storage latency and checkpoi
 | Squad roles | plain C#, a loop over the squad's members per think; no allocations after the squad is built |
 | Cave routes | 8 remembered routes per camp, searches still capped at `CaveFooting.PlansPerFrame` (2) |
 
+
+## Meteor strikes (16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| A strike | the whole fall planned on a background worker (`PlanetJobs`, about 100 path points a piece, crater meshes built there too); while falling, up to 8 heads (3 draw calls each) and trail puffs | 1 at a time, every 45 to 240 s divided by the world's rate, at most 7 pieces |
+| A landing | 1 overlap sphere of at most about 14 m, about 130 particles let out; its crater mesh and collider are made on the main thread, at most one a frame (up to about 1,100 corners and 2,200 triangles, about 50 KB of garbage; guessed 0.3 to 1 ms on the Deck) | 1 crater a frame |
+| Craters | 1 draw call and 1 static mesh collider each, no shadows; drawn only while the ground is shown, solid only while near | 24 (`maxCraters`), oldest goes first |
+| Lumps of fire, smoke, dust and grit | opaque mesh particles built on the CPU (20-face shapes), always simulated | 700 (`maxParticles`) |
+| Thrown rocks | 1 draw call each; one ground height a frame while flying, nothing once lying | 30 (`maxChunks`) |
+| Crater rims under enemies | `CraterRegistry.LiftAt` on each footing step: one dot product per crater, an arc cosine only when inside one | 24 craters |
+
+To check on the Deck: set Grace Seconds and Arrival Grace 0, Min Gap 5, Mean Gap 8, Max Gap 12 on `MeteorConfig`, stand on the Moon, and in the Profiler read the landing frame (main thread ms, `Physics.BakeMesh`, GC Alloc under `MeteorShower.Update`; over 3 ms is a problem) and the particle rows during the dust (over 0.5 ms is a problem). If baking is the cost, the next step is `Physics.BakeMesh` on a worker.
