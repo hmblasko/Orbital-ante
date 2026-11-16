@@ -25,13 +25,18 @@ namespace OrbitalAnte.Core
         /// takes cover behind it, and bullets pass through its open frame.
         /// </summary>
         public const int Vehicle = 13;
+        /// <summary>
+        /// Stand-ins that take enemy shots for the player where their own body is not (the rover's driver seat). Like
+        /// <see cref="Hitbox"/>, nothing collides with them; only enemy bullets see them.
+        /// </summary>
+        public const int Seat = 14;
 
         public const int WorldMask = 1 << Default;
         public const int ShootMask = (1 << Default) | (1 << Hitbox) | (1 << Gib) | (1 << Item);
         /// <summary>What an enemy's bullet can hit: the world and the player.</summary>
-        public const int EnemyShootMask = (1 << Default) | (1 << Player);
+        public const int EnemyShootMask = (1 << Default) | (1 << Player) | (1 << Seat);
 
-        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item", "Vehicle" };
+        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item", "Vehicle", "Seat" };
         public const int FirstNamedLayer = 8;
 
         public static void Configure()
@@ -39,6 +44,7 @@ namespace OrbitalAnte.Core
             for (int i = 0; i < 32; i++)
             {
                 Physics.IgnoreLayerCollision(Hitbox, i, true);
+                Physics.IgnoreLayerCollision(Seat, i, true);
             }
             // Gibs should never trip the player up or shove characters around.
             Physics.IgnoreLayerCollision(Gib, Player, true);

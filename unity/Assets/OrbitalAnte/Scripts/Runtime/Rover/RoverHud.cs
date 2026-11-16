@@ -16,7 +16,8 @@ namespace OrbitalAnte.Rover
         RectTransform _boostFill;
         Image _boostImage;
         int _shownKmh = -1;
-        bool _shownOver;
+        bool _shownOver, _shownLit;
+        float _shownFill = -1f;
 
         static readonly Color Boost = new Color(1f, 0.62f, 0.25f);
 
@@ -66,8 +67,10 @@ namespace OrbitalAnte.Rover
             SetShown(true);
             int kmh = Mathf.RoundToInt(_rover.Speed * 3.6f);
             if (kmh != _shownKmh) { _shownKmh = kmh; _speed.text = kmh.ToString(); }
-            _boostFill.anchorMax = new Vector2(Mathf.Clamp01(_rover.Boost.Amount), 1f);
-            _boostImage.color = _rover.Boost.Lit ? Color.white : Boost;
+            float fill = Mathf.Round(Mathf.Clamp01(_rover.Boost.Amount) * 200f) / 200f;
+            if (fill != _shownFill) { _shownFill = fill; _boostFill.anchorMax = new Vector2(fill, 1f); }
+            bool lit = _rover.Boost.Lit;
+            if (lit != _shownLit) { _shownLit = lit; _boostImage.color = lit ? Color.white : Boost; }
             bool over = _rover.Overturned;
             if (over != _shownOver)
             {

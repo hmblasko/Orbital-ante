@@ -79,6 +79,10 @@ namespace OrbitalAnte.Rover
         float _inForward, _inBrake, _inSteer;
         bool _inBoost, _inHandbrake, _inFlip;
         int _parkedOn;
+        float _sinceGround;
+        /// <summary>How far below the hook the ground was found when lowering started, metres.</summary>
+        float _lowerTo;
+        const float HookAbove = 0.3f, LowerAtMost = 6f;
         Vector3 _liftFrom;
         Quaternion _liftFromTurn;
         float _baseFov = -1f;
@@ -240,18 +244,16 @@ namespace OrbitalAnte.Rover
             // Enemies shoot at the driver; the rover's open frame does not stop their shots. The driver's own body is
             // not here, so a stand-in capsule takes the hits for them.
             _driverBox = new GameObject("DriverHitbox");
-            _driverBox.layer = Layers.Player;
+            // On the Seat layer, which collides with nothing, and with no rigidbody of its own: it can never push the
+            // ship, the rover or anyone, and only enemy bullets see it.
+            _driverBox.layer = Layers.Seat;
             _driverBox.transform.SetParent(transform, false);
-            var kinematic = _driverBox.AddComponent<Rigidbody>();
-            kinematic.isKinematic = true;
-            kinematic.useGravity = false;
             var capsule = _driverBox.AddComponent<CapsuleCollider>();
             Vector3 low = V(RoverLayout.DriverLow), high = V(RoverLayout.DriverHigh);
             capsule.center = (low + high) * 0.5f;
             capsule.radius = RoverLayout.DriverRadius;
             capsule.height = Vector3.Distance(low, high) + RoverLayout.DriverRadius * 2f;
             capsule.direction = 1;
-            for (int i = 0; i < _solid.Length; i++) Physics.IgnoreCollision(capsule, _solid[i], true);
             _driverLink = _driverBox.AddComponent<HealthLink>();
             _driverBox.SetActive(false);
         }
@@ -347,6 +349,14 @@ namespace OrbitalAnte.Rover
         public bool Unload()
         {
             if (Now != Where.Stowed || !ShipLanded) return false;
+            // Look for the ground from the davit's tip, not from the rover: on a slope the ground behind the lander
+            // can stand higher than the rover's middle, and ground is only solid from above. No ground within reach
+            // below the hook (or ground above it): it stays on the davit.
+            Vector3 shipUp = _ship.transform.up;
+            Vector3 hook = _ship.transform.TransformPoint(V(RoverLayout.StowInShip)) + shipUp * HookAbove;
+            if (!Physics.Raycast(hook, -shipUp, out RaycastHit ground, HookAbove + LowerAtMost, Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                || ground.collider.attachedRigidbody == _ship.Body) return false;
+            _lowerTo = ground.distance - HookAbove;
             Now = Where.Lowering;
             _liftT = 0f;
             return true;
@@ -412,6 +422,9 @@ namespace OrbitalAnte.Rover
         /// <summary>Fixes it to the ground it stands on (it rides the world's spin with it) until someone gets in.</summary>
         void Park()
         {
+            // Never while the view's frame follows it (the driver died in the seat): parking switches off its pull,
+            // and the frame would lose what it follows.
+            if (_system != null && _system.Focus == Gravity) return;
             int body = Gravity.Neighbourhood;
             var surface = OrbitalAnte.Planets.PlanetWorld.Instance != null ? OrbitalAnte.Planets.PlanetWorld.Instance.SurfaceOf(body) : null;
             if (surface == null || surface.Body == null) return;
@@ -594,13 +607,12 @@ namespace OrbitalAnte.Rover
             _liftT += dt;
             transform.localPosition += Vector3.down * (Rules.lowerSpeed * dt);
             for (int i = 0; i < RoverLayout.Wheels; i++) _offset[i] = -Rules.travelDown;
-            Vector3 up = transform.up;
-            // Down until the hanging wheels touch (or, if something is wrong, after a long way: let it drop).
-            bool touching = Physics.Raycast(transform.position + up * 1f, -up, out RaycastHit hit, 1f + Rules.travelDown + 0.05f, Layers.WorldMask, QueryTriggerInteraction.Ignore)
-                            && hit.collider.attachedRigidbody != _ship.Body;
             // If the lander lifts off meanwhile, the winch snatches it back up.
             if (!ShipLanded) { Stow(instant: true); return; }
-            if (touching || _liftT * Rules.lowerSpeed > 7f) Release();
+            // Down until the hanging wheels are about to touch the ground found under the hook (they hang
+            // travelDown below the rover's origin), then let go for the last few centimetres.
+            float lowered = V(RoverLayout.StowInShip).y - transform.localPosition.y;
+            if (lowered >= _lowerTo - Rules.travelDown - 0.05f || lowered > LowerAtMost) Release();
         }
 
         void StepLifting(float dt)
@@ -625,7 +637,10 @@ namespace OrbitalAnte.Rover
             int body = Gravity.Neighbourhood;
             Vector3 groundVelocity = _system != null && body > 0 ? _system.GroundVelocityAt(body, Body.worldCenterOfMass) : Vector3.zero;
             Vector3 relative = Body.linearVelocity - groundVelocity;
-            Vector3 up = transform.up, nose = transform.forward;
+            // The physics pose, not the drawn one (the body is interpolated, so the transform can be a step behind).
+            Quaternion turn = Body.rotation;
+            Vector3 where = Body.position;
+            Vector3 up = turn * Vector3.up, nose = turn * Vector3.forward;
             ForwardSpeed = Vector3.Dot(relative, nose);
             Speed = relative.magnitude;
 
@@ -654,7 +669,7 @@ namespace OrbitalAnte.Rover
             for (int i = 0; i < RoverLayout.Wheels; i++)
             {
                 P3 hub = RoverLayout.Hub(i);
-                Vector3 mount = transform.TransformPoint(hub.X, hub.Y + Rules.travelUp, hub.Z);
+                Vector3 mount = where + turn * new Vector3(hub.X, hub.Y + Rules.travelUp, hub.Z);
                 float offset = -Rules.travelDown;
                 bool touching = Physics.Raycast(mount, -up, out RaycastHit hit, reachDown, Layers.WorldMask, QueryTriggerInteraction.Ignore);
                 if (touching) offset = Mathf.Clamp(Rules.travelUp - (hit.distance - RoverLayout.WheelRadius), -Rules.travelDown, Rules.travelUp);
@@ -684,8 +699,8 @@ namespace OrbitalAnte.Rover
                 int l = axle * 2, r = axle * 2 + 1;
                 if (!_down[l] || !_down[r]) continue;
                 float bar = Rules.antiRoll * RoverHandling.Stiffness(Rules, cornerMass) * (_offset[l] - _offset[r]) * 0.1f;
-                Body.AddForceAtPosition(up * bar, transform.TransformPoint(V(RoverLayout.Hub(l))));
-                Body.AddForceAtPosition(-up * bar, transform.TransformPoint(V(RoverLayout.Hub(r))));
+                Body.AddForceAtPosition(up * bar, where + turn * V(RoverLayout.Hub(l)));
+                Body.AddForceAtPosition(-up * bar, where + turn * V(RoverLayout.Hub(r)));
                 _load[l] = Mathf.Max(0f, _load[l] + bar);
                 _load[r] = Mathf.Max(0f, _load[r] - bar);
             }
@@ -735,23 +750,33 @@ namespace OrbitalAnte.Rover
                 // Pushed between the hub and the ground, not at the ground: less leverage to roll it over.
                 Vector3 at = hit.point + normal * (RoverLayout.WheelRadius * 0.6f);
                 Body.AddForceAtPosition(along * alongForce + side * sideForce, at);
-                _spin[i] += vAlong / RoverLayout.WheelRadius * Mathf.Rad2Deg * dt;
+                _spin[i] = Mathf.Repeat(_spin[i] + vAlong / RoverLayout.WheelRadius * Mathf.Rad2Deg * dt, 360f);
             }
             for (int i = 0; i < RoverLayout.Wheels; i++)
             {
                 if (_down[i]) continue;
                 // Wheels in the air spin on with the motors, or wind down.
-                _spin[i] += (throttle * 25f + ForwardSpeed) / RoverLayout.WheelRadius * Mathf.Rad2Deg * dt * 0.5f;
+                _spin[i] = Mathf.Repeat(_spin[i] + (throttle * 25f + ForwardSpeed) / RoverLayout.WheelRadius * Mathf.Rad2Deg * dt * 0.5f, 360f);
             }
 
             // ---- held to the ground, or flying
-            if (down >= 2)
+            // Only the right way up: tipped on its side against a cliff, or driven up a cave wall, nothing holds it there.
+            float upright = Vector3.Dot(up, worldUp);
+            float holdShare = pull > 0.05f ? Mathf.Clamp01((upright - 0.5f) / 0.3f) : 1f;
+            _sinceGround = down >= 2 ? 0f : _sinceGround + dt;
+            if (down >= 2 || _sinceGround < Rules.holdLinger)
             {
-                Body.AddForce(-up * RoverHandling.Hold(Rules, pull, Speed), ForceMode.Acceleration);
+                Body.AddForce(-up * (RoverHandling.Hold(Rules, pull, Speed) * holdShare), ForceMode.Acceleration);
             }
-            else if (down == 0)
+            if (down < 2)
             {
-                if (Vector3.Dot(relative, worldUp) < 0f) Body.AddForce(felt * (Rules.fallScale - 1f), ForceMode.Acceleration);
+                // Near a world it comes back down sooner than the world alone would bring it.
+                if (pull > 0.3f)
+                {
+                    bool falling = Vector3.Dot(relative, worldUp) < 0f;
+                    float wanted = Mathf.Max(falling ? pull * Rules.fallScale : pull, Rules.airGravity);
+                    if (wanted > pull) Body.AddForce(-worldUp * (wanted - pull), ForceMode.Acceleration);
+                }
                 // The stick tips it, and it turns its wheels back toward the ground by itself.
                 Vector3 local = new Vector3((forward - brake) * Rules.airTurn, steerIn * Rules.airTurn * 0.6f, -steerIn * Rules.airTurn * 0.35f);
                 Body.AddRelativeTorque(local, ForceMode.Acceleration);
@@ -759,7 +784,14 @@ namespace OrbitalAnte.Rover
                 Vector3 spinning = Body.angularVelocity;
                 Body.AddTorque(-spinning * (Rules.airSpin * 0.2f), ForceMode.Acceleration);
             }
-            if (boosting) Body.AddForce(nose * RoverHandling.BoostPush(Rules, ForwardSpeed), ForceMode.Acceleration);
+            if (boosting)
+            {
+                // A rocket along the ground, never a rocket into the sky: off the wheels only the push along the
+                // ground counts, so the nose pointed up does not launch it.
+                Vector3 push = nose * RoverHandling.BoostPush(Rules, ForwardSpeed);
+                if (down < 2 && pull > 0.05f) push = Vector3.ProjectOnPlane(push, worldUp);
+                Body.AddForce(push, ForceMode.Acceleration);
+            }
 
             // ---- on its back
             bool upsideDown = Vector3.Dot(up, worldUp) < 0.35f && Speed < 3f;
@@ -771,7 +803,7 @@ namespace OrbitalAnte.Rover
                 if (Overturned) Flip(worldUp, groundVelocity);
             }
 
-            RunOverPeople(dt, groundVelocity, up);
+            RunOverPeople(dt, groundVelocity, up, where, turn);
 
             // ---- parked with nobody in it: let it rest
             if (Driver == null && down >= 3 && Speed < 0.3f)
@@ -802,20 +834,21 @@ namespace OrbitalAnte.Rover
         readonly Dictionary<int, float> _lastHit = new Dictionary<int, float>();
         float _nextForget;
 
-        void RunOverPeople(float dt, Vector3 groundVelocity, Vector3 up)
+        void RunOverPeople(float dt, Vector3 groundVelocity, Vector3 up, Vector3 where, Quaternion turn)
         {
             if (Speed < Rules.bumpFrom) return;
             Vector3 lead = (Body.linearVelocity - groundVelocity) * (dt * 0.5f);
-            Vector3 centre = transform.TransformPoint(V(RoverLayout.RamCentre)) + lead;
+            Vector3 centre = where + turn * V(RoverLayout.RamCentre) + lead;
             Vector3 half = V(RoverLayout.RamHalfSize) + Vector3.one * 0.1f;
-            int n = Physics.OverlapBoxNonAlloc(centre, half, _touched, transform.rotation, 1 << Layers.Hitbox, QueryTriggerInteraction.Collide);
+            // Hitboxes on living bodies, and the loose pieces (they move to the gib layer when they come off).
+            int n = Physics.OverlapBoxNonAlloc(centre, half, _touched, turn, (1 << Layers.Hitbox) | (1 << Layers.Gib), QueryTriggerInteraction.Collide);
             if (n == 0) return;
 
             foreach (var list in _people.Values) { list.Clear(); _spareLists.Push(list); }
             _people.Clear();
             for (int i = 0; i < n; i++)
             {
-                BodyPart part = _touched[i].GetComponentInParent<BodyPart>();
+                if (!_touched[i].TryGetComponent(out BodyPart part)) part = _touched[i].GetComponentInParent<BodyPart>();
                 if (part == null || part.Owner == null || part.Owner.Model == null) continue;
                 if (!_people.TryGetValue(part.Owner, out var parts))
                 {
@@ -849,17 +882,26 @@ namespace OrbitalAnte.Rover
                     Vector3 away = Vector3.ProjectOnPlane(at - Body.worldCenterOfMass, up);
                     float speed = away.sqrMagnitude > 1e-4f ? Vector3.Dot(closing, away.normalized) : closing.magnitude;
                     // Under the wheels counts too: whatever is beneath it is being driven over, whichever way.
-                    if (Vector3.Dot(at - transform.position, up) < 0.6f) speed = Mathf.Max(speed, closing.magnitude * 0.8f);
+                    if (Vector3.Dot(at - where, up) < 0.6f) speed = Mathf.Max(speed, closing.magnitude * 0.8f);
                     if (speed < Rules.bumpFrom) continue;
 
                     bool living = group == 0 && who.Alive;
                     RunOverResult result = RunOver.Judge(Rules, speed);
-                    if (living && result == RunOverResult.Bump) continue;
+                    if (living && result == RunOverResult.Bump)
+                    {
+                        // Too slow to break anything: they are shoved aside and stagger, never driven through.
+                        _lastHit[key] = now;
+                        Vector3 aside = Vector3.ProjectOnPlane(at - where, up);
+                        if (aside.sqrMagnitude < 1e-4f) aside = turn * Vector3.forward;
+                        Hit(who, part, at, (aside.normalized + up * 0.2f).normalized, Rules.bumpDamage, lethal: false);
+                        break;
+                    }
                     if (!living && speed < Rules.breakFrom) continue;
                     _lastHit[key] = now;
 
                     // What comes off leaves with the rover's speed (and a little up), not the walker's.
-                    Vector3 fling = groundVelocity + (mine - groundVelocity) * Rules.fling;
+                    // A little up as well, so they clear the bumper.
+                    Vector3 fling = groundVelocity + (mine - groundVelocity) * Rules.fling + up * (Speed * 0.2f);
                     if (group == 0) who.Velocity = fling;
                     Vector3 direction = ((mine - groundVelocity).normalized + up * 0.35f).normalized;
 

@@ -448,3 +448,18 @@ if __name__ == "__main__":
         oa.render_preview(os.path.join(previews, "rover_rear.png"), shown, (-4.4, -5.2, 2.3), (0, -0.2, 0.75), lens=36, size=(1280, 800), samples=64, glow=glow, **moon)
         oa.render_preview(os.path.join(previews, "rover_seat.png"), shown, (EYE[0], EYE[1], EYE[2]), (EYE[0] + 0.05, EYE[1] + 3.0, EYE[2] - 0.55), lens=20, size=(1280, 800), samples=64, glow=glow, **moon)
         oa.render_preview(os.path.join(previews, "rover_side.png"), shown, (6.5, 0.0, 0.9), (0, 0, 0.8), lens=40, size=(1280, 800), samples=64, glow=glow, **moon)
+        if "--with-lander" in args:
+            # The rover hanging on the davit behind the lander, and a second one down on the ground beside it.
+            import build_ship
+            lander_pieces, _ = build_ship.lander()
+            ship = [o for _, objs in lander_pieces for o in objs]
+            davit_objs = [o for _, objs in davit_pieces for o in objs]
+            hung = Matrix.Translation(G(*STOW)) @ Matrix.Rotation(math.pi, 4, 'Z')
+            parked = Matrix.Translation(G(-6.5, build_ship.GROUND_Y, -7.5)) @ Matrix.Rotation(math.radians(200), 4, 'Z')
+            scene = ship + davit_objs + placed(shown[:-1], hung) + placed(shown[:-1], parked)
+            for o in shown:
+                o.hide_render = True
+            ground = oa.box("ground", (0, 0, build_ship.GROUND_Y - 0.01), (400, 400, 0.02), (0.42, 0.41, 0.40), bevel=0)
+            oa.paint(ground, wear=0, dirt=0, mottle=0, gradient=0)
+            scene.append(ground)
+            oa.render_preview(os.path.join(previews, "rover_on_lander.png"), scene, (-13.5, -15.5, 0.2), (-1.5, -2.5, -3.0), lens=32, size=(1280, 800), samples=64, glow=glow, **moon)

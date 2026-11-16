@@ -191,7 +191,7 @@ namespace OrbitalAnte.Ship
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
-            a.Armour.Died += () => a.Die("Shot down outside the ship.");
+            a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
             a._suitGravity.SunkBelow = -0.7f;
@@ -313,9 +313,12 @@ namespace OrbitalAnte.Ship
             PoseAboard();
         }
 
-        void GoOutside(Vector3 feet, Vector3 velocity, Transform from = null)
+        /// <summary><paramref name="roverUp"/>: climbing out of the rover, which way is up there (away from the
+        /// world, never the rover's own up: it may be on its side).</summary>
+        void GoOutside(Vector3 feet, Vector3 velocity, Vector3? roverUp = null)
         {
-            _up = from != null ? from.up : Ship.transform.up;
+            bool fromRover = roverUp.HasValue;
+            _up = fromRover ? roverUp.Value : Ship.transform.up;
             Vector3 forward = Vector3.ProjectOnPlane(Eye.transform.forward, _up);
             if (forward.sqrMagnitude < 0.01f) forward = Vector3.ProjectOnPlane(Ship.transform.forward, _up);
             Suit.transform.SetPositionAndRotation(feet, Quaternion.LookRotation(forward.normalized, _up));
@@ -334,7 +337,7 @@ namespace OrbitalAnte.Ship
             // Stepping out of a ship that is not standing on anything, the line goes on by itself.
             bool landed = Ship.Flight != null && Ship.Flight.Landed;
             // (Not climbing out of the rover, which may be a long way from the ship.)
-            if (from == null && !landed && !Tethered) SetTether(true, quiet: false);
+            if (!fromRover && !landed && !Tethered) SetTether(true, quiet: false);
         }
 
         /// <summary>Puts the player outside at a place and velocity, as if the lift had just let them go. For tests.</summary>
@@ -862,7 +865,8 @@ namespace OrbitalAnte.Ship
             {
                 case OrbitalAnte.Rover.MoonRover.Offer.Unload:
                     Prompt = Words(20, null, GameInput.Interact, ": winch the rover down");
-                    if (GameInput.Interact.WasPressedThisFrame() && Rover.Unload()) Say("Lowering the rover.");
+                    if (GameInput.Interact.WasPressedThisFrame())
+                        Say(Rover.Unload() ? "Lowering the rover." : "No level ground under the rover to lower it onto.");
                     return true;
                 case OrbitalAnte.Rover.MoonRover.Offer.LandFirst:
                     Prompt = "The rover can only be lowered with the lander standing on the ground";
@@ -917,6 +921,8 @@ namespace OrbitalAnte.Ship
         void UpdateDriving(float dt)
         {
             if (Rover == null || Rover.Driver != this) { LeaveRover(); return; }
+            // The suit body is put away while you drive, so its armour does not tick by itself.
+            if (Armour != null && !Armour.isActiveAndEnabled) Armour.Regenerate();
             ReadLookRaw(dt, out float yawDelta, out float pitchDelta);
             float limit = Rover.Rules.lookAround;
             _seatYaw = Mathf.Clamp(_seatYaw + yawDelta, -limit, limit);
@@ -951,14 +957,19 @@ namespace OrbitalAnte.Ship
         void LeaveRover()
         {
             if (Rover == null) return;
-            Vector3 up = Rover.transform.up;
-            Vector3 feet = Rover.ExitFeet;
-            if (Physics.Raycast(feet + up * 1.5f, -up, out RaycastHit ground, 3f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) feet = ground.point + up * 0.05f;
+            // Up is away from the world, not the rover's own up: it may be tipped over when you climb out.
+            Vector3 felt = Rover.Gravity != null ? Rover.Gravity.FeltGravity : Vector3.zero;
+            Vector3 up = felt.sqrMagnitude > 0.01f ? -felt.normalized : Rover.transform.up;
+            // Out beside the seat, measured along the ground, then down onto it from above the rover's side.
+            Vector3 middle = Rover.transform.position;
+            Vector3 aside = Vector3.ProjectOnPlane(Rover.ExitFeet - middle, up);
+            if (aside.sqrMagnitude < 0.25f) aside = Vector3.ProjectOnPlane(-Rover.transform.right, up).normalized * 1.75f;
+            Vector3 feet = middle + aside;
+            if (Physics.Raycast(feet + up * 2.5f, -up, out RaycastHit ground, 5f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) feet = ground.point + up * 0.05f;
             Vector3 velocity = Rover.VelocityAt(feet);
-            Transform from = Rover.transform;
             if (Rover.Driver == this) Rover.Leave();
             _pitch = Mathf.Clamp(_seatPitch, -60f, 60f);
-            GoOutside(feet, velocity, from);
+            GoOutside(feet, velocity, up);
         }
 
         /// <summary>The rover hit something hard enough to hurt (see RoverHandling.Hurt). <paramref name="from"/> is where the blow came from.</summary>

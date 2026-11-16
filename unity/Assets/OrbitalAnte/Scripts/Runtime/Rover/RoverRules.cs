@@ -136,6 +136,14 @@ namespace OrbitalAnte.Rover
         /// <summary>How strongly it turns its wheels back toward the ground by itself in the air.</summary>
         public float airLevel = 2.2f;
         public float airSpin = 2.5f;
+        /// <summary>
+        /// The least it is pulled down while in the air near a world, metres per second squared (rising or falling).
+        /// At the Moon's own 1.6 a crest at speed throws it for seconds with no steering; this brings it back down.
+        /// </summary>
+        public float airGravity = 3.8f;
+        /// <summary>How long the hold toward the ground lingers after the wheels lose touch, seconds: a small crest
+        /// does not throw it.</summary>
+        public float holdLinger = 0.12f;
 
         // ---- boost
         public float boostSeconds = 4f;
@@ -145,14 +153,18 @@ namespace OrbitalAnte.Rover
         // ---- people in the way
         /// <summary>Slower than this a person is only bumped.</summary>
         public float bumpFrom = 3f;
+        /// <summary>Damage to a person only bumped (slower than <see cref="breakFrom"/>): enough to make them flinch
+        /// and shove them aside, never enough to take anything off.</summary>
+        public float bumpDamage = 1f;
         /// <summary>From this speed whatever the rover touches comes off.</summary>
         public float breakFrom = 6f;
         /// <summary>Damage to each part touched, per metre per second over <see cref="bumpFrom"/>.</summary>
         public float damagePerSpeed = 16f;
         /// <summary>From this speed (13 m/s is 47 km/h) the whole person goes: splat.</summary>
         public float splatFrom = 13f;
-        /// <summary>The share of the rover's speed a hit person's pieces leave with.</summary>
-        public float fling = 0.75f;
+        /// <summary>The share of the rover's speed a hit person's pieces leave with. More than all of it, so they
+        /// leave ahead of the bumper rather than being rammed again and again by it.</summary>
+        public float fling = 1.15f;
         /// <summary>How soon the same person can be hit again, seconds.</summary>
         public float hitAgainAfter = 0.3f;
 
@@ -171,7 +183,7 @@ namespace OrbitalAnte.Rover
 
         // ---- the lander's davit
         /// <summary>How close to the hanging place the rover must be parked to be winched up, metres.</summary>
-        public float stowReach = 7f;
+        public float stowReach = 3.5f;
         public float lowerSpeed = 1.3f;
         public float liftSeconds = 2.6f;
         /// <summary>How close you must be to the rover to use it, metres from your eye to its middle.</summary>
