@@ -39,7 +39,7 @@ Faction A is a placeholder name, with no name, emblem or flag. The tiers differ 
 | Heavy | 1.3 | Spinner | Plants itself and spins up for 1.2 s, then fires for 3 s. While braced it turns at most 20° a second. | The gun's cell grows brighter, plus a rising whine. | Get round it close in, break line of sight, take a leg (it drops and never fires again), or shoot the gun away. |
 
 Where they live:
-- Every camp and guard on the home world belongs to Faction A. The home world is Venus as a placeholder; this is Matthew's call.
+- Every camp and guard on the home world belongs to Faction A. The home world is Venus (Matthew confirmed it on 16 Nov 2026).
 - Elsewhere, 30% of camps belong to Faction A. A camp is never mixed.
 - A large base has two Heavies and a medium base has one.
 
