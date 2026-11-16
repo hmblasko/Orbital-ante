@@ -22,7 +22,7 @@ def _rumble(n: int, rng, lo: float, hi: float) -> np.ndarray:
     return out / (np.max(np.abs(out)) + 1e-9)
 
 
-@sfx("ship.engine.loop", "ship", loop=True, spatial=0.0, volumeDb=-9, **SHIP,
+@sfx("ship.engine.loop", "ship", loop=True, spatial=0.0, volumeDb=-6, **SHIP,
      note="Main engine burning, heard from the cockpit: felt through the seat more than heard. The game raises pitch and volume with thrust.")
 def engine_loop(rng, v):
     n = secs(11.0)
@@ -144,3 +144,125 @@ def touchdown(rng, v):
         creak = dsp.bandpass(creak, 300, 2400) * 0.08
         dsp.place(x, creak, secs(at), 1.0)
     return finish(x, -3, 0.2)
+
+
+# ----------------------------------------------------------------------------- manoeuvring thrusters
+#
+# One loop per direction the ship can push itself. Each is placed where that thruster sits relative to the
+# pilot's seat and has its own tone, so the direction can be told with eyes shut and on small speakers:
+# side thrusters by which ear, nose thrusters by a close bright bark in front, belly thrusters by a low drum
+# under the floor, roof thrusters by a thin hiss overhead. The main engine (ship.engine.loop) is "forward".
+
+THRUSTER = dict(bus="Engines", priority=60, vacuum="self", spatial=0.0, loop=True)
+
+
+def _jet(n: int, rng, lo: float, hi: float, tone: float, tone_q: float, flutter: float, tone_gain: float = 1.0) -> np.ndarray:
+    """One thruster heard through the hull (mono): gas rushing through a nozzle, the nozzle's own note, and a
+    restless flutter so it never sits still."""
+    gas = dsp.bandpass(dsp.white(n, rng), lo, hi)
+    gas *= 1 + 0.35 * dsp.smooth_noise(n, flutter, rng) + 0.15 * dsp.smooth_noise(n, flutter * 6, rng)
+    wander = 1 + 0.03 * dsp.smooth_noise(n, 1.5, rng)
+    note = dsp.svf(dsp.white(n, rng), tone * wander, tone_q, "bp", 2)
+    note2 = dsp.svf(dsp.white(n, rng), tone * 2.31 * wander, tone_q * 0.7, "bp", 2)
+    x = gas / (np.max(np.abs(gas)) + 1e-9) + tone_gain * (note / (np.max(np.abs(note)) + 1e-9) * 0.7 + note2 / (np.max(np.abs(note2)) + 1e-9) * 0.3)
+    return x / (np.max(np.abs(x)) + 1e-9)
+
+
+def _side(rng, sign: float) -> np.ndarray:
+    n = secs(7.0)
+    near = _jet(n, rng, 500, 5200, 470, 5.0, 11)
+    # The far ear hears it late, duller and quieter, through the cabin: that is what makes it a place, not a pan pot.
+    far = np.roll(dsp.lowpass(near, 1100), secs(0.0007)) * 0.3
+    frame = dsp.lowpass(dsp.brown(n, rng), 180) * 0.5
+    frame = frame / (np.max(np.abs(frame)) + 1e-9) * 0.35
+    left, right = (near + frame, far + frame) if sign < 0 else (far + frame, near + frame)
+    return finish_loop(dsp.saturate(np.stack([left, right], axis=1), 1.3), -5, 1.0, hp=60)
+
+
+@sfx("ship.thruster.left.loop", "ship", volumeDb=-4, **THRUSTER,
+     note="Thrusters on the LEFT side of the hull firing (the ship is being pushed to the right). Heard in the left ear.")
+def thruster_left(rng, v):
+    return _side(rng, -1)
+
+
+@sfx("ship.thruster.right.loop", "ship", volumeDb=-4, **THRUSTER,
+     note="Thrusters on the RIGHT side of the hull firing (the ship is being pushed to the left). Heard in the right ear.")
+def thruster_right(rng, v):
+    return _side(rng, +1)
+
+
+@sfx("ship.thruster.nose.loop", "ship", volumeDb=-5, **THRUSTER,
+     note="Nose thrusters firing forwards to brake or back away: close, bright and dead ahead.")
+def thruster_nose(rng, v):
+    n = secs(7.0)
+    jet = _jet(n, rng, 900, 7000, 760, 7.0, 16, tone_gain=1.3)
+    # two nozzles either side of the windscreen, nearly together
+    x = np.stack([jet, np.roll(jet, secs(0.00025)) * 0.92 + dsp.bandpass(dsp.white(n, rng), 2000, 6000) * 0.05], axis=1)
+    return finish_loop(dsp.saturate(x, 1.5), -5, 1.0, hp=180)
+
+
+@sfx("ship.thruster.belly.loop", "ship", volumeDb=-4, **THRUSTER,
+     note="Belly thrusters firing downwards to lift the ship: a low drumming under the floor, felt in the seat.")
+def thruster_belly(rng, v):
+    n = secs(7.0)
+    t = np.arange(n) / SR
+    drum = _rumble(n, rng, 70, 520)
+    # floor plates buzzing: enough around 300-700 Hz that it survives small speakers
+    plate = np.stack([_jet(n, rng, 240, 900, 330, 6.0, 7), _jet(n, rng, 240, 900, 352, 6.0, 7)], axis=1)
+    throb = (1 + 0.18 * np.sin(dsp.TAU * 6.5 * t + 0.6 * dsp.smooth_noise(n, 2, rng)))[:, None]
+    return finish_loop(dsp.saturate((drum * 0.8 + plate * 0.7) * throb, 1.6), -5, 1.0, hp=40)
+
+
+@sfx("ship.thruster.roof.loop", "ship", volumeDb=-5, **THRUSTER,
+     note="Roof thrusters firing upwards to push the ship down: a thin, airy hiss overhead with a metallic edge.")
+def thruster_roof(rng, v):
+    n = secs(7.0)
+    out = np.zeros((n, 2))
+    for c in range(2):
+        jet = _jet(n, rng, 1800, 9000, 2350, 9.0, 21, tone_gain=0.8)
+        # the roof panel a hand's width above the helmet answers straight back
+        comb = jet + np.roll(jet, secs(0.0011 + 0.0002 * c)) * 0.55
+        out[:, c] = comb
+    return finish_loop(out, -6, 1.0, hp=700)
+
+
+@sfx("ship.thruster.turn.loop", "ship", volumeDb=-6, **THRUSTER,
+     note="Attitude jets chattering while the ship is being turned: quick cold-gas puffs, alternating sides.")
+def thruster_turn(rng, v):
+    n = secs(6.0)
+    out = np.zeros((n, 2))
+    at, side = 0.0, 0
+    while at < 6.0 - 0.2:
+        m = secs(rng.uniform(0.05, 0.09))
+        t = np.arange(m) / SR
+        puff = dsp.bandpass(dsp.white(m, rng), 1200, 8000) * np.minimum(t / 0.003, 1) * np.exp(-np.maximum(t - 0.02, 0) / 0.018)
+        tick = metal_hit(rng, 0.03, [3100, 4900, 7300], hardness=1.1) * 0.25
+        dsp.place(out, dsp.pan(puff, -0.55 if side == 0 else 0.55), secs(at), rng.uniform(0.7, 1.0))
+        dsp.place(out, dsp.pan(tick, -0.55 if side == 0 else 0.55), secs(at), 1.0)
+        side ^= 1
+        at += rng.uniform(0.075, 0.13)
+    # the first and last 0.2 s are left empty, so the loop wraps on silence
+    return finish(out, -7, 0.01, hp=300)
+
+
+@sfx("ship.thruster.start", "ship", variants=3, spatial=0.0, volumeDb=-8, pitchVar=1.2, volVarDb=1.5, maxVoices=4,
+     cooldownMs=60, bus="Engines", priority=70, vacuum="self")
+def thruster_start(rng, v):
+    """A thruster opening: the valve's clack and the first cough of gas. The game pans it to the side that fired."""
+    n = secs(0.22)
+    t = np.arange(n) / SR
+    x = dsp.bandpass(dsp.white(n, rng), 700, 6500) * np.minimum(t / 0.002, 1) * np.exp(-t / 0.035) * 0.7
+    x += dsp.lowpass(dsp.white(n, rng), 320) * np.exp(-t / 0.03) * 0.6
+    dsp.place(x, metal_hit(rng, 0.06, [1900, 3300, 5200], hardness=1.2), 0, 0.5)
+    return finish(x, -5, 0.03)
+
+
+@sfx("ship.thruster.stop", "ship", variants=3, spatial=0.0, volumeDb=-12, pitchVar=1.2, volVarDb=1.5, maxVoices=4,
+     cooldownMs=60, bus="Engines", priority=90, vacuum="self")
+def thruster_stop(rng, v):
+    """A thruster closing: the valve seats and the last gas sighs out of the line."""
+    n = secs(0.3)
+    t = np.arange(n) / SR
+    x = dsp.bandpass(dsp.white(n, rng), 1500, 7000) * np.exp(-t / 0.07) * 0.5 * (1 - np.exp(-t / 0.004))
+    dsp.place(x, metal_hit(rng, 0.05, [2400, 4100, 6600], hardness=0.9), 0, 0.45)
+    return finish(x, -6, 0.05)

@@ -60,6 +60,7 @@ AudioDirector.Instance.Space = new ListenerSpace { Air = 0f, Enclosure = Enclosu
 |---|---|
 | Weapons | `weapon.rifle.shot`, `weapon.smg.shot`, `weapon.handcannon.shot`, `weapon.sniper.shot`, `weapon.sniper.bolt`, `weapon.suppressed.shot`, `weapon.laser_revolver.shot`, `weapon.raygun.shot`, `weapon.laser_shotgun.shot`, `weapon.gravity.grab`, `weapon.gravity.hold` (loop), `weapon.gravity.punt`, `weapon.mag_out`, `weapon.mag_in`, `weapon.bolt_rack`, `weapon.dry_fire` |
 | Combat | `impact.metal`, `impact.ricochet`, `impact.dirt`, `impact.flesh`, `impact.armor`, `gore.pop.small`, `.medium`, `.big`, `.torso`, `.head`, `gore.splat`, `hit.marker`, `hit.headshot`, `hit.kill` |
+| Thrusters | `ship.thruster.nose.loop`, `.left.loop`, `.right.loop`, `.belly.loop`, `.roof.loop`, `.turn.loop`, `ship.thruster.start`, `ship.thruster.stop`: driven by one call, `AudioDirector.SetShipThrust(localPush, turn, boost)` |
 | Ship | `ship.engine.loop`, `ship.engine.ignite`, `ship.rcs`, `ship.cabin.loop`, `ship.switch`, `ship.confirm`, `ship.seatbelt`, `ship.touchdown` |
 | Player | `player.step.regolith`, `player.step.metal`, `player.land`, `player.jetpack.loop`, `player.jetpack.burst`, `player.breath.loop`, `player.suit.alarm`, `player.hurt`, `player.interact` |
 | Ambience | `amb.wind.thin`, `amb.wind.thick`, `amb.cave`, `amb.facility`, `amb.radio.static`, `amb.space.suit` |
