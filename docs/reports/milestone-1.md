@@ -88,7 +88,7 @@ Tick or note each. Please do not skip the "feel" lines; those are the ones I can
 
 **Movement states** (watch one for a few seconds after each)
 - [ ] Intact: walks, and sometimes sprints.
-- [ ] One leg gone (or one foot): hops, slower, never sprints.
+- [ ] One leg gone (or one foot): goes down and crawls, the arms hauling and the good leg pushing; slower, never sprints. (Was a hop; Matthew asked for the crawl on 16 Nov 2026.)
 - [ ] Both legs gone: crawls on its arms. With one arm: lopsided crawl.
 - [ ] No legs, no arms: torso wriggles forward.
 - [ ] Head only: rolls and hops slowly.

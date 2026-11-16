@@ -27,6 +27,8 @@ namespace OrbitalAnte.Dismemberment
         public float sprintSpeed = 4.6f;
         public float oneLegSpeed = 1.2f;
         public float crawlSpeed = 0.65f;
+        [Tooltip("Crawling with one leg left to push with: a little quicker than on the arms alone.")]
+        public float oneLegCrawlSpeed = 0.85f;
         public float wriggleSpeed = 0.28f;
         public float headRollSpeed = 0.5f;
         [Tooltip("How quickly a character turns to face where it is going, in degrees per second.")]

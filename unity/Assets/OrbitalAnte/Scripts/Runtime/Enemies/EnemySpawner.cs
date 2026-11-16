@@ -435,6 +435,7 @@ namespace OrbitalAnte.Enemies
             config.sprintSpeed *= spec.speed;
             config.oneLegSpeed *= spec.speed;
             config.crawlSpeed *= spec.speed;
+            config.oneLegCrawlSpeed *= spec.speed;
             // Tough in the middle only. Arms and legs come off as easily as anyone's.
             config.torsoHp *= spec.toughness;
             config.headHp *= spec.headToughness > 0f ? spec.headToughness : spec.toughness;

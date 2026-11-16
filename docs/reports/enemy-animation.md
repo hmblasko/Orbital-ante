@@ -63,6 +63,20 @@ Matthew, after the new walk: "Maybe have be able to do a tactical hunch". Read a
 
 Still unverified: all of it in Unity, including how the game's own arm solve looks on the hunched shoulders and whether the lower head changes how hard headshots feel.
 
+## One leg: a crawl, not a hop (fourth request, 16 Nov 2026)
+
+Matthew: "Instead of enemies doing an unrealistic and silly hop when losing one limb have them crawl." Part B Milestone 1 asked for "limp/hop"; Matthew's word in conversation wins.
+
+**What changed.** `BodyModel.State` no longer gives `OneLeg`: with one working leg a body goes down and crawls (`Crawl`, or `Wriggle` with no arms to crawl with). Going down from standing takes 0.55 s, a little longer than a change of step, so the fall reads. The arms haul as before; the leg that is left (`BodyAnimInput.PushingLeg`, side in `StandingLeg`) works like a soldier's low crawl: the hip swung out and turned out so the knee comes up flat along the ground beside the body, then the leg straightens back to shove the body on, the toes dug in; at rest it lies half drawn up. In the wriggle it shoves with each lunge. It crawls a little quicker with a leg to push with (`MannequinConfig.oneLegCrawlSpeed` 0.85 m/s against 0.65 on the arms alone; the hop was 1.2). The hop, the teeter and `MovementState.OneLeg` stay in the code but are never chosen.
+
+**Tests.** `CrawlingOnOneLeg_TheLegStaysOnTheGround_AndDrawsUpAndPushes` (both sides: never kicked into the air, drawn up and pushed back at least 20 cm, the knee out to its own side), `OneLegAndNoArms_Wriggles_AndNothingEverHops`; `MovementStates_FollowWhatIsLeft` and the PlayMode `MovementStatesDegrade_AndSlowDown` and leg-gib test now expect the crawl (PlayMode not run).
+
+**Preview.** `enemy_motion_legcrawl.gif`: walking, the right leg shot off, down and crawling on; left the hop as it was, right the crawl. A shot-off leg in the preview now tumbles and comes to rest lying down instead of standing on its stump (a stand-in for the game's gib physics).
+
+**Agent review.** Unity reviewer: nothing blocking; fixed from its findings: the leg's push now lands while the body is moving whichever arm is left (with only the left arm the pull comes half a turn earlier), the wriggle's push lines up with its lunge, and the lying collision capsule reaches back over a leg that is left (1.6 m, set again when that leg is lost too). It notes that a one-legged enemy no longer shifts position in a fight (like any crawler it turns and fires from the ground), including the kinds that charge. Game designer: this fits Part B section 9 ("shooting off a leg drops them") better than the hop; a leg shot is now a strong opener but the head is low and harder to hit; speeds fine; suggested (not done, a balance call for Matthew) a spread penalty for firing while crawling.
+
+Still unverified: all of it in Unity, including how the crawler aims and shoots from the ground (the same as a legless crawler) and whether the slower one-legged enemy changes how fights feel.
+
 ## Research: where motion could come from, and the licences
 
 | Source | Licence | Can it ship in a commercial game? |
@@ -95,7 +109,7 @@ If hand-animated clips are ever wanted (for example a death or a taunt), the Qua
 
 ## Previews
 
-`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif` (disarm, hobble, arm, walk, run, hunch). Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
+`tools/blender/motion_dump` runs three scenes (disarm, hobble, arm) through the rules with simplified movement and writes the frames; `tools/blender/preview_enemy_motion.py` renders them with the common enemy model. Side-by-side GIFs (before on the left, after on the right) are in `docs/art/previews/enemy_motion_*.gif` (disarm, hobble, arm, walk, run, hunch, legcrawl). Not game footage: flat ground, no physics engine (a cut-off limb flies on a simple thrown path with a few bounces, standing in for the game's gib physics), no blood, the gun is a box, and the game's gun-holding arms (posed by `MannequinCombat` in `LateUpdate`) are not shown.
 
 Matthew, 15 Nov 2026: "The first two animation demos look great. Redo the arm shoot off one." The first arm preview was seen from the wrong side, far away, and the arm simply vanished. The redo: the camera is in front on the wounded side and closer, the arm flies off as one piece and bounces, the model's wound stump shows at the shoulder, and the reaction is stronger (the spin back, the doubling over, the look at the stump). Matthew then asked (same day) to keep the look at the stump but drop the good hand reaching over to the wound: the hand-on-wound arm IK is gone, and the good arm is thrown out for balance instead.
 
