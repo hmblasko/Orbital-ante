@@ -297,7 +297,7 @@
    "clips": [
     "Audio/Sfx/combat/hit_headshot"
    ],
-   "volumeDb": -8,
+   "volumeDb": -6,
    "volVarDb": 0.0,
    "pitchVar": 0.0,
    "spatial": 0.0,
@@ -309,7 +309,7 @@
    "loop": false,
    "vacuum": "ui",
    "pitchSteps": [],
-   "note": "Headshot ping: a bright bell on the home note (D), so it sits in tune with the music."
+   "note": "Headshot kill: two bells struck together a fifth apart (D6 and A6) with a longer, shining ring, then a soft third bell on D7 a moment later, so the best shot in the game has its own little chime."
   },
   {
    "id": "hit.kill",
@@ -317,7 +317,7 @@
    "clips": [
     "Audio/Sfx/combat/hit_kill"
    ],
-   "volumeDb": -9,
+   "volumeDb": -8,
    "volVarDb": 0.0,
    "pitchVar": 0.0,
    "spatial": 0.0,
@@ -329,7 +329,7 @@
    "loop": false,
    "vacuum": "ui",
    "pitchSteps": [],
-   "note": "Kill confirm: two quick notes rising a fourth (A to D), with a soft thump underneath."
+   "note": "Kill confirm: ding-ding, the hit bell on D6 then a fifth up on A6, quick enough to read as one sound, with a soft low thump under the first note so a kill also has weight."
   },
   {
    "id": "hit.marker",
@@ -337,19 +337,19 @@
    "clips": [
     "Audio/Sfx/combat/hit_marker"
    ],
-   "volumeDb": -7,
+   "volumeDb": -9,
    "volVarDb": 0.0,
-   "pitchVar": 0.5,
+   "pitchVar": 0.0,
    "spatial": 0.0,
    "minDist": 2.0,
    "maxDist": 60.0,
    "priority": 10,
-   "cooldownMs": 35,
+   "cooldownMs": 40,
    "maxVoices": 3,
    "loop": false,
    "vacuum": "ui",
    "pitchSteps": [],
-   "note": "Hit confirm: a dry, bright tick with a click on its front, short enough to follow automatic fire and pitched (around 3 kHz) above where the guns and the music are busiest, so it is heard through both."
+   "note": "Hit confirm: one small bell on D6, the music's home note, so it sits in tune with the score. Short (the ring is down 40 dB in about a third of a second) so automatic fire gives a run of dings, not a wash. The game plays it higher for a head (a fifth up) and a disarm (a fourth up), and quieter when hits come fast (`HitConfirm.DingPitch`, `DingVolume`)."
   },
   {
    "id": "impact.armor",

@@ -9,22 +9,16 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// Test-arena HUD: crosshair, hit marker, ammo, health, the pick-up prompt, and a debug readout (frame time,
+    /// Test-arena HUD: crosshair, ammo, health, the pick-up prompt, and a debug readout (frame time,
     /// and the part under the crosshair with its hit points). F3 toggles the debug readout.
     /// </summary>
     public sealed class Hud : MonoBehaviour
     {
-        const float HitMarkerTime = 0.14f;
-
         Canvas _canvas;
-        Image[] _hitMarker;
         Text _frameText;
         Text _aimText;
         Text _helpText;
         bool _debugVisible = true;
-
-        float _hitMarkerUntil;
-        Color _hitMarkerColor = Color.white;
 
         float _frameAccumulator;
         int _frameCount;
@@ -42,7 +36,7 @@ namespace OrbitalAnte.UI
         VisorGauge _health;
         Image _hurtFlash;
         DamageFeedback _damage;
-        static readonly Color DisarmColor = new Color(0.45f, 0.85f, 1f);
+        HitMarker _hitMarker;
 
         /// <summary>Extra line for the debug readout, supplied by whichever test world is running.</summary>
         public System.Func<string> ExtraDebug;
@@ -62,6 +56,8 @@ namespace OrbitalAnte.UI
             // Hits on the player: direction arcs, edge glow, visor cracks, hurt sound. Its own canvas, so it
             // works in the solar system too, where the arena-only parts are hidden.
             _damage = DamageFeedback.Create(uiRoot);
+            // Hits the player lands: the X round the crosshair. Also its own canvas, for the same reason.
+            _hitMarker = HitMarker.Create(uiRoot);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
             _arenaOnly = UiKit.NewRect("ArenaOnly", _canvas.transform);
             UiKit.Stretch(_arenaOnly);
@@ -73,21 +69,6 @@ namespace OrbitalAnte.UI
             var dot = UiKit.NewRect("CrosshairDot", _arenaOnly);
             UiKit.Pin(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
             UiKit.AddImage(dot, UiKit.Cream, UiKit.Circle);
-
-            // Hit marker: four short diagonal ticks.
-            _hitMarker = new Image[4];
-            for (int i = 0; i < 4; i++)
-            {
-                var tick = UiKit.NewRect("HitTick", _arenaOnly);
-                float angle = 45f + 90f * i;
-                Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
-                tick.anchorMin = tick.anchorMax = tick.pivot = new Vector2(0.5f, 0.5f);
-                tick.anchoredPosition = dir * 17f;
-                tick.sizeDelta = new Vector2(14f, 4f);
-                tick.localRotation = Quaternion.Euler(0f, 0f, angle);
-                _hitMarker[i] = UiKit.AddImage(tick, Color.white);
-                _hitMarker[i].enabled = false;
-            }
 
             _aimText = UiKit.Label(_arenaOnly, string.Empty, 20, UiKit.Cream);
             UiKit.Pin((RectTransform)_aimText.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(500f, 30f));
@@ -126,18 +107,11 @@ namespace OrbitalAnte.UI
             _bannerText = UiKit.Label(_arenaOnly, string.Empty, 24, UiKit.PanelEdge);
             UiKit.Pin((RectTransform)_bannerText.transform, new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(900f, 34f));
             AddShadow(_bannerText);
-
-            CombatEvents.PlayerHitSomething += OnPlayerHit;
         }
 
         static void AddShadow(Text text)
         {
             UiKit.Halo(text);
-        }
-
-        void OnDestroy()
-        {
-            CombatEvents.PlayerHitSomething -= OnPlayerHit;
         }
 
         /// <summary>Shows hits on <paramref name="health"/> as seen from <paramref name="view"/>; null stops.</summary>
@@ -149,16 +123,7 @@ namespace OrbitalAnte.UI
         public void SetVisible(bool visible)
         {
             if (_canvas != null) _canvas.gameObject.SetActive(visible);
-        }
-
-        void OnPlayerHit(HitOutcome outcome)
-        {
-            bool big = outcome.Severed || outcome.Disarmed;
-            _hitMarkerUntil = Time.unscaledTime + (big ? HitMarkerTime * 1.8f : HitMarkerTime);
-            _hitMarkerColor = outcome.Killed ? UiKit.Danger
-                : outcome.Severed ? UiKit.PanelEdge
-                : outcome.Disarmed ? DisarmColor
-                : Color.white;
+            if (_hitMarker != null) _hitMarker.SetVisible(visible);
         }
 
         void Update()
@@ -168,13 +133,6 @@ namespace OrbitalAnte.UI
             if (GameInput.Asset != null && GameInput.ToggleDebug.WasPressedThisFrame())
             {
                 _debugVisible = !_debugVisible;
-            }
-
-            bool showMarker = Time.unscaledTime < _hitMarkerUntil;
-            for (int i = 0; i < _hitMarker.Length; i++)
-            {
-                _hitMarker[i].enabled = showMarker;
-                _hitMarker[i].color = _hitMarkerColor;
             }
 
             _frameText.enabled = _debugVisible;

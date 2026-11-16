@@ -28,6 +28,7 @@ namespace OrbitalAnte.Audio
         string _wantContext = "flight";
         float _wantSince;
         float _nextGroundRead;
+        float _lastDing = -100f;
 
         void OnEnable() => CombatEvents.PlayerHitSomething += OnPlayerHit;
 
@@ -44,10 +45,15 @@ namespace OrbitalAnte.Audio
             d.Intensity.Report(IntensityEvent.HitDealt);
             if (outcome.Severed) d.Intensity.Report(IntensityEvent.PartSevered);
             if (outcome.Killed) d.Intensity.Report(IntensityEvent.Kill);
-            // One confirmation per hit, the biggest that applies.
-            if (outcome.HeadshotKill) AudioDirector.PlayLocal("hit.headshot");
-            else if (outcome.Killed) AudioDirector.PlayLocal("hit.kill");
-            else AudioDirector.PlayLocal("hit.marker");
+            // One ding per hit, the biggest that applies, and only for hits on living enemies (UI.HitConfirm):
+            // rocks, the ship's walls and loose limbs stay quiet. Quieter in a burst, so it never nags.
+            UI.HitKind kind = UI.HitConfirm.Classify(outcome.Hit, outcome.Enemy, outcome.Head, outcome.Severed,
+                outcome.Disarmed, outcome.Killed, outcome.HeadshotKill);
+            string ding = UI.HitConfirm.Ding(kind);
+            if (ding == null) return;
+            float now = Time.unscaledTime;
+            AudioDirector.PlayLocal(ding, UI.HitConfirm.DingVolume(kind, now - _lastDing), UI.HitConfirm.DingPitch(kind));
+            _lastDing = now;
         }
 
         void OnDamaged(float amount, Vector3 direction)
