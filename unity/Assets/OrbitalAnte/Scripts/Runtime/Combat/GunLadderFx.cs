@@ -3,6 +3,7 @@ using OrbitalAnte.Player;
 using OrbitalAnte.UI;
 using OrbitalAnte.Weapons;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace OrbitalAnte.Combat
