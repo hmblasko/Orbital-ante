@@ -94,7 +94,10 @@ On the ground you walk and jump as before. Off the ground the suit's jets take o
 |---|---|---|
 | Jets forward, back, left, right | W A S D | Left stick |
 | Jets up | Hold Space | Hold A / Cross |
-| Jets down | Hold Left Ctrl | Hold B / Circle |
+| Jets down (in the air) | Hold Left Ctrl | Hold B / Circle |
+| Crouch / stand (on the ground) | Tap Left Ctrl | Tap B / Circle |
+| Lie prone / get up (on the ground) | Hold Left Ctrl | Hold B / Circle |
+| Sneak (slow, quiet walk) | Hold Left Alt | Push the left stick only part of the way |
 | Gentle jets, for small careful moves | Hold Left Shift while pushing | Hold the left stick in |
 | Match velocity (stop against the ship if it is near or you are looking at it, otherwise against the ground) | Hold F | Hold left trigger |
 | Roll over (floating only) | Z / C | Left / right bumper |

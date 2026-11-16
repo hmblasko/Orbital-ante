@@ -31,6 +31,14 @@ namespace OrbitalAnte.AI
         bool _seesPlayer;
         float _reactAt;
         float _lastSaw = -1000f;
+        /// <summary>Where the player was last heard, and when; null when nothing has been heard lately.</summary>
+        Vector3? _heardAt;
+        float _heardTime = -1000f, _heardPauseUntil = -1000f;
+        bool _heardHolding;
+        /// <summary>A sound gives a place, not a track: a new place is taken at most this often.</summary>
+        const float HeardEvery = 1.2f;
+        /// <summary>The beat an enemy who heard something stands and turns to it before going to look.</summary>
+        const float HeardPause = 0.7f;
         /// <summary>The camp this one belongs to, if any: who may shoot now, and what the others have seen. Null in the arena.</summary>
         public OrbitalAnte.Enemies.Squad Squad;
         float _tellUntil;
@@ -259,7 +267,7 @@ namespace OrbitalAnte.AI
             }
         }
 
-        Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position - transform.up * 0.3f;
+        Vector3 PlayerAimPoint => CombatWorld.PlayerEye.position - transform.up * CombatWorld.PlayerAimBelowEye;
 
         void Think()
         {
@@ -298,6 +306,26 @@ namespace OrbitalAnte.AI
             _loco.Hold = false;
             _grabbing = null;
             _seesPlayer = false;
+            _heardAt = null;
+            _heardHolding = false;
+        }
+
+        /// <summary>The "heard something" beat: stand still with the head turned to the sound, so the player can
+        /// see that they were heard. Only ever clears the hold and look it set itself.</summary>
+        void SetHeardBeat(bool on, Vector3? toward)
+        {
+            if (on)
+            {
+                _loco.Hold = true;
+                _loco.LookAt = toward;
+                _heardHolding = true;
+            }
+            else if (_heardHolding)
+            {
+                _loco.Hold = false;
+                _loco.LookAt = null;
+                _heardHolding = false;
+            }
         }
 
         void ThinkArmed(MovementState state)
@@ -311,24 +339,42 @@ namespace OrbitalAnte.AI
             Vector3 target = PlayerAimPoint;
             Vector3 head = HeadPosition;
             float distance = Vector3.Distance(head, target);
-            bool sees = distance <= _cfg.engageRange
+            float now = Time.time;
+            bool sees = distance <= SightRange(now)
                         && !Physics.Linecast(head, target, Layers.WorldMask, QueryTriggerInteraction.Ignore);
 
-            float now = Time.time;
             if (!sees)
             {
                 // Lost sight. It only comes looking if it saw the player a moment ago or can hear them close by:
                 // nobody knows where you are from across the valley. Otherwise it goes back to wandering.
                 _seesPlayer = false;
                 _loco.FacePoint = null;
-                bool hunting = now - _lastSaw <= _cfg.chaseMemory || distance <= _cfg.hearRange
-                               || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
-                _loco.Destination = hunting ? CombatWorld.PlayerEye.position : (Vector3?)null;
-                _loco.Hurry = hunting && _cfg.rushes;
+                bool chasing = now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
+                // A sneaking, crouched or prone player is heard from less far, a shot from much further. A sound only
+                // says where the player was when it was made: the enemy turns to it, then goes to look there. It
+                // never follows the player live through a hill by ear, and a player who goes quiet is lost.
+                bool hears = distance <= _cfg.hearRange * CombatWorld.PlayerHeardFrom;
+                if (hears && (_heardAt == null || now - _heardTime >= HeardEvery))
+                {
+                    if (_heardAt == null && !chasing) _heardPauseUntil = now + HeardPause;
+                    _heardAt = CombatWorld.PlayerEye.position;
+                    _heardTime = now;
+                }
+                if (_heardAt != null && now - _heardTime > _cfg.chaseMemory) _heardAt = null;
+
+                bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
+                SetHeardBeat(pausing, _heardAt);
+                if (chasing) _loco.Destination = CombatWorld.PlayerEye.position;
+                else if (_heardAt != null && !pausing) _loco.Destination = _heardAt;
+                else _loco.Destination = null;
+                bool hunting = chasing || _heardAt != null;
+                _loco.Hurry = chasing && _cfg.rushes;
                 // Coming to look for the player: low and careful, gun up.
                 _loco.Tactical = hunting ? _cfg.tacticalHunch : 0f;
                 return;
             }
+            _heardAt = null;
+            SetHeardBeat(false, null);
             _loco.Tactical = _cfg.tacticalHunch;
             _lastSaw = now;
             if (Squad != null) Squad.Saw(now);
@@ -476,7 +522,18 @@ namespace OrbitalAnte.AI
         bool SeesPlayer()
         {
             Vector3 head = HeadPosition, eye = CombatWorld.PlayerEye.position;
-            return Vector3.Distance(head, eye) <= _cfg.engageRange && !Physics.Linecast(head, eye, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            return Vector3.Distance(head, eye) <= SightRange(Time.time) && !Physics.Linecast(head, eye, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+        }
+
+        /// <summary>
+        /// How far off it can see the player now. One that has seen them lately (or whose squad has) keeps them in
+        /// view to its full range whatever they do: once spotted you are hunted. One that has not picks out a
+        /// crouched, prone or still player only from closer (<see cref="CombatWorld.PlayerSeenFrom"/>).
+        /// </summary>
+        float SightRange(float now)
+        {
+            bool aware = now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
+            return aware ? _cfg.engageRange : _cfg.engageRange * Mathf.Clamp(CombatWorld.PlayerSeenFrom, 0.05f, 1f);
         }
 
         /// <summary>Not too far above or below to bend down to (a gun on a ledge or down a pit is out of reach).</summary>

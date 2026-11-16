@@ -1,4 +1,5 @@
 using System;
+using OrbitalAnte.AI;
 using OrbitalAnte.Core;
 using OrbitalAnte.Player;
 using OrbitalAnte.Space;
@@ -83,6 +84,12 @@ namespace OrbitalAnte.Ship
         PlayerBurstFx _burst;
         float _pendingYaw;
         bool _jumpQueued;
+        // On foot: standing, crouched or prone, and the quiet sneak (see Spacewalk/Stances.cs).
+        public StanceState Stances { get; } = new StanceState();
+        public bool Sneaking { get; private set; }
+        CapsuleCollider _body;
+        float _walkingAt, _airborneFor;
+        Func<Stance, bool> _roomFor;
         Vector3 _up = Vector3.up;
         bool _grounded;
 
@@ -165,6 +172,8 @@ namespace OrbitalAnte.Ship
             a.Suit.interpolation = RigidbodyInterpolation.Interpolate;
             a.Suit.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             var capsule = suitGo.AddComponent<CapsuleCollider>();
+            a._body = capsule;
+            a._roomFor = a.RoomFor;
             capsule.center = new Vector3(0f, ShipLayout.PersonHeight * 0.5f, 0f);
             capsule.height = ShipLayout.PersonHeight;
             capsule.radius = ShipLayout.PersonRadius;
@@ -258,6 +267,7 @@ namespace OrbitalAnte.Ship
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
+            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; }
         }
 
         void EnterSeat(bool instant)
@@ -389,7 +399,10 @@ namespace OrbitalAnte.Ship
                 if (facing.sqrMagnitude < 1e-4f) facing = Vector3.ProjectOnPlane(Eye.transform.up, up);
                 Quaternion rotation = Quaternion.LookRotation(facing.normalized, up);
                 // The body is put so its head is where your eye was (see PlayerBurstFx.Begin), whether you stood or sat.
-                Vector3 feet = Eye.transform.position - up * ShipLayout.EyeHeight;
+                // Crouched or lying down outside, the body stands on the ground under you instead (a standing body
+                // put with its head at a low eye would start in the ground), and the view goes up with the head.
+                bool low = outside && Stances.Current != Stance.Stand;
+                Vector3 feet = low ? Suit.position : Eye.transform.position - up * ShipLayout.EyeHeight;
                 Vector3 velocity = outside ? Suit.linearVelocity : Ship.Body.GetPointVelocity(Eye.transform.position);
                 Vector3 blow = _lastBlow.sqrMagnitude > 1e-6f ? _lastBlow : -Eye.transform.forward;
 
@@ -412,7 +425,7 @@ namespace OrbitalAnte.Ship
                 }
                 GravityBody pull = outside ? _suitGravity : Ship.Gravity;
                 _burst = PlayerBurstFx.Begin(_world, feet, rotation, velocity, blow, Eye, inCabin ? Ship : null,
-                    () => pull != null ? pull.FeltGravity : Physics.gravity);
+                    () => pull != null ? pull.FeltGravity : Physics.gravity, headToEye: !low);
             }
             catch (Exception e)
             {
@@ -752,7 +765,7 @@ namespace OrbitalAnte.Ship
                 _pitch = Mathf.Clamp(_pitch + pitchDelta, -88f, 88f);
                 _rollEase = Mathf.LerpAngle(_rollEase, 0f, 1f - Mathf.Exp(-5f * dt));
             }
-            if (GameInput.Jump.WasPressedThisFrame()) _jumpQueued = true;
+            UpdateStance(dt);
             PoseOutside();
 
             // Floating, there are no "feet": the lift takes you by where your middle is.
@@ -807,6 +820,69 @@ namespace OrbitalAnte.Ship
             }
         }
 
+        /// <summary>
+        /// Standing, crouching, prone and sneaking on foot, and how easy that makes you to see and hear. The stance
+        /// button is Jets Down: on the ground the jets have nothing to do.
+        /// </summary>
+        void UpdateStance(float dt)
+        {
+            StanceRules rules = SuitDials.stances;
+            // A moment off the ground (a bump, a step down) does not stand you up; a real fall or a jump does.
+            _airborneFor = _grounded ? 0f : _airborneFor + dt;
+            bool onFoot = Posture == Posture.Upright && _airborneFor < 0.3f;
+            bool held = GameInput.JetDown.IsPressed();
+            Stance before = Stances.Current;
+            if (Stances.Step(dt, held, onFoot, _roomFor, rules))
+            {
+                FitBody();
+                if (onFoot) Say(Stances.Current == Stance.Crouch ? "Crouching: slower, quieter, harder to see."
+                    : Stances.Current == Stance.Prone ? "Lying flat: very slow, very hard to see."
+                    : "Standing.");
+            }
+            else if (Stances.Blocked) Say("No room to get up here.");
+
+            if (GameInput.Jump.WasPressedThisFrame())
+            {
+                // A jump from a crouch stands you up and goes; from prone you only come up to a crouch.
+                if (Stances.RiseToJump(_roomFor)) _jumpQueued = true;
+                if (Stances.Current != before) FitBody();
+            }
+
+            // Sneaking: hold Sneak, or push a controller's stick only part of the way.
+            Vector2 move = GameInput.Move.ReadValue<Vector2>();
+            var from = GameInput.Move.activeControl;
+            bool pad = from != null && from.device is UnityEngine.InputSystem.Gamepad;
+            float push = move.magnitude;
+            Sneaking = onFoot && ((GameInput.Sneak != null && GameInput.Sneak.IsPressed()) || (pad && push > 0.12f && push < 0.6f));
+
+            bool moving = onFoot && _walkingAt > 0.15f;
+            bool shot = Weapons != null && Time.time - Weapons.LastShotTime < rules.shotLoudFor;
+            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules);
+            CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
+            CombatWorld.PlayerAimBelowEye = Mathf.Min(0.3f, Stances.Eye * 0.5f);
+        }
+
+        /// <summary>The suit's collider as tall as the stance, feet where they were.</summary>
+        void FitBody()
+        {
+            if (_body == null) return;
+            float height = Mathf.Max(StanceState.HeightOf(Stances.Current, SuitDials.stances), ShipLayout.PersonRadius * 2f + 0.01f);
+            _body.height = height;
+            _body.center = new Vector3(0f, height * 0.5f, 0f);
+        }
+
+        /// <summary>Whether there is room above you to be this tall (nothing solid in the way).</summary>
+        bool RoomFor(Stance stance)
+        {
+            if (Suit == null) return true;
+            float height = StanceState.HeightOf(stance, SuitDials.stances);
+            float r = ShipLayout.PersonRadius * 0.9f;
+            Vector3 up = Suit.rotation * Vector3.up;
+            Vector3 low = Suit.position + up * (r + 0.15f), high = Suit.position + up * Mathf.Max(r + 0.15f, height - r);
+            // Rock and walls, and enemies' bodies: you do not stand up into somebody.
+            return !Physics.CheckCapsule(low, high, r, Layers.WorldMask | (1 << Layers.CharacterBody), QueryTriggerInteraction.Ignore);
+        }
+
         /// <summary>Puts the view where the suit's state says it is. Upright: turn and nod. Floating: any way up, turning about the eyes.</summary>
         void PoseOutside()
         {
@@ -821,7 +897,7 @@ namespace OrbitalAnte.Ship
             {
                 transform.localPosition = Vector3.zero;
                 transform.localRotation = Quaternion.Euler(0f, _pendingYaw, 0f);
-                Eye.transform.localPosition = EyeLocal;
+                Eye.transform.localPosition = new Vector3(0f, Stances.Eye > 0f ? Stances.Eye : ShipLayout.EyeHeight, 0f);
                 Eye.transform.localRotation = Quaternion.Euler(_pitch, 0f, _rollEase);
             }
         }
@@ -974,8 +1050,11 @@ namespace OrbitalAnte.Ship
 
                 // What is underfoot, and how it is moving.
                 _grounded = false;
-                Vector3 from = Suit.position + _up * 0.5f;
-                int hits = Physics.SphereCastNonAlloc(from, 0.25f, -_up, _hits, 0.36f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
+                // From inside the body, never above it: lying flat under a low roof, a cast started over the body's
+                // top would begin inside the rock and call it ground. It reaches the same depth below the feet.
+                float castFrom = Mathf.Min(0.5f, (_body != null ? _body.height : 1.8f) - 0.26f);
+                Vector3 from = Suit.position + _up * castFrom;
+                int hits = Physics.SphereCastNonAlloc(from, 0.25f, -_up, _hits, 0.36f - (0.5f - castFrom), Layers.WorldMask, QueryTriggerInteraction.Ignore);
                 float nearest = float.MaxValue;
                 for (int i = 0; i < hits; i++)
                 {
@@ -1006,6 +1085,9 @@ namespace OrbitalAnte.Ship
             bool live = GameInput.Asset != null && !GameSession.Paused && !Dead && !Dazed;
             Vector2 move = live ? Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
             bool jetUp = live && GameInput.Jump.IsPressed(), jetDown = live && GameInput.JetDown.IsPressed();
+            // On your feet Jets Down is the stance button: a step that loses the ground for a moment must not fire
+            // the jets (and make you loud) while you are lying down.
+            if (Posture == Posture.Upright && _airborneFor < 0.3f) jetDown = false;
             bool matchHeld = live && (GameInput.SuitMatch.IsPressed() || _mendingNow);
 
             // What Match Velocity would match, and your speed against it (shown on the suit's readout).
@@ -1029,7 +1111,8 @@ namespace OrbitalAnte.Ship
             if (_grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * _config.outsideWalkSpeed;
+                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances);
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);
@@ -1040,6 +1123,7 @@ namespace OrbitalAnte.Ship
                     _grounded = false;
                 }
                 Suit.linearVelocity = groundVelocity + level + vertical;
+                _walkingAt = level.magnitude;
             }
             else
             {

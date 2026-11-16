@@ -71,7 +71,7 @@ namespace OrbitalAnte.Ship
         /// Returns null if the body could not be made, and the caller keeps the old slump.
         /// </summary>
         public static PlayerBurstFx Begin(Transform parent, Vector3 feet, Quaternion rotation, Vector3 velocity, Vector3 blow,
-            Camera eye, Ship ship, GravityBodyRead pull)
+            Camera eye, Ship ship, GravityBodyRead pull, bool headToEye = true)
         {
             Mannequin body = MannequinFactory.Create(feet, rotation, parent, MannequinConfig.Load(), BodyName);
             if (body == null) return null;
@@ -99,7 +99,8 @@ namespace OrbitalAnte.Ship
                 fx._head = head.transform;
                 Vector3 eyeAt = eye != null ? eye.transform.position : HeadCentre(head);
                 // Stand the body so its head is where the eye was, sitting or standing, so the view does not jump.
-                body.transform.position += eyeAt - HeadCentre(head);
+                if (headToEye) body.transform.position += eyeAt - HeadCentre(head);
+                else eyeAt = HeadCentre(head);
                 // The view is carried at the middle of the head, never out past it: it must not poke through a wall or
                 // the ground the head is resting on (the camera sees 0.12 m ahead of itself).
                 Vector3 centre = head.transform.InverseTransformPoint(HeadCentre(head));

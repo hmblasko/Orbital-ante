@@ -26,6 +26,8 @@ namespace OrbitalAnte.Player
 
         /// <summary>The gun in hand, or null when empty-handed.</summary>
         public Weapon Current { get; private set; }
+        /// <summary>When the player last fired (Time.time), for how far off a shot is heard.</summary>
+        public float LastShotTime { get; private set; } = -100f;
         /// <summary>What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable.</summary>
         public IHittable AimedAt { get; private set; }
         /// <summary>A dropped gun close enough to pick up, or null.</summary>
@@ -219,6 +221,7 @@ namespace OrbitalAnte.Player
 
             if (shot.Fired)
             {
+                LastShotTime = Time.time;
                 Vector3 direction = Ballistics.SpreadDirection(_eye.transform.forward, shot.SpreadDegrees, _rng);
                 ShotResult result = Ballistics.FireFromPlayer(weapon.Data, _eye.transform.position, direction);
                 fx.Shot(weapon.Data, weapon.Muzzle.position, result.End);

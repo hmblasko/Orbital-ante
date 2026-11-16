@@ -13,6 +13,9 @@ namespace OrbitalAnte.Spacewalk
 
         public SuitRules rules = new SuitRules();
 
+        [Header("On foot: standing, crouching, prone and sneaking")]
+        public StanceRules stances = new StanceRules();
+
         [Header("Floating")]
         [Tooltip("How fast the roll buttons turn you over when floating, degrees per second.")]
         public float rollSpeed = 80f;
