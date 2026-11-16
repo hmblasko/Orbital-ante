@@ -80,6 +80,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
             OrbitalAnte.Combat.GunLadderConfig.ResetStatics();
             OrbitalAnte.Combat.GunLadderFx.ResetStatics();
+            OrbitalAnte.Rover.RoverConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
         }
 
@@ -269,7 +270,7 @@ namespace OrbitalAnte.Core
                 {
                     // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
                     _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
-                        () => astronaut.Mode == Ship.AstronautMode.Outside && !Cockpit.CockpitDash.WatchingScreen);
+                        () => astronaut.InTheOpen && !Cockpit.CockpitDash.WatchingScreen);
                 }
             }
             else

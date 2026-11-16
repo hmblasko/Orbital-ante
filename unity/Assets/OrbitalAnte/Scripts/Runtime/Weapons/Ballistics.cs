@@ -113,6 +113,12 @@ namespace OrbitalAnte.Weapons
             result.Collider = hit.collider;
 
             var health = hit.collider.GetComponentInParent<PlayerHealth>();
+            if (health == null)
+            {
+                // The driver of the rover: their own body is not there, a stand-in collider is.
+                var link = hit.collider.GetComponent<HealthLink>();
+                if (link != null && link.Target != null) health = link.Target;
+            }
             if (health != null)
             {
                 result.HitPlayer = true;
