@@ -102,6 +102,8 @@ namespace OrbitalAnte.Planets
         public double MouthRadius;
         public float R, G, B;
         public string Formation;
+        /// <summary>For a whole network of rooms and passages, the network; its circles are then only a rough outline.</summary>
+        public CaveNetwork Network;
     }
 
     /// <summary>A hole cut in the ground so a cave can be entered.</summary>

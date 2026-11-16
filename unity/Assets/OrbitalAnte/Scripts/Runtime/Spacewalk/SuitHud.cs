@@ -24,7 +24,8 @@ namespace OrbitalAnte.Spacewalk
         Canvas _canvas;
         RectTransform _panel;
         Image _fuelFill;
-        Text _speed, _tether, _notice;
+        Text _speed, _tether, _notice, _stance;
+        int _shownStance = -1;
         OrbitalAnte.UI.VisorGauge _airGauge, _suitGauge;
         readonly Image[] _shade = new Image[2];
         Texture2D _shadeTexture;
@@ -120,6 +121,10 @@ namespace OrbitalAnte.Spacewalk
             _tether = UiKit.Halo(UiKit.Label(_panel, string.Empty, 16, UiKit.Muted, TextAnchor.MiddleLeft, FontStyle.Normal));
             UiKit.Pin((RectTransform)_tether.transform, new Vector2(0f, 0.5f), new Vector2(380f, -14f), new Vector2(320f, 22f));
 
+            // How you are holding yourself on foot, so a sneak (which a part-pushed stick starts by itself) is never
+            // a hidden state. Blank when simply standing.
+            _stance = UiKit.Halo(UiKit.Label(_panel, string.Empty, 18, UiKit.Cream, TextAnchor.MiddleLeft));
+            UiKit.Pin((RectTransform)_stance.transform, new Vector2(0f, 0.5f), new Vector2(100f, 0f), new Vector2(270f, 26f));
             _notice = UiKit.Halo(UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge));
             UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 0f), new Vector2(0f, 168f), new Vector2(900f, 32f));
             _panel.gameObject.SetActive(false);
@@ -215,6 +220,13 @@ namespace OrbitalAnte.Spacewalk
                 _suitGauge.Show(armour, OrbitalAnte.UI.VisorReadout.SuitLine(armour), suitTone, !hit || blink);
             }
 
+            int stance = outside ? (int)_astronaut.Stances.Current * 2 + (_astronaut.Sneaking ? 1 : 0) : 0;
+            if (stance != _shownStance)
+            {
+                _shownStance = stance;
+                _stance.text = StanceWords(stance);
+            }
+
             if (now < _nextText) return;
             _nextText = now + TextInterval;
 
@@ -276,6 +288,18 @@ namespace OrbitalAnte.Spacewalk
                 _tether.text = _text.ToString();
             }
             _tether.color = s.Tethered ? UiKit.Cream : UiKit.PanelEdge;
+        }
+
+        static string StanceWords(int stance)
+        {
+            switch (stance)
+            {
+                case 1: return "SNEAKING";
+                case 2: return "CROUCHED";
+                case 3: return "CROUCHED, SNEAKING";
+                case 4: case 5: return "PRONE";
+                default: return string.Empty;
+            }
         }
 
         // Bottom, top, left, right: lit by the nozzle whose flame is on that side. A push forward (the flames

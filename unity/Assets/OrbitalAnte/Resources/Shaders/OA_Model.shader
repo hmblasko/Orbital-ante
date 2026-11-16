@@ -86,19 +86,21 @@ Shader "OrbitalAnte/Model"
                 half gloss = input.finish.x;
                 half metal = input.finish.y;
 
-                half3 light = OA_Light(normal, input.positionWS, up, _SunAmount);
+                // The cave's light is read once here and handed to everything below that needs it.
+                half4 cave = OA_CaveLight(input.positionWS);
+                half3 light = OA_LightIn(normal, input.positionWS, up, _SunAmount, cave);
                 // Bare metal scatters almost no light: nearly all of what you see of it is reflection. It only
                 // gives that light up where there is a daylit sky to mirror in its place. Inside the ship, at
                 // night, in open space and with shine turned off it is lit like everything else, so it never
                 // goes black.
                 half mirrored = metal * 0.85 * saturate(OA_ShineAmount(gloss)) * _SunAmount;
-                half scattered = 1.0 - mirrored * OA_DaylitSky(input.positionWS, up);
+                half scattered = 1.0 - mirrored * OA_DaylitSkyIn(input.positionWS, up, cave.a);
                 // How fast the surface turns across this pixel, to spread a highlight too small to draw.
                 half3 turnX = ddx(normal);
                 half3 turnY = ddy(normal);
                 half widen = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
                 half3 color = albedo * light * scattered + albedo * _Glow;
-                color += OA_Shine(normal, input.positionWS, up, _SunAmount, gloss, metal, albedo, widen);
+                color += OA_ShineIn(normal, input.positionWS, up, _SunAmount, gloss, metal, albedo, widen, cave.a);
                 color = OA_ApplyHaze(color, input.positionWS);
                 return half4(color, 1.0);
             }

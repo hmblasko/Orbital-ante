@@ -10,6 +10,7 @@ namespace OrbitalAnte.Planets
         public float[] Positions;   // x,y,z per vertex
         public float[] Colors;      // r,g,b per vertex, 0..1
         public int[] Triangles;     // three indices per triangle
+        public float[] Normals;     // x,y,z per vertex, or null to work them out from the triangles
         public int VertexCount => Positions.Length / 3;
     }
 

@@ -144,6 +144,10 @@ namespace OrbitalAnte.Planets
         public PlumeKind Plume = PlumeKind.None;
         public int Plumes = 1;
 
+        // Cave networks.
+        /// <summary>Not None for a whole network of rooms and passages (<see cref="CaveNetwork"/>) rather than one tunnel.</summary>
+        public CaveStyle CaveStyle = CaveStyle.None;
+
         // Scatters.
         public FeatureKind Feature;
         public int MinCount = 5, MaxCount = 10;

@@ -232,6 +232,10 @@ namespace OrbitalAnte.Tests
                 {
                     caves++;
                     Assert.GreaterOrEqual(cave.Mouths.Length, 1);
+                    foreach (Vec3d mouth in cave.Mouths) Assert.IsTrue(t.InHole(mouth, 0), pair.Key + ": a cave mouth with no hole cut in the ground.");
+                    // A network is walked and jetpacked through, not flown into, and has its own walls and its own
+                    // tests (CaveNetworkTests).
+                    if (cave.Network != null) continue;
                     Assert.AreEqual(cave.Centres.Length, cave.Radii.Length);
                     int buried = 0, roomy = 0;
                     for (int k = 0; k < cave.Centres.Length; k++)

@@ -155,7 +155,8 @@ namespace OrbitalAnte.Dismemberment
                 bool left = LegWorks(true);
                 bool right = LegWorks(false);
                 if (left && right) return MovementState.Intact;
-                if (left || right) return MovementState.OneLeg;
+                // One leg gone: down on the ground and crawl, the good leg pushing (Matthew, 16 Nov 2026: the hop
+                // looked unrealistic and silly). MovementState.OneLeg is no longer chosen.
                 if (ArmCanCrawl(true) || ArmCanCrawl(false)) return MovementState.Crawl;
                 return MovementState.Wriggle;
             }

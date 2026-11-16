@@ -147,41 +147,57 @@ def splat(rng, v):
 UI_HIT = dict(bus="UI", spatial=0.0, priority=10, vacuum="ui")
 
 
-@sfx("hit.marker", "combat", variants=1, pitchVar=0.5, volumeDb=-7, cooldownMs=35, maxVoices=3, **UI_HIT)
+def _ding(rng, f, length, decay, bright=1.0, tick=0.12):
+    """A small struck bell (16 Nov 2026, Matthew: a "super satisfying dinging noise (not annoying)").
+
+    Our own sound, made here from sine partials, not taken from any game. A clear fundamental carries the note;
+    an octave and two inharmonic partials (2.76 and 5.4 times, the ratios of a small struck bar) give it the
+    metal "ting" and die away first, so the end of every ding is a pure, soft tone. The front is a 1.5 ms rise
+    with a faint mallet tick under it: clear enough to be heard through gunfire, never a click."""
+    n = secs(length)
+    t = np.arange(n) / SR
+    partials = [(1.0, 1.0, 1.0), (2.0, 0.30 * bright, 0.45), (2.76, 0.20 * bright, 0.22), (5.40, 0.06 * bright, 0.08)]
+    x = np.zeros(n)
+    for ratio, gain, share in partials:
+        fr = f * ratio * rng.uniform(0.998, 1.002)
+        x += dsp.sine(fr, n, rng.uniform(0, 1)) * gain * np.exp(-t / (decay * share))
+    x *= np.minimum(t / 0.0015, 1.0)
+    x += dsp.bandpass(dsp.white(n, rng), 1800, 5200) * np.exp(-t / 0.0009) * tick
+    return x
+
+
+@sfx("hit.marker", "combat", variants=1, pitchVar=0.0, volumeDb=-9, cooldownMs=40, maxVoices=3, **UI_HIT)
 def hit_marker(rng, v):
-    """Hit confirm: a dry, bright tick with a click on its front, short enough to follow automatic fire and
-    pitched (around 3 kHz) above where the guns and the music are busiest, so it is heard through both."""
-    n = secs(0.07)
-    t = np.arange(n) / SR
-    x = dsp.pad_to(metal_hit(rng, 0.07, [2940, 4410, 1470], decays=[0.012, 0.008, 0.014], gains=[1.0, 0.55, 0.3], hardness=0.7), n)
-    x = x + dsp.highpass(dsp.white(n, rng), 3500) * np.exp(-t / 0.0012) * 0.5
-    return finish(x, -4, 0.01)
+    """Hit confirm: one small bell on D6, the music's home note, so it sits in tune with the score. Short (the
+    ring is down 40 dB in about a third of a second) so automatic fire gives a run of dings, not a wash. The
+    game plays it higher for a head (a fifth up) and a disarm (a fourth up), and quieter when hits come fast
+    (`HitConfirm.DingPitch`, `DingVolume`)."""
+    x = _ding(rng, hz(midi("D6")), 0.42, 0.075)
+    return finish(x, -4, 0.05)
 
 
-@sfx("hit.headshot", "combat", variants=1, pitchVar=0.0, volumeDb=-8, cooldownMs=60, maxVoices=2, **UI_HIT)
+@sfx("hit.headshot", "combat", variants=1, pitchVar=0.0, volumeDb=-6, cooldownMs=60, maxVoices=2, **UI_HIT)
 def hit_headshot(rng, v):
-    """Headshot ping: a bright bell on the home note (D), so it sits in tune with the music."""
-    n = secs(0.6)
-    t = np.arange(n) / SR
-    f = hz(midi("D7"))
-    x = dsp.fm(f, n, 3.5, 2.0 * np.exp(-t / 0.04)) * np.exp(-t / 0.13)
-    x += dsp.sine(f * 1.5, n) * np.exp(-t / 0.07) * 0.35
-    x += dsp.highpass(dsp.white(n, rng), 6000) * np.exp(-t / 0.003) * 0.3
-    return finish(x, -4, 0.1)
+    """Headshot kill: two bells struck together a fifth apart (D6 and A6) with a longer, shining
+    ring, then a soft third bell on D7 a moment later, so the best shot in the game has its own little chime."""
+    n = secs(0.9)
+    x = np.zeros(n)
+    dsp.place(x, _ding(rng, hz(midi("D6")), 0.9, 0.12, bright=1.2), 0, 0.8)
+    dsp.place(x, _ding(rng, hz(midi("A6")), 0.9, 0.14, bright=1.0, tick=0.06), 0, 0.55)
+    dsp.place(x, _ding(rng, hz(midi("D7")), 0.8, 0.12, bright=0.8, tick=0.04), secs(0.085), 0.45)
+    return finish(x, -4, 0.12)
 
 
-@sfx("hit.kill", "combat", variants=1, pitchVar=0.0, volumeDb=-9, cooldownMs=80, maxVoices=2, **UI_HIT)
+@sfx("hit.kill", "combat", variants=1, pitchVar=0.0, volumeDb=-8, cooldownMs=80, maxVoices=2, **UI_HIT)
 def hit_kill(rng, v):
-    """Kill confirm: two quick notes rising a fourth (A to D), with a soft thump underneath."""
-    n = secs(0.5)
+    """Kill confirm: ding-ding, the hit bell on D6 then a fifth up on A6, quick enough to read as one sound,
+    with a soft low thump under the first note so a kill also has weight."""
+    n = secs(0.75)
     t = np.arange(n) / SR
     x = np.zeros(n)
-    for k, (note, at) in enumerate([("A5", 0.0), ("D6", 0.07)]):
-        m = n - secs(at)
-        tt = np.arange(m) / SR
-        s = dsp.fm(hz(midi(note)), m, 2.0, 1.5 * np.exp(-tt / 0.05)) * np.exp(-tt / 0.1)
-        dsp.place(x, s, secs(at), 0.8)
-    x += dsp.sine(98, n) * np.exp(-t / 0.05) * 0.5
+    dsp.place(x, _ding(rng, hz(midi("D6")), 0.5, 0.075), 0, 0.75)
+    dsp.place(x, _ding(rng, hz(midi("A6")), 0.7, 0.11), secs(0.075), 0.8)
+    x += dsp.sine(98 * (1 + 0.5 * np.exp(-t / 0.01)), n) * np.exp(-t / 0.045) * 0.35
     return finish(x, -4, 0.1)
 
 

@@ -43,6 +43,7 @@ namespace OrbitalAnte.Planets
             if (cave == null || cave.Centres == null || cave.Centres.Length == 0 || !Finite(point)
                 || !Finite(margin)) return false;
             margin = Math.Max(0, margin);
+            if (cave.Network != null) return cave.Network.InsideAir(point, margin);
             Vec3d[] centres = cave.Centres;
             if (cave.Mouths != null && cave.Mouths.Length > 0 && Finite(cave.MouthRadius))
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Planets;
 
 namespace OrbitalAnte.Enemies
 {
@@ -83,6 +84,9 @@ namespace OrbitalAnte.Enemies
         public int Seed;
         /// <summary>How far from the body's centre the camp stands, metres. 0: on the ground (a base's guards stand on its floor).</summary>
         public double HomeRadius;
+        /// <summary>For a camp inside a cave network: the network, and the room it lives in. Null for any other camp.</summary>
+        public CaveNetwork Cave;
+        public int Room;
     }
 
     public static class EnemyRoster
@@ -215,6 +219,41 @@ namespace OrbitalAnte.Enemies
                 members[m] = type;
             }
             camps.Add(new EnemyCamp { Direction = direction.Normalized, Members = members, Seed = random.Next(), HomeRadius = homeRadius });
+        }
+
+        /// <summary>
+        /// Camps in the rooms of a cave network that the network marks as lived in (Matthew, 16 Nov 2026: caves
+        /// "where enemies will reside"): two to four in a room, five in a great hall, by the light of their lamps.
+        /// Their home is the middle of the room's floor; they never wander out of it on their own.
+        /// </summary>
+        public static void AddCaveCamps(List<EnemyCamp> camps, IReadOnlyList<EnemyTypeSpec> roster, SeededRandom random, CaveNetwork network)
+        {
+            if (network == null) return;
+            for (int room = 0; room < network.Chambers.Count; room++)
+            {
+                CaveChamber c = network.Chambers[room];
+                if (!c.Camp) continue;
+                int size = c.LongRadius > 11 ? random.Range(4, 6) : random.Range(2, 5);
+                var members = new int[size];
+                for (int m = 0; m < size; m++)
+                {
+                    int type = EnemyRoster.Pick(roster, random.NextDouble());
+                    int most = roster[type].mostPerCamp;
+                    if (most > 0)
+                    {
+                        int already = 0;
+                        for (int k = 0; k < m; k++) if (members[k] == type) already++;
+                        if (already >= most) type = 0;
+                    }
+                    members[m] = type;
+                }
+                Vec3d floor = c.Floor;
+                camps.Add(new EnemyCamp
+                {
+                    Direction = floor.Normalized, Members = members, Seed = random.Next(), HomeRadius = floor.Magnitude,
+                    Cave = network, Room = room,
+                });
+            }
         }
 
         /// <summary>Metres over the ground between two directions on a ball of this radius.</summary>

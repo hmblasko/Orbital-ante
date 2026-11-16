@@ -61,7 +61,7 @@ namespace OrbitalAnte.Enemies
         // The camp being woken, one enemy a frame so nobody arrives as a hitch.
         World _wakingWorld;
         PlanetSurface _wakingSurface;
-        PlanetFooting _wakingFooting;
+        Footing _wakingFooting;
         SeededRandom _wakingRandom;
         int _wakingBody, _wakingCamp = -1, _wakingMember;
         Squad _wakingSquad;
@@ -72,6 +72,8 @@ namespace OrbitalAnte.Enemies
         int _lookoutsUsed;
         readonly List<Weapon> _guns = new List<Weapon>();
 
+        /// <summary>How close (over the ground) the player must be before a cave's camp stands up, in metres.</summary>
+        const double CaveWakeRange = 70;
         /// <summary>The most guns left lying about before the oldest are cleared away.</summary>
         const int LooseGunCap = 12;
         /// <summary>Everyone standing or lying about, living or not: what the cap is measured against.</summary>
@@ -136,6 +138,11 @@ namespace OrbitalAnte.Enemies
                     for (int i = 0; i < sites.Count; i++)
                         EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size), (int)sites[i].Size);
                 }
+                // The rooms of cave networks where enemies live, from a stream of their own so the camps above
+                // the ground stay where they were before there were networks.
+                var caveRandom = GameSession.Stream("enemies.caves." + surface.Body.Spec.id);
+                for (int c = 0; c < terrain.Caves.Count; c++)
+                    if (terrain.Caves[c].Network != null) EnemyField.AddCaveCamps(w.Camps, _config.roster, caveRandom, terrain.Caves[c].Network);
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
                 w.Gone = new bool[w.Camps.Count][];
@@ -278,7 +285,11 @@ namespace OrbitalAnte.Enemies
             {
                 if (w.Awake[c] || w.Left[c] == 0) continue;
                 double d = EnemyField.GroundDistance(at, w.Camps[c].Direction, radius);
-                bool guards = w.Camps[c].HomeRadius > 0;
+                bool inCave = w.Camps[c].Cave != null;
+                // A cave's camp only once its walls are up (they are its floor), and only when the player is close:
+                // nobody needs to stand about in a cave the player is not near.
+                if (inCave && (d > CaveWakeRange || !surface.NetworkReady(w.Camps[c].Cave))) continue;
+                bool guards = w.Camps[c].HomeRadius > 0 && !inCave;
                 if (guards && d < nearestGuards) { nearestGuards = d; bestGuards = c; }
                 if (guards && d < nearestHeld) { nearestHeld = d; held = w.Left[c]; }
                 if (!guards && d < nearest) { nearest = d; best = c; }
@@ -305,14 +316,20 @@ namespace OrbitalAnte.Enemies
             _wakingSpawns.Clear();
             _wakingLookouts.Clear();
             _lookoutsUsed = 0;
-            _wakingFooting = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
+            if (w.Camps[best].Cave != null)
+            {
+                _wakingFooting = new CaveFooting(surface.Body.transform, surface, w.Camps[best].Cave, w.Camps[best].Room);
+                return;
+            }
+            var onPlanet = new PlanetFooting(surface.Body.transform, surface, home, _config.field.roam);
+            _wakingFooting = onPlanet;
             if (w.Camps[best].HomeRadius > 0)
             {
                 // A base's guards: its floor is their ground. They keep to it more than a camp keeps to its patch.
                 BaseSite? site = _world.Bases != null ? _world.Bases.SiteAt(body, direction) : null;
                 if (site.HasValue)
                 {
-                    _wakingFooting.SetFloor(home, (float)site.Value.Footprint);
+                    onPlanet.SetFloor(home, (float)site.Value.Footprint);
                     BaseSite s = site.Value;
                     _places.Clear();
                     BaseView.Places(s, "Spawn", _places);
@@ -341,7 +358,9 @@ namespace OrbitalAnte.Enemies
             if (surface == null || w.Root == null) { _wakingCamp = -1; return; }
             // The random numbers are drawn for every member, gone or not, so each survivor is the same one as before.
             SeededRandom rng = _wakingRandom;
-            PlanetFooting footing = _wakingFooting;
+            Footing footing = _wakingFooting;
+            var onPlanet = footing as PlanetFooting;
+            var inCave = footing as CaveFooting;
             Transform planet = surface.Body.transform;
             Vector3 home = SpaceConvert.ToVector3(c.Direction * HomeRadius(c, surface));
             Vector3 up = home.normalized;
@@ -362,8 +381,11 @@ namespace OrbitalAnte.Enemies
                 // Spread round the camp's middle, a couple of metres apart.
                 float angle = (m + jitter * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
                 // A base's guards are spread over its floor, not bunched in the middle.
-                if (footing.FloorRadius > 0f) far = footing.FloorRadius * (0.25f + 0.35f * ((m * 0.37f + jitter) % 1f));
-                Vector3 position = footing.OnTheGround(home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
+                if (onPlanet != null && onPlanet.FloorRadius > 0f) far = onPlanet.FloorRadius * (0.25f + 0.35f * ((m * 0.37f + jitter) % 1f));
+                // In a cave, spread over the floor of the camp's room.
+                Vector3 position = inCave != null
+                    ? inCave.InRoom(angle, 0.2 + 0.45 * ((m * 0.37f + jitter) % 1f))
+                    : onPlanet.OnTheGround(home + (side * Mathf.Cos(angle) + along * Mathf.Sin(angle)) * far);
                 // A base's own design says where its guards stand: the ones that hold still go up on the towers
                 // as lookouts, the rest take the marked places on the floor.
                 bool lookout = false;
@@ -435,6 +457,7 @@ namespace OrbitalAnte.Enemies
             config.sprintSpeed *= spec.speed;
             config.oneLegSpeed *= spec.speed;
             config.crawlSpeed *= spec.speed;
+            config.oneLegCrawlSpeed *= spec.speed;
             // Tough in the middle only. Arms and legs come off as easily as anyone's.
             config.torsoHp *= spec.toughness;
             config.headHp *= spec.headToughness > 0f ? spec.headToughness : spec.toughness;

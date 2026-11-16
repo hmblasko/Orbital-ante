@@ -26,6 +26,8 @@ namespace OrbitalAnte.Core
         public bool Disarmed;
         /// <summary>The thing hit was a living enemy's body (not a ship, a rock or a loose piece).</summary>
         public bool Enemy;
+        /// <summary>The part hit was a head (whether or not it killed).</summary>
+        public bool Head;
         /// <summary>
         /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
         /// </summary>

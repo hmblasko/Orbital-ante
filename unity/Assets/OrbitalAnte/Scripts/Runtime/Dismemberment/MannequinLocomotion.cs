@@ -116,6 +116,15 @@ namespace OrbitalAnte.Dismemberment
             PickTarget();
         }
 
+        /// <summary>The leg still on the body of one that is down on the ground (BodySkeleton side), or -1 for none.</summary>
+        int CrawlLeg()
+        {
+            if (_owner == null || _owner.Model == null) return -1;
+            if (_owner.Model.LegWorks(true)) return MannequinRig.Left;
+            if (_owner.Model.LegWorks(false)) return MannequinRig.Right;
+            return -1;
+        }
+
         /// <summary>Top speed for a movement state.</summary>
         public float SpeedFor(MovementState state, bool sprinting)
         {
@@ -123,7 +132,7 @@ namespace OrbitalAnte.Dismemberment
             {
                 case MovementState.Intact: return sprinting ? _cfg.sprintSpeed : _cfg.walkSpeed;
                 case MovementState.OneLeg: return _cfg.oneLegSpeed;
-                case MovementState.Crawl: return _cfg.crawlSpeed;
+                case MovementState.Crawl: return CrawlLeg() >= 0 ? Mathf.Max(_cfg.crawlSpeed, _cfg.oneLegCrawlSpeed) : _cfg.crawlSpeed;
                 case MovementState.Wriggle: return _cfg.wriggleSpeed;
                 case MovementState.HeadOnly: return _cfg.headRollSpeed;
                 default: return 0f;
@@ -273,7 +282,9 @@ namespace OrbitalAnte.Dismemberment
                 _avoidUntil = Time.time + 0.9f;
             }
 
-            Vector3 heading = to.normalized;
+            // In a cave the way there follows the passages, not a straight line through the rock.
+            Vector3 via = Level(_owner.Footing.Toward(transform.position, destination) - transform.position);
+            Vector3 heading = via.sqrMagnitude > 0.01f ? via.normalized : to.normalized;
             if (Time.time < _avoidUntil) heading = Quaternion.AngleAxis(80f * _avoidSign, _owner.Up) * heading;
             TurnToward(heading, state, dt);
 
@@ -400,6 +411,8 @@ namespace OrbitalAnte.Dismemberment
                 Reach = Mathf.Clamp01(Reach),
                 ReachSide = ReachSide,
                 Teeter = _teetering ? 1.0 : 0.0,
+                // Down on the ground with a leg left: it pushes with it (StandingLeg says which).
+                PushingLeg = (state == MovementState.Crawl || state == MovementState.Wriggle) && CrawlLeg() >= 0,
                 Tactical = Mathf.Clamp01(Tactical),
             };
             if (LookAt.HasValue)
@@ -451,6 +464,8 @@ namespace OrbitalAnte.Dismemberment
         void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
         {
             if (_anim == null || detachment.SourceGroup != 0) return;
+            // The lying capsule is longer while a leg is left; losing that leg too keeps the state but not the length.
+            if (_owner != null && _appliedState == _owner.State) ResizeBlocker(_appliedState);
             double severity;
             int side;
             switch (detachment.Root)
@@ -526,8 +541,10 @@ namespace OrbitalAnte.Dismemberment
                 case MovementState.Wriggle:
                     _blocker.direction = 2;
                     _blocker.radius = 0.2f;
-                    _blocker.height = 1.2f;
-                    _blocker.center = new Vector3(0f, 0.2f, 0f);
+                    // A leg that is left trails about 0.9 m behind the hips: the capsule reaches back over it.
+                    bool leg = CrawlLeg() >= 0;
+                    _blocker.height = leg ? 1.6f : 1.2f;
+                    _blocker.center = new Vector3(0f, 0.2f, leg ? -0.2f : 0f);
                     break;
                 case MovementState.HeadOnly:
                     _blocker.direction = 1;

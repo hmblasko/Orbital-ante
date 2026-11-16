@@ -50,7 +50,10 @@ def flight(frames, cut, dt, seed=4):
     rnd = random.Random(seed)
     pivot = sum((rest[n].col[3].xyz for n in names), Vector()) / len(names)
     v = outward * 1.5 + back * 0.7 + Vector((0, 2.7, 0))
-    spin_axis = (torso.col[2].xyz + Vector((rnd.uniform(-.3, .3), rnd.uniform(-.3, .3), rnd.uniform(-.3, .3)))).normalized()
+    leg = "Thigh" in cut or "Shin" in cut
+    # A leg tumbles end over end (about the body's side axis) and comes to rest lying down, not stood on its stump.
+    axis = torso.col[0].xyz if leg else torso.col[2].xyz
+    spin_axis = (axis + Vector((rnd.uniform(-.3, .3), rnd.uniform(-.3, .3), rnd.uniform(-.3, .3)))).normalized()
     spin = 15.0
     angle = 0.0
     at = pivot.copy()
@@ -79,6 +82,9 @@ def flight(frames, cut, dt, seed=4):
                 v.x *= 0.8
                 v.z *= 0.8
                 spin *= 0.85
+                if leg:
+                    lying = round((angle - math.pi / 2) / math.pi) * math.pi + math.pi / 2
+                    angle += (lying - angle) * 0.25
     return names, out
 
 

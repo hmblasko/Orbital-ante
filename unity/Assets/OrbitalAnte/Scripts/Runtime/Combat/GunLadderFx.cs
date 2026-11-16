@@ -101,10 +101,9 @@ namespace OrbitalAnte.Combat
             if (data == null) return true;
             PlayerWeapons weapons = FindWeapons();
             if (weapons == null) return false;
-            // The ladder's own old gun is used up; a gun the player picked up is theirs, so it is dropped, not lost.
-            Weapon held = weapons.Current;
-            bool picked = held != null && held.Data != null && held.Data.Id != Ladder.PreviousWeaponId;
-            Weapon given = weapons.TakeNewGun(data, picked);
+            // The ladder's own old gun (the very one it handed out, not just the same kind) is used up; any other
+            // gun in hand was picked up by the player, so it is dropped, not lost.
+            Weapon given = weapons.TakeNewGun(data);
             if (given == null) return false;
 
             // Bigger steps, bigger fanfare: the four reward tiers follow the ladder up.

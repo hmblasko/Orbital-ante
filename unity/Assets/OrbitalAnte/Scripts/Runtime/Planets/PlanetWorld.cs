@@ -118,8 +118,9 @@ namespace OrbitalAnte.Planets
                 start.BuildTerrainNow(PriorityOf(start));
                 start.SetNear(true);
                 TickSurface(start, eye);
-                // Wait for just the six starting tiles (a fraction of a second), then let detail stream in.
-                PlanetJobs.FinishAll();
+                // Wait for just the six starting tiles (a fraction of a second), then let detail stream in. Patient
+                // work (cave networks) carries on in the background.
+                PlanetJobs.FinishUrgent();
                 TickSurface(start, eye);
                 start.BeginPicture();
             }
@@ -396,7 +397,7 @@ namespace OrbitalAnte.Planets
                 if (s.Near)
                 {
                     near += "   " + s.Body.Spec.displayName + ": tiles " + s.ShownTiles + " (solid " + s.SolidTiles + ")  things " + s.Features.Count +
-                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty);
+                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug();
                 }
             }
             return "Ground ready " + ready + "/" + total + "  pictures " + pictures + "/" + total +

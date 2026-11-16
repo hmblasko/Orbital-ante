@@ -506,6 +506,17 @@ namespace OrbitalAnte.Planets
             l.Add(new Formation("crystal_grotto", "Crystal grotto", Caves, Technique.Cave,
                 "An underground hall lined with giant crystals, like the Cave of the Crystals in Mexico.")
                 { MinSize = 45, MaxSize = 75, MinWidth = 4, MaxWidth = 5, Rugged = 1, Feature = FeatureKind.Crystal, MinCount = 8, MaxCount = 14, MinScale = 1.5, MaxScale = 5 });
+            // Whole networks (Matthew, 16 Nov 2026: "interesting and intricate cave systems where enemies will reside").
+            // MinCount and MaxCount are how many rooms; Feature, MinScale and MaxScale are the loose stones on the floors.
+            l.Add(new Formation("karst_cave_system", "Karst cave system", Caves, Technique.Cave,
+                "Rooms and winding passages dissolved out of limestone on two or three levels, with stone spikes and flowstone, like Mammoth Cave or Carlsbad Caverns.")
+                { MinCount = 6, MaxCount = 9, CaveStyle = CaveStyle.Karst, Feature = FeatureKind.Stalagmite, MinScale = 0.8, MaxScale = 2.2 });
+            l.Add(new Formation("lava_tube_network", "Lava tube network", Caves, Technique.Cave,
+                "Broad, flat-floored tunnels left by rivers of lava, branching and stacked, with roof collapses letting light in. Thought to lie under the Moon and Mars.")
+                { MinCount = 5, MaxCount = 7, CaveStyle = CaveStyle.LavaTube });
+            l.Add(new Formation("ice_cave_system", "Ice cave system", Caves, Technique.Cave,
+                "Halls and passages melted through ice, glowing blue, with crystals growing from the floors.")
+                { MinCount = 5, MaxCount = 8, CaveStyle = CaveStyle.Ice, Tint = "#9EC2D6" });
             l.Add(new Formation("natural_bridge", "Natural bridge", Caves, Technique.Scatter,
                 "A great span of rock left when the cave around it collapsed.")
                 { MinSize = 4, MaxSize = 8, Feature = FeatureKind.Arch, MinCount = 1, MaxCount = 1, MinScale = 22, MaxScale = 30 });

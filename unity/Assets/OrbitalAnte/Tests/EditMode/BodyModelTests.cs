@@ -147,13 +147,25 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void OneLegAndNoArms_Wriggles_AndNothingEverHops()
+        {
+            var model = NewModel();
+            model.ApplyDamage(BodyPartId.LeftUpperArm, Big);
+            model.ApplyDamage(BodyPartId.RightUpperArm, Big);
+            Assert.AreEqual(MovementState.Intact, model.State, "armless but on both legs: still walks");
+            model.ApplyDamage(BodyPartId.RightShin, Big);
+            Assert.AreEqual(MovementState.Wriggle, model.State, "one leg and no arms to crawl with");
+            Assert.AreNotEqual(MovementState.OneLeg, model.State);
+        }
+
+        [Test]
         public void MovementStates_FollowWhatIsLeft()
         {
             var model = NewModel();
             Assert.AreEqual(MovementState.Intact, model.State);
 
             model.ApplyDamage(BodyPartId.LeftFoot, Big);
-            Assert.AreEqual(MovementState.OneLeg, model.State, "a missing foot means that leg no longer works");
+            Assert.AreEqual(MovementState.Crawl, model.State, "a missing foot means that leg no longer works, and one leg means down on the ground crawling (no hop)");
             Assert.IsFalse(model.CanSprint, "cannot sprint on one leg");
 
             model.ApplyDamage(BodyPartId.RightThigh, Big);

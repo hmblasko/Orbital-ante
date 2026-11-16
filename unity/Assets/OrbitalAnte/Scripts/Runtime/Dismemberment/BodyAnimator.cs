@@ -46,6 +46,11 @@ namespace OrbitalAnte.Dismemberment
         /// gliding steps that keep the head level and the shoulders square to the front. For moving in a fight.
         /// </summary>
         public double Tactical;
+        /// <summary>
+        /// Crawling or wriggling with one leg still on (the one in <see cref="StandingLeg"/>): it is drawn up out to the
+        /// side along the ground and pushes, in step with the arms, like a soldier's crawl.
+        /// </summary>
+        public bool PushingLeg;
     }
 
     /// <summary>
@@ -418,7 +423,11 @@ namespace OrbitalAnte.Dismemberment
                 // Falling over takes a little longer than changing step.
                 _blendTime = wasUpright == isUpright ? 0.22 : 0.42;
                 if (input.State == MovementState.HeadOnly) _blendTime = 0.12;
-                // Losing a leg from under it: it lurches over the leg it has left before it finds the hop.
+                // Losing a leg from under it: it goes down a little slower than a plain change of step, so the
+                // fall reads (it buckles over the leg it has left on the way down).
+                if (_state == MovementState.Intact && (input.State == MovementState.Crawl || input.State == MovementState.Wriggle))
+                    _blendTime = 0.55;
+                // (The hop, no longer chosen by BodyModel: it lurches over the leg it has left before it finds the hop.)
                 if (_state == MovementState.Intact && input.State == MovementState.OneLeg)
                 {
                     _blendTime = 0.3;
@@ -1026,9 +1035,12 @@ namespace OrbitalAnte.Dismemberment
                 SetArm(pose, s, reach, swing, elbow);
             }
 
-            // Leg stumps drag and twitch behind.
+            // Leg stumps drag and twitch behind; a leg that is left pushes.
             pose.Local[(int)BodyBone.LeftThigh] = Qx(9.0 * sin) * Qz(-6.0);
             pose.Local[(int)BodyBone.RightThigh] = Qx(-9.0 * sin) * Qz(6.0);
+            // The push lands while the body is being moved: with both arms (a pull at phase 0 and at half a turn)
+            // or the right arm alone (half a turn to a whole one) from half a turn; with the left arm alone (0 to half).
+            if (input.PushingLeg) PushWithLeg(pose, input, input.Phase + (input.LeftArmWorks && !input.RightArmWorks ? 0.0 : Math.PI), 1.0);
             pose.Local[(int)BodyBone.Spine] = Qx(-6.0 - 3.0 * heave) * Qz(-4.0 * sin);
             // Head up, looking where it is going, straining with each pull.
             pose.Local[(int)BodyBone.Head] = Qy(-9.0 * sin + _lookYaw * (input.Moving ? 0.0 : 0.6) * (1.0 - _lookWeight) + 0.8 * _lookWeight * _lookYawTo)
@@ -1046,10 +1058,41 @@ namespace OrbitalAnte.Dismemberment
             pose.Local[(int)BodyBone.Spine] = Qx(-9.0 * bump) * Qz(6.0 * sin);
             pose.Local[(int)BodyBone.LeftThigh] = Qx(12.0 * sin + 10.0 * bump);
             pose.Local[(int)BodyBone.RightThigh] = Qx(-12.0 * sin + 10.0 * bump);
+            // With no arms, a leg that is left does the work: drawn up, then shoves the body on with each lunge.
+            if (input.PushingLeg) PushWithLeg(pose, input, input.Phase, 1.2);   // the lunge moves it from 0 to half a turn
             pose.Local[(int)BodyBone.Head] = Qy(-14.0 * sin + _lookYaw * (input.Moving ? 0.0 : 0.6)) * Qx(-32.0 + 14.0 * bump);
             SetArm(pose, BodySkeleton.Left, 62.0, 10.0, 15.0);
             SetArm(pose, BodySkeleton.Right, 62.0, 10.0, 15.0);
             AddKnocks(pose, 0.5);
+        }
+
+        /// <summary>
+        /// The leg that is left, on a body lying face down: the knee drawn up out to the side along the ground (the
+        /// hip turned out, so the knee bends flat over the ground rather than kicking the foot up), then the leg
+        /// straightened back to shove the body on, as in a soldier's low crawl. <paramref name="cycle"/> is in
+        /// radians; the push is in its first half. Still, it lies half drawn up, ready.
+        /// </summary>
+        void PushWithLeg(BodyPose pose, in BodyAnimInput input, double cycle, double size)
+        {
+            int s = input.StandingLeg == BodySkeleton.Left ? BodySkeleton.Left : BodySkeleton.Right;
+            double sx = s == BodySkeleton.Left ? -1.0 : 1.0;
+            // 0 straight back, 1 drawn right up. The push (straightening) is quick, the draw-up slower.
+            double drawn;
+            if (!input.Moving) drawn = 0.45;
+            else
+            {
+                double a = Frac(cycle / TwoPi);
+                drawn = a < 0.35 ? 1.0 - Smooth(a / 0.35) : Smooth((a - 0.35) / 0.65);
+            }
+            drawn = Clamp01(drawn * size);
+            double outward = Lerp(12.0, 55.0, drawn);         // the thigh swung out to the side, along the ground
+            double turnOut = Lerp(20.0, 80.0, drawn);         // the hip turned out, so the knee bends flat
+            double knee = Lerp(12.0, 105.0, drawn);
+            double flex = Lerp(0.0, 40.0, drawn);             // and brought forward, so the knee comes up level with the hip
+            pose.Local[(int)BodySkeleton.Thigh(s)] = Qz(sx * outward) * Qy(sx * turnOut) * Qx(-flex);
+            pose.Local[(int)BodySkeleton.Shin(s)] = Qx(knee);
+            // The foot pressed flat, toes dug in for the push.
+            pose.Local[(int)BodySkeleton.Foot(s)] = Qx(-25.0 + 35.0 * (1.0 - drawn));
         }
 
         static void BuildHeadOnly(BodyPose pose, in BodyAnimInput input)

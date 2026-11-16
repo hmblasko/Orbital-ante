@@ -117,13 +117,41 @@ half3 OA_Paint(half3 albedo, float3 place, float range, half amount)
     return lerp(albedo, painted, amount);
 }
 
-// ---------------------------------------------------------------------------------------------- light
+// ---------------------------------------------------------------------------------------------- cave light
 
 // Tells the graphics card to really skip the work inside an "if". Unity's own library defines it; this is for
 // a shader that includes this file without that library.
 #ifndef UNITY_BRANCH
 #define UNITY_BRANCH
 #endif
+
+// Inside a cave network the Sun and sky cannot reach through the rock. The game works out, for the network the
+// eye is nearest to, a box of 2 m cells (CaveLightVolume): a is how much open sky reaches each place (1 outside,
+// next to nothing deep inside), rgb the light of the cave's own work lamps and glowing crystals, carried through
+// the cave's air only, stored divided by _OA_CaveOn.y. _OA_CaveOn.x is 0 when there is no cave near: then nothing
+// is read and nothing changes. Outside the box nothing changes either. Set by CaveLight (CaveNetworkView.cs).
+float4x4 _OA_CaveToVolume;
+half4 _OA_CaveOn;
+TEXTURE3D(_OA_CaveLight);
+SAMPLER(sampler_OA_CaveLight);
+
+half4 OA_CaveLight(float3 positionWS)
+{
+    half4 cave = half4(0.0, 0.0, 0.0, 1.0);
+    UNITY_BRANCH
+    if (_OA_CaveOn.x > 0.5)
+    {
+        float3 uvw = mul(_OA_CaveToVolume, float4(positionWS, 1.0)).xyz;
+        if (all(uvw > 0.0) && all(uvw < 1.0))
+        {
+            half4 cell = SAMPLE_TEXTURE3D_LOD(_OA_CaveLight, sampler_OA_CaveLight, uvw, 0);
+            cave = half4(cell.rgb * _OA_CaveOn.y, cell.a);
+        }
+    }
+    return cave;
+}
+
+// ---------------------------------------------------------------------------------------------- light
 
 // The ship's floodlights: a soft-edged cone that fades out with distance (Ship/ShipLights.Reaching is the same
 // sum, for tests). Skipped entirely while they are off, which is most of the time.
@@ -148,8 +176,11 @@ half3 OA_Beam(half3 normal, float3 positionWS)
 // Soft light with a warm edge to the shadow, sky light from above, warm light bounced up from sunlit ground,
 // the lamp, and a rim of sky colour where a surface turns away from the eye. Returns the light, to be
 // multiplied by the surface's colour.
-half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
+// cave is OA_CaveLight(positionWS): a shader that needs it more than once reads it once and hands it in.
+half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half4 cave)
 {
+    // In a cave, only as much of the sky's light as reaches this spot, and the cave's own lamps.
+    sunAmount *= cave.a;
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
     float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
     half facing = dot(normal, toSun);
@@ -164,7 +195,8 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
 
     // More sky light on faces that look up than on faces that look down.
     half upward = dot(normal, up);
-    half3 light = _OA_Ambient.rgb * (0.85 + 0.3 * upward);
+    half3 light = _OA_Ambient.rgb * ((0.85 + 0.3 * upward) * (0.03 + 0.97 * cave.a));
+    light += cave.rgb * (0.8 + 0.2 * upward);
 
     // Sunlit ground throws warm light back up onto overhangs and shadowed walls.
     half dayHere = saturate(dot(up, toSun) * 2.0 + 0.2);
@@ -191,15 +223,28 @@ half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
     return light;
 }
 
+half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)
+{
+    return OA_LightIn(normal, positionWS, up, sunAmount, OA_CaveLight(positionWS));
+}
+
 // ---------------------------------------------------------------------------------------------- shine
 
 
 // How much daylit sky there is over a place for a surface to mirror: 1 by day on a world, falling to 0 through
 // dusk, and 0 in open space, where the sky is black.
-half OA_DaylitSky(float3 positionWS, float3 up)
+// caveSky is OA_CaveLight(positionWS).a.
+half OA_DaylitSkyIn(float3 positionWS, float3 up, half caveSky)
 {
     float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
-    return dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
+    half sky = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, dot(up, toSun)) : 0.0;
+    // No daylit sky to mirror deep in a cave.
+    return sky * caveSky;
+}
+
+half OA_DaylitSky(float3 positionWS, float3 up)
+{
+    return OA_DaylitSkyIn(positionWS, up, OA_CaveLight(positionWS).a);
 }
 
 // How much of the shine a surface of this smoothness gets: none at all up to 0.1 (cloth, webbing, rubber, dust:
@@ -226,13 +271,16 @@ half OA_Highlight(half3 normal, float3 toLight, float3 toEye, half spread)
 // highlight is spread by that much, so one on a thin barrel far away is a soft gleam, not a flicker. Returns
 // light to add (not to multiply by the surface's colour). A surface that is not smooth (see OA_ShineAmount) gets
 // exactly nothing, so models that say nothing about their finish look as they always did.
-half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen)
+// caveSky is OA_CaveLight(positionWS).a (1 where there is no cave).
+half3 OA_ShineIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen, half caveSky)
 {
     half amount = OA_ShineAmount(gloss);
     half3 shine = half3(0.0, 0.0, 0.0);
     UNITY_BRANCH
     if (amount > 0.0)
     {
+        // A cave keeps the Sun and the sky out of its reflections too (the lamp still glints).
+        sunAmount *= caveSky;
         float3 toSun = normalize(_OA_SunPosition.xyz - positionWS);
         float3 toEye = normalize(_WorldSpaceCameraPos.xyz - positionWS);
         half facingEye = saturate(dot(normal, toEye));
@@ -271,6 +319,11 @@ half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half 
         shine = mirror * light * amount;
     }
     return shine;
+}
+
+half3 OA_Shine(half3 normal, float3 positionWS, float3 up, half sunAmount, half gloss, half metal, half3 albedo, half widen)
+{
+    return OA_ShineIn(normal, positionWS, up, sunAmount, gloss, metal, albedo, widen, OA_CaveLight(positionWS).a);
 }
 
 // ---------------------------------------------------------------------------------------------- haze

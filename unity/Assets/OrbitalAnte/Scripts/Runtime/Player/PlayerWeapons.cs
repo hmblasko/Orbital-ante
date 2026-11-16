@@ -26,6 +26,8 @@ namespace OrbitalAnte.Player
 
         /// <summary>The gun in hand, or null when empty-handed.</summary>
         public Weapon Current { get; private set; }
+        /// <summary>When the player last fired (Time.time), for how far off a shot is heard.</summary>
+        public float LastShotTime { get; private set; } = -100f;
         /// <summary>What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable.</summary>
         public IHittable AimedAt { get; private set; }
         /// <summary>A dropped gun close enough to pick up, or null.</summary>
@@ -49,6 +51,19 @@ namespace OrbitalAnte.Player
         /// astronaut; a gun handed over later follows it.
         /// </summary>
         public bool Indoors { get; set; }
+
+        /// <summary>
+        /// The gun the run itself gave the player (the starting gun, or the gun ladder's latest), as the object.
+        /// Null once it has been swapped for a gun off the ground and destroyed.
+        /// </summary>
+        public Weapon IssuedGun { get; private set; }
+
+        /// <summary>Takes the run's starting gun into the player's hands and remembers it as the issued gun.</summary>
+        public void EquipIssued(Weapon weapon)
+        {
+            Equip(weapon);
+            IssuedGun = weapon;
+        }
 
         /// <summary>Where dropped guns are parented (the arena's weapon folder).</summary>
         public void SetDropParent(Transform parent) => _dropParent = parent;
@@ -83,17 +98,20 @@ namespace OrbitalAnte.Player
         }
 
         /// <summary>
-        /// Hands the player a brand new gun (the gun ladder's next one), fully loaded. With
-        /// <paramref name="dropHeld"/> the gun in hand is tossed down as usual; without it the gun is gone, so the
-        /// ground does not fill up with the guns you climbed past. Returns the new gun, or null if there is
+        /// Hands the player a brand new gun (the gun ladder's next one), fully loaded. If the gun in hand is the
+        /// one the run issued (<see cref="IssuedGun"/>) it is gone, so the ground does not fill up with the guns
+        /// you climbed past; any other gun in hand is tossed down as usual. Returns the new gun, or null if there is
         /// nowhere to hold it yet.
         /// </summary>
-        public Weapon TakeNewGun(WeaponData data, bool dropHeld)
+        public Weapon TakeNewGun(WeaponData data)
         {
             if (data == null || _holder == null) return null;
             Weapon old = Current;
             bool shown = old == null || old.gameObject.activeSelf;
-            if (old != null && dropHeld && shown) DropCurrent();
+            // Only the gun the run handed out is used up. A gun the player picked up is theirs, even one of the
+            // same kind (an enemy's shotgun swapped for the ladder's), so it is dropped. Compared as the very object.
+            bool dropHeld = old != null && old != IssuedGun;
+            if (dropHeld && shown) DropCurrent();
             else
             {
                 Current = null;
@@ -102,6 +120,7 @@ namespace OrbitalAnte.Player
 
             Weapon weapon = Weapon.Create(data, _dropParent, true);
             Equip(weapon);
+            IssuedGun = weapon;
             // In the pilot's seat the held gun is put out of sight; a gun handed over there stays out of sight too.
             weapon.gameObject.SetActive(shown);
             return weapon;
@@ -219,6 +238,7 @@ namespace OrbitalAnte.Player
 
             if (shot.Fired)
             {
+                LastShotTime = Time.time;
                 Vector3 direction = Ballistics.SpreadDirection(_eye.transform.forward, shot.SpreadDegrees, _rng);
                 ShotResult result = Ballistics.FireFromPlayer(weapon.Data, _eye.transform.position, direction);
                 fx.Shot(weapon.Data, weapon.Muzzle.position, result.End);

@@ -29,6 +29,7 @@ namespace OrbitalAnte.Core
         public static InputAction Look { get; private set; }
         public static InputAction Jump { get; private set; }
         public static InputAction Sprint { get; private set; }
+        public static InputAction Sneak { get; private set; }
         public static InputAction Fire { get; private set; }
         public static InputAction Reload { get; private set; }
         public static InputAction Interact { get; private set; }
@@ -148,12 +149,15 @@ namespace OrbitalAnte.Core
 
             Jump = AddButton(Gameplay, "Jump", "<Keyboard>/space", "<Gamepad>/buttonSouth");
             Sprint = AddButton(Gameplay, "Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
+            // On a controller you sneak by pushing the stick only part of the way, so it needs no button.
+            Sneak = AddButton(Gameplay, "Sneak (hold)", "<Keyboard>/leftAlt", null);
             Fire = AddButton(Gameplay, "Fire", "<Mouse>/leftButton", "<Gamepad>/rightTrigger");
             Reload = AddButton(Gameplay, "Reload", "<Keyboard>/r", "<Gamepad>/buttonWest");
             Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
             RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
             Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
+            // On the ground the same button crouches (tap) and lies you down (hold): the jets only work off it.
             JetDown = AddButton(Gameplay, "Jets Down", "<Keyboard>/leftCtrl", "<Gamepad>/buttonEast");
             SuitMatch = AddButton(Gameplay, "Suit Match Velocity (hold)", "<Keyboard>/f", "<Gamepad>/leftTrigger");
             TetherClip = AddButton(Gameplay, "Tether On / Off", "<Keyboard>/x", "<Gamepad>/dpad/right");
@@ -252,6 +256,12 @@ namespace OrbitalAnte.Core
             // The play controls are switched on by the game when a run starts and off while paused.
         }
 
+        /// <summary>
+        /// The words the controls page shows for an action, when they say more than its name. The name itself must
+        /// never change once released: saved rebinds are matched to it (see InputBindingIdentity).
+        /// </summary>
+        static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)" : action;
+
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
             var action = map.AddAction(name, InputActionType.Button);
@@ -277,10 +287,10 @@ namespace OrbitalAnte.Core
                     if (binding.isComposite) continue;
                     if (!InGroup(binding, group)) continue;
 
-                    string label = action.name;
+                    string label = ShownName(action.name);
                     if (binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
                     {
-                        label = action.name + " " + Capitalize(binding.name);
+                        label = ShownName(action.name) + " " + Capitalize(binding.name);
                     }
 
                     entries.Add(new BindingEntry
