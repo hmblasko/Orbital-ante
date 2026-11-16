@@ -46,7 +46,8 @@ namespace OrbitalAnte.AI
         bool TickAbilities(float now)
         {
             if (Ability != FactionAbility.Flare || _loco == null) return false;
-            bool can = _owner.Alive && Weapon != null && FreeHandUsable;
+            // Knocked down mid-raise also spends the flare.
+            bool can = _owner.Alive && Weapon != null && FreeHandUsable && !KnockedDown;
             bool fired = _flare.Tick(now, can);
             ShowFlareGlow(_flare.Raising ? _flare.RaiseAmount(now, Dials.flare) : 0f);
             if (fired) FireFlare();
@@ -61,7 +62,7 @@ namespace OrbitalAnte.AI
             {
                 // Done (fired or stopped): let go of the spot, unless something else holds it there now.
                 _holdingForFlare = false;
-                if (_loco != null && Time.time >= _startledUntil) _loco.Hold = false;
+                if (_loco != null && Time.time >= _startledUntil && !KnockedDown) _loco.Hold = false;
             }
             return false;
         }

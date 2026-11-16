@@ -26,6 +26,8 @@ namespace OrbitalAnte.Player
         float _recoilReturnYaw;
         float _recoilRecovery = 14f;
 
+        /// <summary>Walking and sprinting speed times this (a heavy melee item); null is 1.</summary>
+        public System.Func<float> SpeedScale;
         /// <summary>When true the player cannot move or look (used for the moment after being shot down).</summary>
         public bool Frozen { get; set; }
         /// <summary>Current movement in metres per second. Things the player drops inherit it.</summary>
@@ -153,7 +155,7 @@ namespace OrbitalAnte.Player
             if (grounded) _lastGroundedTime = Time.time;
 
             bool sprinting = GameInput.Sprint.IsPressed() && input.y > 0.3f;
-            float speed = sprinting ? Config.sprintSpeed : Config.walkSpeed;
+            float speed = (sprinting ? Config.sprintSpeed : Config.walkSpeed) * (SpeedScale != null ? SpeedScale() : 1f);
             Vector3 wish = (transform.right * input.x + transform.forward * input.y) * speed;
 
             float acceleration = grounded ? Config.groundAcceleration : Config.airAcceleration;

@@ -79,6 +79,8 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Combat.DeepBreathConfig.ResetStatics();
             OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
             OrbitalAnte.Combat.GunLadderConfig.ResetStatics();
+            OrbitalAnte.Melee.MeleeConfig.ResetStatics();
+            OrbitalAnte.Melee.MeleeItem.ResetStatics();
             OrbitalAnte.Combat.GunLadderFx.ResetStatics();
             OrbitalAnte.Rover.RoverConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();

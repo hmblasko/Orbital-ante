@@ -43,6 +43,8 @@ namespace OrbitalAnte.Ship
         /// <summary>Degrees the seated pilot's head is tipped down toward the dash's camera screen (set by the cockpit).</summary>
         public float ScreenGlance { get; set; }
         public PlayerWeapons Weapons { get; private set; }
+        /// <summary>The melee slot (a found item, separate from the guns), next to the guns on the eye.</summary>
+        public OrbitalAnte.Melee.PlayerMelee Melee { get; private set; }
         /// <summary>How much more the suit can take from being shot. Mends by itself when left alone.</summary>
         public PlayerHealth Armour { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
@@ -255,6 +257,17 @@ namespace OrbitalAnte.Ship
             Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
                 : Ship != null ? Ship.transform.up : Vector3.up;
             Weapons.InShip = () => Mode != AstronautMode.Outside;
+
+            // The melee slot: empty until an item is found. Floating free, a hit pushes you back (by the struck
+            // mass against yours, capped; only ever the suit's speed, never a turn of the view).
+            Melee = Eye.gameObject.AddComponent<OrbitalAnte.Melee.PlayerMelee>();
+            Melee.Initialize(Eye, Weapons, _world);
+            Melee.CarriedVelocity = Weapons.CarriedVelocity;
+            Melee.UpNow = Weapons.UpNow;
+            Melee.InShip = Weapons.InShip;
+            Melee.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Melee.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
+            Melee.CanAct = () => !Dead && !Dazed;
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -279,6 +292,15 @@ namespace OrbitalAnte.Ship
                 }
                 // A gun handed over later (the gun ladder) takes the same light.
                 Weapons.Indoors = !outside;
+            }
+            if (Melee != null)
+            {
+                Melee.enabled = armed;
+                if (Melee.Held != null)
+                {
+                    Melee.Held.gameObject.SetActive(armed);
+                    OrbitalAnte.Look.ModelLibrary.SetIndoors(Melee.Held.gameObject, !outside);
+                }
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
@@ -442,6 +464,12 @@ namespace OrbitalAnte.Ship
                         else held.gameObject.SetActive(false);
                     }
                     Weapons.enabled = false;
+                }
+                // A melee item is lost when you die.
+                if (Melee != null)
+                {
+                    Melee.LoseHeld();
+                    Melee.enabled = false;
                 }
                 GravityBody pull = outside ? _suitGravity : driving ? Rover.Gravity : Ship.Gravity;
                 _burst = PlayerBurstFx.Begin(_world, feet, rotation, velocity, blow, Eye, inCabin ? Ship : null,
@@ -699,6 +727,8 @@ namespace OrbitalAnte.Ship
             float wishX = move.x * cos + move.y * sin;
             float wishZ = -move.x * sin + move.y * cos;
             bool liftOn = Ship.Hatch.Open && Ship.Hatch.WantOpen;
+            // A heavy melee item (the mailbox) slows your walk aboard too.
+            _walker.WalkSpeed = _config.walkSpeed * (Melee != null ? Melee.WalkSlow : 1f);
             _walker.Step(dt, wishX, wishZ, GameInput.Jump.WasPressedThisFrame(), liftOn);
             PoseAboard();
 
@@ -1029,6 +1059,8 @@ namespace OrbitalAnte.Ship
             CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
                                          * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
+            // The laser sword's hum carries whatever stance you are in: no sneaking with it.
+            if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
             CombatWorld.PlayerAimBelowEye = Mathf.Min(0.3f, Stances.Eye * 0.5f);
         }
 
@@ -1281,7 +1313,7 @@ namespace OrbitalAnte.Ship
             if (_grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances);
+                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f);
                 Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);

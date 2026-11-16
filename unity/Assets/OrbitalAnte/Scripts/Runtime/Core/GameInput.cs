@@ -46,6 +46,8 @@ namespace OrbitalAnte.Core
         public static InputAction SuitRollRight { get; private set; }
         /// <summary>Held: the astronaut takes a deep breath and the world slows (see Combat/DeepBreath).</summary>
         public static InputAction DeepBreath { get; private set; }
+        /// <summary>Swings the melee item in hand (found, never issued). Its pad button is Roll Right while floating free.</summary>
+        public static InputAction Melee { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -172,6 +174,13 @@ namespace OrbitalAnte.Core
             // D-pad way is taken on foot and Select is kept for the upgrade screen, so the last free control is
             // the right stick's click: it is under the aiming thumb already.
             DeepBreath = AddButton(Gameplay, "Focus (hold)", "<Keyboard>/q", "<Gamepad>/rightStickPress");
+            // Melee: V is free on foot; the mouse's back side button (button 4) as well, so it is under the thumb.
+            // On the controller nothing on foot is free, so it shares the right bumper with Roll Right, which only
+            // works while floating free: the bumper swings everywhere else (MeleeRules.SwingFromPress, like Jets
+            // Down crouching on the ground). Halo has melee on the right bumper too.
+            Melee = AddButton(Gameplay, "Melee", "<Keyboard>/v", "<Gamepad>/rightShoulder");
+            // A second keyboard-and-mouse slot needs its own name, or saved rebinds could not tell the two apart.
+            Melee.AddBinding("<Mouse>/backButton", groups: KeyboardMouseGroup).WithName("Mouse");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -265,7 +274,8 @@ namespace OrbitalAnte.Core
         /// The words the controls page shows for an action, when they say more than its name. The name itself must
         /// never change once released: saved rebinds are matched to it (see InputBindingIdentity).
         /// </summary>
-        static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)" : action;
+        static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)"
+            : action == "Melee" ? "Melee Swing (pad: on foot; rolls while floating)" : action;
 
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
@@ -296,6 +306,11 @@ namespace OrbitalAnte.Core
                     if (binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
                     {
                         label = ShownName(action.name) + " " + Capitalize(binding.name);
+                    }
+                    else if (!binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
+                    {
+                        // A second slot of a plain button (Melee's mouse button) says which it is.
+                        label = ShownName(action.name) + " (" + binding.name + ")";
                     }
 
                     entries.Add(new BindingEntry

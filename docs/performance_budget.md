@@ -355,6 +355,16 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Faction A abilities (16 Nov 2026) | No garbage per frame; a few comparisons per enemy (those without an ability return at once); no physics queries. One unlit sphere (about 760 triangles, 1 draw call, no shadow, one shared material) per raised hand and per flare in the air; a property block on each Faction A body's torso and head (2 renderers each leave the SRP batcher). A flare reaches every awake enemy once through one event. Not measured in Unity | One flare per Scout per life, 9.2 s each: at most 12 at the live cap |
 | Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
 
+## Melee (16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| The melee slot (`PlayerMelee`) while an item is held | one overlap sphere (reach + 0.6 m, hitbox, gib and item layers) a frame, every frame an item is held (the in-range cue uses it): a closest-point per collider it finds (what each collider belongs to is looked up once and kept), the targeting sort with no garbage, then a line-of-sight ray only for the 1 to 3 things chosen (a blocked one is dropped and the choice made again, at most 4 times); guessed under 0.1 ms with three enemies in reach (about 40 hitboxes), not measured | 96 colliders a frame (`_overlaps`); nothing at all with no item in hand but the pick-up search over the few melee items |
+| A swing's contact | the same hits as bullets (`Mannequin.ApplyHit`), once per swing | 3 things a swing (the mailbox) |
+| Knocked-down enemies | one ray a frame per sliding body | lasts about 1.2 s |
+| Melee HUD | its own canvas, 6 elements; text rebuilt only when the item or the lock changes; the heat bar is resized only when it moves a whole pixel | - |
+| Melee items in the world | one stand-in object (a few primitives) per item lying about; at most one per world at a base, five in the arena | 1 per world |
+
 ## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity
 
 | System | Cost | Cap |

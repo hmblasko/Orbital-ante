@@ -21,6 +21,8 @@ namespace OrbitalAnte.Arena
 
         public FpsController Player { get; private set; }
         public PlayerWeapons Weapons { get; private set; }
+        /// <summary>The arena player's melee slot.</summary>
+        public OrbitalAnte.Melee.PlayerMelee Melee { get; private set; }
         public PlayerHealth Health { get; private set; }
         public Camera PlayerCamera { get; private set; }
         public IReadOnlyList<Mannequin> Mannequins => _mannequins;
@@ -90,6 +92,8 @@ namespace OrbitalAnte.Arena
 
         void OnPlayerDied()
         {
+            // A melee item is lost when you die (a fresh set is laid out again at the start).
+            if (Melee != null) Melee.LoseHeld();
             _respawnAt = Time.time + Mathf.Max(0.5f, _playerConfig.respawnDelay);
             Player.Frozen = true;
         }
@@ -288,6 +292,13 @@ namespace OrbitalAnte.Arena
             Weapons.Initialize(config, PlayerCamera, Player, Health, null);
             // A rare gun that blows up knocks the test player down like any other death here.
             Weapons.Backfired += cause => { if (Health.Alive) Health.TakeDamage(Health.Max * 10f, -PlayerCamera.transform.forward); };
+
+            // The melee slot. The arena lays all five items out by the start so each can be tried.
+            Melee = eyeGo.AddComponent<OrbitalAnte.Melee.PlayerMelee>();
+            Melee.Initialize(PlayerCamera, Weapons, null);
+            Melee.CarriedVelocity = () => Player.Velocity;
+            Melee.CanAct = () => Health.Alive;
+            Player.SpeedScale = () => Melee.WalkSlow;
         }
 
         // ------------------------------------------------------------------ gore
@@ -321,6 +332,7 @@ namespace OrbitalAnte.Arena
             _weaponRoot.SetParent(transform, false);
             CombatWorld.DropParent = _weaponRoot;
             if (Weapons != null) Weapons.SetDropParent(_weaponRoot);
+            if (Melee != null) Melee.SetDropParent(_weaponRoot);
 
             if (_mannequinRoot != null)
             {
@@ -384,6 +396,24 @@ namespace OrbitalAnte.Arena
             {
                 Weapon wildcard = Weapon.Create(rare, _weaponRoot, MannequinConfig.Load().oneHandedReloadAllowed);
                 wildcard.transform.SetPositionAndRotation(PlayerStart + new Vector3(-1.6f, 0.4f, 2.5f), Quaternion.Euler(0f, -60f, 90f));
+            }
+            PlaceMeleeRack();
+        }
+
+        /// <summary>
+        /// All five melee items in a row a few steps ahead of the start, lying on their sides, so each one can be
+        /// tried here without hunting the worlds' bases (in the solar system they are rare finds).
+        /// </summary>
+        void PlaceMeleeRack()
+        {
+            string[] ids = OrbitalAnte.Melee.MeleeCatalog.Ids;
+            for (int i = 0; i < ids.Length; i++)
+            {
+                var data = OrbitalAnte.Content.ContentDatabase.Get<OrbitalAnte.Melee.MeleeData>(ids[i]);
+                if (data == null) continue;
+                var item = OrbitalAnte.Melee.MeleeItem.Create(data, _weaponRoot);
+                float x = (i - (ids.Length - 1) * 0.5f) * 1.3f;
+                item.transform.SetPositionAndRotation(PlayerStart + new Vector3(x, 0.35f, 5.5f), Quaternion.Euler(0f, 0f, 90f));
             }
         }
 
