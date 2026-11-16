@@ -19,6 +19,8 @@ namespace OrbitalAnte.Enemies
         [Tooltip("Which set of built-in kinds the list above came from. An older asset takes the new kinds when the game starts. Set it very high to keep your own list.")]
         public int rosterVersion = EnemyRoster.Version;
         public EnemyFieldRules field = new EnemyFieldRules();
+        [Tooltip("How enemies take cover and go round your side. Untick Cover or Flank to compare with the old way of fighting.")]
+        public OrbitalAnte.AI.TacticsRules tactics = new OrbitalAnte.AI.TacticsRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
 

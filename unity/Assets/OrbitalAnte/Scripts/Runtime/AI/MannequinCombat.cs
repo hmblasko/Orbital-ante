@@ -15,7 +15,7 @@ namespace OrbitalAnte.AI
     ///
     /// It also poses the gun and bends the arms to hold it.
     /// </summary>
-    public sealed class MannequinCombat : MonoBehaviour, IWeaponHolder
+    public sealed partial class MannequinCombat : MonoBehaviour, IWeaponHolder
     {
         const float PalmLength = 0.07f;
         const float AimConeDegrees = 55f;
@@ -178,6 +178,7 @@ namespace OrbitalAnte.AI
         /// <summary>The gun is gone from its hands while it lives: it drops, and the character is startled.</summary>
         void KnockedOutOfHands(Vector3 extraVelocity, float spin)
         {
+            DropCover();
             Weapon weapon = Weapon;
             DropWeapon(extraVelocity, spin);
             if (weapon == null || _owner == null || !_owner.Alive) return;
@@ -219,6 +220,8 @@ namespace OrbitalAnte.AI
 
         void OnDied(Mannequin mannequin)
         {
+            DropCover();
+            LeaveSquad();
             DropWeapon(transform.up * 1.5f, 5f);
             if (_loco != null)
             {
@@ -277,10 +280,12 @@ namespace OrbitalAnte.AI
             if (state == MovementState.HeadOnly)
             {
                 // A head on its own has nothing to fight with. It just rolls about.
+                LeaveSquad();
                 ClearGoals();
                 return;
             }
 
+            TickSquad(state, Time.time);
             if (Weapon != null) ThinkArmed(state);
             else if (Time.time < _startledUntil)
             {
@@ -297,6 +302,7 @@ namespace OrbitalAnte.AI
 
         void ClearGoals()
         {
+            DropCover();
             _loco.Destination = null;
             _loco.FacePoint = null;
             _loco.Hurry = false;
@@ -341,6 +347,13 @@ namespace OrbitalAnte.AI
             float distance = Vector3.Distance(head, target);
             float now = Time.time;
             bool sees = distance <= SightRange(now) && ClearSight(head, target);
+            if (sees)
+            {
+                _lastSaw = now;
+                if (Squad != null) Squad.Saw(now);
+            }
+            // Cover and flanking (MannequinCombat.Tactics.cs); when they do not apply, the fight below goes on as before.
+            if (ThinkTactics(state, sees, distance, now)) return;
 
             if (!sees)
             {
@@ -484,9 +497,12 @@ namespace OrbitalAnte.AI
             if (seen) _lastSaw = Time.time;
             bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
             _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
-            if (CombatWorld.PlayerPresent && CombatWorld.FindCover != null)
+            if (CombatWorld.PlayerPresent && (CombatWorld.FindCover != null || threatened))
             {
-                Vector3? cover = CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position);
+                // The arena has its own list of walls; everywhere else cover is found by looking (CoverFinder).
+                Vector3? cover = CombatWorld.FindCover != null
+                    ? CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position)
+                    : HideFromPlayer();
                 if (cover.HasValue)
                 {
                     _loco.Destination = cover.Value;
@@ -540,7 +556,7 @@ namespace OrbitalAnte.AI
         /// (the side you can stand on or see), so one look from inside a cave would go straight up through the
         /// ground to someone standing on it.
         /// </summary>
-        static bool ClearSight(Vector3 a, Vector3 b)
+        internal static bool ClearSight(Vector3 a, Vector3 b)
         {
             if (Physics.Linecast(a, b, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return false;
             // A cave's walls face inward, and a line only hits a face from its front: from inside a cave to the
@@ -680,7 +696,7 @@ namespace OrbitalAnte.AI
                 }
             }
             else if (now >= _nextTriggerAt && !_telling && Squad != null
-                     && !Squad.TakeTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
+                     && !TakeSquadTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
             {
                 // Somebody else's turn to shoot: ask again in a moment.
                 _nextTriggerAt = now + 0.25f;
