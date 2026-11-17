@@ -1,7 +1,8 @@
 """Offline mockups for the HUD clean-up (17 Nov 2026) at the Steam Deck's 1280x800. Not game footage.
 
-Draws four pictures: the flight view as it is now, the flight view after the clean-up, on foot outside after the
-clean-up, and the new Run Stats page in the pause menu. Drawn at 2x and scaled down so text sizes match the Deck.
+Draws five pictures: the flight view as it is now, the flight view after the clean-up, on foot outside after the
+clean-up, the new Run Stats page in the pause menu, and the seat view with the ship readout
+back (Matthew asked for it to stay, later on 17 Nov). Drawn at 2x and scaled down so text sizes match the Deck.
 
     python3 tools/hud_mockups/hud_cleanup_mockups.py <backgrounds folder> <out folder>
 
@@ -360,9 +361,79 @@ def stats_page():
     save(img, "hud_cleanup_4_pause_run_stats", "AFTER  pause menu > Run Stats: everything that left the screen, in one place")
 
 
+# ------------------------------------------------------------------ the ship readout back (17 Nov 2026, later)
+def plate(L, x0, y_bottom, width, rows):
+    """Draws a FlightHud readout plate: rows of (label, value, value colour, words, words colour, height, value size,
+    bold value, bar). Laid out from the bottom up, like FlightHud.LayOut."""
+    height = 16 + sum(r[5] for r in rows)
+    top = y_bottom - height
+    L.rect(x0, top, x0 + width, y_bottom, (13, 15, 20, 148), 10)
+    L.rect(x0 + 12, top, x0 + width - 12, top + 2, AMBER + (204,))
+    y = top + 8
+    for label_, value, vcol, words, wcol, h, vsize, bold, bar in rows:
+        mid = y + h / 2
+        if label_:
+            L.text((x0 + 16, mid), label_, font(True, 13), MUTED, "lm")
+        L.text((x0 + 106, mid), value, font(bold, vsize), vcol, "lm")
+        if words:
+            L.text((x0 + width - 16, mid), words, font(False, 14), wcol, "rm")
+        if bar is not None:
+            bx1 = x0 + width - 16
+            bx0 = bx1 - 110
+            L.rect(bx0, mid - 3.5, bx1, mid + 3.5, (0, 0, 0, 128), 3)
+            L.rect(bx0, mid - 3.5, bx0 + 110 * bar, mid + 3.5, AMBER + (255,), 3)
+            cx = bx0 + 110 * 0.62
+            L.rect(cx - 1, mid - 8.5, cx + 1, mid + 8.5, CREAM + (255,))
+        y += h
+
+
+def readout_flight():
+    img = background("front-window-seat.png")
+    L = Layer()
+    aim_cross(L)
+    body_marker(L, 820, 250, "Phobos", "8.1 km", aimed=True)
+    body_marker(L, 300, 180, "Deimos", "21 km", small=True)
+    body_marker(L, 1000, 120, "Jupiter", "1,904 km")
+    label(L, (W / 2, 22), "MARS", MUTED, "mt", 14)
+    L.text((W / 2, 42), "1.24 km", font(True, 30), CREAM, "mt")
+    L.text((W / 2, 80), "above the ground", font(False, 14), MUTED, "mt")
+
+    plate(L, 24, H - 30, 470, [
+        ("SPEED", "212 m/s", CREAM, "against Mars's ground", MUTED, 36, 28, True, None),
+        ("CLIMB", "down 4.2 m/s", CREAM, "", MUTED, 25, 19, True, None),
+        ("PULL", "3.7 m/s\u00b2", CREAM, "", MUTED, 25, 19, True, None),
+        ("ORBIT", "1,104 / 3,410 m/s", CREAM, "", MUTED, 25, 19, True, 0.62 * 1104 / 3410),
+        ("", "comes down: go faster across", AMBER, "", MUTED, 21, 14, False, None),
+        ("OUTSIDE", "Wind 14 m/s carries you sideways", MUTED, "", MUTED, 23, 14, False, None),
+    ])
+    plate(L, W - 24 - 400, H - 30, 400, [
+        ("TARGET", "Phobos", (115, 217, 255), "LOCKED", (115, 217, 255), 25, 19, True, None),
+        ("DISTANCE", "8.1 km", CREAM, "closing 230 m/s", DANGER, 25, 19, True, None),
+        ("FUEL", "62%", CREAM, "", MUTED, 25, 19, True, None),
+        ("AIR", "18%", AMBER, "low", AMBER, 25, 19, True, None),
+    ])
+    L.text((W / 2, 550), "BRAKE NOW:  aim at Phobos and hold Match Velocity (F)", font(True, 22), DANGER, "mm")
+
+    sx, sy = W - 40, 120
+    label(L, (sx, sy), "SHIP", MUTED, "ra")
+    rows = [("Thruster 2  54%", 0.54, None), ("Front glass  81%", 0.81, None), ("Leg 1", 0.0, "BROKEN")]
+    for i, (name, f, tag) in enumerate(rows):
+        yy = sy + 22 + i * 22
+        L.text((sx - 96, yy), name, font(False, 15), CREAM, "ra")
+        if tag:
+            L.text((sx, yy), tag, font(True, 13), DANGER, "ra", spacing=1.0)
+        else:
+            L.rect(sx - 84, yy + 5, sx, yy + 11, (0, 0, 0, 140), 3)
+            col = AMBER if f < 0.6 else CREAM
+            L.rect(sx - 84, yy + 5, sx - 84 + 84 * f, yy + 11, col + (255,), 3)
+    L.compose(img, halo=0.5)
+    save(img, "hud_readout_5_seat_view", "The seat view with the ship readout back: two labelled plates in B612")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     before_flight()
     after_flight()
     after_on_foot()
     stats_page()
+    readout_flight()

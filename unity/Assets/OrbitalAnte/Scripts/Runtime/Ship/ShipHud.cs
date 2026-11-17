@@ -39,6 +39,8 @@ namespace OrbitalAnte.Ship
         const float RowHeight = 22f, BarWidth = 84f;
         /// <summary>How long every hurt part is listed after the damage last changed.</summary>
         const float FullSeconds = 6f;
+        /// <summary>True: every hurt part is always listed with its bar and per cent, never folded into "N parts worn".</summary>
+        static readonly bool AlwaysFull = true;
         int _damageKey;
         float _damageChanged = -100f;
         RectTransform _barBack, _barFill, _dot;
@@ -181,7 +183,7 @@ namespace OrbitalAnte.Ship
             if (now < _nextList) return;
             _nextList = now + ListInterval;
             ShipModel model = _ship.Model;
-            // Fresh news shows every hurt part for a while; after that only what no longer works stays, with a
+            // Every hurt part is listed (AlwaysFull). With it off, fresh news shows every hurt part for a while, then only what no longer works stays, with a
             // count of the rest, so a dent you choose to live with does not hold the corner for good.
             int key = 17;
             int hurt = 0;
@@ -198,7 +200,8 @@ namespace OrbitalAnte.Ship
                 _damageKey = key;
                 _damageChanged = now;
             }
-            bool full = now - _damageChanged < FullSeconds;
+            // Every hurt part stays listed (Matthew, 17 Nov 2026: "I didn't want the ship hud taken away").
+            bool full = AlwaysFull || now - _damageChanged < FullSeconds;
 
             int shown = 0, quiet = 0;
             for (int i = 0; i < model.Count; i++)
@@ -208,7 +211,8 @@ namespace OrbitalAnte.Ship
                 if (state == PartState.Sound && !model.NeedsRepair(i)) continue;
                 HudRules.PartRow row = HudRules.ShipPart(state, model.Fraction(i), model.TearProgress(i));
                 if (!full && row.Tag == null) { quiet++; continue; }
-                ShowRow(shown++, model.Parts[i].Name, row);
+                // The per cent beside the bar (Matthew, 17 Nov 2026: the ship's readout stays on screen).
+                ShowRow(shown++, row.Tag == null ? model.Parts[i].Name + "  " + StatsFormat.Percent(row.Bar) : model.Parts[i].Name, row);
             }
             if (!model.CabinIntact)
                 ShowRow(shown++, "Cabin", new HudRules.PartRow { Tag = "OPEN TO SPACE", Tone = StatTone.Bad });

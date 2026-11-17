@@ -71,3 +71,14 @@ Two reviews ran before committing (Opus, as the Fable agents are rate limited un
 - Everything's look and position on the real screen, especially the seat view's lower corners over the console, and the target group's number and unit lining up.
 - Run Stats page: controller navigation between its three buttons placed without a layout group; the numbers it shows in every situation (seated, aboard, outside, rover, arena).
 - That turning the overlay off by default does not hide anything a playtest needs: performance numbers are now in Run Stats, and F3 still shows the overlay.
+
+## Later the same day: the ship readout back
+
+Matthew: "Maybe put back the ship hud but have the stats appear in an appropriate [font] that is easy to see, not some janky default font", then "I didn't want the ship hud taken away".
+
+- The seat view's readout is back in full, as two dark plates of labelled rows: lower left, how you are flying (SPEED with what it is against, CLIMB near the ground, PULL, ORBIT with its bar whenever you are near a world and its words under it, OUTSIDE for wind or water); lower right, the ship and its target (TARGET with LOCKED or aimed, DISTANCE with closing speed, red when you must brake, FUEL, AIR). Labels are small muted capitals, values bold cream B612 at 19 px (speed 28 px), quiet words at the right. The plates leave the middle of the bottom free for the notice.
+- New on screen compared with before the clean-up: the ship's fuel and air as numbers, on top of the console's own tube and dial.
+- The ship's damage panel lists every hurt part all the time, with its bar and its per cent, instead of folding into "N parts worn" after 6 s.
+- Font: every one of these labels is B612 through `UiKit`. If text still looks like a plain default font on the Deck, B612 is not loading there (Unity falls back to its own font when `Resources/Fonts/B612-Regular.ttf` does not import), and the check is in the steps sent to Matthew.
+- Mockup: `hud_readout_5_seat_view.png` (offline, not game footage).
+- Tested: compiles against the reference assemblies; rule tests pass. Not run in Unity.
