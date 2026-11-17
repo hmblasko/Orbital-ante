@@ -48,6 +48,7 @@ namespace OrbitalAnte.Core
         public static InputAction DeepBreath { get; private set; }
         /// <summary>Swings the melee item in hand (found, never issued). Its pad button is Roll Right while floating free.</summary>
         public static InputAction Melee { get; private set; }
+        public static InputAction Dig { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -181,6 +182,11 @@ namespace OrbitalAnte.Core
             Melee = AddButton(Gameplay, "Melee", "<Keyboard>/v", "<Gamepad>/rightShoulder");
             // A second keyboard-and-mouse slot needs its own name, or saved rebinds could not tell the two apart.
             Melee.AddBinding("<Mouse>/backButton", groups: KeyboardMouseGroup).WithName("Mouse");
+            // The shovel (Matthew, 17 Nov 2026: shovel holes and dig). B and the middle mouse button are free on foot;
+            // on the controller it shares the left bumper with Roll Left, which only works while floating free,
+            // the same way Melee shares the right one.
+            Dig = AddButton(Gameplay, "Dig (shovel)", "<Keyboard>/b", "<Gamepad>/leftShoulder");
+            Dig.AddBinding("<Mouse>/middleButton", groups: KeyboardMouseGroup).WithName("Mouse");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -275,7 +281,8 @@ namespace OrbitalAnte.Core
         /// never change once released: saved rebinds are matched to it (see InputBindingIdentity).
         /// </summary>
         static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)"
-            : action == "Melee" ? "Melee Swing (pad: on foot; rolls while floating)" : action;
+            : action == "Melee" ? "Melee Swing (pad: on foot; rolls while floating)"
+            : action == "Dig (shovel)" ? "Dig with the Shovel (pad: on foot; rolls while floating)" : action;
 
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {

@@ -28,6 +28,12 @@ namespace OrbitalAnte.Planets
         [Tooltip("However fast the ship is going, ground further than this is not made solid, in metres.")]
         public float solidGroundLimit = 260f;
 
+        [Header("Digging")]
+        [Tooltip("The player's bullets dig small holes in the ground where they land.")]
+        public bool bulletsDig = true;
+        [Tooltip("Enemies' bullets dig small holes in the ground too (the ground round you gets chewed up in a fight).")]
+        public bool enemyBulletsDig = true;
+
         [Header("Look from far away")]
         [Tooltip("Width of a planet's far-away picture in dots. The height is half this.")]
         public int planetPictureWidth = 1024;

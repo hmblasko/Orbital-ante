@@ -44,6 +44,15 @@ namespace OrbitalAnte.Planets
             public Vec3d[] ScatterPositions;
             public bool ScatterOut;
             public int SeenTick;
+            /// <summary>The dug-ground cover the tile's shape was last worked out with (finest tiles only).</summary>
+            public int DigVersion;
+            public PlanetJobs.Handle Rebuild;
+            /// <summary>True if the tile's shape leaves squares out for dug ground.</summary>
+            public bool DugOut;
+            /// <summary>Corners of the box round the tile's mesh (body space), for finding the tiles dug ground touches.</summary>
+            public Vec3d BoxMin, BoxMax;
+            /// <summary>A rebuilt shape is waiting for its collider to be cooked again (<see cref="GroundCooks"/>).</summary>
+            public bool NeedsCook;
         }
 
         sealed class TerrainBuild
@@ -76,6 +85,14 @@ namespace OrbitalAnte.Planets
         public bool PictureReady { get; private set; }
         /// <summary>Positions of the terrain's fixed placements, in metres from the body's centre.</summary>
         public Vec3d[] PlacementPositions { get; private set; }
+        /// <summary>The ground dug out of this body this run (shovel, bullets, blasts). Made with the terrain.</summary>
+        public PlanetDigging Digging { get; private set; }
+        /// <summary>The safety net's radius: nothing is ever dug down to it.</summary>
+        public double SafetyRadius => _safetyRadius;
+        /// <summary>Where the ground was last built round (the viewer), metres from the body's centre.</summary>
+        public Vec3d Viewer => _viewer;
+        /// <summary>The parent of the ground tiles (and of the dug ground).</summary>
+        public Transform GroundRoot => _tileRoot;
 
         public Color SkyColor { get; private set; }
         public Color HazeColor { get; private set; }
@@ -122,6 +139,8 @@ namespace OrbitalAnte.Planets
         readonly List<Node> _scatterNodes = new List<Node>();
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
         Vec3d _viewer;
+        DigCover _digCover = DigCover.None;
+        readonly List<CaveNetworkView> _networkViews = new List<CaveNetworkView>();
         float _solidRange;
         int _tick;
         int _bakesLeft;
@@ -146,6 +165,7 @@ namespace OrbitalAnte.Planets
         {
             _disc = null;
             PictureWidthForTests = 0;
+            PlanetDigging.ResetStatics();
         }
 
         // ------------------------------------------------------------------ building
@@ -247,6 +267,7 @@ namespace OrbitalAnte.Planets
             _ground = PlanetMaterials.Ground(Body.Spec.id, Settings.groundRelief);
             _owned.Add(_ground);
             Features.SetTerrain(Terrain, PlacementPositions);
+            Digging = new PlanetDigging(this);
             if (!_pictureHeld) BeginPicture();
         }
 
@@ -349,9 +370,12 @@ namespace OrbitalAnte.Planets
                 for (int f = 0; f < CubeSphere.Faces; f++) _roots[f] = NewNode(f, 0, 0, 0);
                 BuildDetail();
                 Features.SetActive(true);
+                Digging?.Show();
             }
             else
             {
+                Digging?.Hide();
+                _digCover = DigCover.None;
                 for (int f = 0; f < _roots.Length; f++) Release(_roots[f]);
                 _roots = null;
                 while (_spare.Count > 0) DestroyNode(_spare.Pop());
@@ -479,6 +503,8 @@ namespace OrbitalAnte.Planets
             }
 
             Features.Tick(viewer);
+            CookRebuiltTiles();
+            Digging?.Tick(viewer);
         }
 
         void Refresh(Node n)
@@ -725,7 +751,11 @@ namespace OrbitalAnte.Planets
             bool cut = level >= MaxLevel - 1;
             bool scatter = level == Mathf.Max(0, MaxLevel - 1);
             bool linear = _linear;
-            n.Job = PlanetJobs.Run(() => BuildTile(terrain, face, level, x, y, cut, scatter, linear), build => OnTile(n, build), () => TilePriority(n));
+            // The finest tiles leave out their squares where dug ground is drawn instead.
+            DigCover dig = level >= MaxLevel && !_digCover.IsEmpty ? _digCover : null;
+            n.DigVersion = _digCover.Version;
+            n.Rebuild = null;
+            n.Job = PlanetJobs.Run(() => BuildTile(terrain, face, level, x, y, cut, scatter, linear, dig), build => OnTile(n, build), () => TilePriority(n));
             return n;
         }
 
@@ -735,9 +765,9 @@ namespace OrbitalAnte.Planets
             return (float)Vec3d.Distance(n.Centre, _viewer) + n.Level * 2f - 2e6f;
         }
 
-        static TileBuild BuildTile(PlanetTerrain terrain, int face, int level, int x, int y, bool cut, bool scatter, bool linear)
+        static TileBuild BuildTile(PlanetTerrain terrain, int face, int level, int x, int y, bool cut, bool scatter, bool linear, DigCover dig)
         {
-            var build = new TileBuild { Chunk = TerrainMesher.Build(terrain, face, level, x, y, cut) };
+            var build = new TileBuild { Chunk = TerrainMesher.Build(terrain, face, level, x, y, cut, dig) };
             if (build.Chunk.HasHole)
             {
                 build.RequiredCaves = new List<Cave>();
@@ -781,6 +811,7 @@ namespace OrbitalAnte.Planets
                 n.Go = new GameObject("Tile");
                 n.Go.transform.SetParent(_tileRoot, false);
                 n.Go.layer = Layers.Default;
+                n.Go.AddComponent<DiggableGround>().Surface = this;
                 n.Mesh = new Mesh { name = "Ground" };
                 n.Go.AddComponent<MeshFilter>().sharedMesh = n.Mesh;
                 var renderer = n.Go.AddComponent<MeshRenderer>();
@@ -789,16 +820,33 @@ namespace OrbitalAnte.Planets
                 renderer.receiveShadows = false;
             }
             n.Go.SetActive(false);
+            ApplyMesh(n, chunk);
+            n.RequiredCaves = build.RequiredCaves;
 
+            if (build.Scatter != null && build.Scatter.Count > 0)
+            {
+                n.Scatter = build.Scatter;
+                n.ScatterPositions = build.ScatterPositions;
+                _scatterNodes.Add(n);
+            }
+            // Dug ground came or went while this tile was being worked out: work it out again.
+            if (n.Level >= MaxLevel && n.DigVersion != _digCover.Version && (chunk.DugOut || TileNear(n, _digCover.Min, _digCover.Max))) RebuildTile(n);
+        }
+
+        void ApplyMesh(Node n, ChunkData chunk)
+        {
             int count = chunk.VertexCount;
             VertexBuffer.Clear();
             NormalBuffer.Clear();
             DirectionBuffer.Clear();
             ColorBuffer.Clear();
+            Vector3 low = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue), high = -low;
             for (int i = 0; i < count; i++)
             {
                 int o = i * 3;
                 var p = new Vector3(chunk.Positions[o], chunk.Positions[o + 1], chunk.Positions[o + 2]);
+                low = Vector3.Min(low, p);
+                high = Vector3.Max(high, p);
                 VertexBuffer.Add(p);
                 NormalBuffer.Add(new Vector3(chunk.Normals[o], chunk.Normals[o + 1], chunk.Normals[o + 2]));
                 DirectionBuffer.Add(p.normalized);
@@ -811,14 +859,120 @@ namespace OrbitalAnte.Planets
             n.Mesh.SetColors(ColorBuffer);
             n.Mesh.SetTriangles(chunk.Triangles, 0, true);
             n.HasMesh = true;
-            n.RequiredCaves = build.RequiredCaves;
+            n.DugOut = chunk.DugOut;
+            n.BoxMin = SpaceConvert.ToVec3d(low);
+            n.BoxMax = SpaceConvert.ToVec3d(high);
+        }
 
-            if (build.Scatter != null && build.Scatter.Count > 0)
+        // ------------------------------------------------------------------ dug ground
+
+        /// <summary>
+        /// Called by <see cref="Digging"/> when boxes of dug ground have come up (drawn and solid) between min and
+        /// max: the finest tiles and the cave walls there are worked out again without their faces inside them.
+        /// </summary>
+        public void OnDigCover(DigCover cover, Vec3d min, Vec3d max)
+        {
+            _digCover = cover ?? DigCover.None;
+            if (_roots == null) return;
+            for (int f = 0; f < _roots.Length; f++) RebuildNear(_roots[f], min, max);
+            for (int i = _networkViews.Count - 1; i >= 0; i--)
             {
-                n.Scatter = build.Scatter;
-                n.ScatterPositions = build.ScatterPositions;
-                _scatterNodes.Add(n);
+                if (_networkViews[i] == null) { _networkViews.RemoveAt(i); continue; }
+                _networkViews[i].OnDigCover(_digCover, min, max);
             }
+        }
+
+        void RebuildNear(Node n, Vec3d min, Vec3d max)
+        {
+            if (n == null || n.Dead || !TileNear(n, min, max)) return;
+            if (n.Children != null)
+                for (int c = 0; c < 4; c++) RebuildNear(n.Children[c], min, max);
+            // Tiles still being worked out check the cover's version when they arrive.
+            if (n.Level >= MaxLevel && n.HasMesh) RebuildTile(n);
+        }
+
+        bool TileNear(Node n, Vec3d min, Vec3d max)
+        {
+            if (min.X > max.X) return false;
+            // A finest tile with a shape: only if its own box touches the change (the test the tile's builder uses).
+            if (n.Level >= MaxLevel && n.HasMesh)
+                return !(n.BoxMax.X < min.X - 2 || n.BoxMax.Y < min.Y - 2 || n.BoxMax.Z < min.Z - 2
+                         || n.BoxMin.X > max.X + 2 || n.BoxMin.Y > max.Y + 2 || n.BoxMin.Z > max.Z + 2);
+            double reach = TerrainMesher.TileSize(SurfaceRadius, n.Level) * 0.8 + DigRules.Margin + 2;
+            Vec3d c = n.Centre;
+            double dx = Math.Max(Math.Max(min.X - c.X, 0), c.X - max.X);
+            double dy = Math.Max(Math.Max(min.Y - c.Y, 0), c.Y - max.Y);
+            double dz = Math.Max(Math.Max(min.Z - c.Z, 0), c.Z - max.Z);
+            return dx * dx + dy * dy + dz * dz < reach * reach;
+        }
+
+        /// <summary>Works a finest tile out again with the cover as it is now, and swaps its shape (and collider) in place.</summary>
+        void RebuildTile(Node n)
+        {
+            if (n.Rebuild != null) n.Rebuild.Cancel();
+            PlanetTerrain terrain = Terrain;
+            int face = n.Face, level = n.Level, x = n.X, y = n.Y;
+            bool linear = _linear;
+            DigCover dig = _digCover;
+            int version = dig.Version;
+            PlanetJobs.Handle handle = null;
+            Vec3d centre = n.Centre;
+            bool patient = Vec3d.Distance(centre, _viewer) > PlanetDigging.UrgentReach + 40;
+            handle = PlanetJobs.Run(() => BuildTile(terrain, face, level, x, y, true, false, linear, dig), build =>
+            {
+                if (n.Rebuild == handle) n.Rebuild = null;
+                if (this == null || n.Dead || !n.HasMesh || !Near) return;
+                n.DigVersion = version;
+                // Nothing was left out before and nothing is now: the shape is the same, so keep it as it is.
+                if (!n.DugOut && !build.Chunk.DugOut) return;
+                ApplyMesh(n, build.Chunk);
+                n.RequiredCaves = build.RequiredCaves;
+                if (n.Collider != null)
+                {
+                    if (n.Solid)
+                    {
+                        if (!n.NeedsCook) _cookQueue.Add(n);
+                        n.NeedsCook = true;
+                    }
+                    // A tile that is not solid now must not keep the old shape in its collider: when it is made solid
+                    // again (MakeSolid hands the mesh over only if it is a different one) it would be a lid over the hole.
+                    else n.Collider.sharedMesh = null;
+                }
+            }, () => PlanetDigging.Priority(centre, _viewer), patient);
+            n.Rebuild = handle;
+        }
+
+        readonly List<Node> _cookQueue = new List<Node>();
+
+        /// <summary>Cooks again, within the frame's budget, the colliders of finest tiles rebuilt round dug ground.</summary>
+        void CookRebuiltTiles()
+        {
+            for (int i = 0; i < _cookQueue.Count;)
+            {
+                Node n = _cookQueue[i];
+                if (n.Dead || !n.NeedsCook || n.Collider == null || !n.Solid)
+                {
+                    // Not solid any more: drop the old shape too (see RebuildTile).
+                    if (!n.Dead && n.NeedsCook && n.Collider != null && !n.Solid) n.Collider.sharedMesh = null;
+                    n.NeedsCook = false;
+                    _cookQueue.RemoveAt(i);
+                    continue;
+                }
+                if (!GroundCooks.Take()) return;
+                // Handing the same mesh over again cooks it again.
+                n.Collider.sharedMesh = null;
+                n.Collider.sharedMesh = n.Mesh;
+                n.NeedsCook = false;
+                _cookQueue.RemoveAt(i);
+                Digging?.WakeIn(n.BoxMin, n.BoxMax);
+            }
+        }
+
+        /// <summary>True if the ground drawn at a point (metres from the body's centre) is a finest tile, the only kind that leaves holes for dug ground.</summary>
+        public bool FinestDrawnAt(Vec3d point)
+        {
+            Node n = SupportingNode(point);
+            return n != null && n.Shown && n.Level >= MaxLevel;
         }
 
         /// <summary>Takes a tile (and everything under it) out of use and keeps its objects for the next one.</summary>
@@ -834,6 +988,12 @@ namespace OrbitalAnte.Planets
                 n.Job.Cancel();
                 n.Job = null;
             }
+            if (n.Rebuild != null)
+            {
+                n.Rebuild.Cancel();
+                n.Rebuild = null;
+            }
+            n.NeedsCook = false;
             if (n.ScatterOut)
             {
                 Features.HideGroup(n);
@@ -888,6 +1048,7 @@ namespace OrbitalAnte.Planets
 
             PlanetTerrain terrain = Terrain;
             bool linear = _linear;
+            DigCover dig = _digCover;
             for (int i = 0; i < Terrain.Caves.Count; i++)
             {
                 Cave cave = Terrain.Caves[i];
@@ -900,12 +1061,12 @@ namespace OrbitalAnte.Planets
                     {
                         var build = new CaveBuild
                         {
-                            Chunks = CaveNetworkMesher.Build(cave.Network, terrain),
+                            Chunks = CaveNetworkMesher.Build(cave.Network, terrain, dig),
                             Light = CaveLightVolume.Build(cave.Network, terrain),
                         };
                         if (linear) CaveNetworkView.ToLinear(build);
                         return build;
-                    }, build => OnCaveNetwork(cave, build), () => (float)Vec3d.Distance(cave.Centres[0], _viewer), patient: true));
+                    }, build => OnCaveNetwork(cave, build, dig.Version), () => (float)Vec3d.Distance(cave.Centres[0], _viewer), patient: true));
                     continue;
                 }
                 _caveJobs.Add(PlanetJobs.Run(() =>
@@ -925,6 +1086,7 @@ namespace OrbitalAnte.Planets
             // Caves still being built for this visit must not turn up during the next one as duplicates.
             for (int i = 0; i < _caveJobs.Count; i++) _caveJobs[i].Cancel();
             _caveJobs.Clear();
+            _networkViews.Clear();
             _readyCaves.Clear();
             for (int i = _detailRoot.childCount - 1; i >= 0; i--)
             {
@@ -1018,14 +1180,17 @@ namespace OrbitalAnte.Planets
             _readyCaves.Add(cave);
         }
 
-        void OnCaveNetwork(Cave cave, CaveBuild build)
+        void OnCaveNetwork(Cave cave, CaveBuild build, int digVersion)
         {
             if (this == null || !Near || Terrain == null) return;
             // Only counted as there (safe for enemies) once its last block of wall is drawn; blocks are made solid near the player.
-            CaveNetworkView.Create(_detailRoot, this, cave, build, ready =>
+            CaveNetworkView view = CaveNetworkView.Create(_detailRoot, this, cave, build, ready =>
             {
                 if (this != null && Near) _readyCaves.Add(ready);
             });
+            _networkViews.Add(view);
+            // Ground was dug near it while its walls were being worked out.
+            if (digVersion != _digCover.Version && !_digCover.IsEmpty) view.OnDigCover(_digCover, _digCover.Min, _digCover.Max);
         }
 
         /// <summary>True once a cave's walls are up (a network's blocks are made solid as the player nears them).</summary>
@@ -1104,6 +1269,10 @@ namespace OrbitalAnte.Planets
         public bool InCave(Vec3d point, double margin = 3)
         {
             if (Terrain == null) return false;
+            // Down a dug hole or tunnel counts too: nobody there is "sunk" into the ground and lifted out of it. Tightly,
+            // whatever the margin asked for: a wide margin round every bullet hole would turn the safety net off
+            // across a whole battlefield.
+            if (Digging != null && Digging.Field.InDugAir(point, Math.Min(margin, 0.5))) return true;
             for (int c = 0; c < Terrain.Caves.Count; c++)
             {
                 Cave cave = Terrain.Caves[c];
@@ -1168,6 +1337,7 @@ namespace OrbitalAnte.Planets
             }
             while (_spare.Count > 0) DestroyNode(_spare.Pop());
             if (Features != null) Features.Dispose();
+            Digging?.Destroy();
             for (int i = 0; i < _owned.Count; i++)
             {
                 if (_owned[i] != null) Destroy(_owned[i]);

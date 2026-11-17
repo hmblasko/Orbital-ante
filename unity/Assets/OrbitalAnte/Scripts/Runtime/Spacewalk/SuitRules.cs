@@ -330,6 +330,8 @@ namespace OrbitalAnte.Spacewalk
         /// <summary>Speed measured against the same thing Match Velocity would match, metres per second.</summary>
         public float Speed;
         public bool Floating;
+        /// <summary>Why the shovel's last bite would not go in, for a moment after it (null otherwise).</summary>
+        public string DigNote;
     }
 
     /// <summary>The suit's words. Plain C#. One notice at a time, the most urgent first.</summary>
@@ -342,6 +344,7 @@ namespace OrbitalAnte.Spacewalk
             // Said before the first push on air, not after: the cost should never be a surprise.
             if (s.FuelOut) return "JET FUEL OUT: JETS NOW BURN YOUR AIR";
             if (s.FuelLow) return "JET FUEL LOW";
+            if (!string.IsNullOrEmpty(s.DigNote)) return s.DigNote;
             if (s.TetherTaut) return "TETHER AT FULL STRETCH";
             if (s.Matching) return s.MatchTarget == MatchTarget.Ship ? "MATCHING THE SHIP" : "MATCHING " + Ground(s);
             return string.Empty;

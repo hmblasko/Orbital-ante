@@ -10,6 +10,8 @@ namespace OrbitalAnte.Planets
         public ShapeData Shape;
         /// <summary>Box round the block, metres from the body's centre.</summary>
         public Vec3d Min, Max;
+        /// <summary>Which block of the network's grid this is, so it can be built again by itself (see <see cref="CaveNetworkMesher.BuildBlockAt"/>).</summary>
+        public int Bx, By, Bz;
     }
 
     /// <summary>
@@ -78,7 +80,45 @@ namespace OrbitalAnte.Planets
         }
 
         /// <summary>Builds every block of walls. Blocks with nothing in them are left out.</summary>
-        public static List<CaveChunk> Build(CaveNetwork net, PlanetTerrain terrain)
+        /// <param name="cover">Boxes of dug ground already drawn (see <see cref="DigCover"/>): the walls inside them are left to the dug ground.</param>
+        public static List<CaveChunk> Build(CaveNetwork net, PlanetTerrain terrain, DigCover cover = null)
+        {
+            Grid g = MakeGrid(net, terrain);
+            var chunks = new List<CaveChunk>();
+            for (int bx = 0; bx * Block < g.Nx; bx++)
+                for (int by = 0; by * Block < g.Ny; by++)
+                    for (int bz = 0; bz * Block < g.Nz; bz++)
+                    {
+                        CaveChunk chunk = BuildBlock(g, bx, by, bz, cover);
+                        if (chunk != null) chunks.Add(chunk);
+                    }
+            return chunks;
+        }
+
+        /// <summary>
+        /// Builds one block again by itself, as <see cref="Build"/> would with this cover. Null if it has nothing in
+        /// it. Used when ground is dug next to a cave: only the blocks round the hole change.
+        /// </summary>
+        public static CaveChunk BuildBlockAt(CaveNetwork net, PlanetTerrain terrain, int bx, int by, int bz, DigCover cover)
+        {
+            return BuildBlock(MakeGrid(net, terrain), bx, by, bz, cover);
+        }
+
+        /// <summary>The box round one block, in the body's space, with a cell's room all round.</summary>
+        public static void BlockBounds(CaveNetwork net, PlanetTerrain terrain, int bx, int by, int bz, out Vec3d min, out Vec3d max)
+        {
+            Grid g = MakeGrid(net, terrain);
+            Bounds(g, bx * Block, by * Block, bz * Block, out min, out max);
+        }
+
+        /// <summary>The colour of a cave's wall at a point, as the walls here are painted (for dug ground that opens into a cave).</summary>
+        public static void WallColour(CaveNetwork net, PlanetTerrain terrain, Vec3d p, Vec3d normal, out float red, out float green, out float blue)
+        {
+            var g = new Grid { Net = net, Terrain = terrain };
+            Paint(g, p, normal, true, out red, out green, out blue);
+        }
+
+        static Grid MakeGrid(CaveNetwork net, PlanetTerrain terrain)
         {
             var g = new Grid { Net = net, Terrain = terrain };
             Vec3d min = net.LocalMin, max = net.LocalMax;
@@ -94,16 +134,20 @@ namespace OrbitalAnte.Planets
             g.Nx = (int)Math.Ceiling((max.X - g.Origin.X) / Cell) + 2;
             g.Ny = (int)Math.Ceiling((max.Y - g.Origin.Y) / Cell) + 2;
             g.Nz = (int)Math.Ceiling((max.Z - g.Origin.Z) / Cell) + 2;
+            return g;
+        }
 
-            var chunks = new List<CaveChunk>();
-            for (int bx = 0; bx * Block < g.Nx; bx++)
-                for (int by = 0; by * Block < g.Ny; by++)
-                    for (int bz = 0; bz * Block < g.Nz; bz++)
-                    {
-                        CaveChunk chunk = BuildBlock(g, bx * Block, by * Block, bz * Block);
-                        if (chunk != null) chunks.Add(chunk);
-                    }
-            return chunks;
+        static void Bounds(Grid g, int i0, int j0, int k0, out Vec3d bmin, out Vec3d bmax)
+        {
+            int n = Block;
+            bmin = new Vec3d(double.MaxValue, double.MaxValue, double.MaxValue);
+            bmax = -bmin;
+            for (int c = 0; c < 8; c++)
+            {
+                Vec3d p = g.Body(i0 + ((c & 1) == 0 ? -1 : n + 1), j0 + ((c & 2) == 0 ? -1 : n + 1), k0 + ((c & 4) == 0 ? -1 : n + 1));
+                bmin = new Vec3d(Math.Min(bmin.X, p.X), Math.Min(bmin.Y, p.Y), Math.Min(bmin.Z, p.Z));
+                bmax = new Vec3d(Math.Max(bmax.X, p.X), Math.Max(bmax.Y, p.Y), Math.Max(bmax.Z, p.Z));
+            }
         }
 
         static bool NearLip(Grid g, Vec3d p)
@@ -117,17 +161,13 @@ namespace OrbitalAnte.Planets
             return false;
         }
 
-        static CaveChunk BuildBlock(Grid g, int i0, int j0, int k0)
+        static CaveChunk BuildBlock(Grid g, int bx, int by, int bz, DigCover cover)
         {
             int n = Block;
+            int i0 = bx * Block, j0 = by * Block, k0 = bz * Block;
             // Is there anything here at all?
-            Vec3d bmin = new Vec3d(double.MaxValue, double.MaxValue, double.MaxValue), bmax = -bmin;
-            for (int c = 0; c < 8; c++)
-            {
-                Vec3d p = g.Body(i0 + ((c & 1) == 0 ? -1 : n + 1), j0 + ((c & 2) == 0 ? -1 : n + 1), k0 + ((c & 4) == 0 ? -1 : n + 1));
-                bmin = new Vec3d(Math.Min(bmin.X, p.X), Math.Min(bmin.Y, p.Y), Math.Min(bmin.Z, p.Z));
-                bmax = new Vec3d(Math.Max(bmax.X, p.X), Math.Max(bmax.Y, p.Y), Math.Max(bmax.Z, p.Z));
-            }
+            Bounds(g, i0, j0, k0, out Vec3d bmin, out Vec3d bmax);
+            if (cover != null && !cover.Touches(bmin, bmax)) cover = null;
             bool lip = false;
             foreach (CaveOpening o in g.Net.Openings)
             {
@@ -245,6 +285,9 @@ namespace OrbitalAnte.Planets
                                 c2 = cornerOf[CellIndex(a, b, c)]; c3 = cornerOf[CellIndex(a - 1, b, c)];
                             }
                             if (c0 < 0 || c1 < 0 || c2 < 0 || c3 < 0) continue;
+                            // Inside dug ground the dug ground draws the walls (and the holes dug into them).
+                            if (cover != null && cover.Covers(positions[c0], DigRules.Clearance) && cover.Covers(positions[c1], DigRules.Clearance)
+                                && cover.Covers(positions[c2], DigRules.Clearance) && cover.Covers(positions[c3], DigRules.Clearance)) continue;
                             // Keep the cave's own walls, under the ground; and the lip round the holes.
                             int keep = 0;
                             foreach (int corner in new[] { c0, c1, c2, c3 })
@@ -307,6 +350,7 @@ namespace OrbitalAnte.Planets
             {
                 Shape = new ShapeData { Positions = outPositions, Normals = outNormals, Colors = outColors, Triangles = outTriangles },
                 Min = cmin, Max = cmax,
+                Bx = bx, By = by, Bz = bz,
             };
         }
 

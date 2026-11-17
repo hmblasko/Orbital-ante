@@ -45,6 +45,8 @@ namespace OrbitalAnte.Ship
         public PlayerWeapons Weapons { get; private set; }
         /// <summary>The melee slot (a found item, separate from the guns), next to the guns on the eye.</summary>
         public OrbitalAnte.Melee.PlayerMelee Melee { get; private set; }
+        /// <summary>The shovel, always carried: digs the ground of a world (outside only).</summary>
+        public PlayerShovel Shovel { get; private set; }
         /// <summary>How much more the suit can take from being shot. Mends by itself when left alone.</summary>
         public PlayerHealth Armour { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
@@ -268,6 +270,13 @@ namespace OrbitalAnte.Ship
             Melee.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
             Melee.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
             Melee.CanAct = () => !Dead && !Dazed;
+
+            // The shovel: always on the suit. It digs only outside, on (or floating near) a world's ground.
+            Shovel = Eye.gameObject.AddComponent<PlayerShovel>();
+            Shovel.Initialize(Eye);
+            Shovel.CanDig = () => Mode == AstronautMode.Outside && !Dead && !Dazed && !GameSession.Paused;
+            Shovel.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Shovel.Feet = () => Posture == Posture.Free ? (Vector3?)null : transform.position;
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -1058,9 +1067,14 @@ namespace OrbitalAnte.Ship
             // In the dark of a cave network you are picked out only from closer.
             CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
                                          * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            // Down a tunnel you dug yourself it is as dark as a cave (and never better hidden than one).
+            if (OrbitalAnte.Planets.PlanetDigging.Underground(transform.position + transform.up))
+                CombatWorld.PlayerSeenFrom = Mathf.Max(CombatWorld.PlayerSeenFrom * 0.5f, 0.35f * StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules));
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
             // The laser sword's hum carries whatever stance you are in: no sneaking with it.
             if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
+            // Digging is heard (a little further than walking about), whatever the stance.
+            if (Shovel != null && Shovel.Noisy) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, ShovelSwing.HeardFrom);
             CombatWorld.PlayerAimBelowEye = Mathf.Min(0.3f, Stances.Eye * 0.5f);
         }
 
@@ -1141,6 +1155,7 @@ namespace OrbitalAnte.Ship
             SuitState.Tethered = Tethered;
             SuitState.TetherTaut = TetherTaut;
             SuitState.Floating = outside && Posture == Posture.Free;
+            SuitState.DigNote = Shovel != null && outside ? Shovel.Note : null;
             if (!outside)
             {
                 SuitState.Matching = false;

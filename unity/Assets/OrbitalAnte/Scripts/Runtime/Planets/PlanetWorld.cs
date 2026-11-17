@@ -428,7 +428,10 @@ namespace OrbitalAnte.Planets
                 if (s.Near)
                 {
                     near += "   " + s.Body.Spec.displayName + ": tiles " + s.ShownTiles + " (solid " + s.SolidTiles + ")  things " + s.Features.Count +
-                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug();
+                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug() +
+                            (s.Digging != null && s.Digging.Field.CarveCount > 0
+                                ? "   dug " + s.Digging.Field.CarveCount + " scoops, " + s.Digging.ShownBoxes + " boxes" + (s.Digging.Refused > 0 ? " (" + s.Digging.Refused + " refused)" : string.Empty)
+                                : string.Empty);
                 }
             }
             return "Ground ready " + ready + "/" + total + "  pictures " + pictures + "/" + total +

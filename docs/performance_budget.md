@@ -457,3 +457,17 @@ Current save data is small. File size, allocations, storage latency and checkpoi
 | Painting the envelope pieces | 13 pictures, about 0.55 s in all under .NET 8 on the cloud machine (`tools/envelope_view pieces` prints each). Mono in Unity is likely 2 to 3 times slower. Painted one piece a frame while the title screen shows (`EnvelopeDirector.PaintAhead`), so the worst single frame is the seal, about 120 ms (.NET): one hitch on the title screen, never in a run. |
 | Texture memory | About 5 MB, uncompressed RGBA, kept for the session (`EnvelopeTextures`). One card (280 x 392) is painted per reveal and replaces the last. |
 | The screen while showing | One canvas, about 30 to 60 images and labels, laid out from `EnvelopeScene.Frame` each frame (one list, reused; a few small allocations a frame). Only while the envelope shows (run start and reveals), never during play. Off: nothing. |
+
+
+## Diggable ground (17 Nov 2026): one box measured in the cloud, the rest estimates from reading the code
+
+| Work | Cost and cap |
+|---|---|
+| Building one box of dug ground (background) | One box with 200 bullet holes: 26 to 33 ms on the cloud CPU (.NET 8). Guess for the Deck under Mono: 50 to 150 ms, on a worker. At most 3 at once; beyond `PlanetDigging.UrgentReach` (15 m) they queue behind ordinary ground tiles and never take the last free core. |
+| Boxes per body | `DigRules.MaxChunks` 420; bullets stop at `BulletChunks` 250. About half are empty and make no object. A flat box is about 500 triangles, a tunnel or pitted box 1,000 to 2,000. Guess at the cap: about 200 draw calls, 100k to 250k triangles, one material. |
+| Ground tiles rebuilt round new boxes | Only finest tiles whose own box touches the change (plus 2 m); a tile whose shape does not change is skipped. The cover is made again at most every 0.2 s. |
+| Collider cooking (main thread) | `GroundCooks.PerFrame` 2 a frame across dug boxes and rebuilt tiles (cave walls cook at once but are counted). Static ground options: fast midphase plus mesh cleaning. |
+| Drawing check | 40 boxes a frame, in turn (a few quadtree look-ups each). |
+| Coming back to a dug world | Every box is built again (420 at most): many seconds of background work, queued behind the ground you land on. Not measured. |
+
+Read in Unity on the Deck: the Profiler's main-thread `MeshCollider` cooking and `GC.Collect` while 4 enemies and you fire into the ground for a minute, then fly off and land again and note how long the tiles under you take. The planet line on F3 shows "dug N scoops, M boxes (R refused)".

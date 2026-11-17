@@ -33,6 +33,16 @@ namespace OrbitalAnte.AI
         float _lastSaw = -1000f;
         /// <summary>Where the player was last heard, and when; null when nothing has been heard lately.</summary>
         Vector3? _heardAt;
+
+        /// <summary>
+        /// Where to walk to get at a target point: the point itself, unless it is down a dug tunnel, when it is the
+        /// tunnel's mouth until this enemy is at the mouth (then it goes on in after them).
+        /// </summary>
+        Vector3 WayIn(Vector3 target)
+        {
+            if (!OrbitalAnte.Planets.PlanetDigging.WayInFor(target, out Vector3 mouth)) return target;
+            return (transform.position - mouth).sqrMagnitude < 9f ? target : mouth;
+        }
         float _heardTime = -1000f, _heardPauseUntil = -1000f;
         bool _heardHolding;
         /// <summary>A sound gives a place, not a track: a new place is taken at most this often.</summary>
@@ -466,8 +476,10 @@ namespace OrbitalAnte.AI
 
                 bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
                 SetHeardBeat(pausing, _heardAt);
-                if (chasing) _loco.Destination = CombatWorld.PlayerEye.position;
-                else if (_heardAt != null && !pausing) _loco.Destination = _heardAt;
+                // A player who has dug in is gone after through the tunnel's mouth, not from the ground over their head
+                // (Planets.PlanetDigging.WayInFor): the enemy comes to the mouth and shoots down it.
+                if (chasing) _loco.Destination = WayIn(CombatWorld.PlayerEye.position);
+                else if (_heardAt != null && !pausing) _loco.Destination = WayIn(_heardAt.Value);
                 else _loco.Destination = null;
                 bool hunting = chasing || _heardAt != null;
                 _loco.Hurry = chasing && _cfg.rushes;

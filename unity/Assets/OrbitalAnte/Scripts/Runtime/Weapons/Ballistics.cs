@@ -65,6 +65,8 @@ namespace OrbitalAnte.Weapons
             if (target == null)
             {
                 if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
+                // Ground shot at is dug up.
+                GroundDamage.Bullet(hit, direction, data.torsoDamage, false);
                 return result;
             }
 
@@ -128,6 +130,7 @@ namespace OrbitalAnte.Weapons
             {
                 WeaponFx fx = WeaponFx.Instance;
                 if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
+                GroundDamage.Bullet(hit, direction, data.torsoDamage, true);
             }
             return result;
         }

@@ -33,6 +33,7 @@ namespace OrbitalAnte.Planets
         static readonly int PaintId = Shader.PropertyToID("_Paint");
         static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
         static readonly int GroundId = Shader.PropertyToID("_Ground");
+        static readonly int VertexSkyId = Shader.PropertyToID("_VertexSky");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
 
@@ -143,6 +144,18 @@ namespace OrbitalAnte.Planets
                 return ground;
             }
             return new Material(VertexLitBase()) { name = bodyId + " ground" };
+        }
+
+        /// <summary>
+        /// The material for dug ground: the ground's own, but the mesh's fourth colour number says how much open sky
+        /// each corner sees (DigMesher), so tunnels are dark. Under Unity's standard shaders it is plain ground.
+        /// </summary>
+        public static Material DugGround(string bodyId, float relief = 1f)
+        {
+            Material m = Ground(bodyId, relief);
+            m.name = bodyId + " dug ground";
+            if (m.HasProperty(VertexSkyId)) m.SetFloat(VertexSkyId, 1f);
+            return m;
         }
 
         public static void SetFarPicture(Material ground, Texture2D picture, float blendStart, float blendEnd)
