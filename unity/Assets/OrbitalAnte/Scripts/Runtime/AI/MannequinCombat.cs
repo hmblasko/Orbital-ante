@@ -40,7 +40,7 @@ namespace OrbitalAnte.AI
         /// <summary>The beat an enemy who heard something stands and turns to it before going to look.</summary>
         const float HeardPause = 0.7f;
         /// <summary>The camp this one belongs to, if any: who may shoot now, and what the others have seen. Null in the arena.</summary>
-        public OrbitalAnte.Enemies.Squad Squad;
+        [System.NonSerialized] public OrbitalAnte.Enemies.Squad Squad;
         float _tellUntil;
         bool _telling;
         LineRenderer _tellLine;

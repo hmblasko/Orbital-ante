@@ -20,6 +20,10 @@ There is no file list to keep up to date: new rule files and tests on any branch
 
 Model-file tests find `Resources/Models` by walking up from the test folder (or from `OA_MODELS` if set). The audio tests find `tools/audio` the same way and are ignored if it is missing.
 
+## Unity's older NUnit
+
+This project builds against NUnit 3.14, but Unity's test runner has NUnit 3.5, and test files kept behind `#if UNITY_...` are skipped here altogether. So a newer NUnit feature in any test would pass here and stop Unity compiling. `TestSourceTests` reads the text of every file under `Tests/` (EditMode and PlayMode, Unity-only ones included) and fails on the features it lists (`NonParallelizable`, `Assert.Multiple` and others). Add to its list when Unity reports another.
+
 ## What it does not cover
 
 PlayMode tests, MonoBehaviours, shaders, scenes, and anything about look, feel or frame time. Those still need Unity on Matthew's machine. It also uses the .NET 8 runtime, not Unity's Mono, so a test that passes here can in rare cases behave differently in the editor (floating point formatting, for example).

@@ -49,7 +49,7 @@ namespace OrbitalAnte.Dismemberment
         /// </summary>
         static bool SceneCastsShadows()
         {
-            Light[] lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
+            Light[] lights = OrbitalAnte.Core.SceneQuery.All<Light>();
             for (int i = 0; i < lights.Length; i++)
             {
                 Light light = lights[i];

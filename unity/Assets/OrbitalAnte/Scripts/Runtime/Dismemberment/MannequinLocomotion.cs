@@ -35,9 +35,9 @@ namespace OrbitalAnte.Dismemberment
         public bool Wander = true;
 
         /// <summary>When set, walk here instead of wandering, and stop on arrival.</summary>
-        public Vector3? Destination;
+        [System.NonSerialized] public Vector3? Destination;
         /// <summary>When set, stand still and turn to face this point (used to aim). Wins over Destination.</summary>
-        public Vector3? FacePoint;
+        [System.NonSerialized] public Vector3? FacePoint;
         /// <summary>Sprint to the destination if the legs allow it.</summary>
         public bool Hurry;
         /// <summary>
@@ -49,7 +49,7 @@ namespace OrbitalAnte.Dismemberment
         public float Reach;
         public int ReachSide = MannequinRig.Right;
         /// <summary>Something to keep the head turned toward, if anything (a point in the world).</summary>
-        public Vector3? LookAt;
+        [System.NonSerialized] public Vector3? LookAt;
         /// <summary>Stay on the spot (startled, or bending to pick something up), turning slowly toward <see cref="LookAt"/>.</summary>
         public bool Hold;
         /// <summary>0 to 1: move and stand in the tactical hunch (knees bent, low, gun up, head level). Set by the fight.</summary>

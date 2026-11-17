@@ -113,7 +113,7 @@ namespace OrbitalAnte.Ship
         /// <summary>Which way a slack tether hangs: the way things fall, or away from the ship's belly when nothing pulls.</summary>
         public Vector3 TetherHangs => _suitGravity.FeltGravity.sqrMagnitude > 0.06f ? _suitGravity.FeltGravity.normalized : -Ship.transform.up;
         /// <summary>What the suit's readout shows. Filled in every physics step while outside.</summary>
-        public SuitInputs SuitState;
+        [System.NonSerialized] public SuitInputs SuitState;
         /// <summary>True while the suit has a danger to report (for the warning tone).</summary>
         public bool SuitAlarm { get; private set; }
         /// <summary>How full the ship's air tank is, 0 to 1. Set by the cockpit, which keeps the ship's supplies.</summary>

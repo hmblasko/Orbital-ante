@@ -172,7 +172,7 @@ namespace OrbitalAnte.Ship
             _caged = this;
             // Wreckage the killing blow has already torn off is on the gib layer too: the cage leaves it alone.
             // (Nothing of the player's body is loose yet: the body breaks after this.)
-            foreach (Collider other in FindObjectsByType<Collider>(FindObjectsSortMode.None))
+            foreach (Collider other in OrbitalAnte.Core.SceneQuery.All<Collider>())
                 if (other != null && other.gameObject.layer == Layers.Gib && other.attachedRigidbody != _cage) IgnoreCage(new[] { other });
             _shipVelocity = _ship.Body.linearVelocity;
             _hasShipVelocity = true;

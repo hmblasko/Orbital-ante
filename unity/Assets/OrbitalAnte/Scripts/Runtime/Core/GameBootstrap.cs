@@ -145,10 +145,10 @@ namespace OrbitalAnte.Core
         /// </summary>
         void SilenceSceneLeftovers()
         {
-            foreach (Camera cam in FindObjectsByType<Camera>(FindObjectsSortMode.None)) cam.gameObject.SetActive(false);
-            foreach (Light light in FindObjectsByType<Light>(FindObjectsSortMode.None)) light.gameObject.SetActive(false);
-            foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsSortMode.None)) listener.enabled = false;
-            foreach (EventSystem es in FindObjectsByType<EventSystem>(FindObjectsSortMode.None)) es.gameObject.SetActive(false);
+            foreach (Camera cam in OrbitalAnte.Core.SceneQuery.All<Camera>()) cam.gameObject.SetActive(false);
+            foreach (Light light in OrbitalAnte.Core.SceneQuery.All<Light>()) light.gameObject.SetActive(false);
+            foreach (AudioListener listener in OrbitalAnte.Core.SceneQuery.All<AudioListener>()) listener.enabled = false;
+            foreach (EventSystem es in OrbitalAnte.Core.SceneQuery.All<EventSystem>()) es.gameObject.SetActive(false);
         }
 
         void BuildUi()
