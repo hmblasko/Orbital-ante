@@ -33,6 +33,8 @@ namespace OrbitalAnte.Core
         Combat.GunLadderFx _gunLadder;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
+        /// <summary>Time played in this run, for Run Stats. Paused time does not count.</summary>
+        double _runSeconds;
         Audio.AudioDemoSequence _audioShowcase;
 
         public TestArena Arena => _arena;
@@ -208,6 +210,7 @@ namespace OrbitalAnte.Core
             _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
+            _pauseMenu.StatsSource = () => RunStatsReport.Build(_runSeconds, _space, _arena, _deepBreath, _hud);
             OrbitalAnte.Ship.Astronaut.OnDeath = cause => _pauseMenu.ShowDeath(cause);
         }
 
@@ -273,6 +276,10 @@ namespace OrbitalAnte.Core
                     // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
                     _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
                         () => astronaut.InTheOpen && !Cockpit.CockpitDash.WatchingScreen);
+                    // The gun's readout, lower right, whenever the gun is in your hands: on foot, aboard or outside.
+                    _hud.Weapons = astronaut.Weapons;
+                    _hud.WeaponShown = () => !astronaut.Dead && !Cockpit.CockpitDash.WatchingScreen &&
+                                             (astronaut.Mode == Ship.AstronautMode.Aboard || astronaut.Mode == Ship.AstronautMode.Outside);
                 }
             }
             else
@@ -285,6 +292,7 @@ namespace OrbitalAnte.Core
                 _hud.WatchHurt(_arena.Health, _arena.PlayerCamera != null ? _arena.PlayerCamera.transform : null);
             }
             _hud.SetVisible(true);
+            _runSeconds = 0;
 
             GameSession.SetMode(GameMode.Playing);
             GameInput.Play.Enable();
@@ -310,6 +318,7 @@ namespace OrbitalAnte.Core
             {
                 _hud.ExtraDebug = null;
                 _hud.Weapons = null;
+                _hud.WeaponShown = null;
                 _hud.Health = null;
                 _hud.WatchHurt(null, null);
             }
@@ -317,7 +326,11 @@ namespace OrbitalAnte.Core
 
         void Update()
         {
-            if (GameSession.Mode == GameMode.Playing && !GameSession.Paused) _unsavedSeconds += Time.unscaledDeltaTime;
+            if (GameSession.Mode == GameMode.Playing && !GameSession.Paused)
+            {
+                _unsavedSeconds += Time.unscaledDeltaTime;
+                _runSeconds += Time.unscaledDeltaTime;
+            }
         }
 
         /// <summary>Moves time played since the last save into the save data.</summary>

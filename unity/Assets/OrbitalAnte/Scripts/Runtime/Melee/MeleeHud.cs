@@ -58,13 +58,14 @@ namespace OrbitalAnte.Melee
             UiKit.Pin((RectTransform)_takedown.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -44f), new Vector2(240f, 26f));
             UiKit.Halo(_takedown, true);
 
-            // The item and its key, above the gun ladder's line (136) and below its rare-gun note (222).
-            _line = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleCenter);
-            UiKit.Pin((RectTransform)_line.transform, new Vector2(0.5f, 0f), new Vector2(0f, 166f), new Vector2(560f, 22f));
+            // The item and its key: in the lower right above the gun and clear of the top of the suit plates' arc
+            // (17 Nov 2026 clean-up; it sat in the bottom middle, where the suit's notice also goes).
+            _line = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight);
+            UiKit.Pin((RectTransform)_line.transform, new Vector2(1f, 0f), new Vector2(-30f, 204f), new Vector2(420f, 22f));
             UiKit.Halo(_line);
 
             _heatBack = UiKit.NewRect("Heat", _canvas.transform);
-            UiKit.Pin(_heatBack, new Vector2(0.5f, 0f), new Vector2(0f, 152f), new Vector2(140f, 6f));
+            UiKit.Pin(_heatBack, new Vector2(1f, 0f), new Vector2(-30f, 194f), new Vector2(140f, 6f));
             UiKit.AddImage(_heatBack, new Color(0f, 0f, 0f, 0.55f));
             _heatFill = UiKit.NewRect("Fill", _heatBack);
             _heatFill.anchorMin = new Vector2(0f, 0f);

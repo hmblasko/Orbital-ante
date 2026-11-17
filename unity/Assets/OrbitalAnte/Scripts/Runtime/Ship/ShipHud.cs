@@ -10,6 +10,8 @@ namespace OrbitalAnte.Ship
     /// The few words the ship needs on screen: what the button in front of you does, how a repair is going,
     /// which parts are hurt, and a short notice when something breaks, falls off or is mended.
     /// Shown only when there is something to say, so the view through the windows stays clear.
+    /// Hurt parts are a small panel in the top right (17 Nov 2026 clean-up): a bar per part while it still works,
+    /// a red word once it does not; the per cents are in the pause menu's Run Stats.
     /// </summary>
     public sealed class ShipHud : MonoBehaviour
     {
@@ -21,7 +23,24 @@ namespace OrbitalAnte.Ship
         FlightHud _flightHud;
         SystemMap _map;
         Canvas _canvas;
-        Text _prompt, _notice, _damage;
+        Text _prompt, _notice;
+
+        sealed class PartRowView
+        {
+            public RectTransform Root, Fill;
+            public Text Name, Tag;
+            public Image FillImage;
+            public GameObject Bar;
+            public float TagWidth;
+        }
+
+        RectTransform _damagePanel;
+        readonly System.Collections.Generic.List<PartRowView> _rows = new System.Collections.Generic.List<PartRowView>();
+        const float RowHeight = 22f, BarWidth = 84f;
+        /// <summary>How long every hurt part is listed after the damage last changed.</summary>
+        const float FullSeconds = 6f;
+        int _damageKey;
+        float _damageChanged = -100f;
         RectTransform _barBack, _barFill, _dot;
         string _shipNotice = string.Empty;
         float _shipNoticeTime = -100f;
@@ -29,7 +48,6 @@ namespace OrbitalAnte.Ship
         int _shipNoticeRank;
         float _nextList;
         bool _flightShown = true;
-        readonly StringBuilder _text = new StringBuilder(256);
 
         public void Build(Ship ship, Astronaut astronaut, FlightHud flightHud, SystemMap map)
         {
@@ -61,8 +79,11 @@ namespace OrbitalAnte.Ship
             _notice = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 28, UiKit.PanelEdge));
             UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(1000f, 36f));
 
-            _damage = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperRight));
-            UiKit.Pin((RectTransform)_damage.transform, new Vector2(1f, 1f), new Vector2(-22f, -110f), new Vector2(420f, 440f));
+            _damagePanel = UiKit.NewRect("ShipDamage", _canvas.transform);
+            UiKit.Pin(_damagePanel, new Vector2(1f, 1f), new Vector2(-40f, -110f), new Vector2(320f, 440f));
+            Text title = Shadowed(UiKit.Label(_damagePanel, "SHIP", 13, UiKit.Muted, TextAnchor.UpperRight));
+            UiKit.Pin((RectTransform)title.transform, new Vector2(1f, 1f), Vector2.zero, new Vector2(120f, 18f));
+            _damagePanel.gameObject.SetActive(false);
 
             ship.PartDamaged += OnPartDamaged;
             ship.PartRepaired += OnPartRepaired;
@@ -159,22 +180,103 @@ namespace OrbitalAnte.Ship
 
             if (now < _nextList) return;
             _nextList = now + ListInterval;
-            _text.Length = 0;
             ShipModel model = _ship.Model;
+            // Fresh news shows every hurt part for a while; after that only what no longer works stays, with a
+            // count of the rest, so a dent you choose to live with does not hold the corner for good.
+            int key = 17;
+            int hurt = 0;
             for (int i = 0; i < model.Count; i++)
             {
                 PartState state = model.State(i);
-                // Anything short of perfect is listed, so there is no hidden damage.
                 if (state == PartState.Sound && !model.NeedsRepair(i)) continue;
-                _text.Append(model.Parts[i].Name).Append(": ");
-                if (state == PartState.Lost) _text.Append("GONE");
-                else if (state == PartState.Broken) _text.Append(model.TearProgress(i) > 0.5f ? "BROKEN, COMING LOOSE" : "BROKEN");
-                else _text.Append(Mathf.RoundToInt(model.Fraction(i) * 100f)).Append('%');
-                _text.Append('\n');
+                hurt++;
+                key = key * 31 + i * 8 + (int)state * 2 + Mathf.RoundToInt(model.Fraction(i) * 10f) * 1000;
             }
-            if (!model.CabinIntact) _text.Append("Cabin open to the outside\n");
-            string list = _text.ToString();
-            if (_damage.text != list) _damage.text = list;
+            if (!model.CabinIntact) key = key * 31 + 7;
+            if (key != _damageKey)
+            {
+                _damageKey = key;
+                _damageChanged = now;
+            }
+            bool full = now - _damageChanged < FullSeconds;
+
+            int shown = 0, quiet = 0;
+            for (int i = 0; i < model.Count; i++)
+            {
+                PartState state = model.State(i);
+                // Anything short of perfect is listed or counted, so there is no hidden damage.
+                if (state == PartState.Sound && !model.NeedsRepair(i)) continue;
+                HudRules.PartRow row = HudRules.ShipPart(state, model.Fraction(i), model.TearProgress(i));
+                if (!full && row.Tag == null) { quiet++; continue; }
+                ShowRow(shown++, model.Parts[i].Name, row);
+            }
+            if (!model.CabinIntact)
+                ShowRow(shown++, "Cabin", new HudRules.PartRow { Tag = "OPEN TO SPACE", Tone = StatTone.Bad });
+            if (quiet > 0)
+                ShowRow(shown++, quiet + (quiet == 1 ? " part worn" : " parts worn"), new HudRules.PartRow { Tag = string.Empty, Tone = StatTone.Quiet });
+            // What the damage costs in flight, while it costs anything.
+            float thrust = model.ThrustFactor, turning = model.TurnFactor;
+            if (hurt > 0 && (thrust < 0.95f || turning < 0.95f))
+                ShowRow(shown++, "Thrust " + StatsFormat.Percent(thrust) + "   Turning " + StatsFormat.Percent(turning),
+                    new HudRules.PartRow { Tag = string.Empty, Tone = StatTone.Warn });
+            for (int i = shown; i < _rows.Count; i++)
+                if (_rows[i].Root.gameObject.activeSelf) _rows[i].Root.gameObject.SetActive(false);
+            bool any = shown > 0;
+            if (_damagePanel.gameObject.activeSelf != any) _damagePanel.gameObject.SetActive(any);
+        }
+
+        void ShowRow(int index, string name, HudRules.PartRow row)
+        {
+            while (_rows.Count <= index) _rows.Add(NewRow(_rows.Count));
+            PartRowView v = _rows[index];
+            if (!v.Root.gameObject.activeSelf) v.Root.gameObject.SetActive(true);
+            if (v.Name.text != name) v.Name.text = name;
+            bool bar = row.Tag == null;
+            if (v.Bar.activeSelf != bar) v.Bar.SetActive(bar);
+            if (v.Tag.gameObject.activeSelf == bar) v.Tag.gameObject.SetActive(!bar);
+            if (bar)
+            {
+                float width = Mathf.Round(BarWidth * row.Bar);
+                if (!Mathf.Approximately(v.Fill.sizeDelta.x, width)) v.Fill.sizeDelta = new Vector2(width, 0f);
+                Color c = row.Tone == StatTone.Warn ? UiKit.PanelEdge : UiKit.Cream;
+                if (v.FillImage.color != c) v.FillImage.color = c;
+            }
+            else if (v.Tag.text != row.Tag)
+            {
+                v.Tag.text = row.Tag;
+                v.TagWidth = v.Tag.preferredWidth;
+            }
+            // A row with an empty word is a line of words alone (the summary rows): muted, or amber for the cost.
+            Color nameColour = !bar && row.Tag.Length == 0
+                ? (row.Tone == StatTone.Warn ? UiKit.PanelEdge : UiKit.Muted)
+                : UiKit.Cream;
+            if (v.Name.color != nameColour) v.Name.color = nameColour;
+            // The name sits left of the bar, or left of the word.
+            float nameRight = bar ? -BarWidth - 12f : row.Tag.Length == 0 ? 0f : -v.TagWidth - 10f;
+            ((RectTransform)v.Name.transform).anchoredPosition = new Vector2(nameRight, 0f);
+        }
+
+        PartRowView NewRow(int index)
+        {
+            var v = new PartRowView();
+            v.Root = UiKit.NewRect("Part" + index, _damagePanel);
+            UiKit.Pin(v.Root, new Vector2(1f, 1f), new Vector2(0f, -22f - index * RowHeight), new Vector2(320f, RowHeight));
+            v.Name = Shadowed(UiKit.Label(v.Root, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight, FontStyle.Normal));
+            UiKit.Pin((RectTransform)v.Name.transform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(200f, RowHeight));
+            RectTransform back = UiKit.NewRect("Bar", v.Root);
+            UiKit.Pin(back, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(BarWidth, 6f));
+            UiKit.AddImage(back, new Color(0f, 0f, 0f, 0.5f), UiKit.Rounded);
+            v.Bar = back.gameObject;
+            v.Fill = UiKit.NewRect("Fill", back);
+            v.Fill.anchorMin = new Vector2(0f, 0f);
+            v.Fill.anchorMax = new Vector2(0f, 1f);
+            v.Fill.pivot = new Vector2(0f, 0.5f);
+            v.Fill.offsetMin = Vector2.zero;
+            v.Fill.offsetMax = Vector2.zero;
+            v.FillImage = UiKit.AddImage(v.Fill, UiKit.Cream);
+            v.Tag = Shadowed(UiKit.Label(v.Root, string.Empty, 13, UiKit.Danger, TextAnchor.MiddleRight));
+            UiKit.Pin((RectTransform)v.Tag.transform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(160f, RowHeight));
+            return v;
         }
     }
 }
