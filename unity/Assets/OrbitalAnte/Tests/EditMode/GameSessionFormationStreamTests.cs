@@ -7,7 +7,6 @@ using OrbitalAnte.Planets;
 
 namespace OrbitalAnte.Tests
 {
-    [NonParallelizable]
     public class GameSessionFormationStreamTests
     {
         [TestCase(0)]
