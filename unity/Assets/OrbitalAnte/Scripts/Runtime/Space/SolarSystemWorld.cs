@@ -132,8 +132,6 @@ namespace OrbitalAnte.Space
             OrbitalAnte.Bases.BaseView.Warm();
             Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
-            // The seat's readout shows the ship's fuel and air as well.
-            if (Dash != null) Hud.Supplies = Dash.Supplies;
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();
         }

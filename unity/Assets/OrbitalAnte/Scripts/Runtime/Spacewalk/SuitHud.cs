@@ -86,8 +86,7 @@ namespace OrbitalAnte.Spacewalk
 
             // Air, lower left, and the suit's armour, lower right: the two visor gauges.
             _airGauge = OrbitalAnte.UI.VisorGauge.Build(_canvas.transform, true, "AIR", OrbitalAnte.UI.VisorGauge.Air, 230f, 110f);
-            // 380 in from the right, as in the arena, so the gun's readout fits outside it (17 Nov 2026).
-            _suitGauge = OrbitalAnte.UI.VisorGauge.Build(_canvas.transform, false, "SUIT", UiKit.Cream, 380f, 110f);
+            _suitGauge = OrbitalAnte.UI.VisorGauge.Build(_canvas.transform, false, "SUIT", UiKit.Cream, 300f, 110f);
             _airGauge.SetActive(false);
             _suitGauge.SetActive(false);
 

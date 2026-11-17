@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// The pause menu: Resume, Run Stats (everything that is not on the HUD, 17 Nov 2026), Controls (rebinding), Audio (volumes), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
+    /// The pause menu: Resume, Controls (rebinding), Audio (volumes), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
     /// Esc on keyboard or Start/Menu on a controller opens it. It pauses game time and audio, and every page
     /// works with keyboard, mouse or controller.
     /// </summary>
@@ -18,7 +18,6 @@ namespace OrbitalAnte.UI
         {
             None,
             Main,
-            Stats,
             Controls,
             Feel,
             Audio,
@@ -33,19 +32,11 @@ namespace OrbitalAnte.UI
         public Action QuitToMenuRequested;
         public Action QuitToDesktopRequested;
 
-        /// <summary>What the Run Stats page shows, built when it opens. Set by the game.</summary>
-        public Func<StatsSheet> StatsSource
-        {
-            get => _stats != null ? _stats.Source : null;
-            set { if (_stats != null) _stats.Source = value; }
-        }
-
         Canvas _canvas;
         readonly Dictionary<Page, GameObject> _pages = new Dictionary<Page, GameObject>();
         readonly Dictionary<Page, GameObject> _defaults = new Dictionary<Page, GameObject>();
         Page _current = Page.None;
         ControlsPage _controls;
-        StatsPage _stats;
 
         Text _seedLabel;
         Button _sameSeedButton;
@@ -71,10 +62,6 @@ namespace OrbitalAnte.UI
             BuildDied();
             BuildConfirm();
 
-            _stats = new StatsPage();
-            _stats.Build(_canvas.transform, () => Show(Page.Main));
-            _pages[Page.Stats] = _stats.Root;
-
             _controls = new ControlsPage();
             _controls.Build(_canvas.transform, this, () => Show(Page.Main));
             _pages[Page.Controls] = _controls.Root;
@@ -99,7 +86,6 @@ namespace OrbitalAnte.UI
         {
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
-            UiKit.Button(card, "Run Stats", () => Show(Page.Stats));
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
             UiKit.Button(card, "Audio", () => Show(Page.Audio));
             UiKit.Button(card, "Feel", () => Show(Page.Feel));
@@ -280,11 +266,6 @@ namespace OrbitalAnte.UI
             {
                 _controls.Open();
             }
-            else if (page == Page.Stats)
-            {
-                _stats.Open();
-                if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(_stats.DefaultSelection);
-            }
             else if (EventSystem.current != null && _defaults.TryGetValue(page, out GameObject first))
             {
                 EventSystem.current.SetSelectedGameObject(first);
@@ -334,7 +315,6 @@ namespace OrbitalAnte.UI
             }
 
             if (_current == Page.Controls) _controls.Tick();
-            if (_current == Page.Stats) _stats.Tick();
             KeepSomethingSelected();
         }
 
@@ -356,7 +336,6 @@ namespace OrbitalAnte.UI
 
             GameObject fallback = _current == Page.Controls
                 ? _controls.DefaultSelection
-                : _current == Page.Stats ? _stats.DefaultSelection
                 : (_defaults.TryGetValue(_current, out GameObject first) ? first : null);
             if (fallback != null) es.SetSelectedGameObject(fallback);
         }
