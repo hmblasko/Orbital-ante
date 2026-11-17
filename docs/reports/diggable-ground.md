@@ -25,6 +25,21 @@ Matthew asked: "Maybe have the ground of the planet be solid and give the player
 - **Light.** Each corner of dug ground stores how much sky it can see, so tunnels darken as they go in.
 - **Holes last for the run**, kept per body. When you fly away and come back they are still there.
 
+## Down to the core (added the same day)
+
+Matthew: "You should be able to dig anywhere in the down to the core."
+
+- **No depth limit.** The 24 m limit is gone. You can dig anywhere until you are 1.5 m from the world's centre; the shovel then says "THE CORE: NOWHERE DEEPER TO DIG". A rule test digs a shaft straight down into Earth (500 m radius in the game) with the shovel: 640 bites, 475 boxes, and it stops at the core and nowhere else.
+- **Below the sea's level, under dry land.** Before, nothing on Earth could be dug below the sea's level, even far inland. Now that is allowed under dry land. Under the sea bed or a shore a scoop keeps 1.5 m of rock over it, so the sea never comes in; the shovel says "CAN'T DIG: THE SEA WOULD COME IN". A tunnel below the sea's level counts as air, not water, and the sea's surface is hidden while you are down there, so it does not hang across the shaft as a ceiling of water.
+- **The safety net moves down.** Each world has an invisible solid ball under its lowest ground to catch anything that falls through. It now shrinks to stay under the deepest hole, so it never blocks a shaft.
+- **Gravity.** Inside a world the pull already fades in a straight line to nothing at the centre (unchanged), so at the core you float.
+- **Light.** Daylight down a hole fades out between 8 m and 48 m under the ground; deeper, only your suit lamp lights the walls.
+- **Seeing deep holes.** Boxes well under the ground are drawn whenever you are within 320 m, whatever the ground tiles above are doing. Boxes are only built within 320 m of you, so a world dug full of shafts does not build them all at once.
+- **Enemies** look further for the mouth of a tunnel the deeper you are (30 m plus one and a half times your depth). Which hole is a mouth is worked out once per hole and kept.
+- **Box cap** raised from 420 to 1500 per world; bullets still stop at 250.
+
+Not verified (needs Unity): walking, standing and floating near the core (which way is up flips as you pass the centre; the suit should go to floating as the pull fades), how long the boxes of a deep shaft take to appear on the Deck, whether anything that checks "under the ground" elsewhere in the game still treats a deep shaft as being inside rock.
+
 ## Why (constitution)
 
 - Rule 1 (fun core gameplay) and rule 2 (agency): digging in and caving round enemies is a new way to fight, and the player chooses when to use it.

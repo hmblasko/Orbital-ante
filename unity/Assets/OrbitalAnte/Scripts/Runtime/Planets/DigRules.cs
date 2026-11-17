@@ -21,7 +21,7 @@ namespace OrbitalAnte.Planets
     public enum DigSource { Shovel, Bullet, Blast }
 
     /// <summary>Why a scoop was refused, so the shovel can say so rather than sound like rock (constitution rule 3).</summary>
-    public enum DigRefusal { None, TooDeep, NearWater, OldCave, Full, AlreadyDug }
+    public enum DigRefusal { None, NoGround, Core, NearWater, OldCave, Full, AlreadyDug }
 
     /// <summary>
     /// Digging (Matthew, 17 Nov 2026: "have the ground of the planet be solid and give the player the ability to
@@ -58,7 +58,7 @@ namespace OrbitalAnte.Planets
         /// <summary>The most scoops one body keeps. More are refused (a run would have to empty many guns into one world).</summary>
         public const int MaxCarves = 6000;
         /// <summary>The most boxes of dug ground one body keeps; a scoop that would need more is refused.</summary>
-        public const int MaxChunks = 420;
+        public const int MaxChunks = 1500;
         /// <summary>
         /// Bullets stop digging once a body has this many boxes; the rest are kept for the shovel and blasts, so
         /// a long firefight can never use up the ground you want to dig yourself.
@@ -66,10 +66,16 @@ namespace OrbitalAnte.Planets
         public const int BulletChunks = 250;
         /// <summary>The most boxes a scoop of this kind may bring a body to.</summary>
         public static int ChunkCapFor(DigSource source) => source == DigSource.Bullet ? BulletChunks : MaxChunks;
-        /// <summary>No scoop reaches deeper than this under the ground straight above it, in metres.</summary>
-        public const double MaxDepth = 24;
-        /// <summary>A scoop's lowest point stays this far above a sea's surface.</summary>
-        public const double AboveSea = 0.4;
+        /// <summary>
+        /// You can dig anywhere, all the way down (Matthew, 17 Nov 2026: "dig anywhere ... down to the core"). The
+        /// only floor is the very middle: no scoop reaches closer than this to the body's centre, where "up" stops
+        /// meaning anything.
+        /// </summary>
+        public const double CoreClear = 1.5;
+        /// <summary>Under a sea, a scoop keeps at least this much rock between it and the sea bed, so the sea never breaks in.</summary>
+        public const double SeaRoof = 1.5;
+        /// <summary>Ground lower than this over the sea's surface counts as sea or shore when keeping the sea out.</summary>
+        public const double ShoreRise = 0.9;
 
         // --- sizes of the holes -----------------------------------------------------------------------------
 
@@ -147,33 +153,29 @@ namespace OrbitalAnte.Planets
         static Vec3d Unit(Vec3d v) => v.SqrMagnitude > 1e-12 ? v.Normalized : Vec3d.Zero;
 
         /// <summary>
-        /// Makes a scoop fit the world, or refuses it: never deeper than <see cref="MaxDepth"/> under the ground,
-        /// never below <paramref name="floorRadius"/> (the body's safety net), never into a sea, and never near the
-        /// old single caves (only cave networks join up with dug ground). Shrinks a scoop that would just reach too
-        /// low rather than refusing it outright.
+        /// Makes a scoop fit the world, or refuses it: as deep as you like, down to <see cref="CoreClear"/> from the
+        /// centre (or <paramref name="floorRadius"/>, if that is further out), never letting a sea in (under a sea
+        /// or a shore it keeps <see cref="SeaRoof"/> of rock over it; under dry land it may go below the sea's level),
+        /// and never near the old single caves (only cave networks join up with dug ground). Shrinks a scoop that
+        /// would just reach too low rather than refusing it outright.
         /// </summary>
         public static bool Fit(PlanetTerrain terrain, double floorRadius, ref DigCarve carve) => Fit(terrain, floorRadius, ref carve, out _);
 
         public static bool Fit(PlanetTerrain terrain, double floorRadius, ref DigCarve carve, out DigRefusal why)
         {
-            why = DigRefusal.TooDeep;
+            why = DigRefusal.NoGround;
             if (terrain == null || !Finite(carve.Centre) || !(carve.Radius > 0) || carve.Centre.SqrMagnitude < 1) return false;
             Vec3d dir = carve.Centre.Normalized;
             double ground = terrain.Radius + terrain.Height(dir);
-            double low = Math.Max(ground - MaxDepth, floorRadius);
-            bool sea = false;
-            if (terrain.HasSea)
-            {
-                double seaFloor = terrain.Radius + terrain.SeaLevel + AboveSea;
-                if (seaFloor > low) { low = seaFloor; sea = true; }
-            }
+            double low = Math.Max(CoreClear, floorRadius);
             double r = carve.Centre.Magnitude;
             // Shrink a scoop whose bottom dips just under the limit; refuse one whose middle is under it.
             if (r - carve.Radius < low) carve.Radius = r - low;
-            if (carve.Radius < 0.12) { why = sea ? DigRefusal.NearWater : DigRefusal.TooDeep; return false; }
+            if (carve.Radius < 0.12) { why = DigRefusal.Core; return false; }
             // Scoops above the ground cut nothing: a shot that hit a ledge high over the ground still counts, but a
             // blast in mid-air does not.
             if (r - carve.Radius > ground + 40) return false;
+            if (terrain.HasSea && !KeepsTheSeaOut(terrain, carve)) { why = DigRefusal.NearWater; return false; }
             for (int c = 0; c < terrain.Caves.Count; c++)
             {
                 Cave cave = terrain.Caves[c];
@@ -181,6 +183,36 @@ namespace OrbitalAnte.Planets
                 if (TerrainCollision.InsideCave(cave, carve.Centre, carve.Radius + Margin + 6)) { why = DigRefusal.OldCave; return false; }
             }
             why = DigRefusal.None;
+            return true;
+        }
+
+        /// <summary>
+        /// True if a scoop leaves the sea where it is: wherever the ground over it, or just beside it, is sea bed or
+        /// shore, the scoop stays <see cref="SeaRoof"/> under that ground. Under dry land it may go as deep as it likes,
+        /// below the sea's level too.
+        /// </summary>
+        static bool KeepsTheSeaOut(PlanetTerrain terrain, DigCarve carve)
+        {
+            double sea = terrain.Radius + terrain.SeaLevel;
+            double r = carve.Centre.Magnitude;
+            double top = r + carve.Radius;
+            // Nothing that stays above the sea's level can let it in from below... but it may still open onto the sea
+            // from the side at a shore, which the columns below catch.
+            Vec3d up = carve.Centre / r;
+            Vec3d east = Vec3d.Cross(Math.Abs(up.Y) < 0.9 ? Vec3d.Up : Vec3d.Right, up).Normalized;
+            Vec3d north = Vec3d.Cross(up, east);
+            double aside = carve.Radius + 1.0;
+            for (int k = 0; k < 5; k++)
+            {
+                Vec3d way = k == 0 ? Vec3d.Zero : k == 1 ? east : k == 2 ? -east : k == 3 ? north : -north;
+                Vec3d column = (carve.Centre + way * aside).Normalized;
+                double ground = terrain.Radius + terrain.Height(column);
+                if (ground > sea + ShoreRise) continue;   // dry land here
+                // Sea bed or shore: keep under it, with rock to spare; and a scoop that reaches the sea's level next
+                // to open water would let it in sideways.
+                if (top > ground - SeaRoof) return false;
+                if (top > sea - SeaRoof) return false;
+            }
             return true;
         }
 
@@ -249,8 +281,13 @@ namespace OrbitalAnte.Planets
         readonly Dictionary<long, List<int>> _byChunk = new Dictionary<long, List<int>>();
         readonly HashSet<long> _chunks = new HashSet<long>();
         readonly List<long> _scratch = new List<long>(64);
+        // Per scoop: where it opens onto the old ground, NoMouth if it does not, null until asked (WayInNear).
+        readonly List<Vec3d?> _mouths = new List<Vec3d?>();
+        static readonly Vec3d NoMouth = new Vec3d(double.NaN, 0, 0);
 
         public int CarveCount => _carves.Count;
+        /// <summary>The innermost point any scoop reaches, in metres from the body's centre (infinity before any).</summary>
+        public double Deepest { get; private set; } = double.PositiveInfinity;
         public int ChunkCount => _chunks.Count;
         public IEnumerable<long> Chunks => _chunks;
         public bool HasChunk(long key) => _chunks.Contains(key);
@@ -284,6 +321,7 @@ namespace OrbitalAnte.Planets
 
             int index = _carves.Count;
             _carves.Add(carve);
+            Deepest = Math.Min(Deepest, carve.Centre.Magnitude - carve.Radius);
             _scratch.Clear();
             DigRules.ChunksTouching(carve.Centre, carve.Radius + DigRules.Cell * 2, _scratch);
             for (int i = 0; i < _scratch.Count; i++)
@@ -376,25 +414,23 @@ namespace OrbitalAnte.Planets
             mouth = p;
             if (_carves.Count == 0 || groundRadius == null) return false;
             double best = double.MaxValue;
-            int r = (int)Math.Ceiling(reach / DigRules.ChunkSize);
-            int cx = DigRules.ChunkIndex(p.X), cy = DigRules.ChunkIndex(p.Y), cz = DigRules.ChunkIndex(p.Z);
-            for (int x = cx - r; x <= cx + r; x++)
-                for (int y = cy - r; y <= cy + r; y++)
-                    for (int z = cz - r; z <= cz + r; z++)
-                    {
-                        // A scoop is listed in its own box first; checking the box its middle is in avoids repeats.
-                        if (!_byChunk.TryGetValue(DigRules.Key(x, y, z), out List<int> list)) continue;
-                        for (int i = 0; i < list.Count; i++)
-                        {
-                            DigCarve c = _carves[list[i]];
-                            if (c.Radius < DigRules.WayInRadius || DigRules.KeyOf(c.Centre) != DigRules.Key(x, y, z)) continue;
-                            double d = (c.Centre - p).SqrMagnitude;
-                            if (d > reach * reach || d >= best) continue;
-                            if (!Opening(c, groundRadius, out Vec3d at)) continue;
-                            best = d;
-                            mouth = at;
-                        }
-                    }
+            // Straight through the list: at most a few thousand scoops, asked a few times a second, and the reach can
+            // be hundreds of metres for someone deep down.
+            for (int i = 0; i < _carves.Count; i++)
+            {
+                DigCarve c = _carves[i];
+                if (c.Radius < DigRules.WayInRadius) continue;
+                double d = (c.Centre - p).SqrMagnitude;
+                if (d > reach * reach || d >= best) continue;
+                // Whether a scoop opens onto the old ground depends only on the scoop and the world's ground, which
+                // never change: worked out once per scoop and kept.
+                while (_mouths.Count <= i) _mouths.Add(null);
+                if (_mouths[i] == null) _mouths[i] = Opening(c, groundRadius, out Vec3d at) ? at : (Vec3d?)NoMouth;
+                Vec3d m = _mouths[i].Value;
+                if (double.IsNaN(m.X)) continue;   // NoMouth
+                best = d;
+                mouth = m;
+            }
             return best < double.MaxValue;
         }
 
@@ -433,6 +469,8 @@ namespace OrbitalAnte.Planets
             _carves.Clear();
             _byChunk.Clear();
             _chunks.Clear();
+            Deepest = double.PositiveInfinity;
+            _mouths.Clear();
             Version++;
         }
     }

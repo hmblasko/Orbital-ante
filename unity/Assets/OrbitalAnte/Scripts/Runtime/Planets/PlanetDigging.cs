@@ -38,6 +38,8 @@ namespace OrbitalAnte.Planets
             public Mesh Mesh;
             public MeshCollider Collider;
             public bool Dirty = true;
+            /// <summary>The whole box is well under the ground (worked out once, when the box is made).</summary>
+            public bool Deep;
             public bool Ready;
             public bool Cook;
             public PlanetJobs.Handle Job;
@@ -49,6 +51,14 @@ namespace OrbitalAnte.Planets
         const float CoverEvery = 0.2f;
         /// <summary>Boxes whose drawing is checked against the ground's detail each frame (in turn).</summary>
         const int VisibleChecksPerFrame = 40;
+        /// <summary>A box whose top is this far under the ground is "deep": drawn whenever it is near, as no tile shows through.</summary>
+        const double DeepBelow = 12;
+        /// <summary>
+        /// Boxes are only worked out (and kept drawn, when deep) within this far of the viewer. A world dug down to its
+        /// core has well over a thousand of them; the far ones wait until you come near (the ground there still
+        /// shows the holes' mouths once their boxes are built).
+        /// </summary>
+        public const double BuildReach = 320;
         /// <summary>Within this far of the viewer, dug work goes ahead of ordinary ground tiles; beyond it, behind them and never on the last free core.</summary>
         public const float UrgentReach = 15f;
         /// <summary>The layers of things that can lie loose on the ground: woken when it changes under them.</summary>
@@ -103,9 +113,9 @@ namespace OrbitalAnte.Planets
         /// </summary>
         public bool Carve(DigCarve carve, DigSource source = DigSource.Shovel)
         {
-            LastRefusal = DigRefusal.TooDeep;
+            LastRefusal = DigRefusal.NoGround;
             if (_surface.Terrain == null) return false;
-            if (!DigRules.Fit(_surface.Terrain, _surface.SafetyRadius + 6, ref carve, out DigRefusal why))
+            if (!DigRules.Fit(_surface.Terrain, 0, ref carve, out DigRefusal why))
             {
                 LastRefusal = why;
                 Refused++;
@@ -135,6 +145,8 @@ namespace OrbitalAnte.Planets
         {
             if (_views.ContainsKey(key)) return;
             var v = new View { Key = key, Centre = DigRules.ChunkCentre(key) };
+            double r = v.Centre.Magnitude;
+            v.Deep = r > 1 && _surface.GroundRadius(v.Centre / r) - (r + DigRules.ChunkSize * 0.87) > DeepBelow;
             _views[key] = v;
             _order.Add(v);
         }
@@ -218,6 +230,9 @@ namespace OrbitalAnte.Planets
         {
             Vec3d min = DigRules.ChunkMin(v.Key);
             if (_surface.FinestDrawnAt(v.Centre)) return true;
+            // Deep under the ground (a shaft or a tunnel far down): no ground tile can show through it, so it is
+            // drawn whenever it is near enough to see, whatever the tiles above are doing.
+            if (v.Deep) return (v.Centre - _surface.Viewer).SqrMagnitude < BuildReach * BuildReach;
             // Far from any finest tile (they are all within a few hundred metres of the viewer): no need to try the corners.
             if ((v.Centre - _surface.Viewer).SqrMagnitude > 600.0 * 600.0) return false;
             for (int c = 0; c < 8; c++)
@@ -232,7 +247,8 @@ namespace OrbitalAnte.Planets
         {
             if (_jobs >= MostJobs) return;
             _waiting.Clear();
-            foreach (View v in _views.Values) if (v.Dirty && v.Job == null) _waiting.Add(v);
+            foreach (View v in _views.Values)
+                if (v.Dirty && v.Job == null && (v.Centre - viewer).SqrMagnitude < BuildReach * BuildReach) _waiting.Add(v);
             if (_waiting.Count == 0) return;
             // The nearest first: the hole you are digging matters more than one shot into a far hillside.
             _sortFrom = viewer;
@@ -461,7 +477,9 @@ namespace OrbitalAnte.Planets
                     PlanetSurface s = Active[i]._surface;
                     if (s == null) continue;
                     Vec3d p = SpaceConvert.ToVec3d(s.transform.InverseTransformPoint(world));
-                    if (Active[i].Field.WayInNear(p, 30, s.GroundRadius, out Vec3d m))
+                    // Deeper down, the way in can be further off: look as far as the depth and a bit.
+                    double depth = Math.Max(0, s.GroundRadius(p.Normalized) - p.Magnitude);
+                    if (Active[i].Field.WayInNear(p, 30 + depth * 1.5, s.GroundRadius, out Vec3d m))
                     {
                         _wayFound = true;
                         _wayTo = s.transform.TransformPoint(SpaceConvert.ToVector3(m));

@@ -87,8 +87,11 @@ namespace OrbitalAnte.Planets
         public Vec3d[] PlacementPositions { get; private set; }
         /// <summary>The ground dug out of this body this run (shovel, bullets, blasts). Made with the terrain.</summary>
         public PlanetDigging Digging { get; private set; }
-        /// <summary>The safety net's radius: nothing is ever dug down to it.</summary>
+        /// <summary>The safety net's radius before anything is dug below it (see <see cref="DeepDigging"/>).</summary>
         public double SafetyRadius => _safetyRadius;
+        /// <summary>The safety net's radius now: under the deepest scoop once digging has gone below it.</summary>
+        double SafetyNet => Digging == null || Digging.Field.Deepest >= _safetyRadius + 2
+            ? _safetyRadius : Math.Max(0.5, Math.Min(_safetyRadius, Digging.Field.Deepest - 2));
         /// <summary>Where the ground was last built round (the viewer), metres from the body's centre.</summary>
         public Vec3d Viewer => _viewer;
         /// <summary>The parent of the ground tiles (and of the dug ground).</summary>
@@ -406,11 +409,11 @@ namespace OrbitalAnte.Planets
             if (!Interior)
             {
                 if (Body.FarLook != null) Body.FarLook.enabled = !shown;
-                Body.Ball.radius = shown ? (float)_safetyRadius : (float)BodyRadius;
+                Body.Ball.radius = shown ? (float)SafetyNet : (float)BodyRadius;
             }
             else
             {
-                Body.Ball.radius = shown ? (float)_safetyRadius : (float)SurfaceRadius;
+                Body.Ball.radius = shown ? (float)SafetyNet : (float)SurfaceRadius;
             }
         }
 
@@ -505,6 +508,29 @@ namespace OrbitalAnte.Planets
             Features.Tick(viewer);
             CookRebuiltTiles();
             Digging?.Tick(viewer);
+            DeepDigging(viewer);
+        }
+
+        /// <summary>
+        /// Digging goes down to the core (Matthew, 17 Nov 2026), so two things that stood deep inside the world give
+        /// way: the safety net (the body's solid ball under the lowest ground) shrinks to stay under the deepest
+        /// scoop, and the sea ball is hidden while you are down a tunnel under the sea's level (it would otherwise be
+        /// a ceiling of water across the shaft above you).
+        /// </summary>
+        void DeepDigging(Vec3d viewer)
+        {
+            if (Digging == null) return;
+            double deepest = Digging.Field.Deepest;
+            if (GroundShown && deepest < _safetyRadius + 2 && Body.Ball != null)
+            {
+                float radius = (float)Math.Max(0.5, Math.Min(_safetyRadius, deepest - 2));
+                if (Body.Ball.radius != radius) Body.Ball.radius = radius;
+            }
+            if (_sea != null)
+            {
+                bool under = viewer.Magnitude < SurfaceRadius + Terrain.SeaLevel && InDugAir(viewer);
+                if (_sea.activeSelf == under) _sea.SetActive(!under);
+            }
         }
 
         void Refresh(Node n)
@@ -1284,8 +1310,14 @@ namespace OrbitalAnte.Planets
         /// <summary>The air (or water) at a point given in metres from the body's centre.</summary>
         public AirSample AirAt(Vec3d point)
         {
-            return AtmosphereModel.At(Profile, SurfaceRadius, BodyRadius, point.Magnitude - SurfaceRadius);
+            double altitude = point.Magnitude - SurfaceRadius;
+            // Down a tunnel dug under dry land below the sea's level, it is air, not sea (digging never lets the sea in).
+            if (Profile.hasSea && altitude < Profile.seaLevel && InDugAir(point)) altitude = Profile.seaLevel;
+            return AtmosphereModel.At(Profile, SurfaceRadius, BodyRadius, altitude);
         }
+
+        /// <summary>True if a point (metres from the body's centre) is in dug air: down a hole, shaft or tunnel that was dug.</summary>
+        public bool InDugAir(Vec3d point) => Digging != null && Digging.Field.InDugAir(point, 0.5);
 
         /// <summary>Distance from the body's centre beyond which there is no air at all, in metres.</summary>
         public double AirTop

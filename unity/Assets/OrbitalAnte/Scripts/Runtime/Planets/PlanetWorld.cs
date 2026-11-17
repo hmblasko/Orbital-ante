@@ -400,7 +400,7 @@ namespace OrbitalAnte.Planets
             {
                 reading.AboveSea = r - (s.SurfaceRadius + s.Terrain.SeaLevel);
                 reading.OverSea = reading.AboveGround > reading.AboveSea;
-                reading.Underwater = reading.AboveSea < 0;
+                reading.Underwater = reading.AboveSea < 0 && !s.InDugAir(p);   // a tunnel under dry land is air
             }
             if (s.Interior && r < s.BodyRadius)
             {

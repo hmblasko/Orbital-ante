@@ -313,7 +313,12 @@ namespace OrbitalAnte.Planets
             double r = p.Magnitude;
             Vec3d up = p / r;
             // Already out on the ground's surface (or above it): sees the sky, as the tiles round it do.
-            if (s.Ground.RadiusAt(up) - r < 0.25) return 1;
+            double depth = s.Ground.RadiusAt(up) - r;
+            if (depth < 0.25) return 1;
+            // Far down a shaft only a speck of sky is left overhead: daylight fades out over the first tens of metres,
+            // whichever way the rays found open (they only look 9 m), and deeper still it is dark but for your lamp.
+            double fade = Math.Max(0, Math.Min(1, 1 - (depth - DaylightDepth) / DaylightFade));
+            if (fade <= 0) return 0;
             Vec3d side = up.AnyPerpendicular().Normalized;
             Vec3d start = p + normal * 0.25;
             double open = 0;
@@ -340,8 +345,13 @@ namespace OrbitalAnte.Planets
                 }
                 if (!shut) open += k == 0 ? 0.4 : 0.2;
             }
-            return Math.Max(0, Math.Min(1, open));
+            return Math.Max(0, Math.Min(1, open)) * fade;
         }
+
+        /// <summary>Daylight down a dug hole starts to fade this far under the old ground, in metres ...</summary>
+        public const double DaylightDepth = 8;
+        /// <summary>... and is gone this much further down.</summary>
+        public const double DaylightFade = 40;
 
         static void Paint(Space s, Vec3d p, Vec3d normal, Air air, out float red, out float green, out float blue)
         {

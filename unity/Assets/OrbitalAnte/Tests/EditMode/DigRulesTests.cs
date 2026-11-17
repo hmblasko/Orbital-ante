@@ -178,31 +178,98 @@ namespace OrbitalAnte.Tests.EditMode
         // ------------------------------------------------------------------ what may be dug
 
         [Test]
-        public void Scoops_StayOutOfTheSea_AndAboveTheSafetyNet_AndShallowEnough()
+        public void YouCanDig_AllTheWayDownToTheCore_ButNeverLetTheSeaIn()
         {
             PlanetTerrain earth = World("Earth");
             Vec3d dir = Land(earth);
             double ground = earth.Radius + earth.Height(dir);
-            var deep = new DigCarve(dir * (ground - DigRules.MaxDepth - 2), 1.0);
-            Assert.IsFalse(DigRules.Fit(earth, 0, ref deep), "too deep");
-            var nearLimit = new DigCarve(dir * (ground - DigRules.MaxDepth + 0.5), 1.0);
-            Assert.IsTrue(DigRules.Fit(earth, 0, ref nearLimit));
-            Assert.Less(nearLimit.Radius, 1.0, "a scoop just over the limit is shrunk to fit");
+            // Deep under dry land: far below the old 24 m limit, below the sea's level, and right down near the middle.
+            foreach (double r in new[] { ground - 30, ground - 200, earth.Radius + earth.SeaLevel - 10, 40, 4 })
+            {
+                var c = new DigCarve(dir * r, 1.0);
+                Assert.IsTrue(DigRules.Fit(earth, 0, ref c, out DigRefusal why), "at " + r.ToString("0") + " m from the centre: " + why);
+            }
+            // At the very middle it is shrunk to keep CoreClear, and refused once nothing is left.
+            var nearCore = new DigCarve(dir * 2.0, 1.0);
+            Assert.IsTrue(DigRules.Fit(earth, 0, ref nearCore));
+            Assert.GreaterOrEqual(nearCore.Centre.Magnitude - nearCore.Radius, DigRules.CoreClear - 1e-9);
+            var atCore = new DigCarve(dir * 1.55, 1.0);
+            Assert.IsFalse(DigRules.Fit(earth, 0, ref atCore, out DigRefusal coreWhy));
+            Assert.AreEqual(DigRefusal.Core, coreWhy);
+            // A floor further out still holds when one is asked for.
             var overNet = new DigCarve(dir * (ground - 2), 1.0);
-            Assert.IsFalse(DigRules.Fit(earth, ground - 1.5, ref overNet), "never through the safety net");
+            Assert.IsFalse(DigRules.Fit(earth, ground - 1.5, ref overNet), "never below a floor that is asked for");
 
-            // A spot whose ground is near the sea: never dug below it.
+            // Shore and sea bed: whatever is let through keeps rock between it and the water.
             Assert.IsTrue(earth.HasSea);
+            double sea = earth.Radius + earth.SeaLevel;
             var rng = new Random(5);
-            for (int i = 0; i < 4000; i++)
+            int shore = 0, seaBed = 0;
+            for (int i = 0; i < 6000; i++)
             {
                 Vec3d d = new Vec3d(rng.NextDouble() * 2 - 1, rng.NextDouble() * 2 - 1, rng.NextDouble() * 2 - 1).Normalized;
                 double h = earth.Height(d);
-                if (h < earth.SeaLevel + 0.3 || h > earth.SeaLevel + 1.5) continue;
-                var c = new DigCarve(d * (earth.Radius + h), 1.2);
-                if (DigRules.Fit(earth, 0, ref c))
-                    Assert.GreaterOrEqual(c.Centre.Magnitude - c.Radius, earth.Radius + earth.SeaLevel + DigRules.AboveSea - 1e-6);
+                if (h > earth.SeaLevel + DigRules.ShoreRise) continue;
+                double g = earth.Radius + h;
+                if (h >= earth.SeaLevel) shore++; else seaBed++;
+                // At the surface, a little under it, and well under it.
+                foreach (double under in new[] { 0.0, 1.0, 6.0 })
+                {
+                    var c = new DigCarve(d * (g - under), 1.0);
+                    if (!DigRules.Fit(earth, 0, ref c, out DigRefusal why))
+                    {
+                        Assert.That(why, Is.EqualTo(DigRefusal.NearWater).Or.EqualTo(DigRefusal.OldCave));
+                        continue;
+                    }
+                    double top = c.Centre.Magnitude + c.Radius;
+                    Assert.LessOrEqual(top, Math.Min(g, sea) - DigRules.SeaRoof + 1e-6, "the sea would come in");
+                }
             }
+            Assert.Greater(shore + seaBed, 50, "the test found sea and shore to try");
+        }
+
+        [Test]
+        public void AShaftDugStraightDown_ReachesTheCore_WithinTheBoxes_AndIsDarkFarDown()
+        {
+            PlanetTerrain earth = World("Earth");
+            Vec3d dir = Land(earth);
+            Vec3d hit = dir * (earth.Radius + earth.Height(dir));
+            var field = new DigField();
+            int bites = 0;
+            DigRefusal last = DigRefusal.None;
+            for (int i = 0; i < 2000; i++)
+            {
+                bool any = false;
+                foreach (DigCarve b in DigRules.ShovelBites(hit, -dir))
+                {
+                    DigCarve bite = b;
+                    if (!DigRules.Fit(earth, 0, ref bite, out last)) continue;
+                    if (field.TryCarve(bite, null, null, DigRules.ChunkCapFor(DigSource.Shovel))) any = true;
+                    else last = DigRefusal.Full;
+                    hit = bite.Centre - dir * (bite.Radius * 0.9);
+                }
+                if (!any) break;
+                bites++;
+            }
+            TestContext.WriteLine("shaft to the core: " + bites + " bites, " + field.ChunkCount + " boxes, deepest " + field.Deepest.ToString("0.0") + " m from the centre");
+            Assert.AreEqual(DigRefusal.Core, last, "the shaft stops at the core and nowhere else");
+            Assert.Less(field.Deepest, DigRules.CoreClear + 0.2);
+            Assert.Less(field.ChunkCount, DigRules.MaxChunks / 2, "room for a shaft to the core and plenty more");
+
+            // A box far down the shaft is built like any other, and no daylight reaches it.
+            DigGround ground = Ground(earth);
+            Vec3d deepPoint = dir * (earth.Radius + earth.Height(dir) - 250);
+            long key = DigRules.KeyOf(deepPoint);
+            DigChunkData box = DigMesher.Build(key, field.CarvesNear(key, 9), ground, new CaveNetwork[0]);
+            Assert.IsFalse(box.Empty, "the shaft's wall is drawn");
+            float brightest = 0;
+            for (int i = 0; i < box.Sky.Length; i++) brightest = Math.Max(brightest, box.Sky[i]);
+            Assert.AreEqual(0f, brightest, 1e-6, "250 m down, no daylight");
+
+            // Someone at the bottom is gone after through the shaft's mouth on the surface.
+            Func<Vec3d, double> radiusAt = d => earth.Radius + earth.Height(d);
+            Assert.IsTrue(field.WayInNear(dir * 3, 30 + 500 * 1.5, radiusAt, out Vec3d mouth));
+            Assert.Less(Vec3d.Distance(mouth, dir * (earth.Radius + earth.Height(dir))), 2.5);
         }
 
         [Test]
@@ -637,16 +704,16 @@ namespace OrbitalAnte.Tests.EditMode
             PlanetTerrain moon = World("Moon");
             Vec3d dir = new Vec3d(0.3, 0.8, 0.5).Normalized;
             double groundR = moon.Radius + moon.Height(dir);
-            var deep = new DigCarve(dir * (groundR - DigRules.MaxDepth - 3), 0.7);
+            var deep = new DigCarve(dir * 1.6, 0.7);
             Assert.IsFalse(DigRules.Fit(moon, 0, ref deep, out DigRefusal why));
-            Assert.AreEqual(DigRefusal.TooDeep, why);
+            Assert.AreEqual(DigRefusal.Core, why);
             var fine = new DigCarve(dir * (groundR - 1), 0.7);
             Assert.IsTrue(DigRules.Fit(moon, 0, ref fine, out why));
             Assert.AreEqual(DigRefusal.None, why);
             foreach (DigRefusal r in Enum.GetValues(typeof(DigRefusal)))
             {
                 bool said = !string.IsNullOrEmpty(ShovelSwing.Words(r));
-                Assert.AreEqual(r != DigRefusal.None && r != DigRefusal.AlreadyDug, said, r.ToString());
+                Assert.AreEqual(r != DigRefusal.None && r != DigRefusal.AlreadyDug && r != DigRefusal.NoGround, said, r.ToString());
             }
         }
     }

@@ -80,8 +80,8 @@ namespace OrbitalAnte.Player
         {
             switch (why)
             {
-                case OrbitalAnte.Planets.DigRefusal.TooDeep: return "CAN'T DIG: AS DEEP AS IT GOES";
-                case OrbitalAnte.Planets.DigRefusal.NearWater: return "CAN'T DIG: WATER BELOW";
+                case OrbitalAnte.Planets.DigRefusal.Core: return "THE CORE: NOWHERE DEEPER TO DIG";
+                case OrbitalAnte.Planets.DigRefusal.NearWater: return "CAN'T DIG: THE SEA WOULD COME IN";
                 case OrbitalAnte.Planets.DigRefusal.OldCave: return "CAN'T DIG: GROUND TOO LOOSE HERE";
                 case OrbitalAnte.Planets.DigRefusal.Full: return "CAN'T DIG: GROUND PACKED HARD HERE";
                 default: return null;
