@@ -19,8 +19,11 @@ namespace OrbitalAnte.UI
         public Action AudioShowcaseRequested;
         /// <summary>Play the most recent seed again. The argument is that seed.</summary>
         public Action<int, Scenario> ReplayRequested;
+        /// <summary>Show the collection and envelopes waiting to be opened.</summary>
+        public Action CollectionRequested;
 
         Button _replayButton;
+        Button _collectionButton;
 
         Canvas _canvas;
         GameObject _playButton;
@@ -40,6 +43,7 @@ namespace OrbitalAnte.UI
             {
                 if (SaveSystem.Data.hasLastSeed) ReplayRequested?.Invoke(SaveSystem.Data.lastSeed, LastScenario());
             });
+            _collectionButton = UiKit.Button(card, "Collection", () => CollectionRequested?.Invoke());
             UiKit.Button(card, "Audio showcase (5 min)", () => AudioShowcaseRequested?.Invoke());
             UiKit.Button(card, "Quit to desktop", () => QuitRequested?.Invoke());
             UiKit.LayoutLabel(card, "Esc or Start pauses. Controls can be changed from the pause menu.", 16, UiKit.Muted, 26f,
@@ -59,6 +63,10 @@ namespace OrbitalAnte.UI
                     UiKit.ButtonText(_replayButton).text = "Seed " + SaveSystem.Data.lastSeed + " again (" +
                         (LastScenario() == Scenario.SolarSystem ? "solar system" : "arena") + ")";
                 }
+                int waiting = SaveSystem.Data.unopenedEnvelopes != null ? SaveSystem.Data.unopenedEnvelopes.Count : 0;
+                UiKit.ButtonText(_collectionButton).text = waiting > 0
+                    ? "Collection (" + waiting + (waiting == 1 ? " envelope" : " envelopes") + " to open)"
+                    : "Collection";
             }
             if (visible && EventSystem.current != null)
             {

@@ -36,6 +36,7 @@ namespace OrbitalAnte.EditorTools
         const string DecalMaterialPath = MaterialsFolder + "/OA_Decal.mat";
         const string WeaponsFolder = ResourcesFolder + "/Weapons";
         const string MeleeFolder = ResourcesFolder + "/" + OrbitalAnte.Melee.MeleeData.ResourceFolder;
+        const string ItemsFolder = ResourcesFolder + "/" + OrbitalAnte.Items.ItemData.ResourceFolder;
         const string ThirdPartyWeaponsFolder = "Assets/ThirdParty/Weapons";
         const string TriedThisSessionKey = "OrbitalAnte.SetupTriedThisSession";
 
@@ -76,6 +77,7 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -154,6 +156,7 @@ namespace OrbitalAnte.EditorTools
             Step("config assets", problems, SetUpConfigAssets);
             Step("weapon data", problems, SetUpWeapons);
             Step("melee data", problems, SetUpMelee);
+            Step("prize items", problems, SetUpItems);
             Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
@@ -329,6 +332,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);
@@ -395,6 +399,21 @@ namespace OrbitalAnte.EditorTools
                 string path = MeleeFolder + "/" + id + ".asset";
                 if (AssetDatabase.LoadAssetAtPath<OrbitalAnte.Melee.MeleeData>(path) == null)
                     AssetDatabase.CreateAsset(OrbitalAnte.Melee.MeleeData.CreateDefaults(id), path);
+            }
+        }
+
+        /// <summary>
+        /// One data asset per prize item, from the built-in catalog. An asset already there is left alone, so
+        /// changes made in the Inspector are kept. Removing an item from the catalog never deletes its asset.
+        /// </summary>
+        static void SetUpItems()
+        {
+            EnsureFolder(ItemsFolder);
+            foreach (OrbitalAnte.Items.ItemSpec spec in OrbitalAnte.Items.ItemCatalog.CreateDefaults())
+            {
+                string path = ItemsFolder + "/" + spec.id + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.ItemData>(path) == null)
+                    AssetDatabase.CreateAsset(OrbitalAnte.Items.ItemData.Create(spec), path);
             }
         }
 

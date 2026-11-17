@@ -449,3 +449,11 @@ Current save data is small. File size, allocations, storage latency and checkpoi
 | Squad roles | plain C#, a loop over the squad's members per think; no allocations after the squad is built |
 | Cave routes | 8 remembered routes per camp, searches still capped at `CaveFooting.PlansPerFrame` (2) |
 
+
+## Prize envelopes (16 Nov 2026): estimates from the offline tool, not measured on the Deck
+
+| Work | Cost and cap |
+|---|---|
+| Painting the envelope pieces | 13 pictures, about 0.55 s in all under .NET 8 on the cloud machine (`tools/envelope_view pieces` prints each). Mono in Unity is likely 2 to 3 times slower. Painted one piece a frame while the title screen shows (`EnvelopeDirector.PaintAhead`), so the worst single frame is the seal, about 120 ms (.NET): one hitch on the title screen, never in a run. |
+| Texture memory | About 5 MB, uncompressed RGBA, kept for the session (`EnvelopeTextures`). One card (280 x 392) is painted per reveal and replaces the last. |
+| The screen while showing | One canvas, about 30 to 60 images and labels, laid out from `EnvelopeScene.Frame` each frame (one list, reused; a few small allocations a frame). Only while the envelope shows (run start and reveals), never during play. Off: nothing. |
