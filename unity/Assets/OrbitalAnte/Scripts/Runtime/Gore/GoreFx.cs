@@ -51,6 +51,7 @@ namespace OrbitalAnte.Gore
         public static void ResetStatics()
         {
             Instance = null;
+            Weight = 1f;
         }
 
         void Initialize(GoreConfig config)
@@ -90,7 +91,10 @@ namespace OrbitalAnte.Gore
             main.playOnAwake = false;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.maxParticles = Mathf.Clamp(Config.maxBloodParticles, 16, 4000);
-            main.gravityModifier = 1.7f;
+            main.gravityModifier = GravityScaleFor(0.7f);
+            _weightShown = Weight;
+            // Made now, not on the first re-centre with blood in the air (Shift).
+            _shiftBuffer = new ParticleSystem.Particle[main.maxParticles];
             main.startSpeed = 0f;
             main.startSize = Config.dropletSize;
             main.startLifetime = Config.dropletLife;
@@ -179,13 +183,17 @@ namespace OrbitalAnte.Gore
                 default: scale = 1f; break;
             }
 
+            // The player's own head carries the view: no spray straight into the lens.
+            bool lens = mannequin.KeepsHeadClean && detachment.Root == BodyPartId.Head;
+            if (lens) scale = 0f;
+
             if (scale > 0f)
             {
                 Burst(wound, direction, Mathf.RoundToInt(Config.burstCount * scale), Config.burstSpeed * Mathf.Lerp(1f, 1.3f, scale - 1f));
             }
 
             // Both sides of the break keep spraying for a moment: the loose chunk and the stump it left behind.
-            if (root != null && root.ProximalCap != null) AddBleeder(root.ProximalCap.transform, Config.trailDuration);
+            if (!lens && root != null && root.ProximalCap != null) AddBleeder(root.ProximalCap.transform, Config.trailDuration);
             if (BodyLayout.HasParent(detachment.Root))
             {
                 BodyPart parent = mannequin.Part(BodyLayout.Parent(detachment.Root));
@@ -197,11 +205,11 @@ namespace OrbitalAnte.Gore
         }
 
         /// <summary>Called by a loose chunk when it hits the world hard enough to leave a mark.</summary>
-        public void GibLanded(Vector3 point, Vector3 normal, float impactSpeed, float mass)
+        public void GibLanded(Vector3 point, Vector3 normal, float impactSpeed, float mass, Collider landedOn = null)
         {
             float size = Config.decalSize * Mathf.Lerp(0.6f, 1.6f, Mathf.InverseLerp(1f, 30f, mass))
                                           * Random.Range(0.8f, 1.25f);
-            Decals.Spawn(point, normal, size);
+            Decals.Spawn(point, normal, size, StuckMarks.On(landedOn));
             Burst(point + normal * 0.05f, normal, Mathf.Max(3, Config.burstCount / 5), Config.burstSpeed * 0.45f);
             float loudness = Mathf.InverseLerp(Config.decalMinImpactSpeed, 12f, impactSpeed);
             _audio.PlaySplat(point, Config.splatVolume * Mathf.Lerp(0.4f, 1f, loudness));
@@ -215,7 +223,7 @@ namespace OrbitalAnte.Gore
             if (_blood == null || count <= 0) return;
             for (int i = 0; i < count; i++)
             {
-                Vector3 velocity = (direction * 0.7f + Random.onUnitSphere * 0.75f + Vector3.up * 0.45f).normalized
+                Vector3 velocity = (direction * 0.7f + Random.onUnitSphere * 0.75f + Up * 0.45f).normalized
                                    * (speed * Random.Range(0.35f, 1f));
                 EmitDroplet(position + Random.insideUnitSphere * 0.04f, velocity, Random.Range(0.6f, 1.35f));
             }
@@ -254,6 +262,72 @@ namespace OrbitalAnte.Gore
             if (Decals != null) Decals.Tick();
         }
 
+        /// <summary>
+        /// How much of the world's pull the player really feels, 0 to 1: 1 standing on the ground, 0 falling freely
+        /// (in orbit beside the ship, or drifting on a jetpack). Set by the enemy spawner in the solar system and
+        /// left at 1 in the arena. Blood's extra weight and its lean "upward" only apply to the part that is felt:
+        /// in free fall a spray drifts as a cloud round the wound, falling with everything else.
+        /// </summary>
+        public static float Weight = 1f;
+
+        /// <summary>The blood's gravity scale for this weight. The drops fall with the world, plus a felt extra.</summary>
+        public static float GravityScaleFor(float extra) => 1f + extra * Mathf.Clamp01(Weight);
+
+        /// <summary>"Up" for blood: away from the pull the player feels, as strongly as it is felt.</summary>
+        static Vector3 Up
+        {
+            get
+            {
+                Vector3 g = Physics.gravity;
+                return g.sqrMagnitude > 0.01f ? -g.normalized * Mathf.Clamp01(Weight) : Vector3.zero;
+            }
+        }
+
+        float _weightShown = 1f;
+
+        /// <summary>Re-applies the blood's gravity scale when the felt weight has changed enough to matter.</summary>
+        void FollowWeight()
+        {
+            if (_blood == null || Mathf.Abs(Weight - _weightShown) < 0.05f) return;
+            _weightShown = Weight;
+            var main = _blood.main;
+            main.gravityModifier = GravityScaleFor(0.7f);
+        }
+
+        void LateUpdate()
+        {
+            if (Decals != null) Decals.Follow();
+            FollowWeight();
+        }
+
+        /// <summary>
+        /// The world was slid back to Unity's zero point: move the droplets in the air and the wounds' last
+        /// positions with it (splats follow what they landed on by themselves).
+        /// </summary>
+        public void Shift(Vector3 by)
+        {
+            for (int i = 0; i < _bleeders.Count; i++)
+            {
+                Bleeder b = _bleeders[i];
+                b.LastPosition += by;
+                _bleeders[i] = b;
+            }
+            ShiftParticles(_blood, by, ref _shiftBuffer);
+        }
+
+        ParticleSystem.Particle[] _shiftBuffer;
+
+        /// <summary>Moves every live particle of a system by the same amount (only on a re-centre, so rarely).</summary>
+        public static void ShiftParticles(ParticleSystem system, Vector3 by, ref ParticleSystem.Particle[] buffer)
+        {
+            if (system == null || system.particleCount == 0) return;
+            int max = system.main.maxParticles;
+            if (buffer == null || buffer.Length < max) buffer = new ParticleSystem.Particle[max];
+            int n = system.GetParticles(buffer);
+            for (int i = 0; i < n; i++) buffer[i].position += by;
+            system.SetParticles(buffer, n);
+        }
+
         void UpdateBleeders(float dt)
         {
             float now = Time.time;
@@ -271,6 +345,9 @@ namespace OrbitalAnte.Gore
                 Vector3 position = b.Anchor.position;
                 Vector3 anchorVelocity = (position - b.LastPosition) / dt;
                 b.LastPosition = position;
+                // The world was slid back to Unity's zero point (or the piece was put back on the ground): that jump
+                // is not a speed, and must not fire one frame of droplets at kilometres a second.
+                if (anchorVelocity.sqrMagnitude > 60f * 60f) anchorVelocity = Vector3.zero;
 
                 // Starts strong and tails off to nothing.
                 float rate = Config.trailRate * (1f - k) * (1f - k);
@@ -278,7 +355,7 @@ namespace OrbitalAnte.Gore
                 while (b.Carry >= 1f)
                 {
                     b.Carry -= 1f;
-                    Vector3 velocity = anchorVelocity * 0.35f + Random.onUnitSphere * 1.1f + Vector3.up * 0.8f;
+                    Vector3 velocity = anchorVelocity * 0.35f + Random.onUnitSphere * 1.1f + Up * 0.8f;
                     EmitDroplet(position, velocity, Random.Range(0.45f, 0.9f));
                 }
                 _bleeders[i] = b;

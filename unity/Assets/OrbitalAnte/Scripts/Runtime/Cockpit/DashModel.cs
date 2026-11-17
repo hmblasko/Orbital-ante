@@ -177,6 +177,7 @@ namespace OrbitalAnte.Cockpit
             r.Notice = input.Loose && input.Speed > LooseWarningSpeed ? "NOT BUCKLED IN"
                 : tooFast ? _tooFastWords
                 : input.FuelOut ? "FUEL OUT: WEAK PUSH. LAND TO REFILL"
+                : input.FuelLow && input.OxygenLow ? "FUEL LOW, AIR LOW"
                 : input.FuelLow ? "FUEL LOW"
                 : input.OxygenLow ? "AIR LOW"
                 : !string.IsNullOrEmpty(input.Note) ? input.Note

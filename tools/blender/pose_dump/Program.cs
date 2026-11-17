@@ -34,6 +34,67 @@ static class Program
         Json.Append("}}");
     }
 
+    /// <summary>One pose as the "parts" table alone, for pictures that hold more than one body.</summary>
+    static string Parts(BodyPose pose)
+    {
+        var json = new StringBuilder("{");
+        for (int i = 0; i < BodyLayout.Count; i++)
+        {
+            var id = (BodyPartId)i;
+            BodyBone bone = BodySkeleton.BoneOf(id);
+            pose.World(bone, out Vec3d p, out QuatD q);
+            Vec3d origin = p + q.Rotate(BodySkeleton.PartOrigin(id) - BodySkeleton.RestPosition(bone));
+            Vec3d x = q.Rotate(Vec3d.Right), y = q.Rotate(Vec3d.Up), z = q.Rotate(Vec3d.Forward);
+            double[] m = { x.X, y.X, z.X, origin.X, x.Y, y.Y, z.Y, origin.Y, x.Z, y.Z, z.Z, origin.Z, 0, 0, 0, 1 };
+            if (i > 0) json.Append(',');
+            json.Append('"').Append(id.ToString()).Append("\":[").Append(F(m)).Append(']');
+        }
+        return json.Append('}').ToString();
+    }
+
+    /// <summary>
+    /// The four kinds of enemy, each standing, ready, walking and running its own way at its own size and
+    /// speed. Read by build_enemy_types.py -- --kinds file.json --preview folder.
+    /// </summary>
+    static void Kinds(string path)
+    {
+        const double dt = 1.0 / 60.0;
+        // The model, the size it is drawn at, and how fast it moves beside the trooper (Enemies/EnemyRules.cs).
+        var kinds = new (string model, double size, double quick)[] { ("EnemyRunner", 0.85, 1.5), ("Enemy", 1.0, 1.0), ("EnemyMarksman", 1.2, 0.9), ("EnemyBruiser", 1.3, 0.8) };
+        var json = new StringBuilder("{\"kinds\":[\n");
+        for (int k = 0; k < kinds.Length; k++)
+        {
+            (string model, double size, double quick) = kinds[k];
+            BodyAnimInput In(double share, bool moving, double aim = 0)
+            {
+                BodyAnimInput input = Input(MovementState.Intact, 0, 0, moving);
+                input.WalkSpeed = 2.0 * quick;
+                input.SprintSpeed = 4.6 * quick;
+                input.ForwardSpeed = moving ? input.WalkSpeed + (input.SprintSpeed - input.WalkSpeed) * share : 0.0;
+                input.Aim = aim;
+                return input;
+            }
+            BodyAnimator New() => new BodyAnimator(7, BodyStyle.For(model)) { Size = size };
+            string Moving(double share, double goal)
+            {
+                BodyAnimator a = New();
+                for (int i = 0; i < 200; i++) a.Update(dt, In(share, true));
+                for (int guard = 0; guard < 600 && Math.Abs(((a.Gait - goal + 1.5) % 1.0) - 0.5) > 0.03; guard++) a.Update(dt, In(share, true));
+                return Parts(a.Pose);
+            }
+            BodyAnimator still = New();
+            for (int i = 0; i < 150; i++) still.Update(dt, In(0, false));
+            BodyAnimator ready = New();
+            for (int i = 0; i < 150; i++) ready.Update(dt, In(0, false, 1.0));
+            if (k > 0) json.Append(",\n");
+            json.Append("{\"model\":\"").Append(model).Append("\",\"scale\":").Append(size.ToString(CultureInfo.InvariantCulture))
+                .Append(",\"idle\":").Append(Parts(still.Pose)).Append(",\"ready\":").Append(Parts(ready.Pose))
+                .Append(",\"walk\":").Append(Moving(0.0, 0.18)).Append(",\"run\":").Append(Moving(1.0, 0.18)).Append('}');
+        }
+        File.WriteAllText(path, json.Append("\n]}").ToString());
+        Console.WriteLine("wrote " + path);
+    }
+
     static string F(double[] v)
     {
         var parts = new string[v.Length];
@@ -52,6 +113,7 @@ static class Program
     static void Main(string[] args)
     {
         string mode = args.Length > 1 ? args[1] : "sheet";
+        if (mode == "kinds") { Kinds(args[0]); return; }
         const double dt = 1.0 / 60.0;
         double[] side = { 4.2, 1.0, 0.25 }, sideT = { 0, 0.92, 0.1 };
         double[] quarter = { 2.5, 1.5, 3.0 }, quarterT = { 0, 0.9, 0 };

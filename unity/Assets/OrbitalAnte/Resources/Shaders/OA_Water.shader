@@ -93,6 +93,7 @@ Shader "OrbitalAnte/Water"
                 float lampDistance = max(0.001, length(toLamp));
                 half lamp = saturate(1.0 - lampDistance * _OA_LampPosition.w);
                 light += _OA_LampColor.rgb * (lamp * lamp);
+                light += OA_Beam(normal, input.positionWS);
 
                 // The water mirrors the sky: more so the flatter you look along it.
                 float3 mirrored = reflect(-toEye, normal);

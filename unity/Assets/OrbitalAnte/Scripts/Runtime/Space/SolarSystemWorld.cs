@@ -36,12 +36,16 @@ namespace OrbitalAnte.Space
         public TestCraft Craft { get; private set; }
         public Ship.Ship Ship { get; private set; }
         public Astronaut Astronaut { get; private set; }
+        /// <summary>The moon rover the lander carries, or null.</summary>
+        public OrbitalAnte.Rover.MoonRover Rover { get; private set; }
         public ShipHud ShipHud { get; private set; }
         public OrbitalAnte.Spacewalk.SuitHud SuitHud { get; private set; }
         public OrbitalAnte.Cockpit.CockpitDash Dash { get; private set; }
         public FlightHud Hud { get; private set; }
         public SystemMap Map { get; private set; }
         public PlanetWorld Planets { get; private set; }
+        public OrbitalAnte.Enemies.EnemySpawner Enemies { get; private set; }
+        public OrbitalAnte.Bases.PlanetBases Bases { get; private set; }
 
         public void Build(int seed, StartPlace place = StartPlace.FromConfig)
         {
@@ -66,11 +70,17 @@ namespace OrbitalAnte.Space
             Craft.System = System;
             Astronaut = Astronaut.Create(transform, Ship, shipConfig, System);
             Craft.Eye = Astronaut.Eye;
+            // The moon rover hangs on the lander's davit (Matthew, 16 Nov 2026).
+            Rover = OrbitalAnte.Rover.MoonRover.Create(transform, Ship, System);
+            Astronaut.Rover = Rover;
             System.Focus = Craft.Gravity;
             System.ViewCamera = Astronaut.Eye;
 
             _launchConfig = LaunchConfig.Load();
             Engines = LaunchFx.Attach(Ship, _launchConfig);
+            OrbitalAnte.Ship.ShipJetFx.Attach(Ship);
+            // Dark near the ground is the same darkness that lights the player's own lamp.
+            OrbitalAnte.Ship.ShipLightFx.Attach(Ship, () => Planets != null && Planets.Sky != null ? Planets.Sky.LampLevel : 0f);
             _earth = System.Model.IndexOf("Earth");
             bool onPad = place == StartPlace.Pad || (place == StartPlace.FromConfig && _launchConfig.startOnPad);
             // The pad is on Earth. Its place depends on the ground, so Earth's ground is worked out first.
@@ -117,6 +127,10 @@ namespace OrbitalAnte.Space
             ShipHud.Build(Ship, Astronaut, Hud, Map);
             SuitHud = shipHudGo.AddComponent<OrbitalAnte.Spacewalk.SuitHud>();
             SuitHud.Build(Astronaut, Astronaut.SuitDials);
+            Bases = OrbitalAnte.Bases.PlanetBases.Build(this, null);
+            // Read the base models while the run is being got ready, not on the frame the first base comes into range.
+            OrbitalAnte.Bases.BaseView.Warm();
+            Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();
@@ -165,7 +179,8 @@ namespace OrbitalAnte.Space
                    (Planets != null ? "\n" + Planets.DescribeForDebug() : string.Empty) +
                    (Ship != null ? "\n" + Ship.DescribeForDebug() : string.Empty) +
                    (Engines != null ? "   engines " + Engines.Model.State + " burn " + Mathf.RoundToInt(Engines.Model.Burn * 100f) + "%" : string.Empty) +
-                   (Astronaut != null ? "   " + Astronaut.DescribeForDebug() : string.Empty);
+                   (Astronaut != null ? "   " + Astronaut.DescribeForDebug() : string.Empty) +
+                   (Rover != null ? "\n" + Rover.DescribeForDebug() : string.Empty);
         }
     }
 }

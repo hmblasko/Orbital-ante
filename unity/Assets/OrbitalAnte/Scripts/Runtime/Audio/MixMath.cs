@@ -26,6 +26,28 @@ namespace OrbitalAnte.Audio
             return slider * slider;
         }
 
+        // ---- slow motion: the world's sounds sink and dull, the player's own head (suit, interface) does not
+
+        /// <summary>How slowed the world is, 0 to 1, from the game's time scale. A frozen world (pause, a hitstop
+        /// frame) is not slow motion, and 1 is the deepest slow the game uses (about a third of normal speed).</summary>
+        public static float SlowAmount(float timeScale)
+        {
+            if (timeScale <= 0.05f || timeScale >= 0.99f) return 0f;
+            float a = (1f - timeScale) / 0.65f;
+            return a < 0f ? 0f : a > 1f ? 1f : a;
+        }
+
+        /// <summary>World sounds drop in pitch, but less than time itself does, so a gunshot stays a gunshot.</summary>
+        public static float SlowPitch(float amount) => 1f - 0.3f * Clamp01(amount);
+
+        /// <summary>World sounds lose their top: 20 kHz at normal speed down to 3.2 kHz fully slowed.</summary>
+        public static float SlowCutoff(float amount) => 20000f * (float)Math.Pow(3200.0 / 20000.0, Clamp01(amount));
+
+        /// <summary>Music keeps its tempo (it is on the audio clock, not the game's) and steps back instead.</summary>
+        public static float SlowMusicGain(float amount) => 1f - 0.35f * Clamp01(amount);
+
+        static float Clamp01(float v) => v < 0f ? 0f : v > 1f ? 1f : v;
+
         /// <summary>An equal-power fade shape: two sounds crossing over keep a steady overall loudness.</summary>
         public static float FadeCurve(float linear)
         {

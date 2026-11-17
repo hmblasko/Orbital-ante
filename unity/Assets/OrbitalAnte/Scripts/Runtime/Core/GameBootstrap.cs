@@ -29,9 +29,15 @@ namespace OrbitalAnte.Core
         TestArena _arena;
         Space.SolarSystemWorld _space;
         TimeFx _timeFx;
+        Combat.DeepBreathFx _deepBreath;
+        Combat.GunLadderFx _gunLadder;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
+        /// <summary>Time played in this run, for Run Stats. Paused time does not count.</summary>
+        double _runSeconds;
         Audio.AudioDemoSequence _audioShowcase;
+        Items.EnvelopeDirector _envelopes;
+        CollectionPage _collection;
 
         public TestArena Arena => _arena;
         public Space.SolarSystemWorld Space => _space;
@@ -42,6 +48,7 @@ namespace OrbitalAnte.Core
             // Unity can keep static values between Play sessions; start clean every time.
             Instance = null;
             GameSession.ResetStatics();
+            OrbitalAnte.Ship.PlayerBurstFx.ResetStatics();
             CombatEvents.ResetStatics();
             Audio.AudioDirector.ResetStatics();
             Audio.AudioDemoSequence.ResetStatics();
@@ -67,10 +74,21 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Look.LookConfig.ResetStatics();
             OrbitalAnte.Look.PostFx.ResetStatics();
             OrbitalAnte.Look.ModelLibrary.ResetStatics();
+            OrbitalAnte.Look.ModelDetail.ResetStatics();
             OrbitalAnte.Launch.LaunchConfig.ResetStatics();
             OrbitalAnte.Cockpit.CockpitConfig.ResetStatics();
             OrbitalAnte.Spacewalk.SuitConfig.ResetStatics();
+            OrbitalAnte.Enemies.EnemyConfig.ResetStatics();
+            OrbitalAnte.Bases.PlanetBases.ResetStatics();
+            OrbitalAnte.Combat.DeepBreathConfig.ResetStatics();
+            OrbitalAnte.Combat.DeepBreathFx.ResetStatics();
+            OrbitalAnte.Combat.GunLadderConfig.ResetStatics();
+            OrbitalAnte.Melee.MeleeConfig.ResetStatics();
+            OrbitalAnte.Melee.MeleeItem.ResetStatics();
+            OrbitalAnte.Combat.GunLadderFx.ResetStatics();
+            OrbitalAnte.Rover.RoverConfig.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
+            OrbitalAnte.Items.EnvelopeDirector.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -105,6 +123,11 @@ namespace OrbitalAnte.Core
             gameObject.AddComponent<Audio.AudioDebugPanel>();
             BuildUi();
             _timeFx = gameObject.AddComponent<TimeFx>();
+            // Deep Breath lives here, not on a player, so it works the same wherever the on-foot controls are
+            // live: the combat arena, walking the cabin, and outside the ship in the solar system.
+            _deepBreath = gameObject.AddComponent<Combat.DeepBreathFx>();
+            // The gun ladder lives here too, so kills count wherever you fight and the ladder ends with the run.
+            _gunLadder = gameObject.AddComponent<Combat.GunLadderFx>();
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
             OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
@@ -127,10 +150,10 @@ namespace OrbitalAnte.Core
         /// </summary>
         void SilenceSceneLeftovers()
         {
-            foreach (Camera cam in FindObjectsByType<Camera>(FindObjectsSortMode.None)) cam.gameObject.SetActive(false);
-            foreach (Light light in FindObjectsByType<Light>(FindObjectsSortMode.None)) light.gameObject.SetActive(false);
-            foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsSortMode.None)) listener.enabled = false;
-            foreach (EventSystem es in FindObjectsByType<EventSystem>(FindObjectsSortMode.None)) es.gameObject.SetActive(false);
+            foreach (Camera cam in OrbitalAnte.Core.SceneQuery.All<Camera>()) cam.gameObject.SetActive(false);
+            foreach (Light light in OrbitalAnte.Core.SceneQuery.All<Light>()) light.gameObject.SetActive(false);
+            foreach (AudioListener listener in OrbitalAnte.Core.SceneQuery.All<AudioListener>()) listener.enabled = false;
+            foreach (EventSystem es in OrbitalAnte.Core.SceneQuery.All<EventSystem>()) es.gameObject.SetActive(false);
         }
 
         void BuildUi()
@@ -174,6 +197,24 @@ namespace OrbitalAnte.Core
             _mainMenu.ReplayRequested = StartRun;
             _mainMenu.QuitRequested = QuitToDesktop;
 
+            // Envelopes: one sealed at every run start, opened after Ante 9; the collection keeps the prizes.
+            _envelopes = gameObject.AddComponent<Items.EnvelopeDirector>();
+            _envelopes.Build(_uiRoot);
+            var collectionGo = new GameObject("CollectionController");
+            collectionGo.transform.SetParent(_uiRoot, false);
+            _collection = collectionGo.AddComponent<CollectionPage>();
+            _collection.Build(_uiRoot);
+            _collection.BackRequested = () =>
+            {
+                _collection.SetVisible(false);
+                _mainMenu.SetVisible(true);
+            };
+            _mainMenu.CollectionRequested = () =>
+            {
+                _mainMenu.SetVisible(false);
+                _collection.SetVisible(true);
+            };
+
             var showcaseGo = new GameObject("AudioShowcaseController");
             showcaseGo.transform.SetParent(_uiRoot, false);
             _audioShowcase = showcaseGo.AddComponent<Audio.AudioDemoSequence>();
@@ -190,6 +231,7 @@ namespace OrbitalAnte.Core
             _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
+            _pauseMenu.StatsSource = () => RunStatsReport.Build(_runSeconds, _space, _arena, _deepBreath, _hud);
             OrbitalAnte.Ship.Astronaut.OnDeath = cause => _pauseMenu.ShowDeath(cause);
         }
 
@@ -211,6 +253,7 @@ namespace OrbitalAnte.Core
             _menuCamera.gameObject.SetActive(true);
             _menuListener.enabled = true;
             _hud.SetVisible(false);
+            if (_collection != null) _collection.SetVisible(false);
             _mainMenu.SetVisible(true);
             SetCursorLocked(false);
         }
@@ -234,6 +277,8 @@ namespace OrbitalAnte.Core
             save.lastSeed = seed;
             save.lastScenario = (int)scenario;
             save.runsStarted++;
+            // Number this run's envelope before the save is written, so a number is never handed out twice.
+            if (_envelopes != null) _envelopes.RunStarted();
             BankPlayTime();
             Save.SaveSystem.Save();
 
@@ -241,6 +286,7 @@ namespace OrbitalAnte.Core
             _menuListener.enabled = false;
             _menuCamera.gameObject.SetActive(false);
             _mainMenu.SetVisible(false);
+            if (_collection != null) _collection.SetVisible(false);
 
             _world = new GameObject("World");
             if (scenario == Scenario.SolarSystem)
@@ -249,6 +295,17 @@ namespace OrbitalAnte.Core
                 _space.Build(seed);
                 _hud.SetArenaMode(false);
                 _hud.ExtraDebug = _space.DescribeForDebug;
+                Ship.Astronaut astronaut = _space.Astronaut;
+                if (astronaut != null)
+                {
+                    // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
+                    _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
+                        () => astronaut.InTheOpen && !Cockpit.CockpitDash.WatchingScreen);
+                    // The gun's readout, lower right, whenever the gun is in your hands: on foot, aboard or outside.
+                    _hud.Weapons = astronaut.Weapons;
+                    _hud.WeaponShown = () => !astronaut.Dead && !Cockpit.CockpitDash.WatchingScreen &&
+                                             (astronaut.Mode == Ship.AstronautMode.Aboard || astronaut.Mode == Ship.AstronautMode.Outside);
+                }
             }
             else
             {
@@ -257,8 +314,10 @@ namespace OrbitalAnte.Core
                 _hud.SetArenaMode(true);
                 _hud.Weapons = _arena.Weapons;
                 _hud.Health = _arena.Health;
+                _hud.WatchHurt(_arena.Health, _arena.PlayerCamera != null ? _arena.PlayerCamera.transform : null);
             }
             _hud.SetVisible(true);
+            _runSeconds = 0;
 
             GameSession.SetMode(GameMode.Playing);
             GameInput.Play.Enable();
@@ -268,6 +327,12 @@ namespace OrbitalAnte.Core
         void DestroyWorld()
         {
             if (_timeFx != null) _timeFx.Clear();
+            // Every run starts with a full breath.
+            if (_deepBreath != null) _deepBreath.ResetForNewRun();
+            // ...and with the first gun of the ladder.
+            if (_gunLadder != null) _gunLadder.ResetForNewRun();
+            // A run ending before Ante 9 loses its sealed envelope.
+            if (_envelopes != null) _envelopes.RunEnded();
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
@@ -280,13 +345,19 @@ namespace OrbitalAnte.Core
             {
                 _hud.ExtraDebug = null;
                 _hud.Weapons = null;
+                _hud.WeaponShown = null;
                 _hud.Health = null;
+                _hud.WatchHurt(null, null);
             }
         }
 
         void Update()
         {
-            if (GameSession.Mode == GameMode.Playing && !GameSession.Paused) _unsavedSeconds += Time.unscaledDeltaTime;
+            if (GameSession.Mode == GameMode.Playing && !GameSession.Paused)
+            {
+                _unsavedSeconds += Time.unscaledDeltaTime;
+                _runSeconds += Time.unscaledDeltaTime;
+            }
         }
 
         /// <summary>Moves time played since the last save into the save data.</summary>

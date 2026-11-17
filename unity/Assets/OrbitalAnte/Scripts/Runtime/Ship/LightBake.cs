@@ -16,6 +16,9 @@ namespace OrbitalAnte.Ship
     /// </summary>
     public sealed class LightBake
     {
+        /// <summary>Surfaces glowing at least this much are lamps and light the room; fainter ones only show lit themselves.</summary>
+        public const float CastsLightFrom = 1.3f;
+
         public sealed class Settings
         {
             /// <summary>Bounced-light paths followed from each corner. More is smoother and slower.</summary>
@@ -25,12 +28,12 @@ namespace OrbitalAnte.Ship
             /// <summary>How many times light may bounce.</summary>
             public int Bounces = 3;
             /// <summary>The typical lit wall ends up this bright on screen (0 to 1).</summary>
-            public float TargetBrightness = 0.62f;
+            public float TargetBrightness = 0.5f;
             /// <summary>The least light anything gets, so deep corners are dim rather than pure black.</summary>
-            public float Floor = 0.035f;
+            public float Floor = 0.02f;
             public ulong Seed = 20261112;
             /// <summary>How many times neighbouring corners are averaged together, to smooth away speckle.</summary>
-            public int Smoothing = 2;
+            public int Smoothing = 3;
             /// <summary>Processor cores to use: 0 for all of them, 1 to stay on the calling thread.</summary>
             public int Threads = 0;
         }
@@ -90,8 +93,11 @@ namespace OrbitalAnte.Ship
                     P3 paint = (ToLinear(mesh.Color(i0)) + ToLinear(mesh.Color(i1)) + ToLinear(mesh.Color(i2))) * (1f / 3f);
                     float glow = (mesh.Glow[i0] + mesh.Glow[i1] + mesh.Glow[i2]) / 3f;
                     _albedo[t] = paint * 0.85f;
-                    _emit[t] = paint * glow;
-                    if (glow > 0.01f && _area[t] > 1e-8f) lamps.Add(t);
+                    // Faint glows (a screen, a pilot light, a sticker star) show lit but light nothing else:
+                    // they are tiny, and a tiny lamp close to a wall bakes as coloured speckle.
+                    bool casts = glow >= CastsLightFrom;
+                    _emit[t] = casts ? paint * glow : P3.Zero;
+                    if (casts && _area[t] > 1e-8f) lamps.Add(t);
                 }
             }
             _lamps = lamps.ToArray();

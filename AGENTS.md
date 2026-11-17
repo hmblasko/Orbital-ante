@@ -23,7 +23,7 @@ You are a support agent. Claude (Fable 5.2) leads design, art and feel; Matthew,
 - Anything that must repeat for a seed uses `SeededRandom` through a named stream, never `System.Random` or `UnityEngine.Random`.
 - Unity 6 API names: `Rigidbody.linearVelocity`, `PhysicsMaterial`, `FindFirstObjectByType`.
 - Models are built by Blender Python scripts in `tools/blender/`, coloured per vertex only (no textures, no UVs, no normal maps), and exported to `.bytes` files the game loads itself. Art advice is about shape, proportion, bevels, panel geometry and vertex colour.
-- The look follows `docs/art_direction.md`: original, warm, hand-crafted, never PS2-looking or boxy.
+- The look follows `docs/art_direction.md`. **Matthew is not going for a PS2 style, and not a cartoony, goofy or blocky one either.** Since 14 Nov 2026 the direction is **realistic**: real proportions, real materials (cloth, machined and worn metal, dull rubber, reflective visors), colours taken from what a thing is made of, wear and dust where use would put them, and detail in layers that each have a job. It is still original (never copied), never deliberately retro (no low-res textures, wobble or filters), never grey or bland (the sky, light and air carry the colour), and silhouettes must still read in a fight. The build prompt's humour lives in the gibs, sounds, behaviour and UI, not in cartoon shapes. If an older doc or brief says "chunky", "painterly", "stylised" or "TF2 / Gang Beasts" about how things look, `docs/art_direction.md` wins.
 - Matthew is still learning Unity: anything he does by hand gets numbered, click-by-click steps.
 
 ## Pull request description
@@ -36,6 +36,6 @@ When reviewing a pull request:
 
 - Flag correctness bugs, edge cases (zero, negative, timer ends, repeated calls), Unity 6 lifecycle, physics and Input System mistakes, URP 17 mistakes, per-frame allocations and other Steam Deck costs, broken seeded determinism, and missing tests.
 - Flag anything that would make a Phase 1 system less fun, hide a rule from the player, or drift from `CLAUDE.md` Part B, as a question for the lead designer rather than a demand.
-- For look work, check against `docs/art_direction.md`: anything that could still read as PS2, banding, muddy or washed-out colour, lighting edge cases.
+- For look work, check against `docs/art_direction.md` (realistic, not PS2 and not cartoony): anything that could read as PS2 or as a toy (low-res, blocky, oversized cartoon proportions), banding, muddy, grey or washed-out colour, shimmer, lighting edge cases, and whether enemy kinds and their breakable parts still read at a glance.
 - Do not comment on style or naming unless it hides a bug. Prefer three real problems to ten vague ones.
 - Comment only. Never push to the branch under review.

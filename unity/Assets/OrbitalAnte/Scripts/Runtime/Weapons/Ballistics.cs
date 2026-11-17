@@ -51,7 +51,7 @@ namespace OrbitalAnte.Weapons
                 result.End = wallPoint;
                 var wallHit = new HitInfo { Damage = data.torsoDamage, Point = wallPoint, Direction = direction, Normal = wallNormal };
                 result.Outcome = boarded.HitPart(boarded.CabinPart, wallHit);
-                if (fx != null) fx.Impact(wallPoint, wallNormal);
+                if (fx != null) fx.Impact(wallPoint, wallNormal, boarded.transform);
                 if (result.Outcome.Hit) CombatEvents.RaisePlayerHit(result.Outcome);
                 return result;
             }
@@ -64,7 +64,7 @@ namespace OrbitalAnte.Weapons
             var target = hit.collider.GetComponentInParent<IHittable>();
             if (target == null)
             {
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
                 return result;
             }
 
@@ -76,6 +76,7 @@ namespace OrbitalAnte.Weapons
                 Point = hit.point,
                 Direction = direction,
                 Normal = hit.normal,
+                Lethal = data.oneHitKill,
             };
             result.Outcome = target.Hit(info);
 
@@ -112,6 +113,12 @@ namespace OrbitalAnte.Weapons
             result.Collider = hit.collider;
 
             var health = hit.collider.GetComponentInParent<PlayerHealth>();
+            if (health == null)
+            {
+                // The driver of the rover: their own body is not there, a stand-in collider is.
+                var link = hit.collider.GetComponent<HealthLink>();
+                if (link != null && link.Target != null) health = link.Target;
+            }
             if (health != null)
             {
                 result.HitPlayer = true;
@@ -120,7 +127,7 @@ namespace OrbitalAnte.Weapons
             else
             {
                 WeaponFx fx = WeaponFx.Instance;
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
             }
             return result;
         }

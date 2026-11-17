@@ -135,6 +135,12 @@ def build_music(only: str | None) -> None:
             cues[cue["id"]] = cue
             measures[rel] = mixing.measure(mixing.read(os.path.join(OUT, rel + ".ogg")))
             print(f"  cue {cue['id']}")
+    # A piece that is no longer in the soundtrack leaves the manifest and the measurements with it.
+    known = {piece.ID for piece in music.PIECES}
+    for gone in [k for k in tracks if k not in known]:
+        del tracks[gone]
+        for key in [m for m in measures if m.startswith(f"Music/{gone}/")]:
+            del measures[key]
     section["tracks"] = [tracks[k] for k in sorted(tracks)]
     section["cues"] = [cues[k] for k in sorted(cues)]
     section.update(music.DIRECTION)

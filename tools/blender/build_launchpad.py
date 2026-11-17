@@ -21,7 +21,7 @@ OUT = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "Orbita
 # ---- a copy of LaunchLayout (x east, y north, z up here) ----
 PAD_RADIUS = 15.0
 DISH_RADIUS, DISH_DEPTH = 3.4, 0.28
-SHIP_HEIGHT = 3.8
+SHIP_HEIGHT = 5.6
 TOWER_FOOT = (-10.2, 0.0)
 TOWER_HALF, TOWER_HEIGHT = 1.2, 15.0
 ARM_LENGTH = 6.2
@@ -310,12 +310,12 @@ def pad_lamps():
         o.append(flat(oa.cylinder("lamp housing", (x, y, 0.0), (x, y, 0.10), 0.13, BLACK, radius_end=0.11, segments=10, bevel=0.015)))
         lens = oa.sphere("lamp", (x, y, 0.10), 0.085, LAMP_BLUE if i % 2 == 0 else LAMP_AMBER, scale=(1, 1, 0.7), segments=8)
         glow.append(flat(lens))
-    # Four yellow chocks by the footpads (footpads are 4.3 m out, 0.6 across).
+    # Four yellow chocks by the footpads (footpads are 5.5 m out, 0.9 across).
     for i in range(4):
         a = math.radians(45 + 90 * i)
         s, c = math.sin(a), math.cos(a)
         chock = oa.slab("chock", [(-0.18, 0.0), (0.18, 0.0), (0.10, 0.24), (-0.10, 0.24)], 0.8, YELLOW, bevel=0.03, segments=2)
-        place([chock], (s * 5.2, c * 5.2, 0.0), (c, -s, 0), (s, c, 0), (0, 0, 1))
+        place([chock], (s * 6.4, c * 6.4, 0.0), (c, -s, 0), (s, c, 0), (0, 0, 1))
         o.append(painted(chock, 95 + i))
     return o, glow
 

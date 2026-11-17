@@ -116,6 +116,133 @@ namespace OrbitalAnte.Planets
             return total / sum;
         }
 
+        static void Grad(uint hash, out double gx, out double gy, out double gz)
+        {
+            // The same twelve directions as Dot, as vectors.
+            switch (hash % 12u)
+            {
+                case 0: gx = 1; gy = 1; gz = 0; break;
+                case 1: gx = -1; gy = 1; gz = 0; break;
+                case 2: gx = 1; gy = -1; gz = 0; break;
+                case 3: gx = -1; gy = -1; gz = 0; break;
+                case 4: gx = 1; gy = 0; gz = 1; break;
+                case 5: gx = -1; gy = 0; gz = 1; break;
+                case 6: gx = 1; gy = 0; gz = -1; break;
+                case 7: gx = -1; gy = 0; gz = -1; break;
+                case 8: gx = 0; gy = 1; gz = 1; break;
+                case 9: gx = 0; gy = -1; gz = 1; break;
+                case 10: gx = 0; gy = 1; gz = -1; break;
+                default: gx = 0; gy = -1; gz = -1; break;
+            }
+        }
+
+        /// <summary>
+        /// The same value as <see cref="Perlin(double,double,double,uint)"/>, and also which way it climbs and how
+        /// fast (per unit of distance), worked out exactly instead of by sampling nearby.
+        /// </summary>
+        public static double PerlinD(double x, double y, double z, uint seed, out double ddx, out double ddy, out double ddz)
+        {
+            double fx = Math.Floor(x), fy = Math.Floor(y), fz = Math.Floor(z);
+            int xi = (int)fx, yi = (int)fy, zi = (int)fz;
+            double dx = x - fx, dy = y - fy, dz = z - fz;
+            double u = Fade(dx), v = Fade(dy), w = Fade(dz);
+            double du = 30.0 * dx * dx * (dx - 1) * (dx - 1), dv = 30.0 * dy * dy * (dy - 1) * (dy - 1), dw = 30.0 * dz * dz * (dz - 1) * (dz - 1);
+
+            Grad(Hash(xi, yi, zi, seed), out double ax, out double ay, out double az);
+            Grad(Hash(xi + 1, yi, zi, seed), out double bx, out double by, out double bz);
+            Grad(Hash(xi, yi + 1, zi, seed), out double cx, out double cy, out double cz);
+            Grad(Hash(xi + 1, yi + 1, zi, seed), out double ex, out double ey, out double ez);
+            Grad(Hash(xi, yi, zi + 1, seed), out double gx, out double gy, out double gz);
+            Grad(Hash(xi + 1, yi, zi + 1, seed), out double hx, out double hy, out double hz);
+            Grad(Hash(xi, yi + 1, zi + 1, seed), out double ix, out double iy, out double iz);
+            Grad(Hash(xi + 1, yi + 1, zi + 1, seed), out double jx, out double jy, out double jz);
+
+            double n000 = ax * dx + ay * dy + az * dz;
+            double n100 = bx * (dx - 1) + by * dy + bz * dz;
+            double n010 = cx * dx + cy * (dy - 1) + cz * dz;
+            double n110 = ex * (dx - 1) + ey * (dy - 1) + ez * dz;
+            double n001 = gx * dx + gy * dy + gz * (dz - 1);
+            double n101 = hx * (dx - 1) + hy * dy + hz * (dz - 1);
+            double n011 = ix * dx + iy * (dy - 1) + iz * (dz - 1);
+            double n111 = jx * (dx - 1) + jy * (dy - 1) + jz * (dz - 1);
+
+            double k1 = n100 - n000, k2 = n010 - n000, k3 = n001 - n000;
+            double k4 = n000 - n100 - n010 + n110, k5 = n000 - n010 - n001 + n011, k6 = n000 - n100 - n001 + n101;
+            double k7 = -n000 + n100 + n010 - n110 + n001 - n101 - n011 + n111;
+
+            // The corners' own directions, blended the same way as the values.
+            double w000 = (1 - u) * (1 - v) * (1 - w), w100 = u * (1 - v) * (1 - w), w010 = (1 - u) * v * (1 - w), w110 = u * v * (1 - w);
+            double w001 = (1 - u) * (1 - v) * w, w101 = u * (1 - v) * w, w011 = (1 - u) * v * w, w111 = u * v * w;
+            ddx = ax * w000 + bx * w100 + cx * w010 + ex * w110 + gx * w001 + hx * w101 + ix * w011 + jx * w111
+                + du * (k1 + k4 * v + k6 * w + k7 * v * w);
+            ddy = ay * w000 + by * w100 + cy * w010 + ey * w110 + gy * w001 + hy * w101 + iy * w011 + jy * w111
+                + dv * (k2 + k5 * w + k4 * u + k7 * w * u);
+            ddz = az * w000 + bz * w100 + cz * w010 + ez * w110 + gz * w001 + hz * w101 + iz * w011 + jz * w111
+                + dw * (k3 + k6 * u + k5 * v + k7 * u * v);
+            ddx *= 1.05; ddy *= 1.05; ddz *= 1.05;
+            return (n000 + k1 * u + k2 * v + k3 * w + k4 * u * v + k5 * v * w + k6 * w * u + k7 * u * v * w) * 1.05;
+        }
+
+        /// <summary>
+        /// Layered noise shaped the way running water shapes land: where the broad layers are steep the finer ones
+        /// are held back, so slopes run clean down to smooth valley floors while crests and gentle ground keep
+        /// their small bumps. <paramref name="erosion"/> 0 is plain <see cref="Fbm"/>; about 1 is strongly worn.
+        /// About -1 to 1. Layers finer than <paramref name="minWavelength"/> are left out.
+        /// </summary>
+        public static double Eroded(Vec3d p, double wavelength, int layers, uint seed, double erosion, double minWavelength = 0)
+        {
+            double total = 0, weight = 1, sum = 0;
+            double sx = 0, sy = 0, sz = 0;
+            for (int i = 0; i < layers; i++)
+            {
+                sum += weight;
+                if (wavelength >= minWavelength)
+                {
+                    double f = 1.0 / wavelength;
+                    double n = PerlinD(p.X * f, p.Y * f, p.Z * f, seed + (uint)i * 101u, out double gx, out double gy, out double gz);
+                    // Slopes are compared in the first layer's units, so the answer does not depend on the size chosen.
+                    // Each layer is held back by the slope of the broader ones above it, so the broadest keeps its
+                    // full height and only the detail thins out on the flanks.
+                    total += n * weight / (1.0 + erosion * (sx * sx + sy * sy + sz * sz));
+                    sx += gx * weight; sy += gy * weight; sz += gz * weight;
+                }
+                wavelength *= 0.49;
+                weight *= 0.5;
+            }
+            return total / sum;
+        }
+
+        /// <summary>
+        /// Mountain crests with spurs running down from them: sharp ridges like <see cref="Ridged"/>, with the
+        /// finer layers held back on steep flanks (see <see cref="Eroded"/>) so the sides fall in clean ribs and
+        /// gullies instead of an even crumple. 0 to about 1.
+        /// </summary>
+        public static double ErodedRidged(Vec3d p, double wavelength, int layers, uint seed, double erosion, double minWavelength = 0)
+        {
+            double total = 0, weight = 1, sum = 0, previous = 1;
+            double sx = 0, sy = 0, sz = 0;
+            for (int i = 0; i < layers; i++)
+            {
+                sum += weight;
+                if (wavelength >= minWavelength)
+                {
+                    double f = 1.0 / wavelength;
+                    double n = PerlinD(p.X * f, p.Y * f, p.Z * f, seed + (uint)i * 131u, out double gx, out double gy, out double gz);
+                    double fold = 1.0 - Math.Abs(n);
+                    // The fold turns the slope round on the far side of a crest; squaring steepens it toward the top.
+                    double k = (n > 0 ? -2.0 : 2.0) * fold * weight;
+                    fold *= fold;
+                    // Held back by the slope of the broader layers only, so the main crests keep their full height.
+                    total += fold * weight * previous / (1.0 + erosion * (sx * sx + sy * sy + sz * sz));
+                    sx += gx * k; sy += gy * k; sz += gz * k;
+                    previous = 0.35 + 0.65 * fold;
+                }
+                wavelength *= 0.49;
+                weight *= 0.5;
+            }
+            return total / sum;
+        }
+
         /// <summary>
         /// A pattern of cells, like cracked mud or a honeycomb. Returns the distance to the nearest cell centre
         /// (0 at the centre, about 1 at the furthest corner). <paramref name="edge"/> is 0 on the border between

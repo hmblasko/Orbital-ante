@@ -47,12 +47,12 @@ def handcannon(rng, v):
                    tail=0.2, tail_len=1.6, tail_dark=1900, tail_spread=0.45, slap=0.6, slap_time=0.13, low_db=2.0)
 
 
-@sfx("weapon.sniper.shot", "weapons", variants=2, pitchVar=0.2, volVarDb=0.5, volumeDb=-2, maxVoices=2, **GUN)
+@sfx("weapon.sniper.shot", "weapons", variants=2, pitchVar=0.2, volVarDb=0.5, volumeDb=0, maxVoices=2, **GUN)
 def sniper(rng, v):
     """Sniper rifle: a hard, bright whip-crack with a lean report under it, then the valley answering back for
     two seconds. Where the hand cannon is all chest, this is all edge and distance."""
     return gunshot(rng, length=2.6, crack=1.5, crack_tau=0.005, crack_hp=3200, blast_ms=1.8, blast=1.0,
-                   body=0.55, body_tau=0.05, body_band=(320, 3400), thump=0.3, thump_f=(200, 72), thump_tau=0.045,
+                   body=0.85, body_tau=0.06, body_band=(320, 3400), thump=0.3, thump_f=(200, 72), thump_tau=0.045,
                    bark=0.5, bark_f=(540, 1020, 1950), bark_tau=0.03,
                    mech=[], drive=2.8,
                    tail=0.26, tail_len=2.5, tail_dark=2700, tail_spread=0.85, tail_echoes=11, slap=0.7, slap_time=0.21,

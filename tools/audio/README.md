@@ -16,7 +16,9 @@ Each piece of music also writes its parts as standard MIDI files to `sessions/<p
 
 ```
 sudo apt-get install fluidsynth fluid-soundfont-gm ffmpeg dotnet-sdk-8.0
-pip install -r tools/audio/requirements.txt
+# studio tools for the music (15 Nov 2026): plugin reverbs, plus extra plugins kept for later work
+sudo apt-get install dragonfly-reverb-vst zam-plugins lsp-plugins-vst zynaddsubfx-vst
+pip install -r tools/audio/requirements.txt   # includes dawdreamer (Faust synths, plugin host) and pedalboard
 ```
 
 ## Commands

@@ -66,20 +66,11 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
-        public void SeatAndLever_CanBeReachedOnFoot()
+        public void TheSeat_CanBeReachedOnFoot_AndWhereTheLeverStoodIsFloorAgain()
         {
-            // Where you stand up from the seat, and a spot within arm's reach of the lever, are both standable.
+            // Where you stand up from the seat is standable, and so is the spot the old hatch lever's post took up.
             Assert.IsTrue(InteriorWalker.CanStand(-0.78f, 1.0f));
-            bool found = false;
-            for (float x = -2f; x <= 2f && !found; x += 0.05f)
-            {
-                for (float z = -2f; z <= 2f && !found; z += 0.05f)
-                {
-                    float dx = x - ShipLayout.HatchLever.X, dz = z - ShipLayout.HatchLever.Z;
-                    if (InteriorWalker.CanStand(x, z) && dx * dx + dz * dz < 0.9f * 0.9f) found = true;
-                }
-            }
-            Assert.IsTrue(found, "nowhere to stand near the hatch lever");
+            Assert.IsTrue(InteriorWalker.CanStand(1.05f, -0.55f));
         }
 
         // ------------------------------------------------------------------ damage and mending

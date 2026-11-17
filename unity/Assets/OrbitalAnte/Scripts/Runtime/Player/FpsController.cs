@@ -26,6 +26,8 @@ namespace OrbitalAnte.Player
         float _recoilReturnYaw;
         float _recoilRecovery = 14f;
 
+        /// <summary>Walking and sprinting speed times this (a heavy melee item); null is 1.</summary>
+        public System.Func<float> SpeedScale;
         /// <summary>When true the player cannot move or look (used for the moment after being shot down).</summary>
         public bool Frozen { get; set; }
         /// <summary>Current movement in metres per second. Things the player drops inherit it.</summary>
@@ -129,8 +131,10 @@ namespace OrbitalAnte.Player
                 float magnitude = Mathf.Clamp01(look.magnitude);
                 float curved = Mathf.Pow(magnitude, Mathf.Max(1f, Config.stickCurve));
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
-                _yaw += shaped.x * Config.stickYawSpeed * dt;
-                _pitch -= shaped.y * Config.stickPitchSpeed * dt;
+                // Your own head does not slow when the world does (hitstop, Deep Breath).
+                float own = TimeFlow.PlayerDelta(dt);
+                _yaw += shaped.x * Config.stickYawSpeed * own;
+                _pitch -= shaped.y * Config.stickPitchSpeed * own;
             }
 
             _pitch = Mathf.Clamp(_pitch, -88f, 88f);
@@ -151,7 +155,7 @@ namespace OrbitalAnte.Player
             if (grounded) _lastGroundedTime = Time.time;
 
             bool sprinting = GameInput.Sprint.IsPressed() && input.y > 0.3f;
-            float speed = sprinting ? Config.sprintSpeed : Config.walkSpeed;
+            float speed = (sprinting ? Config.sprintSpeed : Config.walkSpeed) * (SpeedScale != null ? SpeedScale() : 1f);
             Vector3 wish = (transform.right * input.x + transform.forward * input.y) * speed;
 
             float acceleration = grounded ? Config.groundAcceleration : Config.airAcceleration;

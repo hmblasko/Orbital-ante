@@ -11,20 +11,22 @@ from .common import finish, finish_loop, loopable, ping, sfx
 SUIT = dict(bus="PlayerEquipment", spatial=0.0, vacuum="suit")
 
 
-@sfx("player.step.regolith", "player", variants=5, pitchVar=1.2, volVarDb=2.0, volumeDb=-16, priority=180,
+@sfx("player.step.regolith", "player", variants=5, pitchVar=1.2, volVarDb=2.0, volumeDb=-7, priority=180,
      maxVoices=2, bus="PlayerEquipment", spatial=0.0, vacuum="self")
 def step_regolith(rng, v):
     """Boot on dusty ground: a soft crunch of grit with a padded heel."""
     n = secs(0.3)
     t = np.arange(n) / SR
     heel = dsp.lowpass(dsp.white(n, rng), 240) * np.exp(-t / 0.025) * 1.4
+    # The boot's own knock, in the range small speakers can play: without it a step is only hiss.
+    knock = dsp.bandpass(dsp.white(n, rng), 320, 1100) * np.exp(-t / 0.022) * 2.2
     grains = (rng.uniform(0, 1, n) > 0.8).astype(float) * rng.uniform(0.3, 1, n)
     crunch = dsp.bandpass(dsp.white(n, rng) * dsp.lowpass(grains, 2500), 900, 6500)
     crunch *= np.minimum(t / 0.01, 1) * np.exp(-np.maximum(t - 0.03, 0) / (0.05 + 0.015 * v)) * 3.0
-    return finish(heel + crunch, -6, 0.04)
+    return finish(heel + knock + crunch, -3, 0.04)
 
 
-@sfx("player.step.metal", "player", variants=4, pitchVar=1.0, volVarDb=2.0, volumeDb=-15, priority=180,
+@sfx("player.step.metal", "player", variants=4, pitchVar=1.0, volVarDb=2.0, volumeDb=-7, priority=180,
      maxVoices=2, bus="PlayerEquipment", spatial=0.0, vacuum="self")
 def step_metal(rng, v):
     """Boot on deck plating: a dull clank with the plate's hollow answer underneath."""
@@ -34,7 +36,7 @@ def step_metal(rng, v):
     plate = ping(rng, 0.35, [f * rng.uniform(0.94, 1.06) for f in base], [0.035, 0.04, 0.035, 0.025, 0.015], [0.5, 0.8, 1.0, 0.7, 0.5], noise=0.12)
     heel = dsp.lowpass(dsp.white(n, rng), 300) * np.exp(-t / 0.02) * 0.6
     rubber = dsp.bandpass(dsp.white(n, rng), 800, 3000) * np.exp(-t / 0.012) * 0.25
-    return finish(plate * 0.7 + heel * 0.1 + rubber * 0.8, -6, 0.05, hp=120)
+    return finish(plate * 0.7 + heel * 0.1 + rubber * 0.8, -3, 0.05, hp=120)
 
 
 @sfx("player.land", "player", variants=2, pitchVar=0.8, volVarDb=1.0, volumeDb=-10, priority=120,

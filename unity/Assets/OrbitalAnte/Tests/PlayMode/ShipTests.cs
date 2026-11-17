@@ -180,12 +180,12 @@ namespace OrbitalAnte.Tests
         public IEnumerator AHeavyBlow_TearsALegOff_AsLooseWreckage()
         {
             int leg = _ship.Model.Find(PartKind.Leg, 1);
-            int bodiesBefore = Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Length;
+            int bodiesBefore = OrbitalAnte.Core.SceneQuery.All<Rigidbody>().Length;
             DamageResult result = _ship.DamagePart(leg, _ship.Model.Parts[leg].MaxHealth * 3f, _ship.PartPosition(leg));
             Assert.IsTrue(result.FellOff);
             yield return Steps(2);
             Assert.AreEqual(3, _ship.Model.LegsStanding);
-            Assert.Greater(Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Length, bodiesBefore, "the leg vanished instead of coming away");
+            Assert.Greater(OrbitalAnte.Core.SceneQuery.All<Rigidbody>().Length, bodiesBefore, "the leg vanished instead of coming away");
             Assert.AreNotEqual(leg, _ship.FindRepairTarget(_ship.PartPosition(leg) + _ship.transform.forward * 2f, -_ship.transform.forward),
                 "a lost part must not be offered for mending");
         }

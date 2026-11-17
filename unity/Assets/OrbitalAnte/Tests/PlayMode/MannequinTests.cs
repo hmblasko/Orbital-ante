@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
+using OrbitalAnte.Look;
 using OrbitalAnte.Player;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -40,6 +41,7 @@ namespace OrbitalAnte.Tests
         {
             // Loose chunks live in a shared pool outside the test root, so clear that too.
             GibManager.DestroyInstance();
+            ModelDetail.Viewer = null;
             if (_root != null) Object.Destroy(_root);
         }
 
@@ -146,7 +148,7 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(_mannequin.Part(BodyPartId.Torso).ChildCap(BodyPartId.LeftThigh).activeSelf, "stump cap on the torso");
             Assert.IsFalse(shin.ProximalCap.activeSelf, "knee is intact");
 
-            Assert.AreEqual(MovementState.OneLeg, _mannequin.State);
+            Assert.AreEqual(MovementState.Crawl, _mannequin.State, "one leg left: down and crawling");
             Assert.AreEqual(1, _mannequin.ActiveGibCount);
 
             // Let physics run for a moment to prove nothing explodes or throws.
@@ -185,14 +187,15 @@ namespace OrbitalAnte.Tests
             Assert.Greater(sprint, walk);
 
             _mannequin.DamagePart(BodyPartId.LeftShin, Big, Vector3.forward);
-            Assert.AreEqual(MovementState.OneLeg, _mannequin.State);
+            Assert.AreEqual(MovementState.Crawl, _mannequin.State, "one leg left: down and crawling, no hop");
             Assert.IsFalse(_mannequin.Model.CanSprint);
-            Assert.Less(locomotion.SpeedFor(MovementState.OneLeg, true), walk, "hopping is slower than walking, sprint or not");
+            float oneLegCrawl = locomotion.SpeedFor(MovementState.Crawl, true);
+            Assert.Less(oneLegCrawl, walk, "crawling is slower than walking, sprint or not");
             yield return null;
 
             _mannequin.DamagePart(BodyPartId.RightThigh, Big, Vector3.forward);
             Assert.AreEqual(MovementState.Crawl, _mannequin.State);
-            Assert.Less(locomotion.SpeedFor(MovementState.Crawl, false), locomotion.SpeedFor(MovementState.OneLeg, false));
+            Assert.Less(locomotion.SpeedFor(MovementState.Crawl, false), oneLegCrawl, "slower with no leg to push with");
             yield return null;
 
             _mannequin.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward);
@@ -279,6 +282,74 @@ namespace OrbitalAnte.Tests
             Assert.IsFalse(outcome.Severed);
             Assert.AreEqual(before - 10f, _mannequin.Model.Hp(BodyPartId.Torso), 0.001f);
             Assert.AreEqual(0, _mannequin.ActiveGibCount);
+        }
+
+        static bool Wears(BodyPart part, Mesh mesh)
+        {
+            foreach (MeshFilter filter in part.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == mesh) return true;
+            }
+            return false;
+        }
+
+        [UnityTest]
+        public IEnumerator FarAway_TheBodyWearsItsFarCopy_AndNothingYouShootAtChanges()
+        {
+            yield return null;
+            ModelDetail detail = _mannequin.GetComponent<ModelDetail>();
+            if (detail == null) Assert.Ignore("The enemy model or its far copy is not in this project, so there is nothing to swap.");
+            string model = MannequinConfig.Load().modelId;
+            if (ModelLibrary.Find(ModelFile.FarOf(model)) == null) model = MannequinFactory.ModelId;
+            Mesh full = ModelLibrary.PartMesh(model, BodyPartId.LeftForearm.ToString());
+            Mesh far = ModelLibrary.PartMesh(ModelFile.FarOf(model), BodyPartId.LeftForearm.ToString());
+            Assert.IsNotNull(full);
+            Assert.IsNotNull(far);
+            Assert.AreNotSame(full, far);
+
+            Transform eye = new GameObject("TestEye").transform;
+            eye.SetParent(_root.transform, false);
+            ModelDetail.Viewer = eye;
+            BodyPart forearm = _mannequin.Part(BodyPartId.LeftForearm);
+            BodyPart head = _mannequin.Part(BodyPartId.Head);
+            var headBall = (SphereCollider)head.Hitbox;
+            float radius = headBall.radius;
+            Vector3 centre = headBall.center;
+
+            // Close: the full copy.
+            eye.position = new Vector3(0f, 1.5f, -5f);
+            ModelDetail.LookAtAll();
+            Assert.IsFalse(detail.Far);
+            Assert.IsTrue(Wears(forearm, full));
+            Assert.AreEqual(1, ModelDetail.Bodies);
+
+            // A long way off: the far copy, on the same hitboxes.
+            eye.position = new Vector3(0f, 1.5f, -80f);
+            ModelDetail.LookAtAll();
+            Assert.IsTrue(detail.Far);
+            Assert.IsTrue(Wears(forearm, far));
+            Assert.IsFalse(Wears(forearm, full));
+            Assert.AreEqual(1, ModelDetail.BodiesFar);
+            Assert.AreEqual(radius, headBall.radius);
+            Assert.AreEqual(centre, headBall.center);
+
+            // An arm shot off from there still comes off, and goes on being watched by itself.
+            Assert.IsTrue(_mannequin.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward).Severed);
+            ModelDetail.LookAtAll();
+            Assert.Greater(ModelDetail.LoosePieces, 0);
+            Assert.IsTrue(Wears(forearm, far), "the loose arm is still far away");
+
+            // Walk up to it: the arm on the ground and the body it came off are both full again.
+            eye.position = forearm.transform.position + new Vector3(0f, 0.5f, -2f);
+            ModelDetail.LookAtAll();
+            Assert.IsTrue(Wears(forearm, full), "a limb you walk up to must not stay a far copy");
+            Assert.IsFalse(detail.Far);
+
+            // A dead body is all loose pieces: it takes no living body's place among the full ones.
+            Assert.IsTrue(_mannequin.DamagePart(BodyPartId.Head, Big, Vector3.forward).Killed);
+            ModelDetail.LookAtAll();
+            Assert.AreEqual(0, ModelDetail.Bodies);
+            yield return null;
         }
     }
 }

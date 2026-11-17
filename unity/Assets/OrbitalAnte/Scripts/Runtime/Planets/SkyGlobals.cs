@@ -24,12 +24,16 @@ namespace OrbitalAnte.Planets
         static readonly int VeilId = Shader.PropertyToID("_OA_Veil");
         static readonly int LampPositionId = Shader.PropertyToID("_OA_LampPosition");
         static readonly int LampColorId = Shader.PropertyToID("_OA_LampColor");
+        static readonly int BeamPositionId = Shader.PropertyToID("_OA_BeamPosition");
+        static readonly int BeamDirectionId = Shader.PropertyToID("_OA_BeamDirection");
+        static readonly int BeamColorId = Shader.PropertyToID("_OA_BeamColor");
         static readonly int SkyZenithId = Shader.PropertyToID("_OA_SkyZenith");
         static readonly int SkyHorizonId = Shader.PropertyToID("_OA_SkyHorizon");
         static readonly int SunsetId = Shader.PropertyToID("_OA_Sunset");
         static readonly int SunGlowId = Shader.PropertyToID("_OA_SunGlow");
         static readonly int SkyUpId = Shader.PropertyToID("_OA_SkyUp");
         static readonly int HazeId = Shader.PropertyToID("_OA_Haze");
+        static readonly int FinishId = Shader.PropertyToID("_OA_Finish");
 
         /// <summary>Open space: full sunlight, a touch of fill light, no sky, no lamp.</summary>
         public static void Reset()
@@ -39,6 +43,7 @@ namespace OrbitalAnte.Planets
             SetAir(SunColor * SunIntensity, SpaceAmbient, Color.black, 0f);
             FlareColor = Color.black;
             SetLamp(Vector3.zero, 1f, Color.black);
+            SetBeam(Vector3.zero, Vector3.forward, 1f, 20f, 40f, Color.black, 0f);
             SetSky(SkyLook.OpenSpace(1f), Vector3.zero, 0f);
         }
 
@@ -61,6 +66,7 @@ namespace OrbitalAnte.Planets
             Shader.SetGlobalVector(SunGlowId, glow);
             Shader.SetGlobalVector(SkyUpId, new Vector4(up.x, up.y, up.z, sky.SunsetAmount));
             Shader.SetGlobalVector(HazeId, new Vector4(Mathf.Max(0f, hazeThickness), look.paint, look.rimLight, look.bounceLight));
+            Shader.SetGlobalVector(FinishId, new Vector4(look.shine, look.lightBand, 0f, 0f));
         }
 
         public static void SetSun(Vector3 position)
@@ -90,6 +96,26 @@ namespace OrbitalAnte.Planets
         public static Vector3 FlarePosition;
         public static float FlareReach = 1f;
         public static Color FlareColor = Color.black;
+
+        /// <summary>
+        /// The ship's floodlights (Ship/ShipLightFx): a cone from <paramref name="position"/> pointing along
+        /// <paramref name="direction"/>, full in the middle out to <paramref name="innerDegrees"/> from its axis,
+        /// faded out by <paramref name="outerDegrees"/>, gone by <paramref name="reach"/> metres, of colour
+        /// <paramref name="color"/> at <paramref name="intensity"/> (kept apart so dimming is not bent by the colour
+        /// conversion). Intensity 0 when off: the shaders then skip it.
+        /// </summary>
+        public static void SetBeam(Vector3 position, Vector3 direction, float reach, float innerDegrees, float outerDegrees, Color color, float intensity)
+        {
+            Vector3 way = direction.sqrMagnitude > 1e-8f ? direction.normalized : Vector3.forward;
+            float outer = Mathf.Clamp(outerDegrees, 1f, 89f);
+            float inner = Mathf.Clamp(innerDegrees, 0f, outer - 0.5f);
+            float cosOuter = Mathf.Cos(outer * Mathf.Deg2Rad), cosInner = Mathf.Cos(inner * Mathf.Deg2Rad);
+            Shader.SetGlobalVector(BeamPositionId, new Vector4(position.x, position.y, position.z, 1f / Mathf.Max(1f, reach)));
+            Shader.SetGlobalVector(BeamDirectionId, new Vector4(way.x, way.y, way.z, cosOuter));
+            Vector4 c = Linear(color, Mathf.Max(0f, intensity));
+            c.w = 1f / Mathf.Max(1e-4f, cosInner - cosOuter);
+            Shader.SetGlobalVector(BeamColorId, c);
+        }
 
         public static void SetLamp(Vector3 position, float reach, Color color)
         {

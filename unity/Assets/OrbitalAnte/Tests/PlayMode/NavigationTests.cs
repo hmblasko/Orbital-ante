@@ -50,7 +50,7 @@ namespace OrbitalAnte.Tests
             Astronaut.OnDeath = null;
             if (_root != null) Object.Destroy(_root);
             PlanetSurface.PictureWidthForTests = 0;
-            Time.timeScale = 1f;
+            OrbitalAnte.Core.TimeFlow.Reset();
         }
 
         static IEnumerator Frames(int count)
@@ -170,12 +170,18 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(craft.PilotOn, "opening the map must not stop the autopilot");
             craft.ControlsLocked = false;
 
-            // Unbuckle: nobody is flying, so it lets go and says so.
+            // Unbuckle and get up: the autopilot flies on while you walk about the cabin (Matthew, 15 Nov 2026).
             _world.Ship.Belt.Release();
             yield return Frames(3);
             yield return Steps(2);
+            Assert.IsTrue(craft.Unmanned, "nobody is at the controls");
+            Assert.IsTrue(craft.CrewAboard, "but the pilot is still aboard");
+            Assert.IsTrue(craft.PilotOn, "so the autopilot flies on: " + craft.LastStopWords);
+
+            // Nobody aboard at all: it lets go and says so, rather than flying off without you.
+            craft.CrewAboard = false;
             Assert.IsFalse(craft.PilotOn);
-            Assert.AreEqual(PilotStop.Unbuckled, craft.LastStop);
+            Assert.AreEqual(PilotStop.NobodyAboard, craft.LastStop);
         }
 
         [UnityTest]
@@ -200,10 +206,53 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(crew.Dead);
             StringAssert.Contains("not buckled in", crew.DeathCause);
             Assert.IsNull(_death, "the screen waits a moment, so you see what happened first");
-            yield return new WaitForSeconds(2.2f);
+
+            // Your body bursts, and you watch from your own head (first person, never a camera outside you).
+            yield return new WaitForSeconds(0.5f);
+            var remains = Object.FindAnyObjectByType<PlayerBurstFx>();
+            Assert.IsNotNull(remains, "dying should burst the player's body");
+            Assert.AreSame(crew.transform, crew.Eye.transform.parent, "the view is placed on the head, never parented to a piece");
+            var mannequin = remains.GetComponent<OrbitalAnte.Dismemberment.Mannequin>();
+            Assert.IsFalse(mannequin.Alive);
+            for (int i = 0; i < OrbitalAnte.Dismemberment.BodyLayout.Count; i++)
+                Assert.AreNotEqual(0, mannequin.Model.Group((OrbitalAnte.Dismemberment.BodyPartId)i), "every part has come off");
+            var head = mannequin.Part(OrbitalAnte.Dismemberment.BodyPartId.Head).transform;
+            Assert.Less(Vector3.Distance(head.position, crew.Eye.transform.position), 0.3f, "the view rides the head");
+
+            // In the cabin the pieces stay in the cabin.
+            yield return new WaitForSeconds(0.8f);
+            for (int i = 0; i < OrbitalAnte.Dismemberment.BodyLayout.Count; i++)
+            {
+                Vector3 local = _world.Ship.transform.InverseTransformPoint(mannequin.Part((OrbitalAnte.Dismemberment.BodyPartId)i).transform.position);
+                Assert.Less(new Vector2(local.x, local.z).magnitude, ShipLayout.CabinRadius + 0.3f, "a piece left through the wall: " + (OrbitalAnte.Dismemberment.BodyPartId)i);
+                Assert.Greater(local.y, -0.4f, "a piece fell through the floor");
+                Assert.Less(local.y, ShipLayout.CeilingPeak + 0.4f, "a piece left through the roof");
+            }
+            Assert.IsNull(_death);
+            yield return new WaitForSeconds(DeathBurst.Hold - 1.3f + 0.4f);
             Assert.AreEqual(crew.DeathCause, _death, "the cause should have been handed to the death screen");
             yield return Frames(2);
             Assert.IsTrue(_world.Craft.Unmanned, "nobody is flying the ship now");
+        }
+
+        [UnityTest]
+        public IEnumerator TheFloodlights_LightTheWayAhead_WhenThePilotSwitchesThemOn()
+        {
+            yield return Frames(4);
+            var lights = _world.Ship.GetComponent<ShipLightFx>();
+            Assert.IsNotNull(lights, "the ship has floodlights");
+            Assert.IsTrue(lights.Press(), "out in space it is not dark near any ground, so a press puts them on");
+            yield return new WaitForSeconds(0.5f);
+            Vector4 color = Shader.GetGlobalVector("_OA_BeamColor");
+            Assert.Greater(color.x + color.y + color.z, 0.1f, "the beam is handed to the shaders");
+            Vector3 at = Shader.GetGlobalVector("_OA_BeamPosition");
+            Assert.Less(Vector3.Distance(at, _world.Ship.transform.position), 4f, "it starts at the ship");
+            Vector3 way = Shader.GetGlobalVector("_OA_BeamDirection");
+            Assert.Greater(Vector3.Dot(way, _world.Ship.transform.forward), 0.5f, "and points ahead of it");
+            Assert.IsFalse(lights.Press());
+            yield return new WaitForSeconds(0.5f);
+            color = Shader.GetGlobalVector("_OA_BeamColor");
+            Assert.Less(color.x + color.y + color.z, 0.001f, "off, the shaders skip it");
         }
 
         [UnityTest]

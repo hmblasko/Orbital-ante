@@ -35,6 +35,8 @@ namespace OrbitalAnte.EditorTools
         const string GoreConfigPath = ConfigFolder + "/GoreConfig.asset";
         const string DecalMaterialPath = MaterialsFolder + "/OA_Decal.mat";
         const string WeaponsFolder = ResourcesFolder + "/Weapons";
+        const string MeleeFolder = ResourcesFolder + "/" + OrbitalAnte.Melee.MeleeData.ResourceFolder;
+        const string ItemsFolder = ResourcesFolder + "/" + OrbitalAnte.Items.ItemData.ResourceFolder;
         const string ThirdPartyWeaponsFolder = "Assets/ThirdParty/Weapons";
         const string TriedThisSessionKey = "OrbitalAnte.SetupTriedThisSession";
 
@@ -71,7 +73,11 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.PistolId + ".asset") == null
                    || AssetDatabase.LoadAssetAtPath<Material>(DecalMaterialPath) == null;
@@ -149,6 +155,8 @@ namespace OrbitalAnte.EditorTools
             Step("base materials", problems, SetUpMaterials);
             Step("config assets", problems, SetUpConfigAssets);
             Step("weapon data", problems, SetUpWeapons);
+            Step("melee data", problems, SetUpMelee);
+            Step("prize items", problems, SetUpItems);
             Step("blood decals", problems, SetUpDecals);
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
@@ -319,6 +327,12 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Launch.LaunchConfig>(ConfigFolder + "/LaunchConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Cockpit.CockpitConfig>(ConfigFolder + "/CockpitConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Spacewalk.SuitConfig>(ConfigFolder + "/SuitConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
             EnsureFolder("Assets/OrbitalAnte/Resources/" + OrbitalAnte.Space.SolarSystemData.ResourceFolder);
             CreateAssetIfMissing<OrbitalAnte.Space.SolarSystemData>(SolarSystemPath);
@@ -367,6 +381,46 @@ namespace OrbitalAnte.EditorTools
             {
                 AssetDatabase.CreateAsset(WeaponData.CreatePistolDefaults(), pistolPath);
             }
+            // The guns the enemy types carry.
+            CreateWeaponIfMissing(WeaponData.SmgId, WeaponData.CreateSmgDefaults);
+            CreateWeaponIfMissing(WeaponData.ShotgunId, WeaponData.CreateShotgunDefaults);
+            CreateWeaponIfMissing(WeaponData.SniperId, WeaponData.CreateSniperDefaults);
+        }
+
+        /// <summary>
+        /// One data asset per found melee item, with the built-in numbers. An asset already there is left alone,
+        /// so numbers changed in the Inspector are kept.
+        /// </summary>
+        static void SetUpMelee()
+        {
+            EnsureFolder(MeleeFolder);
+            foreach (string id in OrbitalAnte.Melee.MeleeCatalog.Ids)
+            {
+                string path = MeleeFolder + "/" + id + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<OrbitalAnte.Melee.MeleeData>(path) == null)
+                    AssetDatabase.CreateAsset(OrbitalAnte.Melee.MeleeData.CreateDefaults(id), path);
+            }
+        }
+
+        /// <summary>
+        /// One data asset per prize item, from the built-in catalog. An asset already there is left alone, so
+        /// changes made in the Inspector are kept. Removing an item from the catalog never deletes its asset.
+        /// </summary>
+        static void SetUpItems()
+        {
+            EnsureFolder(ItemsFolder);
+            foreach (OrbitalAnte.Items.ItemSpec spec in OrbitalAnte.Items.ItemCatalog.CreateDefaults())
+            {
+                string path = ItemsFolder + "/" + spec.id + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.ItemData>(path) == null)
+                    AssetDatabase.CreateAsset(OrbitalAnte.Items.ItemData.Create(spec), path);
+            }
+        }
+
+        static void CreateWeaponIfMissing(string id, System.Func<WeaponData> make)
+        {
+            string path = WeaponsFolder + "/" + id + ".asset";
+            if (AssetDatabase.LoadAssetAtPath<WeaponData>(path) == null) AssetDatabase.CreateAsset(make(), path);
         }
 
         /// <summary>
@@ -446,7 +500,11 @@ namespace OrbitalAnte.EditorTools
             for (int i = 0; i < features.arraySize; i++)
             {
                 UnityEngine.Object existing = features.GetArrayElementAtIndex(i).objectReferenceValue;
-                if (existing != null && featureType.IsInstanceOfType(existing)) return true;
+                if (existing != null && featureType.IsInstanceOfType(existing))
+                {
+                    UseScreenSpaceDecals(existing);
+                    return true;
+                }
             }
 
             // The same steps the "Add Renderer Feature" button performs.
@@ -464,8 +522,31 @@ namespace OrbitalAnte.EditorTools
                 map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
             }
             serialized.ApplyModifiedPropertiesWithoutUndo();
+            UseScreenSpaceDecals(feature);
             EditorUtility.SetDirty(rendererData);
             return true;
+        }
+
+        /// <summary>
+        /// The game's own shaders do not read URP's decal buffer (the "DBuffer" way, which "Automatic" picks on a
+        /// desktop and on the Deck), so splats drawn that way would not show on the ground or the ship. "Screen
+        /// Space" draws them over whatever is already drawn, whatever its shader.
+        /// </summary>
+        static void UseScreenSpaceDecals(UnityEngine.Object feature)
+        {
+            var so = new SerializedObject(feature);
+            SerializedProperty technique = so.FindProperty("m_Settings.technique");
+            if (technique == null)
+            {
+                Debug.LogWarning("Orbital Ante setup: could not find the Decal feature's technique; set it to Screen Space by hand (docs/SETUP.md, \"Blood decals\").");
+                return;
+            }
+            // DecalTechniqueOption: 0 Automatic, 1 DBuffer, 2 Screen Space.
+            const int ScreenSpace = 2;
+            if (technique.propertyType == SerializedPropertyType.Enum) technique.enumValueIndex = ScreenSpace;
+            else technique.intValue = ScreenSpace;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(feature);
         }
 
         static void CreateAssetIfMissing<T>(string path) where T : ScriptableObject

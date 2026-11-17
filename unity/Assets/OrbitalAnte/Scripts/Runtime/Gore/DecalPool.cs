@@ -29,6 +29,7 @@ namespace OrbitalAnte.Gore
         float[] _bornAt;
         float[] _size;
         bool[] _live;
+        StuckMarks _stuck;
         int _next;
         int _spawned;
 
@@ -57,6 +58,7 @@ namespace OrbitalAnte.Gore
             _bornAt = new float[count];
             _size = new float[count];
             _live = new bool[count];
+            _stuck = new StuckMarks(count);
 
             bool wantProjectors = cfg.decalMode == DecalMode.ProjectorOnly
                                   || (cfg.decalMode == DecalMode.Auto && cfg.decalProjectorsReady);
@@ -158,7 +160,8 @@ namespace OrbitalAnte.Gore
 
         // ------------------------------------------------------------------ use
 
-        public void Spawn(Vector3 point, Vector3 normal, float size)
+        /// <summary>A splat at a point. <paramref name="on"/> is what it lands on, if that moves (see <see cref="StuckMarks"/>).</summary>
+        public void Spawn(Vector3 point, Vector3 normal, float size, Transform on = null)
         {
             if (_slots == null) return;
             if (normal.sqrMagnitude < 0.0001f) normal = Vector3.up;
@@ -195,6 +198,7 @@ namespace OrbitalAnte.Gore
                 slot.localScale = new Vector3(size, 1f, size);
             }
 
+            _stuck.Stick(index, slot, on);
             _bornAt[index] = Time.time;
             _size[index] = size;
             _live[index] = true;
@@ -228,6 +232,21 @@ namespace OrbitalAnte.Gore
                     {
                         _slots[i].localScale = new Vector3(k, 1f, k);
                     }
+                }
+            }
+        }
+
+        /// <summary>Keeps every live splat on what it landed on. Call late in the frame, after things have moved.</summary>
+        public void Follow()
+        {
+            if (_slots == null) return;
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                if (!_live[i] || _slots[i] == null) continue;
+                if (!_stuck.Follow(i, _slots[i]))
+                {
+                    _live[i] = false;
+                    _slots[i].gameObject.SetActive(false);
                 }
             }
         }

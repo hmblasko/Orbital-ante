@@ -102,6 +102,16 @@ namespace OrbitalAnte.Planets
         public double maxHeight = 100000;
         /// <summary>Colour as a web colour. Empty uses the body's rock colour.</summary>
         public string color = "";
+        /// <summary>Where it grows between the equator (0) and the poles (1). The same on both halves of the world.</summary>
+        public double minLatitude;
+        public double maxLatitude = 1;
+        /// <summary>
+        /// Above 0, it grows in patches this many metres across with open ground between, instead of evenly
+        /// everywhere: woods and clearings, not a lawn of trees.
+        /// </summary>
+        public double patch;
+        /// <summary>How much of the ground the patches cover, 0 to 1.</summary>
+        public double cover = 0.5;
 
         public ScatterRule()
         {
@@ -149,6 +159,30 @@ namespace OrbitalAnte.Planets
         /// <summary>Small bumps underfoot.</summary>
         public double detailHeight = 0.4;
         public double detailWavelength = 8;
+
+        // ---- how the ground has been worn
+        /// <summary>
+        /// How much the hills and mountains look worn by running water or ages of falling dust: steep flanks run
+        /// clean down to smooth valley floors and the bumps gather on crests. 0 is evenly lumpy, 1 strongly worn.
+        /// </summary>
+        public double erosion = 0.7;
+        /// <summary>How calm the calmest country is, 0 to 1. The roughest is always a little rougher than before.</summary>
+        public double plains = 0.6;
+        /// <summary>Winding valleys cut into the high ground, in metres deep. 0 for none.</summary>
+        public double valleyDepth;
+        /// <summary>Roughly how far apart the valleys run, in metres.</summary>
+        public double valleyWavelength = 280;
+        /// <summary>How wide a valley is next to how far apart they are. 0.05 a gorge, 0.2 a broad dale.</summary>
+        public double valleyWidth = 0.1;
+        /// <summary>
+        /// In some regions the land steps down in flat benches with cliffs between, like layered rock: the height
+        /// of one step, in metres. 0 for none.
+        /// </summary>
+        public double terraceStep;
+        /// <summary>How much of the body is stepped country. 0 none, 1 all of it.</summary>
+        public double terraceCoverage = 0.3;
+        /// <summary>Broken, craggy rock on high and mountainous ground, in metres.</summary>
+        public double cragHeight;
 
         // ---- sea
         public bool hasSea;

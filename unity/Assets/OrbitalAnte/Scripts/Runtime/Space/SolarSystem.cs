@@ -69,7 +69,7 @@ namespace OrbitalAnte.Space
         public void Build(SolarSystemData data, int seed, ICollection<string> paintedLater = null)
         {
             Instance = this;
-            Model = new SolarSystemModel(data.BuildBodies(seed), seed);
+            Model = new SolarSystemModel(data.BuildBodies(seed), seed, data.nearFalloff);
             Frame = new ReferenceFrame(Model);
             States = Model.NewStateBuffer();
             SimTime = 0;
@@ -309,6 +309,7 @@ namespace OrbitalAnte.Space
                 GravityBody mover = _movers[i];
                 Rigidbody rb = mover.Body;
                 if (rb == null || rb.isKinematic) continue;
+                if (mover.Loose && rb.IsSleeping()) continue;
                 Vec3d local = SpaceConvert.ToVec3d(rb.position);
                 Vec3d velocity = SpaceConvert.ToVec3d(rb.linearVelocity);
                 Vec3d truePosition = Frame.ToTruePosition(local, States);
@@ -413,6 +414,16 @@ namespace OrbitalAnte.Space
         public Vector3 LocalVelocityOf(int body)
         {
             return SpaceConvert.ToVector3(Frame.ToLocalVelocity(States[body].Position, States[body].Velocity, States));
+        }
+
+        /// <summary>
+        /// How fast a body's centre is moving as seen from a point in Unity's coordinates. Where the point of view
+        /// is turning (close to a spinning body) a far body's centre appears to sweep round; measured at your own
+        /// place, two things with the same true velocity read as zero against each other, which is what matching means.
+        /// </summary>
+        public Vector3 VelocityOfSeenFrom(int body, Vector3 local)
+        {
+            return SpaceConvert.ToVector3(Frame.ToLocalVelocity(TruePosition(local), States[body].Velocity, States));
         }
 
         /// <summary>The planet-level body a body belongs to: itself for a planet, its planet for a moon.</summary>

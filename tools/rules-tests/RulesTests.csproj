@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs the plain C# game rules and the EditMode rule tests with `dotnet test`,
+    with no Unity install. Every .cs file under Scripts/Runtime and Tests/EditMode
+    is compiled unless it uses Unity (a `using Unity...` line, UnityEngine./UnityEditor.,
+    MonoBehaviour or ScriptableObject outside a comment). New rule files and tests on any
+    branch are picked up without editing this file. See README.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>OrbitalAnte.RulesTests</AssemblyName>
+    <RootNamespace>OrbitalAnte</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0162;CS0414;CS0649;CS0169</NoWarn>
+    <OARoot>$(MSBuildThisFileDirectory)../../unity/Assets/OrbitalAnte/</OARoot>
+    <OAUnityPattern>(?m)^(?!\s*(//|\*|/\*)).*\b(using\s+Unity|UnityEngine\.|UnityEditor\.|MonoBehaviour|ScriptableObject)</OAUnityPattern>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <OACandidate Include="$(OARoot)Scripts/Runtime/**/*.cs;$(OARoot)Tests/EditMode/**/*.cs" />
+    <!-- Pure-looking files that still need a Unity-side type go here, one Remove per file. -->
+    <OACandidate Remove="@(OAExclude)" />
+  </ItemGroup>
+
+  <Target Name="OASelectRuleSources" BeforeTargets="BeforeBuild;CoreCompile">
+    <ItemGroup>
+      <OAUnitySide Include="@(OACandidate)"
+                   Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(OACandidate.FullPath)')), '$(OAUnityPattern)'))" />
+      <OARuleSource Include="@(OACandidate)" Exclude="@(OAUnitySide)" />
+      <Compile Include="@(OARuleSource)" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+    <Message Importance="high" Text="rules-tests: compiling @(OARuleSource->Count()) Unity-free files, skipping @(OAUnitySide->Count()) Unity-side files" />
+  </Target>
+</Project>

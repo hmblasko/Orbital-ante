@@ -44,13 +44,14 @@ Tip: for a Steam Deck-shaped view, in the **Game** tab click the resolution drop
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Thrust forward, back, sideways | W A S D | Left stick |
-| Look around the cabin | Mouse | Click the right stick, then move it (click again to go back to turning) |
-| Turn the ship | Hold the right mouse button and move the mouse | Right stick |
+| Look around the cabin | Mouse | Right stick |
+| Turn the ship | Hold the right mouse button and move the mouse | Click the right stick, then move it (click again to go back to looking) |
 | Thrust up / down | Space / Left Ctrl | Right trigger / Left trigger |
 | Roll left / right | Q / E | Left bumper / Right bumper |
 | Boost (hold) | Left Shift | Click left stick |
 | Look down at the camera screen (and back up) | C | D-pad down |
 | Next ship camera | V | D-pad right |
+| Floodlights (on or off; they also come on by themselves in the dark) | L | View (Select) |
 | Next dash design (for choosing; all four are in the build) | N | (keyboard only) |
 | Lock on to what the nose points at (press again on it, or on empty sky, to let go) | T | X / Square |
 | Autopilot to the locked body (any thrust takes the ship back) | R | B / Circle |
@@ -76,11 +77,13 @@ You start strapped into the pilot's seat. The flying controls above only work wh
 | Unbuckle and stand up | B | Y / Triangle |
 | Walk, look, jump | W A S D, mouse, Space | Left stick, right stick, A / Cross |
 | Buckle in | Look at the seat from close by, press E | Look at the seat, press Y / Triangle |
-| Open or close the belly hatch | G (anywhere near the ship, even in flight), or E on the lever | D-pad left, or Y / Triangle on the lever |
+| Open or close the belly hatch | G (anywhere near the ship, even in flight), or look at the hatch and press E | D-pad left, or look at the hatch and press Y / Triangle |
 | Ride the lift down | Walk onto the open hatch | The same |
 | Ride the lift up | Stand under the blue ring with the hatch open | The same |
 | Mend a damaged part | Look at it from close by and hold E | Hold Y / Triangle |
-| Shoot (test pistol, on foot only) | Left mouse | Right trigger |
+| Shoot (the rifle outside the ship, on foot only) | Left mouse | Right trigger |
+| Focus: slow the world (hold; on foot only; the bar refills only by fighting) | Q | Click the right stick |
+| Swing the melee item (once you have found one) | V or the mouse's back side button | Right bumper |
 
 With no ground below (in flight), the lift lowers you clear of the belly and lets go. You keep the ship's speed, and the safety tether clips on by itself.
 
@@ -92,10 +95,14 @@ On the ground you walk and jump as before. Off the ground the suit's jets take o
 |---|---|---|
 | Jets forward, back, left, right | W A S D | Left stick |
 | Jets up | Hold Space | Hold A / Cross |
-| Jets down | Hold Left Ctrl | Hold B / Circle |
+| Jets down (in the air) | Hold Left Ctrl | Hold B / Circle |
+| Crouch / stand (on the ground) | Tap Left Ctrl | Tap B / Circle |
+| Lie prone / get up (on the ground) | Hold Left Ctrl | Hold B / Circle |
+| Sneak (slow, quiet walk) | Hold Left Alt | Push the left stick only part of the way |
 | Gentle jets, for small careful moves | Hold Left Shift while pushing | Hold the left stick in |
 | Match velocity (stop against the ship if it is near or you are looking at it, otherwise against the ground) | Hold F | Hold left trigger |
 | Roll over (floating only) | Z / C | Left / right bumper |
+| Swing the melee item (floating free, the right bumper rolls instead) | V or the mouse's back side button | Right bumper on the ground |
 | Tether on or off (on: only within 40 m of the ship) | X | D-pad right |
 | Mend a part (the jets hold you beside the ship while you do) | Look at it from within 3.5 m and hold E | Hold Y / Triangle |
 | Go aboard | Fly or stand under the blue ring with the hatch open | The same |
@@ -112,13 +119,17 @@ Bottom left of the screen: **AIR** (a ring), **JETS** (a bar), your speed and wh
 | Sprint | Left Shift | Click left stick |
 | Fire | Left mouse button | Right trigger |
 | Reload | R | X / Square |
-| Pick up / swap weapon | E | Y / Triangle |
-| Respawn dummies | T | D-pad up |
+| Pick up / swap weapon (a gun, or a melee item: whichever you look at) | E | Y / Triangle |
+| Swing the melee item | V or the mouse's back side button | Right bumper |
+| Respawn dummies | T | (keyboard only) |
+| Switch gun (the ladder's earlier guns) | 1 | D-pad up |
 | Enemies hold fire on/off | H | D-pad down |
 | Pause menu | Esc | Start / Menu |
 | Debug readout on/off | F3 | (none) |
 
 Everything except the last two rows can be changed in **Pause > Controls**.
+
+All five melee items lie in a row a few steps ahead of the start (frying pan, butterfly knife, baseball bat, mailbox, laser sword); look at one and press E to take it. In the solar system they are rare finds at bases.
 
 The arena starts with the enemies **holding fire**, so you can look around. Press **H** (or D-pad down) to start the fight, and again to calm things down.
 

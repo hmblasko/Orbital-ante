@@ -13,6 +13,9 @@ namespace OrbitalAnte.Spacewalk
 
         public SuitRules rules = new SuitRules();
 
+        [Header("On foot: standing, crouching, prone and sneaking")]
+        public StanceRules stances = new StanceRules();
+
         [Header("Floating")]
         [Tooltip("How fast the roll buttons turn you over when floating, degrees per second.")]
         public float rollSpeed = 80f;
@@ -24,6 +27,8 @@ namespace OrbitalAnte.Spacewalk
         public float jetLength = 0.55f;
         [Tooltip("How strongly the jets light the rim of your visor, 0 to 1.")]
         [Range(0f, 1f)] public float visorGlow = 0.55f;
+        [Tooltip("How dark the lower corners of the view are shaded, like the edge of a helmet's glass, so the air and suit gauges read over a bright sky. 0 turns it off.")]
+        [Range(0f, 1f)] public float visorShade = 0.5f;
         public Color tetherColour = new Color(0.95f, 0.55f, 0.16f);
 
         [Header("Sound")]

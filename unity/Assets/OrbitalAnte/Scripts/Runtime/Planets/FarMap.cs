@@ -53,7 +53,8 @@ namespace OrbitalAnte.Planets
                 {
                     Vec3d dir = Direction((x + 0.5) / width, v);
                     TerrainPoint point = terrain.Sample(dir, dot * 1.6);
-                    double slope = terrain.SlopeAt(dir, step);
+                    // Bumps too small for one dot of the picture cannot show in it, so they are not paid for.
+                    double slope = terrain.SlopeAt(dir, step, step);
                     float r, g, b;
                     if (terrain.HasSea && point.Height < terrain.SeaLevel)
                     {

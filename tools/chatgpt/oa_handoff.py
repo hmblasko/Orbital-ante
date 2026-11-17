@@ -206,7 +206,9 @@ def task_intro(task: str) -> str:
                 "coherent, attractive, readable and polished enough for a strong commercial indie game; 9.5 "
                 "exceptional. Placeholder primitives and programmer art score 3 to 6 however clean. Scores you give "
                 "are advisory only and never count toward the quality gate. Use kind aesthetic_judgment for looks, "
-                "suspected_defect for something that looks broken (clipping, missing texture, wrong scale).")
+                "suspected_defect for something that looks broken (clipping, missing texture, wrong scale). "
+                "The target look is realistic (docs/art_direction.md, since 14 Nov 2026): not a PS2 style and not "
+                "cartoony, goofy or blocky. Mark down anything that reads as PS2, retro or toy-like, or grey and bland.")
     if task == "small-edit":
         return ("Make the small change described under Ask, touching only the files you may edit. Keep the change "
                 "as small as possible, keep existing behaviour that the ask does not mention, and follow the code "

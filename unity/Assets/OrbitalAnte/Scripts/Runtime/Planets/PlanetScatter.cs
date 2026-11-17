@@ -11,6 +11,18 @@ namespace OrbitalAnte.Planets
     /// </summary>
     public static class PlanetScatter
     {
+        /// <summary>
+        /// True where this rule's patches lie. Each rule has its own pattern, so birch woods and fir woods fall in
+        /// different places and meet at ragged edges. The same for every seed of a run and for every tile.
+        /// </summary>
+        public static bool InPatch(PlanetTerrain terrain, int ruleIndex, ScatterRule rule, Vec3d direction)
+        {
+            uint seed = unchecked((uint)(terrain.Seed * 31 + ruleIndex * 7919 + 17));
+            double n = Noise3.Perlin(direction * terrain.Radius, Math.Max(1.0, rule.patch), seed);
+            // The noise runs from about -1 to 1 and bunches round zero, so cover 0.5 keeps roughly half the ground.
+            return n > (0.5 - Math.Max(0.0, Math.Min(1.0, rule.cover))) * 1.1;
+        }
+
         /// <summary>Fills <paramref name="results"/> with the loose things on one tile.</summary>
         public static void ForTile(PlanetTerrain terrain, int face, int level, int ix, int iy, List<Placement> results)
         {
@@ -29,7 +41,7 @@ namespace OrbitalAnte.Planets
                 double expected = rule.perHectare * hectares;
                 int count = (int)expected + (r.Chance(expected - Math.Floor(expected)) ? 1 : 0);
                 bool plant = Feature.IsPlant(rule.feature);
-                float[] colour = plant && string.IsNullOrEmpty(rule.color)
+                float[] colour = Feature.OwnColour(rule.feature) && string.IsNullOrEmpty(rule.color)
                     ? new[] { 1f, 1f, 1f }
                     : string.IsNullOrEmpty(rule.color) ? rock : ColorUtil.Parse(rule.color);
 
@@ -43,6 +55,9 @@ namespace OrbitalAnte.Planets
                     int variant = r.Range(0, 1024);
 
                     Vec3d dir = CubeSphere.Direction(face, u, v);
+                    double latitude = Math.Abs(dir.Y);
+                    if (latitude < rule.minLatitude || latitude > rule.maxLatitude) continue;
+                    if (rule.patch > 0 && !InPatch(terrain, ruleIndex, rule, dir)) continue;
                     TerrainPoint point = terrain.Sample(dir);
                     if (point.Height < rule.minHeight || point.Height > rule.maxHeight) continue;
                     if (terrain.HasSea && point.Height < terrain.SeaLevel + 0.3) continue;

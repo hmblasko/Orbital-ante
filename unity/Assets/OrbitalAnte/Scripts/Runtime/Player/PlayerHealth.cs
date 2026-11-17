@@ -48,7 +48,13 @@ namespace OrbitalAnte.Player
             _lastHitTime = -100f;
         }
 
-        void Update()
+        void Update() => Regenerate();
+
+        /// <summary>
+        /// Wears back toward full after a quiet spell. Called by Update, and by the owner while this object is switched
+        /// off (the suit body is put away while the player drives the rover, but their armour is still being shot).
+        /// </summary>
+        public void Regenerate()
         {
             if (_config == null || !Alive || Current >= Max) return;
             if (Time.time - _lastHitTime < _config.regenDelay) return;
