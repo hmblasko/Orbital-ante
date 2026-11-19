@@ -24,6 +24,8 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>A chunk of parts just came off (from the body or from an older gib).</summary>
         public event Action<Mannequin, Detachment, Gib, HitInfo> PartDetached;
         public event Action<Mannequin, MovementState> StateChanged;
+        /// <summary>A part still on the body was hit. The last value is true if the hit took something off.</summary>
+        public event Action<Mannequin, BodyPartId, HitInfo, bool> Struck;
         public event Action<Mannequin> Died;
 
         /// <summary>Raised for every chunk that comes off any character. Effects (blood, sound) listen here.</summary>
@@ -36,6 +38,9 @@ namespace OrbitalAnte.Dismemberment
         Collider _bodyBlocker;
 
         public int ActiveGibCount => _gibs.Count;
+        // True while a chunk is being handed out. The gib cap can remove one of this character's own chunks then,
+        // before the new one is registered, and a dead character must not take that as its last chunk going.
+        bool _spawningGib;
 
         public void Initialize(MannequinConfig config, MannequinRig rig, BodyPart[] parts, Collider bodyBlocker)
         {
@@ -49,6 +54,14 @@ namespace OrbitalAnte.Dismemberment
         public BodyPart Part(BodyPartId id) => _parts[(int)id];
 
         /// <summary>The gib a group id belongs to, or null if it has already been cleaned up.</summary>
+        /// <summary>What this character stands on: flat arena ground unless it was put on a planet.</summary>
+        [System.NonSerialized] public Footing Footing = Footing.Flat;
+
+        /// <summary>No blood out of the head's own wound: set on the player's remains, whose head carries the view.</summary>
+        public bool KeepsHeadClean { get; set; }
+        /// <summary>Which way is up where it stands.</summary>
+        public Vector3 Up => Footing.Up(transform.position);
+
         public Gib GibForGroup(int group)
         {
             return _gibs.TryGetValue(group, out var gib) ? gib : null;
@@ -76,7 +89,9 @@ namespace OrbitalAnte.Dismemberment
             MovementState before = Model.State;
             int groupBefore = Model.Group(part.Id);
             bool torsoWasOnBody = Model.OnBody(BodyPartId.Torso);
-            DamageResult result = Model.ApplyDamage(part.Id, hit.Damage);
+            DamageResult result = hit.Lethal ? Model.ApplyLethal(part.Id, hit.Damage)
+                : hit.Sever ? Model.ApplySever(part.Id, hit.Damage)
+                : Model.ApplyDamage(part.Id, hit.Damage);
 
             for (int i = 0; i < result.Detachments.Count; i++)
             {
@@ -100,6 +115,8 @@ namespace OrbitalAnte.Dismemberment
                 }
             }
 
+            if (groupBefore == 0) Struck?.Invoke(this, part.Id, hit, result.Detachments.Count > 0);
+
             if (result.Killed)
             {
                 if (_bodyBlocker != null) _bodyBlocker.enabled = false;
@@ -115,6 +132,9 @@ namespace OrbitalAnte.Dismemberment
                 Severed = result.Detachments.Count > 0,
                 Killed = result.Killed,
                 HeadshotKill = result.Killed && torsoWasOnBody,
+                // Only a hit on the living body counts: splitting a loose chunk or a corpse is not a fight.
+                Enemy = groupBefore == 0 && before != MovementState.Dead,
+                Head = part.Id == BodyPartId.Head,
                 Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
             };
@@ -165,7 +185,10 @@ namespace OrbitalAnte.Dismemberment
                 : transform.position;
 
             GibManager manager = GibManager.GetOrCreate();
-            Gib gib = manager.Spawn(this, detachment.Group, rootPart.transform.position, rootPart.transform.rotation);
+            _spawningGib = true;
+            Gib gib;
+            try { gib = manager.Spawn(this, detachment.Group, rootPart.transform.position, rootPart.transform.rotation, source); }
+            finally { _spawningGib = false; }
             Rigidbody body = gib.Body;
 
             for (int i = 0; i < detachment.Members.Length; i++)
@@ -192,18 +215,18 @@ namespace OrbitalAnte.Dismemberment
                 {
                     Vector3 outward = rootPart.transform.position - torsoPosition;
                     outward = outward.sqrMagnitude > 0.0001f ? outward.normalized : UnityEngine.Random.onUnitSphere;
-                    launch = outward * Config.torsoBurstSpeed + dir * (Config.gibLaunchSpeed * 0.4f) + Vector3.up * Config.gibLift;
+                    launch = outward * Config.torsoBurstSpeed + dir * (Config.gibLaunchSpeed * 0.4f) + Up * Config.gibLift;
                     break;
                 }
                 case DetachReason.HeadDestroyed:
-                    launch = dir * (Config.gibLaunchSpeed * 1.2f) + Vector3.up * (Config.gibLift * 1.5f);
+                    launch = dir * (Config.gibLaunchSpeed * 1.2f) + Up * (Config.gibLift * 1.5f);
                     break;
                 case DetachReason.Corpse:
-                    launch = dir * (Config.gibLaunchSpeed * 0.35f) + Vector3.up * 0.6f;
+                    launch = dir * (Config.gibLaunchSpeed * 0.35f) + Up * 0.6f;
                     spin *= 0.2f;
                     break;
                 default:
-                    launch = dir * Config.gibLaunchSpeed + Vector3.up * Config.gibLift;
+                    launch = dir * Config.gibLaunchSpeed + Up * Config.gibLift;
                     break;
             }
 
@@ -241,7 +264,7 @@ namespace OrbitalAnte.Dismemberment
                 _gibs.Remove(group);
             }
             // Once a dead character's last loose part has been cleaned up, nothing of it is left.
-            if (Model != null && !Model.Alive && _gibs.Count == 0 && this != null)
+            if (!_spawningGib && Model != null && !Model.Alive && _gibs.Count == 0 && this != null)
             {
                 Destroy(gameObject);
             }

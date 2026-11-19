@@ -265,7 +265,8 @@ namespace OrbitalAnte.Planets
                     force.x = 0.35f;
                     break;
             }
-            e.Renderer.sharedMaterial = PlanetMaterials.VertexColour(color, 1f, glow);
+            // Unpainted: these lumps are drawn where they are in the world, so paint would swim across them as they move.
+            e.Renderer.sharedMaterial = PlanetMaterials.VertexColour(color, 1f, glow, false);
             e.Go.SetActive(true);
             e.System.Play(true);
         }

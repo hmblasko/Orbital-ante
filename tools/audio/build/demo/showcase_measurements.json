@@ -1,0 +1,63 @@
+{
+ "peak_before_limit_db": -4.53,
+ "samples_over": 0,
+ "lufs": -23.51,
+ "sections": [
+  {
+   "section": "EXPLORATION",
+   "start": 0,
+   "lufs": -25.7,
+   "peak": -7.4,
+   "music_lufs": -26.4
+  },
+  {
+   "section": "DISCOVERY",
+   "start": 55,
+   "lufs": -28.2,
+   "peak": -11.2,
+   "music_lufs": -29.2
+  },
+  {
+   "section": "RISING TENSION",
+   "start": 98,
+   "lufs": -24.5,
+   "peak": -8.3,
+   "music_lufs": -25.0
+  },
+  {
+   "section": "COMBAT",
+   "start": 133,
+   "lufs": -20.4,
+   "peak": -4.7,
+   "music_lufs": -23.0
+  },
+  {
+   "section": "CHAOS",
+   "start": 152,
+   "lufs": -20.8,
+   "peak": -4.5,
+   "music_lufs": -23.1
+  },
+  {
+   "section": "LOOT AND SCORING",
+   "start": 190,
+   "lufs": -24.2,
+   "peak": -10.5,
+   "music_lufs": -27.5
+  },
+  {
+   "section": "TAKE-OFF",
+   "start": 216,
+   "lufs": -22.6,
+   "peak": -7.0,
+   "music_lufs": -24.7
+  },
+  {
+   "section": "RETURN TO CALM",
+   "start": 275,
+   "lufs": -27.2,
+   "peak": -9.7,
+   "music_lufs": -27.3
+  }
+ ]
+}

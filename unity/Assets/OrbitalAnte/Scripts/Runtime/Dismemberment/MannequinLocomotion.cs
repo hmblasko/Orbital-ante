@@ -25,6 +25,9 @@ namespace OrbitalAnte.Dismemberment
 
         float _phase;
         float _headRoll;
+        Vector3 _lastForward = Vector3.forward;
+        BodyAnimator _anim = new BodyAnimator(1);
+        AI.MannequinCombat _combat;
         MovementState _appliedState = (MovementState)(-1);
         Vector3 _lastPosition;
 
@@ -32,13 +35,39 @@ namespace OrbitalAnte.Dismemberment
         public bool Wander = true;
 
         /// <summary>When set, walk here instead of wandering, and stop on arrival.</summary>
-        public Vector3? Destination;
+        [System.NonSerialized] public Vector3? Destination;
         /// <summary>When set, stand still and turn to face this point (used to aim). Wins over Destination.</summary>
-        public Vector3? FacePoint;
+        [System.NonSerialized] public Vector3? FacePoint;
         /// <summary>Sprint to the destination if the legs allow it.</summary>
         public bool Hurry;
+        /// <summary>
+        /// Scrambling after something (a dropped gun): bent low, sprinting even over a few metres, quick short
+        /// steps, and faster, wilder hops and crawls for a body that has lost its legs.
+        /// </summary>
+        public bool Scramble;
+        /// <summary>0 to 1: bend down to take something off the ground with the hand on <see cref="ReachSide"/>.</summary>
+        public float Reach;
+        public int ReachSide = MannequinRig.Right;
+        /// <summary>Something to keep the head turned toward, if anything (a point in the world).</summary>
+        [System.NonSerialized] public Vector3? LookAt;
+        /// <summary>Stay on the spot (startled, or bending to pick something up), turning slowly toward <see cref="LookAt"/>.</summary>
+        public bool Hold;
+        /// <summary>0 to 1: move and stand in the tactical hunch (knees bent, low, gun up, head level). Set by the fight.</summary>
+        public float Tactical;
+        /// <summary>Degrees a second it may turn at most, 0 for no cap (a braced Heavy spinning its gun up). Set by the fight.</summary>
+        public float MaxTurnRate;
+        /// <summary>How far into the hunch the body really is (it eases in and out), for posing the gun.</summary>
+        public float TacticalShown => _anim != null ? (float)_anim.Tactical : 0f;
+
+        // The hobble is not a metronome: each hop has its own length, and now and then it lands badly and
+        // has to catch its balance. It changes where the body is, so it draws from its own seeded stream.
+        SeededRandom _hobble = new SeededRandom(2);
+        float _hopRate = 1f;
+        int _hopIndex;
+        float _teeterUntil;
 
         float _avoidUntil;
+        bool _teetering;
         float _avoidSign = 1f;
 
         /// <summary>Current forward speed in metres per second, averaged over the gait.</summary>
@@ -52,15 +81,50 @@ namespace OrbitalAnte.Dismemberment
             _blocker = blocker;
             _lastPosition = transform.position;
             _target = transform.position;
-            ApplyStandingPose(0f, false);
+            _lastForward = transform.forward;
+            _owner.Struck += OnStruck;
+            _owner.PartDetached += OnPartDetached;
+            // Stand properly from the first frame rather than in the skeleton's T-pose.
+            ApplyPose(_owner.State, false, 1f / 60f, 0f);
         }
+
+        void Start()
+        {
+            _combat = GetComponent<AI.MannequinCombat>();
+        }
+
+        void OnDestroy()
+        {
+            if (_owner != null)
+            {
+                _owner.Struck -= OnStruck;
+                _owner.PartDetached -= OnPartDetached;
+            }
+        }
+
+        /// <summary>How thick this kind's helmet is beside the ordinary one, so a lone head rests on the ground and not in it.</summary>
+        float HeadFit() => _cfg != null && !string.IsNullOrEmpty(_cfg.modelId) ? BodyFit.Thickness(_cfg.modelId, BodyPartId.Head) : 1f;
 
         public void SetWander(Bounds area, int seed)
         {
             _wanderArea = area;
             _rng = new SeededRandom(seed);
+            // How this one carries itself (its stance, its arm swing, when it glances about) differs per character.
+            // Each kind carries itself its own way, and a body drawn larger takes longer strides.
+            string model = _cfg != null ? _cfg.modelId : null;
+            _anim = new BodyAnimator(seed, string.IsNullOrEmpty(model) ? null : BodyStyle.For(model)) { Size = transform.lossyScale.y };
             _phase = (float)_rng.NextDouble() * Mathf.PI * 2f;
+            _hobble = new SeededRandom(seed * 31 + 7);
             PickTarget();
+        }
+
+        /// <summary>The leg still on the body of one that is down on the ground (BodySkeleton side), or -1 for none.</summary>
+        int CrawlLeg()
+        {
+            if (_owner == null || _owner.Model == null) return -1;
+            if (_owner.Model.LegWorks(true)) return MannequinRig.Left;
+            if (_owner.Model.LegWorks(false)) return MannequinRig.Right;
+            return -1;
         }
 
         /// <summary>Top speed for a movement state.</summary>
@@ -70,7 +134,7 @@ namespace OrbitalAnte.Dismemberment
             {
                 case MovementState.Intact: return sprinting ? _cfg.sprintSpeed : _cfg.walkSpeed;
                 case MovementState.OneLeg: return _cfg.oneLegSpeed;
-                case MovementState.Crawl: return _cfg.crawlSpeed;
+                case MovementState.Crawl: return CrawlLeg() >= 0 ? Mathf.Max(_cfg.crawlSpeed, _cfg.oneLegCrawlSpeed) : _cfg.crawlSpeed;
                 case MovementState.Wriggle: return _cfg.wriggleSpeed;
                 case MovementState.HeadOnly: return _cfg.headRollSpeed;
                 default: return 0f;
@@ -101,7 +165,12 @@ namespace OrbitalAnte.Dismemberment
             float speed = 0f;
             if (Wander)
             {
-                if (FacePoint.HasValue)
+                if (Hold)
+                {
+                    _sprinting = false;
+                    if (LookAt.HasValue) TurnToward(LookAt.Value - transform.position, state, dt * 0.6f);
+                }
+                else if (FacePoint.HasValue)
                 {
                     _sprinting = false;
                     TurnToward(FacePoint.Value - transform.position, state, dt);
@@ -116,25 +185,57 @@ namespace OrbitalAnte.Dismemberment
                     speed = SpeedFor(state, _sprinting);
                 }
             }
-            CurrentSpeed = speed;
 
             // Gait: how fast the cycle runs, and how the forward motion pulses within one cycle.
             float cadence = CadenceFor(state, _sprinting);
+            bool teetering = false;
+            if (state == MovementState.OneLeg && speed > 0.01f)
+            {
+                // Scrambling hops come faster and further; each hop has its own length; a bad landing holds it
+                // on the spot, arms out, before the next.
+                if (Scramble) { cadence *= 1.3f; speed *= 1.25f; }
+                cadence *= _hopRate;
+                int hop = Mathf.FloorToInt(_phase / (Mathf.PI * 2f));
+                if (hop != _hopIndex)
+                {
+                    _hopIndex = hop;
+                    _hopRate = 0.82f + 0.36f * (float)_hobble.NextDouble();
+                    float wobbly = Scramble ? 0.16f : 0.10f;
+                    if (_hobble.NextDouble() < wobbly) _teeterUntil = Time.time + 0.35f + 0.4f * (float)_hobble.NextDouble();
+                    else if (_hobble.NextDouble() < (Scramble ? 0.07f : 0.03f)) _anim.Stumble(_hobble.NextDouble() < 0.5 ? -1.0 : 1.0);
+                }
+                teetering = Time.time < _teeterUntil;
+                if (teetering) { cadence = 0f; speed = 0f; }
+            }
+            else if (state == MovementState.Crawl || state == MovementState.Wriggle)
+            {
+                if (Scramble) { cadence *= 1.35f; speed *= 1.3f; }
+            }
+            // A stumbling body hardly gets anywhere until it has its feet again.
+            if (_anim.Stumbling) speed *= 0.3f;
+            CurrentSpeed = speed;
+            _teetering = teetering;
             _phase += dt * cadence * Mathf.PI * 2f;
             if (_phase > Mathf.PI * 2000f) _phase -= Mathf.PI * 2000f;
 
             float pulse = PulseFor(state);
             Vector3 step = transform.forward * (speed * pulse * dt);
-            Vector3 position = transform.position + step;
+            Vector3 position = transform.position + step + Slide(dt);
 
-            // Stay on the ground.
-            if (Physics.Raycast(position + Vector3.up * 2f, Vector3.down, out RaycastHit ground, 6f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
-            {
-                position.y = ground.point.y;
-            }
+            // Stay on the ground, and upright on it (on a round world "up" changes as you walk).
+            Footing footing = _owner.Footing;
+            Vector3 up = footing.Up(position);
+            if (footing.Ground(position, up, out Vector3 ground)) position = ground;
             transform.position = position;
+            if (!footing.IsFlat)
+            {
+                Vector3 ahead = Vector3.ProjectOnPlane(transform.forward, up);
+                if (ahead.sqrMagnitude > 1e-6f) transform.rotation = Quaternion.LookRotation(ahead.normalized, up);
+            }
 
-            _owner.Velocity = (position - _lastPosition) / dt;
+            // If the whole world was moved under the player this frame, that was not this character running.
+            Vector3 moved = position - _lastPosition;
+            _owner.Velocity = moved.sqrMagnitude > 25f ? Vector3.zero : moved / dt;
             _lastPosition = position;
 
             ApplyPose(state, speed > 0.01f, dt, speed * pulse);
@@ -145,24 +246,22 @@ namespace OrbitalAnte.Dismemberment
         void Steer(MovementState state, float dt)
         {
             _repathTimer -= dt;
-            Vector3 to = _target - transform.position;
-            to.y = 0f;
+            Vector3 to = Level(_owner.Footing.Recall(_target) - transform.position);
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 0.9f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 0.9f);
 
             if (to.sqrMagnitude < 0.5f * 0.5f || _repathTimer <= 0f || blocked)
             {
                 PickTarget();
-                to = _target - transform.position;
-                to.y = 0f;
+                to = Level(_owner.Footing.Recall(_target) - transform.position);
             }
 
             if (to.sqrMagnitude > 0.0001f)
             {
-                Quaternion want = Quaternion.LookRotation(to.normalized, Vector3.up);
+                Quaternion want = Quaternion.LookRotation(to.normalized, _owner.Up);
                 float turn = _cfg.turnSpeed * TurnScaleFor(state);
+                if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
             }
         }
@@ -170,8 +269,7 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Heads for a point, stepping around walls. Returns the speed to move at (0 on arrival).</summary>
         float SteerTo(Vector3 destination, MovementState state, float dt)
         {
-            Vector3 to = destination - transform.position;
-            to.y = 0f;
+            Vector3 to = Level(destination - transform.position);
             if (to.sqrMagnitude < 0.45f * 0.45f)
             {
                 _sprinting = false;
@@ -179,8 +277,7 @@ namespace OrbitalAnte.Dismemberment
             }
 
             float probeHeight = (state == MovementState.Intact || state == MovementState.OneLeg) ? 0.9f : 0.2f;
-            bool blocked = Physics.Raycast(transform.position + Vector3.up * probeHeight, transform.forward, 1.0f,
-                Layers.WorldMask, QueryTriggerInteraction.Ignore);
+            bool blocked = WallAhead(probeHeight, 1.0f);
             if (blocked && Time.time >= _avoidUntil)
             {
                 // Something in the way: veer to one side for a moment, then try again.
@@ -188,33 +285,40 @@ namespace OrbitalAnte.Dismemberment
                 _avoidUntil = Time.time + 0.9f;
             }
 
-            Vector3 heading = to.normalized;
-            if (Time.time < _avoidUntil) heading = Quaternion.Euler(0f, 80f * _avoidSign, 0f) * heading;
+            // In a cave the way there follows the passages, not a straight line through the rock.
+            Vector3 via = Level(_owner.Footing.Toward(transform.position, destination) - transform.position);
+            Vector3 heading = via.sqrMagnitude > 0.01f ? via.normalized : to.normalized;
+            if (Time.time < _avoidUntil) heading = Quaternion.AngleAxis(80f * _avoidSign, _owner.Up) * heading;
             TurnToward(heading, state, dt);
 
-            _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > 4f * 4f;
+            // Scrambling for a gun, it sprints even the last few metres.
+            _sprinting = Hurry && _owner.Model.CanSprint && to.sqrMagnitude > (Scramble ? 1.2f * 1.2f : 4f * 4f);
             float speed = SpeedFor(state, _sprinting);
             // Do not march off sideways while still turning to face the way.
             if (Vector3.Angle(transform.forward, heading) > 70f) speed *= 0.25f;
             return speed;
         }
 
+        /// <summary>A direction with its up-and-down part taken out, so it lies along the ground.</summary>
+        Vector3 Level(Vector3 v)
+        {
+            Vector3 up = _owner.Up;
+            return v - up * Vector3.Dot(v, up);
+        }
+
         void TurnToward(Vector3 direction, MovementState state, float dt)
         {
-            direction.y = 0f;
+            direction = Level(direction);
             if (direction.sqrMagnitude < 0.0001f) return;
-            Quaternion want = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            Quaternion want = Quaternion.LookRotation(direction.normalized, _owner.Up);
             float turn = _cfg.turnSpeed * TurnScaleFor(state);
+            if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
         }
 
         void PickTarget()
         {
-            Vector3 min = _wanderArea.min;
-            Vector3 max = _wanderArea.max;
-            float x = Mathf.Lerp(min.x, max.x, (float)_rng.NextDouble());
-            float z = Mathf.Lerp(min.z, max.z, (float)_rng.NextDouble());
-            _target = new Vector3(x, transform.position.y, z);
+            _target = _owner.Footing.Hold(_owner.Footing.WanderPoint(_rng, _wanderArea, transform.position));
             _repathTimer = 4f + (float)_rng.NextDouble() * 6f;
             // An intact character sometimes breaks into a sprint, so "can't sprint" is visible once a leg is gone.
             _sprinting = _owner != null && _owner.Model != null && _owner.Model.CanSprint && _rng.NextDouble() < 0.35;
@@ -274,142 +378,170 @@ namespace OrbitalAnte.Dismemberment
 
         // ------------------------------------------------------------------ poses
 
+        /// <summary>
+        /// The pose itself is worked out by <see cref="BodyAnimator"/> (plain rules, tested without Unity);
+        /// this only tells it what the character is doing and copies the answer onto the bones.
+        /// </summary>
         void ApplyPose(MovementState state, bool moving, float dt, float instantSpeed)
         {
-            _rig.ResetBones();
             // The head part can be rolled by the head-only state, so always put it back first.
             BodyPart head = _owner.Part(BodyPartId.Head);
             if (head != null && _owner.Model.OnBody(BodyPartId.Head)) head.transform.localRotation = Quaternion.identity;
 
-            switch (state)
+            // Capped, so being placed or spun round by something else does not whip the feet about.
+            float turned = Vector3.SignedAngle(_lastForward, transform.forward, transform.up);
+            float turnRate = dt > 0f ? Mathf.Clamp(turned / dt, -400f, 400f) : 0f;
+            _lastForward = transform.forward;
+
+            bool armed = _combat != null && _combat.Weapon != null;
+            var input = new BodyAnimInput
             {
-                case MovementState.Intact:
-                    ApplyStandingPose(moving ? 1f : 0f, _sprinting);
-                    break;
-                case MovementState.OneLeg:
-                    ApplyOneLegPose(moving);
-                    break;
-                case MovementState.Crawl:
-                    ApplyCrawlPose(moving);
-                    break;
-                case MovementState.Wriggle:
-                    ApplyWrigglePose(moving);
-                    break;
-                case MovementState.HeadOnly:
-                    ApplyHeadOnlyPose(head, dt, instantSpeed);
-                    break;
+                State = state,
+                ForwardSpeed = state == MovementState.Intact ? CurrentSpeed : instantSpeed,
+                TurnRate = turnRate,
+                Phase = _phase,
+                Moving = moving,
+                WalkSpeed = _cfg.walkSpeed,
+                SprintSpeed = _cfg.sprintSpeed,
+                StandingLeg = _owner.Model.LegWorks(true) ? MannequinRig.Left : MannequinRig.Right,
+                LeftArmWorks = _owner.Model.ArmCanCrawl(true),
+                RightArmWorks = _owner.Model.ArmCanCrawl(false),
+                Aim = armed && FacePoint.HasValue ? 1.0 : 0.0,
+                GunSide = armed ? _combat.GunSide : -1,
+                ArmLossLeft = ArmLoss(true),
+                ArmLossRight = ArmLoss(false),
+                StumpLength = StumpLength(),
+                Scramble = Scramble ? 1.0 : 0.0,
+                Reach = Mathf.Clamp01(Reach),
+                ReachSide = ReachSide,
+                Teeter = _teetering ? 1.0 : 0.0,
+                // Down on the ground with a leg left: it pushes with it (StandingLeg says which).
+                PushingLeg = (state == MovementState.Crawl || state == MovementState.Wriggle) && CrawlLeg() >= 0,
+                Tactical = Mathf.Clamp01(Tactical),
+            };
+            if (LookAt.HasValue)
+            {
+                // In the body's own space at the skeleton's size. Kinds are drawn wider or narrower than they are
+                // tall, so only the height scale is taken out, or the angles would be skewed.
+                Vector3 local = transform.InverseTransformDirection(LookAt.Value - transform.position) / Mathf.Max(0.01f, transform.lossyScale.y);
+                input.HasLook = true;
+                input.LookX = local.x;
+                input.LookY = local.y;
+                input.LookZ = local.z;
             }
+            _anim.Update(dt, input);
+            _rig.Apply(_anim.Pose);
+
+            if (state == MovementState.HeadOnly) ApplyHeadOnlyPose(head, dt, instantSpeed);
         }
 
-        // Arm rotation conventions (rest pose is a T-pose facing +Z):
-        //  - Rotating an upper arm about Z lowers it: +angle for the left arm, -angle for the right.
-        //  - Rotating about X swings a lowered arm or a leg: negative = forward.
-        //  - A forearm bends forward about Y: +angle for the left arm, -angle for the right.
-        static Quaternion ArmDown(int side, float downDegrees, float swingDegrees)
+        /// <summary>Knocks the body about when a part still on it is hit. Only for show: nothing here changes the rules.</summary>
+        void OnStruck(Mannequin mannequin, BodyPartId part, HitInfo hit, bool severed)
         {
-            float z = side == MannequinRig.Left ? downDegrees : -downDegrees;
-            return Quaternion.Euler(swingDegrees, 0f, 0f) * Quaternion.Euler(0f, 0f, z);
+            if (_anim == null) return;
+            Vector3 direction = transform.InverseTransformDirection(hit.Direction);
+            Vector3 point = transform.InverseTransformPoint(hit.Point);
+            _anim.Flinch(direction.x, direction.z, point.y / 1.8f, Mathf.Clamp(point.x / 0.3f, -1f, 1f), severed ? 2.5f : 1f);
         }
 
-        static Quaternion ElbowBend(int side, float degrees)
+        /// <summary>How much of an arm's weight is gone: nothing, a hand, a forearm (the upper arm left as a stump), or all of it.</summary>
+        double ArmLoss(bool left)
         {
-            return Quaternion.Euler(0f, side == MannequinRig.Left ? degrees : -degrees, 0f);
+            BodyModel m = _owner.Model;
+            if (!m.OnBody(left ? BodyPartId.LeftUpperArm : BodyPartId.RightUpperArm)) return 1.0;
+            if (!m.OnBody(left ? BodyPartId.LeftForearm : BodyPartId.RightForearm)) return 0.5;
+            if (!m.OnBody(left ? BodyPartId.LeftHand : BodyPartId.RightHand)) return 0.15;
+            return 0.0;
         }
 
-        void ApplyStandingPose(float moveAmount, bool sprinting)
+        /// <summary>How much of the lost leg is left on a one-legged body: 0 none, 0.45 the thigh, 1 all but the foot.</summary>
+        double StumpLength()
         {
-            float s = Mathf.Sin(_phase);
-            float c = Mathf.Cos(_phase);
-            float legSwing = (sprinting ? 44f : 28f) * moveAmount;
-            float knee = (sprinting ? 65f : 38f) * moveAmount;
-            float armSwing = (sprinting ? 48f : 22f) * moveAmount;
-            float bob = (sprinting ? 0.05f : 0.025f) * moveAmount * Mathf.Abs(c);
-            float lean = sprinting ? 12f : 3f * moveAmount;
-
-            _rig.Pose.localPosition = new Vector3(0f, bob, 0f);
-            _rig.Pose.localRotation = Quaternion.Euler(lean, 0f, 0f);
-
-            // Left leg swings forward while the right swings back, and the swinging leg bends its knee.
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(-legSwing * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(legSwing * s, 0f, 0f);
-            _rig.Shin[MannequinRig.Left].localRotation = Quaternion.Euler(knee * Mathf.Max(0f, c), 0f, 0f);
-            _rig.Shin[MannequinRig.Right].localRotation = Quaternion.Euler(knee * Mathf.Max(0f, -c), 0f, 0f);
-
-            // Arms swing opposite to the legs.
-            float elbow = sprinting ? 70f : 18f;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, 78f, armSwing * s);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, 78f, -armSwing * s);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, elbow);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, elbow);
+            BodyModel m = _owner.Model;
+            bool left = !m.LegWorks(true);
+            if (!m.OnBody(left ? BodyPartId.LeftThigh : BodyPartId.RightThigh)) return 0.0;
+            if (!m.OnBody(left ? BodyPartId.LeftShin : BodyPartId.RightShin)) return 0.45;
+            return 1.0;
         }
 
-        void ApplyOneLegPose(bool moving)
+        /// <summary>A part came off the living body: it reels from the wound. Only for show.</summary>
+        void OnPartDetached(Mannequin mannequin, Detachment detachment, Gib gib, HitInfo hit)
         {
-            int standing = _owner.Model.LegWorks(true) ? MannequinRig.Left : MannequinRig.Right;
-            int missing = 1 - standing;
-            float air = moving ? Mathf.Max(0f, Mathf.Sin(_phase)) : 0f;       // 0 on the ground, 1 at the top of the hop
-            float crouch = moving ? Mathf.Max(0f, -Mathf.Sin(_phase)) : 0f;   // winding up for the next hop
-
-            // Lean over the good leg to stay balanced, and dip while winding up.
-            float roll = standing == MannequinRig.Left ? 9f : -9f;
-            _rig.Pose.localPosition = new Vector3(0f, air * 0.20f - crouch * 0.07f, 0f);
-            _rig.Pose.localRotation = Quaternion.Euler(6f + 6f * air, 0f, roll);
-
-            _rig.Thigh[standing].localRotation = Quaternion.Euler(-22f * crouch - 8f * air, 0f, 0f);
-            _rig.Shin[standing].localRotation = Quaternion.Euler(40f * crouch + 12f * air, 0f, 0f);
-            // Whatever is left of the other leg flails.
-            _rig.Thigh[missing].localRotation = Quaternion.Euler(-25f + 30f * Mathf.Sin(_phase + 1f), 0f, 0f);
-            _rig.Shin[missing].localRotation = Quaternion.Euler(30f, 0f, 0f);
-
-            // Arms out and flapping for balance.
-            float down = 48f - 26f * air + 10f * crouch;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, down, -10f);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, down, -10f);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, 25f);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, 25f);
+            if (_anim == null || detachment.SourceGroup != 0) return;
+            // The lying capsule is longer while a leg is left; losing that leg too keeps the state but not the length.
+            if (_owner != null && _appliedState == _owner.State) ResizeBlocker(_appliedState);
+            double severity;
+            int side;
+            switch (detachment.Root)
+            {
+                case BodyPartId.LeftUpperArm: case BodyPartId.LeftThigh: severity = 1.0; side = MannequinRig.Left; break;
+                case BodyPartId.RightUpperArm: case BodyPartId.RightThigh: severity = 1.0; side = MannequinRig.Right; break;
+                case BodyPartId.LeftForearm: case BodyPartId.LeftShin: severity = 0.85; side = MannequinRig.Left; break;
+                case BodyPartId.RightForearm: case BodyPartId.RightShin: severity = 0.85; side = MannequinRig.Right; break;
+                case BodyPartId.LeftHand: case BodyPartId.LeftFoot: severity = 0.6; side = MannequinRig.Left; break;
+                case BodyPartId.RightHand: case BodyPartId.RightFoot: severity = 0.6; side = MannequinRig.Right; break;
+                default: return;
+            }
+            BodyPartId root = detachment.Root;
+            bool arm = root == BodyPartId.LeftUpperArm || root == BodyPartId.RightUpperArm || root == BodyPartId.LeftForearm || root == BodyPartId.RightForearm;
+            _anim.Wounded(side, severity, arm);
         }
 
-        /// <summary>Lays the body face down along its forward direction, centred on the character root.</summary>
-        void SetProne(float yawDegrees, float rollDegrees, float pitchBumpDegrees)
+        /// <summary>Startled: something was just knocked out of its hands toward this point in the world.</summary>
+        public void Startle(Vector3 toward)
         {
-            Quaternion yaw = Quaternion.Euler(0f, yawDegrees, 0f);
-            _rig.Pose.localRotation = yaw * Quaternion.Euler(86f - pitchBumpDegrees, 0f, rollDegrees);
-            // After tipping over, a point at height h on the standing body ends up roughly h metres forward.
-            float lift = _rig.TorsoHalfDepth * 0.5f + 0.02f;
-            _rig.Pose.localPosition = yaw * new Vector3(0f, lift, -_rig.TorsoCentreHeight);
+            if (_anim == null) return;
+            Vector3 local = transform.InverseTransformDirection(toward - transform.position);
+            _anim.Startle(local.x, local.z);
         }
 
-        void ApplyCrawlPose(bool moving)
+        // ------------------------------------------------------------------ knocked down by a melee hit
+
+        Vector3 _shove;
+        float _shoveFriction = 5f;
+
+        /// <summary>True while a shove is still sliding the body along.</summary>
+        public bool Shoved => _shove.sqrMagnitude > 0.0025f;
+
+        /// <summary>
+        /// Knocked off its feet by a melee hit (the bat, the mailbox): it slides along the ground the way it was hit,
+        /// slowing by <paramref name="friction"/> m/s each second, lurching and startled. A cheap slide over the
+        /// ground with the animator's stumble on top, not a jointed ragdoll: the body keeps standing on its footing,
+        /// so it can get up again by itself. Nothing here changes the rules (MannequinCombat stops it shooting).
+        /// </summary>
+        public void Shove(Vector3 velocity, float friction)
         {
-            float s = moving ? Mathf.Sin(_phase) : 0f;
-            SetProne(5f * s, 7f * s, 0f);
-
-            // Arms reach past the head and pull back alternately.
-            // Raising an arm above the shoulder is a negative "down" angle.
-            float leftReach = -48f - 30f * s;
-            float rightReach = -48f + 30f * s;
-            _rig.UpperArm[MannequinRig.Left].localRotation = ArmDown(MannequinRig.Left, leftReach, 12f);
-            _rig.UpperArm[MannequinRig.Right].localRotation = ArmDown(MannequinRig.Right, rightReach, 12f);
-            _rig.Forearm[MannequinRig.Left].localRotation = ElbowBend(MannequinRig.Left, 28f + 22f * s);
-            _rig.Forearm[MannequinRig.Right].localRotation = ElbowBend(MannequinRig.Right, 28f - 22f * s);
-
-            // Leg stumps drag and twitch behind.
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(8f * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(-8f * s, 0f, 0f);
-            // Head up, looking where it is going.
-            _rig.Head.localRotation = Quaternion.Euler(-35f, 0f, 0f);
+            Vector3 up = _owner != null ? _owner.Up : transform.up;
+            _shove = Vector3.ProjectOnPlane(velocity, up);
+            _shoveFriction = Mathf.Max(0.5f, friction);
+            if (_anim == null) return;
+            Vector3 local = transform.InverseTransformDirection(_shove);
+            _anim.Stumble(local.x < 0f ? -1.0 : 1.0);
+            _anim.Startle(local.x, local.z);
         }
 
-        void ApplyWrigglePose(bool moving)
+        /// <summary>How far the shove carries the body this frame. Stops dead at a wall rather than going through it.</summary>
+        Vector3 Slide(float dt)
         {
-            float s = moving ? Mathf.Sin(_phase) : 0f;
-            float bump = moving ? Mathf.Max(0f, Mathf.Sin(_phase + 0.8f)) : 0f;
-            // Snake from side to side and hump up just before each lunge.
-            SetProne(14f * s, 10f * s, 9f * bump);
-            _rig.Spine.localRotation = Quaternion.Euler(0f, 0f, 6f * s);
-            _rig.Thigh[MannequinRig.Left].localRotation = Quaternion.Euler(10f * s, 0f, 0f);
-            _rig.Thigh[MannequinRig.Right].localRotation = Quaternion.Euler(-10f * s, 0f, 0f);
-            _rig.Head.localRotation = Quaternion.Euler(-30f, -12f * s, 0f);
+            if (!Shoved) { _shove = Vector3.zero; return Vector3.zero; }
+            Vector3 move = _shove * dt;
+            Vector3 up = _owner != null ? _owner.Up : transform.up;
+            if (Physics.Raycast(transform.position + up * 0.6f, _shove.normalized, move.magnitude + 0.4f,
+                    Core.Layers.WorldMask | (1 << Core.Layers.Vehicle), QueryTriggerInteraction.Ignore))
+            {
+                _shove = Vector3.zero;
+                return Vector3.zero;
+            }
+            float speed = Melee.MeleeRules.SlideAfter(_shove.magnitude, dt, _shoveFriction);
+            _shove = _shove.normalized * speed;
+            return move;
+        }
+
+        /// <summary>The gun's kick, passed through the shoulder into the body.</summary>
+        public void Kick(float strength, int gunSide)
+        {
+            if (_anim == null) return;
+            _anim.Flinch(0.0, -1.0, 0.8, gunSide == MannequinRig.Left ? -0.6 : 0.6, 0.10 * strength);
         }
 
         void ApplyHeadOnlyPose(BodyPart head, float dt, float instantSpeed)
@@ -418,10 +550,23 @@ namespace OrbitalAnte.Dismemberment
             float hop = 0.07f * Mathf.Abs(Mathf.Sin(_phase));
             _rig.Pose.localRotation = Quaternion.identity;
             _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + _rig.HeadRadius + hop, 0f);
+            _rig.ResetBones();
 
             _headRoll += Mathf.Rad2Deg * (instantSpeed * dt / Mathf.Max(0.01f, _rig.HeadRadius));
             if (_headRoll > 360f) _headRoll -= 360f;
-            if (head != null) head.transform.localRotation = Quaternion.Euler(_headRoll, 0f, 0f);
+            if (head == null) return;
+            if (_rig.Modelled)
+            {
+                // The helmet is not a ball (neck ring, snout, crest), so it rocks and waddles along on its neck ring
+                // instead of rolling right over and dipping into the floor.
+                float roll = _headRoll * Mathf.Deg2Rad;
+                head.transform.localRotation = Quaternion.Euler(22f * Mathf.Sin(roll), 0f, 9f * Mathf.Cos(roll));
+                _rig.Pose.localPosition = new Vector3(0f, -_rig.HeadCentreHeight + 0.19f * HeadFit() + hop, 0f);
+            }
+            else
+            {
+                head.transform.localRotation = Quaternion.Euler(_headRoll, 0f, 0f);
+            }
         }
 
         // ------------------------------------------------------------------ collision capsule
@@ -442,8 +587,10 @@ namespace OrbitalAnte.Dismemberment
                 case MovementState.Wriggle:
                     _blocker.direction = 2;
                     _blocker.radius = 0.2f;
-                    _blocker.height = 1.2f;
-                    _blocker.center = new Vector3(0f, 0.2f, 0f);
+                    // A leg that is left trails about 0.9 m behind the hips: the capsule reaches back over it.
+                    bool leg = CrawlLeg() >= 0;
+                    _blocker.height = leg ? 1.6f : 1.2f;
+                    _blocker.center = new Vector3(0f, 0.2f, leg ? -0.2f : 0f);
                     break;
                 case MovementState.HeadOnly:
                     _blocker.direction = 1;
@@ -455,6 +602,15 @@ namespace OrbitalAnte.Dismemberment
                     _blocker.enabled = false;
                     break;
             }
+        }
+
+        /// <summary>Something upright in the way. A hillside is not a wall: ground you could walk up does not count.</summary>
+        bool WallAhead(float height, float reach)
+        {
+            Vector3 up = transform.up;
+            return Physics.Raycast(transform.position + up * height, transform.forward, out RaycastHit hit, reach,
+                       Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                   && Vector3.Dot(hit.normal, up) <= 0.5f;
         }
     }
 }

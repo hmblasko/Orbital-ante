@@ -258,6 +258,8 @@ namespace OrbitalAnte.Tests
             {
                 float ratio = FeatureShapes.WidthToHeight(kind);
                 Assert.That(ratio, Is.InRange(0.1f, 2f));
+                // Kinds with a Blender model are measured against the model (SceneryModelTests), not the stand-in shape.
+                if (FeatureShapes.StandIn(kind) != kind) continue;
                 for (int v = 0; v < FeatureShapes.Variants; v++)
                 {
                     ShapeData s = FeatureShapes.Build(kind, v);

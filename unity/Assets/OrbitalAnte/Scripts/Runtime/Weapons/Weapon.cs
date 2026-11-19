@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Space;
 using UnityEngine;
 
 namespace OrbitalAnte.Weapons
@@ -36,6 +37,9 @@ namespace OrbitalAnte.Weapons
         public WeaponHold Hold { get; private set; } = WeaponHold.Dropped;
         public IWeaponHolder Holder { get; private set; }
         public Rigidbody Body { get; private set; }
+        /// <summary>In the solar system, the pull toward the world a dropped gun lies on (null in the arena).</summary>
+        GravityBody _pull;
+        System.Action<Vector3, Transform> _layDown;
 
         public Transform Grip => _sockets.Grip;
         public Transform SupportHand => _sockets.SupportHand;
@@ -89,6 +93,7 @@ namespace OrbitalAnte.Weapons
         /// <summary>Puts the weapon in the player's hands. The caller parents and positions it.</summary>
         public void TakeByPlayer()
         {
+            transform.localScale = Vector3.one;
             ApplyHold(WeaponHold.HeldByPlayer, null);
         }
 
@@ -103,8 +108,8 @@ namespace OrbitalAnte.Weapons
         {
             State.CancelReload();
             SetMagazineVisible(true);
+            // It keeps the size it was held at (a big enemy's gun is a big gun) so it does not shrink as it falls.
             transform.SetParent(newParent, true);
-            transform.localScale = Vector3.one;
             ApplyHold(WeaponHold.Dropped, null);
             DroppedAt = Time.unscaledTime;
             Body.linearVelocity = velocity;
@@ -114,6 +119,8 @@ namespace OrbitalAnte.Weapons
         void ApplyHold(WeaponHold hold, IWeaponHolder holder)
         {
             Hold = hold;
+            _settling = false;
+            _laidDown = false;
             Holder = holder;
             Bounds b = _sockets.LocalBounds;
 
@@ -125,8 +132,8 @@ namespace OrbitalAnte.Weapons
                     _box.center = b.center;
                     _box.size = Vector3.Max(b.size, new Vector3(0.04f, 0.04f, 0.04f));
                     Body.isKinematic = false;
-                    Body.useGravity = true;
                     Body.interpolation = RigidbodyInterpolation.Interpolate;
+                    UseOwnPull(SolarSystem.Instance != null);
                     SetShadows(true);
                     break;
 
@@ -139,6 +146,7 @@ namespace OrbitalAnte.Weapons
                     _box.size = b.size * 1.15f + new Vector3(0.05f, 0.05f, 0.05f);
                     Body.isKinematic = true;
                     Body.interpolation = RigidbodyInterpolation.None;
+                    UseOwnPull(false);
                     SetShadows(true);
                     break;
 
@@ -147,10 +155,85 @@ namespace OrbitalAnte.Weapons
                     _box.enabled = false;
                     Body.isKinematic = true;
                     Body.interpolation = RigidbodyInterpolation.None;
+                    UseOwnPull(false);
                     // A gun floating in front of the camera should not cast a shadow on the floor.
                     SetShadows(false);
                     break;
             }
+        }
+
+        /// <summary>
+        /// A dropped gun falls toward the world it is on, the way the ship and the suit do, not toward the player's
+        /// "down" (in the arena, Unity's own gravity). If it sinks into ground that is only solid near the
+        /// player, it is laid on top and left still there, riding with the world, until somebody picks it up.
+        /// </summary>
+        void UseOwnPull(bool on)
+        {
+            if (on && _pull == null)
+            {
+                _pull = gameObject.AddComponent<GravityBody>();
+                _pull.SunkBelow = -0.8f;
+                _pull.PutBackAt = 0.15f;
+                _pull.Sank = _layDown ??= LayDown;
+            }
+            if (_pull != null && _pull.enabled != on) _pull.enabled = on;
+            Body.useGravity = !on;
+        }
+
+        void LayDown(Vector3 onTop, Transform world)
+        {
+            // Called while the solar system walks its loose objects: switching the pull off here would change that
+            // list, so the gun is only made still now and handed to the ground in the next Update.
+            Body.position = onTop;
+            transform.position = onTop;
+            Body.linearVelocity = Vector3.zero;
+            Body.angularVelocity = Vector3.zero;
+            Body.isKinematic = true;
+            _settling = true;
+            _settleOn = world;
+        }
+
+        bool _settling;
+        Transform _settleOn;
+        /// <summary>Lying still on ground that is not solid, riding with the world, until shot or picked up.</summary>
+        bool _laidDown;
+
+        void Update()
+        {
+            if (!_settling) return;
+            _settling = false;
+            if (Hold != WeaponHold.Dropped) return;
+            // Off the solar system's list, and onto the world, so it turns with the ground under it.
+            UseOwnPull(false);
+            Body.useGravity = false;
+            Body.interpolation = RigidbodyInterpolation.None;
+            // The world it sank into, so it turns and moves with that ground (never moved by the pull as well).
+            Transform world = _settleOn != null ? _settleOn : AI.CombatWorld.GroundParent;
+            _settleOn = null;
+            if (world != null) transform.SetParent(world, true);
+            _laidDown = true;
+        }
+
+        /// <summary>
+        /// Lies still where it was put, riding with its parent (a gun on show in a base): kinematic, not pulled,
+        /// not interpolated. Picking it up makes it an ordinary gun.
+        /// </summary>
+        public void HoldStill()
+        {
+            UseOwnPull(false);
+            Body.useGravity = false;
+            Body.isKinematic = true;
+            Body.interpolation = RigidbodyInterpolation.None;
+        }
+
+        /// <summary>A gun laid still on the ground is loose again: back under the drop parent and the pull.</summary>
+        void Loosen()
+        {
+            _laidDown = false;
+            if (AI.CombatWorld.DropParent != null) transform.SetParent(AI.CombatWorld.DropParent, true);
+            Body.isKinematic = false;
+            Body.interpolation = RigidbodyInterpolation.Interpolate;
+            UseOwnPull(SolarSystem.Instance != null);
         }
 
         void SetShadows(bool on)
@@ -189,6 +272,12 @@ namespace OrbitalAnte.Weapons
 
             if (Hold == WeaponHold.Dropped && Body != null)
             {
+                // A gun lying still on far ground moves again when shot, like any other.
+                if (_laidDown || _settling)
+                {
+                    _settling = false;
+                    Loosen();
+                }
                 // A loose gun skitters when shot.
                 Body.AddForceAtPosition(hit.Direction * 4f, hit.Point, ForceMode.VelocityChange);
             }

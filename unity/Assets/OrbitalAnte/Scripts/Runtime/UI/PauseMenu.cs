@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// The pause menu: Resume, Controls (rebinding), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
+    /// The pause menu: Resume, Run Stats (everything that is not on the HUD, 17 Nov 2026), Controls (rebinding), Audio (volumes), Feel (hitstop, shake and slow-mo toggles), Restart (same seed or new seed) and Quit (menu or desktop).
     /// Esc on keyboard or Start/Menu on a controller opens it. It pauses game time and audio, and every page
     /// works with keyboard, mouse or controller.
     /// </summary>
@@ -18,11 +18,14 @@ namespace OrbitalAnte.UI
         {
             None,
             Main,
+            Stats,
             Controls,
             Feel,
+            Audio,
             Restart,
             Quit,
             Confirm,
+            Died,
         }
 
         /// <summary>Restart the run. The argument is true to keep the current seed.</summary>
@@ -30,11 +33,19 @@ namespace OrbitalAnte.UI
         public Action QuitToMenuRequested;
         public Action QuitToDesktopRequested;
 
+        /// <summary>What the Run Stats page shows, built when it opens. Set by the game.</summary>
+        public Func<StatsSheet> StatsSource
+        {
+            get => _stats != null ? _stats.Source : null;
+            set { if (_stats != null) _stats.Source = value; }
+        }
+
         Canvas _canvas;
         readonly Dictionary<Page, GameObject> _pages = new Dictionary<Page, GameObject>();
         readonly Dictionary<Page, GameObject> _defaults = new Dictionary<Page, GameObject>();
         Page _current = Page.None;
         ControlsPage _controls;
+        StatsPage _stats;
 
         Text _seedLabel;
         Button _sameSeedButton;
@@ -54,9 +65,15 @@ namespace OrbitalAnte.UI
 
             BuildMain();
             BuildFeel();
+            BuildAudio();
             BuildRestart();
             BuildQuit();
+            BuildDied();
             BuildConfirm();
+
+            _stats = new StatsPage();
+            _stats.Build(_canvas.transform, () => Show(Page.Main));
+            _pages[Page.Stats] = _stats.Root;
 
             _controls = new ControlsPage();
             _controls.Build(_canvas.transform, this, () => Show(Page.Main));
@@ -82,7 +99,9 @@ namespace OrbitalAnte.UI
         {
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
+            UiKit.Button(card, "Run Stats", () => Show(Page.Stats));
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
+            UiKit.Button(card, "Audio", () => Show(Page.Audio));
             UiKit.Button(card, "Feel", () => Show(Page.Feel));
             UiKit.Button(card, "Restart", () => Show(Page.Restart));
             UiKit.Button(card, "Quit", () => Show(Page.Quit));
@@ -98,6 +117,37 @@ namespace OrbitalAnte.UI
             Toggle(card, "Camera shake", () => FeelSettings.CameraShake, v => FeelSettings.CameraShake = v);
             Toggle(card, "Slow-mo on headshot kills", () => FeelSettings.HeadshotSlowMo, v => FeelSettings.HeadshotSlowMo = v);
             UiKit.Button(card, "Back", () => Show(Page.Main));
+        }
+
+        /// <summary>Four volumes. Each button steps its volume up by a tenth and wraps round to silent, so it works the same with mouse, keys or a controller.</summary>
+        void BuildAudio()
+        {
+            var card = NewPage(Page.Audio, "AUDIO", 560f);
+            UiKit.LayoutLabel(card, "Press a volume to turn it up a step; after 10 it goes back to 0. Saved between sessions.", 17, UiKit.Cream, 48f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _defaults[Page.Audio] = Volume(card, "Master volume", Audio.AudioVolume.Master).gameObject;
+            Volume(card, "Music", Audio.AudioVolume.Music);
+            Volume(card, "Effects", Audio.AudioVolume.Effects);
+            Volume(card, "Radio and voices", Audio.AudioVolume.Dialogue);
+            UiKit.Button(card, "Back", () => Show(Page.Main));
+        }
+
+        static Button Volume(Transform parent, string label, Audio.AudioVolume which)
+        {
+            Button button = null;
+            string Describe()
+            {
+                int step = Mathf.RoundToInt(Audio.AudioPrefs.Get(which) * 10f);
+                return label + ":  " + new string('|', step) + new string('.', 10 - step) + "  " + step;
+            }
+            button = UiKit.Button(parent, string.Empty, () =>
+            {
+                int step = Mathf.RoundToInt(Audio.AudioPrefs.Get(which) * 10f) + 1;
+                if (step > 10) step = 0;
+                Audio.AudioPrefs.Set(which, step / 10f);
+                UiKit.ButtonText(button).text = Describe();
+            });
+            UiKit.ButtonText(button).text = Describe();
+            return button;
         }
 
         static Button Toggle(Transform parent, string label, Func<bool> get, Action<bool> set)
@@ -120,6 +170,42 @@ namespace OrbitalAnte.UI
             UiKit.Button(card, "Restart with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
             _defaults[Page.Restart] = UiKit.Button(card, "Cancel", () => Show(Page.Main)).gameObject;
         }
+
+        Text _diedCause;
+        Button _diedSameSeed;
+
+        /// <summary>
+        /// Shown when the pilot dies. Says what killed them in plain words, so the lesson is never hidden, and
+        /// offers the same choices as Restart. There is no way back into a run that has ended.
+        /// </summary>
+        void BuildDied()
+        {
+            var card = NewPage(Page.Died, "THAT WAS FATAL", 620f);
+            _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
+            _defaults[Page.Died] = _diedSameSeed.gameObject;
+            UiKit.Button(card, "Try again with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
+            UiKit.Button(card, "Quit to main menu", () => { Close(); QuitToMenuRequested?.Invoke(); });
+        }
+
+        /// <summary>Opens the menu on the page for a run that has ended in the pilot's death.</summary>
+        public void ShowDeath(string cause)
+        {
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            _diedCause.text = cause ?? string.Empty;
+            UiKit.ButtonText(_diedSameSeed).text = "Try again with the same seed (" + GameSession.Seed + ")";
+            Show(Page.Died);
+            // Nothing is chosen for a moment, so a button still held from the crash cannot skip the page.
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            _diedAt = Time.unscaledTime;
+        }
+
+        float _diedAt = -10f;
+        const float DiedHold = 0.8f;
 
         void BuildQuit()
         {
@@ -194,6 +280,11 @@ namespace OrbitalAnte.UI
             {
                 _controls.Open();
             }
+            else if (page == Page.Stats)
+            {
+                _stats.Open();
+                if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(_stats.DefaultSelection);
+            }
             else if (EventSystem.current != null && _defaults.TryGetValue(page, out GameObject first))
             {
                 EventSystem.current.SetSelectedGameObject(first);
@@ -213,6 +304,9 @@ namespace OrbitalAnte.UI
                     break;
                 case Page.Confirm:
                     Show(_confirmReturn);
+                    break;
+                case Page.Died:
+                    // The run is over: there is nothing to go back to.
                     break;
                 default:
                     Show(Page.Main);
@@ -240,6 +334,7 @@ namespace OrbitalAnte.UI
             }
 
             if (_current == Page.Controls) _controls.Tick();
+            if (_current == Page.Stats) _stats.Tick();
             KeepSomethingSelected();
         }
 
@@ -253,6 +348,7 @@ namespace OrbitalAnte.UI
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
             if (selected != null && selected.activeInHierarchy) return;
+            if (_current == Page.Died && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();
@@ -260,6 +356,7 @@ namespace OrbitalAnte.UI
 
             GameObject fallback = _current == Page.Controls
                 ? _controls.DefaultSelection
+                : _current == Page.Stats ? _stats.DefaultSelection
                 : (_defaults.TryGetValue(_current, out GameObject first) ? first : null);
             if (fallback != null) es.SetSelectedGameObject(fallback);
         }

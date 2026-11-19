@@ -19,6 +19,7 @@ namespace OrbitalAnte.Planets
         sealed class TileBuild
         {
             public ChunkData Chunk;
+            public List<Cave> RequiredCaves;
             public List<Placement> Scatter;
             public Vec3d[] ScatterPositions;
         }
@@ -28,12 +29,14 @@ namespace OrbitalAnte.Planets
             public int Face, Level, X, Y;
             /// <summary>Middle of the tile, in metres from the body's centre.</summary>
             public Vec3d Centre;
+            public Vec3d FootprintCentre;
             public Node[] Children;
             public GameObject Go;
             public Mesh Mesh;
             public MeshCollider Collider;
             public bool Solid;
             public bool HasMesh;
+            public List<Cave> RequiredCaves;
             public bool Shown;
             public bool Dead;
             public PlanetJobs.Handle Job;
@@ -114,11 +117,11 @@ namespace OrbitalAnte.Planets
         float _airRimStrength, _airRimShown;
         double _airRimShell;
         readonly List<PlanetJobs.Handle> _caveJobs = new List<PlanetJobs.Handle>();
+        readonly HashSet<Cave> _readyCaves = new HashSet<Cave>();
         readonly Stack<Node> _spare = new Stack<Node>();
         readonly List<Node> _scatterNodes = new List<Node>();
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
         Vec3d _viewer;
-        Vec3d _focus;
         float _solidRange;
         int _tick;
         int _bakesLeft;
@@ -241,7 +244,7 @@ namespace OrbitalAnte.Planets
             Weather = new WeatherModel(Profile, Body.Spec.id, SurfaceRadius, _seed);
             // The safety net sits under the lowest ground and the deepest cave.
             _safetyRadius = Math.Min(SurfaceRadius + Terrain.MinHeight, build.DeepestCave) - 30;
-            _ground = PlanetMaterials.Ground(Body.Spec.id);
+            _ground = PlanetMaterials.Ground(Body.Spec.id, Settings.groundRelief);
             _owned.Add(_ground);
             Features.SetTerrain(Terrain, PlacementPositions);
             if (!_pictureHeld) BeginPicture();
@@ -393,9 +396,49 @@ namespace OrbitalAnte.Planets
         /// </summary>
         public void Tick(Vec3d viewer, Vec3d focus, float focusSpeed)
         {
+            _onePoint[0] = focus;
+            Tick(viewer, _onePoint, 1, focusSpeed);
+        }
+
+        /// <summary>The most places at once that can ask for solid ground under them.</summary>
+        public const int GroundPointLimit = 4;
+        /// <summary>
+        /// A place that needs ground splits the tiles it is over (and little else) down to the finest, so what it
+        /// stands on has the same shape whether or not the player is there to see it.
+        /// </summary>
+        const double GroundPointSplit = 0.3;
+        readonly Vec3d[] _onePoint = new Vec3d[1];
+        readonly Vec3d[] _needGround = new Vec3d[GroundPointLimit];
+        readonly Vec3d[] _groundFootprints = new Vec3d[GroundPointLimit];
+        readonly int[] _groundFaces = new int[GroundPointLimit];
+        readonly int[] _groundX = new int[GroundPointLimit];
+        readonly int[] _groundY = new int[GroundPointLimit];
+        readonly double[] _groundAltitude = new double[GroundPointLimit];
+        int _needGroundCount;
+        /// <summary>How many places need solid ground this frame (see <see cref="Tick(Vec3d, Vec3d[], int, float)"/>).</summary>
+        public int NeedGroundCount => _needGroundCount;
+        /// <summary>One of the places that need solid ground, in the body's own space.</summary>
+        public Vec3d NeedGroundAt(int i) => _needGround[i];
+
+        /// <summary>
+        /// As above, for several places that need solid ground at once. The first is the focus; the rest are
+        /// things left behind that must not sink while the player is away (the parked ship).
+        /// </summary>
+        public void Tick(Vec3d viewer, Vec3d[] ground, int count, float focusSpeed)
+        {
             if (!Near) return;
             _viewer = viewer;
-            _focus = focus;
+            _needGroundCount = Math.Max(0, Math.Min(count, GroundPointLimit));
+            for (int g = 0; g < _needGroundCount; g++)
+            {
+                _needGround[g] = ground[g];
+                _groundAltitude[g] = ground[g].Magnitude - GroundRadius(ground[g].Normalized);
+                _groundFootprints[g] = ground[g].Normalized * SurfaceRadius;
+                CubeSphere.Locate(ground[g], out _groundFaces[g], out double u, out double v);
+                int side = 1 << MaxLevel;
+                _groundX[g] = Math.Min(side - 1, Math.Max(0, (int)((u + 1) * 0.5 * side)));
+                _groundY[g] = Math.Min(side - 1, Math.Max(0, (int)((v + 1) * 0.5 * side)));
+            }
             // Faster means solid ground is needed further ahead.
             _solidRange = Mathf.Min(Settings.solidGroundLimit, Mathf.Max(Settings.solidGroundRange, focusSpeed * 3f));
             _tick++;
@@ -408,7 +451,7 @@ namespace OrbitalAnte.Planets
             SetAirRim(_airRimStrength * fade * fade * (3f - 2f * fade));
 
             bool rootsReady = true;
-            for (int f = 0; f < _roots.Length; f++) rootsReady &= _roots[f].HasMesh;
+            for (int f = 0; f < _roots.Length; f++) rootsReady &= ReadyToShow(_roots[f]);
             if (!rootsReady) return;
             if (!GroundShown) ShowGround(true);
 
@@ -442,6 +485,11 @@ namespace OrbitalAnte.Planets
         {
             n.SeenTick = _tick;
             bool split = TileRules.WantsSplit(SurfaceRadius, n.Level, MaxLevel, n.Centre, _viewer, Settings.splitDistance, n.Children != null);
+            for (int g = 0; !split && g < _needGroundCount; g++)
+            {
+                split = n.Level < MaxLevel && (ContainsGround(n, g)
+                    || TileRules.WantsSplit(SurfaceRadius, n.Level, MaxLevel, n.FootprintCentre, _groundFootprints[g], GroundPointSplit, n.Children != null));
+            }
             if (split)
             {
                 if (n.Children == null)
@@ -450,23 +498,33 @@ namespace OrbitalAnte.Planets
                     for (int c = 0; c < 4; c++) n.Children[c] = NewNode(n.Face, n.Level + 1, n.X * 2 + (c & 1), n.Y * 2 + (c >> 1));
                 }
                 bool ready = true;
-                for (int c = 0; c < 4; c++) ready &= n.Children[c].HasMesh;
+                for (int c = 0; c < 4; c++) ready &= ReadyToShow(n.Children[c]);
                 if (ready)
                 {
                     bool wasSolid = n.Shown && n.Solid;
-                    Show(n, false);
+                    // The ground under something is about to change shape (finer, with different heights). A
+                    // foot that ends up under the new surface would drop through it, so the world is told and
+                    // sets whatever stands here back on top.
+                    if (wasSolid && NearGround(n) <= 0 && _reshaped.Count < GroundPointLimit * (TileRules.DeepestLevel + 1) * 4) _reshaped.Add(n);
+                    // Prepare replacements before retiring the active support. A mesh being ready alone does
+                    // not make a tile solid, and a cave opening also needs its wall collider first.
                     for (int c = 0; c < 4; c++)
                     {
                         // Ground you are standing on must never stop being solid, even for one frame. Only the
                         // pieces right under the ship are done at once; the rest follow one a frame.
-                        if (wasSolid && !n.Children[c].Solid && NearFocus(n.Children[c], 25)) MakeSolid(n.Children[c]);
+                        if (wasSolid && !n.Children[c].Solid && NearGround(n.Children[c]) < 25) MakeSolid(n.Children[c]);
                         Refresh(n.Children[c]);
                     }
+                    Show(n, false);
                     return;
                 }
             }
             else if (n.Children != null)
             {
+                // The parent may never have needed a collider during the approach. Make it ready before
+                // releasing finer support, including when the normal one-tile budget has already been spent.
+                Show(n, true);
+                if (NearGround(n) < 25 && HasSolidDescendant(n)) MakeSolid(n);
                 for (int c = 0; c < 4; c++) Release(n.Children[c]);
                 n.Children = null;
             }
@@ -484,27 +542,151 @@ namespace OrbitalAnte.Planets
             n.Go.SetActive(shown);
         }
 
+        /// <summary>
+        /// Solid ground reaches this far round a thing left behind (the parked ship). The focus gets the full,
+        /// speed-driven range, because it is the one that may be arriving fast.
+        /// </summary>
+        const double LeftBehindRange = 30;
+
+        bool ContainsGround(Node n, int ground)
+        {
+            int shift = MaxLevel - n.Level;
+            return n.Face == _groundFaces[ground] && n.X == (_groundX[ground] >> shift) && n.Y == (_groundY[ground] >> shift);
+        }
+
+        double FootprintDistance(Node n, int ground)
+        {
+            return Vec3d.Distance(n.FootprintCentre, _groundFootprints[ground]) - TileRules.Reach(SurfaceRadius, n.Level);
+        }
+
+        bool ReadyToShow(Node n)
+        {
+            if (!n.HasMesh) return false;
+            if (n.RequiredCaves == null) return true;
+            for (int c = 0; c < n.RequiredCaves.Count; c++)
+                if (!_readyCaves.Contains(n.RequiredCaves[c])) return false;
+            return true;
+        }
+
+        static bool HasSolidDescendant(Node n)
+        {
+            if (n.Children == null) return n.Shown && n.Solid;
+            for (int c = 0; c < n.Children.Length; c++)
+                if (HasSolidDescendant(n.Children[c])) return true;
+            return false;
+        }
+
         void UpdateSolid(Node n)
         {
-            double distance = Vec3d.Distance(n.Centre, _focus) - TileRules.Reach(SurfaceRadius, n.Level);
+            bool wanted = false, kept = false, under = false;
+            for (int g = 0; g < _needGroundCount; g++)
+            {
+                double distance = Math.Max(FootprintDistance(n, g), _groundAltitude[g]);
+                double range = g == 0 ? _solidRange : LeftBehindRange;
+                wanted |= distance <= range;
+                kept |= distance <= range * 1.6 + 40;
+                under |= distance < 12 || (_groundAltitude[g] <= range && ContainsGround(n, g));
+            }
             if (!n.Solid)
             {
-                if (distance > _solidRange) return;
-                // One new solid tile a frame keeps the cost even (one extra if the ship is right on top of it).
-                if (_bakesLeft <= (distance < 12 ? -1 : 0)) return;
-                _bakesLeft--;
+                if (!wanted) return;
+                // One new solid tile a frame keeps the cost even. Ground right under something is never made to
+                // wait its turn: a tile that is late there is a hole to fall through.
+                if (!under)
+                {
+                    if (_bakesLeft <= 0) return;
+                    _bakesLeft--;
+                }
                 MakeSolid(n);
             }
-            else if (distance > _solidRange * 1.6f + 40)
+            else if (!kept)
             {
                 n.Collider.enabled = false;
                 n.Solid = false;
             }
         }
 
-        bool NearFocus(Node n, double margin)
+        /// <summary>How far a tile's edge is from the nearest place that needs solid ground (0 or less: under it).</summary>
+        double NearGround(Node n)
         {
-            return Vec3d.Distance(n.Centre, _focus) - TileRules.Reach(SurfaceRadius, n.Level) < margin;
+            double nearest = double.MaxValue;
+            for (int g = 0; g < _needGroundCount; g++)
+            {
+                double range = g == 0 ? _solidRange : LeftBehindRange;
+                if (_groundAltitude[g] > range) continue;
+                nearest = Math.Min(nearest, FootprintDistance(n, g));
+                if (ContainsGround(n, g)) nearest = Math.Min(nearest, 0);
+            }
+            return nearest;
+        }
+
+        readonly List<Node> _reshaped = new List<Node>();
+
+        /// <summary>
+        /// True once if solid ground at this point (metres from the body's centre) was swapped for a finer shape
+        /// since the last time anyone asked. Call <see cref="ForgetReshaped"/> after asking for every mover.
+        /// </summary>
+        public bool ReshapedUnder(Vec3d point)
+        {
+            for (int i = 0; i < _reshaped.Count; i++)
+            {
+                Node n = _reshaped[i];
+                if (TerrainCollision.ContainsDirection(n.Face, n.Level, n.X, n.Y, point)) return true;
+            }
+            return false;
+        }
+
+        public bool AnyReshaped => _reshaped.Count > 0;
+        public void ForgetReshaped() => _reshaped.Clear();
+
+        /// <summary>
+        /// True if the ground showing under a point is solid and in its finest shape, so its real height is
+        /// what <see cref="GroundRadius"/> says. Coarser ground can be metres off.
+        /// </summary>
+        public bool FineSolidAt(Vec3d point)
+        {
+            Node n = SupportingNode(point);
+            return n != null && n.Shown && n.Solid && n.Level >= MaxLevel;
+        }
+
+        public bool SolidAt(Vec3d point)
+        {
+            Node n = SupportingNode(point);
+            return n != null && n.Shown && n.Solid;
+        }
+
+        Node SupportingNode(Vec3d point)
+        {
+            if (!GroundShown || _roots == null || point.SqrMagnitude < 1e-12) return null;
+            CubeSphere.Locate(point, out int face, out double u, out double v);
+            Node n = _roots[face];
+            while (n != null && !n.Shown && n.Children != null)
+            {
+                int cells = 1 << (n.Level + 1);
+                int x = Math.Min(cells - 1, Math.Max(0, (int)((u + 1) * 0.5 * cells)));
+                int y = Math.Min(cells - 1, Math.Max(0, (int)((v + 1) * 0.5 * cells)));
+                n = n.Children[(x & 1) | ((y & 1) << 1)];
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// Makes the ground showing at a point (metres from the body's centre) solid now. Used when something
+        /// has just been put back on top of the ground, so it cannot fall straight back in.
+        /// </summary>
+        public void MakeSolidAt(Vec3d point)
+        {
+            if (!GroundShown) return;
+            for (int f = 0; f < _roots.Length; f++) MakeSolidAt(_roots[f], point);
+        }
+
+        void MakeSolidAt(Node n, Vec3d point)
+        {
+            if (n == null || (!TerrainCollision.ContainsDirection(n.Face, n.Level, n.X, n.Y, point)
+                && TerrainCollision.FootprintDistance(SurfaceRadius, n.Face, n.Level, n.X, n.Y, point) > 2)) return;
+            if (n.Shown && n.HasMesh) { if (!n.Solid) MakeSolid(n); return; }
+            if (n.Children == null) return;
+            for (int c = 0; c < 4; c++) MakeSolidAt(n.Children[c], point);
         }
 
         void MakeSolid(Node n)
@@ -526,6 +708,7 @@ namespace OrbitalAnte.Planets
             n.Y = y;
             n.Dead = false;
             n.HasMesh = false;
+            n.RequiredCaves = null;
             n.Shown = false;
             n.Solid = false;
             n.Children = null;
@@ -534,6 +717,7 @@ namespace OrbitalAnte.Planets
             n.ScatterOut = false;
             n.SeenTick = 0;
             Vec3d dir = TerrainMesher.TileCentre(face, level, x, y);
+            n.FootprintCentre = dir * SurfaceRadius;
             n.Centre = dir * (SurfaceRadius + Terrain.CoarseHeight(dir));
 
             PlanetTerrain terrain = Terrain;
@@ -554,6 +738,23 @@ namespace OrbitalAnte.Planets
         static TileBuild BuildTile(PlanetTerrain terrain, int face, int level, int x, int y, bool cut, bool scatter, bool linear)
         {
             var build = new TileBuild { Chunk = TerrainMesher.Build(terrain, face, level, x, y, cut) };
+            if (build.Chunk.HasHole)
+            {
+                build.RequiredCaves = new List<Cave>();
+                for (int c = 0; c < terrain.Caves.Count; c++)
+                {
+                    Cave cave = terrain.Caves[c];
+                    for (int m = 0; m < cave.Mouths.Length; m++)
+                    {
+                        double distance = TerrainCollision.FootprintDistance(terrain.Radius, face, level, x, y, cave.Mouths[m]);
+                        if (distance > cave.MouthRadius + build.Chunk.CellSize * 2) continue;
+                        build.RequiredCaves.Add(cave);
+                        break;
+                    }
+                }
+                // Fail closed if a future hole kind cannot be associated with the current mouth bounds.
+                if (build.RequiredCaves.Count == 0) build.RequiredCaves.AddRange(terrain.Caves);
+            }
             if (linear)
             {
                 float[] colors = build.Chunk.Colors;
@@ -610,6 +811,7 @@ namespace OrbitalAnte.Planets
             n.Mesh.SetColors(ColorBuffer);
             n.Mesh.SetTriangles(chunk.Triangles, 0, true);
             n.HasMesh = true;
+            n.RequiredCaves = build.RequiredCaves;
 
             if (build.Scatter != null && build.Scatter.Count > 0)
             {
@@ -689,6 +891,23 @@ namespace OrbitalAnte.Planets
             for (int i = 0; i < Terrain.Caves.Count; i++)
             {
                 Cave cave = Terrain.Caves[i];
+                if (cave.Network != null)
+                {
+                    // A whole network: blocks of wall and a box of light, put up over a few frames once worked out.
+                    // Patient and ordered by distance only: a network is seconds of work and is never waited for when
+                    // a run starts (the player cannot be inside one yet), so it never holds up the first ground.
+                    _caveJobs.Add(PlanetJobs.Run(() =>
+                    {
+                        var build = new CaveBuild
+                        {
+                            Chunks = CaveNetworkMesher.Build(cave.Network, terrain),
+                            Light = CaveLightVolume.Build(cave.Network, terrain),
+                        };
+                        if (linear) CaveNetworkView.ToLinear(build);
+                        return build;
+                    }, build => OnCaveNetwork(cave, build), () => (float)Vec3d.Distance(cave.Centres[0], _viewer), patient: true));
+                    continue;
+                }
                 _caveJobs.Add(PlanetJobs.Run(() =>
                 {
                     ShapeData shape = CaveMesher.Build(cave, terrain);
@@ -706,6 +925,7 @@ namespace OrbitalAnte.Planets
             // Caves still being built for this visit must not turn up during the next one as duplicates.
             for (int i = 0; i < _caveJobs.Count; i++) _caveJobs[i].Cancel();
             _caveJobs.Clear();
+            _readyCaves.Clear();
             for (int i = _detailRoot.childCount - 1; i >= 0; i--)
             {
                 GameObject child = _detailRoot.GetChild(i).gameObject;
@@ -795,6 +1015,49 @@ namespace OrbitalAnte.Planets
             // The Sun never reaches in here: the walls show only by the lamp and the little light that leaks in.
             AddRenderer(go, PlanetMaterials.VertexColour(Color.white, 0f));
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            _readyCaves.Add(cave);
+        }
+
+        void OnCaveNetwork(Cave cave, CaveBuild build)
+        {
+            if (this == null || !Near || Terrain == null) return;
+            // Only counted as there (safe for enemies) once its last block of wall is drawn; blocks are made solid near the player.
+            CaveNetworkView.Create(_detailRoot, this, cave, build, ready =>
+            {
+                if (this != null && Near) _readyCaves.Add(ready);
+            });
+        }
+
+        /// <summary>True once a cave's walls are up (a network's blocks are made solid as the player nears them).</summary>
+        public bool CaveReady(Cave cave) => _readyCaves.Contains(cave);
+
+        /// <summary>
+        /// For the debug readout: how far it is over the ground to the nearest way into a cave network on this body
+        /// (from the last place the ground was built round), or empty if this body has none. Watch it shrink.
+        /// </summary>
+        public string NearestNetworkForDebug()
+        {
+            if (Terrain == null || _viewer.SqrMagnitude < 1) return string.Empty;
+            Vec3d here = _viewer.Normalized;
+            double best = double.MaxValue;
+            foreach (Cave cave in Terrain.Caves)
+            {
+                if (cave.Network == null) continue;
+                foreach (CaveOpening o in cave.Network.Openings)
+                {
+                    double d = Vec3d.Distance(o.Direction, here) * SurfaceRadius;
+                    if (d < best) best = d;
+                }
+            }
+            if (best == double.MaxValue) return string.Empty;
+            return "   cave way in " + (best < 1000 ? best.ToString("0") + " m" : (best / 1000).ToString("0.0") + " km");
+        }
+
+        /// <summary>True once a cave network's walls are up and solid.</summary>
+        public bool NetworkReady(CaveNetwork network)
+        {
+            foreach (Cave cave in _readyCaves) if (cave.Network == network) return true;
+            return false;
         }
 
         static void AddRenderer(GameObject go, Material material)
@@ -844,18 +1107,7 @@ namespace OrbitalAnte.Planets
             for (int c = 0; c < Terrain.Caves.Count; c++)
             {
                 Cave cave = Terrain.Caves[c];
-                // The mouths are funnels wider than the tunnel itself.
-                for (int m = 0; m < cave.Mouths.Length; m++)
-                {
-                    Vec3d mouth = cave.Mouths[m] * point.Magnitude;
-                    double reach = cave.MouthRadius + CaveMesher.CollarReach + margin;
-                    if ((mouth - point).SqrMagnitude < reach * reach) return true;
-                }
-                for (int k = 0; k < cave.Centres.Length; k++)
-                {
-                    double reach = cave.Radii[k] * 1.2 + margin;
-                    if ((cave.Centres[k] - point).SqrMagnitude < reach * reach) return true;
-                }
+                if (_readyCaves.Contains(cave) && TerrainCollision.InsideCave(cave, point, margin)) return true;
             }
             return false;
         }

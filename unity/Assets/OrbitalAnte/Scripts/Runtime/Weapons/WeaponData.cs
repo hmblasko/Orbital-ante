@@ -21,6 +21,15 @@ namespace OrbitalAnte.Weapons
         public const string ResourceFolder = "Weapons";
         public const string RifleId = "Rifle";
         public const string PistolId = "Pistol";
+        public const string SmgId = "Smg";
+        public const string ShotgunId = "Shotgun";
+        public const string SniperId = "Sniper";
+        /// <summary>The rare found gun: kills with any hit, and now and then blows up in your hands.</summary>
+        public const string WildcardId = "Wildcard";
+        /// <summary>Faction A's guns (Milestone 13): the Scout's, the Line's and the Heavy's. Placeholder names.</summary>
+        public const string SmgAId = "SmgA";
+        public const string RifleAId = "RifleA";
+        public const string HeavyGunAId = "HeavyGunA";
 
         [Header("Identity")]
         [Tooltip("Name shown on the HUD. Placeholder until the real roster is named.")]
@@ -39,6 +48,14 @@ namespace OrbitalAnte.Weapons
         public float footDamage = 34f;
         [Tooltip("Damage to the player when an enemy fires this gun.")]
         public float playerDamage = 4f;
+
+        [Header("Rare guns")]
+        [Tooltip("Any hit on a living enemy kills it, wherever it lands (the head is destroyed too).")]
+        public bool oneHitKill = false;
+        [Tooltip("The chance, from 0 to 1, that a shot blows the gun up in the player's hands and kills them. 0.001 is 1 in 1,000.")]
+        [Range(0f, 1f)] public float backfireChance = 0f;
+        [Tooltip("A short warning shown when looking at this gun on the ground and while holding it. Empty for none.")]
+        public string pickupNote = "";
 
         [Header("Firing")]
         [Tooltip("Hold to fire. Off means one shot per trigger pull.")]
@@ -75,6 +92,8 @@ namespace OrbitalAnte.Weapons
 
         [Header("Look")]
         public WeaponShape placeholderShape = WeaponShape.Rifle;
+        [Tooltip("The game's own model for this gun: a file name in Resources/Models, without the ending. Leave empty to use the one for its shape (Rifle or Pistol).")]
+        public string modelFile = "";
         [Tooltip("Optional. Drag a model from Assets/ThirdParty/Weapons here to replace the placeholder shape.")]
         public GameObject modelPrefab;
         [Tooltip("Turn an imported model so its barrel points along blue (Z) and its top along green (Y).")]
@@ -90,8 +109,10 @@ namespace OrbitalAnte.Weapons
         public Color tracerColor = new Color(1f, 0.85f, 0.35f);
         public float muzzleFlashSize = 0.22f;
 
-        [Header("Sound (placeholder, generated)")]
-        [Tooltip("Lower is boomier.")]
+        [Header("Sound")]
+        [Tooltip("The audio event for this gun's shot, for example weapon.smg.shot. Leave empty to pick by shape.")]
+        public string shotEvent = "";
+        [Tooltip("Only for the old code-made fallback sound. Lower is boomier.")]
         public float shotPitch = 1f;
         public float shotVolume = 0.8f;
 
@@ -118,6 +139,8 @@ namespace OrbitalAnte.Weapons
             }
             if (recoilReturn < 0f || recoilReturn > 1f) problems.Add("recoil return must be between 0 and 1.");
             if (mass <= 0f) problems.Add("mass must be above zero.");
+            if (backfireChance < 0f || backfireChance > 1f) problems.Add("backfire chance must be between 0 and 1.");
+            if (backfireChance > 0f && string.IsNullOrEmpty(pickupNote)) problems.Add("a gun that can blow up must say so in its pickup note.");
         }
 
         public float DamageFor(BodyPartId id)
@@ -216,6 +239,185 @@ namespace OrbitalAnte.Weapons
             w.shotPitch = 1.6f;
             w.shotVolume = 0.65f;
             w.mass = 1.1f;
+            return w;
+        }
+
+        // ------------------------------------------------------------------ the enemy types' guns
+        // Each is the reason its carrier fights the way it does. Names are placeholders until Matthew picks them.
+
+        /// <summary>The Runner's gun: a spray of weak bullets from close in. Loud, inaccurate, empties fast.</summary>
+        public static WeaponData CreateSmgDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = SmgId;
+            w.shotEvent = "weapon.smg.shot";
+            w.displayName = "Buzz Gun (name TBD)";
+            w.twoHanded = false;
+            w.placeholderShape = WeaponShape.Pistol;
+            w.modelFile = SmgId;
+            w.headDamage = 22f; w.torsoDamage = 16f; w.upperArmDamage = 16f; w.forearmDamage = 16f;
+            w.handDamage = 18f; w.thighDamage = 16f; w.shinDamage = 17f; w.footDamage = 18f;
+            w.playerDamage = 2.5f;
+            w.automatic = true;
+            w.shotsPerSecond = 15f;
+            w.range = 60f;
+            w.baseSpread = 1.4f; w.spreadPerShot = 0.3f; w.maxBloom = 4.5f; w.bloomRecovery = 6f;
+            w.recoilPitch = 0.5f; w.recoilYaw = 0.5f;
+            w.magazineSize = 32; w.reloadSeconds = 1.5f;
+            w.oneHandSpreadMultiplier = 1.6f; w.oneHandRecoilMultiplier = 1.4f; w.oneHandReloadMultiplier = 1.8f;
+            w.tracerColor = new Color(1f, 0.6f, 0.25f);
+            w.muzzleFlashSize = 0.16f;
+            w.shotPitch = 1.9f; w.shotVolume = 0.55f;
+            w.mass = 1.8f;
+            return w;
+        }
+
+        /// <summary>The Bruiser's gun: a slow, wide laser blast that hurts badly up close and barely reaches far.</summary>
+        public static WeaponData CreateShotgunDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = ShotgunId;
+            w.shotEvent = "weapon.laser_shotgun.shot";
+            w.displayName = "Double Zapper (name TBD)";
+            w.twoHanded = true;
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = ShotgunId;
+            w.headDamage = 90f; w.torsoDamage = 80f; w.upperArmDamage = 70f; w.forearmDamage = 70f;
+            w.handDamage = 70f; w.thighDamage = 70f; w.shinDamage = 70f; w.footDamage = 70f;
+            w.playerDamage = 22f;
+            w.automatic = false;
+            w.shotsPerSecond = 1.1f;
+            w.range = 22f;
+            w.baseSpread = 4.5f; w.spreadPerShot = 1f; w.maxBloom = 6f; w.bloomRecovery = 5f;
+            w.recoilPitch = 3f; w.recoilYaw = 0.8f;
+            w.magazineSize = 2; w.reloadSeconds = 2.4f;
+            w.tracerColor = new Color(0.45f, 1f, 0.5f);
+            w.muzzleFlashSize = 0.34f;
+            w.shotPitch = 0.7f; w.shotVolume = 0.95f;
+            w.mass = 4.5f;
+            return w;
+        }
+
+        // ------------------------------------------------------------------ Faction A's guns
+        // Each borrows a model until Fable builds Faction A's own; what differs is how they fire.
+
+        /// <summary>The Scout's gun: lighter and more accurate than the Runner's, because the Scout's job is the flare, not the spray.</summary>
+        public static WeaponData CreateSmgADefaults()
+        {
+            WeaponData w = CreateSmgDefaults();
+            w.name = SmgAId;
+            w.displayName = "Scout Carbine (name TBD)";
+            w.shotsPerSecond = 11f;
+            w.baseSpread = 1.0f;
+            w.range = 70f;
+            w.tracerColor = new Color(1f, 0.45f, 0.3f);
+            w.shotPitch = 1.7f;
+            return w;
+        }
+
+        /// <summary>The Line's gun: a steady rifle a little slower and heavier than the AK-ish, built for long covering bursts.</summary>
+        public static WeaponData CreateRifleADefaults()
+        {
+            WeaponData w = CreateRifleDefaults();
+            w.name = RifleAId;
+            w.displayName = "Line Rifle (name TBD)";
+            w.modelFile = RifleId;
+            w.shotsPerSecond = 7f;
+            w.headDamage = 40f;
+            w.torsoDamage = 40f;
+            w.magazineSize = 40;
+            w.tracerColor = new Color(1f, 0.7f, 0.4f);
+            w.shotPitch = 0.9f;
+            return w;
+        }
+
+        /// <summary>
+        /// The Heavy's gun: spins up, then pours out a long, steady stream. It has the cell that glows through the
+        /// spin (the Shotgun model's CellGlow piece) until it has a model of its own.
+        /// </summary>
+        public static WeaponData CreateHeavyGunADefaults()
+        {
+            WeaponData w = CreateShotgunDefaults();
+            w.name = HeavyGunAId;
+            w.displayName = "Spinner (name TBD)";
+            w.shotEvent = "";
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = ShotgunId;
+            w.headDamage = 50f; w.torsoDamage = 50f; w.upperArmDamage = 50f; w.forearmDamage = 50f;
+            w.handDamage = 50f; w.thighDamage = 50f; w.shinDamage = 50f; w.footDamage = 50f;
+            w.playerDamage = 6.5f;
+            w.automatic = true;
+            w.shotsPerSecond = 6f;
+            w.range = 45f;
+            w.baseSpread = 1.6f; w.spreadPerShot = 0.15f; w.maxBloom = 3.5f; w.bloomRecovery = 6f;
+            w.recoilPitch = 0.6f; w.recoilYaw = 0.3f;
+            w.magazineSize = 40; w.reloadSeconds = 3f;
+            w.tracerColor = new Color(1f, 0.55f, 0.25f);
+            w.muzzleFlashSize = 0.3f;
+            w.shotPitch = 0.6f; w.shotVolume = 0.85f;
+            w.mass = 9f;
+            return w;
+        }
+
+        /// <summary>The Marksman's gun: one very accurate, very painful shot, then a long wait. It reaches a long way.</summary>
+        public static WeaponData CreateSniperDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = SniperId;
+            w.shotEvent = "weapon.sniper.shot";
+            w.displayName = "Long Shot (name TBD)";
+            w.twoHanded = true;
+            w.placeholderShape = WeaponShape.Rifle;
+            w.modelFile = SniperId;
+            w.headDamage = 200f; w.torsoDamage = 120f; w.upperArmDamage = 90f; w.forearmDamage = 90f;
+            w.handDamage = 90f; w.thighDamage = 90f; w.shinDamage = 90f; w.footDamage = 90f;
+            w.playerDamage = 25f;
+            w.automatic = false;
+            w.shotsPerSecond = 0.45f;
+            w.range = 400f;
+            w.baseSpread = 0.05f; w.spreadPerShot = 0.6f; w.maxBloom = 1.5f; w.bloomRecovery = 3f;
+            w.recoilPitch = 3.5f; w.recoilYaw = 0.3f;
+            w.magazineSize = 4; w.reloadSeconds = 2.8f;
+            w.oneHandSpreadMultiplier = 6f;
+            w.tracerColor = new Color(1f, 0.25f, 0.3f);
+            w.muzzleFlashSize = 0.3f;
+            w.shotPitch = 0.55f; w.shotVolume = 1f;
+            w.mass = 5.5f;
+            return w;
+        }
+
+        /// <summary>
+        /// The rare found gun (Matthew, 16 Nov 2026): one hit kills, and each shot has a 1 in 1,000 chance of
+        /// blowing up and killing you. A slow six-shooter, so the gamble is taken a shot at a time. Placeholder
+        /// name; it borrows the pistol's model until it has its own.
+        /// </summary>
+        public static WeaponData CreateWildcardDefaults()
+        {
+            var w = CreateInstance<WeaponData>();
+            w.name = WildcardId;
+            w.displayName = "Wildcard (name TBD)";
+            w.twoHanded = false;
+            w.placeholderShape = WeaponShape.Pistol;
+            w.modelFile = PistolId;
+            w.oneHitKill = true;
+            w.backfireChance = 0.001f;
+            w.pickupNote = "Kills in one hit. 1 in 1,000 shots blows up and kills you.";
+            // Damage only matters for what is not a living enemy (walls, the ship, loose pieces).
+            w.headDamage = 120f; w.torsoDamage = 60f; w.upperArmDamage = 60f; w.forearmDamage = 60f;
+            w.handDamage = 60f; w.thighDamage = 60f; w.shinDamage = 60f; w.footDamage = 60f;
+            w.playerDamage = 30f;
+            w.automatic = false;
+            w.shotsPerSecond = 1.4f;
+            w.range = 160f;
+            w.baseSpread = 0.15f; w.spreadPerShot = 0.8f; w.maxBloom = 2f; w.bloomRecovery = 4f;
+            w.recoilPitch = 3.2f; w.recoilYaw = 0.6f; w.recoilReturn = 0.7f; w.recoilRecovery = 12f;
+            w.magazineSize = 6; w.reloadSeconds = 2.2f;
+            w.oneHandSpreadMultiplier = 1.5f; w.oneHandRecoilMultiplier = 1.3f; w.oneHandReloadMultiplier = 1.8f;
+            w.tracerColor = new Color(1f, 0.82f, 0.2f);
+            w.muzzleFlashSize = 0.26f;
+            w.shotEvent = "weapon.handcannon.shot";
+            w.shotPitch = 0.8f; w.shotVolume = 0.95f;
+            w.mass = 1.6f;
             return w;
         }
 

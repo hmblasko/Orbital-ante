@@ -1,3 +1,4 @@
+using OrbitalAnte.Look;
 using UnityEngine;
 
 namespace OrbitalAnte.Planets
@@ -5,14 +6,15 @@ namespace OrbitalAnte.Planets
     /// <summary>
     /// The handful of numbers every planet shader shares: where the Sun is, how bright it and the surroundings
     /// are right now, the colour of the sky you are inside (the "veil" far-off things fade into), and the lamp.
-    /// Set once a frame; read by all four shaders.
+    /// Also the sky itself (colour overhead, colour at the horizon, sunset band, glow round the Sun) and the
+    /// strength of the painted style. Set once a frame; read by all the game's shaders through OA_Look.hlsl.
     /// </summary>
     public static class SkyGlobals
     {
         public static readonly Color SunColor = new Color(1f, 0.96f, 0.88f);
         public const float SunIntensity = 1.35f;
         /// <summary>A little fill light, so the night side of a planet is dark but not a black hole.</summary>
-        public static readonly Color SpaceAmbient = new Color(0.07f, 0.075f, 0.1f);
+        public static readonly Color SpaceAmbient = new Color(0.055f, 0.062f, 0.105f);
 
         static readonly int SunPositionId = Shader.PropertyToID("_OA_SunPosition");
         static readonly int SunColorId = Shader.PropertyToID("_OA_SunColor");
@@ -22,6 +24,16 @@ namespace OrbitalAnte.Planets
         static readonly int VeilId = Shader.PropertyToID("_OA_Veil");
         static readonly int LampPositionId = Shader.PropertyToID("_OA_LampPosition");
         static readonly int LampColorId = Shader.PropertyToID("_OA_LampColor");
+        static readonly int BeamPositionId = Shader.PropertyToID("_OA_BeamPosition");
+        static readonly int BeamDirectionId = Shader.PropertyToID("_OA_BeamDirection");
+        static readonly int BeamColorId = Shader.PropertyToID("_OA_BeamColor");
+        static readonly int SkyZenithId = Shader.PropertyToID("_OA_SkyZenith");
+        static readonly int SkyHorizonId = Shader.PropertyToID("_OA_SkyHorizon");
+        static readonly int SunsetId = Shader.PropertyToID("_OA_Sunset");
+        static readonly int SunGlowId = Shader.PropertyToID("_OA_SunGlow");
+        static readonly int SkyUpId = Shader.PropertyToID("_OA_SkyUp");
+        static readonly int HazeId = Shader.PropertyToID("_OA_Haze");
+        static readonly int FinishId = Shader.PropertyToID("_OA_Finish");
 
         /// <summary>Open space: full sunlight, a touch of fill light, no sky, no lamp.</summary>
         public static void Reset()
@@ -29,7 +41,32 @@ namespace OrbitalAnte.Planets
             Shader.SetGlobalVector(SunRawId, Linear(SunColor, SunIntensity));
             Shader.SetGlobalVector(SpaceAmbientId, Linear(SpaceAmbient, 1f));
             SetAir(SunColor * SunIntensity, SpaceAmbient, Color.black, 0f);
+            FlareColor = Color.black;
             SetLamp(Vector3.zero, 1f, Color.black);
+            SetBeam(Vector3.zero, Vector3.forward, 1f, 20f, 40f, Color.black, 0f);
+            SetSky(SkyLook.OpenSpace(1f), Vector3.zero, 0f);
+        }
+
+        public static Color ToColor(Rgb c) => new Color(c.R, c.G, c.B, 1f);
+        public static Rgb ToRgb(Color c) => new Rgb(c.r, c.g, c.b);
+
+        /// <summary>
+        /// The sky the viewer is under, which way is up there (zero in open space), and how thick the haze is
+        /// (one over the distance, in metres, at which things have all but faded out; 0 for none).
+        /// The strengths of the painted style come from the Look asset.
+        /// </summary>
+        public static void SetSky(SkyPalette sky, Vector3 up, float hazeThickness)
+        {
+            LookConfig look = LookConfig.Load();
+            Shader.SetGlobalVector(SkyZenithId, Linear(ToColor(sky.Zenith), 1f));
+            Shader.SetGlobalVector(SkyHorizonId, Linear(ToColor(sky.Horizon), 1f));
+            Shader.SetGlobalVector(SunsetId, Linear(ToColor(sky.Sunset), 1f));
+            Vector4 glow = Linear(ToColor(sky.Glow), 1f);
+            glow.w = sky.GlowStrength * look.sunGlow;
+            Shader.SetGlobalVector(SunGlowId, glow);
+            Shader.SetGlobalVector(SkyUpId, new Vector4(up.x, up.y, up.z, sky.SunsetAmount));
+            Shader.SetGlobalVector(HazeId, new Vector4(Mathf.Max(0f, hazeThickness), look.paint, look.rimLight, look.bounceLight));
+            Shader.SetGlobalVector(FinishId, new Vector4(look.shine, look.lightBand, 0f, 0f));
         }
 
         public static void SetSun(Vector3 position)
@@ -49,6 +86,35 @@ namespace OrbitalAnte.Planets
             Vector4 v = Linear(veil, 1f);
             v.w = Mathf.Clamp01(veilAmount);
             Shader.SetGlobalVector(VeilId, v);
+        }
+
+        /// <summary>
+        /// A second light for the ground and everything on it, such as the ship's engines at lift-off. The shaders
+        /// know one lamp, so whichever of this and the player's lamp is brighter is the one shown. Set the colour
+        /// to black when it is out.
+        /// </summary>
+        public static Vector3 FlarePosition;
+        public static float FlareReach = 1f;
+        public static Color FlareColor = Color.black;
+
+        /// <summary>
+        /// The ship's floodlights (Ship/ShipLightFx): a cone from <paramref name="position"/> pointing along
+        /// <paramref name="direction"/>, full in the middle out to <paramref name="innerDegrees"/> from its axis,
+        /// faded out by <paramref name="outerDegrees"/>, gone by <paramref name="reach"/> metres, of colour
+        /// <paramref name="color"/> at <paramref name="intensity"/> (kept apart so dimming is not bent by the colour
+        /// conversion). Intensity 0 when off: the shaders then skip it.
+        /// </summary>
+        public static void SetBeam(Vector3 position, Vector3 direction, float reach, float innerDegrees, float outerDegrees, Color color, float intensity)
+        {
+            Vector3 way = direction.sqrMagnitude > 1e-8f ? direction.normalized : Vector3.forward;
+            float outer = Mathf.Clamp(outerDegrees, 1f, 89f);
+            float inner = Mathf.Clamp(innerDegrees, 0f, outer - 0.5f);
+            float cosOuter = Mathf.Cos(outer * Mathf.Deg2Rad), cosInner = Mathf.Cos(inner * Mathf.Deg2Rad);
+            Shader.SetGlobalVector(BeamPositionId, new Vector4(position.x, position.y, position.z, 1f / Mathf.Max(1f, reach)));
+            Shader.SetGlobalVector(BeamDirectionId, new Vector4(way.x, way.y, way.z, cosOuter));
+            Vector4 c = Linear(color, Mathf.Max(0f, intensity));
+            c.w = 1f / Mathf.Max(1e-4f, cosInner - cosOuter);
+            Shader.SetGlobalVector(BeamColorId, c);
         }
 
         public static void SetLamp(Vector3 position, float reach, Color color)

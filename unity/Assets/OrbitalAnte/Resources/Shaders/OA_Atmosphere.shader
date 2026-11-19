@@ -33,8 +33,7 @@ Shader "OrbitalAnte/Atmosphere"
                 half _Limb;
             CBUFFER_END
 
-            float4 _OA_SunPosition;
-            half4 _OA_Veil;
+            #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
             struct Attributes
             {
@@ -69,8 +68,17 @@ Shader "OrbitalAnte/Atmosphere"
                 half inside = saturate(grazing / _Limb);
                 half outside = saturate((1.0 - grazing) / max(0.02, 1.0 - _Limb));
                 half rim = grazing < _Limb ? inside * inside * inside : outside * outside;
-                half day = saturate(dot(normal, toSun) * 1.6 + 0.35);
-                half3 color = _BaseColor.rgb * (rim * day * _Strength * (1.0 - _OA_Veil.a));
+                half facing = dot(normal, toSun);
+                half day = saturate(facing * 1.6 + 0.35);
+                // Along the line between day and night the air turns the colour of a sunset.
+                half dusk = saturate(1.0 - abs(facing + 0.05) * 3.2);
+                half brightness = dot(_BaseColor.rgb, half3(0.3, 0.5, 0.2));
+                half3 air = lerp(_BaseColor.rgb, half3(1.0, 0.52, 0.3) * (brightness * 1.5), dusk * 0.55);
+                // Looking toward the Sun through the rim, the air lights up.
+                half through = saturate(dot(-toEye, toSun));
+                through = through * through;
+                through = through * through;
+                half3 color = air * (rim * day * _Strength * (1.0 + 1.5 * through) * (1.0 - _OA_Veil.a));
                 return half4(color, 0.0);
             }
             ENDHLSL

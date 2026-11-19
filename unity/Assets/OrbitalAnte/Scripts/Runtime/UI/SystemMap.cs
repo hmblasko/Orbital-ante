@@ -91,6 +91,15 @@ namespace OrbitalAnte.UI
             return label;
         }
 
+        /// <summary>Asked before the map opens. If it says no, the map stays shut (and shuts if it was open).</summary>
+        public System.Func<bool> CanOpen;
+        /// <summary>The words to show when the map will not open.</summary>
+        public System.Func<string> WhyNot;
+        /// <summary>The last refusal, and when (unscaled time), for whoever shows notices.</summary>
+        public string Refused { get => _refused; private set { _refused = value; RefusedTime = Time.unscaledTime; } }
+        public float RefusedTime { get; private set; } = -100f;
+        string _refused = string.Empty;
+
         public void SetOpen(bool open)
         {
             if (_canvas == null || open == IsOpen) return;
@@ -129,7 +138,12 @@ namespace OrbitalAnte.UI
         {
             if (_system == null || _system.Model == null || GameInput.Asset == null || GameSession.Paused) return;
 
-            if (GameInput.ToggleMap.WasPressedThisFrame()) SetOpen(!IsOpen);
+            if (GameInput.ToggleMap.WasPressedThisFrame())
+            {
+                if (!IsOpen && CanOpen != null && !CanOpen()) Refused = WhyNot != null ? WhyNot() : string.Empty;
+                else SetOpen(!IsOpen);
+            }
+            else if (IsOpen && CanOpen != null && !CanOpen()) SetOpen(false);
             if (!IsOpen) return;
 
             // Zoom with forward and back. Each second of holding halves or doubles the view, roughly.

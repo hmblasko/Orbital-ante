@@ -39,3 +39,26 @@ Thumbs.db
 /Verification/Reports/**/*.png
 /Verification/Reports/.current-run.json
 /Verification/Reports/.last-run
+
+# ChatGPT handoff packets (tools/chatgpt/oa_handoff.py)
+/handoff/
+__pycache__/
+
+# Audio pipeline: rendered scratch files (the measurements the QA report quotes are kept)
+/tools/audio/build/*
+!/tools/audio/build/measurements.json
+!/tools/audio/build/demo/
+/tools/audio/build/demo/*
+!/tools/audio/build/demo/showcase_measurements.json
+!/tools/audio/build/demo/showcase.png
+!/tools/audio/build/demo/schedule.json
+__pycache__/
+tools/audio/sim/obj/
+tools/audio/sim/bin/
+tools/terrain_view/obj/
+tools/terrain_view/bin/
+*.ppm
+!/tools/audio/build/demo/thruster_preview.ogg
+!/tools/audio/build/demo/main_theme_long_way.ogg
+!/tools/audio/build/demo/music_preview_rally_house.ogg
+!/tools/audio/build/demo/solar_system_music_preview.ogg

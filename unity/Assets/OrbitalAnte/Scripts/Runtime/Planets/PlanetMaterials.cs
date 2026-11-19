@@ -20,6 +20,7 @@ namespace OrbitalAnte.Planets
         static readonly int FarBlendId = Shader.PropertyToID("_FarBlend");
         static readonly int SunAmountId = Shader.PropertyToID("_SunAmount");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
+        static readonly int OutdoorsId = Shader.PropertyToID("_Outdoors");
         static readonly int EmissionId = Shader.PropertyToID("_Emission");
         static readonly int VeilId = Shader.PropertyToID("_Veil");
         static readonly int TwoSidedId = Shader.PropertyToID("_TwoSided");
@@ -28,12 +29,19 @@ namespace OrbitalAnte.Planets
         static readonly int StrengthId = Shader.PropertyToID("_Strength");
         static readonly int LimbId = Shader.PropertyToID("_Limb");
         static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
+        static readonly int BoostId = Shader.PropertyToID("_Boost");
+        static readonly int PaintId = Shader.PropertyToID("_Paint");
+        static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
+        static readonly int GroundId = Shader.PropertyToID("_Ground");
+        static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
+        static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
 
         static bool _looked;
         static bool _simple;
-        static Shader _terrain, _body, _atmosphere, _water;
+        static Shader _terrain, _body, _atmosphere, _water, _sky, _model;
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
+        static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
 
         /// <summary>True when the ground is drawn with the game's own shader (far-picture blending, lamp, cave darkness).</summary>
         public static bool OwnTerrain { get { Look(); return _terrain != null; } }
@@ -53,7 +61,7 @@ namespace OrbitalAnte.Planets
         {
             _simple = false;
             _looked = false;
-            _terrain = _body = _atmosphere = _water = null;
+            _terrain = _body = _atmosphere = _water = _sky = _model = null;
             _vertexLit = _vertexUnlit = null;
             ClearVertexCache();
         }
@@ -65,6 +73,11 @@ namespace OrbitalAnte.Planets
                 if (m != null) Object.Destroy(m);
             }
             VertexCache.Clear();
+            foreach (Material m in ModelCache.Values)
+            {
+                if (m != null) Object.Destroy(m);
+            }
+            ModelCache.Clear();
         }
 
         public static void SetStrength(Material material, float strength)
@@ -80,10 +93,23 @@ namespace OrbitalAnte.Planets
             _body = _simple ? null : Find("OA_Body", "OrbitalAnte/Body");
             _atmosphere = _simple ? null : Find("OA_Atmosphere", "OrbitalAnte/Atmosphere");
             _water = _simple ? null : Find("OA_Water", "OrbitalAnte/Water");
+            _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
+            // Models fall back to the ground's shader (no shine) if theirs cannot be used, and go back to it when
+            // Shine is turned right down on the Look asset: the way out if the model shader misbehaves on a machine.
+            bool shineOff = OrbitalAnte.Look.LookConfig.Load().shine <= 0f;
+            _model = _simple || _terrain == null || shineOff ? null : Find("OA_Model", "OrbitalAnte/Model");
+            if (!_simple && _terrain != null && _model == null && !shineOff)
+            {
+                Debug.LogWarning("Orbital Ante: the model shader (OA_Model) could not be used on this machine, so models are drawn with the ground's shader and nothing shines.");
+            }
             if (!_simple && (_terrain == null || _body == null || _atmosphere == null || _water == null))
             {
                 Debug.LogWarning("Orbital Ante: one or more planet shaders could not be used on this machine, so Unity's standard shaders are standing in for them. " +
                                  "Ground " + Describe(_terrain) + ", far bodies " + Describe(_body) + ", air rim " + Describe(_atmosphere) + ", water " + Describe(_water) + ".");
+            }
+            if (!_simple && _sky == null)
+            {
+                Debug.LogWarning("Orbital Ante: the sky shader could not be used on this machine, so the sky is a plain colour.");
             }
         }
 
@@ -93,6 +119,10 @@ namespace OrbitalAnte.Planets
         {
             Shader shader = Resources.Load<Shader>("Shaders/" + file);
             if (shader == null) shader = Shader.Find(shaderName);
+#if UNITY_EDITOR
+            // A shader that failed to compile can still say it is supported; in the editor ask about errors too.
+            if (shader != null && UnityEditor.ShaderUtil.ShaderHasError(shader)) return null;
+#endif
             return shader != null && shader.isSupported ? shader : null;
         }
 
@@ -102,12 +132,15 @@ namespace OrbitalAnte.Planets
         /// The material for a body's ground tiles. With a far picture, distant ground blends into it, so what you
         /// see from orbit and what you see from a hilltop always agree.
         /// </summary>
-        public static Material Ground(string bodyId)
+        public static Material Ground(string bodyId, float relief = 1f)
         {
             Look();
             if (_terrain != null)
             {
-                return new Material(_terrain) { name = bodyId + " ground" };
+                var ground = new Material(_terrain) { name = bodyId + " ground" };
+                // Ground gets fine relief and its own break-up of colour; rocks and trees keep the painted one.
+                if (ground.HasProperty(GroundId)) ground.SetFloat(GroundId, Mathf.Clamp(relief, 0f, 1.5f));
+                return ground;
             }
             return new Material(VertexLitBase()) { name = bodyId + " ground" };
         }
@@ -123,11 +156,25 @@ namespace OrbitalAnte.Planets
         /// A shared material that shows a mesh's own colours multiplied by <paramref name="tint"/>. Used for rocks,
         /// trees and cave walls. <paramref name="sunlight"/> 0 is for things the Sun never reaches (cave walls).
         /// </summary>
-        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f)
+        /// <summary>
+        /// For surfaces whose light was worked out beforehand and stored in the mesh colours (the ship's cabin):
+        /// shows those colours times <paramref name="brightness"/> and nothing else. No sky light, lamp or fog.
+        /// </summary>
+        public static Material Baked(float brightness = 1f)
+        {
+            Material m = new Material(VertexColour(Color.white, 0f, Mathf.Clamp(brightness, 0f, 2f)));
+            m.name = "OA_Baked";
+            if (m.HasProperty(OutdoorsId)) m.SetFloat(OutdoorsId, 0f);
+            return m;
+        }
+
+        /// <param name="paintScale">1 for ground and rocks. Larger makes the painted patches smaller, for things held in the hand.</param>
+        public static Material VertexColour(Color tint, float sunlight = 1f, float glow = 0f, bool painted = true, float paintScale = 1f)
         {
             Look();
             Color32 c = tint;
-            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            long key = ((long)c.r << 40) | ((long)c.g << 32) | ((long)c.b << 24) | ((long)Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 12) | (long)Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) | (painted ? 0L : 1L << 50) | ((long)scaleKey << 52);
             if (VertexCache.TryGetValue(key, out Material cached) && cached != null) return cached;
 
             Material m;
@@ -137,6 +184,8 @@ namespace OrbitalAnte.Planets
                 m.SetColor(BaseColorId, tint);
                 m.SetFloat(SunAmountId, sunlight);
                 m.SetFloat(GlowId, glow);
+                m.SetFloat(PaintId, painted ? 1f : 0f);
+                m.SetFloat(PaintScaleId, scaleKey);
             }
             else if (sunlight < 0.5f || glow > 0.3f)
             {
@@ -153,6 +202,29 @@ namespace OrbitalAnte.Planets
             }
             m.name = "OA_Vertex_" + ColorUtility.ToHtmlStringRGB(tint);
             VertexCache[key] = m;
+            return m;
+        }
+
+        /// <summary>
+        /// The shared material the game's own models are drawn with: the mesh's colours under the shared light,
+        /// like <see cref="VertexColour"/>, plus shine where the model says a surface is smooth or bare metal
+        /// (see OA_Model.shader). If that shader cannot be used the ground's stands in, without the shine.
+        /// Shared: never change or destroy it.
+        /// </summary>
+        public static Material Model(float sunlight = 1f, float glow = 0f, float paintScale = 1f)
+        {
+            Look();
+            if (_model == null) return VertexColour(Color.white, sunlight, glow, true, paintScale);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            int key = (Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) << 16) | (Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) << 6) | scaleKey;
+            if (ModelCache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            var m = new Material(_model) { name = "OA_Model" };
+            m.SetColor(BaseColorId, Color.white);
+            m.SetFloat(SunAmountId, Mathf.Clamp01(sunlight));
+            m.SetFloat(GlowId, Mathf.Clamp(glow, 0f, 2f));
+            m.SetFloat(PaintId, 1f);
+            m.SetFloat(PaintScaleId, scaleKey);
+            ModelCache[key] = m;
             return m;
         }
 
@@ -189,7 +261,8 @@ namespace OrbitalAnte.Planets
         /// A material for a whole body seen from afar. <paramref name="emission"/> 1 is for the Sun;
         /// <paramref name="veil"/> is how completely a daytime sky hides it.
         /// </summary>
-        public static Material Body(string name, Texture picture, Color tint, float emission = 0f, float veil = 1f, bool twoSided = false)
+        /// <param name="boost">For things that shine by themselves: how much brighter than white, so they bloom.</param>
+        public static Material Body(string name, Texture picture, Color tint, float emission = 0f, float veil = 1f, bool twoSided = false, float boost = 1f)
         {
             Look();
             Material m;
@@ -200,6 +273,7 @@ namespace OrbitalAnte.Planets
                 m.SetFloat(EmissionId, emission);
                 m.SetFloat(VeilId, veil);
                 m.SetFloat(TwoSidedId, twoSided ? 1f : 0f);
+                m.SetFloat(BoostId, Mathf.Clamp(boost, 1f, 12f));
             }
             else
             {
@@ -222,6 +296,21 @@ namespace OrbitalAnte.Planets
             if (material == null) return;
             if (material.HasProperty(BaseColorId)) material.SetColor(BaseColorId, color);
             if (material.HasProperty(ColorId)) material.SetColor(ColorId, color);
+        }
+
+        /// <summary>The sky ball's material, or null if the sky shader is not available (the camera's plain background stands in).</summary>
+        public static Material Sky(float backdropStrength)
+        {
+            Look();
+            if (_sky == null) return null;
+            var m = new Material(_sky) { name = "OA_Sky (runtime)" };
+            m.SetFloat(BackdropStrengthId, backdropStrength);
+            return m;
+        }
+
+        public static void SetBackdrop(Material sky, Texture picture)
+        {
+            if (sky != null && picture != null && sky.HasProperty(BackdropId)) sky.SetTexture(BackdropId, picture);
         }
 
         /// <summary>The glowing rim of air seen from space, or null if the shader for it is not available.</summary>

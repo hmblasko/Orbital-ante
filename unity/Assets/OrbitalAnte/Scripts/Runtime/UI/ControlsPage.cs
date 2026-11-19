@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using UiNavigation = UnityEngine.UI.Navigation;
 
 namespace OrbitalAnte.UI
 {
@@ -35,7 +36,13 @@ namespace OrbitalAnte.UI
         string _group = GameInput.KeyboardMouseGroup;
         Button _tabKeyboard;
         Button _tabGamepad;
+        Button _resetButton;
+        Button _backButton;
+        ScrollRect _scroll;
+        RectTransform _viewport;
         RectTransform _list;
+        GameObject _scrolledSelection;
+        readonly Vector3[] _selectionCorners = new Vector3[4];
         Text _hint;
         readonly List<Row> _rows = new List<Row>();
 
@@ -81,16 +88,33 @@ namespace OrbitalAnte.UI
 
             _hint = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 26f, TextAnchor.MiddleCenter, FontStyle.Normal);
 
-            _list = UiKit.NewRect("Bindings", card);
-            // Tight rows: twelve of them have to fit on a Steam Deck screen.
+            // Keep the tabs and footer on the 800px reference screen as the action maps grow.
+            var scrollRoot = UiKit.NewRect("BindingsScroll", card);
+            UiKit.SetLayout(scrollRoot.gameObject, 480f);
+            UiKit.AddImage(scrollRoot, Color.clear, null, true);
+            _scroll = scrollRoot.gameObject.AddComponent<ScrollRect>();
+            _scroll.horizontal = false;
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
+            _viewport = UiKit.NewRect("Viewport", scrollRoot);
+            UiKit.Stretch(_viewport);
+            _viewport.gameObject.AddComponent<RectMask2D>();
+            _list = UiKit.NewRect("Bindings", _viewport);
+            _list.anchorMin = new Vector2(0f, 1f);
+            _list.anchorMax = Vector2.one;
+            _list.pivot = new Vector2(0.5f, 1f);
+            _list.sizeDelta = Vector2.zero;
             var listGroup = UiKit.VStack(_list, 4f, 0);
             listGroup.childForceExpandHeight = false;
+            var listFitter = _list.gameObject.AddComponent<ContentSizeFitter>();
+            listFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            _scroll.viewport = _viewport;
+            _scroll.content = _list;
 
             var footer = UiKit.NewRect("Footer", card);
             UiKit.HStack(footer, 12f).childForceExpandWidth = true;
             UiKit.SetLayout(footer.gameObject, 52f);
-            UiKit.Button(footer, "Reset to defaults", ResetCurrentGroup, 52f, 22);
-            UiKit.Button(footer, "Back", () => _onBack?.Invoke(), 52f, 22);
+            _resetButton = UiKit.Button(footer, "Reset to defaults", ResetCurrentGroup, 52f, 22);
+            _backButton = UiKit.Button(footer, "Back", () => _onBack?.Invoke(), 52f, 22);
 
             BuildPrompt(canvas);
             BuildConflict(canvas);
@@ -144,19 +168,55 @@ namespace OrbitalAnte.UI
             Root.SetActive(false);
         }
 
-        /// <summary>Called every frame while the page is open, so glyphs follow the controller that is plugged in.</summary>
+        /// <summary>Keeps controller glyphs current and a newly selected binding inside the viewport.</summary>
         public void Tick()
         {
             if (_group == GameInput.GamepadGroup && Glyphs.CurrentFamily != _shownFamily && !IsRebinding)
             {
                 RefreshTexts();
             }
+            KeepSelectedRowVisible();
+        }
+
+        void KeepSelectedRowVisible()
+        {
+            if (!Root.activeInHierarchy || IsRebinding || ConflictOpen)
+            {
+                _scrolledSelection = null;
+                return;
+            }
+
+            EventSystem es = EventSystem.current;
+            GameObject selected = es != null ? es.currentSelectedGameObject : null;
+            if (selected == _scrolledSelection) return;
+            _scrolledSelection = selected;
+            if (selected == null || !selected.activeInHierarchy || !selected.transform.IsChildOf(_list)) return;
+
+            // Only follow a new selection: wheel/drag scrolling must not snap back to an old one.
+            Canvas.ForceUpdateCanvases();
+            var selectedRect = selected.transform as RectTransform;
+            if (selectedRect == null) return;
+            selectedRect.GetWorldCorners(_selectionCorners);
+            float bottom = _viewport.InverseTransformPoint(_selectionCorners[0]).y;
+            float top = _viewport.InverseTransformPoint(_selectionCorners[1]).y;
+            Rect visible = _viewport.rect;
+            float shift = top > visible.yMax ? visible.yMax - top
+                : bottom < visible.yMin ? visible.yMin - bottom : 0f;
+            if (shift == 0f) return;
+
+            _scroll.StopMovement();
+            Vector2 position = _list.anchoredPosition;
+            position.y = Mathf.Clamp(position.y + shift, 0f, Mathf.Max(0f, _list.rect.height - visible.height));
+            _list.anchoredPosition = position;
         }
 
         void ShowGroup(string group)
         {
             _group = group;
             _lastRow = null;
+            _scrolledSelection = null;
+            _scroll.StopMovement();
+            _list.anchoredPosition = Vector2.zero;
 
             for (int i = 0; i < _rows.Count; i++)
             {
@@ -176,11 +236,51 @@ namespace OrbitalAnte.UI
             Tint(_tabKeyboard, group == GameInput.KeyboardMouseGroup);
             Tint(_tabGamepad, group == GameInput.GamepadGroup);
             RefreshTexts();
+            LinkNavigation();
 
             if (EventSystem.current != null)
             {
                 EventSystem.current.SetSelectedGameObject(DefaultSelection);
             }
+        }
+
+        void LinkNavigation()
+        {
+            Button tab = _group == GameInput.GamepadGroup ? _tabGamepad : _tabKeyboard;
+            Button first = null;
+            Button previous = null;
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                Button button = _rows[i].Button;
+                if (!button.interactable) continue;
+                if (first == null) first = button;
+                SetNavigation(button, previous != null ? previous : tab, _resetButton);
+                if (previous != null)
+                {
+                    UiNavigation links = previous.navigation;
+                    links.selectOnDown = button;
+                    previous.navigation = links;
+                }
+                previous = button;
+            }
+
+            // Automatic navigation can pick the fixed footer before an off-screen row.
+            SetNavigation(_tabKeyboard, null, first != null ? first : _resetButton, null, _tabGamepad);
+            SetNavigation(_tabGamepad, null, first != null ? first : _resetButton, _tabKeyboard);
+            SetNavigation(_resetButton, previous != null ? previous : tab, null, null, _backButton);
+            SetNavigation(_backButton, previous != null ? previous : tab, null, _resetButton);
+        }
+
+        static void SetNavigation(Selectable selectable, Selectable up, Selectable down, Selectable left = null, Selectable right = null)
+        {
+            selectable.navigation = new UiNavigation
+            {
+                mode = UiNavigation.Mode.Explicit,
+                selectOnUp = up,
+                selectOnDown = down,
+                selectOnLeft = left,
+                selectOnRight = right,
+            };
         }
 
         static void Tint(Button tab, bool active)

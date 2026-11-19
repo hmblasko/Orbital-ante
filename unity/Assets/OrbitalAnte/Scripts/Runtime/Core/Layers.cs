@@ -18,13 +18,25 @@ namespace OrbitalAnte.Core
         public const int CharacterBody = 11;
         /// <summary>Loose things lying in the world that can be shot and picked up, such as dropped weapons.</summary>
         public const int Item = 12;
+        /// <summary>
+        /// Vehicles the player drives (the moon rover). Solid to the ground, the ship, the player on foot, gibs and
+        /// dropped guns, but not to characters' bodies: people are run over, not driven into like walls (the rover
+        /// hurts them itself, see Rover/MoonRover). Not in <see cref="WorldMask"/>, so nothing stands on it or
+        /// takes cover behind it, and bullets pass through its open frame.
+        /// </summary>
+        public const int Vehicle = 13;
+        /// <summary>
+        /// Stand-ins that take enemy shots for the player where their own body is not (the rover's driver seat). Like
+        /// <see cref="Hitbox"/>, nothing collides with them; only enemy bullets see them.
+        /// </summary>
+        public const int Seat = 14;
 
         public const int WorldMask = 1 << Default;
         public const int ShootMask = (1 << Default) | (1 << Hitbox) | (1 << Gib) | (1 << Item);
         /// <summary>What an enemy's bullet can hit: the world and the player.</summary>
-        public const int EnemyShootMask = (1 << Default) | (1 << Player);
+        public const int EnemyShootMask = (1 << Default) | (1 << Player) | (1 << Seat);
 
-        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item" };
+        public static readonly string[] Names = { "Hitbox", "Gib", "Player", "CharacterBody", "Item", "Vehicle", "Seat" };
         public const int FirstNamedLayer = 8;
 
         public static void Configure()
@@ -32,6 +44,7 @@ namespace OrbitalAnte.Core
             for (int i = 0; i < 32; i++)
             {
                 Physics.IgnoreLayerCollision(Hitbox, i, true);
+                Physics.IgnoreLayerCollision(Seat, i, true);
             }
             // Gibs should never trip the player up or shove characters around.
             Physics.IgnoreLayerCollision(Gib, Player, true);
@@ -39,6 +52,7 @@ namespace OrbitalAnte.Core
             // Dropped weapons land on the world and on each other, but are never in anyone's way.
             Physics.IgnoreLayerCollision(Item, Player, true);
             Physics.IgnoreLayerCollision(Item, CharacterBody, true);
+            Physics.IgnoreLayerCollision(Vehicle, CharacterBody, true);
         }
 
         public static void SetLayerRecursively(GameObject root, int layer)

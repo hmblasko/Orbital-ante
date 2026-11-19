@@ -38,20 +38,33 @@ namespace OrbitalAnte.Weapons
         public static ShotResult FireFromPlayer(WeaponData data, Vector3 origin, Vector3 direction)
         {
             var result = new ShotResult { End = origin + direction * data.range };
-            if (!Physics.Raycast(origin, direction, out RaycastHit hit, data.range, Layers.ShootMask, QueryTriggerInteraction.Ignore))
+            bool hitSomething = Physics.Raycast(origin, direction, out RaycastHit hit, data.range, Layers.ShootMask, QueryTriggerInteraction.Ignore);
+            WeaponFx fx = WeaponFx.Instance;
+
+            // Fired inside a ship: the hull stops the bullet, even where the physics shape (solid from inside)
+            // would let it through. Glass and an open hatch well are left to the colliders.
+            Ship.Ship boarded = Ship.Ship.Boarded;
+            if (boarded != null && boarded.InteriorWall(origin, direction, out float wallDistance, out Vector3 wallPoint, out Vector3 wallNormal)
+                && wallDistance <= data.range && (!hitSomething || hit.distance > wallDistance + 0.02f))
             {
+                result.HitAnything = true;
+                result.End = wallPoint;
+                var wallHit = new HitInfo { Damage = data.torsoDamage, Point = wallPoint, Direction = direction, Normal = wallNormal };
+                result.Outcome = boarded.HitPart(boarded.CabinPart, wallHit);
+                if (fx != null) fx.Impact(wallPoint, wallNormal, boarded.transform);
+                if (result.Outcome.Hit) CombatEvents.RaisePlayerHit(result.Outcome);
                 return result;
             }
+            if (!hitSomething) return result;
 
             result.HitAnything = true;
             result.End = hit.point;
             result.Collider = hit.collider;
-            WeaponFx fx = WeaponFx.Instance;
 
             var target = hit.collider.GetComponentInParent<IHittable>();
             if (target == null)
             {
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
                 return result;
             }
 
@@ -63,6 +76,7 @@ namespace OrbitalAnte.Weapons
                 Point = hit.point,
                 Direction = direction,
                 Normal = hit.normal,
+                Lethal = data.oneHitKill,
             };
             result.Outcome = target.Hit(info);
 
@@ -99,6 +113,12 @@ namespace OrbitalAnte.Weapons
             result.Collider = hit.collider;
 
             var health = hit.collider.GetComponentInParent<PlayerHealth>();
+            if (health == null)
+            {
+                // The driver of the rover: their own body is not there, a stand-in collider is.
+                var link = hit.collider.GetComponent<HealthLink>();
+                if (link != null && link.Target != null) health = link.Target;
+            }
             if (health != null)
             {
                 result.HitPlayer = true;
@@ -107,7 +127,7 @@ namespace OrbitalAnte.Weapons
             else
             {
                 WeaponFx fx = WeaponFx.Instance;
-                if (fx != null) fx.Impact(hit.point, hit.normal);
+                if (fx != null) fx.Impact(hit.point, hit.normal, hit.collider);
             }
             return result;
         }

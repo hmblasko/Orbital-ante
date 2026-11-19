@@ -113,7 +113,8 @@ namespace OrbitalAnte.Space
                 bool star = spec.kind == BodyKind.Star;
                 Texture2D texture = plainStart ? null : PlanetTextures.Build(spec, spec.kind == BodyKind.Moon ? 192 : 384);
                 // The Sun shines by itself and still shows, paler, through a daytime sky.
-                renderer.sharedMaterial = PlanetMaterials.Body(spec.id, texture, plainStart ? body.MapColor : Color.white, star ? 1f : 0f, star ? 0.35f : 1f);
+                renderer.sharedMaterial = PlanetMaterials.Body(spec.id, texture, plainStart ? body.MapColor : Color.white, star ? 1f : 0f, star ? 0.35f : 1f,
+                    false, star ? OrbitalAnte.Look.LookConfig.Load().sunBrightness : 1f);
             }
 
             if (spec.ringOuterRadius > spec.ringInnerRadius && spec.ringInnerRadius > 0) body.BuildRings();

@@ -31,7 +31,7 @@ namespace OrbitalAnte.Tests
             PlanetSurface.PictureWidthForTests = 64;
             _root = new GameObject("SolarSystemTestRoot");
             _world = _root.AddComponent<SolarSystemWorld>();
-            _world.Build(4242);
+            _world.Build(4242, StartPlace.Orbit);
         }
 
         [TearDown]
@@ -136,7 +136,9 @@ namespace OrbitalAnte.Tests
             system.Place(_world.Craft.Gravity, above, system.States[earth].Velocity);
             yield return Steps(3);
             Assert.IsTrue(system.Frame.Rotating, "This close to the ground the world should turn with the planet.");
-            float expected = (float)(9.8 * system.Model.Spec(earth).radius * system.Model.Spec(earth).radius / (distance * distance));
+            // The pull at this height as the model works it out (it fades as 1 / distance near a world, see PullStrength).
+            float expected = (float)system.Model.PullStrength(earth, distance);
+            Assert.Greater(expected, 9.8f * 0.6f, "200 m up the pull should still be most of the ground's");
             Assert.AreEqual(expected, _world.Craft.Gravity.FeltGravity.magnitude, 1.5f);
             Vector3 down = (system.Bodies[earth].transform.position - _world.Craft.transform.position).normalized;
             Assert.Greater(Vector3.Dot(_world.Craft.Gravity.FeltGravity.normalized, down), 0.98f, "Down should be toward the centre.");

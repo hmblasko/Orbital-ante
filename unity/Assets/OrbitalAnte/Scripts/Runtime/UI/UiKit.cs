@@ -6,7 +6,7 @@ namespace OrbitalAnte.UI
 {
     /// <summary>
     /// Small helpers for building menus in code, with one shared chunky, warm, slightly goofy look.
-    /// (Placeholder styling: proper fonts and art come with the UI pass.)
+    /// The lettering is B612 (see <see cref="Font"/>).
     /// </summary>
     public static class UiKit
     {
@@ -24,25 +24,115 @@ namespace OrbitalAnte.UI
 
         public static readonly Vector2 ReferenceResolution = new Vector2(1280f, 800f);
 
-        static Font _font;
+        static Font _font, _bold;
         static Sprite _rounded;
         static Sprite _circle;
+        static Sprite _ring;
 
+        /// <summary>
+        /// The game's lettering: B612, drawn for aircraft cockpit screens to stay readable small, at a glance and
+        /// in poor light (SIL Open Font Licence, <c>Resources/Fonts</c>). Matthew asked on 15 Nov 2026 for text that is
+        /// "more interesting and easy to read". Falls back to Unity's own font if the file is missing.
+        /// </summary>
         public static Font Font
         {
             get
             {
                 if (_font != null) return _font;
-                try
-                {
-                    _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                }
-                catch (System.Exception)
-                {
-                    _font = null;
-                }
-                if (_font == null) _font = Font.CreateDynamicFontFromOSFont("Arial", 24);
+                _font = Resources.Load<Font>("Fonts/B612-Regular");
+                if (_font == null) _font = BuiltinFont();
                 return _font;
+            }
+        }
+
+        /// <summary>The bold cut of <see cref="Font"/>: a real bold face, not Unity's smeared fake one.</summary>
+        public static Font BoldFont
+        {
+            get
+            {
+                if (_bold != null) return _bold;
+                _bold = Resources.Load<Font>("Fonts/B612-Bold");
+                if (_bold == null) _bold = Font;
+                return _bold;
+            }
+        }
+
+        static Font BuiltinFont()
+        {
+            Font font = null;
+            try
+            {
+                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            catch (System.Exception)
+            {
+                font = null;
+            }
+            if (font == null) font = Font.CreateDynamicFontFromOSFont("Arial", 24);
+            return font;
+        }
+
+        /// <summary>
+        /// Gives a label the game's font in the asked-for style. Bold uses the bold file (with no fake bolding on
+        /// top), so always set a label's style through this, never through <c>fontStyle</c> alone.
+        /// </summary>
+        public static void SetStyle(Text label, FontStyle style)
+        {
+            bool bold = style == FontStyle.Bold || style == FontStyle.BoldAndItalic;
+            Font font = bold ? BoldFont : Font;
+            // With a real bold file, only the slant (if any) is left for Unity to add.
+            FontStyle rest = bold && BoldFont != Font
+                ? (style == FontStyle.BoldAndItalic ? FontStyle.Italic : FontStyle.Normal)
+                : style;
+            if (label.font != font) label.font = font;
+            if (label.fontStyle != rest) label.fontStyle = rest;
+        }
+
+        /// <summary>
+        /// A dark edge under a label so it reads over a bright sky or sand. <paramref name="outline"/> adds a thin
+        /// outline all round as well: kept for the big numbers, since it draws the text four more times.
+        /// </summary>
+        public static Text Halo(Text label, bool outline = false, float strength = 0.75f)
+        {
+            if (outline)
+            {
+                var edge = label.gameObject.AddComponent<Outline>();
+                edge.effectColor = new Color(0f, 0f, 0f, 0.45f * strength);
+                edge.effectDistance = new Vector2(1.2f, -1.2f);
+            }
+            var shadow = label.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.8f * strength);
+            shadow.effectDistance = new Vector2(1.5f, -2f);
+            return label;
+        }
+
+        /// <summary>A white ring, 1/8 of its radius thick, for the visor gauges' arcs (cut with Image.Type.Filled).</summary>
+        public static Sprite Ring
+        {
+            get
+            {
+                if (_ring != null) return _ring;
+                const int size = 256;
+                var tex = NewTexture(size);
+                var pixels = new Color32[size * size];
+                float outer = size * 0.5f - 1f;
+                float inner = outer * 0.875f;
+                float c = size * 0.5f;
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x + 0.5f - c, dy = y + 0.5f - c;
+                        float d = Mathf.Sqrt(dx * dx + dy * dy);
+                        float a = Mathf.Clamp01(outer - d + 0.5f) * Mathf.Clamp01(d - inner + 0.5f);
+                        pixels[y * size + x] = new Color(1f, 1f, 1f, a);
+                    }
+                }
+                tex.SetPixels32(pixels);
+                tex.Apply(false, true);
+                _ring = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+                _ring.name = "OA_Ring";
+                return _ring;
             }
         }
 
@@ -174,10 +264,9 @@ namespace OrbitalAnte.UI
         {
             var rt = NewRect("Label", parent);
             var label = rt.gameObject.AddComponent<Text>();
-            label.font = Font;
+            SetStyle(label, style);
             label.text = text;
             label.fontSize = size;
-            label.fontStyle = style;
             label.color = color;
             label.alignment = anchor;
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -234,9 +323,12 @@ namespace OrbitalAnte.UI
             Stretch((RectTransform)text.transform);
             SetLayout(rt.gameObject, height);
 
+            button.onClick.AddListener(ClickSound);
             if (onClick != null) button.onClick.AddListener(onClick);
             return button;
         }
+
+        static void ClickSound() => Audio.AudioDirector.PlayLocal("ui.select");
 
         public static Text ButtonText(Button button)
         {

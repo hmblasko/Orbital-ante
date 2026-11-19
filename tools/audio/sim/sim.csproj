@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the game's own audio rules (no Unity needed) over the five-minute showcase script and writes down
+       what would play and when. render_demo.py turns that record into an audio file. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <BaseOutputPath>../build/sim/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>../build/sim/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/MiniJson.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/AudioManifest.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/IntensityModel.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/MusicBrain.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/RewardRules.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/AcousticsModel.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/VoiceAllocator.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/MixMath.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/DemoTimeline.cs" />
+    <Compile Include="../../../unity/Assets/OrbitalAnte/Scripts/Runtime/Audio/DemoSimulator.cs" />
+  </ItemGroup>
+</Project>

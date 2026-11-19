@@ -31,7 +31,7 @@ namespace OrbitalAnte.Tests
             PlanetSurface.PictureWidthForTests = 64;
             _root = new GameObject("PlanetTestRoot");
             _world = _root.AddComponent<SolarSystemWorld>();
-            _world.Build(4242);
+            _world.Build(4242, StartPlace.Orbit);
         }
 
         [TearDown]
@@ -184,6 +184,31 @@ namespace OrbitalAnte.Tests
             GroundReading ground = _world.Planets.Read(moon.Body.Index, _world.Craft.Body.position);
             Assert.Greater(ground.AboveGround, 0, "The guard should have put the craft back above the ground.");
             Assert.Greater(_world.Planets.Rescues, 0);
+        }
+
+        [UnityTest]
+        public IEnumerator AShipHalfSunkInTheGroundIsStoodBackOnTop()
+        {
+            yield return Settle(3);
+            PlanetSurface moon = SurfaceOf("Moon");
+            Vec3d spot = GentleSpot(moon);
+            PlaceAbove("Moon", spot, 6);
+            _world.Craft.Body.isKinematic = true;   // hold it there while the finest ground arrives
+            Vec3d there = spot * moon.GroundRadius(spot);
+            for (int i = 0; i < 400 && !moon.FineSolidAt(there); i++) yield return null;
+            Assert.IsTrue(moon.FineSolidAt(there), "The ground under a craft 6 m up should become solid in its finest shape.");
+            _world.Craft.Body.isKinematic = false;
+            // The lander's origin is its cabin floor, 3.8 m above its feet: with the floor at ground level the
+            // whole underside is inside the Moon. It must not have to sink any further before it is rescued.
+            _world.Craft.Gravity.SunkBelow = 0.6f;
+            _world.Craft.Gravity.PutBackAt = 4.1f;
+            int before = _world.Planets.Rescues;
+            PlaceAbove("Moon", spot, 0.1);
+            yield return Steps(3);
+            GroundReading ground = _world.Planets.Read(moon.Body.Index, _world.Craft.Body.position);
+            Assert.Greater(_world.Planets.Rescues, before, "Sunk to the cabin floor should count as sunk.");
+            Assert.Greater(ground.AboveGround, 3.0, "It should have been put back at standing height.");
+            Assert.GreaterOrEqual(moon.SolidTiles, 1, "The ground it was put back on must be solid.");
         }
 
         [UnityTest]

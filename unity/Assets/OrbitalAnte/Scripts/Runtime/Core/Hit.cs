@@ -11,6 +11,10 @@ namespace OrbitalAnte.Core
         /// <summary>Normalised travel direction of the bullet.</summary>
         public Vector3 Direction;
         public Vector3 Normal;
+        /// <summary>Kills a living character wherever it lands (a one-hit-kill gun).</summary>
+        public bool Lethal;
+        /// <summary>A cut: an arm or leg part comes off whatever hit points it has left (see BodyModel.ApplySever).</summary>
+        public bool Sever;
     }
 
     /// <summary>What happened when something was hit, so the shooter can give feedback.</summary>
@@ -24,12 +28,21 @@ namespace OrbitalAnte.Core
         public bool HeadshotKill;
         /// <summary>A weapon was knocked out of someone's hands by this hit.</summary>
         public bool Disarmed;
+        /// <summary>The thing hit was a living enemy's body (not a ship, a rock or a loose piece).</summary>
+        public bool Enemy;
+        /// <summary>The part hit was a head (whether or not it killed).</summary>
+        public bool Head;
         /// <summary>
         /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
         /// </summary>
         public float Juice;
         /// <summary>Short label for the debug readout, for example "Left Shin".</summary>
         public string Label;
+        /// <summary>
+        /// When above zero, the freeze this hit asks for, in seconds, in place of the one worked out from
+        /// <see cref="Juice"/>. Melee swings set it (capped, and shorter when one swing hits several).
+        /// </summary>
+        public float HitstopSeconds;
     }
 
     public interface IHittable

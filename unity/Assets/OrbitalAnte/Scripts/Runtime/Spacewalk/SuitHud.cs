@@ -1,0 +1,337 @@
+using System.Text;
+using OrbitalAnte.Ship;
+using OrbitalAnte.UI;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace OrbitalAnte.Spacewalk
+{
+    /// <summary>
+    /// The suit's readout, shown only outside the ship (and for a moment aboard, while the tanks fill).
+    ///
+    /// Marked on the lower visor (Matthew, 15 Nov 2026, option A "Visor arcs"): air as an arc round its per cent
+    /// in the lower left, with the time left; the suit's armour as an arc of ten plates in the lower right. Jet
+    /// fuel is a small upright bar beside the air, then your speed and what it is measured against, and the
+    /// tether. One notice at a time above them. The lower corners of the view are shaded like the edge of a
+    /// helmet's glass, and the rim of the visor glows on the side a jet is burning.
+    /// </summary>
+    public sealed class SuitHud : MonoBehaviour
+    {
+        const float TextInterval = 0.12f;
+
+        Astronaut _astronaut;
+        SuitConfig _config;
+        Canvas _canvas;
+        RectTransform _panel;
+        Image _fuelFill;
+        Text _speed, _tether, _notice, _stance;
+        int _shownStance = -1;
+        OrbitalAnte.UI.VisorGauge _airGauge, _suitGauge;
+        readonly Image[] _shade = new Image[2];
+        Texture2D _shadeTexture;
+        Sprite _shadeSprite;
+        readonly Image[] _rim = new Image[4];
+        Texture2D _rimTexture, _whiteTexture;
+        Sprite _rimSprite, _whiteSprite;
+        float _nextText, _shownUntil;
+        int _airSecond = int.MinValue;
+        string _airLine = string.Empty;
+        int _shownSpeed = -1, _shownLine = -1, _fuelStep = -1, _noticeKey = -1, _againstKey = -1;
+        string _shownAgainst = string.Empty, _shownNotice = string.Empty;
+        readonly StringBuilder _text = new StringBuilder(48);
+
+        public bool Shown => _panel != null && _panel.gameObject.activeSelf;
+        public string NoticeShown => _shownNotice;
+
+        public void Build(Astronaut astronaut, SuitConfig config)
+        {
+            _astronaut = astronaut;
+            _config = config;
+            _canvas = UiKit.CreateCanvas("SuitHUD", transform, 9);
+            _canvas.GetComponent<GraphicRaycaster>().enabled = false;
+
+            // The visor's rim: a soft band of jet light along each edge of the view.
+            _rimTexture = new Texture2D(1, 32, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "VisorRim" };
+            var pixels = new Color32[32];
+            for (int i = 0; i < 32; i++)
+            {
+                float t = 1f - i / 31f;
+                pixels[i] = new Color(1f, 1f, 1f, t * t * t);
+            }
+            _rimTexture.SetPixels32(pixels);
+            _rimTexture.Apply(false, true);
+            _rimSprite = Sprite.Create(_rimTexture, new Rect(0f, 0f, 1f, 32f), new Vector2(0.5f, 0f), 32f);
+            // Bottom, top, left, right. The sprite is brightest along its own bottom edge.
+            float[] turn = { 0f, 180f, -90f, 90f };
+            Vector2[] edge = { new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f) };
+            for (int i = 0; i < 4; i++)
+            {
+                RectTransform rt = UiKit.NewRect("Rim" + i, _canvas.transform);
+                bool sideways = i >= 2;
+                // Fixed by the middle of its bright edge to the middle of a screen edge, then turned to face inward.
+                rt.anchorMin = rt.anchorMax = edge[i];
+                rt.pivot = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = Vector2.zero;
+                Vector2 screen = UiKit.ReferenceResolution;
+                // Long enough to span the screen whichever way the canvas is scaled.
+                rt.sizeDelta = new Vector2((sideways ? screen.y : screen.x) * 1.6f, 90f);
+                rt.localRotation = Quaternion.Euler(0f, 0f, turn[i]);
+                // Coloured once; its brightness is then set on the renderer, which does not rebuild the canvas.
+                _rim[i] = UiKit.AddImage(rt, _config.jetColour, _rimSprite);
+                _rim[i].type = Image.Type.Simple;
+                _rim[i].enabled = false;
+            }
+
+            BuildShade();
+
+            // Air, lower left, and the suit's armour, lower right: the two visor gauges.
+            _airGauge = OrbitalAnte.UI.VisorGauge.Build(_canvas.transform, true, "AIR", OrbitalAnte.UI.VisorGauge.Air, 230f, 110f);
+            // 380 in from the right, as in the arena, so the gun's readout fits outside it (17 Nov 2026).
+            _suitGauge = OrbitalAnte.UI.VisorGauge.Build(_canvas.transform, false, "SUIT", UiKit.Cream, 380f, 110f);
+            _airGauge.SetActive(false);
+            _suitGauge.SetActive(false);
+
+            _panel = UiKit.NewRect("Suit", _canvas.transform);
+            UiKit.Pin(_panel, new Vector2(0f, 0f), new Vector2(26f, 26f), new Vector2(700f, 86f));
+
+            // Jet fuel: an upright bar that drains downward, just outside the air arc.
+            RectTransform barBack = UiKit.NewRect("JetsBack", _panel);
+            UiKit.Pin(barBack, new Vector2(0f, 0.5f), new Vector2(54f, 6f), new Vector2(18f, 76f));
+            UiKit.AddImage(barBack, new Color(0f, 0f, 0f, 0.55f), UiKit.Rounded);
+            RectTransform fill = UiKit.NewRect("Jets", barBack);
+            fill.anchorMin = new Vector2(0f, 0f);
+            fill.anchorMax = new Vector2(1f, 1f);
+            fill.offsetMin = new Vector2(3f, 3f);
+            fill.offsetMax = new Vector2(-3f, -3f);
+            _fuelFill = UiKit.AddImage(fill, Color.white);
+            _fuelFill.type = Image.Type.Filled;
+            _fuelFill.fillMethod = Image.FillMethod.Vertical;
+            _fuelFill.fillOrigin = (int)Image.OriginVertical.Bottom;
+            // A filled image needs a sprite to cut, and a plain one, or its rounded corners would stretch.
+            _whiteTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "SuitBar" };
+            _whiteTexture.SetPixels32(new[] { (Color32)Color.white, (Color32)Color.white, (Color32)Color.white, (Color32)Color.white });
+            _whiteTexture.Apply(false, true);
+            _whiteSprite = Sprite.Create(_whiteTexture, new Rect(0f, 0f, 2f, 2f), new Vector2(0.5f, 0.5f), 2f);
+            _fuelFill.sprite = _whiteSprite;
+            Text jetName = UiKit.Halo(UiKit.Label(_panel, "JETS", 13, UiKit.Muted));
+            UiKit.Pin((RectTransform)jetName.transform, new Vector2(0f, 1f), new Vector2(40f, 18f), new Vector2(46f, 16f));
+
+            // Speed and tether: to the right of the air gauge's words.
+            _speed = UiKit.Halo(UiKit.Label(_panel, string.Empty, 20, UiKit.Cream, TextAnchor.MiddleLeft));
+            UiKit.Pin((RectTransform)_speed.transform, new Vector2(0f, 0.5f), new Vector2(380f, 14f), new Vector2(320f, 26f));
+            _tether = UiKit.Halo(UiKit.Label(_panel, string.Empty, 16, UiKit.Muted, TextAnchor.MiddleLeft, FontStyle.Normal));
+            UiKit.Pin((RectTransform)_tether.transform, new Vector2(0f, 0.5f), new Vector2(380f, -14f), new Vector2(320f, 22f));
+
+            // How you are holding yourself on foot, so a sneak (which a part-pushed stick starts by itself) is never
+            // a hidden state. Blank when simply standing.
+            _stance = UiKit.Halo(UiKit.Label(_panel, string.Empty, 18, UiKit.Cream, TextAnchor.MiddleLeft));
+            UiKit.Pin((RectTransform)_stance.transform, new Vector2(0f, 0.5f), new Vector2(100f, 0f), new Vector2(270f, 26f));
+            _notice = UiKit.Halo(UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge));
+            UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 0f), new Vector2(0f, 168f), new Vector2(900f, 32f));
+            _panel.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// The edge of the helmet's glass: a soft dark shade in each lower corner of the view, so the gauges sit
+        /// on something darker than a bright sky. Two corner pieces rather than one full-screen sheet, to keep
+        /// the Deck's fill cost small.
+        /// </summary>
+        void BuildShade()
+        {
+            const int w = 64, h = 40;
+            _shadeTexture = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "VisorShade" };
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    // Darkest in the lower-left corner of the picture, fading out along an ellipse.
+                    float u = (x + 0.5f) / w, v = (y + 0.5f) / h;
+                    float d = Mathf.Sqrt(u * u + v * v);
+                    float a = Mathf.Clamp01(1f - d);
+                    px[y * w + x] = new Color(0.04f, 0.03f, 0.03f, a * a * (3f - 2f * a));
+                }
+            }
+            _shadeTexture.SetPixels32(px);
+            _shadeTexture.Apply(false, true);
+            _shadeSprite = Sprite.Create(_shadeTexture, new Rect(0f, 0f, w, h), new Vector2(0f, 0f), 100f, 0, SpriteMeshType.FullRect);
+            for (int i = 0; i < 2; i++)
+            {
+                RectTransform rt = UiKit.NewRect(i == 0 ? "ShadeLeft" : "ShadeRight", _canvas.transform);
+                Vector2 corner = new Vector2(i, 0f);
+                UiKit.Pin(rt, corner, Vector2.zero, new Vector2(440f, 270f));
+                // Both turn about their darkest corner, which sits in the screen's corner; the right one is the
+                // left one mirrored about it.
+                rt.pivot = Vector2.zero;
+                rt.anchoredPosition = Vector2.zero;
+                if (i == 1) rt.localScale = new Vector3(-1f, 1f, 1f);
+                _shade[i] = UiKit.AddImage(rt, new Color(1f, 1f, 1f, _config.visorShade), _shadeSprite);
+                _shade[i].type = Image.Type.Simple;
+                _shade[i].enabled = false;
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (_astronaut == null || _panel == null) return;
+            SuitInputs s = _astronaut.SuitState;
+            bool outside = _astronaut.Mode == AstronautMode.Outside;
+            // Driving the rover you are still in the open in the suit: air and armour show, the jet panel does not.
+            bool open = _astronaut.InTheOpen;
+            float now = Time.unscaledTime;
+            // Aboard, it stays a moment while the tanks fill, so you see the suit drink from the ship.
+            if (open || _astronaut.SuitTanks.Filling || s.AirLow) _shownUntil = now + 1.5f;
+            bool show = !_astronaut.Dead && now < _shownUntil && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen;
+            bool panel = show && _astronaut.Mode != AstronautMode.Driving;
+            if (_panel.gameObject.activeSelf != panel) _panel.gameObject.SetActive(panel);
+            _airGauge.SetActive(show);
+            // The armour only counts in the open, where you can be shot.
+            bool armourShown = show && open && _astronaut.Armour != null;
+            _suitGauge.SetActive(armourShown);
+            bool shade = show && open && _config.visorShade > 0.001f;
+            for (int i = 0; i < 2; i++) if (_shade[i].enabled != shade) _shade[i].enabled = shade;
+
+            Rim(outside && show);
+            if (!show)
+            {
+                if (_shownNotice.Length > 0) { _shownNotice = string.Empty; _notice.text = string.Empty; _noticeKey = -1; }
+                return;
+            }
+
+            // Written only when they would look different: every write makes the whole readout be laid out again.
+            int fuelStep = Mathf.RoundToInt(s.Fuel * 200f);
+            if (fuelStep != _fuelStep) { _fuelStep = fuelStep; _fuelFill.fillAmount = fuelStep / 200f; }
+            bool blink = Mathf.Repeat(now, 0.8f) < 0.5f;
+            _fuelFill.canvasRenderer.SetColor(s.FuelLow && blink ? UiKit.Danger : _config.jetColour);
+
+            // The gauges' colours blink every frame; their words are only rebuilt when they change (below).
+            OrbitalAnte.UI.GaugeTone airTone = OrbitalAnte.UI.VisorReadout.AirTone(s.AirLow, s.AirOut, s.BurningAir);
+            int airSecond = s.AirOut ? -1 - Mathf.CeilToInt(Mathf.Max(0f, s.SecondsLeft))
+                : s.BurningAir ? int.MaxValue
+                : OrbitalAnte.UI.VisorReadout.AirSeconds(s.Air, _config.rules.airMinutes);
+            if (airSecond != _airSecond)
+            {
+                _airSecond = airSecond;
+                _airLine = OrbitalAnte.UI.VisorReadout.AirLine(s.Air, _config.rules.airMinutes, s.AirOut, s.SecondsLeft, s.BurningAir);
+            }
+            _airGauge.Show(s.Air, _airLine, airTone, airTone != OrbitalAnte.UI.GaugeTone.Alarm || blink);
+            if (armourShown)
+            {
+                float armour = _astronaut.Armour.Fraction;
+                OrbitalAnte.UI.GaugeTone suitTone = OrbitalAnte.UI.VisorReadout.SuitTone(armour);
+                // A fresh hit flashes the plates for a moment.
+                bool hit = now - _astronaut.Armour.LastHitUnscaledTime < 0.25f;
+                _suitGauge.Show(armour, OrbitalAnte.UI.VisorReadout.SuitLine(armour), suitTone, !hit || blink);
+            }
+
+            int stance = outside ? (int)_astronaut.Stances.Current * 2 + (_astronaut.Sneaking ? 1 : 0) : 0;
+            if (stance != _shownStance)
+            {
+                _shownStance = stance;
+                _stance.text = StanceWords(stance);
+            }
+
+            if (now < _nextText) return;
+            _nextText = now + TextInterval;
+
+            // The words are only built again when something they depend on has changed.
+            bool wanted = outside || s.AirOut || s.AirLow;
+            int body = s.GroundName != null ? s.GroundName.GetHashCode() : 0;
+            int noticeKey = !wanted ? 0 : 1
+                | (s.AirOut ? 2 : 0) | (s.AirLow ? 4 : 0) | (s.BurningAir ? 8 : 0) | (s.FuelOut ? 16 : 0) | (s.FuelLow ? 32 : 0)
+                | (s.TetherTaut ? 64 : 0) | (s.Matching ? 128 : 0) | (s.MatchTarget == MatchTarget.Ship ? 256 : 0) | (s.AgainstGround ? 512 : 0)
+                | (s.AirOut ? Mathf.CeilToInt(Mathf.Max(0f, s.SecondsLeft)) << 10 : 0) | ((body & 0x3FF) << 20);
+            if (noticeKey != _noticeKey)
+            {
+                _noticeKey = noticeKey;
+                string notice = wanted ? SuitReadout.Notice(s) : string.Empty;
+                _shownNotice = notice;
+                _notice.text = notice;
+                _notice.color = SuitReadout.IsAlarm(s) ? UiKit.Danger : UiKit.PanelEdge;
+            }
+
+            bool lines = outside;
+            if (_speed.gameObject.activeSelf != lines)
+            {
+                _speed.gameObject.SetActive(lines);
+                _tether.gameObject.SetActive(lines);
+            }
+            if (!lines) return;
+
+            // Tenths below 10 m/s, where a tenth matters; whole numbers above.
+            int speed = s.Speed < 10f ? Mathf.RoundToInt(s.Speed * 10f) : 1000 + Mathf.RoundToInt(s.Speed);
+            int againstKey = (s.MatchTarget == MatchTarget.Ship ? 1 : 0) | (s.AgainstGround ? 2 : 0) | (body << 2);
+            if (againstKey != _againstKey)
+            {
+                _againstKey = againstKey;
+                _shownAgainst = SuitReadout.SpeedAgainst(s);
+                _shownSpeed = -1;
+            }
+            string against = _shownAgainst;
+            if (speed != _shownSpeed)
+            {
+                _shownSpeed = speed;
+                _text.Length = 0;
+                if (speed < 1000) _text.Append(speed / 10).Append('.').Append(speed % 10);
+                else _text.Append(speed - 1000);
+                _text.Append(" m/s ").Append(against);
+                _speed.text = _text.ToString();
+            }
+            SuitRules rules = _config.rules;
+            _speed.color = s.Speed >= rules.fatalSpeed * rules.warnShare ? UiKit.Danger : UiKit.Cream;
+
+            int metres = Mathf.RoundToInt(s.ShipDistance);
+            int line = s.Tethered ? metres : s.TetherInReach ? -1 : -2 - metres;
+            if (line != _shownLine)
+            {
+                _shownLine = line;
+                _text.Length = 0;
+                if (s.Tethered) _text.Append("TETHER ").Append(metres).Append(" / ").Append(Mathf.RoundToInt(rules.tetherLength)).Append(" m");
+                else if (s.TetherInReach) _text.Append("TETHER OFF");
+                else _text.Append("TETHER OFF  SHIP ").Append(metres).Append(" m");
+                _tether.text = _text.ToString();
+            }
+            _tether.color = s.Tethered ? UiKit.Cream : UiKit.PanelEdge;
+        }
+
+        static string StanceWords(int stance)
+        {
+            switch (stance)
+            {
+                case 1: return "SNEAKING";
+                case 2: return "CROUCHED";
+                case 3: return "CROUCHED, SNEAKING";
+                case 4: case 5: return "PRONE";
+                default: return string.Empty;
+            }
+        }
+
+        // Bottom, top, left, right: lit by the nozzle whose flame is on that side. A push forward (the flames
+        // are behind you) lights all four a little.
+        static readonly int[] RimNozzle = { JetGlow.Down, JetGlow.Up, JetGlow.Left, JetGlow.Right };
+
+        void Rim(bool on)
+        {
+            JetGlow jets = _astronaut.Jets;
+            float behind = on ? jets.Level(JetGlow.Back) * 0.3f : 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                float level = on ? Mathf.Max(jets.Level(RimNozzle[i]), behind) * _config.visorGlow : 0f;
+                bool lit = level > 0.01f;
+                if (_rim[i].enabled != lit) _rim[i].enabled = lit;
+                if (!lit) continue;
+                _rim[i].canvasRenderer.SetAlpha(level);
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (_rimSprite != null) Destroy(_rimSprite);
+            if (_rimTexture != null) Destroy(_rimTexture);
+            if (_whiteSprite != null) Destroy(_whiteSprite);
+            if (_whiteTexture != null) Destroy(_whiteTexture);
+            if (_shadeSprite != null) Destroy(_shadeSprite);
+            if (_shadeTexture != null) Destroy(_shadeTexture);
+        }
+    }
+}

@@ -69,7 +69,7 @@ namespace OrbitalAnte.Space
         public void Build(SolarSystemData data, int seed, ICollection<string> paintedLater = null)
         {
             Instance = this;
-            Model = new SolarSystemModel(data.BuildBodies(seed), seed);
+            Model = new SolarSystemModel(data.BuildBodies(seed), seed, data.nearFalloff);
             Frame = new ReferenceFrame(Model);
             States = Model.NewStateBuffer();
             SimTime = 0;
@@ -124,6 +124,8 @@ namespace OrbitalAnte.Space
             AddStarLayer("WhiteStars", 1100, new Color(0.92f, 0.94f, 1f), 4101);
             AddStarLayer("WarmStars", 320, new Color(1f, 0.82f, 0.62f), 4102);
             AddStarLayer("BlueStars", 260, new Color(0.65f, 0.78f, 1f), 4103);
+            // The sky itself, behind the stars. It turns with them, so the galaxy stays fixed in the sky.
+            OrbitalAnte.Look.SkyDome.Build(_stars, 20000f, true);
         }
 
         void AddStarLayer(string layerName, int count, Color color, int seed)
@@ -135,7 +137,7 @@ namespace OrbitalAnte.Space
             go.AddComponent<MeshFilter>().sharedMesh = SpaceMeshes.StarField(count, StarDistance, 760f, 1500f, seed);
             var renderer = go.AddComponent<MeshRenderer>();
             // With the game's own shader, stars fade into a daytime sky by themselves (the sky veil).
-            renderer.sharedMaterial = PlanetMaterials.OwnBody ? PlanetMaterials.Body(layerName, null, color, 1f, 1f) : Mat.Unlit(color);
+            renderer.sharedMaterial = PlanetMaterials.OwnBody ? PlanetMaterials.Body(layerName, null, color, 1f, 1f, false, OrbitalAnte.Look.LookConfig.Load().starBrightness) : Mat.Unlit(color);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
         }
@@ -307,6 +309,7 @@ namespace OrbitalAnte.Space
                 GravityBody mover = _movers[i];
                 Rigidbody rb = mover.Body;
                 if (rb == null || rb.isKinematic) continue;
+                if (mover.Loose && rb.IsSleeping()) continue;
                 Vec3d local = SpaceConvert.ToVec3d(rb.position);
                 Vec3d velocity = SpaceConvert.ToVec3d(rb.linearVelocity);
                 Vec3d truePosition = Frame.ToTruePosition(local, States);
@@ -411,6 +414,16 @@ namespace OrbitalAnte.Space
         public Vector3 LocalVelocityOf(int body)
         {
             return SpaceConvert.ToVector3(Frame.ToLocalVelocity(States[body].Position, States[body].Velocity, States));
+        }
+
+        /// <summary>
+        /// How fast a body's centre is moving as seen from a point in Unity's coordinates. Where the point of view
+        /// is turning (close to a spinning body) a far body's centre appears to sweep round; measured at your own
+        /// place, two things with the same true velocity read as zero against each other, which is what matching means.
+        /// </summary>
+        public Vector3 VelocityOfSeenFrom(int body, Vector3 local)
+        {
+            return SpaceConvert.ToVector3(Frame.ToLocalVelocity(TruePosition(local), States[body].Velocity, States));
         }
 
         /// <summary>The planet-level body a body belongs to: itself for a planet, its planet for a moon.</summary>

@@ -38,6 +38,9 @@ namespace OrbitalAnte.Planets
         [ThreadStatic] static int[] _skirtOf;
         [ThreadStatic] static int[] _edgeOf;
 
+        /// <summary>How strongly a dip or crest in the ground shows in its colour. See <see cref="PlanetTerrain.ColorAt"/>.</summary>
+        public const double HollowGain = 8.5;
+
         /// <summary>Size of one tile's edge in metres.</summary>
         public static double TileSize(double radius, int level) => CubeSphere.FaceSize(radius) / (1 << level);
 
@@ -109,7 +112,13 @@ namespace OrbitalAnte.Planets
                     if (Vec3d.Dot(normal, dirs[k]) < 0) normal = -normal;
                     double cos = Vec3d.Dot(normal, dirs[k]);
                     double slope = Math.Sqrt(Math.Max(0, 1 - cos * cos));
-                    terrain.ColorAt(dirs[k], samples[k], slope, out float r, out float gr, out float b);
+                    // How far this corner sits below (or above) the middle of its four neighbours: a dip or a crest.
+                    // Colour uses it, so creases read dark and edges pale. It is measured as a curve in the ground
+                    // (per metre, squared spacing), so coarse far tiles and fine near ones agree about the same dip.
+                    double around = (samples[k + 1].Height + samples[k - 1].Height + samples[k + g].Height + samples[k - g].Height) * 0.25;
+                    double hollow = (around - samples[k].Height) / (cell * cell) * HollowGain;
+                    hollow = hollow < -1 ? -1 : hollow > 1 ? 1 : hollow;
+                    terrain.ColorAt(dirs[k], samples[k], slope, out float r, out float gr, out float b, hollow);
                     int o = (j * side + i) * 3;
                     data.Positions[o] = (float)points[k].X;
                     data.Positions[o + 1] = (float)points[k].Y;

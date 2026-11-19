@@ -22,8 +22,10 @@ namespace OrbitalAnte.Gore
         public const string ResourcePath = "Config/GoreConfig";
 
         [Header("Gibs (performance budget)")]
-        [Tooltip("Most loose chunks allowed at once. When a new one would go over, the oldest fades out early.")]
+        [Tooltip("Most loose chunks alive at once, fading ones included (each is a rigidbody). Near the cap the oldest fades out early; at the cap one is removed straight away.")]
         public int maxActiveGibs = 40;
+        [Tooltip("How many of the cap's places are kept for chunks that are fading out, so overflow fades rather than pops. Trial value for the lead designer.")]
+        public int overflowFadeSlots = 4;
         [Tooltip("Seconds a loose chunk stays before it fades.")]
         public float gibLifetime = 30f;
         [Tooltip("Seconds the fade-out takes.")]

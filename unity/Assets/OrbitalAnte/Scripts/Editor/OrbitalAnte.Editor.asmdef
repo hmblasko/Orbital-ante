@@ -2,7 +2,9 @@
   "name": "OrbitalAnte.Editor",
   "rootNamespace": "OrbitalAnte.EditorTools",
   "references": [
-    "OrbitalAnte.Runtime"
+    "OrbitalAnte.Runtime",
+    "Unity.InputSystem",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [
     "Editor"

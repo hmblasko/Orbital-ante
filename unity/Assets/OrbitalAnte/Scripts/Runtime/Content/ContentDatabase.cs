@@ -16,7 +16,7 @@ namespace OrbitalAnte.Content
     public static class ContentDatabase
     {
         /// <summary>Resources sub-folders that hold content assets. New kinds of content add a line here.</summary>
-        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder, Planets.PlanetData.ResourceFolder };
+        static readonly string[] Folders = { WeaponData.ResourceFolder, Space.SolarSystemData.ResourceFolder, Planets.PlanetData.ResourceFolder, Melee.MeleeData.ResourceFolder, Items.ItemData.ResourceFolder };
 
         static readonly Dictionary<Type, Dictionary<string, ContentDefinition>> ByType =
             new Dictionary<Type, Dictionary<string, ContentDefinition>>();
@@ -61,6 +61,21 @@ namespace OrbitalAnte.Content
             // The two Milestone 3 guns must always exist.
             if (Find<WeaponData>(WeaponData.RifleId) == null) Register(WeaponData.CreateRifleDefaults(), "built-in");
             if (Find<WeaponData>(WeaponData.PistolId) == null) Register(WeaponData.CreatePistolDefaults(), "built-in");
+            // ...and the guns the enemy types carry.
+            if (Find<WeaponData>(WeaponData.SmgId) == null) Register(WeaponData.CreateSmgDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.ShotgunId) == null) Register(WeaponData.CreateShotgunDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.SniperId) == null) Register(WeaponData.CreateSniperDefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.SmgAId) == null) Register(WeaponData.CreateSmgADefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.RifleAId) == null) Register(WeaponData.CreateRifleADefaults(), "built-in");
+            if (Find<WeaponData>(WeaponData.HeavyGunAId) == null) Register(WeaponData.CreateHeavyGunADefaults(), "built-in");
+            // ...and the rare found gun.
+            if (Find<WeaponData>(WeaponData.WildcardId) == null) Register(WeaponData.CreateWildcardDefaults(), "built-in");
+            // ...and the five found melee items.
+            foreach (string id in Melee.MeleeCatalog.Ids)
+                if (Find<Melee.MeleeData>(id) == null) Register(Melee.MeleeData.CreateDefaults(id), "built-in");
+            // ...and the envelope's prize items.
+            foreach (Items.ItemSpec spec in Items.ItemCatalog.CreateDefaults())
+                if (Find<Items.ItemData>(spec.id) == null) Register(Items.ItemData.Create(spec), "built-in");
             // ...and so must the solar system.
             if (Find<Space.SolarSystemData>(Space.SolarSystemData.DefaultId) == null) Register(Space.SolarSystemData.CreateDefaults(), "built-in");
             // ...and what each planet's surface is like.

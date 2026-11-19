@@ -31,6 +31,8 @@ namespace OrbitalAnte.Weapons
         readonly Transform[] _marks = new Transform[MarkCount];
         readonly float[] _markDieAt = new float[MarkCount];
         int _nextMark;
+        readonly Gore.StuckMarks _stuck = new Gore.StuckMarks(MarkCount);
+        ParticleSystem.Particle[] _shiftBuffer;
 
         ParticleSystem _sparks;
 
@@ -154,7 +156,9 @@ namespace OrbitalAnte.Weapons
             main.playOnAwake = false;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.maxParticles = 160;
-            main.gravityModifier = 1.2f;
+            main.gravityModifier = Gore.GoreFx.GravityScaleFor(0.2f);
+            _sparkWeight = Gore.GoreFx.Weight;
+            _shiftBuffer = new ParticleSystem.Particle[main.maxParticles];
             main.startSpeed = 0f;
             main.startSize = 0.03f;
             main.startLifetime = 0.3f;
@@ -234,9 +238,14 @@ namespace OrbitalAnte.Weapons
         }
 
         /// <summary>A bullet hitting the world: sparks and a dark mark.</summary>
-        public void Impact(Vector3 point, Vector3 normal)
+        /// <summary><paramref name="on"/> is the collider struck, so the mark stays on it if it moves (the ship, a world).</summary>
+        public void Impact(Vector3 point, Vector3 normal, Collider on = null) => Impact(point, normal, Gore.StuckMarks.On(on));
+
+        public void Impact(Vector3 point, Vector3 normal, Transform on)
         {
             Sparks(point, normal, 7);
+            // Mostly a dull smack into the ground; now and then one sings off.
+            OrbitalAnte.Audio.AudioDirector.Play(Random.value < 0.2f ? "impact.ricochet" : "impact.dirt", point);
 
             Transform mark = _marks[_nextMark];
             _markDieAt[_nextMark] = Time.time + MarkLife;
@@ -245,6 +254,7 @@ namespace OrbitalAnte.Weapons
             mark.rotation = Quaternion.FromToRotation(Vector3.up, normal);
             float size = Random.Range(0.05f, 0.075f);
             mark.localScale = new Vector3(size, 1f, size);
+            _stuck.Stick(_nextMark == 0 ? MarkCount - 1 : _nextMark - 1, mark, on);
             mark.gameObject.SetActive(true);
         }
 
@@ -283,6 +293,28 @@ namespace OrbitalAnte.Weapons
                 if (_marks[i].gameObject.activeSelf && gameNow >= _markDieAt[i]) _marks[i].gameObject.SetActive(false);
             }
         }
+
+        float _sparkWeight = 1f;
+
+        void LateUpdate()
+        {
+            // Sparks fall with the world, plus a felt extra (none in free fall), like the blood.
+            if (_sparks != null && Mathf.Abs(Gore.GoreFx.Weight - _sparkWeight) >= 0.05f)
+            {
+                _sparkWeight = Gore.GoreFx.Weight;
+                var main = _sparks.main;
+                main.gravityModifier = Gore.GoreFx.GravityScaleFor(0.2f);
+            }
+            // Marks stay on what they were made on (the ship's hull, a world's ground) after it has moved.
+            for (int i = 0; i < MarkCount; i++)
+            {
+                if (_marks[i] == null || !_marks[i].gameObject.activeSelf) continue;
+                if (!_stuck.Follow(i, _marks[i])) _marks[i].gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>The world was slid back to Unity's zero point: sparks in the air move with it.</summary>
+        public void Shift(Vector3 by) => Gore.GoreFx.ShiftParticles(_sparks, by, ref _shiftBuffer);
 
         /// <summary>Removes every tracer, flash and mark straight away (used when the arena is reset).</summary>
         public void Clear()

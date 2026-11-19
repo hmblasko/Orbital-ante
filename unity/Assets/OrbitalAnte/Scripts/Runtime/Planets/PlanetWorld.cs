@@ -118,8 +118,9 @@ namespace OrbitalAnte.Planets
                 start.BuildTerrainNow(PriorityOf(start));
                 start.SetNear(true);
                 TickSurface(start, eye);
-                // Wait for just the six starting tiles (a fraction of a second), then let detail stream in.
-                PlanetJobs.FinishAll();
+                // Wait for just the six starting tiles (a fraction of a second), then let detail stream in. Patient
+                // work (cave networks) carries on in the background.
+                PlanetJobs.FinishUrgent();
                 TickSurface(start, eye);
                 start.BeginPicture();
             }
@@ -127,6 +128,18 @@ namespace OrbitalAnte.Planets
             {
                 if (Surfaces[i] != null) Surfaces[i].BeginTerrain(PriorityOf(Surfaces[i]));
             }
+        }
+
+        /// <summary>
+        /// Works out a body's ground rules right now and returns them, for things that must know the ground before
+        /// the player is placed (the launch base). Null for a body with no real ground.
+        /// </summary>
+        public PlanetTerrain TerrainNow(int body)
+        {
+            PlanetSurface s = SurfaceOf(body);
+            if (s == null) return null;
+            if (!s.Ready) s.BuildTerrainNow(PriorityOf(s));
+            return s.Terrain;
         }
 
         System.Func<float> PriorityOf(PlanetSurface surface)
@@ -171,24 +184,68 @@ namespace OrbitalAnte.Planets
                 if (s == null) continue;
                 float height = Vector3.Distance(eye, s.Body.transform.position) - (float)s.BodyRadius;
                 float near = NearDistance(s);
-                if (!s.Near && s.Ready && height < near) s.SetNear(true);
-                else if (s.Near && height > near * 1.25f) s.SetNear(false);
-                if (s.Near) TickSurface(s, eye);
+                int groundCount = GatherGroundPoints(s, eye, out float speed);
+                // Looking away must not retire the ground beneath the suit or a ship left behind.
+                if (!s.Near && s.Ready && (height < near || groundCount > 0)) s.SetNear(true);
+                else if (s.Near && height > near * 1.25f && groundCount == 0) s.SetNear(false);
+                if (s.Near) TickSurface(s, eye, groundCount, speed);
             }
         }
 
+        readonly Vec3d[] _groundPoints = new Vec3d[PlanetSurface.GroundPointLimit];
+
         void TickSurface(PlanetSurface s, Vector3 eye)
         {
+            int count = GatherGroundPoints(s, eye, out float speed);
+            TickSurface(s, eye, count, speed);
+        }
+
+        bool NeedsSurface(GravityBody mover, PlanetSurface s)
+        {
+            if (mover == null || !mover.NeedsGround || mover.Body == null || !mover.isActiveAndEnabled) return false;
+            if (mover.Neighbourhood != s.Body.Index && (mover != System.Focus || System.Frame.Anchor != s.Body.Index)) return false;
+            // A ship in high orbit needs no colliders. Use the highest possible terrain here so a raised
+            // formation can never make a landed object look too far away to keep its support.
+            double top = s.SurfaceRadius + (s.Ready ? s.Terrain.MaxHeight : 0);
+            return Vector3.Distance(mover.Body.position, s.Body.Body.position) - top <= Settings.solidGroundLimit;
+        }
+
+        int GatherGroundPoints(PlanetSurface s, Vector3 eye, out float speed)
+        {
             Transform body = s.Body.transform;
-            Vec3d viewer = SpaceConvert.ToVec3d(body.InverseTransformPoint(eye));
-            Vec3d focus = viewer;
-            float speed = 0f;
-            if (System.Focus != null)
+            // The first point is the focus (whatever the player is flying or wearing). After it come the other
+            // things that must not lose their ground: the ship while the player is out walking, for one.
+            int count = 0;
+            speed = 0f;
+            if (NeedsSurface(System.Focus, s))
             {
-                focus = SpaceConvert.ToVec3d(body.InverseTransformPoint(System.Focus.transform.position));
+                _groundPoints[count++] = PhysicsPointOnBody(s, System.Focus.Body.position);
                 speed = (System.Focus.Body.linearVelocity - System.GroundVelocityAt(s.Body.Index, System.Focus.Body.position)).magnitude;
             }
-            s.Tick(viewer, focus, speed);
+            IReadOnlyList<GravityBody> movers = System.Movers;
+            for (int i = 0; i < movers.Count && count < _groundPoints.Length; i++)
+            {
+                GravityBody mover = movers[i];
+                if (!NeedsSurface(mover, s) || mover == System.Focus) continue;
+                _groundPoints[count++] = PhysicsPointOnBody(s, mover.Body.position);
+            }
+            if (System.Focus == null && count == 0 && Vector3.Distance(eye, body.position) < NearDistance(s) + s.BodyRadius)
+                _groundPoints[count++] = SpaceConvert.ToVec3d(body.InverseTransformPoint(eye));
+            return count;
+        }
+
+        // Movers are read at their physics positions. A planet's Transform can be an interpolated render
+        // pose, so use its Rigidbody pose too, particularly for a parked ship on a non-anchor body.
+        static Vec3d PhysicsPointOnBody(PlanetSurface surface, Vector3 point)
+        {
+            Rigidbody body = surface.Body.Body;
+            return SpaceConvert.ToVec3d(Quaternion.Inverse(body.rotation) * (point - body.position));
+        }
+
+        void TickSurface(PlanetSurface s, Vector3 eye, int count, float speed)
+        {
+            Vec3d viewer = SpaceConvert.ToVec3d(s.Body.transform.InverseTransformPoint(eye));
+            s.Tick(viewer, _groundPoints, count, speed);
         }
 
         // ------------------------------------------------------------------ every physics step
@@ -197,23 +254,31 @@ namespace OrbitalAnte.Planets
         {
             if (Surfaces == null || System == null || System.Model == null) return;
             IReadOnlyList<GravityBody> movers = System.Movers;
+            _reshapedNow = false;
+            for (int i = 0; i < Surfaces.Length; i++) _reshapedNow |= Surfaces[i] != null && Surfaces[i].AnyReshaped;
+            _step++;
             for (int i = 0; i < movers.Count; i++)
             {
                 GravityBody mover = movers[i];
                 Rigidbody rb = mover.Body;
                 if (rb == null || rb.isKinematic) continue;
+                bool loose = mover.Loose;
+                if (loose && rb.IsSleeping()) continue;
                 int index = mover.Neighbourhood;
                 if (index <= 0 || index >= Surfaces.Length) continue;
                 PlanetSurface s = Surfaces[index];
                 if (s == null || !s.Ready) continue;
 
-                Transform body = s.Body.transform;
-                Vec3d p = SpaceConvert.ToVec3d(body.InverseTransformPoint(rb.position));
+                Vec3d p = PhysicsPointOnBody(s, rb.position);
                 double r = p.Magnitude;
                 if (r < 1e-3) continue;
                 Vec3d dir = p / r;
 
-                if (s.GroundShown) GuardAgainstSinking(s, rb, p, dir, r);
+                // A loose limb or gun is checked one step in four (spread over the list): a full ground height
+                // question each step for up to 52 of them costs more than a limb sinking a little longer.
+                if (s.GroundShown && (!loose || ((_step + i) & 3) == 0)) GuardAgainstSinking(s, mover, rb, p, dir, r, _reshapedNow);
+                if (loose && !rb.isKinematic && r <= s.SurfaceRadius + s.Terrain.MaxHeight + 5) RestIfStill(index, mover, rb);
+                if (rb.isKinematic) continue;
 
                 if (r > s.AirTop) continue;
                 AirSample air = s.AirAt(p);
@@ -237,35 +302,79 @@ namespace OrbitalAnte.Planets
                     {
                         // Wind is moving air: it drags you toward its own speed and no faster, and only sideways.
                         // Once you are travelling with it, it stops pushing.
-                        Vector3 up = body.TransformDirection(SpaceConvert.ToVector3(dir));
-                        Vector3 wind = body.TransformDirection(SpaceConvert.ToVector3(weather.Wind));
+                        Vector3 up = s.Body.Body.rotation * SpaceConvert.ToVector3(dir);
+                        Vector3 wind = s.Body.Body.rotation * SpaceConvert.ToVector3(weather.Wind);
                         Vector3 slip = wind - Vector3.ProjectOnPlane(rb.linearVelocity - airVelocity, up);
                         rb.AddForce(slip * Settings.windPush, ForceMode.Acceleration);
                     }
                 }
             }
+            if (_reshapedNow)
+            {
+                for (int i = 0; i < Surfaces.Length; i++) if (Surfaces[i] != null) Surfaces[i].ForgetReshaped();
+            }
         }
+
+        bool _reshapedNow;
 
         /// <summary>
         /// Ground only becomes solid as you get near it. If something still gets below it (arriving faster than the
         /// ground could be made solid), put it back on top instead of letting it fall through the world.
         /// </summary>
-        void GuardAgainstSinking(PlanetSurface s, Rigidbody rb, Vec3d p, Vec3d dir, double r)
-        {
-            // Cheap first test: nowhere near the lowest ground this body has.
-            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5) return;
-            double ground = s.GroundRadius(dir);
-            if (r >= ground - 2.5 || s.InCave(p, 4)) return;
+        int _step;
 
-            Transform body = s.Body.transform;
-            Vector3 up = body.TransformDirection(SpaceConvert.ToVector3(dir));
-            Vector3 lifted = body.TransformPoint(SpaceConvert.ToVector3(dir * (ground + 2.0)));
+        /// <summary>Puts a loose thing that has lain still on the ground (moving with it) for half a second to sleep.</summary>
+        void RestIfStill(int body, GravityBody mover, Rigidbody rb)
+        {
+            Vector3 relative = rb.linearVelocity - System.GroundVelocityAt(body, rb.position);
+            if (relative.sqrMagnitude > 0.01f || rb.angularVelocity.sqrMagnitude > 0.04f)
+            {
+                mover.StillFor = 0f;
+                return;
+            }
+            mover.StillFor += Time.fixedDeltaTime;
+            if (mover.StillFor < 0.5f) return;
+            mover.StillFor = 0f;
+            rb.Sleep();
+        }
+
+        void GuardAgainstSinking(PlanetSurface s, GravityBody mover, Rigidbody rb, Vec3d p, Vec3d dir, double r, bool reshaped)
+        {
+            // Cheap first test: nowhere near the highest ground this body has.
+            float putBack = Mathf.Max(mover.PutBackAt, mover.SunkBelow + 0.5f);
+            if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5 + putBack) return;
+            double ground = s.GroundRadius(dir);
+            // How low is too low depends on what it is standing on. The true height is only what the ground is
+            // really like where it is solid and in its finest shape; coarser ground can lie metres under it, and
+            // something resting there honestly must be left alone. There, only well under the ground counts.
+            double floor = -2.5;
+            if (mover.SunkBelow > floor && s.FineSolidAt(p))
+            {
+                floor = mover.SunkBelow;
+            }
+            // An intermediate refinement can also put a one-sided collider above someone's feet. Consume
+            // the change only after protecting every mover; finest-detail readiness is not required for this.
+            if (mover.NeedsGround && reshaped && s.ReshapedUnder(p) && s.SolidAt(p)) floor = global::System.Math.Max(floor, putBack - 0.4);
+            if (r >= ground + floor || s.InCave(p, 4)) return;
+
+            Rigidbody body = s.Body.Body;
+            Vector3 up = body.rotation * SpaceConvert.ToVector3(dir);
+            Vector3 lifted = body.position + body.rotation * SpaceConvert.ToVector3(dir * (ground + putBack));
+            if (mover.Sank != null)
+            {
+                // A limb or a dropped gun that the ground let through where nobody is: its owner deals with it
+                // (a limb goes, a gun is laid on the ground). Not a rescue: nothing anyone rides was in danger.
+                mover.Sank(lifted, s.Body.transform);
+                return;
+            }
             Vector3 groundVelocity = System.GroundVelocityAt(s.Body.Index, lifted);
             Vector3 relative = rb.linearVelocity - groundVelocity;
             float inward = Vector3.Dot(relative, up);
             if (inward < 0f) relative -= up * inward;
             rb.position = lifted;
             rb.linearVelocity = groundVelocity + relative * 0.5f;
+            // The ground it is put back on must be solid before it comes down again.
+            if (mover.NeedsGround) s.MakeSolidAt(dir * ground);
             Rescues++;
         }
 
@@ -319,7 +428,7 @@ namespace OrbitalAnte.Planets
                 if (s.Near)
                 {
                     near += "   " + s.Body.Spec.displayName + ": tiles " + s.ShownTiles + " (solid " + s.SolidTiles + ")  things " + s.Features.Count +
-                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty);
+                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug();
                 }
             }
             return "Ground ready " + ready + "/" + total + "  pictures " + pictures + "/" + total +

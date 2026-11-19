@@ -27,6 +27,8 @@ namespace OrbitalAnte.Dismemberment
         public float sprintSpeed = 4.6f;
         public float oneLegSpeed = 1.2f;
         public float crawlSpeed = 0.65f;
+        [Tooltip("Crawling with one leg left to push with: a little quicker than on the arms alone.")]
+        public float oneLegCrawlSpeed = 0.85f;
         public float wriggleSpeed = 0.28f;
         public float headRollSpeed = 0.5f;
         [Tooltip("How quickly a character turns to face where it is going, in degrees per second.")]
@@ -55,6 +57,26 @@ namespace OrbitalAnte.Dismemberment
         public Vector2 burstSeconds = new Vector2(0.45f, 0.9f);
         [Tooltip("Shortest and longest pause between bursts or single shots, in seconds.")]
         public Vector2 burstPause = new Vector2(0.6f, 1.3f);
+        [Tooltip("Further than this from the player, it works its way closer between bursts, in metres.")]
+        public float keepFar = 18f;
+        [Tooltip("Nearer than this, it backs off between bursts, in metres.")]
+        public float keepNear = 7f;
+        [Tooltip("Runs, not walks, when it shifts position in a fight.")]
+        public bool rushes = false;
+        [Tooltip("Stands its ground and shoots: never shifts position while it can see the player.")]
+        public bool holdsStill = false;
+        [Tooltip("The body model this kind is drawn with (a file in Resources/Models). Empty or missing: the ordinary Enemy body.")]
+        public string modelId = "";
+        [Tooltip("Keeps coming at the player until it is inside Keep Far, instead of side-stepping at range.")]
+        public bool closesIn = false;
+        [Tooltip("0 to 1: how far it drops into the tactical hunch (knees bent, low, gun up) while it is fighting or hunting the player. 0: always upright.")]
+        [Range(0f, 1f)] public float tacticalHunch = 1f;
+        [Tooltip("Seconds a bright line shows where it is aiming before every shot. 0: none. For slow, heavy single shots only.")]
+        public float aimTell = 0f;
+        [Tooltip("Out of sight, it only comes after the player if it saw them this many seconds ago or less...")]
+        public float chaseMemory = 8f;
+        [Tooltip("...or if the player is nearer than this, in metres (it hears them). Otherwise it goes back to wandering.")]
+        public float hearRange = 60f;
         [Tooltip("How far an unarmed character will go to fetch a dropped gun, in metres.")]
         public float weaponSeekRange = 30f;
         [Tooltip("How close it must get to pick the gun up, in metres.")]

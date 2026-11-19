@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
 using OrbitalAnte.Gore;
+using OrbitalAnte.Space;
 using UnityEngine;
 
 namespace OrbitalAnte.Dismemberment
@@ -20,6 +21,9 @@ namespace OrbitalAnte.Dismemberment
         PhysicsMaterial _bouncy;
         readonly List<Gib> _active = new List<Gib>();
         readonly Stack<Gib> _free = new Stack<Gib>();
+        readonly List<GibCapRule.Slot> _slots = new List<GibCapRule.Slot>();
+        System.Action<int> _removeNow;
+        System.Action<int> _beginOverflowFade;
         int _created;
 
         public static GibManager Instance => _instance;
@@ -44,6 +48,20 @@ namespace OrbitalAnte.Dismemberment
             _instance = go.AddComponent<GibManager>();
             _instance.Initialize(config);
             return _instance;
+        }
+
+        /// <summary>Moves every loose chunk by the same amount: the solar system does this to everything when it re-centres.</summary>
+        public void Shift(Vector3 by)
+        {
+            for (int i = 0; i < _active.Count; i++)
+            {
+                Gib gib = _active[i];
+                // A chunk the solar system pulls is moved by it too: moving it here as well would move it twice.
+                if (gib == null || gib.OwnPull) continue;
+                gib.transform.position += by;
+                // The body too, or an interpolated chunk is drawn part way back along its old path for a frame.
+                if (gib.Body != null) gib.Body.position += by;
+            }
         }
 
         public static void DestroyInstance()
@@ -90,12 +108,17 @@ namespace OrbitalAnte.Dismemberment
             return gib;
         }
 
-        /// <summary>Hands out a container at a position. If the cap is reached, the oldest chunk is hurried out.</summary>
-        public Gib Spawn(Mannequin owner, int group, Vector3 position, Quaternion rotation)
+        /// <summary>
+        /// Hands out a container at a position. Near the cap the oldest chunk is hurried out; at the cap one is
+        /// removed at once (see <see cref="GibCapRule"/>). <paramref name="splittingFrom"/> is the chunk the new one
+        /// takes its parts from, if any; it is never removed here.
+        /// </summary>
+        public Gib Spawn(Mannequin owner, int group, Vector3 position, Quaternion rotation, Gib splittingFrom = null)
         {
-            EnforceCap();
+            EnforceCap(splittingFrom);
 
             Gib gib = _free.Count > 0 ? _free.Pop() : NewContainer();
+            gib.UseOwnPull(SolarSystem.Instance != null);
             gib.transform.SetPositionAndRotation(position, rotation);
             gib.Activate(owner, group, _cfg.decalsPerGib);
             gib.gameObject.SetActive(true);
@@ -105,21 +128,45 @@ namespace OrbitalAnte.Dismemberment
             return gib;
         }
 
-        void EnforceCap()
+        /// <summary>
+        /// Keeps live chunks, fading ones included, within maxActiveGibs: a fading chunk still has a rigidbody,
+        /// a collider and a renderer. Before this, fading chunks were not counted, so a burst could grow past the cap
+        /// (Codex Deck audit, PR #18).
+        /// </summary>
+        void EnforceCap(Gib keep)
         {
-            int cap = Mathf.Max(1, _cfg.maxActiveGibs);
-            int solid = 0;
+            _slots.Clear();
+            int keepIndex = -1;
             for (int i = 0; i < _active.Count; i++)
             {
-                if (!_active[i].Fading) solid++;
+                Gib gib = _active[i];
+                if (ReferenceEquals(gib, keep)) keepIndex = i;
+                _slots.Add(new GibCapRule.Slot { Fading = gib.Fading, FadeProgress = FadeProgress(gib) });
             }
-            // The list is in spawn order, so the first solid chunk is the oldest.
-            for (int i = 0; i < _active.Count && solid >= cap; i++)
+            if (_removeNow == null)
             {
-                if (_active[i].Fading) continue;
-                _active[i].BeginFade(_cfg.overflowFadeTime);
-                solid--;
+                _removeNow = RemoveForCap;
+                _beginOverflowFade = BeginOverflowFade;
             }
+            GibCapRule.MakeRoom(_slots, _cfg.maxActiveGibs, _cfg.overflowFadeSlots, keepIndex, _removeNow, _beginOverflowFade);
+        }
+
+        void RemoveForCap(int index)
+        {
+            _slots.RemoveAt(index);
+            ReleaseAt(index);
+        }
+
+        void BeginOverflowFade(int index)
+        {
+            _active[index].BeginFade(_cfg.overflowFadeTime);
+            _slots[index] = new GibCapRule.Slot { Fading = true, FadeProgress = 0f };
+        }
+
+        static float FadeProgress(Gib gib)
+        {
+            if (!gib.Fading) return 0f;
+            return (gib.Age - gib.FadeStartAge) / gib.FadeDuration;
         }
 
         /// <summary>Prepares a part for life as loose debris: bouncy surface, gib layer.</summary>
@@ -138,6 +185,9 @@ namespace OrbitalAnte.Dismemberment
             {
                 Gib gib = _active[i];
                 gib.Age += dt;
+                // Sank through ground that is only solid near the player, far from anyone: it lies still on top
+                // and fades there quickly (it no longer follows the ground's turn, so it is not kept).
+                if (gib.Sunk && !gib.Fading) gib.BeginFade(_cfg.overflowFadeTime);
 
                 if (!gib.Fading && gib.Age >= _cfg.gibLifetime)
                 {
@@ -146,7 +196,7 @@ namespace OrbitalAnte.Dismemberment
 
                 if (gib.Fading)
                 {
-                    float t = (gib.Age - gib.FadeStartAge) / gib.FadeDuration;
+                    float t = FadeProgress(gib);
                     if (t >= 1f)
                     {
                         ReleaseAt(i);
@@ -174,7 +224,12 @@ namespace OrbitalAnte.Dismemberment
             for (int i = 0; i < gib.Parts.Count; i++)
             {
                 BodyPart part = gib.Parts[i];
-                if (part != null) Destroy(part.gameObject);
+                if (part == null) continue;
+                // Destroy waits for the end of the frame, and the container may be handed out again before then
+                // (the cap removes a chunk inside Spawn), so take the parts out of play now.
+                part.gameObject.SetActive(false);
+                part.transform.SetParent(null, false);
+                Destroy(part.gameObject);
             }
 
             Mannequin owner = gib.Owner;

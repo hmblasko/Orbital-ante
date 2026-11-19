@@ -4,9 +4,9 @@ using UnityEngine;
 namespace OrbitalAnte.Weapons
 {
     /// <summary>
-    /// Placeholder gun sounds, generated in code so no audio files are needed yet: a shot per weapon (pitched by
-    /// its data), magazine clicks, a dry click, a metallic clang for a gun being shot, and a thud for the player
-    /// being hit. A small pool of audio sources plays them in the world.
+    /// Gun sounds. Each call first asks the audio director (<see cref="Audio.AudioDirector"/>) for the produced
+    /// sound; only if the audio files are not there does it fall back to the old placeholder made in code
+    /// (a shot per weapon pitched by its data, clicks, a clang and a thud, on a small pool of sources).
     /// </summary>
     public sealed class WeaponAudio
     {
@@ -42,6 +42,24 @@ namespace OrbitalAnte.Weapons
         public void PlayShot(WeaponData data, Vector3 position)
         {
             if (data == null) return;
+            Audio.AudioDirector director = Audio.AudioDirector.Instance;
+            if (director != null && director.Ready)
+            {
+                // A shot from somewhere else is somebody shooting at you; your own only warms things up a little.
+                Transform eye = AI.CombatWorld.PlayerEye;
+                bool mine = eye == null || (eye.position - position).sqrMagnitude < 4f;
+                // Incoming fire counts for less the further off it is, and beyond 120 m not at all.
+                float near = eye == null ? 1f : Mathf.Clamp01(1.15f - Vector3.Distance(eye.position, position) / 120f);
+                if (mine) director.Intensity.Report(Audio.IntensityEvent.PlayerShot);
+                else if (near > 0f) director.Intensity.Report(Audio.IntensityEvent.EnemyShotNearby, near);
+                string shot = ShotEvent(data);
+                if (director.Has(shot))
+                {
+                    // If the director turns the sound away (voices, cooldown) that is its decision: no placeholder.
+                    Audio.AudioDirector.Play(shot, position, Mathf.Clamp01(data.shotVolume / 0.8f));
+                    return;
+                }
+            }
             if (!_shots.TryGetValue(data, out AudioClip clip) || clip == null)
             {
                 clip = MakeShot(data.name, Mathf.Clamp(data.shotPitch, 0.4f, 3f));
@@ -51,11 +69,50 @@ namespace OrbitalAnte.Weapons
         }
 
         /// <summary>A mechanical click. Pitch below 1 for "magazine out", above for "magazine in" or a dry trigger.</summary>
-        public void PlayClick(Vector3 position, float pitch, float volume = 0.5f) => Play(_click, position, volume, pitch * 0.97f, pitch * 1.03f);
+        public void PlayClick(Vector3 position, float pitch, float volume = 0.5f)
+        {
+            string id = pitch < 1f ? "weapon.mag_out" : pitch > 1.3f ? "weapon.dry_fire" : "weapon.mag_in";
+            if (Produced(id))
+            {
+                Audio.AudioDirector.Play(id, position, Mathf.Clamp01(volume / 0.5f));
+                return;
+            }
+            Play(_click, position, volume, pitch * 0.97f, pitch * 1.03f);
+        }
 
-        public void PlayClang(Vector3 position) => Play(_clang, position, 0.8f, 0.9f, 1.15f);
+        public void PlayClang(Vector3 position)
+        {
+            if (Produced("impact.metal"))
+            {
+                Audio.AudioDirector.Play("impact.metal", position);
+                return;
+            }
+            Play(_clang, position, 0.8f, 0.9f, 1.15f);
+        }
 
-        public void PlayThud(Vector3 position) => Play(_thud, position, 0.7f, 0.9f, 1.1f);
+        public void PlayThud(Vector3 position)
+        {
+            if (Produced("player.hurt"))
+            {
+                Audio.AudioDirector.PlayLocal("player.hurt");
+                return;
+            }
+            Play(_thud, position, 0.7f, 0.9f, 1.1f);
+        }
+
+        /// <summary>True when the produced version of a sound exists, so the code-made placeholder must stay quiet.</summary>
+        static bool Produced(string id)
+        {
+            Audio.AudioDirector director = Audio.AudioDirector.Instance;
+            return director != null && director.Has(id);
+        }
+
+        /// <summary>Which produced shot sound a weapon uses. The two test weapons are the rifle and the hand cannon.</summary>
+        public static string ShotEvent(WeaponData data)
+        {
+            if (!string.IsNullOrEmpty(data.shotEvent)) return data.shotEvent;
+            return data.placeholderShape == WeaponShape.Rifle ? "weapon.rifle.shot" : "weapon.handcannon.shot";
+        }
 
         void Play(AudioClip clip, Vector3 position, float volume, float minPitch, float maxPitch)
         {
