@@ -165,5 +165,55 @@ namespace OrbitalAnte.Tests
             }
             TestContext.WriteLine(textured + " textured models");
         }
+
+        /// <summary>Width and height from a PNG's header (the IHDR chunk always comes first), or (0, 0) if it is not one.</summary>
+        static void PngSize(string path, out int width, out int height)
+        {
+            width = height = 0;
+            byte[] head = new byte[24];
+            using (FileStream f = File.OpenRead(path))
+            {
+                if (f.Read(head, 0, 24) < 24) return;
+            }
+            if (head[1] != 'P' || head[2] != 'N' || head[3] != 'G') return;
+            width = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
+            height = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
+        }
+
+        /// <summary>
+        /// The Steam Deck budget for model pictures (docs/performance_budget.md, "Texture pictures on models"): square,
+        /// a power of two, never over 2048, the mask no larger than half the colour picture, and about 140 MB in all
+        /// once compressed with mip maps (one byte a pixel, a third more for the mips).
+        /// </summary>
+        [Test]
+        public void ModelPictures_StayInsideTheDecksBudget()
+        {
+            string resources = ResourcesFolder();
+            if (resources == null) Assert.Ignore("Resources folder not found");
+            string folder = Path.Combine(resources, "Models", "Textures");
+            if (!Directory.Exists(folder)) Assert.Pass("no model pictures yet");
+            double bytes = 0;
+            foreach (string path in Directory.GetFiles(folder, "*.png"))
+            {
+                string name = Path.GetFileNameWithoutExtension(path);
+                PngSize(path, out int w, out int h);
+                Assert.Greater(w, 0, name + " is not a PNG");
+                Assert.AreEqual(w, h, name + " must be square");
+                Assert.AreEqual(0, w & (w - 1), name + " must be a power of two across");
+                Assert.LessOrEqual(w, 2048, name + " is over 2048");
+                if (name.EndsWith("_Mask"))
+                {
+                    string colour = Path.Combine(folder, name.Substring(0, name.Length - "_Mask".Length) + "_Color.png");
+                    if (File.Exists(colour))
+                    {
+                        PngSize(colour, out int cw, out _);
+                        Assert.LessOrEqual(w, cw / 2, name + " should be half the size of its colour picture (oa.save_texture_set does this)");
+                    }
+                }
+                bytes += w * (double)h * 4.0 / 3.0;
+            }
+            TestContext.WriteLine("model pictures: " + (bytes / (1024 * 1024)).ToString("0") + " MB once compressed");
+            Assert.LessOrEqual(bytes, 140.0 * 1024 * 1024, "model pictures are over the Deck budget");
+        }
     }
 }

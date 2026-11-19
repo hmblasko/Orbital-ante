@@ -368,7 +368,10 @@ def save_texture_set(name, color, normal, mask, folder=None):
     <folder>/<name>_Color.png, _Normal.png, _Mask.png. color, normal and mask are Blender images (from a bake, for
     example). Color is sRGB; Normal is tangent space with green up (Blender's default bake, which is OpenGL's and
     Unity's way); Mask holds red = ambient occlusion (1 open, 0 a deep hollow), green = smoothness, blue = bare metal,
-    and is linear. Sizes: 2048 for an enemy body, 1024 for a gun (2048 for the gun the player holds), square.
+    and is linear. Sizes: 2048 for an enemy body, 1024 for a gun (2048 for the guns the player holds), square.
+    The mask is written at half the size of the others (it changes slowly and is a quarter of the memory that way).
+    Keep cloth, webbing and rubber at 0.06 smoothness or less in the mask: the shine is skipped only at 0.1 or
+    below, and compression moves values by a step or two.
     The game's import rules (ModelTextureImportRules.cs) set compression and mip maps by the file name's ending.
 
     Two traps (19 Nov 2026 review, not yet seen in practice):
@@ -381,6 +384,10 @@ def save_texture_set(name, color, normal, mask, folder=None):
     folder = folder or TEXTURES
     os.makedirs(folder, exist_ok=True)
     written = []
+    if mask.size[0] > 64:
+        half = mask.copy()
+        half.scale(max(1, mask.size[0] // 2), max(1, mask.size[1] // 2))
+        mask = half
     for suffix, image, colour_space in (("Color", color, "sRGB"), ("Normal", normal, "Non-Color"), ("Mask", mask, "Non-Color")):
         image.colorspace_settings.name = colour_space
         target = os.path.join(folder, "%s_%s.png" % (name, suffix))

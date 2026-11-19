@@ -105,6 +105,10 @@ Shader "OrbitalAnte/Model"
             {
                 float range = length(_WorldSpaceCameraPos.xyz - input.positionWS);
                 half3 normal = normalize(input.normalWS);
+                // How fast the surface itself turns across this pixel, to spread a highlight too small to draw;
+                // taken before any baked bumps, which would otherwise blur every highlight on a textured model.
+                half3 turnX = ddx(normal);
+                half3 turnY = ddy(normal);
             #if defined(_OA_TEXTURED)
                 // The pictures already hold the wear, dust and grime the paint pass imitates on plain colours,
                 // so it is left out here.
@@ -142,9 +146,6 @@ Shader "OrbitalAnte/Model"
                 // goes black.
                 half mirrored = metal * 0.85 * saturate(OA_ShineAmount(gloss)) * _SunAmount;
                 half scattered = 1.0 - mirrored * OA_DaylitSkyIn(input.positionWS, up, cave.a);
-                // How fast the surface turns across this pixel, to spread a highlight too small to draw.
-                half3 turnX = ddx(normal);
-                half3 turnY = ddy(normal);
                 half widen = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
                 half3 color = albedo * light * scattered + albedo * _Glow;
                 color += OA_ShineIn(normal, input.positionWS, up, _SunAmount, gloss, metal, albedo, widen, cave.a);

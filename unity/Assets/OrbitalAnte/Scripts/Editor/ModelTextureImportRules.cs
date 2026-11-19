@@ -18,7 +18,7 @@ namespace OrbitalAnte.EditorTools
     public sealed class ModelTextureImportRules : AssetPostprocessor
     {
         const string Root = "Assets/OrbitalAnte/Resources/Models/Textures/";
-        const string Stamp = "oa-model-texture-1";
+        const string Stamp = "oa-model-texture-2";
         public const int MaxSize = 2048;
 
         void OnPreprocessTexture()
@@ -41,10 +41,21 @@ namespace OrbitalAnte.EditorTools
             importer.mipmapEnabled = true;
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.filterMode = FilterMode.Trilinear;
-            importer.anisoLevel = 4;
+            // Only the colour gains much from sharper filtering at a slant; each extra tap is paid per pixel.
+            importer.anisoLevel = normal || mask ? 1 : 4;
             importer.maxTextureSize = MaxSize;
             importer.textureCompression = TextureImporterCompression.CompressedHQ;
             importer.isReadable = false;
+            // The Deck build (Linux standalone): bumps as BC5, made for two-channel normal maps and much quicker to
+            // import than BC7; colour and mask as BC7. All one byte a pixel.
+            importer.SetPlatformTextureSettings(new TextureImporterPlatformSettings
+            {
+                name = "Standalone",
+                overridden = true,
+                maxTextureSize = MaxSize,
+                format = normal ? TextureImporterFormat.BC5 : TextureImporterFormat.BC7,
+                textureCompression = TextureImporterCompression.CompressedHQ,
+            });
         }
     }
 }

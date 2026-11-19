@@ -22,6 +22,8 @@ namespace OrbitalAnte.Look
         {
             public ModelFile File;
             public Mesh[] Meshes;
+            /// <summary>Its texture set's open-air material, once asked for (so a body's fifteen pieces ask once).</summary>
+            public Material Textured;
         }
 
         static readonly Dictionary<string, Entry> Loaded = new Dictionary<string, Entry>();
@@ -123,6 +125,9 @@ namespace OrbitalAnte.Look
             if (entry == null || !entry.File.Textured) return Outdoor();
             TextureSet pictures = PicturesOf(entry.File.TextureSet);
             if (pictures == null) return Outdoor();
+            // Kept on the model so each piece of each new body is one lookup with no new strings; a new world
+            // destroys the materials, which makes the kept one null and it is asked for again.
+            if (entry.Textured != null) return entry.Textured;
             Material outdoor = PlanetMaterials.TexturedModel(entry.File.TextureSet, pictures.Color, pictures.Normal, pictures.Mask, 1f, 0f, PropPaintScale);
             if (outdoor != Outdoor() && !IndoorOf.ContainsKey(outdoor))
             {
@@ -133,6 +138,7 @@ namespace OrbitalAnte.Look
                 IndoorOf[outdoor] = indoor;
                 OutdoorOf[indoor] = outdoor;
             }
+            if (outdoor != Outdoor()) entry.Textured = outdoor;
             return outdoor;
         }
 
