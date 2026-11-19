@@ -467,7 +467,8 @@ Current save data is small. File size, allocations, storage latency and checkpoi
 | Boxes per body | `DigRules.MaxChunks` 1500 (raised from 420 for digging to the core: a shaft to Earth's core is about 475 boxes); bullets stop at `BulletChunks` 250. Only boxes within `PlanetDigging.BuildReach` (320 m) of the viewer are worked out and drawn. About half are empty and make no object. A flat box is about 500 triangles, a tunnel or pitted box 1,000 to 2,000. Guess at the cap: about 200 draw calls, 100k to 250k triangles, one material. |
 | Ground tiles rebuilt round new boxes | Only finest tiles whose own box touches the change (plus 2 m); a tile whose shape does not change is skipped. The cover is made again at most every 0.2 s. |
 | Collider cooking (main thread) | `GroundCooks.PerFrame` 2 a frame across dug boxes and rebuilt tiles (cave walls cook at once but are counted). Static ground options: fast midphase plus mesh cleaning. |
-| Drawing check | 40 boxes a frame, in turn (a few quadtree look-ups each). |
+| Drawing check | 40 boxes a frame in turn, plus every hidden box within `NearCheck` (150 m), at most 40 more: up to 80 checks of 1 to 9 quadtree look-ups, and one walk of the box list (up to 1,500, distance tested first). Guess 0.1 to 0.4 ms at the cap; no allocation. Not measured. |
+| The shovel in view | `Shovel` model: 7,168 triangles, 1 piece, 1 draw call, no shadow, no far copy; drawn only during a swing. Cap 8,000 (rule test). |
 | Coming back to a dug world | Every box within 320 m is built again: many seconds of background work for a heavily dug spot, queued behind the ground you land on. Not measured. |
 
 Read in Unity on the Deck: the Profiler's main-thread `MeshCollider` cooking and `GC.Collect` while 4 enemies and you fire into the ground for a minute, then fly off and land again and note how long the tiles under you take. The planet line on F3 shows "dug N scoops, M boxes (R refused)".

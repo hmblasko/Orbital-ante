@@ -56,7 +56,11 @@ namespace OrbitalAnte.Planets
         public const double Recess = 0.06;
 
         /// <summary>The most scoops one body keeps. More are refused (a run would have to empty many guns into one world).</summary>
-        public const int MaxCarves = 6000;
+        public const int MaxCarves = 12000;
+        /// <summary>The most scoops bullets may make on one body (their own count), so gunfire can never use up the shovel's share.</summary>
+        public const int BulletCarves = 5000;
+        /// <summary>Blasts stop digging once a body holds this many scoops of any kind: the rest is the shovel's.</summary>
+        public const int BlastCarves = 9000;
         /// <summary>The most boxes of dug ground one body keeps; a scoop that would need more is refused.</summary>
         public const int MaxChunks = 1500;
         /// <summary>
@@ -303,17 +307,30 @@ namespace OrbitalAnte.Planets
         public bool TryCarve(DigCarve carve, List<long> reshaped, List<long> added) => TryCarve(carve, reshaped, added, DigRules.MaxChunks);
 
         /// <param name="chunkCap">The most boxes this scoop may bring the body to (<see cref="DigRules.ChunkCapFor"/>).</param>
-        public bool TryCarve(DigCarve carve, List<long> reshaped, List<long> added, int chunkCap)
+        public bool TryCarve(DigCarve carve, List<long> reshaped, List<long> added, int chunkCap) => TryCarve(carve, reshaped, added, chunkCap, DigSource.Shovel);
+
+        /// <summary>Scoops made by bullets so far (they have their own limit, <see cref="DigRules.BulletCarves"/>).</summary>
+        public int BulletCarveCount { get; private set; }
+
+        /// <summary>
+        /// Takes a scoop made by <paramref name="source"/>, with that kind's share of the body's scoops: bullets count
+        /// their own, blasts leave the last of the room to the shovel.
+        /// </summary>
+        public bool TryCarve(DigCarve carve, List<long> reshaped, List<long> added, int chunkCap, DigSource source)
         {
             if (!(carve.Radius > 0) || !DigRules.Finite(carve.Centre)) return false;
             if (_carves.Count >= DigRules.MaxCarves) return false;
+            if (source == DigSource.Bullet && BulletCarveCount >= DigRules.BulletCarves) return false;
+            if (source == DigSource.Blast && _carves.Count >= DigRules.BlastCarves) return false;
             if (Inside(carve)) return false;
 
             _scratch.Clear();
             DigRules.ChunksTouching(carve.Centre, carve.Radius + DigRules.Margin, _scratch);
             int fresh = 0;
             for (int i = 0; i < _scratch.Count; i++) if (!_chunks.Contains(_scratch[i])) fresh++;
-            if (_chunks.Count + fresh > Math.Min(chunkCap, DigRules.MaxChunks)) return false;
+            // Only new boxes count against the cap: ground already dug up can always be dug further (a bullet into a
+            // crater, past the bullets' share of boxes, still dents it).
+            if (fresh > 0 && _chunks.Count + fresh > Math.Min(chunkCap, DigRules.MaxChunks)) return false;
             for (int i = 0; i < _scratch.Count; i++)
             {
                 if (_chunks.Add(_scratch[i])) added?.Add(_scratch[i]);
@@ -321,6 +338,7 @@ namespace OrbitalAnte.Planets
 
             int index = _carves.Count;
             _carves.Add(carve);
+            if (source == DigSource.Bullet) BulletCarveCount++;
             Deepest = Math.Min(Deepest, carve.Centre.Magnitude - carve.Radius);
             _scratch.Clear();
             DigRules.ChunksTouching(carve.Centre, carve.Radius + DigRules.Cell * 2, _scratch);
@@ -467,6 +485,7 @@ namespace OrbitalAnte.Planets
         public void Clear()
         {
             _carves.Clear();
+            BulletCarveCount = 0;
             _byChunk.Clear();
             _chunks.Clear();
             Deepest = double.PositiveInfinity;

@@ -54,6 +54,32 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ShovelModelFile_IsHeldAtItsGrip_AndPointsItsBladeForward()
+        {
+            // tools/blender/build_shovel.py. PlayerShovel holds the tool by its origin and thrusts it along +Z with the
+            // blade's hollow face up, the way the primitive stand-in it replaces was laid out.
+            ModelFile model = LoadReal("Shovel");
+            Assert.AreEqual(1, model.Parts.Length);
+            Assert.AreEqual("shovel", model.Parts[0].Name);
+            Assert.IsTrue(model.TrySocket("Grip", out ModelSocket grip));
+            Assert.IsTrue(model.TrySocket("Tip", out ModelSocket tip));
+            Assert.AreEqual(0f, Math.Abs(grip.X) + Math.Abs(grip.Y) + Math.Abs(grip.Z), 1e-4f);
+            Assert.That(tip.Z, Is.InRange(0.78f, 0.90f), "about as long as the stand-in");
+            Assert.Less(Math.Abs(tip.X), 0.005f);
+            Assert.That(tip.Y, Is.InRange(0.0f, 0.08f), "the blade is lifted a little off the shaft's line");
+            float[] p = model.Parts[0].Positions;
+            float back = float.MaxValue, wide = 0f;
+            for (int i = 0; i < p.Length; i += 3)
+            {
+                back = Math.Min(back, p[i + 2]);
+                wide = Math.Max(wide, Math.Abs(p[i]));
+            }
+            Assert.Greater(back, -0.03f, "nothing behind the grip: it would cut into the eye's near plane");
+            Assert.That(wide, Is.InRange(0.08f, 0.12f), "a blade about 0.2 m across");
+            Assert.LessOrEqual(model.TriangleCount, 8000);
+        }
+
+        [Test]
         public void AModelSurvivesBeingWrittenAndReadBack()
         {
             ModelFile back = ModelFile.Parse(Triangle().ToBytes(), out string problem);

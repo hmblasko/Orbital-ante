@@ -18,6 +18,8 @@ namespace OrbitalAnte.Planets
         public Vec3d Min, Max;
         public int VertexCount => Positions == null ? 0 : Positions.Length / 3;
         public bool Empty => Triangles == null || Triangles.Length == 0;
+        /// <summary>The box could not be worked out (an error): whatever stood there before is left as it was.</summary>
+        public bool Failed;
     }
 
     /// <summary>

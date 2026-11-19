@@ -83,7 +83,7 @@ namespace OrbitalAnte.Player
                 case OrbitalAnte.Planets.DigRefusal.Core: return "THE CORE: NOWHERE DEEPER TO DIG";
                 case OrbitalAnte.Planets.DigRefusal.NearWater: return "CAN'T DIG: THE SEA WOULD COME IN";
                 case OrbitalAnte.Planets.DigRefusal.OldCave: return "CAN'T DIG: GROUND TOO LOOSE HERE";
-                case OrbitalAnte.Planets.DigRefusal.Full: return "CAN'T DIG: GROUND PACKED HARD HERE";
+                case OrbitalAnte.Planets.DigRefusal.Full: return "CAN'T DIG: THIS WORLD IS DUG OUT";
                 default: return null;
             }
         }

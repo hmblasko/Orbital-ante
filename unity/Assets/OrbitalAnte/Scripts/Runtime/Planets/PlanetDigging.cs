@@ -51,6 +51,8 @@ namespace OrbitalAnte.Planets
         const float CoverEvery = 0.2f;
         /// <summary>Boxes whose drawing is checked against the ground's detail each frame (in turn).</summary>
         const int VisibleChecksPerFrame = 40;
+        /// <summary>Hidden boxes within this far of the viewer are checked every frame.</summary>
+        const double NearCheck = 150;
         /// <summary>A box whose top is this far under the ground is "deep": drawn whenever it is near, as no tile shows through.</summary>
         const double DeepBelow = 12;
         /// <summary>
@@ -123,7 +125,7 @@ namespace OrbitalAnte.Planets
             }
             _reshaped.Clear();
             _added.Clear();
-            if (!Field.TryCarve(carve, _reshaped, _added, DigRules.ChunkCapFor(source)))
+            if (!Field.TryCarve(carve, _reshaped, _added, DigRules.ChunkCapFor(source), source))
             {
                 if (Field.Inside(carve)) LastRefusal = DigRefusal.AlreadyDug;
                 else
@@ -224,6 +226,17 @@ namespace OrbitalAnte.Planets
                 bool want = Fine(v);
                 if (v.Renderer.enabled != want) v.Renderer.enabled = want;
             }
+            // Near the viewer a hidden box is looked at every frame: when a finest tile comes in with its hole already
+            // cut, the dug ground in the hole must be drawn the same frame, not when its turn comes round.
+            // (The walk starts where the turn above has got to, so boxes that stay hidden never take every look.)
+            int looked = 0, count = _order.Count;
+            for (int n = 0; n < count && looked < VisibleChecksPerFrame; n++)
+            {
+                View v = _order[(_visibleNext + n) % count];
+                if ((v.Centre - viewer).SqrMagnitude > NearCheck * NearCheck || v.Renderer == null || v.Renderer.enabled) continue;
+                looked++;
+                if (Fine(v)) v.Renderer.enabled = true;
+            }
         }
 
         bool Fine(View v)
@@ -292,10 +305,10 @@ namespace OrbitalAnte.Planets
                 }
                 catch (Exception e)
                 {
-                    // A box that cannot be worked out is left empty (the ground there stays as it was) rather than
-                    // holding a worker's place for good.
+                    // A box that cannot be worked out leaves the ground there as it was (the old box, or the plain
+                    // tile if there was none) rather than holding a worker's place for good or opening a hole.
                     UnityEngine.Debug.LogWarning("Dug ground: box could not be worked out: " + e.Message);
-                    return new DigChunkData { Key = key };
+                    return new DigChunkData { Key = key, Failed = true };
                 }
             };
         }
@@ -310,6 +323,7 @@ namespace OrbitalAnte.Planets
             v.Job = null;
             _jobs = Math.Max(0, _jobs - 1);
             if (!_shown || !_views.TryGetValue(v.Key, out View current) || current != v) return;
+            if (data.Failed) return;
             if (data.Empty)
             {
                 Release(v);
@@ -365,9 +379,9 @@ namespace OrbitalAnte.Planets
                     if (d < nearest) { nearest = d; best = v; }
                 }
                 if (best == null) return;
+                if (best.Go == null) { best.Cook = false; continue; }
                 if (!GroundCooks.Take()) return;
                 best.Cook = false;
-                if (best.Go == null) continue;
                 if (best.Collider == null)
                 {
                     best.Collider = best.Go.AddComponent<MeshCollider>();

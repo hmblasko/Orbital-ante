@@ -666,6 +666,39 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
+        public void GroundAlreadyDugUp_CanAlwaysBeDugFurther_EvenPastTheBulletsShare()
+        {
+            var field = new DigField();
+            var at = new Vec3d(3.2, 500, 3.2);
+            Assert.IsTrue(field.TryCarve(new DigCarve(at, 0.3), null, null));
+            int boxes = field.ChunkCount;
+            // A cap already passed: no new box may be opened, but the crater can still be dented.
+            Assert.IsTrue(field.TryCarve(new DigCarve(at + new Vec3d(0.3, 0, 0), 0.3), null, null, boxes - 1));
+            Assert.AreEqual(boxes, field.ChunkCount);
+            Assert.IsFalse(field.TryCarve(new DigCarve(at + new Vec3d(200, 0, 0), 0.3), null, null, boxes - 1), "a new box is refused");
+        }
+
+        [Test]
+        public void Bullets_NeverUseUpTheShovelsShareOfScoops()
+        {
+            var field = new DigField();
+            var rng = new Random(11);
+            int boxes = DigRules.ChunkCapFor(DigSource.Bullet);
+            // The shovel's own digging does not count against the bullets.
+            for (int i = 0; i < 300; i++)
+                field.TryCarve(new DigCarve(new Vec3d(40 + rng.NextDouble() * 4, 500 - rng.NextDouble() * 4, 1 + rng.NextDouble() * 4), 0.2), null, null, DigRules.MaxChunks, DigSource.Shovel);
+            Assert.AreEqual(0, field.BulletCarveCount);
+            // Bullets poured into one patch: no new boxes after the first few, so only their scoop limit can stop them.
+            for (int i = 0; i < DigRules.BulletCarves + 400; i++)
+                field.TryCarve(new DigCarve(new Vec3d(1 + rng.NextDouble() * 4, 500 - rng.NextDouble() * 4, 1 + rng.NextDouble() * 4), 0.2), null, null, boxes, DigSource.Bullet);
+            Assert.LessOrEqual(field.BulletCarveCount, DigRules.BulletCarves);
+            Assert.Greater(field.BulletCarveCount, DigRules.BulletCarves / 2, "the patch was not simply full");
+            Assert.Less(DigRules.BulletCarves, DigRules.MaxCarves * 0.6);
+            Assert.Less(DigRules.BlastCarves, DigRules.MaxCarves);
+            Assert.IsTrue(field.TryCarve(DigRules.Shovel(new Vec3d(3, 494, 3), new Vec3d(0, -1, 0)), null, null, DigRules.MaxChunks, DigSource.Shovel));
+        }
+
+        [Test]
         public void Bullets_StopDigging_LongBeforeTheShovelHasToStop()
         {
             var field = new DigField();

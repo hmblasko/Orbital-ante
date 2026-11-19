@@ -13,7 +13,7 @@ Matthew asked: "Maybe have the ground of the planet be solid and give the player
   - Digging forward takes a second scoop at your feet, so the tunnel is tall enough to walk along and its floor stays level with your boots.
   - Speed: about 1.3 m of tunnel a second, slower than walking.
   - Rock, trees, bases and the ship cannot be dug, and the blade rings off them.
-  - When the ground will not give, you hear a dull thud and the suit display says why: as deep as it goes (24 m), water below, ground too loose (beside an old single cave), or ground packed hard (the body's cap is reached).
+  - When the ground will not give, you hear a dull thud and the suit display says why: as deep as it goes (24 m), water below, ground too loose (beside an old single cave), or "this world is dug out" (the world's cap is reached).
 - **Bullet holes.** Every bullet that hits the ground takes out a small scoop, from 0.2 m for a pistol to 0.5 m for heavy rounds. Enemy bullets dig too, so cover wears away under fire. Two settings switch this off: "Bullets Dig" and "Enemy Bullets Dig" on the Planets asset.
 - **Blasts.** `GroundDamage.Blast(point, radius)` makes a crater. Nothing in the game explodes on the ground yet, so this is ready for the meteor strikes (PR 58) to call.
 - **Enemies and holes:**
@@ -39,6 +39,35 @@ Matthew: "You should be able to dig anywhere in the down to the core."
 - **Box cap** raised from 420 to 1500 per world; bullets still stop at 250.
 
 Not verified (needs Unity): walking, standing and floating near the core (which way is up flips as you pass the centre; the suit should go to floating as the pull fades), how long the boxes of a deep shaft take to appear on the Deck, whether anything that checks "under the ground" elsewhere in the game still treats a deep shaft as being inside rock.
+
+## Second pass (19 Nov 2026)
+
+Matthew: "Fable 5.2, see how you can help here." A line-by-line read of the digging code for faults that would only show in Unity, and a real shovel. **Still nothing has been run in Unity.**
+
+### Faults found and fixed
+
+- **A box that failed to build opened a hole.** If the background job for a box threw an error, the box was treated as empty and removed. The ground tile had already left its faces out there, so the result was a hole with no floor. *Fixed:* a failed box is left as it was (the old box, or the plain tile).
+- **A hole with nothing in it for up to half a second.** Dug ground is only drawn where the finest ground tiles are. Which boxes are drawn was checked 40 boxes a frame, in turn. With many boxes dug, a finest tile could come in with its hole cut and the dug ground in it not yet switched on. *Fixed:* hidden boxes within 150 m of you are checked every frame.
+- **Gunfire could use up the shovel's digging.** A world keeps a limited number of scoops. Bullets fired into ground that was already dug opened no new boxes, so the bullets' box limit never stopped them, and they could fill the whole scoop limit. After that the shovel was refused everywhere on that world. *Fixed:* bullets have their own count of scoops (5,000), blasts stop at 9,000 scoops of any kind, and the world's limit is 12,000, so the shovel always has room.
+- **Bullets stopped denting old craters.** Once bullets had used their 250 boxes, even a shot into an existing crater was refused. *Fixed:* a scoop that needs no new box is never refused by the box limit.
+- **A wasted collider slot.** A box with nothing to draw could use up one of the two collider cooks allowed that frame. *Fixed.*
+
+### The shovel
+
+- **Model.** `tools/blender/build_shovel.py` builds `Resources/Models/Shovel.bytes` (7,168 triangles, one piece). It is a short D-handled round-point digging shovel, 0.84 m long: a pressed steel blade with turned steps, a raised rib running up into a riveted socket, an ash shaft with an orange kit band, and a steel yoke holding a wooden cross grip. The blade's paint is worn to bare steel at the point and edges. The primitive stand-in is kept for when the file is missing.
+- **How it is held.** The old swing held the tool far out in front and small. Now the grip sits below the bottom right of the view and the thrust drives the point at the middle of the view, where the bite lands. Pictures: `docs/art/previews/shovel_views.jpg` (the tool, and both ends of the swing as the player sees it, drawn in Blender at the game's width of view).
+- **Honest limits.** The game's models are coloured per corner with no textures, so the wood's grain is faint. It will gain most from the texture work in the thread "Remake enemies and guns realistically". There are no hands on the tool, as with the guns.
+
+### Agent review of this pass
+
+- **Design review.** Found that the bullets' limit was measured against all scoops, so shovelling could switch bullet holes off (a hidden rule). *Fixed:* bullets count their own. Blasts could still use up the shovel's room. *Fixed:* blasts stop at 9,000. The refusal "ground packed hard here" suggested moving would help when the cap is world-wide. *Fixed:* it now says "THIS WORLD IS DUG OUT". Bullets stopping quietly at their limit was judged acceptable, since nothing is taken from the player.
+- **Deck review.** The new every-frame check walks up to 1,500 boxes. No allocation; guessed 0.1 to 0.4 ms at the cap. *Changed as advised:* distance is tested first, and the walk starts at a moving place so boxes that stay hidden cannot take every look. The shovel's 7,168 triangles are under the guns' 9,000 cap and it is one draw call, shown only during a swing.
+- **Unity review.** Did not finish (the reviewer hit a usage limit), so this pass has no second read for Unity faults beyond my own.
+
+### Tests
+
+- The full rule suite passes in the cloud (2,588 passed, 1 skipped). 26 digging rule tests pass, with two new ones: ground already dug can always be dug further, and bullets never use up the shovel's share of scoops.
+- A new model test checks the shovel file: held at its grip, blade forward and lifted, nothing behind the grip, about 0.2 m wide, 8,000 triangles at most.
 
 ## Why (constitution)
 
@@ -111,7 +140,7 @@ Three reviews ran on the first version: Unity, design and Deck performance. Ever
 - Enemies in a cave network walk on the network's own shape, so they do not follow dug tunnels inside a network. On open ground they reach a tunnel's mouth, but whether they walk well inside a narrow tunnel is untested.
 - Under the "simple shaders" fallback, tunnels are not darkened.
 - From far away, holes are not drawn. The coarse ground covers them; only the finest tiles show dug ground.
-- The shovel is a primitive stand-in (a wooden handle and a steel blade) until Fable makes a model.
+- The shovel model and its new held pose have only been seen in Blender pictures (see "Second pass" below).
 - Digging sounds reuse "impact.dirt" (a lower, quieter play for a refusal). There is no shovel sound of its own yet.
 - Whether bullet holes wearing away cover is fun or unfair needs a playtest.
 

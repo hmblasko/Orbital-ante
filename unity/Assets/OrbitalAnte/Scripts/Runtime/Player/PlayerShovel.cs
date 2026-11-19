@@ -12,10 +12,16 @@ namespace OrbitalAnte.Player
     /// blade bites the ground in front of the eye, again and again (<see cref="ShovelSwing"/>): dig down for a
     /// foxhole, or straight ahead into a hillside for a tunnel. Each bite is one scoop of <see cref="DigRules"/>
     /// taken out through <see cref="GroundDamage.Shovel"/>; rock, trees, buildings and the ship cannot be dug.
-    /// Digging is heard (<see cref="Noisy"/>). The blade is a primitive stand-in until a model is made.
+    /// Digging is heard (<see cref="Noisy"/>). The tool is the game's own <see cref="Model"/> (tools/blender/build_shovel.py);
+    /// the primitive stand-in is kept for when that file is missing.
     /// </summary>
     public sealed class PlayerShovel : MonoBehaviour
     {
+        /// <summary>The model's file in Resources/Models: origin at the grip, +Z along the shaft to the blade, +Y out of the blade's hollow face.</summary>
+        public const string Model = "Shovel";
+        /// <summary>True when the game's own model is being shown, false for the stand-in. For tests and the debug readout.</summary>
+        public bool UsesModel { get; private set; }
+
         Camera _eye;
         Transform _model;
         readonly ShovelSwing _swing = new ShovelSwing();
@@ -42,7 +48,7 @@ namespace OrbitalAnte.Player
         public void Initialize(Camera eye)
         {
             _eye = eye;
-            BuildStandIn();
+            BuildModel();
         }
 
         void Update()
@@ -96,18 +102,30 @@ namespace OrbitalAnte.Player
 
         // ------------------------------------------------------------------ the stand-in
 
-        void BuildStandIn()
+        void BuildModel()
         {
             var root = new GameObject("Shovel");
             root.layer = gameObject.layer;
             _model = root.transform;
             _model.SetParent(_eye.transform, false);
+            UsesModel = OrbitalAnte.Look.ModelLibrary.Build(Model, _model);
+            if (UsesModel)
+            {
+                // Held in front of the eye, like the guns: it casts no shadow of its own.
+                foreach (MeshRenderer r in root.GetComponentsInChildren<MeshRenderer>())
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            else BuildStandIn();
+            root.SetActive(false);
+        }
+
+        void BuildStandIn()
+        {
             Material wood = Mat.Lit(new Color(0.46f, 0.36f, 0.24f), 0.25f);
             Material steel = Mat.Lit(new Color(0.42f, 0.43f, 0.45f), 0.55f);
             Piece(PrimitiveType.Cylinder, wood, new Vector3(0f, 0f, 0.30f), new Vector3(0.032f, 0.30f, 0.032f), Quaternion.Euler(90f, 0f, 0f));
             Piece(PrimitiveType.Cube, wood, new Vector3(0f, 0f, 0.0f), new Vector3(0.11f, 0.03f, 0.03f), Quaternion.identity);
             Piece(PrimitiveType.Cube, steel, new Vector3(0f, 0f, 0.71f), new Vector3(0.20f, 0.02f, 0.24f), Quaternion.Euler(-12f, 0f, 0f));
-            root.SetActive(false);
         }
 
         void Piece(PrimitiveType type, Material m, Vector3 centre, Vector3 scale, Quaternion turn)
@@ -126,6 +144,9 @@ namespace OrbitalAnte.Player
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
+        static readonly Vector3 HeldBack = new Vector3(0.28f, -0.42f, 0.14f), HeldThrust = new Vector3(0.22f, -0.40f, 0.30f);
+        static readonly Vector3 TurnedBack = new Vector3(-8f, -10f, -20f), TurnedThrust = new Vector3(-25f, -14f, -8f);
+
         void Pose()
         {
             if (_model == null) return;
@@ -133,9 +154,11 @@ namespace OrbitalAnte.Player
             if (_model.gameObject.activeSelf != shown) _model.gameObject.SetActive(shown);
             if (!shown) return;
             float f = _swing.Pose;
-            // From low at the right of the view, thrust forward and down into what you are looking at.
-            _model.localPosition = Vector3.Lerp(new Vector3(0.24f, -0.34f, 0.05f), new Vector3(0.10f, -0.22f, 0.55f), f);
-            _model.localRotation = Quaternion.Euler(Mathf.Lerp(28f, 8f, f), Mathf.Lerp(-12f, -3f, f), Mathf.Lerp(-18f, -6f, f));
+            // Held low at the right with the grip below the edge of the view (there are no hands to show), the blade's
+            // hollow face up; the thrust drives the point at the middle of the view, where the bite lands. The same
+            // numbers are in tools/blender/build_shovel.py (HELD_BACK, HELD_THRUST), which draws both ends of the swing.
+            _model.localPosition = Vector3.Lerp(HeldBack, HeldThrust, f);
+            _model.localRotation = Quaternion.Euler(Vector3.Lerp(TurnedBack, TurnedThrust, f));
         }
     }
 }
