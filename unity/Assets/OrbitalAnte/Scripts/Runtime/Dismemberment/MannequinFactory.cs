@@ -421,7 +421,7 @@ namespace OrbitalAnte.Dismemberment
             go.transform.SetParent(parent.transform, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = ModelLibrary.SharedMaterial();
+            renderer.sharedMaterial = ModelLibrary.MaterialFor(_model);
             renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
             // The game's own shader draws no shadow, so a second, unseen copy casts it where a scene has real lights.
