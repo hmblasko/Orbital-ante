@@ -9,7 +9,7 @@ Names here are placeholders. Each creature is original work that starts from a r
 | # | Starts from | Working name | Where | What it does | What comes off |
 |---|---|---|---|---|---|
 | 1 | Japanese spider crab | Strider | open ground | Walks up on eight stilt legs and throws a long claw | 10 limbs of 3 pieces each |
-| 2 | Camel spider | Sprinter | deserts, shade | Very fast, runs for your shadow | legs, jaws |
+| 2 | Camel spider | Sprinter | deserts, shade | Dashes and stops on the way in, then lunges and bites | 8 legs and 2 feelers of 3 pieces each, 2 jaws |
 | 3 | Giant isopod | Roller | anywhere | Armoured, rolls into a ball and charges | plates, legs |
 | 4 | Giant centipede | Cave hunter | caves | Hangs from the roof and drops | body segments, each with legs |
 | 5 | Cicada | Screamer | trees, cliffs | Its scream is the weapon | wings, legs |
@@ -18,7 +18,7 @@ Names here are placeholders. Each creature is original work that starts from a r
 | 8 | Goliath tigerfish | Pack biter | water | Hunts in packs | fins, jaw, tail |
 | 9 | Megamouth shark | Drifting maw | water | Slow, pulls you in | fins, jaw |
 
-8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
+Built so far (19 Nov 2026): 1 and 2, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
 
 The research behind the list is the report "Unusual animals for alien creatures" in the project's files.
 

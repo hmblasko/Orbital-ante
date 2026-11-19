@@ -586,7 +586,7 @@ SPRINTER_MATERIALS = {
                                     plates=(0.110, 1.0), stripe=(0.11, (0.10, 0.055, 0.030), ROW), gloss=0.16),   # the Abdomen is the second piece in the bake's row
     "leg": lambda: mats.bristly("leg", SAND, STRAW, UMBER, seed=3.0, hair=1.0, size=0.7),
     "palp": lambda: mats.bristly("palp", SAND, STRAW, UMBER, seed=4.0, hair=1.0, size=0.7),
-    "pad": lambda: mats.membrane("pad", (0.36, 0.26, 0.17), seed=5.0, size=0.6),
+    "pad": lambda: mats.bristly("pad", (0.46, 0.36, 0.25), (0.60, 0.52, 0.40), UMBER, seed=5.0, hair=0.15, size=0.6, gloss=0.30),
     "foot": lambda: mats.bristly("foot", SAND, STRAW, UMBER, seed=6.0, hair=0.8, size=0.6, tip=(1, 0.30, 0.40, (0.10, 0.05, 0.03))),
     "jaw": lambda: mats.bristly("jaw", RUST, STRAW, UMBER, seed=7.0, hair=0.7, size=0.7, tip=(1, 0.20, 0.40, PITCH), gloss=0.40),
     "jawfinger": lambda: mats.bristly("jawfinger", RUST, STRAW, UMBER, seed=8.0, hair=0.5, size=0.7, tip=(1, 0.06, 0.26, PITCH), gloss=0.40),
@@ -604,7 +604,7 @@ HEAD_KEYS = [(0.00, 0.100, 0.070, 0, 0.0), (0.06, 0.190, 0.110, 0, 0.0), (0.22, 
 HEAD_BACK = -0.14
 
 
-def sliver(g, base, way, length, width=0.0045):
+def sliver(g, base, way, length, width=0.0034):
     """One long bristle as the game draws it: a three-sided sliver of four triangles (the baked one is a round hair)."""
     if g.hi:
         return g.spine("bristle", base, way, length, width * 0.8, around=3, bend=(0, 0, 0))
@@ -737,10 +737,9 @@ def sprinter(hi):
     joint("PalpLower", 0.045)
     g.add(g.skin("palp lower", (0, 0, 0), (0, 1, 0), up, k, around=8, step=0.10, power=2.2), "palp", "PalpLower")
     bristles("PalpLower", "palp", k, 180, 32, 42)
-    k = [(0.01, 0.030, 0.032, 0, 0.0), (0.05, 0.040, 0.042, 0, 0.0), (0.20, 0.038, 0.040, 0, 0.0), (0.27, 0.036, 0.038, 0, 0.0)]
+    k = [(0.01, 0.030, 0.032, 0, 0.0), (0.05, 0.040, 0.042, 0, 0.0), (0.20, 0.038, 0.040, 0, 0.0), (0.27, 0.037, 0.039, 0, 0.0), (0.30, 0.031, 0.033, 0, 0.0), (0.318, 0.017, 0.018, 0, 0.0)]
     joint("PalpTip", 0.037)
     g.add(g.skin("palp tip", (0, 0, 0), (0, 1, 0), up, k, around=8, step=0.10, power=2.2), "palp", "PalpTip")
-    g.add(g.ball("pad", (0, 0.280, 0.0), 0.038, scale=(1.0, 1.1, 1.0), around=7), "pad", "PalpTip")
     bristles("PalpTip", "palp", k, 130, 26, 43, end=0.9)
 
     # ------------------------------------------------------------- jaws: a swollen base, a fixed upper finger, a moving lower one
@@ -822,6 +821,10 @@ def sprinter_sockets():
 CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
+# How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
+# rounded shapes that are thinned like the big ones). The Sprinter's head is many small shapes, which would all be
+# kept whole and leave its abdomen and legs sixteen triangles each.
+FAR_HOW = {"Sprinter": (0.40, 40, ("hip", "back plate", "eye knob", "beak", "joint", "jaw hinge", "head plate", "pad", "tooth", "eye"))}
 # Shapes too many and too thin to be given their own places on the pictures (each would take a patch and its margin,
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
@@ -916,7 +919,10 @@ def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
     if not reuse:
         oa.export(os.path.join(folder, name + ".bytes"), low_parts, sockets, textures=name)
     if not (reuse and poses):
-        far = oa.thin(low_parts, int(triangles * FAR_SHARE), drop_below=0.05, least=16, leave_out=FAR_LEAVE_OUT.get(name, ()))
+        share, least, thin_too = FAR_HOW.get(name, (FAR_SHARE, 16, ()))
+        left_out = FAR_LEAVE_OUT.get(name, ())
+        counted = sum(oa._triangle_count(o) for o in low_objects if o.name.split(".")[0] not in left_out)
+        far = oa.thin(low_parts, int(counted * share), drop_below=0.05, least=least, leave_out=left_out, thin_too=thin_too)
     if not reuse:
         oa.export(os.path.join(folder, name + oa.FAR + ".bytes"), far, sockets, textures=name)
         print("OA %s: written at %.0f s" % (name, time.time() - started))
