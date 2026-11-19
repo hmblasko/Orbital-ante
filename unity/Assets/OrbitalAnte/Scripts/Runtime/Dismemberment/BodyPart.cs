@@ -14,6 +14,13 @@ namespace OrbitalAnte.Dismemberment
         public Collider Hitbox { get; private set; }
         public float Mass { get; private set; }
 
+        /// <summary>
+        /// In a jointed chunk (see GibRagdoll) every part but the top one is its own weight, held to the part above
+        /// by a joint. Null on the living body, on the top part of a chunk and in a stiff chunk.
+        /// </summary>
+        public Rigidbody OwnBody { get; set; }
+        public ConfigurableJoint Joint { get; set; }
+
         /// <summary>Shown on this part where it used to join its parent.</summary>
         public GameObject ProximalCap { get; private set; }
 

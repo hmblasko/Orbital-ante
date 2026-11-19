@@ -38,8 +38,13 @@ namespace OrbitalAnte.Dismemberment
         /// </summary>
         public bool Sunk { get; private set; }
 
+        /// <summary>The joints of a chunk whose parts move against each other (null until one is asked for).</summary>
+        public GibRagdoll Ragdoll { get; set; }
+
         void SankInto(Vector3 onTop, Transform world)
         {
+            // A jointed chunk is made stiff first (at its next step: nothing may be switched off here).
+            if (Ragdoll != null) Ragdoll.Sank();
             // Called while the solar system walks its loose objects: only made still here, nothing switched off.
             Body.position = onTop;
             transform.position = onTop;
@@ -107,12 +112,16 @@ namespace OrbitalAnte.Dismemberment
         {
             Owner = null;
             InUse = false;
+            // The parts are finished with and take their own joints with them.
+            if (Ragdoll != null) Ragdoll.Forget();
             Parts.Clear();
         }
 
         public void BeginFade(float duration)
         {
             if (Fading) return;
+            // The fade is a shrink of the whole chunk, which joints would fight: it goes stiff first.
+            if (Ragdoll != null) Ragdoll.MakeStiff();
             FadeStartAge = Age;
             FadeDuration = Mathf.Max(0.01f, duration);
         }
@@ -122,7 +131,8 @@ namespace OrbitalAnte.Dismemberment
             float mass = 0f;
             for (int i = 0; i < Parts.Count; i++)
             {
-                if (Parts[i] != null) mass += Parts[i].Mass;
+                // A part with its own weight in a jointed chunk is not carried by this body.
+                if (Parts[i] != null && Parts[i].OwnBody == null) mass += Parts[i].Mass;
             }
             Body.mass = Mathf.Max(0.5f, mass);
         }

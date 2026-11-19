@@ -416,7 +416,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(trooper * 1.25, Rest(BodyStyle.Bruiser), 0.03);
             Assert.Less(Rest(BodyStyle.Runner), trooper);
             // The style's chest is the same number the hitboxes are fitted with.
-            foreach (string model in new[] { "Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman" })
+            foreach (string model in new[] { "Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman", "EnemyDrifter" })
                 Assert.AreEqual(BodyFit.Thickness(model, BodyPartId.Torso), BodyStyle.For(model).Girth, 1e-6, model);
         }
 

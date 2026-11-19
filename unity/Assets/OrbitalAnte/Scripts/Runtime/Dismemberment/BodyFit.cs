@@ -14,6 +14,7 @@ namespace OrbitalAnte.Dismemberment
         static readonly float[] Runner = { 0.88f, 0.88f, 0.76f, 0.80f, 0.88f, 0.80f, 0.78f, 0.88f };
         static readonly float[] Bruiser = { 0.80f, 1.25f, 1.26f, 1.62f, 1.42f, 1.26f, 1.34f, 1.26f };
         static readonly float[] Marksman = { 0.88f, 0.90f, 0.84f, 0.84f, 0.94f, 0.86f, 0.84f, 0.94f };
+        static readonly float[] Drifter = { 0.96f, 0.94f, 0.92f, 0.96f, 0.93f, 0.92f, 0.94f, 1f };
 
         /// <summary>
         /// How far above the trooper's the middle of this kind's helmet sits, in metres before the body is scaled
@@ -40,6 +41,7 @@ namespace OrbitalAnte.Dismemberment
                 case "EnemyRunner": kind = Runner; break;
                 case "EnemyBruiser": kind = Bruiser; break;
                 case "EnemyMarksman": kind = Marksman; break;
+                case "EnemyDrifter": kind = Drifter; break;
                 default: kind = Trooper; break;
             }
             switch (part)

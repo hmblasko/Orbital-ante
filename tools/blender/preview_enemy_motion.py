@@ -2,6 +2,7 @@
 
     blender -b -P tools/blender/preview_enemy_motion.py -- <motion.json> <folder> [--eye x,y,z] [--lens 40] [--follow]
                                                          [--size 420x480] [--samples 10] [--only 3,10,24]
+                                                         [--model EnemyDrifter]
 
 The body is the common enemy model built by build_enemy.py (nothing is written to the game). The gun is a plain
 box. A part that is shot off flies away as one piece, together with everything below it, on a simple thrown path
@@ -99,7 +100,11 @@ def main():
     os.makedirs(folder, exist_ok=True)
 
     oa.reset_scene()
-    parts = be.make()
+    if arg(args, "--model", "") == "EnemyDrifter":
+        import build_enemy_drifter
+        parts = build_enemy_drifter.make()
+    else:
+        parts = be.make()
     stump = be.stump()
     for o in stump:
         o.location = (0, 0, -500)

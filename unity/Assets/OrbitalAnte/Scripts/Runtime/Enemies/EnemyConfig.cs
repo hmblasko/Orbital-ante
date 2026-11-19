@@ -31,6 +31,8 @@ namespace OrbitalAnte.Enemies
         public SpinUpRules spinUp = new SpinUpRules();
         [Tooltip("Faction A's Line: its covering fire while a squadmate is out on a flank.")]
         public SuppressRules suppress = new SuppressRules();
+        [Tooltip("Tick to give every kind of enemy a jointed body (corpses crumple, lost limbs fold as they fly), not only the kinds marked as jointed in the list above.")]
+        public bool jointedBodiesForAll = false;
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
 

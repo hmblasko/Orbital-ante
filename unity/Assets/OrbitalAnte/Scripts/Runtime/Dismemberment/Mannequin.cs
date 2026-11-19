@@ -96,7 +96,7 @@ namespace OrbitalAnte.Dismemberment
             for (int i = 0; i < result.Detachments.Count; i++)
             {
                 var detachment = result.Detachments[i];
-                Gib gib = SpawnGib(detachment, hit);
+                Gib gib = SpawnGib(detachment, hit, part);
                 PartDetached?.Invoke(this, detachment, gib, hit);
                 AnyPartDetached?.Invoke(this, detachment, gib, hit);
             }
@@ -111,7 +111,9 @@ namespace OrbitalAnte.Dismemberment
                 Gib loose = GibForGroup(groupBefore);
                 if (loose != null && loose.Body != null)
                 {
-                    loose.Body.AddForceAtPosition(hit.Direction * Config.gibPushSpeed, hit.Point, ForceMode.VelocityChange);
+                    // In a jointed chunk the part that was hit is knocked, and drags the rest after it.
+                    Rigidbody knocked = part.OwnBody != null ? part.OwnBody : loose.Body;
+                    knocked.AddForceAtPosition(hit.Direction * Config.gibPushSpeed, hit.Point, ForceMode.VelocityChange);
                 }
             }
 
@@ -167,7 +169,7 @@ namespace OrbitalAnte.Dismemberment
             }
         }
 
-        Gib SpawnGib(Detachment detachment, in HitInfo hit)
+        Gib SpawnGib(Detachment detachment, in HitInfo hit, BodyPart struck)
         {
             BodyPart rootPart = _parts[(int)detachment.Root];
             if (rootPart == null) return null;
@@ -201,6 +203,8 @@ namespace OrbitalAnte.Dismemberment
                 if (source != null) source.Parts.Remove(member);
             }
 
+            // A chunk of several parts folds at its joints (if this kind of body is jointed) instead of flying off stiff.
+            GibRagdoll.Fit(gib, detachment, _parts, source, Config.ragdoll);
             gib.RecalculateMass();
             if (source != null && source.Body != null) source.RecalculateMass();
             _gibs[detachment.Group] = gib;
@@ -232,6 +236,7 @@ namespace OrbitalAnte.Dismemberment
 
             body.linearVelocity = inheritedVelocity + launch;
             body.angularVelocity = UnityEngine.Random.onUnitSphere * spin;
+            if (gib.Ragdoll != null) gib.Ragdoll.Launch(struck, hit, Config.gibPushSpeed);
             return gib;
         }
 
