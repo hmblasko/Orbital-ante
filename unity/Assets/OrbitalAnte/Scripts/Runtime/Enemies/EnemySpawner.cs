@@ -105,13 +105,14 @@ namespace OrbitalAnte.Enemies
             WeaponFx.Create(go.transform);
             if (world.System != null) world.System.WorldShifted += spawner.OnWorldShifted;
             CombatWorld.PlayerDroppedGun += spawner.CountLooseGun;
-            // Every kind's body and gun is read now, while the world loads, and not on the frame the first one stands up.
-            OrbitalAnte.Look.ModelLibrary.Find("Enemy");
+            // Every kind's body and gun is read now, while the world loads, and not on the frame the first one stands up:
+            // the model and, for a textured one, its pictures and material (MaterialFor reads all three).
+            OrbitalAnte.Look.ModelLibrary.MaterialFor("Enemy");
             foreach (EnemyTypeSpec spec in config.roster)
             {
-                if (!string.IsNullOrEmpty(spec.model)) OrbitalAnte.Look.ModelLibrary.Find(spec.model);
+                if (!string.IsNullOrEmpty(spec.model)) OrbitalAnte.Look.ModelLibrary.MaterialFor(spec.model);
                 WeaponData gun = string.IsNullOrEmpty(spec.weapon) ? WeaponData.Rifle : ContentDatabase.Get<WeaponData>(spec.weapon) ?? WeaponData.Rifle;
-                if (gun != null) OrbitalAnte.Look.ModelLibrary.Find(WeaponModelFactory.ModelIdFor(gun));
+                if (gun != null) OrbitalAnte.Look.ModelLibrary.MaterialFor(WeaponModelFactory.ModelIdFor(gun));
             }
             return spawner;
         }
@@ -124,6 +125,8 @@ namespace OrbitalAnte.Enemies
             if (_worlds.TryGetValue(body, out World w)) return w;
             w = null;
             PlanetSurface surface = _world.Planets != null ? _world.Planets.SurfaceOf(body) : null;
+            // The bases' guards are part of the camps, so wait until the bases have been found.
+            if (surface != null && surface.Ready && surface.Terrain != null && _world.Bases != null && !_world.Bases.Known(body)) return null;
             if (surface != null && surface.Ready && surface.Terrain != null)
             {
                 PlanetTerrain terrain = surface.Terrain;

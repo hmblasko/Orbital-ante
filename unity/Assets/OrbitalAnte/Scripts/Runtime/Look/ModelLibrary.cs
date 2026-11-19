@@ -22,9 +22,22 @@ namespace OrbitalAnte.Look
         {
             public ModelFile File;
             public Mesh[] Meshes;
+            /// <summary>Its texture set's open-air material, once asked for (so a body's fifteen pieces ask once).</summary>
+            public Material Textured;
         }
 
         static readonly Dictionary<string, Entry> Loaded = new Dictionary<string, Entry>();
+
+        /// <summary>A texture set's three pictures, read once. Null when any of them is missing.</summary>
+        sealed class TextureSet
+        {
+            public Texture2D Color, Normal, Mask;
+        }
+
+        static readonly Dictionary<string, TextureSet> Pictures = new Dictionary<string, TextureSet>();
+        /// <summary>Each open-air material with its cabin twin, both ways round, for <see cref="SetIndoors"/>.</summary>
+        static readonly Dictionary<Material, Material> IndoorOf = new Dictionary<Material, Material>();
+        static readonly Dictionary<Material, Material> OutdoorOf = new Dictionary<Material, Material>();
 
         public static void ResetStatics()
         {
@@ -37,6 +50,10 @@ namespace OrbitalAnte.Look
                 }
             }
             Loaded.Clear();
+            // Pictures loaded from Resources belong to Unity, which unloads them; only the references are dropped.
+            Pictures.Clear();
+            IndoorOf.Clear();
+            OutdoorOf.Clear();
         }
 
         /// <summary>The model's data, or null if there is no such model (or its file is damaged; the Console says why).</summary>
@@ -54,7 +71,7 @@ namespace OrbitalAnte.Look
         {
             Entry entry = Get(id);
             if (entry == null) return false;
-            Material material = Outdoor();
+            Material material = MaterialFor(id);
             for (int i = 0; i < entry.File.Parts.Length; i++)
             {
                 var go = new GameObject(entry.File.Parts[i].Name);
@@ -90,11 +107,73 @@ namespace OrbitalAnte.Look
 
         static Material Outdoor() => PlanetMaterials.Model(1f, 0f, PropPaintScale);
 
-        /// <summary>The one material every library model is drawn with in the open. Shared: never change or destroy it.</summary>
+        /// <summary>The one material every untextured library model is drawn with in the open. Shared: never change or destroy it.</summary>
         public static Material SharedMaterial() => Outdoor();
 
         /// <summary>For inside a hull: no sunlight, an even glow in its place (the cabin's own light is baked, so there is none to borrow).</summary>
         static Material Indoor() => PlanetMaterials.Model(0f, IndoorGlow, PropPaintScale);
+
+        /// <summary>
+        /// The material a model's pieces (not its glowing ones) are drawn with in the open: its own texture set's
+        /// when it names one and the pictures are there, otherwise the shared one. A model and its far copy name
+        /// the same set, so swapping meshes for distance never needs a different material. Shared: never change or
+        /// destroy it.
+        /// </summary>
+        public static Material MaterialFor(string id)
+        {
+            Entry entry = Get(id);
+            if (entry == null || !entry.File.Textured) return Outdoor();
+            TextureSet pictures = PicturesOf(entry.File.TextureSet);
+            if (pictures == null) return Outdoor();
+            // Kept on the model so each piece of each new body is one lookup with no new strings; a new world
+            // destroys the materials, which makes the kept one null and it is asked for again.
+            if (entry.Textured != null) return entry.Textured;
+            Material outdoor = PlanetMaterials.TexturedModel(entry.File.TextureSet, pictures.Color, pictures.Normal, pictures.Mask, 1f, 0f, PropPaintScale);
+            if (outdoor != Outdoor() && !IndoorOf.ContainsKey(outdoor))
+            {
+                // A new world destroys the old materials (PlanetMaterials.Configure); their entries go too.
+                ForgetDestroyed(IndoorOf);
+                ForgetDestroyed(OutdoorOf);
+                Material indoor = PlanetMaterials.TexturedModel(entry.File.TextureSet, pictures.Color, pictures.Normal, pictures.Mask, 0f, IndoorGlow, PropPaintScale);
+                IndoorOf[outdoor] = indoor;
+                OutdoorOf[indoor] = outdoor;
+            }
+            if (outdoor != Outdoor()) entry.Textured = outdoor;
+            return outdoor;
+        }
+
+        static readonly List<Material> Dead = new List<Material>();
+
+        static void ForgetDestroyed(Dictionary<Material, Material> twins)
+        {
+            Dead.Clear();
+            foreach (KeyValuePair<Material, Material> pair in twins)
+            {
+                if (pair.Key == null || pair.Value == null) Dead.Add(pair.Key);
+            }
+            foreach (Material m in Dead) twins.Remove(m);
+            Dead.Clear();
+        }
+
+        static TextureSet PicturesOf(string set)
+        {
+            if (Pictures.TryGetValue(set, out TextureSet known)) return known;
+            var pictures = new TextureSet
+            {
+                Color = Resources.Load<Texture2D>(ModelFile.TextureFile(set, ModelFile.TextureMap.Color)),
+                Normal = Resources.Load<Texture2D>(ModelFile.TextureFile(set, ModelFile.TextureMap.Normal)),
+                Mask = Resources.Load<Texture2D>(ModelFile.TextureFile(set, ModelFile.TextureMap.Mask)),
+            };
+            if (pictures.Color == null || pictures.Normal == null || pictures.Mask == null)
+            {
+                Debug.LogWarning("Orbital Ante: the texture set '" + set + "' is missing a picture (looked for " + ModelFile.TextureFile(set, ModelFile.TextureMap.Color) +
+                                 ", _Normal and _Mask), so models that use it are drawn from their corner colours.");
+                pictures = null;
+            }
+            // A missing set is remembered too, so the warning is given once.
+            Pictures[set] = pictures;
+            return pictures;
+        }
 
         /// <summary>
         /// Switches every library model under <paramref name="root"/> between open-air light and the even light of
@@ -105,12 +184,13 @@ namespace OrbitalAnte.Look
             if (root == null) return;
             Material outdoor = Outdoor();
             Material indoor = Indoor();
-            if (outdoor == indoor) return;
-            Material from = indoors ? outdoor : indoor;
-            Material to = indoors ? indoor : outdoor;
             foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
             {
-                if (renderer.sharedMaterial == from) renderer.sharedMaterial = to;
+                Material now = renderer.sharedMaterial;
+                if (now == null) continue;
+                if (outdoor != indoor && now == (indoors ? outdoor : indoor)) renderer.sharedMaterial = indoors ? indoor : outdoor;
+                else if (indoors && IndoorOf.TryGetValue(now, out Material twin)) renderer.sharedMaterial = twin;
+                else if (!indoors && OutdoorOf.TryGetValue(now, out Material back)) renderer.sharedMaterial = back;
             }
         }
 
@@ -170,6 +250,21 @@ namespace OrbitalAnte.Look
                 var finish = new Vector2[count];
                 for (int i = 0; i < count; i++) finish[i] = new Vector2(part.Finish[i * 2], part.Finish[i * 2 + 1]);
                 mesh.SetUVs(1, finish);
+            }
+            // Where each corner sits on the model's texture pictures, in the third pair (the first is the ground
+            // shader's "up", the second the finish), and which way the pictures run across the surface, exactly as
+            // Blender worked it out when the normal map was baked.
+            if (part.TexCoords != null && part.TexCoords.Length == count * 2 && part.Tangents != null && part.Tangents.Length == count * 4)
+            {
+                var uv = new Vector2[count];
+                var tangents = new Vector4[count];
+                for (int i = 0; i < count; i++)
+                {
+                    uv[i] = new Vector2(part.TexCoords[i * 2], part.TexCoords[i * 2 + 1]);
+                    tangents[i] = new Vector4(part.Tangents[i * 4], part.Tangents[i * 4 + 1], part.Tangents[i * 4 + 2], part.Tangents[i * 4 + 3]);
+                }
+                mesh.SetUVs(2, uv);
+                mesh.SetTangents(tangents);
             }
             mesh.SetTriangles(part.Triangles, 0);
             mesh.RecalculateBounds();

@@ -184,6 +184,28 @@ namespace OrbitalAnte.Planets
         /// <summary>Broken, craggy rock on high and mountainous ground, in metres.</summary>
         public double cragHeight;
 
+        // ---- standout landforms (Matthew, 15 Nov 2026: "more interesting landscape", "significantly more landscape")
+        /// <summary>
+        /// Great canyons: a few long, winding gorges with steep walls and a flat floor wide enough to fly along,
+        /// cut into the high ground. How deep, in metres. 0 for none.
+        /// </summary>
+        public double canyonDepth;
+        /// <summary>Roughly how far apart the great canyons run, in metres.</summary>
+        public double canyonWavelength = 520;
+        /// <summary>How wide a canyon is next to how far apart they are.</summary>
+        public double canyonWidth = 0.06;
+        /// <summary>Long knife-edged ridges standing out of the land in some regions, in metres high. 0 for none.</summary>
+        public double ridgeHeight;
+        public double ridgeWavelength = 300;
+        /// <summary>Fields of rock towers (karst towers, buttes, ice spires) in some regions: the tallest, in metres. 0 for none.</summary>
+        public double spireHeight;
+        /// <summary>Roughly how far apart the towers of a field stand, in metres.</summary>
+        public double spireSpacing = 34;
+        /// <summary>Seas of dunes in some regions: crest height in metres. 0 for none.</summary>
+        public double duneHeight;
+        /// <summary>From one dune crest to the next, in metres.</summary>
+        public double duneSpacing = 26;
+
         // ---- sea
         public bool hasSea;
         public double seaLevel;

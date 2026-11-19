@@ -1,7 +1,8 @@
 """Shared helpers for Orbital Ante's Blender-made models.
 
-Models are built by script, coloured per corner (no texture files, no UVs) and written to a small ".bytes"
-file the game reads itself (Scripts/Runtime/Look/ModelFile.cs). Run a build script with:
+Models are built by script, coloured per corner and written to a small ".bytes" file the game reads itself
+(Scripts/Runtime/Look/ModelFile.cs). A model may also be drawn with texture pictures: give its pieces a UV map named
+TEX, export with export(..., textures="<set>") and write the pictures with save_texture_set() (see both). Run a build script with:
 
     blender -b -P tools/blender/build_weapons.py
 
@@ -224,18 +225,48 @@ def _linear_to_srgb(c):
     return c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
 
 
-def _part_arrays(objects):
-    """Corners of several pieces as flat lists in the game's space, sharing corners that are identical."""
-    positions, normals, colours, finishes, triangles = [], [], [], [], []
+TEX = "Tex"     # the UV map a textured model's pictures are baked and drawn with (ModelPart.TexCoords in the game)
+
+
+def _triangulated(obj):
+    """A throwaway copy of a piece's mesh cut into triangles, for working out picture directions (Blender's
+    tangents need triangles or quads, and a triangle has only one answer). The caller removes it."""
+    mesh = obj.data.copy()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.to_mesh(mesh)
+    bm.free()
+    return mesh
+
+
+def _part_arrays(objects, textured=False):
+    """Corners of several pieces as flat lists in the game's space, sharing corners that are identical.
+
+    With textured=True every piece must have a UV map named TEX; each corner then also carries where it sits on the
+    pictures and the direction the pictures run across the surface (Blender's own tangents, worked out from that
+    map, so they match the normal map baked from it exactly).
+    """
+    positions, normals, colours, finishes, uvs, tangents, triangles = [], [], [], [], [], [], []
     index = {}
     for obj in objects:
         mesh = obj.data
+        temporary = None
+        if textured:
+            if mesh.uv_layers.get(TEX) is None:
+                raise ValueError("piece %s has no UV map named %r, but the model is textured" % (obj.name, TEX))
+            mesh = temporary = _triangulated(obj)
         mesh.use_auto_smooth = True
         mesh.auto_smooth_angle = math.radians(obj.get("oa_smooth", 40.0))
-        mesh.calc_normals_split()
+        if textured:
+            # Also works out the split normals.
+            mesh.calc_tangents(uvmap=TEX)
+        else:
+            mesh.calc_normals_split()
         mesh.calc_loop_triangles()
         col = mesh.color_attributes.get("Col")
         mat = mesh.color_attributes.get("Mat")      # what the surface is made of: (how smooth, bare metal); see oa_real.made_of
+        uv = mesh.uv_layers.get(TEX).data if textured else None
         for tri in mesh.loop_triangles:
             corner = []
             for li in tri.loops:
@@ -248,6 +279,12 @@ def _part_arrays(objects):
                 key = (round(p.x, 5), round(p.z, 5), round(p.y, 5), round(n.x, 3), round(n.z, 3), round(n.y, 3),
                        round(_linear_to_srgb(c[0]), 3), round(_linear_to_srgb(c[1]), 3), round(_linear_to_srgb(c[2]), 3),
                        round(max(0.0, min(1.0, m[0])), 2), round(max(0.0, min(1.0, m[1])), 2))
+                if textured:
+                    t = loop.tangent
+                    # Swapping y and z is a mirror, which turns "up the picture" over: Unity works it out as
+                    # cross(normal, tangent) * w, Blender as cross(normal, tangent) * sign, so w = -sign.
+                    key += (round(uv[li].uv[0], 5), round(uv[li].uv[1], 5),
+                            round(t.x, 3), round(t.z, 3), round(t.y, 3), -1.0 if loop.bitangent_sign > 0 else 1.0)
                 i = index.get(key)
                 if i is None:
                     i = len(positions) // 3
@@ -256,10 +293,15 @@ def _part_arrays(objects):
                     normals.extend(key[3:6])
                     colours.extend(key[6:9])
                     finishes.extend(key[9:11])
+                    if textured:
+                        uvs.extend(key[11:13])
+                        tangents.extend(key[13:17])
                 corner.append(i)
             # Swapping two axes mirrors the model, so the order of each triangle's corners is flipped back.
             triangles.extend((corner[0], corner[2], corner[1]))
-    return positions, normals, colours, finishes, triangles
+        if temporary is not None:
+            bpy.data.meshes.remove(temporary)
+    return positions, normals, colours, finishes, uvs, tangents, triangles
 
 
 def _write_string(f, text):
@@ -268,29 +310,44 @@ def _write_string(f, text):
     f.write(data)
 
 
-def export(path, parts, sockets=()):
-    """parts: list of (name, [objects]). sockets: Blender empties made with socket().
+def export(path, parts, sockets=(), textures=None):
+    """parts: list of (name, [objects]). sockets: Blender empties made with socket(). textures: the name of the
+    model's texture set, or None.
 
     The layout is "OAM1", or "OAM2" when any piece says what its surfaces are made of ("Mat", see oa_real.made_of):
     then two more bytes follow each piece's colours for every corner, how smooth and how far bare metal.
-    The game reads both (Scripts/Runtime/Look/ModelFile.cs).
+    "OAM3" when textures is given: the set's name follows the header, and after the finish every corner has two
+    floats (where it sits on the pictures, from the UV map TEX) and four (the direction the pictures run across the
+    surface, and +1 or -1 for which way is up on them). Every piece except the ones ending "Glow" must have the UV map;
+    glowing pieces are drawn with their own material and get no place on the pictures. Write the pictures with
+    save_texture_set(). A textured model still needs its corner colours ("Col"): they are what the game shows when
+    its pictures are missing or shine is switched off, and what far-away paint is averaged from.
+    The game reads all three (Scripts/Runtime/Look/ModelFile.cs).
     """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     report = []
-    says_finish = any(o.data.color_attributes.get("Mat") is not None for _, objects in parts for o in objects)
+    says_finish = textures is not None or any(o.data.color_attributes.get("Mat") is not None for _, objects in parts for o in objects)
     with open(path, "wb") as f:
-        f.write(b"OAM2" if says_finish else b"OAM1")
+        f.write(b"OAM3" if textures else b"OAM2" if says_finish else b"OAM1")
+        if textures:
+            _write_string(f, textures)
         f.write(struct.pack("<i", len(parts)))
         for name, objects in parts:
-            positions, normals, colours, finishes, triangles = _part_arrays(objects)
-            _write_string(f, name)
+            textured = bool(textures) and not name.endswith("Glow")
+            positions, normals, colours, finishes, uvs, tangents, triangles = _part_arrays(objects, textured)
             count = len(positions) // 3
+            if textures and not textured:
+                uvs, tangents = [0.0] * (count * 2), [1.0, 0.0, 0.0, 1.0] * count
+            _write_string(f, name)
             f.write(struct.pack("<ii", count, len(triangles) // 3))
             f.write(struct.pack("<%df" % len(positions), *positions))
             f.write(struct.pack("<%df" % len(normals), *normals))
             f.write(struct.pack("<%dB" % len(colours), *[int(round(c * 255)) for c in colours]))
             if says_finish:
                 f.write(struct.pack("<%dB" % len(finishes), *[int(round(c * 255)) for c in finishes]))
+            if textures:
+                f.write(struct.pack("<%df" % len(uvs), *uvs))
+                f.write(struct.pack("<%df" % len(tangents), *tangents))
             f.write(struct.pack("<%di" % len(triangles), *triangles))
             report.append("%s: %d corners, %d triangles" % (name, count, len(triangles) // 3))
         f.write(struct.pack("<i", len(sockets)))
@@ -299,6 +356,47 @@ def export(path, parts, sockets=()):
             _write_string(f, s.name.replace("socket_", "").split(".")[0])
             f.write(struct.pack("<3f", s.location.x, s.location.z, s.location.y))
     print("OA wrote", path, os.path.getsize(path), "bytes;", "; ".join(report))
+
+
+# Where the game loads texture pictures from (ModelFile.TextureFolder under Resources).
+TEXTURES = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "unity", "Assets", "OrbitalAnte",
+                                         "Resources", "Models", "Textures"))
+
+
+def save_texture_set(name, color, normal, mask, folder=None):
+    """Writes a model's three texture pictures where the game loads them (ModelFile.TextureFile):
+    <folder>/<name>_Color.png, _Normal.png, _Mask.png. color, normal and mask are Blender images (from a bake, for
+    example). Color is sRGB; Normal is tangent space with green up (Blender's default bake, which is OpenGL's and
+    Unity's way); Mask holds red = ambient occlusion (1 open, 0 a deep hollow), green = smoothness, blue = bare metal,
+    and is linear. Sizes: 2048 for an enemy body, 1024 for a gun (2048 for the guns the player holds), square.
+    The mask is written at half the size of the others (it changes slowly and is a quarter of the memory that way).
+    Keep cloth, webbing and rubber at 0.06 smoothness or less in the mask: the shine is skipped only at 0.1 or
+    below, and compression moves values by a step or two.
+    The game's import rules (ModelTextureImportRules.cs) set compression and mip maps by the file name's ending.
+
+    Two traps (19 Nov 2026 review, not yet seen in practice):
+    - Bake the normal map on the same triangles the exporter uses: triangulate each low piece first with
+      _triangulated()'s call (bmesh.ops.triangulate with its defaults), then bake, then export. Baking on quads that
+      the exporter later splits another way gives faint diagonal shading across them.
+    - Thinning for the far copy (thin) does not respect the edges of UV islands, so pictures can smear across
+      seams on far copies. Judge the far copy with the pictures on, from 5 m, before shipping it.
+    """
+    folder = folder or TEXTURES
+    os.makedirs(folder, exist_ok=True)
+    written = []
+    if mask.size[0] > 64:
+        half = mask.copy()
+        half.scale(max(1, mask.size[0] // 2), max(1, mask.size[1] // 2))
+        mask = half
+    for suffix, image, colour_space in (("Color", color, "sRGB"), ("Normal", normal, "Non-Color"), ("Mask", mask, "Non-Color")):
+        image.colorspace_settings.name = colour_space
+        target = os.path.join(folder, "%s_%s.png" % (name, suffix))
+        image.filepath_raw = target
+        image.file_format = 'PNG'
+        image.save()
+        written.append(target)
+    print("OA wrote texture set", name, ":", ", ".join(written))
+    return written
 
 
 # ------------------------------------------------------------------ far copies

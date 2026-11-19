@@ -32,6 +32,11 @@ namespace OrbitalAnte.Planets
         static readonly int BoostId = Shader.PropertyToID("_Boost");
         static readonly int PaintId = Shader.PropertyToID("_Paint");
         static readonly int PaintScaleId = Shader.PropertyToID("_PaintScale");
+        static readonly int ColorMapId = Shader.PropertyToID("_ColorMap");
+        static readonly int NormalMapId = Shader.PropertyToID("_NormalMap");
+        static readonly int MaskMapId = Shader.PropertyToID("_MaskMap");
+        /// <summary>The model shader's switch for drawing from texture pictures (OA_Model.shader).</summary>
+        public const string TexturedKeyword = "_OA_TEXTURED";
         static readonly int GroundId = Shader.PropertyToID("_Ground");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
@@ -42,6 +47,7 @@ namespace OrbitalAnte.Planets
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
         static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
+        static readonly Dictionary<string, Material> TexturedCache = new Dictionary<string, Material>();
 
         /// <summary>True when the ground is drawn with the game's own shader (far-picture blending, lamp, cave darkness).</summary>
         public static bool OwnTerrain { get { Look(); return _terrain != null; } }
@@ -78,6 +84,11 @@ namespace OrbitalAnte.Planets
                 if (m != null) Object.Destroy(m);
             }
             ModelCache.Clear();
+            foreach (Material m in TexturedCache.Values)
+            {
+                if (m != null) Object.Destroy(m);
+            }
+            TexturedCache.Clear();
         }
 
         public static void SetStrength(Material material, float strength)
@@ -225,6 +236,34 @@ namespace OrbitalAnte.Planets
             m.SetFloat(PaintId, 1f);
             m.SetFloat(PaintScaleId, scaleKey);
             ModelCache[key] = m;
+            return m;
+        }
+
+        /// <summary>
+        /// The model material drawn from a texture set (<see cref="OrbitalAnte.Look.ModelFile.TextureSet"/>): colour,
+        /// baked bumps, and a mask of hollows, smoothness and bare metal, lit by the shared look exactly as
+        /// <see cref="Model"/> is. One per set and light, shared by every copy of every model that names the set.
+        /// Where the model shader cannot be used (simple shaders, Shine at 0, a machine that rejects it) this is
+        /// <see cref="Model"/>'s material, which draws the corner colours every model also carries.
+        /// </summary>
+        public static Material TexturedModel(string set, Texture2D color, Texture2D normal, Texture2D mask, float sunlight = 1f, float glow = 0f, float paintScale = 1f)
+        {
+            Look();
+            if (_model == null || color == null || normal == null || mask == null) return Model(sunlight, glow, paintScale);
+            int scaleKey = Mathf.Clamp(Mathf.RoundToInt(paintScale), 1, 63);
+            string key = set + "|" + Mathf.RoundToInt(Mathf.Clamp01(sunlight) * 100f) + "|" + Mathf.RoundToInt(Mathf.Clamp(glow, 0f, 2f) * 100f) + "|" + scaleKey;
+            if (TexturedCache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            var m = new Material(_model) { name = "OA_Model " + set };
+            m.SetColor(BaseColorId, Color.white);
+            m.SetFloat(SunAmountId, Mathf.Clamp01(sunlight));
+            m.SetFloat(GlowId, Mathf.Clamp(glow, 0f, 2f));
+            m.SetFloat(PaintId, 1f);
+            m.SetFloat(PaintScaleId, scaleKey);
+            m.SetTexture(ColorMapId, color);
+            m.SetTexture(NormalMapId, normal);
+            m.SetTexture(MaskMapId, mask);
+            m.EnableKeyword(TexturedKeyword);
+            TexturedCache[key] = m;
             return m;
         }
 

@@ -4,6 +4,10 @@
 // metal (the mesh's second pair of extra numbers: x how smooth, y metal; the first pair is left alone, because
 // the ground's shader reads it as "up"). Smooth surfaces show the Sun's highlight
 // and the sky. A model that says nothing is chalk all over and looks as it did before this shader existed.
+// A model with a texture set ("OAM3", ModelLibrary.MaterialFor) is drawn with the keyword _OA_TEXTURED: its colour,
+// smoothness, metal and hollows come from three pictures instead of the corners (the third pair of extra numbers
+// says where a corner sits on them), and the baked bumps of the normal map bend the light. Everything else, the
+// sky, the Sun, the lamp, the cave light, the shine and the haze, is the same OA_Look.hlsl as every other model.
 Shader "OrbitalAnte/Model"
 {
     Properties
@@ -13,6 +17,9 @@ Shader "OrbitalAnte/Model"
         _Glow ("Glows by itself", Range(0, 2)) = 0
         _Paint ("Painted break-up of colour", Range(0, 1)) = 1
         _PaintScale ("Paint patch size: 1 for ground, larger for small things", Range(1, 63)) = 1
+        [NoScaleOffset] _ColorMap ("Colour (sRGB)", 2D) = "white" {}
+        [NoScaleOffset][Normal] _NormalMap ("Baked bumps (tangent space, green up)", 2D) = "bump" {}
+        [NoScaleOffset] _MaskMap ("Hollows (R), smoothness (G), bare metal (B), linear", 2D) = "red" {}
     }
 
     SubShader
@@ -32,12 +39,18 @@ Shader "OrbitalAnte/Model"
 
         #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
+        TEXTURE2D(_ColorMap); SAMPLER(sampler_ColorMap);
+        TEXTURE2D(_NormalMap); SAMPLER(sampler_NormalMap);
+        TEXTURE2D(_MaskMap); SAMPLER(sampler_MaskMap);
+
         struct Attributes
         {
             float4 positionOS : POSITION;
             float3 normalOS : NORMAL;
             half4 color : COLOR;
             float2 finish : TEXCOORD1;
+            float2 uv : TEXCOORD2;
+            float4 tangentOS : TANGENT;
         };
 
         struct Varyings
@@ -48,6 +61,10 @@ Shader "OrbitalAnte/Model"
             half4 color : COLOR;
             half2 finish : TEXCOORD2;
             float3 positionOS : TEXCOORD3;
+        #if defined(_OA_TEXTURED)
+            float2 uv : TEXCOORD4;
+            half4 tangentWS : TEXCOORD5;
+        #endif
         };
 
         Varyings vert(Attributes input)
@@ -59,6 +76,12 @@ Shader "OrbitalAnte/Model"
             output.normalWS = TransformObjectToWorldNormal(input.normalOS);
             output.color = input.color;
             output.finish = saturate(input.finish);
+        #if defined(_OA_TEXTURED)
+            output.uv = input.uv;
+            // The sign says which way "up" on the pictures runs; a body mirrored by its scale turns it over.
+            // Left at its own length, as Blender's bake (MikkTSpace) leaves it until the very end.
+            output.tangentWS = half4(TransformObjectToWorldDir(input.tangentOS.xyz, false), input.tangentOS.w * GetOddNegativeScale());
+        #endif
             // Painted in the object's own space and size, so the paint stays put on a thing that moves.
             float3 scale = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
             output.positionOS = input.positionOS.xyz * scale * _PaintScale;
@@ -74,30 +97,55 @@ Shader "OrbitalAnte/Model"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // Every model material is made in code at run time, so the textured variant must be kept in the
+            // build whether or not any saved material uses it (shader_feature would strip it).
+            #pragma multi_compile_local _ _OA_TEXTURED
 
             half4 frag(Varyings input) : SV_Target
             {
-                half3 albedo = input.color.rgb * _BaseColor.rgb;
                 float range = length(_WorldSpaceCameraPos.xyz - input.positionWS);
-                albedo = OA_Paint(albedo, input.positionOS, range * _PaintScale, _OA_Haze.y * _Paint);
-
                 half3 normal = normalize(input.normalWS);
-                float3 up = _OA_SkyUp.xyz;
+                // How fast the surface itself turns across this pixel, to spread a highlight too small to draw;
+                // taken before any baked bumps, which would otherwise blur every highlight on a textured model.
+                half3 turnX = ddx(normal);
+                half3 turnY = ddy(normal);
+            #if defined(_OA_TEXTURED)
+                // The pictures already hold the wear, dust and grime the paint pass imitates on plain colours,
+                // so it is left out here.
+                half3 albedo = SAMPLE_TEXTURE2D(_ColorMap, sampler_ColorMap, input.uv).rgb * _BaseColor.rgb;
+                half4 mask = SAMPLE_TEXTURE2D(_MaskMap, sampler_MaskMap, input.uv);
+                half3 bump = UnpackNormal(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, input.uv));
+                // The frame Blender baked with (MikkTSpace): the interpolated normal and tangent as they come, the
+                // other direction across them, and only the result made one long. SafeNormalize keeps a corner with
+                // no usable direction (a squashed triangle on the pictures) from turning into a black or glittering
+                // pixel.
+                half3 smoothNormal = input.normalWS;
+                half3 across = input.tangentWS.xyz;
+                half3 along = cross(smoothNormal, across) * (input.tangentWS.w > 0.0 ? 1.0 : -1.0);
+                normal = SafeNormalize(across * bump.x + along * bump.y + smoothNormal * bump.z);
+                half hollow = mask.r;
+                half gloss = mask.g;
+                half metal = mask.b;
+            #else
+                half3 albedo = input.color.rgb * _BaseColor.rgb;
+                albedo = OA_Paint(albedo, input.positionOS, range * _PaintScale, _OA_Haze.y * _Paint);
+                half hollow = 1.0;
                 half gloss = input.finish.x;
                 half metal = input.finish.y;
+            #endif
+                float3 up = _OA_SkyUp.xyz;
 
                 // The cave's light is read once here and handed to everything below that needs it.
                 half4 cave = OA_CaveLight(input.positionWS);
-                half3 light = OA_LightIn(normal, input.positionWS, up, _SunAmount, cave);
+                // The baked hollows darken a crease, but not all the way: the bake saw only the model itself, and
+                // the Sun can still shine straight into a hollow that faces it.
+                half3 light = OA_LightIn(normal, input.positionWS, up, _SunAmount, cave) * lerp(1.0, hollow, 0.6);
                 // Bare metal scatters almost no light: nearly all of what you see of it is reflection. It only
                 // gives that light up where there is a daylit sky to mirror in its place. Inside the ship, at
                 // night, in open space and with shine turned off it is lit like everything else, so it never
                 // goes black.
                 half mirrored = metal * 0.85 * saturate(OA_ShineAmount(gloss)) * _SunAmount;
                 half scattered = 1.0 - mirrored * OA_DaylitSkyIn(input.positionWS, up, cave.a);
-                // How fast the surface turns across this pixel, to spread a highlight too small to draw.
-                half3 turnX = ddx(normal);
-                half3 turnY = ddy(normal);
                 half widen = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
                 half3 color = albedo * light * scattered + albedo * _Glow;
                 color += OA_ShineIn(normal, input.positionWS, up, _SunAmount, gloss, metal, albedo, widen, cave.a);

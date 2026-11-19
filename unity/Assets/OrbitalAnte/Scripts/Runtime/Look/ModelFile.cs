@@ -21,6 +21,18 @@ namespace OrbitalAnte.Look
         /// drawn as chalk all over.
         /// </summary>
         public float[] Finish;
+        /// <summary>
+        /// Two numbers per corner: where the corner sits on the model's texture pictures (0..1 across, 0..1 up from
+        /// the bottom, as Blender and Unity both count). Null in a model with no texture set ("OAM1", "OAM2").
+        /// </summary>
+        public float[] TexCoords;
+        /// <summary>
+        /// Four numbers per corner, with <see cref="TexCoords"/>: the direction "across" the normal-map picture
+        /// runs on the surface (x, y, z in the game's space) and, last, which way "up" the picture runs (+1 or -1),
+        /// as Unity's mesh tangents hold them. Written by Blender from the same coordinates the normal map was
+        /// baked with, so the baked bumps line up exactly.
+        /// </summary>
+        public float[] Tangents;
         public int[] Triangles;
 
         public int VertexCount => Positions.Length / 3;
@@ -35,9 +47,12 @@ namespace OrbitalAnte.Look
     }
 
     /// <summary>
-    /// A model made in Blender by the scripts in tools/blender, as the game reads it. Colour is stored per corner:
-    /// there are no texture files. The file layout is written by tools/blender/oa_blender.py: "OAM1", or "OAM2"
-    /// when the model also says what its surfaces are made of (<see cref="ModelPart.Finish"/>).
+    /// A model made in Blender by the scripts in tools/blender, as the game reads it. Colour is stored per corner,
+    /// and a model may also name a set of texture pictures (<see cref="TextureSet"/>). The file layout is written by
+    /// tools/blender/oa_blender.py: "OAM1"; "OAM2" when the model also says what its surfaces are made of
+    /// (<see cref="ModelPart.Finish"/>); "OAM3" when, on top of that, it is drawn with texture pictures
+    /// (<see cref="ModelPart.TexCoords"/>, <see cref="ModelPart.Tangents"/>). The corner colours are kept in every
+    /// layout, so a textured model still looks right wherever its pictures are missing or switched off.
     /// Plain data, no Unity types, so it can be read and tested anywhere.
     /// </summary>
     public sealed class ModelFile
@@ -49,6 +64,29 @@ namespace OrbitalAnte.Look
 
         public ModelPart[] Parts = new ModelPart[0];
         public ModelSocket[] Sockets = new ModelSocket[0];
+        /// <summary>
+        /// The name of the texture pictures every piece of this model is drawn with ("OAM3" only), or null. The
+        /// pictures are <c>Resources/Models/Textures/&lt;name&gt;_Color</c>, <c>_Normal</c> and <c>_Mask</c>
+        /// (<see cref="TextureFile"/>). A model and its far copy name the same set.
+        /// </summary>
+        public string TextureSet;
+
+        /// <summary>True when the model says it is drawn with texture pictures.</summary>
+        public bool Textured => !string.IsNullOrEmpty(TextureSet);
+
+        /// <summary>The three pictures of a texture set, by what they hold.</summary>
+        public enum TextureMap { Color, Normal, Mask }
+
+        /// <summary>The folder under Resources the texture pictures live in.</summary>
+        public const string TextureFolder = "Models/Textures";
+
+        /// <summary>
+        /// Where one picture of a set lives, under Resources and without the file ending ("Models/Textures/Rifle_Color").
+        /// Color: the surface's own colour, as seen on screen (sRGB). Normal: the baked bumps (tangent space, green
+        /// up, as Blender bakes them for OpenGL and Unity reads them). Mask: red = how much light reaches the hollow
+        /// (ambient occlusion), green = how smooth, blue = bare metal, all linear.
+        /// </summary>
+        public static string TextureFile(string set, TextureMap map) => TextureFolder + "/" + set + "_" + map;
 
         public ModelPart Part(string name)
         {
@@ -119,19 +157,28 @@ namespace OrbitalAnte.Look
                         return null;
                     }
                     int layout = reader.ReadByte();
-                    if (layout != '1' && layout != '2')
+                    if (layout != '1' && layout != '2' && layout != '3')
                     {
                         problem = "it is an Orbital Ante model file of a kind this version of the game cannot read";
                         return null;
                     }
-                    bool saysFinish = layout == '2';
+                    // "OAM3" is "OAM2" plus a texture set: its name, then for every corner where it sits on the
+                    // pictures and which way they run across the surface.
+                    bool textured = layout == '3';
+                    bool saysFinish = layout == '2' || textured;
+                    string textureSet = textured ? ReadName(reader) : null;
+                    if (textured && string.IsNullOrEmpty(textureSet))
+                    {
+                        problem = "it says it has texture pictures but does not name them";
+                        return null;
+                    }
                     int partCount = reader.ReadInt32();
                     if (partCount < 1 || partCount > MaxParts)
                     {
                         problem = "it claims " + partCount + " pieces";
                         return null;
                     }
-                    var model = new ModelFile { Parts = new ModelPart[partCount] };
+                    var model = new ModelFile { Parts = new ModelPart[partCount], TextureSet = textureSet };
                     for (int p = 0; p < partCount; p++)
                     {
                         var part = new ModelPart { Name = ReadName(reader) };
@@ -150,6 +197,29 @@ namespace OrbitalAnte.Look
                         {
                             part.Finish = new float[corners * 2];
                             for (int i = 0; i < part.Finish.Length; i++) part.Finish[i] = reader.ReadByte() / 255f;
+                        }
+                        if (textured)
+                        {
+                            part.TexCoords = ReadFloats(reader, corners * 2);
+                            part.Tangents = ReadFloats(reader, corners * 4);
+                            for (int i = 0; i < part.TexCoords.Length; i++)
+                            {
+                                float v = part.TexCoords[i];
+                                if (float.IsNaN(v) || float.IsInfinity(v) || Math.Abs(v) > 16f)
+                                {
+                                    problem = "piece '" + part.Name + "' has a corner that is not at a sensible place on its pictures";
+                                    return null;
+                                }
+                            }
+                            for (int i = 0; i < part.Tangents.Length; i++)
+                            {
+                                float v = part.Tangents[i];
+                                if (float.IsNaN(v) || float.IsInfinity(v) || Math.Abs(v) > 2f)
+                                {
+                                    problem = "piece '" + part.Name + "' has a corner whose picture direction is not a sensible direction";
+                                    return null;
+                                }
+                            }
                         }
                         part.Triangles = new int[triangles * 3];
                         for (int i = 0; i < part.Triangles.Length; i++)
@@ -215,9 +285,11 @@ namespace OrbitalAnte.Look
             using (var stream = new MemoryStream())
             using (var writer = new BinaryWriter(stream))
             {
-                bool saysFinish = false;
+                bool textured = Textured;
+                bool saysFinish = textured;
                 foreach (ModelPart part in Parts) saysFinish |= part.Finish != null;
-                writer.Write(new[] { (byte)'O', (byte)'A', (byte)'M', saysFinish ? (byte)'2' : (byte)'1' });
+                writer.Write(new[] { (byte)'O', (byte)'A', (byte)'M', textured ? (byte)'3' : saysFinish ? (byte)'2' : (byte)'1' });
+                if (textured) WriteName(writer, TextureSet);
                 writer.Write(Parts.Length);
                 foreach (ModelPart part in Parts)
                 {
@@ -235,6 +307,14 @@ namespace OrbitalAnte.Look
                             float v = part.Finish != null && i < part.Finish.Length ? part.Finish[i] : 0f;
                             writer.Write((byte)Math.Round(Math.Max(0f, Math.Min(1f, v)) * 255f));
                         }
+                    }
+                    if (textured)
+                    {
+                        // A piece with no place on the pictures sits in their corner, facing along x.
+                        for (int i = 0; i < part.VertexCount * 2; i++)
+                            writer.Write(part.TexCoords != null && i < part.TexCoords.Length ? part.TexCoords[i] : 0f);
+                        for (int i = 0; i < part.VertexCount * 4; i++)
+                            writer.Write(part.Tangents != null && i < part.Tangents.Length ? part.Tangents[i] : (i % 4 == 0 || i % 4 == 3 ? 1f : 0f));
                     }
                     foreach (int i in part.Triangles) writer.Write(i);
                 }
