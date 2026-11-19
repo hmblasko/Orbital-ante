@@ -120,7 +120,7 @@ namespace OrbitalAnte.Tests
         public void AFileFromANewerGame_IsRefusedWithAReason()
         {
             byte[] bytes = Triangle().ToBytes();
-            bytes[3] = (byte)'3';
+            bytes[3] = (byte)'4';
             Assert.IsNull(ModelFile.Parse(bytes, out string problem));
             StringAssert.Contains("cannot read", problem);
             // And one cut short inside the finish is caught like any other.
