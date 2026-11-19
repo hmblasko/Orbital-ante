@@ -65,7 +65,21 @@ A capture needs the Unity editor with a graphics device. Cloud sessions do not h
 7. If the menu is missing or the Console shows red errors instead, copy the first red line and send it to Claude. If a run seems stuck for more than 20 minutes, choose **Orbital Ante > Verification > Cancel Stuck Run** and tell Claude.
 8. To let Claude see the results from the cloud: in GitHub Desktop, commit the new files under `Verification/Reports` and push.
 
-### For an agent with a shell on a machine that has Unity
+### For Claude Code on Matthew's machine (the usual way)
+
+Use the `quality-gate` skill (`.claude/skills/quality-gate/`). It runs one script, which uses Unity's own command-line test runner (the same path as `tools/check-in-unity`, which is known to work on Matthew's machine):
+
+```
+bash tools/quality-capture.sh [1|2] [target,target]                                   # macOS, Linux, Steam Deck
+powershell -ExecutionPolicy Bypass -File tools\quality-capture.ps1 [-Level 1] [-Targets a,b]   # Windows
+```
+
+It writes the run file that switches the capture suites on, runs setup, the rule tests and Play mode (level 1: the capture suites only), then writes `test-results.json`. Logs are in `Verification/Reports/<id>/logs/` (not committed). Exit codes are the same as below. Matthew's own steps are in `docs/CLAUDE_CODE_LOCAL.md`, section F.
+
+### By single commands (the editor's own runner)
+
+The menu and `RunFromCommandLine` below drive both test runs from inside the editor. That path has not been proven in Unity yet; prefer the script above from a shell.
+
 
 Close the project in the Unity editor first (two editors cannot open one project). Find the editor: Windows `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe`, macOS `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity`, Linux `~/Unity/Hub/Editor/<version>/Editor/Unity`. Do not pass `-nographics`.
 
@@ -143,6 +157,6 @@ dotnet test Verification/Tools/oa-verify.tests
 
 ## Status
 
-As of 12 Nov 2026 the rules are tested outside Unity (33 tests). The capture suites, the runner and the baseline tool compile against Unity reference assemblies but have **not yet been run in Unity**; expect the first run to need fixes. Until a capture has run, every target is BLOCKED.
+As of 19 Nov 2026 the rules are tested outside Unity (33 tests). The capture suites, the runner and the baseline tool compile against Unity reference assemblies (rechecked against `main` of 18 Nov) but have **not yet been run in Unity**; expect the first run to need fixes. Until a capture has run, every target is BLOCKED. The game itself has been compiled and tested in Unity on Matthew's machine by other work (see `tools/check-in-unity`), so the first capture is one command away: the `quality-gate` skill.
 
-Not yet covered by the capture suites: the ship (Milestone 7), launch, cockpit, jetpack, weather, caves, gas giant interiors, underwater, the player's own firing effects, the controls page, video capture, and profiler numbers. Each is listed in `Config/targets.json` or in a suite's "not captured" notes so the gap shows up in every manifest.
+Captured: the mannequin, the test guns, the combat arena, every world from space, seven surfaces, the menus, and the ship (outside, from the seat, hatch, damage). Not yet covered: the realistic enemy bodies and Faction A, the launch, the cockpit instruments close up, the cabin looking aft, the jetpack, the rover, bases, caves, weather, gas giant interiors, underwater, the player's own firing effects, the controls page, video capture, and profiler numbers. Each is listed in `Config/targets.json` or in a suite's "not captured" notes so the gap shows up in every manifest.

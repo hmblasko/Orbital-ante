@@ -50,6 +50,15 @@
       "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
     },
     {
+      "id": "ship",
+      "name": "Starter ship (outside, from the seat, hatch, damage)",
+      "kind": "spacecraft",
+      "tier": "hero",
+      "captureTest": "ShipCaptures.ShipInsideAndOut",
+      "milestones": ["M7", "M9", "M10"],
+      "requiredInspections": ["views.standard", "distances.three", "views.gameplay", "animation.sequences", "resolution.deck", "resolution.desktop", "technical.sceneChecks", "technical.tests"]
+    },
+    {
       "id": "menus",
       "name": "Main menu, flight start, system map, pause menu",
       "kind": "interface",
@@ -60,10 +69,11 @@
     }
   ],
   "notYetCapturable": [
-    { "id": "ship", "why": "Milestone 7 (the starter ship, its interior, damage and glass) is not on main yet. Add a ship capture (hero set outside, interior views, seat, hatch, damage states) when it lands." },
-    { "id": "launch", "why": "Milestone 8." },
-    { "id": "cockpit", "why": "Milestone 9." },
-    { "id": "jetpack", "why": "Milestone 11 (zero-gravity movement)." }
+    { "id": "ship-cabin", "why": "Walking round the cabin and looking aft needs look input the capture suite cannot give yet. The seat view is covered by the ship target." },
+    { "id": "launch", "why": "Milestone 8 is in the game; its capture (the pad, the base, the launch as a sequence) is not written yet." },
+    { "id": "cockpit", "why": "Milestone 9 is in the game; the dash and the console instruments close up, and the three ship cameras, are not captured yet (the seat view in the ship target shows them at a distance)." },
+    { "id": "jetpack", "why": "Milestone 11 is in the game; its capture is not written yet." },
+    { "id": "enemies", "why": "The realistic trooper and the three other kinds, the Faction A tiers, bases, the rover, caves and scenery have no capture yet. Each needs a suite before its first review." }
   ],
   "inspections": {
     "views.standard": "The principal studio viewpoints: front, rear, left, right, front three-quarter, rear three-quarter, elevated three-quarter.",

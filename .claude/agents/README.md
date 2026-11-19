@@ -27,3 +27,5 @@ How they are used: during a milestone the main session builds the core, then sen
 What they cannot do: none of them can run Unity. They reduce the number of problems waiting behind the first press of Play; they do not replace it.
 
 To change how an agent behaves, edit its file here. To ask for one by name, say for example "have the unity-reviewer look at the ship code".
+
+Models (Matthew, 12 Nov 2026: Opus 5.5 for preparation, Fable 5.2 for the most important tasks): the Orchestrator's work (running captures, the gate tool, records) can run on Opus 5.5; `orbital-critic` and `orbital-builder` are set to Fable 5.2 because judging and fixing are the important part. On Matthew's machine the loop is started with the `quality-gate` skill.

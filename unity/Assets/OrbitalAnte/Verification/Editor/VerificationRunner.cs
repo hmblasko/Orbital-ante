@@ -162,16 +162,65 @@ namespace OrbitalAnte.Verification.EditorTools
         {
             string buildId = SessionState.GetString(BuildKey, string.Empty);
             bool batch = SessionState.GetBool(BatchKey, false);
-            int level = SessionState.GetInt(LevelKey, 2);
             SessionState.SetBool(ActiveKey, false);
+            string runDir = VerificationFiles.RunDir(buildId);
+            int exit = 3;
+            try
+            {
+                Directory.CreateDirectory(runDir);
+                File.WriteAllText(Path.Combine(runDir, "editmode-results.xml"), SessionState.GetString(EditXmlKey, string.Empty));
+                File.WriteAllText(Path.Combine(runDir, "playmode-results.xml"), playXml);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Orbital Ante verification could not write the test results: " + e);
+            }
+            exit = WriteResults(buildId, SessionState.GetInt(LevelKey, 2), SessionState.GetString(StartedKey, string.Empty));
+            if (batch) EditorApplication.Exit(exit);
+        }
+
+        /// <summary>
+        /// The last step of tools/quality-capture: the script has already run Unity's own test runner twice
+        /// (rule tests, then Play mode with the capture suites) and left editmode-results.xml and
+        /// playmode-results.xml in the run's folder. This reads them and the capture manifests and writes
+        /// test-results.json, exactly as a run started from the menu does.
+        ///
+        ///   Unity -batchmode -projectPath unity -executeMethod OrbitalAnte.Verification.EditorTools.VerificationRunner.SummariseFromCommandLine
+        ///         -oaBuildId my-id -oaLevel 2 -logFile -
+        /// </summary>
+        public static void SummariseFromCommandLine()
+        {
+            string buildId = VerificationFiles.Argument("-oaBuildId");
+            if (string.IsNullOrEmpty(buildId))
+            {
+                Debug.LogError("Orbital Ante verification: -oaBuildId is missing.");
+                EditorApplication.Exit(3);
+                return;
+            }
+            int level = int.TryParse(VerificationFiles.Argument("-oaLevel"), out int parsed) ? Mathf.Clamp(parsed, 1, 2) : 2;
+            Dictionary<string, object> context = VerificationFiles.ReadJson(VerificationFiles.ContextPath);
+            string started = context != null ? MiniJson.Str(context, "startedUtc") : string.Empty;
+            EditorApplication.Exit(WriteResults(buildId, level, started));
+        }
+
+        static string ReadIfThere(string path) => File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+
+        /// <summary>Writes test-results.json from the two result files in the run's folder. Returns the exit code.</summary>
+        static int WriteResults(string buildId, int level, string started)
+        {
             int exit = 3;
             try
             {
                 string runDir = VerificationFiles.RunDir(buildId);
                 Directory.CreateDirectory(runDir);
-                string editXml = SessionState.GetString(EditXmlKey, string.Empty);
-                File.WriteAllText(Path.Combine(runDir, "editmode-results.xml"), editXml);
-                File.WriteAllText(Path.Combine(runDir, "playmode-results.xml"), playXml);
+                string editXml = ReadIfThere(Path.Combine(runDir, "editmode-results.xml"));
+                string playXml = ReadIfThere(Path.Combine(runDir, "playmode-results.xml"));
+                if (editXml.Length == 0 || playXml.Length == 0)
+                {
+                    Debug.LogError("Orbital Ante verification: " + (editXml.Length == 0 ? "editmode-results.xml" : "playmode-results.xml") +
+                                   " is missing from " + VerificationFiles.Relative(runDir) + ". Unity probably failed to compile or to start the tests: read the log. This run is BLOCKED.");
+                    return 3;
+                }
                 Dictionary<string, object> edit = TestResultsSummary.FromNUnitXml(editXml, "EditMode");
                 Dictionary<string, object> play = TestResultsSummary.FromNUnitXml(playXml, level < 2 ? "PlayMode (capture suites only)" : "PlayMode (all tests and capture suites)");
 
@@ -216,7 +265,7 @@ namespace OrbitalAnte.Verification.EditorTools
                     ["level"] = level,
                     ["unityVersion"] = Application.unityVersion,
                     ["platform"] = Application.platform.ToString(),
-                    ["startedUtc"] = SessionState.GetString(StartedKey, string.Empty),
+                    ["startedUtc"] = started ?? string.Empty,
                     ["finishedUtc"] = DateTime.UtcNow.ToString("o"),
                     ["compilation"] = new Dictionary<string, object>
                     {
@@ -259,7 +308,7 @@ namespace OrbitalAnte.Verification.EditorTools
             {
                 if (File.Exists(VerificationFiles.ContextPath)) File.Delete(VerificationFiles.ContextPath);
             }
-            if (batch) EditorApplication.Exit(exit);
+            return exit;
         }
     }
 }

@@ -119,8 +119,8 @@ namespace OrbitalAnte.Verification.Capture
             _game.StartRun(CaptureSession.Seed, Scenario.SolarSystem);
             for (int i = 0; i < 12; i++) { PlanetJobs.FinishAll(); yield return null; }
             SolarSystemWorld space = _game.Space;
-            Camera eye = space.Craft.Eye;
-            Session.Shoot(eye, "flight-start", "Wide", "run start, Earth orbit", "gameplay", "the game's own sun and sky", true);
+            Camera eye = space.Astronaut.Eye;
+            Session.Shoot(eye, "flight-start", "Wide", "run start, seated on the launch pad", "gameplay", "the game's own sun and sky", true);
 
             space.Map.SetOpen(true);
             yield return Frames(4);

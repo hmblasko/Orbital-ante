@@ -37,7 +37,8 @@ namespace OrbitalAnte.Verification.Capture
             SolarSystem.ResetStatics();
             var go = new GameObject("CaptureSolarSystem");
             _world = go.AddComponent<SolarSystemWorld>();
-            _world.Build(CaptureSession.Seed);
+            // Open space, not the launch pad: these pictures are of the worlds.
+            _world.Build(CaptureSession.Seed, StartPlace.Orbit);
             _world.Hud.SetVisible(false);
             _world.Craft.ControlsLocked = true;
         }
@@ -83,7 +84,7 @@ namespace OrbitalAnte.Verification.Capture
             BuildWorld();
             yield return Settle(6);
             SolarSystem system = _world.System;
-            Camera eye = _world.Craft.Eye;
+            Camera eye = _world.Astronaut.Eye;
             Session.CheckScene("solar system at start");
 
             for (int i = 0; i < system.Model.Count; i++)
@@ -168,7 +169,7 @@ namespace OrbitalAnte.Verification.Capture
             BuildWorld();
             yield return Settle(6);
             SolarSystem system = _world.System;
-            Camera eye = _world.Craft.Eye;
+            Camera eye = _world.Astronaut.Eye;
             string[] ids = Session.Full ? new[] { "Earth", "Moon", "Mars", "Venus", "Titan", "Io", "Europa" } : new[] { "Earth" };
 
             foreach (string id in ids)
