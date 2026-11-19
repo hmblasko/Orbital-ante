@@ -228,6 +228,16 @@ def _linear_to_srgb(c):
 TEX = "Tex"     # the UV map a textured model's pictures are baked and drawn with (ModelPart.TexCoords in the game)
 
 
+def auto_smooth(mesh, degrees):
+    """Edges sharper than this many degrees are drawn as hard edges. Blender 4.0 has it as a mesh setting; from 4.1
+    on the edges themselves are marked (the scripts run on either)."""
+    if hasattr(mesh, "use_auto_smooth"):
+        mesh.use_auto_smooth = True
+        mesh.auto_smooth_angle = math.radians(degrees)
+    else:
+        mesh.set_sharp_from_angle(angle=math.radians(degrees))
+
+
 def _triangulated(obj):
     """A throwaway copy of a piece's mesh cut into triangles, for working out picture directions (Blender's
     tangents need triangles or quads, and a triangle has only one answer). The caller removes it."""
@@ -256,12 +266,11 @@ def _part_arrays(objects, textured=False):
             if mesh.uv_layers.get(TEX) is None:
                 raise ValueError("piece %s has no UV map named %r, but the model is textured" % (obj.name, TEX))
             mesh = temporary = _triangulated(obj)
-        mesh.use_auto_smooth = True
-        mesh.auto_smooth_angle = math.radians(obj.get("oa_smooth", 40.0))
+        auto_smooth(mesh, obj.get("oa_smooth", 40.0))
         if textured:
             # Also works out the split normals.
             mesh.calc_tangents(uvmap=TEX)
-        else:
+        elif hasattr(mesh, "calc_normals_split"):
             mesh.calc_normals_split()
         mesh.calc_loop_triangles()
         col = mesh.color_attributes.get("Col")
@@ -385,11 +394,12 @@ def save_texture_set(name, color, normal, mask, folder=None):
     os.makedirs(folder, exist_ok=True)
     written = []
     if mask.size[0] > 64:
-        half = mask.copy()
-        half.scale(max(1, mask.size[0] // 2), max(1, mask.size[1] // 2))
-        mask = half
+        # In place: a copy of a freshly baked picture comes out black (Blender 4.2).
+        mask.scale(max(1, mask.size[0] // 2), max(1, mask.size[1] // 2))
     for suffix, image, colour_space in (("Color", color, "sRGB"), ("Normal", normal, "Non-Color"), ("Mask", mask, "Non-Color")):
-        image.colorspace_settings.name = colour_space
+        # (Only when it differs: changing it on a freshly baked picture throws the bake away, in Blender 4.2 at least.)
+        if image.colorspace_settings.name != colour_space:
+            image.colorspace_settings.name = colour_space
         target = os.path.join(folder, "%s_%s.png" % (name, suffix))
         image.filepath_raw = target
         image.file_format = 'PNG'
@@ -783,8 +793,7 @@ def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(5
     for o in objects:
         o.data.materials.clear()
         o.data.materials.append(plain if o.get("oa_unchecked") else mat)
-        o.data.use_auto_smooth = True
-        o.data.auto_smooth_angle = math.radians(o.get("oa_smooth", 40.0))
+        auto_smooth(o.data, o.get("oa_smooth", 40.0))
     if glow:
         shine = bpy.data.materials.new("oa_preview_glow")
         shine.use_nodes = True
