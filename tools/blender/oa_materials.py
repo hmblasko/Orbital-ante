@@ -315,6 +315,132 @@ def hollow(name):
     return m.finish(m.mix((0.006, 0.006, 0.006), (0.020, 0.018, 0.016), m.noise(200.0)), 0.06, 0.0, None, occlusion=0.25)
 
 
+# ------------------------------------------------------------------ materials for painted bodies
+#
+# A body (an enemy, a creature) is already painted corner by corner: which cloth is which colour, where the dust
+# lies, where it is dark between the limbs. These materials start from that paint (painted()) and add what corners
+# cannot carry: the lie of the cloth, ribs in webbing, scratches in a shell, the fine skin of rubber.
+
+def painted(m):
+    """The shape's own corner colours ("Col", stored as seen on screen), as light."""
+    n = m.t.nodes.new("ShaderNodeVertexColor")
+    n.layer_name = "Col"
+    g = m.t.nodes.new("ShaderNodeGamma")
+    m.t.links.new(n.outputs["Color"], g.inputs["Color"])
+    g.inputs["Gamma"].default_value = 2.2
+    return g.outputs["Color"]
+
+
+def _shade(m, colour, amount):
+    """colour darkened by amount (0 to 1)."""
+    return m.mix(colour, (0.0, 0.0, 0.0), amount)
+
+
+def cloth(name, seed=0.0, folds=1.0):
+    """Heavy woven suit cloth: broad soft folds, finer creases where it gathers, a visible weave, dirt worked into
+    the low places and a few old stains. Never shiny."""
+    m = Tree(name)
+    base = painted(m)
+    fold = m.noise(11.0, 3.0, 0.55, stretch=(1.0, 1.0, 0.55), shift=(seed, 0, 0), distortion=0.6)
+    crease = m.noise(42.0, 3.0, 0.6, stretch=(1.0, 1.0, 0.45), shift=(0, seed, 0), distortion=1.2)
+    a = m.bands('DIAGONAL', 0.0056, stretch=(1.0, 1.0, 1.0))
+    b = m.bands('DIAGONAL', 0.0056, stretch=(-1.0, 1.0, 1.0))
+    weave = m.math('MINIMUM', a, b)
+    # Sewn seams: a line every so often across the height, sunk a little, with a row of stitches each side.
+    line = m.bands('Z', 0.105, distortion=0.25, detail=1.0)
+    seam = m.step(line, 0.975, 0.995)
+    beside = m.mul(m.step(line, 0.90, 0.93), m.sub(1.0, m.step(line, 0.945, 0.96)))
+    stitch = m.mul(beside, m.step(m.bands('X', 0.0045), 0.45, 0.6))
+    height = m.add(m.add(m.mul(fold, 0.0026 * folds), m.mul(crease, 0.0020 * folds)), m.mul(weave, 0.00022))
+    height = m.sub(m.add(height, m.mul(stitch, 0.0004)), m.mul(seam, 0.0011))
+    low = m.sub(1.0, m.step(m.add(m.mul(fold, 0.7), m.mul(crease, 0.3)), 0.30, 0.55))
+    low = m.sat(m.add(low, seam))
+    stain = m.mul(m.step(m.noise(5.5, 4.0, 0.7, shift=(seed, seed, 0)), 0.60, 0.74), 0.22)
+    grime = m.sub(1.0, m.step(m.hollows(0.02), 0.35, 0.9))
+    colour = m.mix(base, (0.090, 0.075, 0.058), m.sat(m.add(m.mul(low, 0.20), stain)))
+    colour = _shade(m, colour, m.mul(m.sub(1.0, weave), 0.10))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.55))
+    return m.finish(colour, m.lerp(0.07, 0.04, low), 0.0, height, occlusion=m.lerp(1.0, m.hollows(0.02), 0.6))
+
+
+def strap(name, seed=0.0):
+    """Nylon webbing: close ribs across it, fuzzed pale along worn edges."""
+    m = Tree(name)
+    base = painted(m)
+    rib = m.bands('Z', 0.0048)
+    rib2 = m.bands('X', 0.0048)
+    ribs = m.mul(rib, rib2)
+    rubbed = m.mul(m.edges(0.02, 0.2, 0.004), m.step(m.noise(50.0, 3.0, 0.6, shift=(seed, 0, 0)), 0.35, 0.7))
+    colour = _shade(m, base, m.mul(m.sub(1.0, ribs), 0.22))
+    colour = m.mix(colour, (0.42, 0.37, 0.27), m.mul(rubbed, 0.55))
+    grime = m.sub(1.0, m.step(m.hollows(0.012), 0.35, 0.9))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.6))
+    return m.finish(colour, 0.08, 0.0, m.mul(ribs, 0.00045), occlusion=m.lerp(1.0, m.hollows(0.015), 0.6))
+
+
+def shell(name, smoothness=0.42, seed=0.0):
+    """A painted hard shell (helmet, armour plate, a control box): a faint orange-peel skin, scratches through to
+    paler primer, chipped on edges, dull where dust has stuck."""
+    m = Tree(name)
+    base = painted(m)
+    scratch = m.mul(m.step(m.noise(34.0, 2.0, 0.5, stretch=(12.0, 0.7, 12.0), shift=(0, 0, seed)), 0.70, 0.78), 0.5)
+    scratch2 = m.mul(m.step(m.noise(30.0, 2.0, 0.5, stretch=(0.7, 12.0, 3.0), shift=(seed, 0, 0)), 0.72, 0.79), 0.4)
+    chipped = m.mul(m.edges(0.02, 0.2, 0.004), m.step(m.noise(70.0, 4.0, 0.7, shift=(seed, seed, 0)), 0.42, 0.66))
+    worn = m.sat(m.add(m.add(scratch, scratch2), m.mul(chipped, 0.8)))
+    colour = m.mix(base, m.mix(base, (0.55, 0.54, 0.50), 0.75), worn)
+    grime = m.sub(1.0, m.step(m.hollows(0.012), 0.35, 0.9))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.7))
+    blotch = m.noise(9.0, 3.0, 0.6, shift=(seed, 0, seed))
+    height = m.sub(m.mul(m.noise(380.0, 2.0, 0.6), 0.00006), m.mul(worn, 0.00012))
+    smooth_ = m.lerp(m.lerp(smoothness - 0.12, smoothness + 0.06, blotch), smoothness * 0.6, worn)
+    return m.finish(colour, m.lerp(smooth_, 0.06, grime), 0.0, height, occlusion=m.lerp(1.0, m.hollows(0.02), 0.6))
+
+
+def fitting(name, smoothness=0.66, seed=0.0):
+    """A small metal part in its own colour (anodised, or bare aluminium): fine brushing, brighter on edges."""
+    m = Tree(name)
+    base = painted(m)
+    rubbed = m.mul(m.edges(0.02, 0.2, 0.003), m.step(m.noise(60.0, 3.0, 0.6, shift=(seed, 0, 0)), 0.30, 0.65))
+    colour = m.mix(base, (0.62, 0.62, 0.63), m.mul(rubbed, 0.6))
+    grime = m.sub(1.0, m.step(m.hollows(0.010), 0.35, 0.9))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.7))
+    brushed = m.noise(160.0, 2.0, 0.5, stretch=(1.0, 1.0, 14.0))
+    return m.finish(colour, m.lerp(m.lerp(smoothness - 0.10, smoothness + 0.04, brushed), 0.10, grime), m.sub(1.0, grime),
+                    m.mul(brushed, 0.00003))
+
+
+def skin_rubber(name, smoothness=0.24, seed=0.0):
+    """Moulded rubber or silicone on a body (gloves, soles, bellows): a pebbled skin, grey bloom where it flexes."""
+    m = Tree(name)
+    base = painted(m)
+    bloom = m.mul(m.step(m.noise(26.0, 4.0, 0.65, shift=(seed, 0, 0)), 0.52, 0.80), 0.30)
+    colour = m.mix(base, (0.30, 0.29, 0.27), bloom)
+    grime = m.sub(1.0, m.step(m.hollows(0.010), 0.35, 0.9))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.6))
+    height = m.mul(m.noise(420.0, 2.0, 0.6), 0.00016)
+    return m.finish(colour, m.lerp(m.lerp(smoothness, smoothness * 0.5, bloom), 0.06, grime), 0.0, height)
+
+
+def mirror_coat(name, smoothness=0.88, metal=1.0):
+    """A coated visor or a lens: its painted colour, mirror smooth, with a few wiped smears."""
+    m = Tree(name)
+    smear = m.step(m.noise(14.0, 3.0, 0.6, stretch=(1.0, 1.0, 5.0)), 0.55, 0.80)
+    return m.finish(painted(m), m.lerp(smoothness, smoothness - 0.16, smear), metal, None, occlusion=1.0)
+
+
+def flesh(name):
+    """What shows where a limb came off: wet, lumpy, in its painted colours."""
+    m = Tree(name)
+    lumps = m.noise(60.0, 4.0, 0.7)
+    return m.finish(_shade(m, painted(m), m.mul(m.sub(1.0, lumps), 0.35)), m.lerp(0.35, 0.70, lumps), 0.0, m.mul(lumps, 0.0012))
+
+
+def paint_only(name):
+    """Just the corner colours, dull: how the model looked before it had pictures (for before-and-after renders)."""
+    m = Tree(name)
+    return m.finish(painted(m), 0.1, 0.0)
+
+
 # ------------------------------------------------------------------ laying out and baking
 
 def triangulate(obj):
