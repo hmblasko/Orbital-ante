@@ -94,12 +94,17 @@ static class TerrainView
                 {
                     var line = new System.Text.StringBuilder($"{profile.bodyId,-10}");
                     PlanetTerrain first = Make(profile.bodyId, 1);
+                    double slowest = 0;
                     line.Append($" wanted {OrbitalAnte.Bases.BaseField.BaseCount(rules, first.Radius),2}, found");
                     for (int seed = 1; seed <= 8; seed++)
                     {
                         PlanetTerrain t = seed == 1 ? first : Make(profile.bodyId, seed);
-                        line.Append($" {OrbitalAnte.Bases.BaseField.Build(rules, t, new SeededRandom(seed * 31), new[] { 2, 2, 1 }, Vec3d.Zero).Count,2}");
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
+                        int found = OrbitalAnte.Bases.BaseField.Build(rules, t, new SeededRandom(seed * 31), new[] { 2, 2, 1 }, Vec3d.Zero).Count;
+                        slowest = Math.Max(slowest, watch.Elapsed.TotalMilliseconds);
+                        line.Append($" {found,2}");
                     }
+                    line.Append($"  (slowest search {slowest:F0} ms on this machine)");
                     Console.WriteLine(line);
                 }
                 return 0;
@@ -118,6 +123,36 @@ static class TerrainView
                     }
                     plain.Sort(); worn.Sort();
                     Console.WriteLine($"wear {wear}: mean {worn.Average() / plain.Average():F2}, 90th {worn[54000] / plain[54000]:F2}, 99th {worn[59400] / plain[59400]:F2}, top {worn[59999]:F2} vs {plain[59999]:F2}");
+                }
+                return 0;
+            }
+            case "find":
+            {
+                // Where each standout landform is at its strongest on a world, to point a camera at it.
+                string body = args[1];
+                PlanetTerrain with = Make(body, 1);
+                foreach (string what in new[] { "canyon", "ridge", "spire", "dune" })
+                {
+                    PlanetProfile bare = PlanetProfiles.Defaults().First(x => x.bodyId == body);
+                    if (what == "canyon") bare.canyonDepth = 0; else if (what == "ridge") bare.ridgeHeight = 0; else if (what == "spire") bare.spireHeight = 0; else bare.duneHeight = 0;
+                    var without = new PlanetTerrain(bare, body, SolarSystemDefaults.Bodies().First(x => x.id == body).radius, 1);
+                    double best = 0; int bestLat = 0, bestLon = 0;
+                    for (int lat = -70; lat <= 70; lat += 4)
+                    {
+                        for (int lon = -180; lon < 180; lon += 4)
+                        {
+                            // The change summed over a patch about 60 m across.
+                            double sum = 0;
+                            Vec3d up = CubeSphere.FromLatLon(lat, lon), u = up.AnyPerpendicular(), v = Vec3d.Cross(up, u);
+                            for (int i = -3; i <= 3; i++) for (int j = -3; j <= 3; j++)
+                            {
+                                Vec3d d = (up + u * (i * 10 / with.Radius) + v * (j * 10 / with.Radius)).Normalized;
+                                sum += Math.Abs(with.Height(d) - without.Height(d));
+                            }
+                            if (sum > best) { best = sum; bestLat = lat; bestLon = lon; }
+                        }
+                    }
+                    Console.WriteLine($"{body} {what}: latitude {bestLat}, longitude {bestLon} (average change {best / 49:F1} m)");
                 }
                 return 0;
             }
