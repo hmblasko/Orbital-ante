@@ -163,7 +163,10 @@ namespace OrbitalAnte.Tests
                     if (slope < 0.12) level++;
                     if (slope > 0.6) cliffs++;
                 }
-                Assert.Greater(level / (double)land, 0.22, body + ": too little ground level enough to land on or build a base on.");
+                // A fifth was the floor until Matthew asked for "significantly more landscape" (15 Nov 2026): Mars,
+                // the most crowded world, now has a little under that, and its bases still all find level ground
+                // (rule test BasesAreThroughoutEveryWorld).
+                Assert.Greater(level / (double)land, 0.18, body + ": too little ground level enough to land on or build a base on.");
                 Assert.Less(cliffs / (double)land, 0.3, body + ": too much of the land is cliff.");
             }
         }
