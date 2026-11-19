@@ -26,6 +26,9 @@ namespace OrbitalAnte.Planets
             public bool HasModel, HasTrunk;
             public Mesh Drawn, Solid;
             public Trunk Trunk;
+            /// <summary>A tree that can be felled: what is left standing, what falls, and the middle of the cut.</summary>
+            public Mesh Stump, Top;
+            public Vector3 Cut;
         }
 
         static Slot[] _slots;
@@ -77,6 +80,10 @@ namespace OrbitalAnte.Planets
             if (solid == ScenerySolid.Trunk)
             {
                 slot.HasTrunk = true;
+                slot.Stump = ModelLibrary.PartMesh(model, piece + "Stump");
+                slot.Top = ModelLibrary.PartMesh(model, piece + "Top");
+                if (file.TrySocket(piece + "Cut", out ModelSocket cut)) slot.Cut = new Vector3(cut.X, cut.Y, cut.Z);
+                else { slot.Stump = null; slot.Top = null; }
                 if (file.TrySocket(piece + "A", out ModelSocket a) && file.TrySocket(piece + "B", out ModelSocket b) && file.TrySocket(piece + "R", out ModelSocket r))
                 {
                     slot.Trunk = new Trunk { A = new Vector3(a.X, a.Y, a.Z), B = new Vector3(b.X, b.Y, b.Z), Radius = Mathf.Max(0.005f, r.X) };
@@ -109,6 +116,20 @@ namespace OrbitalAnte.Planets
             Slot slot = Look(kind, variant);
             trunk = slot != null ? slot.Trunk : default;
             return slot != null && slot.HasTrunk;
+        }
+
+        /// <summary>
+        /// The two halves of a felled tree (both shared: never destroy them) and the middle of the cut, in the
+        /// model's 1-unit space. False if this kind cannot be felled or its file is older than felling.
+        /// </summary>
+        public static bool TryFelling(FeatureKind kind, int variant, out Mesh stump, out Mesh top, out Vector3 cut)
+        {
+            Slot slot = Look(kind, variant);
+            bool ok = slot != null && slot.HasTrunk && slot.Stump != null && slot.Top != null;
+            stump = ok ? slot.Stump : null;
+            top = ok ? slot.Top : null;
+            cut = ok ? slot.Cut : Vector3.zero;
+            return ok;
         }
 
         /// <summary>

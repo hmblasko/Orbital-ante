@@ -851,6 +851,8 @@ namespace OrbitalAnte.Ship
 
             Vector3 eye = Eye.transform.position, forward = Eye.transform.forward;
             bool flying = !_grounded;
+            // An air station in a base's building: look at it and hold the button to fill the suit.
+            if (AirStation(eye, forward, dt)) return;
             // Look at the hatch in the belly (or the button beside it) and press the button.
             if (LookingAt(new Vector3(0f, ShipLayout.BellyY, 0f), HatchLookReach, 24f, eye, forward) || LookingAt(V(ShipLayout.OutsideHatchButton), 2.6f, 30f, eye, forward))
             {
@@ -1167,6 +1169,58 @@ namespace OrbitalAnte.Ship
             if (result == SuitKnock.Result.Killed) Die(SuitKnock.Cause(speed));
             else _dazed = Mathf.Max(_dazed, 0.8f);
         }
+
+        /// <summary>
+        /// Looks for a base's air station in front of the player and, while the button is held, fills the suit's
+        /// air from it. A station holds a few suit tanks (<see cref="OrbitalAnte.Bases.StructureRules.stationTanks"/>)
+        /// and stays empty once drained.
+        /// </summary>
+        bool AirStation(Vector3 eye, Vector3 forward, float dt)
+        {
+            var standing = OrbitalAnte.Bases.BaseStructure.Standing;
+            OrbitalAnte.Bases.BaseStructure best = null;
+            Vector3 bestPoint = default;
+            float bestDistance = AirStationReach;
+            for (int i = 0; i < standing.Count; i++)
+            {
+                var s = standing[i];
+                if (s == null || !s.AirPoint.HasValue) continue;
+                Vector3 point = s.transform.TransformPoint(s.AirPoint.Value);
+                Vector3 to = point - eye;
+                float d = to.magnitude;
+                if (d < bestDistance && Vector3.Angle(forward, to) <= 35f) { best = s; bestDistance = d; bestPoint = point; }
+            }
+            if (best == null) return false;
+            float left = best.AirLeft;
+            if (left <= 0.001f)
+            {
+                Prompt = "This air station is empty";
+                return true;
+            }
+            Prompt = SuitTanks.Air >= 0.999f ? "Suit air is full" : Words(11, "Hold ", GameInput.Interact, ": fill the suit's air");
+            PromptProgress = SuitTanks.Air;
+            if (GameInput.Interact.IsPressed() && SuitTanks.Air < 0.999f)
+            {
+                float flow = OrbitalAnte.Bases.AirStationRule.Flow(SuitTanks.Air, left, dt, OrbitalAnte.Bases.BaseStructure.Rules.stationFillSeconds);
+                if (flow > 0f)
+                {
+                    SuitTanks.TopUp(flow);
+                    best.AirLeft = left - flow;
+                    if (_fx != null && Time.unscaledTime > _nextHiss)
+                    {
+                        _nextHiss = Time.unscaledTime + 0.6f;
+                        Audio.AudioDirector.Play("ship.rcs", bestPoint, 0.35f, 1.4f);
+                    }
+                    if (SuitTanks.Air >= 0.999f) Say("Suit air full.");
+                    else if (best.AirLeft <= 0.001f) Say("That station is empty now.");
+                }
+            }
+            return true;
+        }
+
+        /// <summary>How near a base's air station must be (metres from the eye) to be used.</summary>
+        const float AirStationReach = 2.2f;
+        float _nextHiss;
 
         /// <summary>Looks for a damaged part in front of the player and mends it while the button is held.</summary>
         bool Mending(float dt)

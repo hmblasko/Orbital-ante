@@ -27,6 +27,8 @@ namespace OrbitalAnte.Bases
         public static Func<BaseSite, Transform, bool> BuildView;
         /// <summary>How many designs there are of each size (small, medium, large). Set with <see cref="BuildView"/>.</summary>
         public static int[] Kinds = { 1, 1, 1 };
+        /// <summary>What has fallen at which base this run (and which air stations are spent). New with every run.</summary>
+        public static BaseWrecks Wrecks { get; private set; } = new BaseWrecks();
 
         /// <summary>A base is built when the player comes this near, and put away past the second distance, in metres.</summary>
         const float ShowWithin = 350f, HideBeyond = 450f;
@@ -72,6 +74,7 @@ namespace OrbitalAnte.Bases
             var bases = go.AddComponent<PlanetBases>();
             bases._world = world;
             bases.Rules = rules ?? new BaseFieldRules();
+            Wrecks = new BaseWrecks();
             return bases;
         }
 
@@ -79,6 +82,8 @@ namespace OrbitalAnte.Bases
         {
             BuildView = null;
             Kinds = new[] { 1, 1, 1 };
+            Wrecks = new BaseWrecks();
+            BaseStructure.ResetStatics();
         }
 
         /// <summary>The bases on a body, worked out the first time they are asked for. Null if its ground is not ready yet or it has none.</summary>

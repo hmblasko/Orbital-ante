@@ -729,6 +729,9 @@ namespace OrbitalAnte.Ship
             // a nudge while parking never dents it, a rover at full speed still does.
             if (other != null && !other.isKinematic && other.GetComponent<OrbitalAnte.Rover.MoonRover>() != null)
                 speed *= other.mass / (other.mass + Mathf.Max(1f, Body.mass));
+            // A building or a tree gives way to a hard enough knock (each keeps count of its own damage).
+            IRammable rammed = collision.collider != null ? collision.collider.GetComponentInParent<IRammable>() : null;
+            if (rammed != null) rammed.Rammed(speed, Body.mass, -contact.normal);
             // The same knock often arrives as several touches (four footpads, two pieces of ground). Count it once.
             if (Time.time - _lastCrash < 0.2f && speed <= _lastCrashSpeed) speed = 0f;
             FeelKnock(collision);

@@ -21,7 +21,17 @@ namespace OrbitalAnte.Planets
             public MeshCollider Collider;
             /// <summary>A tree's trunk: one capsule on a child, so it can lean the way the trunk does.</summary>
             public CapsuleCollider Trunk;
+            /// <summary>On the trunk's holder, for a tree that can be felled.</summary>
+            public TreeTrunk Tree;
+            /// <summary>The top of this tree after it was felled, lying where it fell (or still falling).</summary>
+            public GameObject Fallen;
         }
+
+        /// <summary>The dials for felling trees, shared by every world.</summary>
+        public static FellingRules Felling = new FellingRules();
+        readonly FelledTrees _felled = new FelledTrees();
+        /// <summary>How many trees have been felled on this world this run.</summary>
+        public int FelledCount => _felled.Count;
 
         sealed class Group
         {
@@ -283,6 +293,7 @@ namespace OrbitalAnte.Planets
                 item.Renderer.receiveShadows = false;
             }
 
+            if (item.Fallen != null) { Object.Destroy(item.Fallen); item.Fallen = null; }
             Mesh mesh = FeatureMeshes.Get(p.Kind, p.Variant);
             item.Filter.sharedMesh = mesh;
             item.Renderer.sharedMaterial = PlanetMaterials.VertexColour(new Color(p.R, p.G, p.B, 1f), p.Absolute ? 0f : 1f, GlowOf(p.Kind));
@@ -329,18 +340,30 @@ namespace OrbitalAnte.Planets
                     item.Trunk = holder.AddComponent<CapsuleCollider>();
                     item.Trunk.direction = 1;
                 }
-                Vector3 along = trunk.B - trunk.A;
-                Transform h = item.Trunk.transform;
-                h.localPosition = (trunk.A + trunk.B) * 0.5f;
-                h.localRotation = along.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, along) : Quaternion.identity;
-                item.Trunk.radius = trunk.Radius;
-                item.Trunk.height = along.magnitude + trunk.Radius * 2f;
+                bool fellable = SceneryModels.TryFelling(p.Kind, p.Variant, out Mesh stump, out _, out Vector3 cut);
+                bool felled = fellable && _felled.IsFelled(position);
+                if (felled)
+                {
+                    // Felled earlier this run: only the stump is left.
+                    item.Filter.sharedMesh = stump;
+                    SetTrunk(item.Trunk, trunk.A, cut, trunk.Radius);
+                }
+                else
+                {
+                    SetTrunk(item.Trunk, trunk.A, trunk.B, trunk.Radius);
+                }
                 item.Trunk.enabled = true;
+                if (fellable && item.Tree == null) item.Tree = item.Trunk.gameObject.AddComponent<TreeTrunk>();
+                if (item.Tree != null)
+                {
+                    item.Tree.Set(this, item, position, p.Kind, p.Variant, scale, trunk.Radius * scale, fellable && !felled);
+                }
             }
             else if (item.Trunk != null)
             {
                 item.Trunk.enabled = false;
             }
+            if (!hasTrunk && item.Tree != null) item.Tree.Set(this, item, position, p.Kind, p.Variant, scale, 0f, false);
 
             item.Go.SetActive(true);
             Count++;
@@ -353,9 +376,85 @@ namespace OrbitalAnte.Planets
             return kind == FeatureKind.Crystal ? 0.55f : 0f;
         }
 
+        static void SetTrunk(CapsuleCollider capsule, Vector3 a, Vector3 b, float radius)
+        {
+            Vector3 along = b - a;
+            Transform h = capsule.transform;
+            h.localPosition = (a + b) * 0.5f;
+            h.localRotation = along.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, along) : Quaternion.identity;
+            capsule.radius = radius;
+            capsule.height = along.magnitude + radius * 2f;
+        }
+
+        /// <summary>
+        /// Brings a tree down: it becomes its stump (and stays one for the rest of the run), and its top falls
+        /// as a loose object, tipped the way the last blow pushed.
+        /// </summary>
+        public void Fell(TreeTrunk tree, Vector3 push)
+        {
+            if (!(tree.Tag is Item item) || item.Go == null || item.Trunk == null) return;
+            if (!SceneryModels.TryFelling(tree.Kind, tree.Variant, out Mesh stump, out Mesh top, out Vector3 cut)) return;
+            if (!SceneryModels.TryTrunk(tree.Kind, tree.Variant, out SceneryModels.Trunk trunk)) return;
+            _felled.Fell(tree.Position);
+            item.Filter.sharedMesh = stump;
+            SetTrunk(item.Trunk, trunk.A, cut, trunk.Radius);
+
+            Transform t = item.Go.transform;
+            var go = new GameObject("Felled tree");
+            go.layer = Layers.Gib;
+            go.transform.SetPositionAndRotation(t.position, t.rotation);
+            go.transform.localScale = t.lossyScale;
+            go.AddComponent<MeshFilter>().sharedMesh = top;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = item.Renderer.sharedMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+
+            // Solid as the trunk above the cut, and the crown as one rough ball so it does not sink into the ground.
+            Vector3 along = trunk.B - cut;
+            var logHolder = new GameObject("Log");
+            logHolder.layer = Layers.Gib;
+            logHolder.transform.SetParent(go.transform, false);
+            logHolder.transform.localPosition = (cut + trunk.B) * 0.5f;
+            logHolder.transform.localRotation = along.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, along) : Quaternion.identity;
+            var log = logHolder.AddComponent<CapsuleCollider>();
+            log.direction = 1;
+            log.radius = trunk.Radius;
+            log.height = along.magnitude + trunk.Radius * 2f;
+            Bounds crown = top.bounds;
+            var ball = go.AddComponent<SphereCollider>();
+            ball.radius = Mathf.Max(trunk.Radius * 1.5f, Mathf.Min(crown.extents.x, crown.extents.z) * 0.7f);
+            ball.center = new Vector3(crown.center.x, Mathf.Max(cut.y + ball.radius, crown.center.y + crown.extents.y * 0.2f), crown.center.z);
+            // The stump and the top start touching at the cut: they must not shove each other apart.
+            Physics.IgnoreCollision(log, item.Trunk, true);
+            Physics.IgnoreCollision(ball, item.Trunk, true);
+
+            var rb = go.AddComponent<Rigidbody>();
+            float height = tree.Scale;
+            rb.mass = Felling.TopMass(tree.TrunkRadius, height);
+            rb.useGravity = false;
+            rb.linearDamping = 0.02f;
+            rb.angularDamping = 0.4f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            Vector3 up = t.up;
+            Vector3 flat = push - up * Vector3.Dot(push, up);
+            if (flat.sqrMagnitude < 1e-4f) flat = t.right;
+            flat.Normalize();
+            // Tipped over the way it was pushed: gravity does the rest.
+            rb.angularVelocity = Vector3.Cross(up, flat) * Felling.tipSpin;
+            rb.linearVelocity = flat * 0.3f;
+            go.AddComponent<GravityBody>();
+            go.AddComponent<FallingTop>().Begin(item.Go.transform, Felling);
+            item.Fallen = go;
+
+            Vector3 at = t.TransformPoint(cut);
+            Audio.AudioDirector.Play("impact.dirt", at, 0.9f, 0.55f);
+        }
+
         void Retire(Item item)
         {
             if (item == null || item.Go == null) return;
+            if (item.Fallen != null) { Object.Destroy(item.Fallen); item.Fallen = null; }
             item.Go.SetActive(false);
             _spare.Push(item);
             Count--;

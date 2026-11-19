@@ -42,21 +42,32 @@ namespace OrbitalAnte.Look
     /// </summary>
     public sealed class ModelFile
     {
-        public const int MaxParts = 64;
+        public const int MaxParts = 512;
         public const int MaxCornersPerPart = 60000;
         /// <summary>Scenery files carry three attachment points a tree (its trunk), so this is generous.</summary>
-        public const int MaxSockets = 256;
+        public const int MaxSockets = 1024;
 
         public ModelPart[] Parts = new ModelPart[0];
         public ModelSocket[] Sockets = new ModelSocket[0];
 
+        // Looked up by name through a table made on first use (a base model has hundreds of pieces and points),
+        // made again if the arrays are swapped for new ones.
+        System.Collections.Generic.Dictionary<string, int> _partIndex, _socketIndex;
+        ModelPart[] _indexedParts;
+        ModelSocket[] _indexedSockets;
+
         public ModelPart Part(string name)
         {
-            for (int i = 0; i < Parts.Length; i++)
+            if (name == null) return null;
+            if (_partIndex == null || !ReferenceEquals(_indexedParts, Parts))
             {
-                if (Parts[i].Name == name) return Parts[i];
+                var index = new System.Collections.Generic.Dictionary<string, int>(Parts.Length, StringComparer.Ordinal);
+                for (int i = 0; i < Parts.Length; i++)
+                    if (Parts[i] != null && Parts[i].Name != null && !index.ContainsKey(Parts[i].Name)) index[Parts[i].Name] = i;
+                _partIndex = index;
+                _indexedParts = Parts;
             }
-            return null;
+            return _partIndex.TryGetValue(name, out int at) ? Parts[at] : null;
         }
 
         /// <summary>
@@ -78,13 +89,18 @@ namespace OrbitalAnte.Look
 
         public bool TrySocket(string name, out ModelSocket socket)
         {
-            for (int i = 0; i < Sockets.Length; i++)
+            if (name != null && (_socketIndex == null || !ReferenceEquals(_indexedSockets, Sockets)))
             {
-                if (Sockets[i].Name == name)
-                {
-                    socket = Sockets[i];
-                    return true;
-                }
+                var index = new System.Collections.Generic.Dictionary<string, int>(Sockets.Length, StringComparer.Ordinal);
+                for (int i = 0; i < Sockets.Length; i++)
+                    if (Sockets[i].Name != null && !index.ContainsKey(Sockets[i].Name)) index[Sockets[i].Name] = i;
+                _socketIndex = index;
+                _indexedSockets = Sockets;
+            }
+            if (name != null && _socketIndex.TryGetValue(name, out int at))
+            {
+                socket = Sockets[at];
+                return true;
             }
             socket = default;
             return false;
