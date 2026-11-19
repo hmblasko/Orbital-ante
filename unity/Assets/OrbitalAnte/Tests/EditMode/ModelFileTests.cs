@@ -286,6 +286,7 @@ namespace OrbitalAnte.Tests
         [TestCase("EnemyRunner", 4800, 0.4f)]
         [TestCase("EnemyBruiser", 4800, 0.4f)]
         [TestCase("EnemyMarksman", 4800, 0.4f)]
+        [TestCase("EnemyDrifter", 4800, 0.4f)]
         [TestCase("Rifle", 2200, 0.45f)]
         [TestCase("Pistol", 2200, 0.45f)]
         [TestCase("Smg", 2200, 0.45f)]
@@ -715,7 +716,7 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_MatchesTheSkeleton([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        public void EnemyModelFile_MatchesTheSkeleton([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman", "EnemyDrifter")] string name)
         {
             // The Blender script carries its own copy of the joint positions. If BodySkeleton changes, this fails
             // until tools/blender/build_enemy.py is changed to match and run again (and build_enemy_types.py, which
@@ -734,13 +735,13 @@ namespace OrbitalAnte.Tests
             Assert.IsNotNull(model.Part("Stump"), "missing the wound stump");
             // The realistic trooper is finer than the first models. The game keeps the worst frame the same size by
             // drawing fewer of a finer body in full at once (DetailRule.FullTriangles), so the cap here is per model.
-            int cap = name == "Enemy" ? 22000 : 16000;
+            int cap = name == "Enemy" || name == "EnemyDrifter" ? 22000 : 16000;   // the two finer bodies
             Assert.LessOrEqual(model.TriangleCount, cap, "docs/performance_budget.md caps this enemy at " + cap + " triangles");
             Assert.LessOrEqual(model.TriangleCount * 8, DetailRule.FullTriangles, "eight of any body must fit in full at once, or a fight at arm's length shows far copies");
         }
 
         [Test]
-        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        public void EnemyModelFile_EveryPieceSitsOnItsOwnJoint([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman", "EnemyDrifter")] string name)
         {
             // Each piece is measured from its joint, so it must start there and reach the way the part points.
             ModelFile model = LoadReal(name);
@@ -772,7 +773,7 @@ namespace OrbitalAnte.Tests
 
         [Test]
         public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman",
-                                                            "EnemyFar", "EnemyRunnerFar", "EnemyBruiserFar", "EnemyMarksmanFar")] string file)
+                                                            "EnemyFar", "EnemyRunnerFar", "EnemyBruiserFar", "EnemyMarksmanFar", "EnemyDrifterFar")] string file)
         {
             // The far copies are held to the same fit: the hitboxes do not change when the drawn copy does, so
             // what looks hit must be hit whichever is showing.
@@ -831,7 +832,7 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void EnemyModelFile_BootsStandOnTheGround([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman")] string name)
+        public void EnemyModelFile_BootsStandOnTheGround([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman", "EnemyDrifter")] string name)
         {
             ModelFile model = LoadReal(name);
             foreach (BodyPartId id in new[] { BodyPartId.LeftFoot, BodyPartId.RightFoot })

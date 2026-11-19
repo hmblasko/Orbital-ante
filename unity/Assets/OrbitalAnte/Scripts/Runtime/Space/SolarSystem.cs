@@ -296,6 +296,16 @@ namespace OrbitalAnte.Space
 
             if (recenter)
             {
+                // A mover that hangs under another mover's transform (a jointed limb under its chunk) was dragged
+                // along if the one above was placed after it. Places are absolute, so placing them again mends it.
+                for (int i = 0; i < _movers.Count; i++)
+                {
+                    Transform above = _movers[i].transform.parent;
+                    if (above == null || above.GetComponent<GravityBody>() == null) continue;
+                    Vector3 position = SpaceConvert.ToVector3(Frame.ToLocalPosition(_snapshots[i].Position, States));
+                    _movers[i].transform.position = position;
+                    _movers[i].Body.position = position;
+                }
                 RecenterCount++;
                 WorldShifted?.Invoke(-focusLocal);
             }

@@ -86,6 +86,9 @@ namespace OrbitalAnte.Dismemberment
         [Tooltip("How fast a gun flies when it is shot out of someone's hands, in metres per second.")]
         public float disarmKnockSpeed = 6f;
 
+        [Header("Jointed bodies (a corpse or a limb that folds at its joints instead of flying off stiff)")]
+        public RagdollTuning ragdoll = new RagdollTuning();
+
         [Header("Colours")]
         public Color torsoColor = new Color(0.93f, 0.45f, 0.13f);
         public Color headColor = new Color(0.96f, 0.93f, 0.85f);

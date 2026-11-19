@@ -61,6 +61,7 @@ namespace OrbitalAnte.Dismemberment
                 gib.transform.position += by;
                 // The body too, or an interpolated chunk is drawn part way back along its old path for a frame.
                 if (gib.Body != null) gib.Body.position += by;
+                if (gib.Ragdoll != null) gib.Ragdoll.Shift(by);
             }
         }
 
@@ -73,6 +74,7 @@ namespace OrbitalAnte.Dismemberment
         public static void ResetStatics()
         {
             _instance = null;
+            GibRagdoll.ResetStatics();
         }
 
         void Initialize(GoreConfig config)

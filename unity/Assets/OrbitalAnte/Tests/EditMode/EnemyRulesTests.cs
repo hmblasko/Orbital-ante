@@ -70,11 +70,11 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
-        public void TheFourTypesReallyDiffer()
+        public void TheUnalignedTypesReallyDiffer()
         {
-            // The four unaligned kinds (Faction A's three tiers have their own test in FactionRulesTests).
+            // The five unaligned kinds (Faction A's three tiers have their own test in FactionRulesTests).
             List<EnemyTypeSpec> roster = EnemyRoster.Defaults().FindAll(t => t.faction == Factions.None);
-            Assert.AreEqual(4, roster.Count);
+            Assert.AreEqual(5, roster.Count);
             var weapons = new HashSet<string>();
             var sizes = new HashSet<float>();
             for (int i = 0; i < roster.Count; i++)
@@ -83,8 +83,8 @@ namespace OrbitalAnte.Tests.EditMode
                 sizes.Add(roster[i].scale);
                 Assert.Greater(roster[i].reactionTime, 0.3f, roster[i].id + " must never shoot the instant it sees you");
             }
-            Assert.AreEqual(4, weapons.Count, "each type carries its own gun");
-            Assert.AreEqual(4, sizes.Count, "each type is its own size, to be told apart at a glance");
+            Assert.AreEqual(5, weapons.Count, "each type carries its own gun");
+            Assert.AreEqual(5, sizes.Count, "each type is its own size, to be told apart at a glance");
         }
 
         [Test]

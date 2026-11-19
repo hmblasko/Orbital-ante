@@ -113,6 +113,9 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Tall and still: bolt upright, feet together, gliding more than walking, hardly moving at rest.</summary>
         public static readonly BodyStyle Marksman = new BodyStyle(hunch: -2.0, armsOut: 2.0, stance: 0.85, stride: 1.15, bob: 0.6, sway: 0.5, armSwing: 0.6, idle: 0.4, girth: 0.90);
 
+        /// <summary>Lean and unhurried: upright, long easy strides, arms loose, very still when it stops to aim.</summary>
+        public static readonly BodyStyle Drifter = new BodyStyle(lean: 1.0, armsOut: 3.0, stance: 0.95, stride: 1.08, bob: 0.85, sway: 0.8, armSwing: 1.1, idle: 0.6, girth: 0.94);
+
         /// <summary>The style that goes with a body model, by the model's name. Anything unknown walks like a trooper.</summary>
         public static BodyStyle For(string model)
         {
@@ -121,6 +124,7 @@ namespace OrbitalAnte.Dismemberment
                 case "EnemyRunner": return Runner;
                 case "EnemyBruiser": return Bruiser;
                 case "EnemyMarksman": return Marksman;
+                case "EnemyDrifter": return Drifter;
                 default: return Trooper;
             }
         }

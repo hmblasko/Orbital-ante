@@ -485,6 +485,7 @@ namespace OrbitalAnte.Enemies
             config.tacticalHunch = Mathf.Clamp01(spec.hunch);
             config.modelId = spec.model ?? "";
             config.aimTell = spec.aimTell;
+            config.ragdoll.jointed = spec.jointed || _config.jointedBodiesForAll;
             if (spec.red + spec.green + spec.blue > 0f) config.torsoColor = new Color(spec.red, spec.green, spec.blue);
             if (type < _typeConfigs.Length) _typeConfigs[type] = config;
             return config;
