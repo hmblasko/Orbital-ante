@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OARuntime>../../../unity/Assets/OrbitalAnte/Scripts/Runtime/</OARuntime>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(OARuntime)Core/Vec3d.cs" />
+    <Compile Include="$(OARuntime)Creatures/StriderLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/StriderBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/StriderAnimator.cs" />
+  </ItemGroup>
+</Project>
