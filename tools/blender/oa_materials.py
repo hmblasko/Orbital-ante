@@ -179,9 +179,10 @@ DUST = (0.050, 0.042, 0.033)     # old oil and dirt packed into corners: dark, a
 
 
 def steel(name, coat=(0.017, 0.018, 0.021), bare=(0.42, 0.41, 0.39), coat_smooth=0.50, wear=1.0, patina=0.35, seed=0.0,
-          dirt=0.7):
+          dirt=0.7, coat_metal=0.0):
     """Gun steel under a dark coat (bluing, phosphate or baked paint) that has rubbed through to bright metal on
-    edges and high spots. The coat is not bare metal (it does not mirror); the rubbed places are."""
+    edges and high spots. The coat is not bare metal (it does not mirror); the rubbed places are.
+    coat_metal 1 makes the whole thing bare metal with `coat` its colour: brushed stainless, brass, copper."""
     m = Tree(name)
     big = m.noise(14.0, 5.0, 0.6, shift=(seed, 0, 0))
     fine = m.noise(260.0, 3.0, 0.7, shift=(0, seed, 0))
@@ -203,7 +204,7 @@ def steel(name, coat=(0.017, 0.018, 0.021), bare=(0.42, 0.41, 0.39), coat_smooth
     colour = m.mix(colour, DUST, m.mul(grime, 0.8))
     smoothness = m.lerp(m.lerp(coat_smooth - 0.10, coat_smooth + 0.08, big), 0.66, worn)
     smoothness = m.lerp(smoothness, 0.10, grime)
-    metal = m.sat(m.sub(worn, grime))
+    metal = m.sat(m.sub(m.math('MAXIMUM', worn, coat_metal), grime))
     height = m.add(m.mul(fine, 0.000035), m.mul(scratch, -0.00006))
     return m.finish(colour, smoothness, metal, height)
 
@@ -221,15 +222,16 @@ def bright_steel(name, seed=0.0):
     return m.finish(colour, smoothness, m.sub(1.0, m.mul(grime, 0.7)), m.mul(lines, 0.00003))
 
 
-def laminate(name, seed=0.0, wear=1.0):
+def laminate(name, seed=0.0, wear=1.0, plies=1.0, dark=(0.042, 0.015, 0.008), light=(0.190, 0.070, 0.027)):
     """Birch plywood furniture under red-brown shellac: thin plies showing as fine lines that swim where the shape
-    curves, long grain, lacquer gone dull and pale where hands and shoulders have rubbed, dents."""
+    curves, long grain, lacquer gone dull and pale where hands and shoulders have rubbed, dents.
+    plies 0 is solid timber (walnut, with `dark` and `light` to suit)."""
     m = Tree(name)
     grain = m.noise(70.0, 6.0, 0.65, stretch=(7.0, 0.10, 7.0), shift=(seed, 0, 0))
     cloud = m.noise(11.0, 3.0, 0.5, stretch=(2.0, 0.5, 2.0), shift=(0, seed, 4.0))
-    plies = m.bands('X', 0.0030, distortion=0.55, detail=3.0, stretch=(1.0, 0.10, 0.22))
-    colour = m.mix((0.042, 0.015, 0.008), (0.190, 0.070, 0.027), m.lerp(grain, cloud, 0.35))
-    colour = m.mix(colour, (0.035, 0.013, 0.007), m.mul(m.step(plies, 0.70, 0.97), 0.22))
+    ply = m.bands('X', 0.0030, distortion=0.55, detail=3.0, stretch=(1.0, 0.10, 0.22))
+    colour = m.mix(dark, light, m.lerp(grain, cloud, 0.35))
+    colour = m.mix(colour, (0.035, 0.013, 0.007), m.mul(m.step(ply, 0.70, 0.97), 0.22 * plies))
     # Long dark streaks of denser grain, and slow light-and-dark from board to board.
     streak = m.step(m.noise(34.0, 4.0, 0.6, stretch=(9.0, 0.07, 9.0), shift=(seed, 5.0, 0)), 0.52, 0.78)
     colour = m.mix(colour, (0.030, 0.011, 0.006), m.mul(streak, 0.55))
@@ -274,6 +276,37 @@ def bakelite(name, seed=0.0, checker=0.0):
     colour = m.mix(colour, (0.030, 0.022, 0.015), m.mul(grime, 0.8))
     smoothness = m.lerp(smoothness, 0.08, grime)
     return m.finish(colour, smoothness, 0.0, height)
+
+
+def polymer(name, colour, smoothness=0.26, seed=0.0, checker=0.0):
+    """Moulded plastic or rubber: an even colour with a fine pebbled skin, scuffed paler on edges and in a few
+    scratches, dull. checker > 0 presses a diamond grip pattern of that depth into faces that look sideways."""
+    m = Tree(name)
+    big = m.noise(18.0, 4.0, 0.6, shift=(seed, 0, 0))
+    base = m.mix(tuple(c * 0.82 for c in colour), tuple(c * 1.18 for c in colour), big)
+    pale = tuple(min(1.0, c * 1.9 + 0.03) for c in colour)
+    rubbed = m.mul(m.mul(m.edges(), m.step(m.noise(60.0, 4.0, 0.7, shift=(seed, seed, 0)), 0.40, 0.72)), 0.7)
+    scratch = m.mul(m.step(m.noise(40.0, 2.0, 0.5, stretch=(14.0, 0.6, 14.0), shift=(0, 0, seed)), 0.72, 0.79), 0.45)
+    worn = m.sat(m.add(rubbed, scratch))
+    base = m.mix(base, pale, worn)
+    grime = m.sub(1.0, m.step(m.hollows(0.012), 0.35, 0.9))
+    height = m.mul(m.noise(520.0, 2.0, 0.6), 0.00005)
+    smooth_ = m.lerp(m.lerp(smoothness - 0.05, smoothness + 0.05, big), smoothness + 0.12, worn)
+    if checker > 0:
+        a = m.bands('DIAGONAL', 0.0024, stretch=(0.0, 1.0, 1.0))
+        b = m.bands('DIAGONAL', 0.0024, stretch=(0.0, 1.0, -1.0))
+        side = m.step(m.facing(0), 0.72, 0.9)
+        height = m.add(height, m.mul(m.mul(m.math('MINIMUM', a, b), side), checker))
+        cuts = m.mul(m.sub(1.0, m.math('MINIMUM', a, b)), side)
+        base = m.mix(base, DUST, m.mul(cuts, 0.45))
+    base = m.mix(base, DUST, m.mul(grime, 0.8))
+    return m.finish(base, m.lerp(smooth_, 0.07, grime), 0.0, height)
+
+
+def glass(name):
+    """A dark lens seen from outside: nearly black, mirror smooth."""
+    m = Tree(name)
+    return m.finish((0.010, 0.018, 0.026), 0.92, 0.0, None, occlusion=1.0)
 
 
 def hollow(name):
@@ -448,6 +481,8 @@ def render(path, objects, material, eye, target, lens=50, size=(1100, 700), sun=
     extra = []
     if material is not None:
         for o in objects:
+            if o.get("oa_glow"):        # shines by itself: keeps the material it was given
+                continue
             o.data.materials.clear()
             o.data.materials.append(material)
             oa.auto_smooth(o.data, o.get("oa_smooth", 40.0))
