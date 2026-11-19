@@ -30,6 +30,16 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 
+# Verification tooling build output
+/Verification/Tools/**/bin/
+/Verification/Tools/**/obj/
+
+# Lossless screenshots stay on the machine that captured them; the .jpg review copies are committed.
+# Approved baselines are kept as .png.
+/Verification/Reports/**/*.png
+/Verification/Reports/.current-run.json
+/Verification/Reports/.last-run
+
 # ChatGPT handoff packets (tools/chatgpt/oa_handoff.py)
 /handoff/
 __pycache__/
@@ -52,3 +62,4 @@ tools/terrain_view/bin/
 !/tools/audio/build/demo/main_theme_long_way.ogg
 !/tools/audio/build/demo/music_preview_rally_house.ogg
 !/tools/audio/build/demo/solar_system_music_preview.ogg
+/Verification/Reports/**/logs/

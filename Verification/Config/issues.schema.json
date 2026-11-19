@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "orbital-ante/verification/issues.schema.json",
+  "title": "Orbital Ante independent review (issues.json)",
+  "description": "One Critic review of one target. Written by the Critic, checked by the quality gate (Verification/Tools/oa-verify, or Orbital Ante > Verification > Check Review Files in Unity). The gate works the overall score and the verdict out again from this file and rejects the file if they do not match. Paths are relative to the repository root.",
+  "type": "object",
+  "required": ["schemaVersion", "rubricVersion", "reviewId", "buildId", "critic", "reviewLevel", "target", "inspections", "technical", "evidence", "categories", "issues", "rankedIssueIds", "acceptanceCriteria", "untested", "verdict"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "rubricVersion": { "const": 1, "description": "The rubric in Rules/Rubric.cs. Fixed between comparable reviews." },
+    "reviewId": { "type": "string", "description": "Unique, e.g. R-20261114-mannequin-02." },
+    "buildId": { "type": "string", "description": "The folder name under Verification/Reports that holds the evidence." },
+    "commit": { "type": "string" },
+    "milestone": { "type": "string", "description": "e.g. M7. Used to count refinement cycles." },
+    "unityVersion": { "type": "string" },
+    "critic": { "type": "string", "description": "Who reviewed. Must differ from 'builder'." },
+    "builder": { "type": "string", "description": "Who made the work under review." },
+    "reviewLevel": { "enum": [1, 2] },
+    "previousReviewId": { "type": "string" },
+    "inspectionMethod": { "type": "string", "description": "How the game was looked at: which capture run, who started it, on what machine." },
+    "target": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "scenes": { "type": "array", "items": { "type": "string" } } }
+    },
+    "inspections": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Every inspection required for this target (see Config/targets.json) and whether it was really done. A required inspection that is 'blocked' makes the verdict BLOCKED.",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "required": { "type": "boolean", "default": true },
+          "status": { "enum": ["done", "blocked", "not_applicable"] },
+          "note": { "type": "string", "description": "Required unless status is done." }
+        }
+      }
+    },
+    "technical": {
+      "type": "object",
+      "required": ["testsRun", "testsPassed", "verifiedErrors", "unresolvedErrorCount"],
+      "properties": {
+        "testsRun": { "type": "boolean", "description": "True only if the tests actually ran in Unity for this build." },
+        "testsPassed": { "type": "boolean" },
+        "testResults": { "type": "string", "description": "Path to test-results.json. Required when testsRun is true." },
+        "coverage": { "type": "string", "description": "What the tests and checks covered, in words." },
+        "verifiedErrors": {
+          "type": "array",
+          "description": "Confirmed technical defects in the tested scope. Harmless log lines do not belong here; say in warningsReviewed how they were classified.",
+          "items": {
+            "type": "object",
+            "required": ["id", "description", "evidence", "resolved"],
+            "properties": {
+              "id": { "type": "string" }, "description": { "type": "string" },
+              "evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "resolved": { "type": "boolean" }, "issueId": { "type": "string" }
+            }
+          }
+        },
+        "unresolvedErrorCount": { "type": "integer", "description": "Must equal the number of verifiedErrors with resolved: false." },
+        "regressions": { "type": "array", "items": { "type": "object", "required": ["description", "resolved"], "properties": { "description": { "type": "string" }, "issueId": { "type": "string" }, "resolved": { "type": "boolean" } } } },
+        "warningsReviewed": { "type": "string" },
+        "performance": { "type": "string", "description": "Measured numbers with how they were measured, or 'not measured'. Never estimates presented as measurements." }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["screenshotCount", "captureManifests"],
+      "properties": {
+        "screenshotDir": { "type": "string" },
+        "screenshotCount": { "type": "integer", "description": "Pictures captured from the Unity project and actually looked at." },
+        "captureManifests": { "type": "array", "items": { "type": "string" } },
+        "animationEvidence": { "type": "array", "items": { "type": "string" }, "description": "Contact sheets, frame sequences or video." },
+        "comparisons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "description": "All seven rubric categories. A category that truly does not apply gets applicable: false and a reason; it is left out of the sum, not given a 10. On a BLOCKED review where nothing was seen, leave this list empty rather than marking categories not applicable.",
+      "items": {
+        "type": "object",
+        "required": ["id", "justification"],
+        "properties": {
+          "id": { "enum": ["cohesion", "modeling", "environment", "materials", "animation", "readability", "polish"] },
+          "applicable": { "type": "boolean", "default": true },
+          "score": { "type": "number", "minimum": 0, "maximum": 10 },
+          "justification": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "overallScore": { "type": ["number", "null"], "description": "Sum of applicable score x weight / sum of applicable weights, rounded to one decimal at the end. Weights: cohesion 20, modeling 20, environment 15, materials 15, animation 15, readability 10, polish 5." },
+    "strengths": { "type": "array", "description": "Exactly three for a PASS or FAIL: what should be preserved, and why.", "items": { "type": "string" } },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "target", "category", "severity", "kind", "title", "description", "evidence", "expected", "recommendedFixes", "expectedBenefit", "effort", "regressionRisk", "confidence", "acceptanceCriteria", "status"],
+        "properties": {
+          "id": { "type": "string", "description": "Stable across reviews, e.g. MAN-003." },
+          "target": { "type": "string" },
+          "category": { "type": "string", "description": "A rubric category id, or 'technical'." },
+          "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+          "kind": { "enum": ["verified_defect", "suspected_defect", "aesthetic_judgment", "verification_gap", "design_question"], "description": "Keeps confirmed technical findings apart from suspicions and from visual judgment. verification_gap = something that could not be inspected; design_question = a decision for Matthew." },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "reproduction": { "type": "string" },
+          "expected": { "type": "string" },
+          "rootCause": { "type": "string", "description": "Probable cause, when the evidence supports one." },
+          "recommendedFixes": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Options. The Builder chooses the implementation." },
+          "expectedBenefit": { "enum": ["high", "medium", "low"] },
+          "effort": { "enum": ["small", "medium", "large"] },
+          "regressionRisk": { "enum": ["low", "medium", "high"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "alsoAffects": { "type": "array", "items": { "type": "string" }, "description": "Other targets or scenes a fix would help." },
+          "acceptanceCriteria": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "status": { "enum": ["open", "resolved", "regressed", "wont_fix"] },
+          "statusNote": { "type": "string", "description": "Required for wont_fix: who decided and why (only Matthew can waive an issue)." },
+          "firstSeenIn": { "type": "string" },
+          "needsDesignDecision": { "type": "boolean", "description": "True if fixing it would change approved art direction or design, so Matthew decides." }
+        }
+      }
+    },
+    "rankedIssueIds": { "type": "array", "items": { "type": "string" }, "description": "Every open or regressed issue, most important first. Severity always comes first." },
+    "regressionChecks": { "type": "array", "items": { "type": "string" }, "description": "What must be re-tested next time so that fixed things stay fixed." },
+    "acceptanceCriteria": { "type": "array", "items": { "type": "string" }, "description": "Exactly what the next review must verify." },
+    "comparison": {
+      "type": ["object", "null"],
+      "description": "Required when a previous review of this target exists.",
+      "properties": {
+        "previousReviewId": { "type": "string" }, "previousScore": { "type": ["number", "null"] }, "previousUnresolvedErrors": { "type": "integer" },
+        "previousOpenP0P1": { "type": "integer" }, "previousVerdict": { "type": "string" },
+        "resolved": { "type": "array", "items": { "type": "string" } }, "newRegressions": { "type": "array", "items": { "type": "string" } },
+        "scoreChangeJustification": { "type": "string" }, "matchedViews": { "type": "boolean", "description": "True if before and after pictures came from the same cameras, lighting and states." }
+      }
+    },
+    "untested": { "type": "array", "items": { "type": "string" }, "description": "What this review did not cover (always includes Steam Deck hardware unless one was used)." },
+    "recommendPlaytest": { "type": "array", "items": { "type": "string" }, "description": "Questions only a person playing can answer: fun, difficulty, pacing." },
+    "verdict": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+    "verdictReason": { "type": "string" }
+  }
+}

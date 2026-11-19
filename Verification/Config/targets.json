@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "about": "The review targets the capture suites know how to photograph. Each target is reviewed and must pass by itself. To add one, write a capture test in unity/Assets/OrbitalAnte/Verification/Capture and list it here.",
+  "targets": [
+    {
+      "id": "mannequin",
+      "name": "Playtest mannequin (character, movement states, limb loss)",
+      "kind": "character",
+      "tier": "hero",
+      "captureTest": "CharacterCaptures.MannequinStudio",
+      "milestones": ["M1", "M2", "M12"],
+      "requiredInspections": ["views.standard", "distances.three", "animation.sequences", "technical.sceneChecks", "technical.tests"],
+      "gameplayContextFrom": "combat-arena"
+    },
+    {
+      "id": "weapons",
+      "name": "Rifle and pistol",
+      "kind": "prop",
+      "tier": "background",
+      "captureTest": "CharacterCaptures.WeaponsStudio",
+      "milestones": ["M3"],
+      "requiredInspections": ["views.standard", "technical.sceneChecks", "technical.tests"],
+      "gameplayContextFrom": "combat-arena"
+    },
+    {
+      "id": "combat-arena",
+      "name": "Combat as the player sees it (arena, enemies, gore, HUD)",
+      "kind": "gameplay",
+      "tier": "hero",
+      "captureTest": "GameplayCaptures.CombatArenaGameplay",
+      "milestones": ["M1", "M2", "M3", "M12"],
+      "requiredInspections": ["views.gameplay", "animation.sequences", "resolution.deck", "resolution.desktop", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "planets",
+      "name": "Every world from space, and the flight readouts",
+      "kind": "environment",
+      "tier": "hero",
+      "captureTest": "WorldCaptures.PlanetsFromSpace",
+      "milestones": ["M5", "M6"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "planet-surface",
+      "name": "Standing on the ground of seven worlds",
+      "kind": "environment",
+      "tier": "hero",
+      "captureTest": "WorldCaptures.PlanetSurfaces",
+      "milestones": ["M6"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "ship",
+      "name": "Starter ship (outside, from the seat, hatch, damage)",
+      "kind": "spacecraft",
+      "tier": "hero",
+      "captureTest": "ShipCaptures.ShipInsideAndOut",
+      "milestones": ["M7", "M9", "M10"],
+      "requiredInspections": ["views.standard", "distances.three", "views.gameplay", "animation.sequences", "resolution.deck", "resolution.desktop", "technical.sceneChecks", "technical.tests"]
+    },
+    {
+      "id": "menus",
+      "name": "Main menu, flight start, system map, pause menu",
+      "kind": "interface",
+      "tier": "background",
+      "captureTest": "GameplayCaptures.MenusAndFlight",
+      "milestones": ["M1", "M5"],
+      "requiredInspections": ["views.gameplay", "resolution.deck", "technical.sceneChecks", "technical.tests"]
+    }
+  ],
+  "notYetCapturable": [
+    { "id": "ship-cabin", "why": "Walking round the cabin and looking aft needs look input the capture suite cannot give yet. The seat view is covered by the ship target." },
+    { "id": "launch", "why": "Milestone 8 is in the game; its capture (the pad, the base, the launch as a sequence) is not written yet." },
+    { "id": "cockpit", "why": "Milestone 9 is in the game; the dash and the console instruments close up, and the three ship cameras, are not captured yet (the seat view in the ship target shows them at a distance)." },
+    { "id": "jetpack", "why": "Milestone 11 is in the game; its capture is not written yet." },
+    { "id": "enemies", "why": "The realistic trooper and the three other kinds, the Faction A tiers, bases, the rover, caves and scenery have no capture yet. Each needs a suite before its first review." }
+  ],
+  "inspections": {
+    "views.standard": "The principal studio viewpoints: front, rear, left, right, front three-quarter, rear three-quarter, elevated three-quarter.",
+    "views.gameplay": "Pictures through the game's own camera, as the player sees it.",
+    "distances.three": "Close, medium and wide.",
+    "animation.sequences": "Motion judged from frame sequences (contact sheets) or live playback, never from one still.",
+    "resolution.deck": "1280x800.",
+    "resolution.desktop": "1920x1080.",
+    "technical.sceneChecks": "The mechanical scene checks in the capture manifest were read and each error classified.",
+    "technical.tests": "EditMode and PlayMode tests ran in Unity and their results were read."
+  }
+}

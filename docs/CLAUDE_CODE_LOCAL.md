@@ -48,6 +48,24 @@ Instead of typing in a terminal, you can let the project thread run Claude Code 
 1. In the repo terminal (step C1) type `claude remote-control` and press Enter, and leave the window open.
 2. Tell the project thread you have done it. It can then start a session on your machine that runs the checks and fixes, and reports back in the thread.
 
+## F. Run the quality review (Builder and Critic)
+
+This takes real pictures of the game in Unity, has an independent critic score them against the fixed rubric, and has a builder fix what the critic found. The critic and the builder run on Fable 5.2 by themselves; the session that runs them can be Opus 5.5.
+
+1. Do section B so you are on the branch you want reviewed (normally `claude/playtest`). Close Unity.
+2. Open a terminal in the repo folder (step C1; on the Steam Deck, in Desktop Mode open **Konsole** and type `cd ~/Orbital-ante`).
+3. Type `claude` and press Enter. Type `/model claude-opus-5-5` and press Enter.
+4. Type this and press Enter (change `ship` to what you want looked at: `mannequin`, `weapons`, `combat-arena`, `planets`, `planet-surface`, `menus`, or leave the name out for everything):
+
+   `Use the quality-gate skill. Run a level 2 review of the ship and tell me the real verdict.`
+
+5. Choose **Yes** when it asks to run `tools/quality-capture`. Unity runs without its window for several minutes; the screen may flicker. Leave the machine alone until it finishes.
+6. It then starts the critic. When that is done you get, for each thing reviewed: PASS, FAIL or BLOCKED, the score, and the main problems in plain words. The pictures are in `Verification/Reports/` in a folder named with the date.
+7. If the verdict is FAIL and you want it improved, type: `Hand the issues to the builder and review again.` After three failed tries on one thing it stops and asks you.
+8. The first time, expect the capture itself to need a fix or two (it has never run in Unity before). Claude fixes the capture code and tries again; that is normal and it will say so.
+
+To only take the pictures, with no Claude: `bash tools/quality-capture.sh` (Windows: right-click `tools\quality-capture.ps1`, **Run with PowerShell**). Then in GitHub Desktop commit the new files under `Verification/Reports` and push, and the project thread can review them from the cloud.
+
 ## What stays with Fable 5.2
 
 These need the strongest judgement, so they wait for Fable 5.2 credits:

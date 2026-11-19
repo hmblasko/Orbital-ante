@@ -1,0 +1,22 @@
+{
+  "name": "OrbitalAnte.Verification.Capture",
+  "rootNamespace": "OrbitalAnte.Verification.Capture",
+  "references": [
+    "OrbitalAnte.Runtime",
+    "OrbitalAnte.Verification.Rules",
+    "UnityEngine.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
