@@ -33,7 +33,7 @@ namespace OrbitalAnte.Creatures
         public float sightRange = 44f;
         /// <summary>It rolls at someone between these two distances, and backs off from someone nearer to make room.</summary>
         public float chargeFrom = 5f;
-        public float chargeTo = 16f;
+        public float chargeTo = 22f;
         /// <summary>Seconds it takes to curl up before it goes: the warning.</summary>
         public float windSeconds = 0.9f;
         /// <summary>Metres a second as a ball: faster than the player sprints (8), but in a straight line.</summary>
@@ -41,11 +41,11 @@ namespace OrbitalAnte.Creatures
         /// <summary>It rolls this far past where the player stood when it took aim.</summary>
         public float overshoot = 5f;
         public float rollDamage = 30f;
-        /// <summary>How near the middle of the ball must pass to hit (the ball is 0.66 m in radius, a person about 0.4).</summary>
+        /// <summary>How near the middle of the ball must pass to hit (the ball is 0.63 m in radius, a person about 0.4).</summary>
         public float hitRadius = 1.05f;
         public float openSeconds = 0.45f;
         /// <summary>Seconds on its back after a roll, and after rolling into something solid.</summary>
-        public float onBackSeconds = 2.2f;
+        public float onBackSeconds = 1.5f;
         public float crashBackSeconds = 3.6f;
         public float rightSeconds = 0.6f;
         /// <summary>Seconds on its feet before it may curl up again.</summary>
@@ -54,6 +54,8 @@ namespace OrbitalAnte.Creatures
         public float buttSeconds = 0.75f;
         public float buttDamage = 12f;
         public float buttRest = 1.0f;
+        /// <summary>With too few plates to roll it keeps at least this far away.</summary>
+        public float fleeTo = 28f;
         public float wanderRadius = 20f;
         public RollerHp hp = RollerHp.Default;
         /// <summary>Seconds a loose piece lies before it fades.</summary>
@@ -91,7 +93,7 @@ namespace OrbitalAnte.Creatures
     /// player stood, so a step aside after it has taken aim is a miss (constitution rule 3). At the end of the roll it
     /// falls open on its back, soft side up, and has to turn itself over: that is the time to shoot it. Rolling into
     /// something solid leaves it on its back longer. With too few plates left to close into a ball
-    /// (<see cref="RollerBody.CanRoll"/>) it can only walk up and butt.
+    /// (<see cref="RollerBody.CanRoll"/>) it turns its bare back and makes off, and butts only someone who crowds it.
     /// </summary>
     public sealed class RollerBrain
     {
@@ -117,6 +119,7 @@ namespace OrbitalAnte.Creatures
         /// <summary>Soft side up and unable to move.</summary>
         public bool Exposed => Mode == RollerMode.Open || Mode == RollerMode.OnBack || Mode == RollerMode.Righting;
         public bool Alerted => _alert > 0.0;
+        public bool Fleeing { get; private set; }
 
         public void Alert(double seconds = 8.0) => _alert = Math.Max(_alert, seconds);
 
@@ -141,6 +144,7 @@ namespace OrbitalAnte.Creatures
             double distance = toPlayer.Magnitude;
             double bearing = Math.Atan2(toPlayer.X, toPlayer.Z);
             bool hunting = senses.SeesPlayer || Alerted;
+            Fleeing = false;
 
             switch (Mode)
             {
@@ -189,6 +193,8 @@ namespace OrbitalAnte.Creatures
                 }
 
                 case RollerMode.Open:
+                    // Stopped by something solid, it falls open back the way it came, not into what stopped it.
+                    if (Crashed) orders.Velocity = new Vec3d(0, 0, -(0.5 * RollerLayout.TotalLength - RollerLayout.BallRadius + 0.3) / Math.Max(0.1, _rules.openSeconds));
                     _t += dt / Math.Max(0.1, _rules.openSeconds);
                     if (_t >= 1.0)
                     {
@@ -261,9 +267,13 @@ namespace OrbitalAnte.Creatures
                 if (distance > _rules.chargeTo * 0.85 && Math.Abs(bearing) < 0.9 && !senses.Blocked) orders.Velocity = new Vec3d(0, 0, pace);
                 else if (distance < _rules.chargeFrom && distance > _rules.buttRange * 0.8 && !senses.Blocked) orders.Velocity = new Vec3d(0, 0, -0.6 * pace);
             }
-            else if (distance > _rules.buttRange * 0.75 && Math.Abs(bearing) < 0.9 && !senses.Blocked)
+            else if (distance < _rules.fleeTo)
             {
-                orders.Velocity = new Vec3d(0, 0, pace);
+                // Too few plates to make a ball: it shows its bare back and makes off.
+                Fleeing = true;
+                double away = bearing > 0 ? bearing - Math.PI : bearing + Math.PI;
+                orders.TurnRate = Toward(away, turn);
+                if (Math.Abs(away) < 1.2 && !senses.Blocked) orders.Velocity = new Vec3d(0, 0, pace);
             }
         }
 

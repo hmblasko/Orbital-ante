@@ -27,7 +27,7 @@ namespace OrbitalAnte.Creatures
         [Range(0, 4)] public int arenaSprinters = 2;
 
         [Tooltip("How many Rollers the combat test arena starts with (0 for none).")]
-        [Range(0, 3)] public int arenaRollers = 1;
+        [Range(0, 2)] public int arenaRollers = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

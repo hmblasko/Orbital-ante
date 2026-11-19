@@ -56,7 +56,9 @@ namespace OrbitalAnte.Creatures
         {
             switch (mode)
             {
-                case RollerMode.Wind: return Smooth(t);
+                case RollerMode.Wind:
+                    // Head and tail dip while it still takes aim; the moment it has, it snaps shut. Closing is the sign.
+                    return t < RollerBrain.LockAt ? 0.45 * Smooth(t / RollerBrain.LockAt) : 0.45 + 0.55 * Smooth((t - RollerBrain.LockAt) / (1.0 - RollerBrain.LockAt));
                 case RollerMode.Roll: return 1.0;
                 case RollerMode.Open: return 1.0 - Smooth(t);
                 case RollerMode.Righting: return 0.7 * Math.Sin(Math.PI * Math.Max(0.0, Math.Min(1.0, t)));

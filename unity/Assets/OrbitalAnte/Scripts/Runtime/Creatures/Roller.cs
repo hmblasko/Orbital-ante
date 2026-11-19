@@ -141,8 +141,9 @@ namespace OrbitalAnte.Creatures
                     float back = -(float)RollerLayout.PlateOverlap * 0.5f, deep = length + (float)RollerLayout.PlateOverlap;
                     float half = (float)RollerLayout.PlateHalfWidth, high = (float)RollerLayout.BackHeight;
                     AddBox(plate.gameObject, new Vector3(0f, high * 0.72f, back), new Vector3(half * 1.7f, high * 0.6f, deep));
-                    AddBox(plate.gameObject, new Vector3(half * 0.88f, 0.04f, back), new Vector3(half * 0.24f, 0.36f, deep));
-                    AddBox(plate.gameObject, new Vector3(-half * 0.88f, 0.04f, back), new Vector3(half * 0.24f, 0.36f, deep));
+                    float skirt = (float)RollerLayout.PlateSkirt, side = high * 0.45f + skirt;
+                    AddBox(plate.gameObject, new Vector3(half * 0.88f, side * 0.5f - skirt, back), new Vector3(half * 0.24f, side, deep));
+                    AddBox(plate.gameObject, new Vector3(-half * 0.88f, side * 0.5f - skirt, back), new Vector3(half * 0.24f, side, deep));
                     Tag(plate.gameObject, RollerPiece.Plate, i - 1);
                     _plate[i - 1] = plate;
                 }
@@ -151,9 +152,8 @@ namespace OrbitalAnte.Creatures
             {
                 Transform piece = Mesh(RollerLayout.LegPiece, transform);
                 piece.name = "Leg " + leg;
-                float scale = (float)RollerLayout.SegScale[RollerLayout.SegOf(leg)];
-                // The left legs are the right ones mirrored.
-                piece.localScale = new Vector3(RollerLayout.SideOf(leg) == RollerLayout.LeftSide ? -scale : scale, scale, scale);
+                // A leg is the same either side (its upper side is turned outward by the pose) and the same size on
+                // every segment, so nothing is mirrored or scaled.
                 var capsule = piece.gameObject.AddComponent<CapsuleCollider>();
                 capsule.direction = 2;
                 capsule.radius = 0.075f;
@@ -212,7 +212,8 @@ namespace OrbitalAnte.Creatures
         void Update()
         {
             if (!Alive || GameSession.Paused) return;
-            float dt = Time.deltaTime;
+            // A long frame is taken as a short one, so a ball never steps past thin cover or past the player.
+            float dt = Mathf.Min(Time.deltaTime, 0.05f);
             if (dt <= 0f) return;
 
             var senses = new RollerSenses { Blocked = _blocked, Home = D(transform.InverseTransformPoint(_home)) };
@@ -259,9 +260,9 @@ namespace OrbitalAnte.Creatures
             {
                 // A fast ball's hitboxes must be where it is drawn when the player's shot is traced this frame.
                 Physics.SyncTransforms();
-                if (!_hitThisRoll && eye != null && Brain.RollHits(D(transform.InverseTransformPoint(eye.position - up * 1.6f)))) Hurt(eye, _rules.rollDamage, true);
+                if (!_hitThisRoll && eye != null && !CombatWorld.EnemiesHoldFire && Brain.RollHits(D(transform.InverseTransformPoint(eye.position - up * 1.6f)))) Hurt(eye, _rules.rollDamage, true);
             }
-            if (orders.Landed && eye != null)
+            if (orders.Landed && eye != null && !CombatWorld.EnemiesHoldFire)
             {
                 // A butt reaches a little past its head, straight ahead.
                 Vector3 feet = transform.InverseTransformPoint(eye.position - up * 1.6f);
@@ -402,7 +403,7 @@ namespace OrbitalAnte.Creatures
                 // The wound on the body, looking out along where the leg was, and on the leg, looking back.
                 Wound(_link[seg + 1], hip, Quaternion.LookRotation(new Vector3((float)RollerLayout.Sign(loss.Index), -0.6f, 0f), Vector3.up), (float)RollerLayout.LegRadius * 1.3f);
                 WalkerChunk chunk = Throw(leg, "Roller leg", 2f, direction * 3f + outward * Random.Range(3f, 5f) + up * Random.Range(2f, 4f));
-                Wound(leg, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), (float)RollerLayout.LegRadius * 1.3f / Mathf.Abs(leg.localScale.y));
+                Wound(leg, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), (float)RollerLayout.LegRadius * 1.3f);
                 Pop(chunk.transform.position, outward, 10);
             }
             else if (loss.Kind == RollerLossKind.Plate)
@@ -445,7 +446,7 @@ namespace OrbitalAnte.Creatures
             return chunk;
         }
 
-        static void Loosen(Transform piece, Transform chunk)
+        static void Loosen(Transform piece, Transform chunk, bool solid = true)
         {
             piece.SetParent(chunk, true);
             foreach (Transform t in piece.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.Gib;
@@ -457,8 +458,11 @@ namespace OrbitalAnte.Creatures
                 Destroy(part);
             }
             GibManager gibs = GibManager.Instance;
-            if (gibs == null) return;
-            foreach (Collider collider in piece.GetComponents<Collider>()) collider.sharedMaterial = gibs.BouncyMaterial;
+            foreach (Collider collider in piece.GetComponents<Collider>())
+            {
+                if (!solid) collider.enabled = false;
+                else if (gibs != null) collider.sharedMaterial = gibs.BouncyMaterial;
+            }
         }
 
         void Wound(Transform on, Vector3 at, Quaternion facing, float size)
@@ -494,11 +498,12 @@ namespace OrbitalAnte.Creatures
                     // Every other plate flies off by itself; the rest stay on their segments.
                     if (plate != null && seg % 2 == 0) Throw(plate, "Roller plate", 6f, plate.up * Random.Range(5f, 8f) + away * 2f + hit.Direction * 1.5f);
                     WalkerChunk chunk = Throw(link, "Roller segment", 7f, away * Random.Range(3f, 6f) + up * Random.Range(3f, 6f) + hit.Direction * 2f);
-                    if (plate != null && seg % 2 == 1) Loosen(plate, chunk.transform);
+                    // What rides on a loose segment is only drawn: the segment's own box is all the physics has to carry.
+                    if (plate != null && seg % 2 == 1) Loosen(plate, chunk.transform, false);
                     for (int side = 0; side < 2; side++)
                     {
                         Transform leg = _leg[RollerLayout.Leg(seg, side)];
-                        if (leg != null) Loosen(leg, chunk.transform);
+                        if (leg != null) Loosen(leg, chunk.transform, false);
                     }
                 }
                 else

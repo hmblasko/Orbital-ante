@@ -46,6 +46,7 @@ static class Program
     {
         if (args.Length < 2) { Console.Error.WriteLine("usage: creature_dump <out.json> <walk|strike|lose> [Strider|Sprinter]"); return 2; }
         string scene = args[1];
+        if (args.Length > 2 && args[2] == RollerLayout.Model) return RollerDump.Run(args[0], scene);
         WalkerLayout _l = args.Length > 2 ? WalkerLayout.For(args[2]) : WalkerLayout.Strider;
         if (_l == null) { Console.Error.WriteLine("no such kind: " + args[2]); return 2; }
         bool quick = _l == WalkerLayout.Sprinter;

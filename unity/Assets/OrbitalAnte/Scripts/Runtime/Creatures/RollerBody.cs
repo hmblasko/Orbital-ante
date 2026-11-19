@@ -3,19 +3,19 @@ using System.Collections.Generic;
 
 namespace OrbitalAnte.Creatures
 {
-    /// <summary>Hit points of a Roller. Legs are low, like every limb in the game; a plate is armour and takes four rifle hits.</summary>
+    /// <summary>Hit points of a Roller. Legs are low, like every limb in the game; a plate is armour and takes three rifle hits.</summary>
     [Serializable]
     public struct RollerHp
     {
         public double Leg;
         public double Plate;
         public double Tail;
-        /// <summary>The armoured head: the slow way to kill it.</summary>
+        /// <summary>The armoured head: the slow way to kill it (half as much again as the soft body, like the Strider's lid).</summary>
         public double Head;
         /// <summary>The soft body under the plates: the way to kill it.</summary>
         public double Soft;
 
-        public static RollerHp Default => new RollerHp { Leg = 30, Plate = 90, Tail = 70, Head = 170, Soft = 200 };
+        public static RollerHp Default => new RollerHp { Leg = 30, Plate = 72, Tail = 70, Head = 300, Soft = 200 };
     }
 
     public enum RollerLossKind { Leg, Plate, Tail }
@@ -48,7 +48,8 @@ namespace OrbitalAnte.Creatures
     ///   that segment bare for good.
     /// - With fewer than <see cref="PlatesToRoll"/> plates it can no longer close into a ball, so it cannot charge.
     /// - Legs only make it slower on foot; a ball needs none.
-    /// - It rights itself with its legs and its tail: without the tail, or with few legs, it lies on its back longer.
+    /// - It rights itself with its legs and its tail: without the tail it lies on its back much longer, and a little
+    ///   longer for every leg lost.
     /// </summary>
     public sealed class RollerBody
     {
@@ -92,7 +93,7 @@ namespace OrbitalAnte.Creatures
         public double SpeedShare => 0.35 + 0.65 * Legs / RollerLayout.Legs;
 
         /// <summary>How much longer than usual it lies on its back before it can turn over.</summary>
-        public double OnBackShare => (TailOn ? 1.0 : 1.6) * (Legs >= 6 ? 1.0 : 1.5);
+        public double OnBackShare => (TailOn ? 1.0 : 1.6) * (1.0 + 0.05 * (RollerLayout.Legs - Legs));
 
         RollerHit Fresh()
         {

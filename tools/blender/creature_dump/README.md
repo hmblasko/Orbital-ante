@@ -22,3 +22,7 @@ These pictures are Blender's, not Unity screenshots: they show the model and the
 
 For a still picture, copy a scene's file and add `"only": <frame>` with its own `"eye"`, `"target"`, `"lens"`,
 `"size"` and `"samples"`: one frame is drawn, as large and as clean as asked.
+
+## The Roller
+
+`dotnet run -- out.json <walk|roll|lose> Roller` runs the Roller's rules (`RollerDump.cs`): `roll` is its own brain against someone standing still (the curl, the roll, on its back, getting up), `lose` shoots plates, legs and the tail off and then bursts it. Every frame carries its own camera, which follows the animal. Segments and plates are written with their widening in the matrix.

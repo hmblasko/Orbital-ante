@@ -8,11 +8,16 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="RollerDump.cs" />
     <Compile Include="$(OARuntime)Core/Vec3d.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerLayout.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerBody.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerAnimator.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerBrain.cs" />
     <Compile Include="$(OARuntime)Core/SeededRandom.cs" />
   </ItemGroup>
 </Project>

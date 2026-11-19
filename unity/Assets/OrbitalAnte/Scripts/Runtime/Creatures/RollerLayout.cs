@@ -29,21 +29,23 @@ namespace OrbitalAnte.Creatures
         public static readonly double[] SegScale = { 0.84, 0.94, 1.0, 1.0, 0.96, 0.88, 0.78 };
 
         /// <summary>The top of a plate above the spine and the bottom of the soft body below it, at a scale of 1.</summary>
-        public const double BackHeight = 0.32, BellyDepth = 0.22;
+        public const double BackHeight = 0.32, BellyDepth = 0.30;
         public const double PlateHalfWidth = 0.56, SegHalfWidth = 0.44;
         /// <summary>A plate reaches back over the next one by this much, like roof tiles.</summary>
-        public const double PlateOverlap = 0.07;
+        public const double PlateOverlap = 0.16;
+        /// <summary>A plate's sides hang this far below the spine, so on its feet the soft body is covered from the side too.</summary>
+        public const double PlateSkirt = 0.26;
         public const double HeadHalfWidth = 0.40, HeadTop = 0.24, TailHalfWidth = 0.42, TailTop = 0.20;
 
         /// <summary>A hip in its segment's own frame at a scale of 1 (x is mirrored for the left side).</summary>
-        public static readonly Vec3d Hip = new Vec3d(0.30, -0.16, 0.0);
+        public static readonly Vec3d Hip = new Vec3d(0.34, -0.20, 0.0);
         public const double LegLength = 0.36, LegRadius = 0.035;
         /// <summary>The spine's height when it stands on all its legs.</summary>
-        public const double StandHeight = 0.44;
+        public const double StandHeight = 0.52;
         public const double StumpRadius = 0.05;
 
-        /// <summary>Rolled up, the chain bends through this much of a full turn (head and tail just meet).</summary>
-        public const double CurlTurns = 0.92;
+        /// <summary>Rolled up, the chain bends through this much of a full turn (a full turn: the head tucks in against the tail).</summary>
+        public const double CurlTurns = 1.0;
 
         public static double Length(int link) => link == HeadLink ? HeadLength : link == TailLink ? TailLength : SegLength;
 
@@ -61,7 +63,7 @@ namespace OrbitalAnte.Creatures
         public static double Scale(int link) => link == HeadLink || link == TailLink ? 1.0 : SegScale[link - 1];
 
         public static double Top(int link) => link == HeadLink ? HeadTop : link == TailLink ? TailTop : BackHeight * SegScale[link - 1];
-        public static double Bottom(int link) => link == HeadLink ? 0.16 : link == TailLink ? 0.08 : BellyDepth * SegScale[link - 1];
+        public static double Bottom(int link) => link == HeadLink ? 0.17 : link == TailLink ? 0.14 : BellyDepth * SegScale[link - 1];
         public static double HalfWidth(int link) => link == HeadLink ? HeadHalfWidth : link == TailLink ? TailHalfWidth : PlateHalfWidth * SegScale[link - 1];
 
         public const int RightSide = 0, LeftSide = 1;

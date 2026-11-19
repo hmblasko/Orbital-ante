@@ -39,6 +39,7 @@ namespace OrbitalAnte.Creatures
         static readonly List<WalkerChunk> Live = new List<WalkerChunk>();
 
         float _age, _life;
+        bool _fading;
         Rigidbody _body;
         Vector3 _size;
 
@@ -113,6 +114,13 @@ namespace OrbitalAnte.Creatures
         {
             _age += Time.deltaTime;
             if (_age < _life) return;
+            if (!_fading)
+            {
+                // Shrinking a live collider makes the physics rebuild it every frame: a fading piece is only drawn.
+                _fading = true;
+                _body.isKinematic = true;
+                foreach (Collider collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
+            }
             float left = 1f - (_age - _life) / 1.5f;
             if (left <= 0f)
             {

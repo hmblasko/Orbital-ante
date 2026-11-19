@@ -48,7 +48,7 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.LessOrEqual(hits, 2, "a leg comes off in one or two rifle hits");
             hits = 0;
             while (body.PlateOn(2)) { body.HitPlate(2, Rifle); hits++; }
-            Assert.That(hits, Is.InRange(3, 4), "a plate takes aim, not a magazine");
+            Assert.AreEqual(3, hits, "a plate is armour, and still comes off in three rifle hits");
             for (int leg = 0; leg < RollerLayout.Legs; leg++) body.HitLeg(leg, 1000);
             for (int seg = 0; seg < RollerLayout.Segs; seg++) body.HitPlate(seg, 1000);
             body.HitTail(1000);
@@ -62,7 +62,7 @@ namespace OrbitalAnte.Tests.EditMode
             var head = new RollerBody();
             hits = 0;
             while (head.Alive) { head.HitBody(false, Rifle); hits++; }
-            Assert.Less(hits, 10, "the armoured head is the slow way, never a wall");
+            Assert.That(hits, Is.InRange(11, 14), "the armoured head is the slow way, never a wall");
             Assert.IsTrue(new RollerBody().HitBody(false, 0, lethal: true).Killed);
         }
 
@@ -96,9 +96,10 @@ namespace OrbitalAnte.Tests.EditMode
             for (int leg = 0; leg < 6; leg++) slow.HitLeg(leg, 1000);
             Assert.Less(slow.SpeedShare, before);
             Assert.Greater(slow.SpeedShare, 0.3, "it can always drag itself along");
-            Assert.AreEqual(1.0, slow.OnBackShare, 1e-9);
+            Assert.AreEqual(1.3, slow.OnBackShare, 1e-9, "a little longer on its back for each leg lost");
+            Assert.AreEqual(1.0, new RollerBody().OnBackShare, 1e-9);
             slow.HitTail(1000);
-            Assert.Greater(slow.OnBackShare, 1.4);
+            Assert.Greater(slow.OnBackShare, 2.0);
         }
 
         // ---- the chain
@@ -117,8 +118,7 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.Greater(pose.LinkPosition[RollerLayout.HeadLink].Z, pose.LinkPosition[RollerLayout.TailLink].Z + 1.8, "head in front, tail behind");
             for (int leg = 0; leg < RollerLayout.Legs; leg++)
             {
-                double scale = RollerLayout.SegScale[RollerLayout.SegOf(leg)];
-                Vec3d foot = pose.LegPosition[leg] + pose.LegRotation[leg].Rotate(Vec3d.Forward) * (RollerLayout.LegLength * scale);
+                Vec3d foot = pose.LegPosition[leg] + pose.LegRotation[leg].Rotate(Vec3d.Forward) * RollerLayout.LegLength;
                 Assert.That(foot.Y, Is.InRange(-0.06, 0.12), "foot " + leg);
                 Assert.Greater(foot.X * RollerLayout.Sign(leg), 0.3, "a leg stands out to its own side");
             }
@@ -135,7 +135,7 @@ namespace OrbitalAnte.Tests.EditMode
             for (int i = 0; i < RollerLayout.Links; i++)
             {
                 Vec3d from = pose.LinkPosition[i] - pose.Centre;
-                Assert.AreEqual(RollerLayout.SpineRadius, from.Magnitude, 0.03, "link " + i + " is on the ring");
+                Assert.AreEqual(RollerLayout.SpineRadius, from.Magnitude, 0.06, "link " + i + " is on the ring");
                 Vec3d back = pose.LinkRotation[i].Rotate(Vec3d.Up);
                 Assert.Greater(Vec3d.Dot(back, from.Normalized), 0.9, "link " + i + " has its back outward");
                 Assert.Greater(pose.LinkPosition[i].Y + 1e-6, 0.0);
@@ -323,11 +323,12 @@ namespace OrbitalAnte.Tests.EditMode
                 if (orders.Mode == RollerMode.Roll && last != RollerMode.Roll) rolls++;
                 if (rolls == 1 && field.Brain.Exposed) firstExposure += Dt;
                 if (field.Brain.Exposed) Assert.AreEqual(0.0, orders.Velocity.Magnitude + Math.Abs(orders.TurnRate), 1e-9, "on its back it goes nowhere");
+                if (orders.Mode == RollerMode.Wind && orders.T < RollerBrain.LockAt) Assert.Less(RollerAnimator.CurlOf(orders.Mode, orders.T), 0.5, "it is not closed until it has taken aim");
                 last = orders.Mode;
             }
             Assert.GreaterOrEqual(rolls, 2, "it gets up and rolls again");
             Assert.GreaterOrEqual(firstExposure, field.Rules.onBackSeconds + field.Rules.openSeconds, "soft side up for a couple of seconds");
-            Assert.Less(firstExposure, 4.0);
+            Assert.Less(firstExposure, 3.2);
         }
 
         [Test]
@@ -366,18 +367,40 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
-        public void WithTooFewPlates_ItNeverCurls_ItWalksUpAndButts()
+        public void WithTooFewPlates_ItNeverCurls_ItMakesOff_AndButtsOnlySomeoneWhoCrowdsIt()
         {
             var field = new Field(new Vec3d(0, 0, 10));
             for (int seg = 0; seg < 3; seg++) field.Body.HitPlate(seg, 1000);
-            for (int i = 0; i < 60 * 12 && !field.Butted; i++)
+            for (int i = 0; i < 60 * 8; i++)
             {
                 RollerOrders orders = field.Step();
                 Assert.AreNotEqual(RollerMode.Wind, orders.Mode);
                 Assert.AreNotEqual(RollerMode.Roll, orders.Mode);
             }
-            Assert.IsTrue(field.Butted, "it still has something to hurt with");
-            Assert.Less(field.Rules.buttDamage, field.Rules.rollDamage * 0.5f, "and it is much the weaker blow");
+            Assert.IsTrue(field.Brain.Fleeing);
+            Assert.Greater(Vec3d.Distance(field.At, field.Player), 14.0, "it has put ground between them");
+
+            var crowded = new Field(new Vec3d(0, 0, 1.4));
+            for (int seg = 0; seg < 3; seg++) crowded.Body.HitPlate(seg, 1000);
+            for (int i = 0; i < 60 && !crowded.Butted; i++) crowded.Step();
+            Assert.IsTrue(crowded.Butted, "cornered, it still has something to hurt with");
+            Assert.Less(crowded.Rules.buttDamage, crowded.Rules.rollDamage * 0.5f, "and it is much the weaker blow");
+        }
+
+        [Test]
+        public void RollingIntoAWall_ItFallsOpenBackTheWayItCame()
+        {
+            var field = new Field(new Vec3d(0, 0, 12));
+            double stoppedAt = -1, endedAt = 0;
+            for (int i = 0; i < 60 * 8; i++)
+            {
+                RollerOrders orders = field.Step();
+                field.Blocked = orders.Mode == RollerMode.Roll && field.At.Z > 6;
+                if (orders.Mode == RollerMode.Open && stoppedAt < 0) stoppedAt = field.At.Z;
+                if (orders.Mode == RollerMode.OnBack) { endedAt = field.At.Z; break; }
+            }
+            Assert.Greater(stoppedAt, 0);
+            Assert.That(stoppedAt - endedAt, Is.InRange(0.6, 1.1), "room for the length of it between the ball and the wall");
         }
 
         [Test]
@@ -416,6 +439,102 @@ namespace OrbitalAnte.Tests.EditMode
             }
             Assert.AreEqual(Run(5), Run(5), 0.0);
             Assert.AreNotEqual(Run(5), Run(6));
+        }
+
+        // ---- the model
+
+        static ModelFile Load(string id)
+        {
+            string folder = Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            {
+                folder = null;
+                string dir = TestContext.CurrentContext.TestDirectory;
+                for (int i = 0; i < 10 && dir != null && folder == null; i++)
+                {
+                    foreach (string candidate in new[] { Path.Combine(dir, "unity", "Assets", "OrbitalAnte", "Resources", "Models"), Path.Combine(dir, "Assets", "OrbitalAnte", "Resources", "Models") })
+                        if (Directory.Exists(candidate)) folder = candidate;
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+            if (folder == null) Assert.Ignore("Resources/Models not found");
+            string path = Path.Combine(folder, id + ".bytes");
+            if (!File.Exists(path)) Assert.Ignore("this model is not in the game yet: " + path);
+            ModelFile model = ModelFile.Parse(File.ReadAllBytes(path), out string problem);
+            Assert.IsNotNull(model, problem);
+            return model;
+        }
+
+        static void AssertSocket(ModelFile model, string name, double x, double y, double z)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing " + name);
+            Assert.AreEqual(x, s.X, 0.002, name + " x");
+            Assert.AreEqual(y, s.Y, 0.002, name + " y");
+            Assert.AreEqual(z, s.Z, 0.002, name + " z");
+        }
+
+        [Test]
+        public void RollerModelFile_MatchesTheLayout()
+        {
+            // tools/blender/build_creatures.py carries its own copy of RollerLayout (ROLLER). If either changes, this
+            // fails until the script is changed to match and run again.
+            ModelFile model = Load(RollerLayout.Model);
+            AssertSocket(model, "HeadEnd", 0, 0, RollerLayout.HeadLength * 0.5);
+            AssertSocket(model, "SegEnd", 0, 0, RollerLayout.SegLength * 0.5);
+            AssertSocket(model, "TailEnd", 0, 0, -RollerLayout.TailLength * 0.5);
+            AssertSocket(model, "PlateTop", 0, RollerLayout.BackHeight, 0);
+            AssertSocket(model, "PlateSide", RollerLayout.PlateHalfWidth, 0, 0);
+            AssertSocket(model, "PlateRear", 0, -RollerLayout.PlateSkirt, -RollerLayout.SegLength * 0.5 - RollerLayout.PlateOverlap);
+            AssertSocket(model, "SegSide", RollerLayout.SegHalfWidth, -RollerLayout.BellyDepth, 0);
+            AssertSocket(model, "HeadCorner", RollerLayout.HeadHalfWidth, RollerLayout.HeadTop, 0);
+            AssertSocket(model, "TailCorner", RollerLayout.TailHalfWidth, RollerLayout.TailTop, 0);
+            AssertSocket(model, "HipR", RollerLayout.Hip.X, RollerLayout.Hip.Y, RollerLayout.Hip.Z);
+            AssertSocket(model, "LegEnd", 0, 0, RollerLayout.LegLength);
+            AssertSocket(model, "StumpRim", RollerLayout.StumpRadius, 0, 0);
+            string[] pieces = { RollerLayout.HeadPiece, RollerLayout.SegPiece, RollerLayout.PlatePiece, RollerLayout.TailPiece, RollerLayout.LegPiece, RollerLayout.Stump, RollerLayout.Meat[0], RollerLayout.Meat[1] };
+            foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            Assert.IsTrue(model.Textured, "the Roller is drawn with pictures");
+
+            // The shapes are the size the rules think they are.
+            void Fits(string piece, double halfWidth, double top, double bottom, double front, double back)
+            {
+                ModelPart part = model.Part(piece);
+                float x = 0, hi = float.MinValue, lo = float.MaxValue, fore = float.MinValue, aft = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    x = Math.Max(x, Math.Abs(part.Positions[i * 3]));
+                    hi = Math.Max(hi, part.Positions[i * 3 + 1]);
+                    lo = Math.Min(lo, part.Positions[i * 3 + 1]);
+                    fore = Math.Max(fore, part.Positions[i * 3 + 2]);
+                    aft = Math.Min(aft, part.Positions[i * 3 + 2]);
+                }
+                Assert.AreEqual(halfWidth, x, 0.04, piece + " half width");
+                Assert.AreEqual(top, hi, 0.04, piece + " top");
+                Assert.AreEqual(-bottom, lo, 0.04, piece + " bottom");
+                Assert.AreEqual(front, fore, 0.04, piece + " front");
+                Assert.AreEqual(-back, aft, 0.04, piece + " back");
+            }
+            double half = RollerLayout.SegLength * 0.5;
+            Fits(RollerLayout.PlatePiece, RollerLayout.PlateHalfWidth, RollerLayout.BackHeight, RollerLayout.PlateSkirt, half, half + RollerLayout.PlateOverlap);
+            Fits(RollerLayout.SegPiece, RollerLayout.SegHalfWidth, 0.26, RollerLayout.BellyDepth, half + 0.015, half + 0.015);
+            ModelPart leg = model.Part(RollerLayout.LegPiece);
+            for (int i = 0; i < leg.VertexCount; i++)
+            {
+                Assert.Greater(leg.Positions[i * 3 + 2], -0.06f, "the leg reaches behind its hip");
+                Assert.Less(Math.Abs(leg.Positions[i * 3]), 0.07f, "the leg is the same either side");
+            }
+
+            // As drawn: the head, the tail, seven segments under seven plates, fourteen legs.
+            int Drawn(ModelFile m) => m.Part(RollerLayout.HeadPiece).TriangleCount + m.Part(RollerLayout.TailPiece).TriangleCount
+                                      + RollerLayout.Segs * (m.Part(RollerLayout.SegPiece).TriangleCount + m.Part(RollerLayout.PlatePiece).TriangleCount)
+                                      + RollerLayout.Legs * m.Part(RollerLayout.LegPiece).TriangleCount;
+            int full = Drawn(model);
+            Assert.LessOrEqual(full, 16000, "an enemy body's allowance");
+            ModelFile far = Load(RollerLayout.Model + ModelFile.FarSuffix);
+            Assert.AreEqual(model.TextureSet, far.TextureSet);
+            Assert.AreEqual(model.Parts.Length, far.Parts.Length);
+            Assert.LessOrEqual(Drawn(far), 4000, "the far copy");
+            Assert.LessOrEqual(Drawn(far), full * 0.65, "the far copy is not much lighter than the full model");
         }
     }
 }

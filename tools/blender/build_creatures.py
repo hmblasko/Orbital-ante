@@ -816,9 +816,199 @@ def sprinter_sockets():
     return out
 
 
+# ====================================================================== the Roller (giant isopod)
+
+# It starts from a real thing: the giant isopod, Bathynomus giganteus, at about six times life size. A deep-sea
+# woodlouse: a broad head shield with two large triangular eyes of many facets set wide on its front corners and two
+# long feelers; seven smooth, hard, overlapping plates over the back, each with a paler rear edge; a flat tail fan
+# with short spines along its rear edge and a paddle either side; under the plates a pale soft body and fourteen
+# jointed walking legs ending in a claw. Dusky lilac-grey above, cream underneath. It rolls into a ball.
+# The body is a chain of nine links; each link's piece is modelled round the middle of its own length on the line of
+# the spine, +Y toward the head, +Z its back. Held by the rule test RollerModelFile_MatchesTheLayout against
+# Creatures/RollerLayout.cs.
+ROLLER = {
+    "head": 0.30, "seg": 0.24, "tail": 0.42,            # lengths along the spine
+    "back": 0.32, "belly": 0.30,                        # a plate's top above the spine, the soft body's depth below it
+    "plate_half": 0.56, "seg_half": 0.44, "overlap": 0.16, "skirt": 0.26,
+    "head_half": 0.40, "head_top": 0.24, "tail_half": 0.42, "tail_top": 0.20,
+    "hip": (0.34, 0.0, -0.20),
+    "leg": 0.36,
+    "stump": 0.05,
+}
+MAUVE, BONE, SOOT = (0.25, 0.20, 0.24), (0.60, 0.54, 0.50), (0.045, 0.038, 0.050)
+ROLLER_FLAT = {"plate": ((0.44, 0.38, 0.43), 0.42), "margin": ((0.64, 0.58, 0.55), 0.40), "head": ((0.42, 0.36, 0.41), 0.42),
+               "under": ((0.68, 0.60, 0.54), 0.25), "leg": ((0.66, 0.58, 0.52), 0.35), "tail": ((0.42, 0.36, 0.41), 0.42),
+               "joint": ((0.50, 0.40, 0.36), 0.2), "flesh": ((0.78, 0.50, 0.44), 0.6), "eye": ((0.07, 0.06, 0.08), 0.85)}
+ROLLER_MATERIALS = {
+    "plate": lambda: mats.chitin("plate", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=21.0, bumps=0.30, growth=0.25, mottle=0.45, gloss=0.50),
+    "margin": lambda: mats.chitin("margin", (0.40, 0.34, 0.34), (0.60, 0.54, 0.50), SOOT, under=(0.58, 0.50, 0.46), seed=22.0, bumps=0.15, growth=0.15, mottle=0.3, gloss=0.52),
+    "head": lambda: mats.chitin("head", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=23.0, bumps=0.45, growth=0.2, mottle=0.5, gloss=0.48),
+    "tail": lambda: mats.chitin("tail", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=24.0, bumps=0.40, growth=0.3, mottle=0.5, gloss=0.46),
+    "under": lambda: mats.chitin("under", (0.36, 0.28, 0.26), (0.52, 0.45, 0.40), (0.12, 0.07, 0.06), seed=25.0, bumps=0.2, growth=0.0, mottle=0.5, gloss=0.30),
+    "leg": lambda: mats.chitin("leg", (0.21, 0.155, 0.15), (0.42, 0.35, 0.31), (0.07, 0.04, 0.04), seed=26.0, bumps=0.3, growth=0.05, mottle=0.6, size=0.6,
+                               tip=(1, 0.27, 0.36, (0.07, 0.04, 0.035)), gloss=0.40),
+    "joint": lambda: mats.membrane("joint", (0.36, 0.25, 0.22), seed=27.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.74, 0.64, 0.58), red=(0.38, 0.08, 0.06), seed=28.0),
+    "eye": lambda: mats.eye("eye", colour=(0.016, 0.012, 0.022), glint=(0.09, 0.06, 0.13)),
+}
+
+
+def arch(name, rows, thickness, around, tuck=35.0):
+    """A curved roof plate with thickness. rows: (y, half width, top, skirt depth), front to back; the cross-section
+    is half an oval over the spine with a skirt each side that tucks in under it."""
+    def profile(half, top, skirt, inset):
+        points = []
+        for i in range(around + 1):
+            a = math.radians(-tuck + (180.0 + 2 * tuck) * i / around)
+            x = (half - inset) * math.cos(a)
+            z = (top - inset) * math.sin(a) if 0 <= a <= math.pi else (skirt + inset * 0.3) * math.sin(a) / math.sin(math.radians(tuck))
+            points.append((x, z))
+        return points
+    bm = bmesh.new()
+    rings = []
+    for y, half, top, skirt in rows:
+        outer = [bm.verts.new((x, y, z)) for x, z in profile(half, top, skirt, 0.0)]
+        inner = [bm.verts.new((x, y, z)) for x, z in profile(half, top, skirt, thickness)]
+        rings.append((outer, inner))
+    for (o0, i0), (o1, i1) in zip(rings, rings[1:]):
+        for k in range(around):
+            bm.faces.new((o0[k], o0[k + 1], o1[k + 1], o1[k]))
+            bm.faces.new((i0[k + 1], i0[k], i1[k], i1[k + 1]))
+        for k in (0, around):
+            bm.faces.new((o0[k], o1[k], i1[k], i0[k]))
+    for outer, inner in (rings[0], rings[-1]):
+        for k in range(around):
+            bm.faces.new((outer[k], outer[k + 1], inner[k + 1], inner[k]))
+    return oa._new_object(name, bm, (0.5, 0.5, 0.5), 50.0)
+
+
+def roller(hi):
+    g = Maker(hi, ROLLER_FLAT, ROLLER_MATERIALS)
+    L = ROLLER
+    up = (0, 0, 1)
+    seg, back, belly = L["seg"], L["back"], L["belly"]
+
+    # ------------------------------------------------------------- Plate: an arch of armour, its rear edge over the next one
+    front, rear = seg * 0.5, -seg * 0.5 - L["overlap"]
+    half = L["plate_half"]
+    # Front to back: it starts narrow and low, tucked under the plate before it, and is full size where that one ends.
+    shape = [(1.00, 0.860, 0.860, 0.80), (0.80, 0.905, 0.905, 0.92), (0.60, 0.950, 0.950, 1.0), (0.42, 0.992, 0.992, 1.0), (0.15, 1.000, 1.000, 1.0), (0.00, 0.988, 0.980, 1.0)]
+    rows = []
+    cuts = 28 if hi else 0
+    if hi:
+        shape = [(1.0 - i / cuts,) + tuple(real.along([(1.0 - k[0],) + k[1:] for k in shape], i / cuts)) for i in range(cuts + 1)]
+    for t, wide, tall, skirt in shape:
+        rows.append((rear + (front - rear) * t, half * wide, back * tall, L["skirt"] * skirt))
+    plate = arch("plate", rows, 0.030, 56 if hi else 12)
+    if hi:
+        # Fine growth lines across the plate and a slow unevenness, for the bake.
+        real.displace(plate, lambda p: 0.0016 * math.sin(p.y * 190.0) + 0.004 * noise.noise(p * 7.0)
+                      + 0.010 * math.exp(-(p.x / 0.05) ** 2) * max(0.0, p.z / back))        # a low keel down the middle of the back
+    g.add(plate, "plate", "Plate", second=("margin", lambda c, n: c.y < rear + 0.050))
+
+    # ------------------------------------------------------------- Seg: the soft body under a plate, with a hip each side
+    # From 0.26 above the spine (under the plate) to the belly below it.
+    tall, mid = (0.26 + belly) * 0.5, (0.26 - belly) * 0.5
+    keys = [(0.00, 0.39, tall * 0.84, 0, mid), (0.035, 0.44, tall, 0, mid), (seg - 0.005, 0.44, tall, 0, mid), (seg + 0.03, 0.39, tall * 0.84, 0, mid)]
+    if hi:
+        ridged = []
+        for i in range(60):
+            t = (seg + 0.03) * i / 59
+            rs, rf, _, of = real.along(keys, t)
+            fold = 1.0 + 0.018 * math.sin(math.pi * 2 * t / 0.045)
+            ridged.append((t, rs * fold, rf * fold, 0, of))
+        keys = ridged
+    g.add(g.skin("seg", (0, -seg * 0.5 - 0.015, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=2.6), "under", "Seg")
+    hip = Vector(L["hip"])
+    for side in (-1, 1):
+        g.add(g.ball("hip", (side * hip.x, 0, hip.z), 0.060, scale=(1.0, 1.1, 0.9), around=6), "joint", "Seg")
+        # The swimming flap under each side (only its shape in the pictures).
+        g.add(g.ball("flap", (side * 0.16, -0.02, -belly + 0.012), 0.10, scale=(1.3, 1.0, 0.22), around=8), "under", "Seg", only='hi')
+
+    # ------------------------------------------------------------- Head: a shield, two eyes of many facets, feelers
+    hl = L["head"]
+    hk = [(0.00, 0.385, 0.185, 0, 0.030), (0.05, 0.400, 0.205, 0, 0.030), (0.16, 0.385, 0.200, 0, 0.026), (0.24, 0.300, 0.165, 0, 0.012),
+          (0.295, 0.170, 0.095, 0, -0.010), (0.31, 0.070, 0.040, 0, -0.020)]
+    g.add(g.skin("head", (0, -hl * 0.5, 0.0), (0, 1, 0), up, hk, around=14, step=0.07, power=2.4), "head", "Head")
+    brow = arch("brow", [(hl * 0.5 - 0.02, 0.30, 0.215, 0.02), (0.02, 0.395, 0.236, 0.05), (-hl * 0.5 - 0.03, 0.400, 0.238, 0.08)], 0.026, 40 if hi else 10, tuck=18.0)
+    g.add(brow, "head", "Head", second=("margin", lambda c, n: c.y < -hl * 0.5 + 0.015))
+    for side in (-1, 1):
+        g.add(g.ball("eye", (side * 0.275, 0.085, 0.095), 0.092, scale=(0.80, 1.45, 0.62), around=8), "eye", "Head")
+        g.add(g.ball("eye rim", (side * 0.262, 0.080, 0.088), 0.098, scale=(0.80, 1.5, 0.60), around=8), "head", "Head", only='hi')
+        # The long feeler and the short one, swept forward and out.
+        g.add(g.spine("feeler", (side * 0.135, 0.125, -0.020), (side * 0.75, 1.0, 0.10), 0.52, 0.020, around=5, bend=(side * 0.55, -0.25, -0.12)), "leg", "Head")
+        g.add(g.spine("short feeler", (side * 0.060, 0.140, -0.035), (side * 0.25, 1.0, -0.05), 0.20, 0.014, around=4, bend=(side * 0.2, 0, -0.2)), "leg", "Head")
+        # Jaw plates under the front.
+        g.add(g.ball("mouth", (side * 0.055, 0.085, -0.130), 0.062, scale=(0.9, 1.3, 0.7), around=6), "joint", "Head")
+
+    # ------------------------------------------------------------- Tail: a flat fan with a spined rear edge and a paddle each side
+    tl = L["tail"]
+    tk = [(0.00, 0.380, 0.165, 0, 0.025), (0.06, 0.405, 0.172, 0, 0.022), (0.20, 0.375, 0.130, 0, 0.010), (0.33, 0.275, 0.070, 0, 0.0),
+          (0.40, 0.165, 0.034, 0, -0.006), (0.418, 0.070, 0.018, 0, -0.008)]
+    g.add(g.skin("tail", (0, tl * 0.5, 0.0), (0, -1, 0), up, tk, around=14, step=0.08, power=2.3), "tail", "Tail")
+    g.add(g.ball("tail ridge", (0, -0.02, 0.105), 0.07, scale=(0.6, 2.4, 0.5), around=7), "tail", "Tail")
+    for side in (-1, 1):
+        g.add(g.ball("paddle", (side * 0.335, -0.065, -0.012), 0.105, scale=(0.72, 1.55, 0.20), around=8), "tail", "Tail")
+    for i in range(7):
+        x = (i - 3) * 0.062
+        y = tl * 0.5 - 0.405 + 0.012 * abs(i - 3) ** 1.6
+        g.add(g.spine("tail spine", (x, y + 0.03, -0.004), (x * 0.6, -1, 0.05), 0.055 if i % 2 == 0 else 0.038, 0.014, around=4), "margin", "Tail", only=None if i % 2 == 0 else 'hi')
+
+    # ------------------------------------------------------------- Leg: three joints and a claw, arched; the same either side
+    leg = L["leg"]
+    lk = [(0.00, 0.040, 0.044, 0, 0.0), (0.03, 0.052, 0.056, 0, 0.008), (0.11, 0.046, 0.050, 0, 0.034), (0.125, 0.036, 0.038, 0, 0.037),
+          (0.14, 0.042, 0.044, 0, 0.038), (0.22, 0.033, 0.035, 0, 0.026), (0.235, 0.025, 0.026, 0, 0.020), (0.25, 0.028, 0.029, 0, 0.012),
+          (0.31, 0.017, 0.018, 0, -0.028), (leg, 0.004, 0.004, 0, -0.070)]
+    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.05, power=2.1), "leg", "Leg")
+    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=6), "joint", "Leg")
+    r = random.Random(31)
+    for k in range(18):
+        # Short thorns along the under side of the leg (three of them real, the rest in the pictures).
+        y = r.uniform(0.05, 0.30)
+        rs, rf, _, of = real.along(lk, y)
+        g.add(g.spine("thorn", (r.uniform(-0.4, 0.4) * rs, y, of - rf * 0.9), (0, 0.5, -1), r.uniform(0.012, 0.022), 0.005, around=3), "leg", "Leg", only='hi')
+
+    # ------------------------------------------------------------- what is left when something comes off
+    r_ = L["stump"]
+    meat = g.ball("wound meat", (0, 0.008, 0), r_ * 0.86, scale=(1.0, 0.55, 1.0), around=9)
+    real.displace(meat, lambda p: 0.007 * noise.noise(p * 40.0) + 0.004 * noise.noise(p * 90.0))
+    g.add(meat, "flesh", "Stump")
+    ragged = [(-0.034 + 0.058 * i / 8, r_ * (0.98 + 0.07 * i / 8), r_ * (1.02 + 0.07 * i / 8)) for i in range(9)]
+    collar = g.skin("wound skin", (0, 0, 0), (0, 1, 0), up, [ragged[0], ragged[4], ragged[8]] if not hi else ragged, around=10, step=0.03, power=2.25)
+    bm = bmesh.new()
+    bm.from_mesh(collar.data)
+    for v in bm.verts:
+        if v.co.y > 0.0:
+            a = math.atan2(v.co.z, v.co.x)
+            v.co.y += (v.co.y / 0.024) * 0.014 * (noise.noise(Vector((math.cos(a) * 3.1, math.sin(a) * 3.1, 8.0))) + 0.35 * math.sin(a * 5.0))
+            v.co.y = max(v.co.y, 0.003)
+    bm.to_mesh(collar.data)
+    bm.free()
+    g.add(collar, "under", "Stump")
+    for k, (size, squash) in enumerate((((0.15, (1.0, 0.8, 0.6))), ((0.12, (0.8, 1.0, 0.7))))):
+        piece = "Meat%d" % k
+        lump = g.ball("meat", (0, 0, 0), size, scale=squash, around=10)
+        real.displace(lump, lambda p, k=k: 0.022 * noise.noise(p * 8.0 + Vector((k * 5.0, 3.0, 0))) + 0.010 * noise.noise(p * 21.0))
+        g.add(lump, "flesh", piece)
+        skin = real.ball_patch("skin bit", (0, 0, 0), (0.2, 0.1, 1.0), (0, 1, 0), size * squash[2] * 1.02, (0, 58), 0, 360, (0.5, 0.5, 0.5),
+                               thickness=0.010, n=40 if hi else 9, m=14 if hi else 3)
+        skin.data.transform(Matrix.Diagonal((squash[0] / squash[2] * 0.96, squash[1] / squash[2] * 0.96, 1.0, 1.0)))
+        g.add(skin, "under", piece)
+    return g
+
+
+def roller_sockets():
+    L = ROLLER
+    return [oa.socket("HeadEnd", (0, L["head"] * 0.5, 0)), oa.socket("SegEnd", (0, L["seg"] * 0.5, 0)), oa.socket("TailEnd", (0, -L["tail"] * 0.5, 0)),
+            oa.socket("PlateTop", (0, 0, L["back"])), oa.socket("PlateSide", (L["plate_half"], 0, 0)), oa.socket("PlateRear", (0, -L["seg"] * 0.5 - L["overlap"], -L["skirt"])),
+            oa.socket("SegSide", (L["seg_half"], 0, -L["belly"])), oa.socket("HeadCorner", (L["head_half"], 0, L["head_top"])),
+            oa.socket("TailCorner", (L["tail_half"], 0, L["tail_top"])), oa.socket("HipR", L["hip"]), oa.socket("LegEnd", (0, L["leg"], 0)),
+            oa.socket("StumpRim", (L["stump"], 0, 0))]
+
+
 # ---------------------------------------------------------------------- building
 
-CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048)}
+CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
@@ -828,6 +1018,8 @@ FAR_HOW = {"Sprinter": (0.40, 40, ("hip", "back plate", "eye knob", "beak", "joi
 # Shapes too many and too thin to be given their own places on the pictures (each would take a patch and its margin,
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
+# Shapes whose far copy is the shape itself: a thinned arch crumples and opens.
+FAR_KEEP = {"Roller": ("plate", "brow")}
 FINE = {"Sprinter": (("bristle",), "hair")}
 FAR_SHARE = 0.30
 ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
@@ -922,7 +1114,7 @@ def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
         share, least, thin_too = FAR_HOW.get(name, (FAR_SHARE, 16, ()))
         left_out = FAR_LEAVE_OUT.get(name, ())
         counted = sum(oa._triangle_count(o) for o in low_objects if o.name.split(".")[0] not in left_out)
-        far = oa.thin(low_parts, int(counted * share), drop_below=0.05, least=least, leave_out=left_out, thin_too=thin_too)
+        far = oa.thin(low_parts, int(counted * share), drop_below=0.05, least=least, leave_out=left_out, thin_too=thin_too, keep=FAR_KEEP.get(name, ()))
     if not reuse:
         oa.export(os.path.join(folder, name + oa.FAR + ".bytes"), far, sockets, textures=name)
         print("OA %s: written at %.0f s" % (name, time.time() - started))
@@ -969,8 +1161,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
             bpy.data.objects.remove(o)
     if name != "Strider":
         # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
-        row = [(piece, Matrix.Translation((-2.4 + 0.45 * k, 0, 0.30))) for k, piece in enumerate(parts)]
-        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        apart = 1.25 if name == "Roller" else 0.45
+        row = [(piece, Matrix.Translation(((k - 0.5 * (len(parts) - 1)) * apart + 0.2, 0, 0.30))) for k, piece in enumerate(parts)]
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name == "Roller" else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
         return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)
