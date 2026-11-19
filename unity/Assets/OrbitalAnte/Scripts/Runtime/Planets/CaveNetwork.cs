@@ -1600,7 +1600,10 @@ namespace OrbitalAnte.Planets
     {
         /// <summary>Wall triangles of one network. Only the blocks in view are drawn.</summary>
         public const int MostTriangles = 140000;
-        /// <summary>Size of one network's light box, in bytes.</summary>
-        public const int MostLightBytes = 1 << 20;
+        /// <summary>
+        /// Size of one network's light box, in bytes. A quarter over one megabyte: the box reaches up to the
+        /// ground at each way in, and a ridge or rock tower standing there (19 Nov 2026) makes it a little taller.
+        /// </summary>
+        public const int MostLightBytes = 5 << 18;
     }
 }

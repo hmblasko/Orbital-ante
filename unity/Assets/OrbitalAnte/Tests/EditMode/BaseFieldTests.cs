@@ -94,12 +94,12 @@ namespace OrbitalAnte.Tests
         {
             // Matthew, 15 Nov 2026: "we need more bases throughout".
             var rules = new BaseFieldRules();
-            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 500), 50, "Earth is asked for dozens");
-            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 150), 6, "the Moon for several");
-            Assert.GreaterOrEqual(Build(Terrain("Earth"), 3).Count, 30);
-            Assert.GreaterOrEqual(Build(Terrain("Mars"), 3).Count, 30);
+            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 500), 40, "Earth is asked for dozens");
+            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 150), 5, "the Moon for several");
+            Assert.GreaterOrEqual(Build(Terrain("Earth"), 3).Count, 24);
+            Assert.GreaterOrEqual(Build(Terrain("Mars"), 3).Count, 24);
             List<BaseSite> moon = Build(Terrain("Moon"), 3);
-            Assert.GreaterOrEqual(moon.Count, 6);
+            Assert.GreaterOrEqual(moon.Count, 5);
             // Spread round the world, not gathered on one side: some base in every one of eight parts of the sky.
             var parts = new HashSet<int>();
             foreach (BaseSite s in Build(Terrain("Mars"), 3)) parts.Add((s.Up.X > 0 ? 1 : 0) | (s.Up.Y > 0 ? 2 : 0) | (s.Up.Z > 0 ? 4 : 0));

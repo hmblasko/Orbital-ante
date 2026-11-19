@@ -109,27 +109,37 @@ namespace OrbitalAnte.Bases
             if (surface == null) { _worlds[body] = null; return null; }
             if (!surface.Ready || surface.Terrain == null) return null;   // not built yet: ask again later
 
-            // Where the launch pad is (or will be: it may not be built yet), so the same seed always gives the same bases.
-            Vec3d pad = Vec3d.Zero;
-            if (_world.Base != null && _world.Base.Surface == surface) pad = _world.Base.Spot.Up;
-            else if (surface.Body.Spec.id == "Earth") pad = LaunchSite.Find(surface.Terrain).Up;
             // Looking for level ground for dozens of bases takes tens of thousandths of a second, so it is done
             // on a background thread (the ground's rules are safe there) and this answers "not yet" meanwhile.
             if (!_found.TryGetValue(body, out List<BaseSite> sites))
             {
+                // A search that was thrown away (the jobs were reset under it) is started again.
+                if (_searches.TryGetValue(body, out PlanetJobs.Handle old) && old.Cancelled) _searches.Remove(body);
                 if (!_searches.ContainsKey(body))
                 {
+                    // Where the launch pad is (or will be: it may not be built yet), so the same seed always gives the same bases.
+                    Vec3d pad = Vec3d.Zero;
+                    if (_world.Base != null && _world.Base.Surface == surface) pad = _world.Base.Spot.Up;
+                    else if (surface.Body.Spec.id == "Earth") pad = LaunchSite.Find(surface.Terrain).Up;
                     var random = GameSession.Stream("bases." + surface.Body.Spec.id);
                     PlanetTerrain terrain = surface.Terrain;
                     BaseFieldRules rules = Rules;
                     int[] kinds = (int[])Kinds.Clone();
-                    _searches[body] = PlanetJobs.Run(() => BaseField.Build(rules, terrain, random, kinds, pad),
-                        result => { _found[body] = result; _searches.Remove(body); }, () => -9e5f);
+                    // It ranks as a ground tile 300 m off, and never takes the last free core, so the ground under
+                    // the player always comes first. A search that fails answers "no bases", so the world's
+                    // enemies, who wait for it, are never held up for good.
+                    _searches[body] = PlanetJobs.Run(() =>
+                        {
+                            try { return BaseField.Build(rules, terrain, random, kinds, pad); }
+                            catch (Exception e) { Debug.LogException(e); return new List<BaseSite>(); }
+                        },
+                        result => { _found[body] = result; _searches.Remove(body); }, () => -2e6f + 300f, true);
                 }
                 return null;
             }
-            _found.Remove(body);
             w = new World { Sites = sites };
+            _worlds[body] = w;   // before the rest, so a fault below never starts the search over
+            _found.Remove(body);
             w.Built = new GameObject[w.Sites.Count];
             w.Foundations = new Mesh[w.Sites.Count];
             w.Rare = new Weapons.Weapon[w.Sites.Count];

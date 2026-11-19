@@ -72,7 +72,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Mercury() => new PlanetProfile
         {
             bodyId = "Mercury",
-            ridgeHeight = 10, ridgeWavelength = 260, canyonDepth = 6, canyonWavelength = 420, canyonWidth = 0.035,
+            ridgeHeight = 10, ridgeWavelength = 260,
             erosion = 0.35, plains = 0.7, cragHeight = 0.8,
             continentHeight = 12, continentWavelength = 320, hillHeight = 5, hillWavelength = 70,
             mountainHeight = 16, mountainWavelength = 150, mountainCoverage = 0.2, detailHeight = 0.4, detailWavelength = 7,
@@ -115,7 +115,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Earth() => new PlanetProfile
         {
             bodyId = "Earth",
-            canyonDepth = 26, canyonWavelength = 520, canyonWidth = 0.06, ridgeHeight = 16, spireHeight = 15, spireSpacing = 30, duneHeight = 3, duneSpacing = 24,
+            canyonDepth = 18, canyonWavelength = 520, canyonWidth = 0.06, ridgeHeight = 16, spireHeight = 15, spireSpacing = 30,
             erosion = 0.9, plains = 0.7, valleyDepth = 14, valleyWavelength = 260, valleyWidth = 0.075, terraceStep = 5, terraceCoverage = 0.2, cragHeight = 2.5,
             continentHeight = 30, continentWavelength = 620, continentBias = 0.5, hillHeight = 7, hillWavelength = 90,
             mountainHeight = 72, mountainWavelength = 250, mountainCoverage = 0.34, detailHeight = 0.45, detailWavelength = 8,
@@ -185,7 +185,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Moon() => new PlanetProfile
         {
             bodyId = "Moon",
-            canyonDepth = 7, canyonWavelength = 380, canyonWidth = 0.035, ridgeHeight = 7, ridgeWavelength = 240,
+            canyonDepth = 7, canyonWavelength = 380, canyonWidth = 0.035, ridgeHeight = 3, ridgeWavelength = 240,
             erosion = 0.3, plains = 0.75,
             continentHeight = 10, continentWavelength = 220, hillHeight = 5, hillWavelength = 60,
             mountainHeight = 14, mountainWavelength = 120, mountainCoverage = 0.22, detailHeight = 0.35, detailWavelength = 7,
@@ -207,7 +207,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Mars() => new PlanetProfile
         {
             bodyId = "Mars",
-            canyonDepth = 38, canyonWavelength = 600, canyonWidth = 0.065, ridgeHeight = 12, spireHeight = 17, spireSpacing = 38, duneHeight = 3, duneSpacing = 36,
+            canyonDepth = 50, canyonWavelength = 600, canyonWidth = 0.085, ridgeHeight = 10, spireHeight = 17, spireSpacing = 38, duneHeight = 3, duneSpacing = 36,
             erosion = 0.55, plains = 0.85, valleyDepth = 16, valleyWavelength = 340, valleyWidth = 0.07, terraceStep = 4, terraceCoverage = 0.3, cragHeight = 1.6,
             continentHeight = 22, continentWavelength = 450, hillHeight = 6, hillWavelength = 80,
             mountainHeight = 30, mountainWavelength = 220, mountainCoverage = 0.18, detailHeight = 0.45, detailWavelength = 8,
@@ -317,7 +317,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Europa() => new PlanetProfile
         {
             bodyId = "Europa",
-            ridgeHeight = 5, ridgeWavelength = 150, canyonDepth = 5, canyonWavelength = 260, canyonWidth = 0.03,
+            ridgeHeight = 7, ridgeWavelength = 150,
             erosion = 0.3, plains = 0.6,
             continentHeight = 3, continentWavelength = 180, hillHeight = 2.5, hillWavelength = 45,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.3, detailWavelength = 6,
@@ -397,7 +397,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Enceladus() => new PlanetProfile
         {
             bodyId = "Enceladus",
-            canyonDepth = 6, canyonWavelength = 220, canyonWidth = 0.04, ridgeHeight = 3, ridgeWavelength = 140,
+            canyonDepth = 9, canyonWavelength = 220, canyonWidth = 0.04,
             erosion = 0.3, plains = 0.6,
             continentHeight = 3, continentWavelength = 80, hillHeight = 1.6, hillWavelength = 25,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.25, detailWavelength = 5,
@@ -414,7 +414,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Titan() => new PlanetProfile
         {
             bodyId = "Titan",
-            canyonDepth = 12, canyonWavelength = 420, canyonWidth = 0.06, duneHeight = 4, duneSpacing = 28, ridgeHeight = 6,
+            canyonDepth = 8, canyonWavelength = 420, canyonWidth = 0.06, duneHeight = 6, duneSpacing = 28, ridgeHeight = 6,
             erosion = 0.8, plains = 0.75, valleyDepth = 7, valleyWavelength = 200, valleyWidth = 0.09, cragHeight = 0.8,
             continentHeight = 9, continentWavelength = 260, continentBias = 1, hillHeight = 4, hillWavelength = 60,
             mountainHeight = 12, mountainWavelength = 130, mountainCoverage = 0.15, detailHeight = 0.35, detailWavelength = 7,
@@ -460,7 +460,7 @@ namespace OrbitalAnte.Planets
         static PlanetProfile Titania() => new PlanetProfile
         {
             bodyId = "Titania",
-            canyonDepth = 9, canyonWavelength = 300, canyonWidth = 0.05, ridgeHeight = 4,
+            canyonDepth = 14, canyonWavelength = 300, canyonWidth = 0.05, ridgeHeight = 4,
             erosion = 0.35, plains = 0.6,
             continentHeight = 5, continentWavelength = 120, hillHeight = 2.5, hillWavelength = 35,
             mountainHeight = 0, mountainCoverage = 0, detailHeight = 0.3, detailWavelength = 6,

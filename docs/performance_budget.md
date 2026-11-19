@@ -332,7 +332,9 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Base models | 5 draw calls and 2 shared materials a base, no shadows. Drawn triangles: relay outpost 6,498, fuel depot 8,050, dome colony 12,926, mining works 15,098, stronghold 32,990. Above the 6,000 / 12,000 / 20,000 first proposed: agreed as the price of bases worth looking at, with the caps tightened to what was built. A world has few large bases. | small 9,000, medium 16,000, large 34,000 (`BaseKinds.TriangleCap`, rule test `BaseModelTests`) |
 | Base physics | 1 solid mesh of closed boxes and drums (216 to 1,052 triangles) plus the foundation, riding the planet's body | 700 triangles; large 1,400 |
 | Reading the base models | all five at the start of a run (`BaseView.Warm`), main thread: 1.0 to 4.4 ms each on a desktop outside Unity, guessed 40 to 100 ms in all on Deck, during loading. About 3 MB of garbage each, once. | once per run |
-| Keeping rocks off base floors | 0.4 microseconds a check on a desktop, a handful of checks a frame | 24 patches a world |
+| Keeping rocks off base floors | 0.4 microseconds a check on a desktop, a handful of checks a frame | 50 patches a world |
+| Standout landforms: canyons, ridges, rock towers, dunes (19 Nov 2026) | Part of every height sample, on background threads. Height with them and twice the seeded landforms: Earth 3.6 millionths of a second (was 3.7), Mars 4.9 (was 3.1), Titan 3.8 (was 3.5); cloud machine, not a Deck. Guessed 20 to 30 ms a Mars tile on Deck | zero `canyonDepth`, `ridgeHeight`, `spireHeight`, `duneHeight` on a world's profile; `MoreLandforms` back to 1.5 |
+| Choosing bases (19 Nov 2026) | One background job a world, 40 to 80 ms on a cloud machine, guessed 200 to 400 ms on Deck; ranks as a ground tile 300 m off and never takes the last core; enemy camps wait for it. One sweep of standing scenery per base when it lands, guessed 2 to 6 ms once a world, not yet batched | 50 bases a world, 40 tries each, 6 shown |
 
 ## Deep Breath (14 Nov 2026): estimates from reading the code, not measured in Unity
 

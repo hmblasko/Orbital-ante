@@ -115,8 +115,8 @@ namespace OrbitalAnte.Planets
         double Standouts(Vec3d p, Vec3d q, double height, double minW, double keep)
         {
             PlanetProfile f = Profile;
-            double countryA = Noise3.Perlin(p, CountrySize, _s + 31);
-            double countryB = Noise3.Perlin(p, CountrySize * 0.8, _s + 32);
+            // Each kind of landform keeps to its own country.
+            double countryA = f.ridgeHeight > 0 || f.spireHeight > 0 || f.duneHeight > 0 ? Noise3.Perlin(p, CountrySize, _s + 31) : 0;
 
             if (f.canyonDepth > 0)
             {
@@ -149,15 +149,18 @@ namespace OrbitalAnte.Planets
                         double crest = 1 - d;
                         double shape = crest * crest * (0.3 + 0.7 * crest);
                         double along = 0.6 + 0.4 * Noise3.Perlin(p, f.ridgeWavelength * 0.23, _s + 35);
-                        double teeth = minW < 30 ? Noise3.Ridged(p, 30, 2, _s + 39, minW) : 0.45;
+                        // The teeth fade out, never switch off, as the ground gets too coarse to carry them.
+                        double fine = 1 - Noise3.Smooth(12, 30, minW);
+                        double teeth = fine > 0 ? Noise3.Lerp(0.45, Noise3.Ridged(p, 30, 2, _s + 39, minW), fine) : 0.45;
                         height += shape * along * (0.72 + 0.6 * teeth * crest) * f.ridgeHeight * where;
                     }
                 }
             }
 
-            if (f.spireHeight > 0 && minW < f.spireSpacing)
+            if (f.spireHeight > 0 && minW < f.spireSpacing * 1.34)
             {
-                double where = Noise3.Smooth(0.12, 0.3, countryB) * (1 - Noise3.Smooth(0.05, 0.25, countryA)) * keep;
+                double away = 1 - Noise3.Smooth(0.05, 0.25, countryA);
+                double where = away > 0 ? Noise3.Smooth(0.12, 0.3, Noise3.Perlin(p, CountrySize * 0.8, _s + 32)) * away * keep : 0;
                 if (where > 0)
                 {
                     double near = Noise3.Cells(p, f.spireSpacing, _s + 36, out _, out uint id);
@@ -167,11 +170,16 @@ namespace OrbitalAnte.Planets
                     {
                         double tall = 0.45 + 0.55 * ((id >> 10) & 1023u) / 1023.0;
                         double girth = 0.22 + 0.18 * ((id >> 20) & 1023u) / 1023.0;
-                        // No tower is round: its outline bulges, bites in and is cut by gullies.
-                        double edge = 1 + 0.3 * Noise3.Perlin(p, f.spireSpacing * 0.3, _s + 40)
-                                        + 0.16 * Noise3.Perlin(p, f.spireSpacing * 0.1, _s + 41)
-                                        + (minW < 3 ? 0.07 * Noise3.Perlin(p, 2.6, _s + 43) : 0);
-                        double d = near / girth * edge;
+                        // No tower is round: its outline bulges, bites in and is cut by gullies. It is never
+                        // pulled in to less than 0.47 of its plain size, which turns most ground away at once.
+                        double d = 2;
+                        if (near * 0.47 < girth)
+                        {
+                            double edge = 1 + 0.3 * Noise3.Perlin(p, f.spireSpacing * 0.3, _s + 40)
+                                            + 0.16 * Noise3.Perlin(p, f.spireSpacing * 0.1, _s + 41)
+                                            + (minW < 3 ? 0.07 * (1 - Noise3.Smooth(1.2, 3, minW)) * Noise3.Perlin(p, 2.6, _s + 43) : 0);
+                            d = near / girth * edge;
+                        }
                         if (d < 1)
                         {
                             // A butte: a long apron of fallen rock at the angle loose stone lies at, a cliff

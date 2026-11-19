@@ -88,9 +88,6 @@ namespace OrbitalAnte.Planets
             v.Nx = Math.Max(2, (int)Math.Ceiling((max.X - min.X) / Cell));
             v.Ny = Math.Max(2, (int)Math.Ceiling((max.Y - min.Y) / Cell));
             v.Nz = Math.Max(2, (int)Math.Ceiling((max.Z - min.Z) / Cell));
-            // Never over the budget, whatever stands on the ground above (a ridge or rock tower over a way in
-            // makes the box taller): the top layers go first, and above the box the light is the top layer's.
-            v.Ny = Math.Max(2, Math.Min(v.Ny, CaveBudget.MostLightBytes / 4 / (v.Nx * v.Nz)));
             int count = v.Nx * v.Ny * v.Nz;
             var kind = new Kind[count];
             v.Sky = new float[count];
