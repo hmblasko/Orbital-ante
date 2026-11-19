@@ -17,11 +17,17 @@ namespace OrbitalAnte.Creatures
         [Tooltip("The Sprinter (the camel spider): pace, its dash and pause, its lunging bite, hit points.")]
         public WalkerRules sprinter = WalkerRules.ForSprinter();
 
+        [Tooltip("The Roller (the giant isopod): pace on foot, its roll and the warning before it, how long it lies on its back, hit points.")]
+        public RollerRules roller = new RollerRules();
+
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
 
         [Tooltip("How many Sprinters the combat test arena starts with (0 for none).")]
         [Range(0, 4)] public int arenaSprinters = 2;
+
+        [Tooltip("How many Rollers the combat test arena starts with (0 for none).")]
+        [Range(0, 3)] public int arenaRollers = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

@@ -382,7 +382,7 @@ namespace OrbitalAnte.Arena
         }
 
         /// <summary>
-        /// The alien creatures under trial: a Strider at the far end of the arena and Sprinters in its far corners, children of the mannequins' folder
+        /// The alien creatures under trial: a Strider at the far end of the arena, Sprinters in its far corners and a Roller part way down, children of the mannequins' folder
         /// so a respawn clears it with them. Until the fight is started it only wanders.
         /// </summary>
         void SpawnCreatures()
@@ -399,6 +399,12 @@ namespace OrbitalAnte.Arena
                 // The Sprinters start in the far corners, apart, so they come in from two sides.
                 var at = new Vector3((i % 2 == 0 ? -1f : 1f) * (HalfSize - 6f - 3f * (i / 2)), 0f, HalfSize - 5f - 4f * (i / 2));
                 OrbitalAnte.Creatures.Walker.Create(OrbitalAnte.Creatures.WalkerLayout.Sprinter, at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Sprinter " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaRollers; i++)
+            {
+                // The Rollers start part way down the arena, to one side and then the other, with a clear run at the start.
+                var at = new Vector3((i % 2 == 0 ? 1f : -1f) * (6f + 5f * (i / 2)), 0f, HalfSize * 0.45f + 4f * (i / 2));
+                OrbitalAnte.Creatures.Roller.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Roller " + (i + 1));
             }
         }
 
