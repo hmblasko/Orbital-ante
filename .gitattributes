@@ -30,3 +30,7 @@ unity/Assets/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
 # Revisit when the library grows (see docs/reports/audio-slice.md).
 unity/Assets/OrbitalAnte/Resources/Audio/**/*.wav -filter -diff -merge -text
 unity/Assets/OrbitalAnte/Resources/Audio/**/*.ogg -filter -diff -merge -text
+
+# The models' texture pictures are ordinary files too, for the same reason (about 7 MB a 2048 set as PNG):
+# the Steam Deck gets them with a plain `git pull`, and cloud sessions cannot reach the LFS server.
+unity/Assets/OrbitalAnte/Resources/Models/Textures/*.png -filter -diff -merge -text

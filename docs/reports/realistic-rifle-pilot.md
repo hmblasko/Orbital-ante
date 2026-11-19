@@ -27,3 +27,6 @@ Constitution 1 (fun core first: the gun fills a third of the screen all game) an
 
 ## To put it in the game (after Matthew's yes)
 `blender -b -P tools/blender/build_guns_realistic.py -- --game --only Rifle`, then the rule tests, then the Deck check.
+
+## In the game (19 Nov 2026, later the same day)
+Matthew chose "Yes, put it in and carry on" on the decision card. The trial files are now the game's `Rifle.bytes`, `RifleFar.bytes` and `Resources/Models/Textures/Rifle_*.png`. `dotnet test tools/rules-tests` with them in place: 2,550 passed, 0 failed, 1 skipped (the cabin bake check, as before). Still not run in Unity. On the Deck, look at: the held rifle in the arena and outdoors (is it textured, is anything black, pink or inside out), a trooper's rifle at 5 m and 20 m, a dropped rifle, and the reload (the magazine piece leaving). If it looks wrong, `Shine` 0 on the Look asset shows corner colours instead; say so and it will be fixed or reverted.
