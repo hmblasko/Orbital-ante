@@ -44,6 +44,10 @@ namespace OrbitalAnte.Planets
         /// gibs and dropped guns always have a floor.
         public const float SolidReach = 90f;
         readonly List<GameObject> _unsolid = new List<GameObject>();
+        // Each block's object by its place in the network's grid, so a block can be built again when ground is dug next to it.
+        readonly Dictionary<(int, int, int), GameObject> _blocks = new Dictionary<(int, int, int), GameObject>();
+        readonly Dictionary<(int, int, int), PlanetJobs.Handle> _reblocks = new Dictionary<(int, int, int), PlanetJobs.Handle>();
+        DigCover _cover = DigCover.None;
         float _solidCheckAt;
         PlanetSurface _surface;
 
@@ -89,9 +93,26 @@ namespace OrbitalAnte.Planets
             Ready = true;
             _build.Chunks = null;
             _onReady?.Invoke(Cave);
+            // Ground was dug next to it while its blocks were going up.
+            if (!_cover.IsEmpty) OnDigCover(_cover, _cover.Min, _cover.Max);
         }
 
         void MakeBlock(CaveChunk chunk)
+        {
+            var go = new GameObject("Cave");
+            go.transform.SetParent(transform, false);
+            go.AddComponent<DiggableGround>().Surface = _surface;
+            go.AddComponent<MeshFilter>().sharedMesh = ToBlockMesh(chunk);
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = _wall;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            _blocks[(chunk.Bx, chunk.By, chunk.Bz)] = go;
+            _unsolid.Add(go);
+            _solidCheckAt = 0f;
+        }
+
+        Mesh ToBlockMesh(CaveChunk chunk)
         {
             ShapeData shape = chunk.Shape;
             int count = shape.VertexCount;
@@ -113,16 +134,76 @@ namespace OrbitalAnte.Planets
             mesh.SetTriangles(shape.Triangles, 0);
             mesh.RecalculateBounds();
             _meshes.Add(mesh);
+            return mesh;
+        }
 
-            var go = new GameObject("Cave");
-            go.transform.SetParent(transform, false);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = _wall;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            _unsolid.Add(go);
-            _solidCheckAt = 0f;
+        /// <summary>
+        /// Boxes of dug ground have come up between min and max (body space): every block of wall near them is built
+        /// again in the background, leaving its walls inside the boxes to the dug ground, and swapped in place.
+        /// </summary>
+        public void OnDigCover(DigCover cover, Vec3d min, Vec3d max)
+        {
+            _cover = cover ?? DigCover.None;
+            if (!Ready) return;   // blocks still to come are rebuilt as a whole once the last is up (see Update)
+            PlanetTerrain terrain = _surface.Terrain;
+            CaveNetwork net = Network;
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            foreach (var pair in _blocks)
+            {
+                (int bx, int by, int bz) = pair.Key;
+                GameObject block = pair.Value;
+                if (block == null) continue;
+                Bounds b = block.GetComponent<MeshFilter>().sharedMesh.bounds;
+                Vector3 lo = b.min - Vector3.one * 2f, hi = b.max + Vector3.one * 2f;
+                if (hi.x < min.X || hi.y < min.Y || hi.z < min.Z || lo.x > max.X || lo.y > max.Y || lo.z > max.Z) continue;
+                var at = (bx, by, bz);
+                if (_reblocks.TryGetValue(at, out PlanetJobs.Handle old)) old.Cancel();
+                DigCover dig = _cover;
+                Vector3 middle = b.center;
+                _reblocks[at] = PlanetJobs.Run(() =>
+                {
+                    CaveChunk chunk = CaveNetworkMesher.BuildBlockAt(net, terrain, bx, by, bz, dig);
+                    if (chunk != null && linear)
+                    {
+                        float[] colors = chunk.Shape.Colors;
+                        for (int i = 0; i < colors.Length; i++) colors[i] = SkyGlobals.ToLinear(colors[i]);
+                    }
+                    return chunk ?? Nothing;
+                }, chunk => Reblock(at, chunk), () => PlanetDigging.Priority(SpaceConvert.ToVec3d(middle), _surface.Viewer),
+                    (SpaceConvert.ToVec3d(middle) - _surface.Viewer).Magnitude > PlanetDigging.UrgentReach + 40);
+            }
+        }
+
+        static readonly CaveChunk Nothing = new CaveChunk();
+
+        void Reblock((int, int, int) at, CaveChunk chunk)
+        {
+            _reblocks.Remove(at);
+            if (this == null || !_blocks.TryGetValue(at, out GameObject block) || block == null) return;
+            var filter = block.GetComponent<MeshFilter>();
+            Mesh old = filter.sharedMesh;
+            if (chunk == Nothing || chunk.Shape == null)
+            {
+                // Everything this block drew is drawn by dug ground now.
+                _blocks.Remove(at);
+                _unsolid.Remove(block);
+                Destroy(block);
+            }
+            else
+            {
+                filter.sharedMesh = ToBlockMesh(chunk);
+                var collider = block.GetComponent<MeshCollider>();
+                if (collider != null)
+                {
+                    GroundCooks.Take();   // cooked now whatever is left this frame (a lid must not lag here), but counted
+                    collider.sharedMesh = filter.sharedMesh;
+                }
+            }
+            if (old != null)
+            {
+                _meshes.Remove(old);
+                Destroy(old);
+            }
         }
 
         /// <summary>
@@ -271,6 +352,8 @@ namespace OrbitalAnte.Planets
         void OnDestroy()
         {
             CaveLight.Remove(this);
+            foreach (PlanetJobs.Handle job in _reblocks.Values) job.Cancel();
+            _reblocks.Clear();
             for (int i = 0; i < _meshes.Count; i++) if (_meshes[i] != null) Destroy(_meshes[i]);
             _meshes.Clear();
             if (_light != null) Destroy(_light);

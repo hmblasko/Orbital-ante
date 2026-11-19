@@ -16,6 +16,7 @@ Shader "OrbitalAnte/Terrain"
         _Paint ("Painted break-up of colour", Range(0, 1)) = 1
         _PaintScale ("Paint patch size: 1 for ground, larger for small things", Range(1, 63)) = 1
         _Ground ("Fine ground relief: grit, stones and hummocks (ground only)", Range(0, 1.5)) = 0
+        _VertexSky ("The mesh says how much open sky each corner sees (dug ground: 1)", Range(0, 1)) = 0
     }
 
     SubShader
@@ -36,6 +37,7 @@ Shader "OrbitalAnte/Terrain"
             half _Paint;
             half _PaintScale;
             half _Ground;
+            half _VertexSky;
         CBUFFER_END
 
         TEXTURE2D(_FarMap);
@@ -183,7 +185,11 @@ Shader "OrbitalAnte/Terrain"
                 albedo = lerp(albedo, farColor, blend);
 
                 float3 up = input.upWS / max(0.0001, length(input.upWS));
-                half3 light = OA_Light(normal, input.positionWS, up, _SunAmount);
+                // Dug ground stores how much open sky each corner sees in the colour's fourth number, so a tunnel is
+                // dark without shadows; it darkens the sky's light exactly as a cave's box of light does.
+                half4 cave = OA_CaveLight(input.positionWS);
+                cave.a *= lerp(1.0, input.color.a, _VertexSky);
+                half3 light = OA_LightIn(normal, input.positionWS, up, _SunAmount, cave);
                 // Lamps and lit windows on built things: the mesh marks them (in the colour's fourth number).
                 half3 color = albedo * light + albedo * (_Glow + _VertexGlow * (1.0 - input.color.a));
                 color = OA_ApplyHaze(color, input.positionWS);

@@ -19,6 +19,8 @@ namespace OrbitalAnte.Planets
         /// <summary>Distance from one corner to the next, in metres.</summary>
         public double CellSize;
         public bool HasHole;
+        /// <summary>True if some squares were left out for dug ground to be drawn in their place (see <see cref="DigCover"/>).</summary>
+        public bool DugOut;
         public int VertexCount => Positions.Length / 3;
     }
 
@@ -52,7 +54,11 @@ namespace OrbitalAnte.Planets
             return CubeSphere.Direction(face, -1 + (ix + 0.5) * size, -1 + (iy + 0.5) * size);
         }
 
-        public static ChunkData Build(PlanetTerrain terrain, int face, int level, int ix, int iy, bool cutHoles)
+        /// <param name="dig">
+        /// Boxes of dug ground that are drawn (finest tiles only): a square wholly inside them is left out, and the dug
+        /// ground is seen there instead. Null for none.
+        /// </param>
+        public static ChunkData Build(PlanetTerrain terrain, int face, int level, int ix, int iy, bool cutHoles, DigCover dig = null)
         {
             const int n = Quads;
             // One extra ring of points all round, so the lighting at a tile's edge matches its neighbour's.
@@ -159,6 +165,9 @@ namespace OrbitalAnte.Planets
                 }
             }
 
+            // Only bother with dug ground if any of it is near this tile.
+            if (dig != null && (dig.IsEmpty || !dig.Touches(Corner(points, g, true), Corner(points, g, false), 2))) dig = null;
+
             // Which way round the corners of a triangle must go for it to face outward depends on the face.
             Vec3d a0 = points[g + 1], b0 = points[g + 2], c0 = points[2 * g + 1];
             bool flip = Vec3d.Dot(Vec3d.Cross(b0 - a0, c0 - a0), dirs[g + 1]) < 0;
@@ -176,6 +185,16 @@ namespace OrbitalAnte.Planets
                         if (terrain.InHole(middle, cell))
                         {
                             data.HasHole = true;
+                            continue;
+                        }
+                    }
+                    if (dig != null)
+                    {
+                        int k = (j + 1) * g + (i + 1);
+                        if (dig.Covers(points[k], DigRules.Clearance) && dig.Covers(points[k + 1], DigRules.Clearance)
+                            && dig.Covers(points[k + g], DigRules.Clearance) && dig.Covers(points[k + g + 1], DigRules.Clearance))
+                        {
+                            data.DugOut = true;
                             continue;
                         }
                     }
@@ -199,6 +218,8 @@ namespace OrbitalAnte.Planets
                 {
                     int a = edgeOf[e * side + t], b = edgeOf[e * side + t + 1];
                     int c = skirtOf[e * side + t], d = skirtOf[e * side + t + 1];
+                    // A curtain would hang into a hole dug across the tile's edge.
+                    if (dig != null && dig.Covers(PositionOf(data, a), DigRules.Clearance) && dig.Covers(PositionOf(data, b), DigRules.Clearance)) continue;
                     triangles[tri++] = a; triangles[tri++] = b; triangles[tri++] = c;
                     triangles[tri++] = b; triangles[tri++] = d; triangles[tri++] = c;
                     triangles[tri++] = a; triangles[tri++] = c; triangles[tri++] = b;
@@ -208,6 +229,25 @@ namespace OrbitalAnte.Planets
             if (tri != triangles.Length) Array.Resize(ref triangles, tri);
             data.Triangles = triangles;
             return data;
+        }
+
+        static Vec3d PositionOf(ChunkData data, int vertex)
+        {
+            int o = vertex * 3;
+            return new Vec3d(data.Positions[o], data.Positions[o + 1], data.Positions[o + 2]);
+        }
+
+        /// <summary>The low (or high) corner of the box round a tile's points.</summary>
+        static Vec3d Corner(Vec3d[] points, int g, bool low)
+        {
+            double x = low ? double.MaxValue : double.MinValue, y = x, z = x;
+            for (int k = 0; k < g * g; k++)
+            {
+                Vec3d p = points[k];
+                if (low) { x = Math.Min(x, p.X); y = Math.Min(y, p.Y); z = Math.Min(z, p.Z); }
+                else { x = Math.Max(x, p.X); y = Math.Max(y, p.Y); z = Math.Max(z, p.Z); }
+            }
+            return new Vec3d(x, y, z);
         }
     }
 }

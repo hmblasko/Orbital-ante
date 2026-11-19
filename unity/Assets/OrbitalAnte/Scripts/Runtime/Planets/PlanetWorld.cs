@@ -400,7 +400,7 @@ namespace OrbitalAnte.Planets
             {
                 reading.AboveSea = r - (s.SurfaceRadius + s.Terrain.SeaLevel);
                 reading.OverSea = reading.AboveGround > reading.AboveSea;
-                reading.Underwater = reading.AboveSea < 0;
+                reading.Underwater = reading.AboveSea < 0 && !s.InDugAir(p);   // a tunnel under dry land is air
             }
             if (s.Interior && r < s.BodyRadius)
             {
@@ -428,7 +428,10 @@ namespace OrbitalAnte.Planets
                 if (s.Near)
                 {
                     near += "   " + s.Body.Spec.displayName + ": tiles " + s.ShownTiles + " (solid " + s.SolidTiles + ")  things " + s.Features.Count +
-                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug();
+                            (s.Features.Refused > 0 ? " (cap reached)" : string.Empty) + s.NearestNetworkForDebug() +
+                            (s.Digging != null && s.Digging.Field.CarveCount > 0
+                                ? "   dug " + s.Digging.Field.CarveCount + " scoops, " + s.Digging.ShownBoxes + " boxes" + (s.Digging.Refused > 0 ? " (" + s.Digging.Refused + " refused)" : string.Empty)
+                                : string.Empty);
                 }
             }
             return "Ground ready " + ready + "/" + total + "  pictures " + pictures + "/" + total +
