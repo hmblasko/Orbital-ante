@@ -106,7 +106,7 @@ class Maker:
 # ====================================================================== the Strider (Japanese spider crab)
 
 # Every number the game needs is also written into the model as a socket (see strider_sockets), and held by the rule
-# test StriderModelFile_MatchesTheLayout against Creatures/StriderLayout.cs. Metres, Blender's axes.
+# test StriderModelFile_MatchesTheLayout against Creatures/WalkerLayout.cs (WalkerLayout.Strider). Metres, Blender's axes.
 STRIDER = {
     # Where each limb joins the body (right side; the left is mirrored) and the way it points when held straight out,
     # in degrees round from the animal's right toward its front. 0 is the claw arm, 1 to 4 the walking legs.
@@ -466,7 +466,7 @@ def frame(origin, along, up_hint):
 
 
 def strider_stand(height=1.55, reach=1.75, sway=0.0, missing=()):
-    """A standing pose worked out here, for still pictures only (the game's animator, StriderAnimator, is the real
+    """A standing pose worked out here, for still pictures only (the game's animator, WalkerAnimator, is the real
     thing; draw its frames with --poses). Returns [(piece, matrix)] in the world, z up, ground at 0."""
     L = STRIDER
     placed = []
@@ -551,10 +551,283 @@ def person(at):
     return shapes
 
 
+# ====================================================================== the Sprinter (camel spider)
+#
+# It starts from a real thing: a camel spider (Solifugae; Galeodes arabs), at about fifteen times life size. A domed
+# head plate with two small eyes on a knob at its front edge; in front of it two enormous jaws side by side, each a
+# swollen base running into a fixed upper finger with a moving lower finger under it, bare, polished and near black
+# at the points; a long soft abdomen in ten bands; eight long hairy legs, the hind pair the longest; and in front of
+# the legs a pair of thick feeling arms carried off the ground, ending in a blunt pale pad. Sand-coloured and hairy
+# all over. Held by the rule test SprinterModelFile_MatchesTheLayout against WalkerLayout.Sprinter.
+SPRINTER = {
+    "hips": [((0.150, 0.560, -0.060), 72.0), ((0.215, 0.400, -0.085), 50.0), ((0.235, 0.250, -0.085), 18.0),
+             ((0.225, 0.100, -0.085), -22.0), ((0.190, -0.040, -0.080), -52.0)],
+    "leg": (0.55, 0.62, 0.36),
+    "arm": (0.56, 0.56, 0.32),
+    "hinge": (0.0, 0.130, -0.036),      # where the lower finger of a jaw turns, in the jaw's space
+    "finger": 0.36,
+    "jaw": (0.105, 0.640, 0.030),       # where the right jaw is hinged on the head
+    "jaw_length": 0.52,
+    "stump": 0.075,
+    "leg_scale": (0.86, 0.94, 1.06, 1.30),
+    "size": 1.0,
+    "pieces": {"armoured": "Head", "soft": "Abdomen", "leg": ("LegUpper", "LegLower", "LegTip"),
+               "arm": ("PalpUpper", "PalpLower", "PalpTip"), "finger": "JawFinger", "jaw": "Jaw"},
+}
+SAND, STRAW, UMBER = (0.40, 0.25, 0.115), (0.64, 0.52, 0.35), (0.085, 0.040, 0.020)
+RUST, PITCH = (0.34, 0.13, 0.045), (0.030, 0.012, 0.008)
+SPRINTER_FLAT = {"head": ((0.62, 0.42, 0.24), 0.30), "abdomen": ((0.60, 0.50, 0.38), 0.12), "leg": ((0.66, 0.50, 0.31), 0.14),
+                 "palp": ((0.64, 0.47, 0.28), 0.14), "pad": ((0.62, 0.50, 0.36), 0.25), "jaw": ((0.55, 0.26, 0.11), 0.45),
+                 "jawfinger": ((0.50, 0.22, 0.10), 0.45), "foot": ((0.50, 0.36, 0.22), 0.2), "joint": ((0.50, 0.36, 0.24), 0.2),
+                 "flesh": ((0.78, 0.50, 0.44), 0.6), "eye": ((0.06, 0.05, 0.05), 0.85), "hair": ((0.72, 0.60, 0.42), 0.08)}
+SPRINTER_MATERIALS = {
+    "head": lambda: mats.bristly("head", (0.36, 0.19, 0.075), STRAW, UMBER, under=(0.50, 0.38, 0.24), seed=1.0, hair=0.55, gloss=0.34),
+    "abdomen": lambda: mats.bristly("abdomen", (0.33, 0.22, 0.125), (0.54, 0.44, 0.31), UMBER, under=(0.50, 0.41, 0.29), seed=2.0, hair=0.8,
+                                    plates=(0.110, 1.0), stripe=(0.11, (0.10, 0.055, 0.030), ROW), gloss=0.16),   # the Abdomen is the second piece in the bake's row
+    "leg": lambda: mats.bristly("leg", SAND, STRAW, UMBER, seed=3.0, hair=1.0, size=0.7),
+    "palp": lambda: mats.bristly("palp", SAND, STRAW, UMBER, seed=4.0, hair=1.0, size=0.7),
+    "pad": lambda: mats.membrane("pad", (0.36, 0.26, 0.17), seed=5.0, size=0.6),
+    "foot": lambda: mats.bristly("foot", SAND, STRAW, UMBER, seed=6.0, hair=0.8, size=0.6, tip=(1, 0.30, 0.40, (0.10, 0.05, 0.03))),
+    "jaw": lambda: mats.bristly("jaw", RUST, STRAW, UMBER, seed=7.0, hair=0.7, size=0.7, tip=(1, 0.20, 0.40, PITCH), gloss=0.40),
+    "jawfinger": lambda: mats.bristly("jawfinger", RUST, STRAW, UMBER, seed=8.0, hair=0.5, size=0.7, tip=(1, 0.06, 0.26, PITCH), gloss=0.40),
+    "joint": lambda: mats.membrane("joint", (0.27, 0.17, 0.09), seed=9.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.70, 0.62, 0.50), red=(0.36, 0.10, 0.04), seed=10.0),
+    "eye": lambda: mats.eye("eye"),
+    "hair": lambda: mats.bristly("hair", (0.50, 0.38, 0.22), STRAW, UMBER, seed=11.0, hair=0.0, gloss=0.20),
+}
+
+# The abdomen along its length, front to back: (distance, half width, half height, 0, how far its middle hangs).
+ABDOMEN_KEYS = [(0.00, 0.060, 0.060, 0, 0.0), (0.05, 0.150, 0.120, 0, 0.0), (0.18, 0.225, 0.165, 0, -0.010), (0.40, 0.265, 0.200, 0, -0.020),
+                (0.65, 0.255, 0.195, 0, -0.020), (0.88, 0.205, 0.160, 0, -0.012), (1.04, 0.130, 0.105, 0, 0.0), (1.13, 0.050, 0.045, 0, 0.008)]
+HEAD_KEYS = [(0.00, 0.100, 0.070, 0, 0.0), (0.06, 0.190, 0.110, 0, 0.0), (0.22, 0.250, 0.130, 0, 0.0), (0.42, 0.265, 0.140, 0, 0.004),
+             (0.58, 0.250, 0.146, 0, 0.010), (0.70, 0.225, 0.136, 0, 0.014), (0.78, 0.160, 0.100, 0, 0.016)]
+HEAD_BACK = -0.14
+
+
+def sliver(g, base, way, length, width=0.0045):
+    """One long bristle as the game draws it: a three-sided sliver of four triangles (the baked one is a round hair)."""
+    if g.hi:
+        return g.spine("bristle", base, way, length, width * 0.8, around=3, bend=(0, 0, 0))
+    base, way = Vector(base), Vector(way).normalized()
+    side = way.orthogonal().normalized()
+    other = way.cross(side)
+    bm = bmesh.new()
+    foot = [bm.verts.new(base - way * width + (side * math.cos(a) + other * math.sin(a)) * width) for a in (0.0, 2.094, 4.189)]
+    point = bm.verts.new(base + way * length)
+    for i in range(3):
+        bm.faces.new((foot[i], foot[(i + 1) % 3], point))
+    bm.faces.new((foot[2], foot[1], foot[0]))
+    return oa._new_object("bristle", bm, (0.5, 0.5, 0.5), 30.0)
+
+
+def sprinter(hi):
+    g = Maker(hi, SPRINTER_FLAT, SPRINTER_MATERIALS)
+    L = SPRINTER
+    up = (0, 0, 1)
+
+    def joint(piece, radius):
+        g.add(g.ball("joint", (0, 0, 0), radius, around=7), "joint", piece)
+
+    def bristles(piece, material, keys, fine, long, seed, start=0.10, end=0.95, lean=1.0, around_all=True):
+        """Hairs standing off a limb. `fine` of them exist only to be baked: short, lying along the limb, so the
+        pictures are hairy. `long` of them are real shapes in the game too: the long bristles a camel spider is
+        fringed with, which is what makes its outline."""
+        r = random.Random(seed)
+        last = keys[-1][0]
+        for k in range(fine + long):
+            real_one = k >= fine
+            y = last * r.uniform(start, end)
+            a = r.uniform(0, 2 * math.pi) if around_all or not real_one else r.gauss(math.pi / 2, 1.3)
+            rs, rf, _, of = real.along(keys, y)
+            c, s_ = math.cos(a), math.sin(a)
+            base = (rs * c * 0.96, y, of + rf * s_ * 0.96)
+            if real_one:
+                g.add(sliver(g, base, (c, 0.9 * lean, s_), r.uniform(0.05, 0.12)), "hair", piece)
+            else:
+                length = r.uniform(0.030, 0.060)
+                g.add(g.spine("hair", base, (c * 0.42, 1.0 * lean, s_ * 0.42), length, r.uniform(0.0022, 0.0036), around=3), "hair", piece, only='hi')
+
+    # ------------------------------------------------------------- Head: the plate, eyes, mouth, the stubs the limbs turn on
+    head = g.skin("head", (0, HEAD_BACK, 0), (0, 1, 0), up, HEAD_KEYS, around=12, step=0.11, power=2.5)
+    g.add(head, "head", "Head")
+    # The domed plate over the jaw muscles, and the two swellings behind it.
+    dome = g.ball("head plate", (0, 0.440, 0.085), 0.225, scale=(1.02, 1.12, 0.50), around=10)
+    g.add(dome, "head", "Head")
+    for side in (-1, 1):
+        g.add(g.ball("back plate", (side * 0.085, 0.130, 0.080), 0.120, scale=(1.0, 1.25, 0.45), around=7), "head", "Head")
+        # An eye each side of a small knob at the front edge of the plate.
+        g.add(g.ball("eye", (side * 0.034, 0.668, 0.168), 0.027, around=6), "eye", "Head")
+    g.add(g.ball("eye knob", (0, 0.660, 0.156), 0.040, scale=(1.3, 1.0, 0.8), around=6), "head", "Head")
+    # The beak between the jaws, under them.
+    g.add(g.skin("beak", (0, 0.560, -0.070), (0, 1, -0.15), up, [(0.0, 0.050, 0.040), (0.08, 0.040, 0.034), (0.17, 0.012, 0.012)], around=6, step=0.09), "joint", "Head")
+    for i, (place, degrees) in enumerate(L["hips"]):
+        for side in (-1, 1):
+            p = Vector((side * place[0], place[1], place[2]))
+            out = Vector((side * math.cos(math.radians(degrees)), math.sin(math.radians(degrees)), 0.0))
+            r = 0.058 if i == 0 else 0.054
+            g.add(g.skin("hip", p - out * 0.13, out, up, [(0.0, r * 1.5, r * 1.3), (0.06, r * 1.25, r * 1.2), (0.11, r * 1.05, r * 1.08), (0.15, r * 0.7, r * 0.72)],
+                         around=8, step=0.05, power=2.0), "leg", "Head")
+    bristles("Head", "head", [(0.0, 0.17, 0.11, 0, 0.0)] + [(k[0] + 0.001, k[1], k[2], 0, k[4]) for k in HEAD_KEYS[1:-1]], 0, 0, 20)
+    r = random.Random(21)
+    for k in range(220 + 70):
+        # Hairs over the head: fine ones for the pictures, and a fringe of real ones round the plate.
+        real_one = k >= 220
+        y = r.uniform(0.02, 0.72)
+        a = r.uniform(0.15, math.pi - 0.15)
+        rs, rf, _, of = real.along(HEAD_KEYS, y)
+        e = 2.0 / 2.5
+        c, s_ = math.cos(a), math.sin(a)
+        base = (rs * math.copysign(abs(c) ** e, c) * 0.97, HEAD_BACK + y, of + rf * abs(s_) ** e * 0.97)
+        if real_one:
+            g.add(sliver(g, base, (c, 0.7, s_ + 0.2), r.uniform(0.05, 0.11)), "hair", "Head")
+        else:
+            g.add(g.spine("hair", base, (c * 0.5, 1.0, s_ * 0.5), r.uniform(0.03, 0.06), r.uniform(0.0022, 0.0036), around=3), "hair", "Head", only='hi')
+
+    # ------------------------------------------------------------- Abdomen: ten soft bands, hanging a little
+    keys = ABDOMEN_KEYS
+    if hi:
+        ridged = []
+        for i in range(140):
+            t = 1.13 * i / 139
+            rs, rf, _, of = real.along(ABDOMEN_KEYS, t)
+            swell = 1.0 + 0.045 * abs(math.sin(math.pi * t / 0.110)) ** 0.6
+            ridged.append((t, rs * swell, rf * swell, 0, of))
+        keys = ridged
+    g.add(g.skin("abdomen", (0, 0.060, 0.0), (0, -1, 0), up, keys, around=12, step=0.12, power=2.15), "abdomen", "Abdomen")
+    r = random.Random(22)
+    for k in range(420 + 110):
+        real_one = k >= 420
+        t = r.uniform(0.08, 1.08)
+        a = r.uniform(0, 2 * math.pi) if not real_one else r.uniform(0.1, math.pi - 0.1)
+        rs, rf, _, of = real.along(ABDOMEN_KEYS, t)
+        c, s_ = math.cos(a), math.sin(a)
+        # The skin's sideways is forward x axis = up x (0,-1,0): +x of the limb is the animal's +x.
+        base = (rs * c * 0.97, 0.060 - t, of + rf * s_ * 0.97)
+        if real_one:
+            g.add(sliver(g, base, (c, -0.9, s_), r.uniform(0.05, 0.12)), "hair", "Abdomen")
+        else:
+            g.add(g.spine("hair", base, (c * 0.45, -1.0, s_ * 0.45), r.uniform(0.03, 0.065), r.uniform(0.0022, 0.0036), around=3), "hair", "Abdomen", only='hi')
+
+    # ------------------------------------------------------------- legs: thigh, long shin, thin foot with two claws
+    upper, lower, tip = L["leg"]
+    k_upper = [(0.01, 0.034, 0.036, 0, 0.0), (0.06, 0.058, 0.062, 0, 0.0), (0.18, 0.062, 0.068, 0, 0.006), (0.38, 0.054, 0.058, 0, 0.006),
+               (0.49, 0.046, 0.048, 0, 0.0), (upper, 0.032, 0.034, 0, 0.0)]
+    joint("LegUpper", 0.052)
+    g.add(g.skin("thigh", (0, 0, 0), (0, 1, 0), up, k_upper, around=8, step=0.10, power=2.2), "leg", "LegUpper")
+    bristles("LegUpper", "leg", k_upper, 170, 30, 31)
+    k_lower = [(0.01, 0.030, 0.032, 0, 0.0), (0.05, 0.046, 0.048, 0, 0.0), (0.24, 0.042, 0.044, 0, 0.0), (0.30, 0.032, 0.034, 0, 0.0),
+               (0.35, 0.039, 0.041, 0, 0.0), (0.54, 0.031, 0.033, 0, -0.004), (lower, 0.022, 0.024, 0, 0.0)]
+    joint("LegLower", 0.041)
+    g.add(g.skin("shin", (0, 0, 0), (0, 1, 0), up, k_lower, around=8, step=0.10, power=2.2), "leg", "LegLower")
+    bristles("LegLower", "leg", k_lower, 180, 32, 32)
+    k_tip = [(0.01, 0.020, 0.022, 0, 0.0), (0.04, 0.028, 0.030, 0, 0.0), (0.18, 0.022, 0.024, 0, -0.004), (0.29, 0.016, 0.017, 0, -0.012), (0.335, 0.010, 0.010, 0, -0.018)]
+    joint("LegTip", 0.026)
+    g.add(g.skin("foot", (0, 0, 0), (0, 1, 0), up, k_tip, around=6, step=0.11, power=2.1), "foot", "LegTip")
+    for side in (-1, 1):
+        g.add(g.spine("claw", (side * 0.006, 0.330, -0.018), (side * 0.35, 1.0, -0.5), 0.040, 0.007, around=3, bend=(0, 0, -0.5)), "foot", "LegTip")
+    bristles("LegTip", "foot", k_tip, 120, 18, 33, end=0.85)
+
+    # ------------------------------------------------------------- feeling arms: thicker than a leg, a blunt pad at the end
+    a_upper, a_lower, a_tip = L["arm"]
+    k = [(0.01, 0.036, 0.038, 0, 0.0), (0.06, 0.060, 0.064, 0, 0.0), (0.20, 0.062, 0.068, 0, 0.004), (0.42, 0.054, 0.058, 0, 0.004), (a_upper, 0.036, 0.038, 0, 0.0)]
+    joint("PalpUpper", 0.054)
+    g.add(g.skin("palp upper", (0, 0, 0), (0, 1, 0), up, k, around=8, step=0.10, power=2.2), "palp", "PalpUpper")
+    bristles("PalpUpper", "palp", k, 170, 30, 41)
+    k = [(0.01, 0.034, 0.036, 0, 0.0), (0.06, 0.050, 0.054, 0, 0.0), (0.28, 0.050, 0.054, 0, 0.0), (0.47, 0.045, 0.047, 0, 0.0), (a_lower, 0.032, 0.034, 0, 0.0)]
+    joint("PalpLower", 0.045)
+    g.add(g.skin("palp lower", (0, 0, 0), (0, 1, 0), up, k, around=8, step=0.10, power=2.2), "palp", "PalpLower")
+    bristles("PalpLower", "palp", k, 180, 32, 42)
+    k = [(0.01, 0.030, 0.032, 0, 0.0), (0.05, 0.040, 0.042, 0, 0.0), (0.20, 0.038, 0.040, 0, 0.0), (0.27, 0.036, 0.038, 0, 0.0)]
+    joint("PalpTip", 0.037)
+    g.add(g.skin("palp tip", (0, 0, 0), (0, 1, 0), up, k, around=8, step=0.10, power=2.2), "palp", "PalpTip")
+    g.add(g.ball("pad", (0, 0.280, 0.0), 0.038, scale=(1.0, 1.1, 1.0), around=7), "pad", "PalpTip")
+    bristles("PalpTip", "palp", k, 130, 26, 43, end=0.9)
+
+    # ------------------------------------------------------------- jaws: a swollen base, a fixed upper finger, a moving lower one
+    length = L["jaw_length"]
+    k_jaw = [(-0.04, 0.050, 0.060, 0, 0.0), (0.03, 0.090, 0.116, 0, 0.0), (0.15, 0.100, 0.130, 0, 0.004), (0.26, 0.080, 0.094, 0, 0.026),
+             (0.35, 0.048, 0.050, 0, 0.054), (0.43, 0.029, 0.029, 0, 0.052), (0.49, 0.014, 0.015, 0, 0.032), (length, 0.004, 0.004, 0, 0.006)]
+    g.add(g.skin("jaw", (0, 0, 0), (0, 1, 0), up, k_jaw, around=10, step=0.075, power=2.3), "jaw", "Jaw")
+    hinge = Vector(L["hinge"])
+    g.add(g.ball("jaw hinge", hinge, 0.040, scale=(1.6, 1.0, 1.0), around=6), "joint", "Jaw")
+    for i in range(7):
+        # Teeth along the under side of the fixed finger: two big ones, then small.
+        y = 0.255 + 0.033 * i
+        _, rf, _, of = real.along(k_jaw, y)
+        size = (0.036, 0.026, 0.030, 0.019, 0.016, 0.013, 0.010)[i]
+        g.add(g.spine("tooth", (0, y, of - rf + 0.004), (0, 0.15, -1), size, size * 0.42, around=4), "jaw", "Jaw", only=None if i < 3 else 'hi')
+    bristles("Jaw", "jaw", k_jaw[:4], 150, 26, 51, start=0.0, end=0.95, around_all=False)
+    finger = L["finger"]
+    k_finger = [(-0.02, 0.034, 0.036, 0, 0.0), (0.04, 0.054, 0.060, 0, -0.005), (0.14, 0.050, 0.052, 0, -0.014), (0.24, 0.031, 0.031, 0, -0.012),
+                (0.31, 0.015, 0.015, 0, 0.007), (finger, 0.004, 0.004, 0, 0.026)]
+    g.add(g.skin("jaw finger", (0, 0, 0), (0, 1, 0), up, k_finger, around=8, step=0.075, power=2.3), "jawfinger", "JawFinger")
+    for i in range(6):
+        y = 0.100 + 0.036 * i
+        _, rf, _, of = real.along(k_finger, y)
+        size = (0.031, 0.024, 0.026, 0.017, 0.013, 0.010)[i]
+        g.add(g.spine("tooth", (0, y, of + rf - 0.004), (0, 0.15, 1), size, size * 0.42, around=4), "jawfinger", "JawFinger", only=None if i < 3 else 'hi')
+
+    # ------------------------------------------------------------- what is left when something comes off
+    r_ = L["stump"]
+    meat = g.ball("wound meat", (0, 0.010, 0), r_ * 0.86, scale=(1.0, 0.55, 1.0), around=9)
+    real.displace(meat, lambda p: 0.010 * noise.noise(p * 28.0) + 0.006 * noise.noise(p * 61.0))
+    g.add(meat, "flesh", "Stump")
+    ragged = [(-0.050 + 0.085 * i / 8, r_ * (0.98 + 0.07 * i / 8), r_ * (1.02 + 0.07 * i / 8)) for i in range(9)]
+    collar = g.skin("wound skin", (0, 0, 0), (0, 1, 0), up, [ragged[0], ragged[4], ragged[8]] if not hi else ragged, around=10, step=0.04, power=2.25)
+    bm = bmesh.new()
+    bm.from_mesh(collar.data)
+    for v in bm.verts:
+        if v.co.y > 0.0:
+            a = math.atan2(v.co.z, v.co.x)
+            v.co.y += (v.co.y / 0.035) * 0.020 * (noise.noise(Vector((math.cos(a) * 3.1, math.sin(a) * 3.1, 8.0))) + 0.35 * math.sin(a * 5.0))
+            v.co.y = max(v.co.y, 0.004)
+    bm.to_mesh(collar.data)
+    bm.free()
+    g.add(collar, "leg", "Stump")
+    for k, (size, squash) in enumerate((((0.13, (1.0, 0.8, 0.6))), ((0.10, (0.8, 1.0, 0.7))))):
+        piece = "Meat%d" % k
+        lump = g.ball("meat", (0, 0, 0), size, scale=squash, around=10)
+        real.displace(lump, lambda p, k=k: 0.020 * noise.noise(p * 9.0 + Vector((k * 5.0, 3.0, 0))) + 0.009 * noise.noise(p * 23.0))
+        g.add(lump, "flesh", piece)
+        skin = real.ball_patch("skin bit", (0, 0, 0), (0.2, 0.1, 1.0), (0, 1, 0), size * squash[2] * 1.02, (0, 58), 0, 360, (0.5, 0.5, 0.5),
+                               thickness=0.010, n=40 if hi else 9, m=14 if hi else 3)
+        skin.data.transform(Matrix.Diagonal((squash[0] / squash[2] * 0.96, squash[1] / squash[2] * 0.96, 1.0, 1.0)))
+        g.add(skin, "abdomen", piece)
+    return g
+
+
+def sprinter_sockets():
+    L = SPRINTER
+    out = []
+    for i, (place, degrees) in enumerate(L["hips"]):
+        for side, tag in ((1, "R"), (-1, "L")):
+            p = Vector((side * place[0], place[1], place[2]))
+            way = Vector((side * math.cos(math.radians(degrees)), math.sin(math.radians(degrees)), 0.0))
+            out.append(oa.socket("Hip%s%d" % (tag, i), p))
+            out.append(oa.socket("Out%s%d" % (tag, i), p + way))
+    for k, piece in enumerate(L["pieces"]["leg"]):
+        out.append(oa.socket(piece + "End", (0, L["leg"][k], 0)))
+    for k, piece in enumerate(L["pieces"]["arm"]):
+        out.append(oa.socket(piece + "End", (0, L["arm"][k], 0)))
+    out.append(oa.socket("JawHinge", L["hinge"]))
+    out.append(oa.socket("FingerEnd", (0, L["finger"], 0.022)))
+    out.append(oa.socket("JawR", L["jaw"]))
+    out.append(oa.socket("JawEnd", (0, L["jaw_length"], 0.004)))
+    out.append(oa.socket("StumpRim", (L["stump"], 0, 0)))
+    return out
+
+
 # ---------------------------------------------------------------------- building
 
-CREATURES = {"Strider": (strider, strider_sockets, 2048)}
+CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048)}
+# Shapes a far copy does without: from where it is seen they are thinner than a pixel.
+FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
+# Shapes too many and too thin to be given their own places on the pictures (each would take a patch and its margin,
+# and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
+# of the named material.
+FINE = {"Sprinter": (("bristle",), "hair")}
 FAR_SHARE = 0.30
+ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
 
 
 def joined(objects, name):
@@ -590,11 +863,30 @@ def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
     # Every piece is modelled round its own joint, so for the bake they are stood apart in a row.
     def shift(parts, sign):
         for k, piece in enumerate(pieces):
-            move = Matrix.Translation((sign * 1.6 * k, 0, 0))
+            move = Matrix.Translation((sign * ROW * k, 0, 0))
             for o in parts[piece]:
                 o.data.transform(move)
     shift(low.parts, 1)
-    mats.unwrap(low_objects, angle=66.0, margin=0.004)
+    fine_names, swatch_material = FINE.get(name, ((), None))
+    fine = [o for o in low_objects if o.name.split(".")[0] in fine_names]
+    plain = [o for o in low_objects if o.name.split(".")[0] not in fine_names]
+    swatch = None
+    if fine:
+        swatch = oa.box("swatch", (0, 0, 30.0), (0.06, 0.06, 0.004), (0.5, 0.5, 0.5), bevel=0)
+        plain.append(swatch)
+    mats.unwrap(plain, angle=66.0, margin=0.004)
+    if fine:
+        # The patch: the middle of the swatch's largest face. Every corner of every fine shape is put there.
+        layer = swatch.data.uv_layers[oa.TEX]
+        face = max(swatch.data.polygons, key=lambda p: p.normal.z)
+        spot = sum((layer.data[i].uv for i in face.loop_indices), Vector((0, 0))) / len(face.loop_indices)
+        for o in fine:
+            mats.triangulate(o)
+            uv = o.data.uv_layers.get(oa.TEX) or o.data.uv_layers.new(name=oa.TEX)
+            o.data.uv_layers.active = uv
+            uv.active_render = True
+            for loop in uv.data:
+                loop.uv = spot
     if reuse:
         # The pictures on disk were baked for these same shapes: nothing is baked or written again.
         shift(low.parts, -1)
@@ -607,18 +899,24 @@ def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
         for piece, objects in low_parts:
             print("OA   %-12s %5d triangles" % (piece, sum(oa._triangle_count(o) for o in objects)))
         shift(high.parts, 1)
+        if swatch is not None:
+            twin = oa.box("swatch high", (0, 0, 30.0), (0.06, 0.06, 0.004), (0.5, 0.5, 0.5), bevel=0)
+            twin.data.materials.append(high.material(swatch_material))
+            high_objects.append(twin)
         whole = joined(high_objects, name + " high")
         print("OA %s: shapes made in %.0f s" % (name, time.time() - started))
-        mats.bake_set(name, low_objects, [whole], size=size, cage=0.022, samples=4 if draft else 24, folder=textures)
+        mats.bake_set(name, plain, [whole], size=size, cage=0.022, samples=4 if draft else 24, folder=textures)
         print("OA %s: baked at %.0f s" % (name, time.time() - started))
         shift(low.parts, -1)
         whole.hide_render = True
+    if swatch is not None:
+        bpy.data.objects.remove(swatch)
     sockets = sockets_of()
     far = []
     if not reuse:
         oa.export(os.path.join(folder, name + ".bytes"), low_parts, sockets, textures=name)
     if not (reuse and poses):
-        far = oa.thin(low_parts, int(triangles * FAR_SHARE), drop_below=0.05, least=16)
+        far = oa.thin(low_parts, int(triangles * FAR_SHARE), drop_below=0.05, least=16, leave_out=FAR_LEAVE_OUT.get(name, ()))
     if not reuse:
         oa.export(os.path.join(folder, name + oa.FAR + ".bytes"), far, sockets, textures=name)
         print("OA %s: written at %.0f s" % (name, time.time() - started))
@@ -636,6 +934,8 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
     if poses:
         # Frames from the game's own animator (tools/blender/creature_dump): every piece's place, frame by frame.
         frames = json.load(open(poses))
+        if "only" in frames:
+            frames["first"], frames["last"], frames["every"] = frames["only"], frames["only"] + 1, 1
         first, last, every = frames.get("first", 0), frames.get("last", len(frames["frames"])), frames.get("every", 1)
         extra = person(frames["person"]) if "person" in frames else []
         for k in range(first, last, every):
@@ -661,6 +961,11 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
         mats.render(os.path.join(previews, file), shown + extra, None, eye, target, lens=lens, size=size, samples=samples, floor=0.0, sun=(52, 12, 28))
         for o in shown + extra:
             bpy.data.objects.remove(o)
+    if name != "Strider":
+        # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
+        row = [(piece, Matrix.Translation((-2.4 + 0.45 * k, 0, 0.30))) for k, piece in enumerate(parts)]
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)
     shoot(tag + "_body.png", stand, (1.5, 2.3, 2.9), (0, 0.05, 2.0), 40, with_person=False)

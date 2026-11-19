@@ -12,10 +12,18 @@ namespace OrbitalAnte.Creatures
         public const string ResourcePath = "Config/CreatureConfig";
 
         [Tooltip("The Strider (the spider crab): pace, sight, its claw strike, hit points, loose pieces.")]
-        public StriderRules strider = new StriderRules();
+        public WalkerRules strider = new WalkerRules();
+
+        [Tooltip("The Sprinter (the camel spider): pace, its dash and pause, its lunging bite, hit points.")]
+        public WalkerRules sprinter = WalkerRules.ForSprinter();
 
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
+
+        [Tooltip("How many Sprinters the combat test arena starts with (0 for none).")]
+        [Range(0, 4)] public int arenaSprinters = 2;
+
+        public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 
         static CreatureConfig _cached;
 

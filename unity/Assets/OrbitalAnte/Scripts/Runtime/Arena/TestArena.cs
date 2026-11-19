@@ -319,7 +319,7 @@ namespace OrbitalAnte.Arena
         {
             // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
             if (_gibs != null) _gibs.ReleaseAll();
-            OrbitalAnte.Creatures.StriderChunk.ClearAll();
+            OrbitalAnte.Creatures.WalkerChunk.ClearAll();
             if (_gore != null) _gore.Clear();
             if (_weaponFx != null) _weaponFx.Clear();
 
@@ -382,7 +382,7 @@ namespace OrbitalAnte.Arena
         }
 
         /// <summary>
-        /// The alien creatures under trial: a Strider at the far end of the arena, a child of the mannequins' folder
+        /// The alien creatures under trial: a Strider at the far end of the arena and Sprinters in its far corners, children of the mannequins' folder
         /// so a respawn clears it with them. Until the fight is started it only wanders.
         /// </summary>
         void SpawnCreatures()
@@ -392,7 +392,13 @@ namespace OrbitalAnte.Arena
             for (int i = 0; i < config.arenaStriders; i++)
             {
                 var at = new Vector3(Mathf.Lerp(-12f, 12f, (float)rng.NextDouble()) + i * 9f, 0f, HalfSize - 9f - i * 7f);
-                OrbitalAnte.Creatures.Strider.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Strider " + (i + 1));
+                OrbitalAnte.Creatures.Walker.Create(OrbitalAnte.Creatures.WalkerLayout.Strider, at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Strider " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaSprinters; i++)
+            {
+                // The Sprinters start in the far corners, apart, so they come in from two sides.
+                var at = new Vector3((i % 2 == 0 ? -1f : 1f) * (HalfSize - 6f - 3f * (i / 2)), 0f, HalfSize - 5f - 4f * (i / 2));
+                OrbitalAnte.Creatures.Walker.Create(OrbitalAnte.Creatures.WalkerLayout.Sprinter, at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Sprinter " + (i + 1));
             }
         }
 

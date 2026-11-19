@@ -372,6 +372,67 @@ def chitin(name, base=(0.50, 0.115, 0.035), pale=(0.66, 0.52, 0.38), dark=(0.13,
     return m.finish(colour, smoothness, 0.0, height, occlusion=occlusion)
 
 
+def bristly(name, base=(0.42, 0.27, 0.13), pale=(0.62, 0.50, 0.34), dark=(0.10, 0.045, 0.02), under=None, seed=0.0, size=1.0,
+            hair=1.0, plates=None, stripe=None, tip=None, gloss=0.24):
+    """The skin of a hairy desert arthropod (a camel spider, a tarantula's legs): a dull sandy cuticle under a coat of
+    fine hairs lying along the limb (+Y), paler where the hair is thick and darker in the sockets of the big
+    bristles; faint darker clouds; dust in the hollows. plates: (period, strength) lays darker hard plates across
+    the body every `period` metres with pale soft skin between them (an abdomen's segments). stripe: (half width,
+    colour) is a darker band down the middle of the back. tip: (axis index, from, to, colour) darkens toward a
+    point along that axis, in metres, and takes the hair off it (jaws are bare and polished)."""
+    m = Tree(name)
+    big = m.noise(3.0 / size, 4.0, 0.6, shift=(seed, 0, 0))
+    mid = m.noise(14.0 / size, 5.0, 0.65, shift=(0, seed, 0))
+    colour = m.mix(tuple(c * 0.70 for c in base), tuple(min(1.0, c * 1.25) for c in base), m.lerp(big, mid, 0.5))
+    colour = m.mix(colour, dark, m.mul(m.step(m.noise(7.0 / size, 4.0, 0.6, shift=(seed, 5.0, 0)), 0.58, 0.80), 0.35))
+    facing_up = m.up()
+    height = m.mul(mid, 0.0006 * size)
+    smoothness = m.lerp(gloss - 0.06, gloss + 0.06, big)
+    bare = 0.0
+    if plates is not None:
+        period, strength = plates
+        plate = m.step(m.bands('Y', period, distortion=0.6, detail=2.0), 0.10, 0.26)
+        on_top = m.step(facing_up, -0.25, 0.35)
+        hard = m.mul(plate, on_top)
+        colour = m.mix(m.mix(colour, pale, 0.30), m.mix(colour, dark, 0.22 * strength), hard)
+        height = m.add(height, m.mul(hard, 0.004 * size))
+        smoothness = m.lerp(smoothness, gloss + 0.10, hard)
+    if stripe is not None:
+        half, stripe_colour, middle = stripe
+        centre = m.sub(1.0, m.step(m.math('ABSOLUTE', m.sub(m.axis(0), middle)), half * 0.5, half))
+        colour = m.mix(colour, stripe_colour, m.mul(m.mul(centre, m.step(facing_up, 0.1, 0.7)), 0.7))
+    if under is not None:
+        below = m.step(m.mul(facing_up, -1.0), -0.10, 0.70)
+        colour = m.mix(colour, m.mix(tuple(c * 0.8 for c in under), under, mid), m.mul(below, 0.9))
+    if tip is not None:
+        which, start, end, tip_colour = tip
+        bare = m.step(m.axis(which), start, end)
+        colour = m.mix(colour, m.mix(tuple(c * 0.6 for c in tip_colour), tip_colour, mid), bare)
+        smoothness = m.lerp(smoothness, 0.62, bare)
+    # The coat: fine hairs in long streaks along the limb, each a pale line with a dark gap beside it.
+    coat = m.sub(1.0, bare) if tip is not None else 1.0
+    strand = m.noise(520.0 / size, 2.0, 0.5, stretch=(1.0, 0.045, 1.0), shift=(seed, 0, seed))
+    lock = m.noise(90.0 / size, 3.0, 0.6, stretch=(1.0, 0.12, 1.0), shift=(0, seed, 3.0))
+    thick = m.mul(m.mul(m.step(m.noise(9.0 / size, 4.0, 0.6, shift=(4.0, 0, seed)), 0.30, 0.62), hair), coat)
+    colour = m.mix(colour, pale, m.mul(m.mul(m.step(strand, 0.52, 0.68), thick), 0.55))
+    colour = m.mix(colour, tuple(c * 0.5 for c in dark), m.mul(m.mul(m.step(m.sub(1.0, strand), 0.56, 0.70), thick), 0.40))
+    colour = m.mix(colour, pale, m.mul(m.mul(m.step(lock, 0.55, 0.75), thick), 0.25))
+    # The sockets of the big bristles: dark dots, each on a small pale bump.
+    at, rnd = m.cells(70.0 / size, shift=(seed, 0, seed), soft=0.2)
+    grown = m.mul(m.step(rnd, 0.45, 0.55), coat)
+    bump = m.mul(m.step(m.sub(0.40, at), 0.0, 0.30), grown)
+    dot = m.mul(m.step(m.sub(0.16, at), 0.0, 0.08), grown)
+    colour = m.mix(colour, pale, m.mul(bump, 0.30))
+    colour = m.mix(colour, tuple(c * 0.6 for c in dark), m.mul(dot, 0.40))
+    near = m.hollows(0.035 * size)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.92))
+    colour = m.mix(colour, tuple(c * 0.5 for c in dark), m.mul(grime, 0.8))
+    smoothness = m.lerp(smoothness, 0.10, m.sat(m.add(m.mul(thick, 0.7), grime)))
+    height = m.add(height, m.add(m.mul(m.mul(strand, thick), 0.0011 * size), m.mul(bump, 0.0016 * size)))
+    height = m.add(height, m.mul(m.mul(lock, thick), 0.0010 * size))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
 def membrane(name, colour=(0.42, 0.25, 0.15), seed=0.0, along='Y', size=1.0):
     """The soft skin in an arthropod's joints, a gill, an eyestalk: leathery, in fine wrinkles that run round the
     joint (across `along`), darker down in the folds, a little wet."""

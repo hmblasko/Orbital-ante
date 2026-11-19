@@ -24,7 +24,7 @@ The research behind the list is the report "Unusual animals for alien creatures"
 
 ## How each one is made
 
-1. **A layout** in plain C# (`StriderLayout` is the pattern): every joint, length and piece name. The Blender script carries a copy and a rule test holds the two together.
+1. **A layout** in plain C# (`WalkerLayout` is the pattern; creatures on eight legs share it and the walker files): every joint, length and piece name. The Blender script carries a copy and a rule test holds the two together.
 2. **A model** from `tools/blender/build_creatures.py`: described once, built twice (a low one for the game, a high one that is only baked onto it), textured at 2048, with a far copy. Every piece is modelled from its own joint so it can come off. Repeated limbs are modelled once. Materials for living things (`chitin`, `membrane`, `flesh`, `shell_inside`, `chalk`, `eye`) are in `oa_materials.py`; add new ones there.
 3. **Body rules** in plain C#: what each piece's hit points are, what goes with it, what kills the animal, how losing pieces changes how it moves. Limbs stay low (one to three rifle hits), and nothing has hidden rules.
 4. **An animator** in plain C# with no clips: the movement is worked out from where the animal is going, so it copes with any limb missing.

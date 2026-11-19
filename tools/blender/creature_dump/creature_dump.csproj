@@ -9,8 +9,10 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="$(OARuntime)Core/Vec3d.cs" />
-    <Compile Include="$(OARuntime)Creatures/StriderLayout.cs" />
-    <Compile Include="$(OARuntime)Creatures/StriderBody.cs" />
-    <Compile Include="$(OARuntime)Creatures/StriderAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerBrain.cs" />
+    <Compile Include="$(OARuntime)Core/SeededRandom.cs" />
   </ItemGroup>
 </Project>
