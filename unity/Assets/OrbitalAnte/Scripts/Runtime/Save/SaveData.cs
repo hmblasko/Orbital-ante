@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using OrbitalAnte.Items;
 
 namespace OrbitalAnte.Save
 {
@@ -13,7 +15,7 @@ namespace OrbitalAnte.Save
     [Serializable]
     public sealed class SaveData
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         /// <summary>Which layout of this file was written. 0 means "not a save".</summary>
         public int version = CurrentVersion;
@@ -27,6 +29,17 @@ namespace OrbitalAnte.Save
         public int runsStarted;
         /// <summary>Total time spent in runs, in seconds.</summary>
         public double secondsPlayed;
+
+        // ---- Envelopes and the collection (added in version 3, 16 Nov 2026) ----
+        /// <summary>This save's own number, mixed into every envelope's prize so it never follows the run seed. 0 until first set.</summary>
+        public int profileSalt;
+        /// <summary>How many envelopes have been numbered (one per run started, plus test envelopes).</summary>
+        public int envelopesSealed;
+        public int envelopesOpened;
+        /// <summary>Envelopes won (Ante 9 cleared) and not opened yet.</summary>
+        public List<EnvelopeTicket> unopenedEnvelopes = new List<EnvelopeTicket>();
+        /// <summary>The player's collection, kept across runs.</summary>
+        public List<OwnedItem> items = new List<OwnedItem>();
     }
 
     /// <summary>Brings a save written by an older build up to the current layout, one version at a time.</summary>
@@ -45,6 +58,19 @@ namespace OrbitalAnte.Save
                 data.lastScenario = 0;
                 data.version = 2;
             }
+            if (data.version == 2)
+            {
+                // Version 3 added envelopes and the collection; an older save starts with none.
+                data.profileSalt = 0;
+                data.envelopesSealed = 0;
+                data.envelopesOpened = 0;
+                data.unopenedEnvelopes = new List<EnvelopeTicket>();
+                data.items = new List<OwnedItem>();
+                data.version = 3;
+            }
+            // JsonUtility leaves a missing list as null on some paths; never hand one out.
+            if (data.unopenedEnvelopes == null) data.unopenedEnvelopes = new List<EnvelopeTicket>();
+            if (data.items == null) data.items = new List<OwnedItem>();
 
             return data.version == SaveData.CurrentVersion;
         }

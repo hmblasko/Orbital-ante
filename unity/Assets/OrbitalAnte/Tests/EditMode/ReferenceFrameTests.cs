@@ -327,18 +327,21 @@ namespace OrbitalAnte.Tests
         [Test]
         public void ParkedNextToAPlanetYouFeelOnlyThatPlanet()
         {
-            // Match speed with Mars and the Sun carries you both round together: from Mars's point of view the
-            // only pull left is Mars's own (and its moons'), however far out in its neighbourhood you sit.
+            // Match speed with Mars and the Sun carries you both round together: from Mars's point of view, in the
+            // calm part of its neighbourhood, the only pull left is Mars's own and its moons' tides.
             int mars = _model.IndexOf("Mars");
             ReferenceFrame frame = FrameOn("Mars", false);
-            Vec3d parked = _states[mars].Position + new Vec3d(0, _model.InfluenceRadius(mars) * 0.9, 0);
+            Vec3d parked = _states[mars].Position + new Vec3d(0, _model.InfluenceRadius(mars) * SolarSystemModel.CalmReach * 0.95, 0);
             Vec3d felt = frame.ToLocalAcceleration(frame.ToLocalPosition(parked, _states), Vec3d.Zero,
                 _model.AccelerationAt(parked, _states, mars), _states);
-            Vec3d marsAndMoons = _model.GravityFrom(mars, parked, _states)
-                                 + _model.GravityFrom(_model.IndexOf("Phobos"), parked, _states)
-                                 + _model.GravityFrom(_model.IndexOf("Deimos"), parked, _states);
+            Vec3d marsAndMoons = _model.GravityFrom(mars, parked, _states);
+            foreach (string id in new[] { "Phobos", "Deimos" })
+            {
+                int moon = _model.IndexOf(id);
+                marsAndMoons += _model.GravityFrom(moon, parked, _states) - _model.GravityFrom(moon, _states[mars].Position, _states);
+            }
             AssertClose(frame.ToLocalDirection(marsAndMoons, _states), felt, 1e-9);
-            Assert.Less(felt.Magnitude, 0.5, "This far out, Mars barely pulls.");
+            Assert.Less(felt.Magnitude, _model.Spec(mars).surfaceGravity / 2, "This far out, Mars pulls less than on the ground.");
         }
 
         [Test]

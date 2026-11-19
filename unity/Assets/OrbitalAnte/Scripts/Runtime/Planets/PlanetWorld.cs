@@ -256,11 +256,14 @@ namespace OrbitalAnte.Planets
             IReadOnlyList<GravityBody> movers = System.Movers;
             _reshapedNow = false;
             for (int i = 0; i < Surfaces.Length; i++) _reshapedNow |= Surfaces[i] != null && Surfaces[i].AnyReshaped;
+            _step++;
             for (int i = 0; i < movers.Count; i++)
             {
                 GravityBody mover = movers[i];
                 Rigidbody rb = mover.Body;
                 if (rb == null || rb.isKinematic) continue;
+                bool loose = mover.Loose;
+                if (loose && rb.IsSleeping()) continue;
                 int index = mover.Neighbourhood;
                 if (index <= 0 || index >= Surfaces.Length) continue;
                 PlanetSurface s = Surfaces[index];
@@ -271,7 +274,11 @@ namespace OrbitalAnte.Planets
                 if (r < 1e-3) continue;
                 Vec3d dir = p / r;
 
-                if (s.GroundShown) GuardAgainstSinking(s, mover, rb, p, dir, r, _reshapedNow);
+                // A loose limb or gun is checked one step in four (spread over the list): a full ground height
+                // question each step for up to 52 of them costs more than a limb sinking a little longer.
+                if (s.GroundShown && (!loose || ((_step + i) & 3) == 0)) GuardAgainstSinking(s, mover, rb, p, dir, r, _reshapedNow);
+                if (loose && !rb.isKinematic && r <= s.SurfaceRadius + s.Terrain.MaxHeight + 5) RestIfStill(index, mover, rb);
+                if (rb.isKinematic) continue;
 
                 if (r > s.AirTop) continue;
                 AirSample air = s.AirAt(p);
@@ -314,6 +321,23 @@ namespace OrbitalAnte.Planets
         /// Ground only becomes solid as you get near it. If something still gets below it (arriving faster than the
         /// ground could be made solid), put it back on top instead of letting it fall through the world.
         /// </summary>
+        int _step;
+
+        /// <summary>Puts a loose thing that has lain still on the ground (moving with it) for half a second to sleep.</summary>
+        void RestIfStill(int body, GravityBody mover, Rigidbody rb)
+        {
+            Vector3 relative = rb.linearVelocity - System.GroundVelocityAt(body, rb.position);
+            if (relative.sqrMagnitude > 0.01f || rb.angularVelocity.sqrMagnitude > 0.04f)
+            {
+                mover.StillFor = 0f;
+                return;
+            }
+            mover.StillFor += Time.fixedDeltaTime;
+            if (mover.StillFor < 0.5f) return;
+            mover.StillFor = 0f;
+            rb.Sleep();
+        }
+
         void GuardAgainstSinking(PlanetSurface s, GravityBody mover, Rigidbody rb, Vec3d p, Vec3d dir, double r, bool reshaped)
         {
             // Cheap first test: nowhere near the highest ground this body has.
@@ -336,6 +360,13 @@ namespace OrbitalAnte.Planets
             Rigidbody body = s.Body.Body;
             Vector3 up = body.rotation * SpaceConvert.ToVector3(dir);
             Vector3 lifted = body.position + body.rotation * SpaceConvert.ToVector3(dir * (ground + putBack));
+            if (mover.Sank != null)
+            {
+                // A limb or a dropped gun that the ground let through where nobody is: its owner deals with it
+                // (a limb goes, a gun is laid on the ground). Not a rescue: nothing anyone rides was in danger.
+                mover.Sank(lifted, s.Body.transform);
+                return;
+            }
             Vector3 groundVelocity = System.GroundVelocityAt(s.Body.Index, lifted);
             Vector3 relative = rb.linearVelocity - groundVelocity;
             float inward = Vector3.Dot(relative, up);

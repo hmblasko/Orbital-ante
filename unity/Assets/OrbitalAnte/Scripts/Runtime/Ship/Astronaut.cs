@@ -20,6 +20,8 @@ namespace OrbitalAnte.Ship
         Lift,
         /// <summary>On foot outside the ship.</summary>
         Outside,
+        /// <summary>In the driver's seat of the moon rover (Rover/MoonRover), out in the open in the suit.</summary>
+        Driving,
     }
 
     /// <summary>
@@ -41,10 +43,16 @@ namespace OrbitalAnte.Ship
         /// <summary>Degrees the seated pilot's head is tipped down toward the dash's camera screen (set by the cockpit).</summary>
         public float ScreenGlance { get; set; }
         public PlayerWeapons Weapons { get; private set; }
+        /// <summary>The melee slot (a found item, separate from the guns), next to the guns on the eye.</summary>
+        public OrbitalAnte.Melee.PlayerMelee Melee { get; private set; }
         /// <summary>How much more the suit can take from being shot. Mends by itself when left alone.</summary>
         public PlayerHealth Armour { get; private set; }
         /// <summary>The suit's physics body, used only outside.</summary>
         public Rigidbody Suit { get; private set; }
+        /// <summary>The moon rover the lander carries, or null if it carries none. Set when the world is built.</summary>
+        public OrbitalAnte.Rover.MoonRover Rover { get; set; }
+        /// <summary>Outside in the suit, on foot or driving: where you breathe the suit's air and can be shot.</summary>
+        public bool InTheOpen => Mode == AstronautMode.Outside || Mode == AstronautMode.Driving;
 
         /// <summary>What the player can do right now, for the HUD ("E: buckle in"). Empty when nothing.</summary>
         public string Prompt { get; private set; } = string.Empty;
@@ -105,7 +113,7 @@ namespace OrbitalAnte.Ship
         /// <summary>Which way a slack tether hangs: the way things fall, or away from the ship's belly when nothing pulls.</summary>
         public Vector3 TetherHangs => _suitGravity.FeltGravity.sqrMagnitude > 0.06f ? _suitGravity.FeltGravity.normalized : -Ship.transform.up;
         /// <summary>What the suit's readout shows. Filled in every physics step while outside.</summary>
-        public SuitInputs SuitState;
+        [System.NonSerialized] public SuitInputs SuitState;
         /// <summary>True while the suit has a danger to report (for the warning tone).</summary>
         public bool SuitAlarm { get; private set; }
         /// <summary>How full the ship's air tank is, 0 to 1. Set by the cockpit, which keeps the ship's supplies.</summary>
@@ -185,7 +193,7 @@ namespace OrbitalAnte.Ship
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
-            a.Armour.Died += () => a.Die("Shot down outside the ship.");
+            a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
             // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
             a._suitGravity.NeedsGround = true;
             a._suitGravity.SunkBelow = -0.7f;
@@ -237,9 +245,29 @@ namespace OrbitalAnte.Ship
         void BuildPistol()
         {
             Weapons = Eye.gameObject.AddComponent<PlayerWeapons>();
+            // The small kick of the view when a limb pops (Milestone 2), as in the arena; Pause > Feel switches it off.
+            _hitShake = Eye.gameObject.AddComponent<CameraShake>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
             Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
+            // A rare gun that blows up ends the run, like any other death, with the cause on the death page.
+            Weapons.Backfired += Die;
+            Weapons.CarriedVelocity = () => Mode == AstronautMode.Outside ? Suit.linearVelocity
+                : Ship != null ? Ship.Body.GetPointVelocity(Eye.transform.position) : Vector3.zero;
+            Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
+                : Ship != null ? Ship.transform.up : Vector3.up;
+            Weapons.InShip = () => Mode != AstronautMode.Outside;
+
+            // The melee slot: empty until an item is found. Floating free, a hit pushes you back (by the struck
+            // mass against yours, capped; only ever the suit's speed, never a turn of the view).
+            Melee = Eye.gameObject.AddComponent<OrbitalAnte.Melee.PlayerMelee>();
+            Melee.Initialize(Eye, Weapons, _world);
+            Melee.CarriedVelocity = Weapons.CarriedVelocity;
+            Melee.UpNow = Weapons.UpNow;
+            Melee.InShip = Weapons.InShip;
+            Melee.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Melee.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
+            Melee.CanAct = () => !Dead && !Dazed;
         }
 
         // ------------------------------------------------------------------ changing mode
@@ -250,7 +278,7 @@ namespace OrbitalAnte.Ship
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
-            if (_system != null) _system.Focus = outside ? _suitGravity : Ship.Gravity;
+            if (_system != null) _system.Focus = outside ? _suitGravity : mode == AstronautMode.Driving && Rover != null ? Rover.Gravity : Ship.Gravity;
 
             bool armed = mode == AstronautMode.Aboard || mode == AstronautMode.Outside;
             if (Weapons != null)
@@ -264,6 +292,15 @@ namespace OrbitalAnte.Ship
                 }
                 // A gun handed over later (the gun ladder) takes the same light.
                 Weapons.Indoors = !outside;
+            }
+            if (Melee != null)
+            {
+                Melee.enabled = armed;
+                if (Melee.Held != null)
+                {
+                    Melee.Held.gameObject.SetActive(armed);
+                    OrbitalAnte.Look.ModelLibrary.SetIndoors(Melee.Held.gameObject, !outside);
+                }
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
@@ -298,9 +335,12 @@ namespace OrbitalAnte.Ship
             PoseAboard();
         }
 
-        void GoOutside(Vector3 feet, Vector3 velocity)
+        /// <summary><paramref name="roverUp"/>: climbing out of the rover, which way is up there (away from the
+        /// world, never the rover's own up: it may be on its side).</summary>
+        void GoOutside(Vector3 feet, Vector3 velocity, Vector3? roverUp = null)
         {
-            _up = Ship.transform.up;
+            bool fromRover = roverUp.HasValue;
+            _up = fromRover ? roverUp.Value : Ship.transform.up;
             Vector3 forward = Vector3.ProjectOnPlane(Eye.transform.forward, _up);
             if (forward.sqrMagnitude < 0.01f) forward = Vector3.ProjectOnPlane(Ship.transform.forward, _up);
             Suit.transform.SetPositionAndRotation(feet, Quaternion.LookRotation(forward.normalized, _up));
@@ -318,7 +358,8 @@ namespace OrbitalAnte.Ship
             SetMode(AstronautMode.Outside);
             // Stepping out of a ship that is not standing on anything, the line goes on by itself.
             bool landed = Ship.Flight != null && Ship.Flight.Landed;
-            if (!landed && !Tethered) SetTether(true, quiet: false);
+            // (Not climbing out of the rover, which may be a long way from the ship.)
+            if (!fromRover && !landed && !Tethered) SetTether(true, quiet: false);
         }
 
         /// <summary>Puts the player outside at a place and velocity, as if the lift had just let them go. For tests.</summary>
@@ -361,7 +402,7 @@ namespace OrbitalAnte.Ship
         /// </summary>
         public void Knock(float knock, Vector3 from)
         {
-            if (Dead || Crash == null || Mode == AstronautMode.Outside) return;
+            if (Dead || Crash == null || InTheOpen) return;
             bool buckled = Mode == AstronautMode.Seated && Ship.Belt.Buckled;
             // A blow from below or from ahead throws the head forward; from the side, sideways.
             var fate = Crash.Hit(knock, buckled, from.x, Mathf.Clamp(from.z - from.y, -1f, 1f));
@@ -384,6 +425,7 @@ namespace OrbitalAnte.Ship
             Prompt = string.Empty;
             PromptProgress = -1f;
             Burst();
+            if (Mode == AstronautMode.Driving && Rover != null) Rover.Leave();
         }
 
         void Burst()
@@ -392,9 +434,10 @@ namespace OrbitalAnte.Ship
             try
             {
                 bool outside = Mode == AstronautMode.Outside;
+                bool driving = Mode == AstronautMode.Driving && Rover != null;
                 // In the lift you may be in the shaft or under the belly, not in the cabin: the cage is only for the cabin.
-                bool inCabin = !outside && Ship.transform.InverseTransformPoint(Eye.transform.position).y > 1f;
-                Vector3 up = outside ? Suit.rotation * Vector3.up : Ship.transform.up;
+                bool inCabin = !outside && !driving && Ship.transform.InverseTransformPoint(Eye.transform.position).y > 1f;
+                Vector3 up = outside ? Suit.rotation * Vector3.up : driving ? Rover.transform.up : Ship.transform.up;
                 Vector3 facing = Vector3.ProjectOnPlane(Eye.transform.forward, up);
                 if (facing.sqrMagnitude < 1e-4f) facing = Vector3.ProjectOnPlane(Eye.transform.up, up);
                 Quaternion rotation = Quaternion.LookRotation(facing.normalized, up);
@@ -403,7 +446,7 @@ namespace OrbitalAnte.Ship
                 // put with its head at a low eye would start in the ground), and the view goes up with the head.
                 bool low = outside && Stances.Current != Stance.Stand;
                 Vector3 feet = low ? Suit.position : Eye.transform.position - up * ShipLayout.EyeHeight;
-                Vector3 velocity = outside ? Suit.linearVelocity : Ship.Body.GetPointVelocity(Eye.transform.position);
+                Vector3 velocity = outside ? Suit.linearVelocity : driving ? Rover.VelocityAt(Eye.transform.position) : Ship.Body.GetPointVelocity(Eye.transform.position);
                 Vector3 blow = _lastBlow.sqrMagnitude > 1e-6f ? _lastBlow : -Eye.transform.forward;
 
                 // The gun goes too: outside it is flung away and keeps your speed; inside it is put out of sight
@@ -415,15 +458,20 @@ namespace OrbitalAnte.Ship
                     {
                         if (outside)
                         {
+                            // It leaves with the suit's speed already (PlayerWeapons.CarriedVelocity).
                             Weapons.DropCurrent();
-                            var gunBody = held.GetComponent<Rigidbody>();
-                            if (gunBody != null) gunBody.linearVelocity += velocity;
                         }
                         else held.gameObject.SetActive(false);
                     }
                     Weapons.enabled = false;
                 }
-                GravityBody pull = outside ? _suitGravity : Ship.Gravity;
+                // A melee item is lost when you die.
+                if (Melee != null)
+                {
+                    Melee.LoseHeld();
+                    Melee.enabled = false;
+                }
+                GravityBody pull = outside ? _suitGravity : driving ? Rover.Gravity : Ship.Gravity;
                 _burst = PlayerBurstFx.Begin(_world, feet, rotation, velocity, blow, Eye, inCabin ? Ship : null,
                     () => pull != null ? pull.FeltGravity : Physics.gravity, headToEye: !low);
             }
@@ -443,6 +491,7 @@ namespace OrbitalAnte.Ship
                 case AstronautMode.Aboard: PoseAboard(); break;
                 case AstronautMode.Lift: PoseLift(); break;
                 case AstronautMode.Outside: PoseOutside(); break;
+                case AstronautMode.Driving: PoseDriving(); break;
             }
         }
 
@@ -465,7 +514,11 @@ namespace OrbitalAnte.Ship
                 Eye.transform.localPosition += Vector3.down * (0.55f * slump);
             }
             if (pitch != 0f || roll != 0f) Eye.transform.localRotation *= Quaternion.Euler(pitch, 0f, roll);
+            // Laid on last, over the pose made this frame, so it never piles up. Only where you can shoot.
+            if (_hitShake != null && (Mode == AstronautMode.Outside || Mode == AstronautMode.Aboard)) Eye.transform.localRotation *= _hitShake.Offset;
         }
+
+        CameraShake _hitShake;
 
         void Update()
         {
@@ -516,6 +569,7 @@ namespace OrbitalAnte.Ship
                 case AstronautMode.Aboard: UpdateAboard(dt); break;
                 case AstronautMode.Lift: UpdateLift(); break;
                 case AstronautMode.Outside: UpdateOutside(dt); break;
+                case AstronautMode.Driving: UpdateDriving(dt); break;
             }
             PoseBelt();
         }
@@ -673,6 +727,8 @@ namespace OrbitalAnte.Ship
             float wishX = move.x * cos + move.y * sin;
             float wishZ = -move.x * sin + move.y * cos;
             bool liftOn = Ship.Hatch.Open && Ship.Hatch.WantOpen;
+            // A heavy melee item (the mailbox) slows your walk aboard too.
+            _walker.WalkSpeed = _config.walkSpeed * (Melee != null ? Melee.WalkSlow : 1f);
             _walker.Step(dt, wishX, wishZ, GameInput.Jump.WasPressedThisFrame(), liftOn);
             PoseAboard();
 
@@ -803,6 +859,10 @@ namespace OrbitalAnte.Ship
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
             }
+            else if (!flying && RoverOffered(eye, forward, dt))
+            {
+                // The rover: get in, winch it down from the lander, or (held) winch it back up.
+            }
             else if (flying && SuitState.Speed > 1.5f && !SuitState.Matching)
             {
                 // The one thing worth knowing when you are drifting: how to stop.
@@ -820,6 +880,144 @@ namespace OrbitalAnte.Ship
                     ? (flying ? "Fly under the blue ring to go aboard" : "Stand under the blue ring to go aboard")
                     : Words(5, null, GameInput.Hatch, ": open the hatch");
             }
+        }
+
+        // ------------------------------------------------------------------ the moon rover
+
+        float _roverHeld = -1f;
+        /// <summary>Seconds Interact is held at the rover, parked under the davit, to winch it up instead of getting in.</summary>
+        const float StowHold = 0.6f;
+
+        /// <summary>Offers what the rover allows from where you are looking, and does it. True when the rover took the prompt.</summary>
+        bool RoverOffered(Vector3 eye, Vector3 forward, float dt)
+        {
+            if (Rover == null) { _roverHeld = -1f; return false; }
+            OrbitalAnte.Rover.MoonRover.Offer offer = Rover.OfferTo(eye, forward);
+            switch (offer)
+            {
+                case OrbitalAnte.Rover.MoonRover.Offer.Unload:
+                    Prompt = Words(20, null, GameInput.Interact, ": winch the rover down");
+                    if (GameInput.Interact.WasPressedThisFrame())
+                        Say(Rover.Unload() ? "Lowering the rover." : "No level ground under the rover to lower it onto.");
+                    return true;
+                case OrbitalAnte.Rover.MoonRover.Offer.LandFirst:
+                    Prompt = "The rover can only be lowered with the lander standing on the ground";
+                    return true;
+                case OrbitalAnte.Rover.MoonRover.Offer.Drive:
+                    bool canStow = Rover.CanStow;
+                    Prompt = canStow ? Words(22, null, GameInput.Interact, ": drive the rover (hold: winch it up onto the lander)")
+                                     : Words(21, null, GameInput.Interact, ": drive the rover");
+                    if (GameInput.Interact.WasPressedThisFrame()) _roverHeld = 0f;
+                    if (_roverHeld < 0f) return true;
+                    if (!canStow) { _roverHeld = -1f; EnterRover(); return true; }
+                    if (GameInput.Interact.IsPressed())
+                    {
+                        _roverHeld += dt;
+                        PromptProgress = Mathf.Clamp01(_roverHeld / StowHold);
+                        if (_roverHeld >= StowHold)
+                        {
+                            _roverHeld = -1f;
+                            if (Rover.StartStow()) Say("Winching the rover up.");
+                        }
+                    }
+                    else
+                    {
+                        // Let go before the hold: a press, so get in.
+                        _roverHeld = -1f;
+                        EnterRover();
+                    }
+                    return true;
+                default:
+                    _roverHeld = -1f;
+                    return false;
+            }
+        }
+
+        void EnterRover()
+        {
+            if (Rover == null) return;
+            Rover.Board(this);
+            if (Rover.Driver != this) return;
+            // A line clipped to the lander would only drag the rover back.
+            if (Tethered) SetTether(false, quiet: false);
+            _jetPush = 0f;
+            Jets.Reset();
+            _seatYaw = 0f;
+            _seatPitch = 8f;
+            transform.SetParent(Rover.transform, false);
+            SetMode(AstronautMode.Driving);
+            PoseDriving();
+            Say(Key(GameInput.Move) + ": drive.  " + Key(GameInput.Jump) + ": boost.  " + Key(GameInput.JetDown) + ": handbrake.  " + Key(GameInput.Interact) + ": get out.");
+        }
+
+        void UpdateDriving(float dt)
+        {
+            if (Rover == null || Rover.Driver != this) { LeaveRover(); return; }
+            // The suit body is put away while you drive, so its armour does not tick by itself.
+            if (Armour != null && !Armour.isActiveAndEnabled) Armour.Regenerate();
+            ReadLookRaw(dt, out float yawDelta, out float pitchDelta);
+            float limit = Rover.Rules.lookAround;
+            _seatYaw = Mathf.Clamp(_seatYaw + yawDelta, -limit, limit);
+            _seatPitch = Mathf.Clamp(_seatPitch + pitchDelta, -70f, 75f);
+            PoseDriving();
+
+            // A rover is easy to see and hear coming (its lamps, its dust, its motors in the ground).
+            CombatWorld.PlayerSeenFrom = OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + Rover.transform.up * 1.5f);
+            CombatWorld.PlayerHeardFrom = 1.5f;
+            CombatWorld.PlayerAimBelowEye = 0.3f;
+
+            bool slow = Rover.Speed < Rover.Rules.leaveBelow;
+            if (Rover.Overturned) Prompt = Words(24, null, GameInput.Reload, ": put the rover back on its wheels");
+            else if (slow) Prompt = Words(23, null, GameInput.Interact, ": get out");
+            if (GameInput.Interact.WasPressedThisFrame())
+            {
+                if (slow) { LeaveRover(); return; }
+                Say("Slow down to climb out.");
+            }
+            if (GameInput.Hatch.WasPressedThisFrame() && Vector3.Distance(Rover.transform.position, Ship.transform.position) < _config.remoteHatchRange) ToggleHatch();
+        }
+
+        void PoseDriving()
+        {
+            transform.localPosition = Vector3.zero;
+            transform.localRotation = Quaternion.identity;
+            Eye.transform.localPosition = V(OrbitalAnte.Rover.RoverLayout.Eye);
+            Eye.transform.localRotation = Quaternion.Euler(_seatPitch, _seatYaw, 0f);
+        }
+
+        /// <summary>Climbs out beside the driver's seat, onto the ground, moving as the rover was.</summary>
+        void LeaveRover()
+        {
+            if (Rover == null) return;
+            // Up is away from the world, not the rover's own up: it may be tipped over when you climb out.
+            Vector3 felt = Rover.Gravity != null ? Rover.Gravity.FeltGravity : Vector3.zero;
+            Vector3 up = felt.sqrMagnitude > 0.01f ? -felt.normalized : Rover.transform.up;
+            // Out beside the seat, measured along the ground, then down onto it from above the rover's side.
+            Vector3 middle = Rover.transform.position;
+            Vector3 aside = Vector3.ProjectOnPlane(Rover.ExitFeet - middle, up);
+            if (aside.sqrMagnitude < 0.25f) aside = Vector3.ProjectOnPlane(-Rover.transform.right, up).normalized * 1.75f;
+            Vector3 feet = middle + aside;
+            if (Physics.Raycast(feet + up * 2.5f, -up, out RaycastHit ground, 5f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) feet = ground.point + up * 0.05f;
+            Vector3 velocity = Rover.VelocityAt(feet);
+            if (Rover.Driver == this) Rover.Leave();
+            _pitch = Mathf.Clamp(_seatPitch, -60f, 60f);
+            GoOutside(feet, velocity, up);
+        }
+
+        /// <summary>The rover hit something hard enough to hurt (see RoverHandling.Hurt). <paramref name="from"/> is where the blow came from.</summary>
+        public void RoverKnock(float knock, float damage, bool kills, Vector3 from, float speed)
+        {
+            if (Dead || Mode != AstronautMode.Driving) return;
+            _lastBlow = -from;
+            // The view takes the blow the way it does in the seat of the lander, belted in.
+            Vector3 local = Eye.transform.InverseTransformDirection(from);
+            if (Crash != null) Crash.Hit(knock, true, local.x, Mathf.Clamp(local.z - local.y, -1f, 1f));
+            if (kills)
+            {
+                Die("Crashed the rover at " + Mathf.RoundToInt(speed * 3.6f) + " km/h.");
+                return;
+            }
+            if (damage > 0f && Armour != null) Armour.TakeDamage(damage, -from);
         }
 
         /// <summary>
@@ -863,6 +1061,8 @@ namespace OrbitalAnte.Ship
             CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
                                          * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
+            // The laser sword's hum carries whatever stance you are in: no sneaking with it.
+            if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
             CombatWorld.PlayerAimBelowEye = Mathf.Min(0.3f, Stances.Eye * 0.5f);
         }
 
@@ -929,8 +1129,8 @@ namespace OrbitalAnte.Ship
         /// <summary>The suit's air and jet fuel, every frame, wherever you are.</summary>
         void TickSuit(float dt)
         {
-            bool outside = Mode == AstronautMode.Outside;
-            float push = outside ? _jetPush : 0f;
+            bool outside = InTheOpen;
+            float push = Mode == AstronautMode.Outside ? _jetPush : 0f;
             _airDrawn += SuitTanks.Tick(dt, outside || ShipAir <= 0f, !outside, push, ShipAir);
             SuitState.Air = SuitTanks.Air;
             SuitState.Fuel = SuitTanks.Fuel;
@@ -1167,7 +1367,7 @@ namespace OrbitalAnte.Ship
             if (_grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances);
+                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f);
                 Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);

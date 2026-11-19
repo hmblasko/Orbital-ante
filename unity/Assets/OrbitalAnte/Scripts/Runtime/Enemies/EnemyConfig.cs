@@ -19,6 +19,18 @@ namespace OrbitalAnte.Enemies
         [Tooltip("Which set of built-in kinds the list above came from. An older asset takes the new kinds when the game starts. Set it very high to keep your own list.")]
         public int rosterVersion = EnemyRoster.Version;
         public EnemyFieldRules field = new EnemyFieldRules();
+        [Tooltip("How enemies take cover and go round your side. Untick Cover or Flank to compare with the old way of fighting.")]
+        public OrbitalAnte.AI.TacticsRules tactics = new OrbitalAnte.AI.TacticsRules();
+        [Tooltip("How far an enemy that has not seen you lately sees behind its back, against its sight ahead (1 = all round). Makes a sneak up for a knife takedown possible.")]
+        [Range(0.1f, 1f)] public float behindSight = 0.3f;
+        [Tooltip("Where Faction A lives (its home world) and what share of camps elsewhere are its squads.")]
+        public FactionFieldRules factions = new FactionFieldRules();
+        [Tooltip("Faction A's Scout: how long it raises its flare, and how far the flare is heard.")]
+        public FlareRules flare = new FlareRules();
+        [Tooltip("Faction A's Heavy: how long its gun spins up, how long it fires, how slowly it turns while braced.")]
+        public SpinUpRules spinUp = new SpinUpRules();
+        [Tooltip("Faction A's Line: its covering fire while a squadmate is out on a flank.")]
+        public SuppressRules suppress = new SuppressRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
 

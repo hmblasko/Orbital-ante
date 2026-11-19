@@ -35,9 +35,9 @@ namespace OrbitalAnte.Dismemberment
         public bool Wander = true;
 
         /// <summary>When set, walk here instead of wandering, and stop on arrival.</summary>
-        public Vector3? Destination;
+        [System.NonSerialized] public Vector3? Destination;
         /// <summary>When set, stand still and turn to face this point (used to aim). Wins over Destination.</summary>
-        public Vector3? FacePoint;
+        [System.NonSerialized] public Vector3? FacePoint;
         /// <summary>Sprint to the destination if the legs allow it.</summary>
         public bool Hurry;
         /// <summary>
@@ -49,11 +49,13 @@ namespace OrbitalAnte.Dismemberment
         public float Reach;
         public int ReachSide = MannequinRig.Right;
         /// <summary>Something to keep the head turned toward, if anything (a point in the world).</summary>
-        public Vector3? LookAt;
+        [System.NonSerialized] public Vector3? LookAt;
         /// <summary>Stay on the spot (startled, or bending to pick something up), turning slowly toward <see cref="LookAt"/>.</summary>
         public bool Hold;
         /// <summary>0 to 1: move and stand in the tactical hunch (knees bent, low, gun up, head level). Set by the fight.</summary>
         public float Tactical;
+        /// <summary>Degrees a second it may turn at most, 0 for no cap (a braced Heavy spinning its gun up). Set by the fight.</summary>
+        public float MaxTurnRate;
         /// <summary>How far into the hunch the body really is (it eases in and out), for posing the gun.</summary>
         public float TacticalShown => _anim != null ? (float)_anim.Tactical : 0f;
 
@@ -218,7 +220,7 @@ namespace OrbitalAnte.Dismemberment
 
             float pulse = PulseFor(state);
             Vector3 step = transform.forward * (speed * pulse * dt);
-            Vector3 position = transform.position + step;
+            Vector3 position = transform.position + step + Slide(dt);
 
             // Stay on the ground, and upright on it (on a round world "up" changes as you walk).
             Footing footing = _owner.Footing;
@@ -259,6 +261,7 @@ namespace OrbitalAnte.Dismemberment
             {
                 Quaternion want = Quaternion.LookRotation(to.normalized, _owner.Up);
                 float turn = _cfg.turnSpeed * TurnScaleFor(state);
+                if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
             }
         }
@@ -309,6 +312,7 @@ namespace OrbitalAnte.Dismemberment
             if (direction.sqrMagnitude < 0.0001f) return;
             Quaternion want = Quaternion.LookRotation(direction.normalized, _owner.Up);
             float turn = _cfg.turnSpeed * TurnScaleFor(state);
+            if (MaxTurnRate > 0f) turn = Mathf.Min(turn, MaxTurnRate);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, want, turn * dt);
         }
 
@@ -489,6 +493,48 @@ namespace OrbitalAnte.Dismemberment
             if (_anim == null) return;
             Vector3 local = transform.InverseTransformDirection(toward - transform.position);
             _anim.Startle(local.x, local.z);
+        }
+
+        // ------------------------------------------------------------------ knocked down by a melee hit
+
+        Vector3 _shove;
+        float _shoveFriction = 5f;
+
+        /// <summary>True while a shove is still sliding the body along.</summary>
+        public bool Shoved => _shove.sqrMagnitude > 0.0025f;
+
+        /// <summary>
+        /// Knocked off its feet by a melee hit (the bat, the mailbox): it slides along the ground the way it was hit,
+        /// slowing by <paramref name="friction"/> m/s each second, lurching and startled. A cheap slide over the
+        /// ground with the animator's stumble on top, not a jointed ragdoll: the body keeps standing on its footing,
+        /// so it can get up again by itself. Nothing here changes the rules (MannequinCombat stops it shooting).
+        /// </summary>
+        public void Shove(Vector3 velocity, float friction)
+        {
+            Vector3 up = _owner != null ? _owner.Up : transform.up;
+            _shove = Vector3.ProjectOnPlane(velocity, up);
+            _shoveFriction = Mathf.Max(0.5f, friction);
+            if (_anim == null) return;
+            Vector3 local = transform.InverseTransformDirection(_shove);
+            _anim.Stumble(local.x < 0f ? -1.0 : 1.0);
+            _anim.Startle(local.x, local.z);
+        }
+
+        /// <summary>How far the shove carries the body this frame. Stops dead at a wall rather than going through it.</summary>
+        Vector3 Slide(float dt)
+        {
+            if (!Shoved) { _shove = Vector3.zero; return Vector3.zero; }
+            Vector3 move = _shove * dt;
+            Vector3 up = _owner != null ? _owner.Up : transform.up;
+            if (Physics.Raycast(transform.position + up * 0.6f, _shove.normalized, move.magnitude + 0.4f,
+                    Core.Layers.WorldMask | (1 << Core.Layers.Vehicle), QueryTriggerInteraction.Ignore))
+            {
+                _shove = Vector3.zero;
+                return Vector3.zero;
+            }
+            float speed = Melee.MeleeRules.SlideAfter(_shove.magnitude, dt, _shoveFriction);
+            _shove = _shove.normalized * speed;
+            return move;
         }
 
         /// <summary>The gun's kick, passed through the shoulder into the body.</summary>

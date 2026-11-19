@@ -55,7 +55,7 @@ namespace OrbitalAnte.Dismemberment
 
         /// <summary>The gib a group id belongs to, or null if it has already been cleaned up.</summary>
         /// <summary>What this character stands on: flat arena ground unless it was put on a planet.</summary>
-        public Footing Footing = Footing.Flat;
+        [System.NonSerialized] public Footing Footing = Footing.Flat;
 
         /// <summary>No blood out of the head's own wound: set on the player's remains, whose head carries the view.</summary>
         public bool KeepsHeadClean { get; set; }
@@ -89,7 +89,9 @@ namespace OrbitalAnte.Dismemberment
             MovementState before = Model.State;
             int groupBefore = Model.Group(part.Id);
             bool torsoWasOnBody = Model.OnBody(BodyPartId.Torso);
-            DamageResult result = Model.ApplyDamage(part.Id, hit.Damage);
+            DamageResult result = hit.Lethal ? Model.ApplyLethal(part.Id, hit.Damage)
+                : hit.Sever ? Model.ApplySever(part.Id, hit.Damage)
+                : Model.ApplyDamage(part.Id, hit.Damage);
 
             for (int i = 0; i < result.Detachments.Count; i++)
             {

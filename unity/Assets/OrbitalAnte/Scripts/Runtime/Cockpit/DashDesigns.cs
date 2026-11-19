@@ -130,9 +130,9 @@ namespace OrbitalAnte.Cockpit
         // ------------------------------------------------------------------ the Flight deck screen
 
         /// <summary>
-        /// The chosen design. Always the same seven words in the same order (blank when there is nothing to
+        /// The chosen design. Always the same nine words in the same order (blank when there is nothing to
         /// say): speed, its unit, the body it is measured against, height, climb or sink, the camera's name,
-        /// and the notice. Fuel and air are pictures (a tube and a column of bubbles), not words.
+        /// fuel and air in per cent, and the notice. Fuel and air are also pictures (a tube and a column of bubbles).
         /// </summary>
         static void FlightDeck(Look k, DashReadings r, DashDrawing d)
         {
@@ -194,6 +194,11 @@ namespace OrbitalAnte.Cockpit
                 d.Line(bx, by, bx, by + dy, 2.5f, k.Accent);
             }
             d.Text(x + w * 0.5f, 232f, 15f, r.CameraName, k.Dim);
+
+            // Fuel and air as numbers under their pictures (Matthew, 17 Nov 2026: the screen "should then have
+            // numbers displayed"). Always drawn, so they keep their place in the list of words.
+            d.Text(245f, 46f, 18f, r.FuelLabel, r.FuelLow || r.FuelOut ? k.Warn : k.Ink);
+            d.Text(536f, 46f, 18f, r.OxygenLabel, r.OxygenLow ? k.Warn : k.Ink);
 
             bool urgent = r.FuelOut || r.OxygenLow || r.FuelLow || r.SinkTooFast || r.Notice == "NOT BUCKLED IN";
             // A warning flag either end of the bottom edge: lit with the notice, dim between blinks, gone when all is well.

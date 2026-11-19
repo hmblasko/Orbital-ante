@@ -15,7 +15,7 @@ namespace OrbitalAnte.AI
     ///
     /// It also poses the gun and bends the arms to hold it.
     /// </summary>
-    public sealed class MannequinCombat : MonoBehaviour, IWeaponHolder
+    public sealed partial class MannequinCombat : MonoBehaviour, IWeaponHolder
     {
         const float PalmLength = 0.07f;
         const float AimConeDegrees = 55f;
@@ -40,7 +40,7 @@ namespace OrbitalAnte.AI
         /// <summary>The beat an enemy who heard something stands and turns to it before going to look.</summary>
         const float HeardPause = 0.7f;
         /// <summary>The camp this one belongs to, if any: who may shoot now, and what the others have seen. Null in the arena.</summary>
-        public OrbitalAnte.Enemies.Squad Squad;
+        [System.NonSerialized] public OrbitalAnte.Enemies.Squad Squad;
         float _tellUntil;
         bool _telling;
         LineRenderer _tellLine;
@@ -89,6 +89,65 @@ namespace OrbitalAnte.AI
         /// <summary>Shots fired so far (for tests and tuning).</summary>
         public int ShotsFired { get; private set; }
 
+        // Knocked down by a melee hit: cannot shoot or move by itself until this time (Time.time).
+        float _downUntil = -1f;
+        bool _down;
+
+        /// <summary>True while knocked down by a melee hit (the bat, the mailbox): no shooting, no walking.</summary>
+        public bool KnockedDown => _owner != null && _owner.Alive && Time.time < _downUntil;
+
+        /// <summary>
+        /// True when it (or its squad) has seen the player lately: the same memory that keeps a spotted player
+        /// hunted. The butterfly knife's takedown and its HUD cue both ask this.
+        /// </summary>
+        public bool AwareOfPlayer
+        {
+            get
+            {
+                float now = Time.time;
+                return now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
+            }
+        }
+
+        /// <summary>It was just hit up close by the player: it knows where they are now.</summary>
+        public void Noticed()
+        {
+            _lastSaw = Time.time;
+            if (Squad != null) Squad.Saw(_lastSaw);
+        }
+
+        /// <summary>
+        /// Knocked off its feet by a melee hit: it slides along the ground at <paramref name="shove"/> (m/s),
+        /// cannot shoot for <paramref name="seconds"/>, then gets up and carries on. Keeps its gun if it still has
+        /// a hand for it (a launched enemy that keeps its gun gets up and shoots: the bat's weakness).
+        /// </summary>
+        public void KnockDown(Vector3 shove, float seconds, float friction)
+        {
+            if (_owner == null || !_owner.Alive) return;
+            DropCover();
+            // Knocked flat: whatever it was reaching for is let go.
+            _grabbing = null;
+            _grabAt = -1f;
+            _scrambleFor = null;
+            _downUntil = Mathf.Max(_downUntil, Time.time + Mathf.Max(0.1f, seconds));
+            _down = true;
+            _triggerHeld = false;
+            _telling = false;
+            ShowTell(false);
+            Noticed();
+            if (_loco != null)
+            {
+                _loco.Shove(shove, friction);
+                _loco.Hold = true;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                _loco.Hurry = false;
+                _loco.Reach = 0f;
+            }
+            // Think again as soon as it is back up.
+            _thinkTimer = Mathf.Max(_thinkTimer, seconds + 0.02f);
+        }
+
         public void Initialize(Mannequin owner, MannequinLocomotion locomotion)
         {
             _owner = owner;
@@ -98,6 +157,7 @@ namespace OrbitalAnte.AI
             _aimDirection = transform.forward;
             _owner.PartDetached += OnPartDetached;
             _owner.Died += OnDied;
+            SubscribeFaction();
         }
 
         public void SetSeed(int seed)
@@ -108,6 +168,7 @@ namespace OrbitalAnte.AI
 
         void OnDestroy()
         {
+            UnsubscribeFaction();
             if (_owner != null)
             {
                 _owner.PartDetached -= OnPartDetached;
@@ -156,6 +217,7 @@ namespace OrbitalAnte.AI
         {
             if (Weapon == null) return;
             Weapon weapon = Weapon;
+            LetGoOfGunAbilities();
             Weapon = null;
             _triggerHeld = false;
             _telling = false;
@@ -178,6 +240,7 @@ namespace OrbitalAnte.AI
         /// <summary>The gun is gone from its hands while it lives: it drops, and the character is startled.</summary>
         void KnockedOutOfHands(Vector3 extraVelocity, float spin)
         {
+            DropCover();
             Weapon weapon = Weapon;
             DropWeapon(extraVelocity, spin);
             if (weapon == null || _owner == null || !_owner.Alive) return;
@@ -219,6 +282,9 @@ namespace OrbitalAnte.AI
 
         void OnDied(Mannequin mannequin)
         {
+            EndAbilities();
+            DropCover();
+            LeaveSquad();
             DropWeapon(transform.up * 1.5f, 5f);
             if (_loco != null)
             {
@@ -255,6 +321,7 @@ namespace OrbitalAnte.AI
                 Think();
             }
 
+            TickAbilities(Time.time);
             if (Weapon != null) UpdateShooting();
         }
 
@@ -277,10 +344,26 @@ namespace OrbitalAnte.AI
             if (state == MovementState.HeadOnly)
             {
                 // A head on its own has nothing to fight with. It just rolls about.
+                LeaveSquad();
                 ClearGoals();
                 return;
             }
 
+            if (KnockedDown)
+            {
+                // Down on the ground after a melee hit: nothing until it is back up.
+                _loco.Hold = true;
+                _loco.Destination = null;
+                _loco.FacePoint = null;
+                return;
+            }
+            if (_down)
+            {
+                _down = false;
+                _loco.Hold = false;
+            }
+
+            TickSquad(state, Time.time);
             if (Weapon != null) ThinkArmed(state);
             else if (Time.time < _startledUntil)
             {
@@ -297,6 +380,7 @@ namespace OrbitalAnte.AI
 
         void ClearGoals()
         {
+            DropCover();
             _loco.Destination = null;
             _loco.FacePoint = null;
             _loco.Hurry = false;
@@ -341,6 +425,25 @@ namespace OrbitalAnte.AI
             float distance = Vector3.Distance(head, target);
             float now = Time.time;
             bool sees = distance <= SightRange(now) && ClearSight(head, target);
+            if (sees)
+            {
+                // Faction A's Scout fires its flare on a fresh sighting, unless its squad is already on to the player.
+                // "Already" means the squad had the player before this moment, not a squadmate who looked a
+                // fraction of a second earlier in the same sighting.
+                if (now - _lastSaw > _cfg.chaseMemory)
+                    FirstSight(now, Squad != null && Squad.SawWithin(now, _cfg.chaseMemory) && !Squad.SawWithin(now, 1f));
+                _lastSaw = now;
+                if (Squad != null) Squad.Saw(now);
+            }
+            if (_flare.Raising && CombatWorld.PlayerEye != null)
+            {
+                // Rooted, arm up, facing the player: the window to stop it.
+                _loco.FacePoint = CombatWorld.PlayerEye.position;
+                _loco.LookAt = CombatWorld.PlayerEye.position;
+                return;
+            }
+            // Cover and flanking (MannequinCombat.Tactics.cs); when they do not apply, the fight below goes on as before.
+            if (ThinkTactics(state, sees, distance, now)) return;
 
             if (!sees)
             {
@@ -359,7 +462,7 @@ namespace OrbitalAnte.AI
                     _heardAt = CombatWorld.PlayerEye.position;
                     _heardTime = now;
                 }
-                if (_heardAt != null && now - _heardTime > _cfg.chaseMemory) _heardAt = null;
+                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) _heardAt = null;
 
                 bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
                 SetHeardBeat(pausing, _heardAt);
@@ -387,7 +490,9 @@ namespace OrbitalAnte.AI
             }
 
             bool onFeet = state == MovementState.Intact || state == MovementState.OneLeg;
-            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill)
+            // A braced Heavy stays planted until its burst is done (MannequinCombat.Faction.cs).
+            bool braced = _spin.Braced;
+            if (onFeet && now >= _phaseEnd && !_cfg.holdsStill && !braced)
             {
                 // Alternate between standing to shoot and shifting position, so nobody is a statue.
                 _shootPhase = !_shootPhase;
@@ -395,7 +500,7 @@ namespace OrbitalAnte.AI
                 if (!_shootPhase) _movePoint = PickMovePoint(distance);
             }
 
-            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar)
+            if (onFeet && _cfg.closesIn && distance > _cfg.keepFar && !braced)
             {
                 // The ones that fight close do not dance at range: they come straight at you, and you can see it.
                 _loco.FacePoint = null;
@@ -484,9 +589,12 @@ namespace OrbitalAnte.AI
             if (seen) _lastSaw = Time.time;
             bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
             _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
-            if (CombatWorld.PlayerPresent && CombatWorld.FindCover != null)
+            if (CombatWorld.PlayerPresent && (CombatWorld.FindCover != null || threatened))
             {
-                Vector3? cover = CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position);
+                // The arena has its own list of walls; everywhere else cover is found by looking (CoverFinder).
+                Vector3? cover = CombatWorld.FindCover != null
+                    ? CombatWorld.FindCover(transform.position, CombatWorld.PlayerEye.position)
+                    : HideFromPlayer();
                 if (cover.HasValue)
                 {
                     _loco.Destination = cover.Value;
@@ -532,7 +640,26 @@ namespace OrbitalAnte.AI
         float SightRange(float now)
         {
             bool aware = now - _lastSaw <= _cfg.chaseMemory || (Squad != null && Squad.SawWithin(now, _cfg.chaseMemory));
-            return aware ? _cfg.engageRange : _cfg.engageRange * Mathf.Clamp(CombatWorld.PlayerSeenFrom, 0.05f, 1f);
+            if (aware) return _cfg.engageRange;
+            float range = _cfg.engageRange * Mathf.Clamp(CombatWorld.PlayerSeenFrom, 0.05f, 1f);
+            // An enemy that has not seen you lately sees much less far behind its back, so sneaking up for a
+            // takedown is possible. Once it has seen you, it sees all round again (you are hunted).
+            if (CombatWorld.PlayerEye != null)
+            {
+                Vector3 to = Vector3.ProjectOnPlane(CombatWorld.PlayerEye.position - transform.position, transform.up);
+                if (to.sqrMagnitude > 0.01f) range *= SightBehind(Vector3.Angle(transform.forward, to), Dials.behindSight);
+            }
+            return range;
+        }
+
+        /// <summary>
+        /// How much of its sight range an unaware enemy has toward something this many degrees off its facing:
+        /// all of it ahead, <paramref name="behind"/> in the 120 degrees behind its back, blended over 20 degrees.
+        /// </summary>
+        public static float SightBehind(float degreesOffFacing, float behind)
+        {
+            float t = Mathf.Clamp01((degreesOffFacing - 110f) / 20f);
+            return Mathf.Lerp(1f, Mathf.Clamp01(behind), t);
         }
 
         /// <summary>
@@ -540,7 +667,7 @@ namespace OrbitalAnte.AI
         /// (the side you can stand on or see), so one look from inside a cave would go straight up through the
         /// ground to someone standing on it.
         /// </summary>
-        static bool ClearSight(Vector3 a, Vector3 b)
+        internal static bool ClearSight(Vector3 a, Vector3 b)
         {
             if (Physics.Linecast(a, b, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return false;
             // A cave's walls face inward, and a line only hits a face from its front: from inside a cave to the
@@ -613,6 +740,8 @@ namespace OrbitalAnte.AI
             {
                 Weapon w = all[i];
                 if (w == null || w.Hold != WeaponHold.Dropped || w == _givenUp || !Reachable(w)) continue;
+                // Rare guns (one-hit, may blow up) are the player's find: enemies never pick them up.
+                if (w.Data != null && (w.Data.oneHitKill || w.Data.backfireChance > 0f)) continue;
                 // Give a freshly dropped gun a moment to land (and the player a moment to enjoy the disarm).
                 if (Time.unscaledTime - w.DroppedAt < 0.4f) continue;
                 float sqr = (w.transform.position - transform.position).sqrMagnitude;
@@ -659,12 +788,22 @@ namespace OrbitalAnte.AI
         void UpdateShooting()
         {
             int hands = Hands;
-            bool wantsToShoot = hands > 0 && _seesPlayer && _aimedAtTarget && _loco.FacePoint.HasValue
+            bool wantsToShoot = hands > 0 && !KnockedDown && _seesPlayer && _aimedAtTarget && _loco.FacePoint.HasValue
                                 && Time.time >= _reactAt && CombatWorld.PlayerPresent && !CombatWorld.EnemiesHoldFire;
 
             float now = Time.time;
+            if (_flare.Raising) wantsToShoot = false;
             _triggerPressed = false;
-            if (!wantsToShoot)
+            bool spinReady = SpinGate(wantsToShoot, now);
+            bool covering = wantsToShoot && Covering(now);
+            if (Ability == OrbitalAnte.Enemies.FactionAbility.SpinUp && wantsToShoot)
+            {
+                // The Heavy: nothing while it spins up, then the trigger held down through the whole burst.
+                _telling = false;
+                _triggerPressed = spinReady && !_triggerHeld;
+                _triggerHeld = spinReady;
+            }
+            else if (!wantsToShoot)
             {
                 _triggerHeld = false;
                 _telling = false;
@@ -674,11 +813,11 @@ namespace OrbitalAnte.AI
                 if (now >= _triggerUntil)
                 {
                     _triggerHeld = false;
-                    _nextTriggerAt = now + Rand(_cfg.burstPause);
+                    _nextTriggerAt = now + (covering ? Dials.suppress.pauseSeconds : Rand(_cfg.burstPause));
                 }
             }
             else if (now >= _nextTriggerAt && !_telling && Squad != null
-                     && !Squad.TakeTurn(now, _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
+                     && !TakeSquadTurn(now, covering ? Dials.suppress.burstSeconds + 0.2f : _cfg.aimTell > 0f ? _cfg.aimTell + 0.4f : (Weapon.Data.automatic ? _cfg.burstSeconds.y : 0.5f)))
             {
                 // Somebody else's turn to shoot: ask again in a moment.
                 _nextTriggerAt = now + 0.25f;
@@ -695,7 +834,7 @@ namespace OrbitalAnte.AI
                 _triggerHeld = true;
                 _triggerPressed = true;
                 // Automatic guns fire a burst; other guns fire one shot per pull.
-                _triggerUntil = now + (Weapon.Data.automatic ? Rand(_cfg.burstSeconds) : 0.05f);
+                _triggerUntil = now + (Weapon.Data.automatic ? (covering ? Dials.suppress.burstSeconds : Rand(_cfg.burstSeconds)) : 0.05f);
             }
 
             ShowTell(_telling);
@@ -705,7 +844,7 @@ namespace OrbitalAnte.AI
             Vector3 muzzle = Weapon.Muzzle.position;
             Vector3 toTarget = PlayerAimPoint - muzzle;
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
-            Vector3 direction = Ballistics.SpreadDirection(toTarget, shot.SpreadDegrees + _cfg.aimError, _rng);
+            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + _cfg.aimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
 
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
@@ -772,6 +911,7 @@ namespace OrbitalAnte.AI
         {
             if (Weapon == null || _owner == null || !_owner.Alive) return;
             PoseWeapon(Time.deltaTime, false);
+            PoseFlareArm();
         }
 
         Vector3 LowReadyDirection()

@@ -81,7 +81,7 @@ namespace OrbitalAnte.UI
             _helpText = UiKit.Label(_arenaOnly, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
             UiKit.Pin((RectTransform)_helpText.transform, new Vector2(0f, 0f), new Vector2(14f, 10f), new Vector2(700f, 54f));
             AddShadow(_helpText);
-            _helpText.text = "Respawn dummies: T or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start     Debug readout: F3";
+            _helpText.text = "Respawn dummies: T     Switch gun: 1 or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start     Debug readout: F3";
 
             // Full-screen red flash when the player is hit. Drawn first so everything else sits on top of it.
             var flash = UiKit.NewRect("HurtFlash", _arenaOnly);

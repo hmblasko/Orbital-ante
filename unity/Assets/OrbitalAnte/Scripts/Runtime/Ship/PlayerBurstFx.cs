@@ -172,7 +172,7 @@ namespace OrbitalAnte.Ship
             _caged = this;
             // Wreckage the killing blow has already torn off is on the gib layer too: the cage leaves it alone.
             // (Nothing of the player's body is loose yet: the body breaks after this.)
-            foreach (Collider other in FindObjectsByType<Collider>(FindObjectsSortMode.None))
+            foreach (Collider other in OrbitalAnte.Core.SceneQuery.All<Collider>())
                 if (other != null && other.gameObject.layer == Layers.Gib && other.attachedRigidbody != _cage) IgnoreCage(new[] { other });
             _shipVelocity = _ship.Body.linearVelocity;
             _hasShipVelocity = true;
@@ -182,6 +182,8 @@ namespace OrbitalAnte.Ship
         {
             if (gib == null || gib.Body == null) return;
             if (!_pieces.Contains(gib)) _pieces.Add(gib);
+            // The burst pulls its own pieces (below): not the solar system as well, and not Unity's gravity.
+            gib.UseOwnPull(false);
             gib.Body.useGravity = false;
             if (_ship != null)
             {
@@ -261,10 +263,9 @@ namespace OrbitalAnte.Ship
             for (int i = _pieces.Count - 1; i >= 0; i--)
             {
                 Gib gib = _pieces[i];
-                // Cleaned up, or handed to someone else by the pool: it is not ours to pull any more.
+                // Cleaned up, or handed to someone else by the pool (which has set it up afresh): not ours any more.
                 if (gib == null || !gib.InUse || gib.Owner != _body)
                 {
-                    if (gib != null && gib.Body != null) gib.Body.useGravity = true;
                     _pieces.RemoveAt(i);
                     continue;
                 }
@@ -284,7 +285,9 @@ namespace OrbitalAnte.Ship
             for (int i = 0; i < _pieces.Count; i++)
             {
                 Gib gib = _pieces[i];
-                if (gib != null && gib.Body != null) gib.Body.useGravity = true;
+                // Still ours: handed back to the usual pull (its own world's in the solar system).
+                if (gib != null && gib.Body != null && gib.InUse && gib.Owner == _body)
+                    gib.UseOwnPull(OrbitalAnte.Space.SolarSystem.Instance != null);
             }
             _pieces.Clear();
             if (_body != null) _body.PartDetached -= OnPartDetached;

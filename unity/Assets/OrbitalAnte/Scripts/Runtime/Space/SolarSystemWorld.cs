@@ -36,6 +36,8 @@ namespace OrbitalAnte.Space
         public TestCraft Craft { get; private set; }
         public Ship.Ship Ship { get; private set; }
         public Astronaut Astronaut { get; private set; }
+        /// <summary>The moon rover the lander carries, or null.</summary>
+        public OrbitalAnte.Rover.MoonRover Rover { get; private set; }
         public ShipHud ShipHud { get; private set; }
         public OrbitalAnte.Spacewalk.SuitHud SuitHud { get; private set; }
         public OrbitalAnte.Cockpit.CockpitDash Dash { get; private set; }
@@ -68,6 +70,9 @@ namespace OrbitalAnte.Space
             Craft.System = System;
             Astronaut = Astronaut.Create(transform, Ship, shipConfig, System);
             Craft.Eye = Astronaut.Eye;
+            // The moon rover hangs on the lander's davit (Matthew, 16 Nov 2026).
+            Rover = OrbitalAnte.Rover.MoonRover.Create(transform, Ship, System);
+            Astronaut.Rover = Rover;
             System.Focus = Craft.Gravity;
             System.ViewCamera = Astronaut.Eye;
 
@@ -174,7 +179,8 @@ namespace OrbitalAnte.Space
                    (Planets != null ? "\n" + Planets.DescribeForDebug() : string.Empty) +
                    (Ship != null ? "\n" + Ship.DescribeForDebug() : string.Empty) +
                    (Engines != null ? "   engines " + Engines.Model.State + " burn " + Mathf.RoundToInt(Engines.Model.Burn * 100f) + "%" : string.Empty) +
-                   (Astronaut != null ? "   " + Astronaut.DescribeForDebug() : string.Empty);
+                   (Astronaut != null ? "   " + Astronaut.DescribeForDebug() : string.Empty) +
+                   (Rover != null ? "\n" + Rover.DescribeForDebug() : string.Empty);
         }
     }
 }

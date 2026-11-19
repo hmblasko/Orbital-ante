@@ -215,38 +215,123 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void NearAWorld_ThePullFadesOnlyAsOneOverDistance_LikeOuterWilds()
+        public void NearAWorld_ThePullFadesAboutAsOneOverDistance_LikeOuterWilds()
         {
             SolarSystemModel model = Build();
             Assert.AreEqual(1.0, model.NearFalloff, "Outer Wilds' way is the default");
             int earth = model.IndexOf("Earth");
             double r = model.Spec(earth).radius, g = model.Spec(earth).surfaceGravity;
             Assert.AreEqual(g, model.PullStrength(earth, r), 1e-9, "the pull on the ground is the listed gravity");
-            Assert.AreEqual(g / 2, model.PullStrength(earth, 2 * r), 1e-9, "one radius up it is half, not a quarter");
+            double up = model.PullStrength(earth, 2 * r);
+            Assert.Greater(up, 0.4 * g, "one radius up it is nearly half, far more than the real law's quarter");
+            Assert.LessOrEqual(up, 0.5 * g);
             Assert.AreEqual(g / 2, model.PullStrength(earth, 0.5 * r), 1e-9, "below ground it still fades evenly to the centre");
             Assert.Greater(model.PullStrength(earth, 3 * r), 1.5 * g / 9, "it is still well felt three radii out");
         }
 
         [Test]
-        public void ThePull_EasesOntoTheRealLaw_ByTheEdgeOfTheNeighbourhood_WithNoJolt()
+        public void EveryWorldKeepsItsOwnGroundGravity_SoSomeAreHeavierThanOthers()
+        {
+            // Matthew, 16 Nov 2026: "certain planets will have more or less gravity". The new reach never changes
+            // what you weigh on the ground.
+            SolarSystemModel model = Build();
+            for (int i = 1; i < model.Count; i++)
+                Assert.AreEqual(model.Spec(i).surfaceGravity, model.PullStrength(i, model.Spec(i).radius), 1e-9, model.Spec(i).id);
+            Assert.Greater(model.PullStrength(model.IndexOf("Jupiter"), model.Spec(model.IndexOf("Jupiter")).radius),
+                           model.PullStrength(model.IndexOf("Mars"), model.Spec(model.IndexOf("Mars")).radius));
+        }
+
+        [Test]
+        public void ThePull_BendsSmoothlyOntoInverseSquare_AndNeverFallsTooFastForAStableOrbit()
         {
             SolarSystemModel model = Build();
             var real = new SolarSystemModel(SolarSystemDefaults.Bodies(), 1, nearFalloff: 2.0);
-            foreach (string id in new[] { "Earth", "Moon", "Mars", "Phobos", "Jupiter", "Titan", "Neptune" })
+            for (int i = 1; i < model.Count; i++)
             {
-                int i = model.IndexOf(id);
+                string id = model.Spec(i).id;
                 double r = model.Spec(i).radius, edge = model.InfluenceRadius(i);
-                Assert.AreEqual(real.PullStrength(i, edge), model.PullStrength(i, edge), 1e-9, id + ": at the edge it is the real law");
-                Assert.AreEqual(real.PullStrength(i, edge * 1.5), model.PullStrength(i, edge * 1.5), 1e-9, id + ": and beyond it");
                 double last = model.PullStrength(i, r);
                 for (int k = 1; k <= 2000; k++)
                 {
-                    double d = r + (edge * 1.2 - r) * k / 2000.0;
+                    double d = r + (edge * 3 - r) * k / 2000.0;
+                    double before = d - (edge * 3 - r) / 2000.0;
                     double now = model.PullStrength(i, d);
                     Assert.LessOrEqual(now, last + 1e-12, id + ": the pull never grows as you leave, at " + d);
                     Assert.Less(Math.Abs(now - last), model.Spec(i).surfaceGravity * 0.02, id + ": no sudden step, at " + d);
                     Assert.GreaterOrEqual(now, real.PullStrength(i, d) - 1e-12, id + ": never weaker than the real law");
+                    // A circle is stable as long as the pull falls slower than 1 / distance cubed. This one never
+                    // falls faster than 1 / distance squared.
+                    double steepness = -Math.Log(now / last) / Math.Log(d / before);
+                    Assert.LessOrEqual(steepness, 2.0 + 1e-6, id + ": falls too steeply at " + d);
                     last = now;
+                }
+                // Far off it is the inverse-square law (a stronger one than the real world's).
+                double far1 = model.PullStrength(i, edge * 40) * Math.Pow(edge * 40, 2);
+                double far2 = model.PullStrength(i, edge * 80) * Math.Pow(edge * 80, 2);
+                Assert.AreEqual(1.0, far2 / far1, 0.02, id + ": inverse square far away");
+            }
+        }
+
+        [Test]
+        public void CrossingTheEdgeOfANeighbourhood_IsNeverAJolt()
+        {
+            SolarSystemModel model = Build();
+            BodyState[] states = At(model, 321);
+            foreach (string id in new[] { "Mercury", "Earth", "Moon", "Mars", "Phobos", "Jupiter", "Io", "Titan", "Neptune" })
+            {
+                int i = model.IndexOf(id);
+                int parent = model.ParentOf(i);
+                Vec3d dir = new Vec3d(0.3, 0.8, -0.52).Normalized;
+                Vec3d edgePoint = states[i].Position + dir * model.InfluenceRadius(i);
+                Vec3d inside = model.AccelerationAt(edgePoint, states, i);
+                Vec3d outside = model.AccelerationAt(edgePoint, states, parent);
+                Assert.Less(Vec3d.Distance(inside, outside), 1e-9 + 1e-6 * outside.Magnitude, id + ": the same pull on both sides of the edge");
+                Vec3d calm = states[i].Position + dir * model.InfluenceRadius(i) * SolarSystemModel.CalmReach * 0.999;
+                Assert.AreEqual(0, model.OutsideShare(i, Vec3d.Distance(calm, states[i].Position)), id + ": calm space");
+            }
+        }
+
+        [Test]
+        public void EveryPlanetAndMoon_HasADeepBandOfStableOrbits()
+        {
+            // Matthew, 16 Nov 2026: "Make the gravitational field of planets more pronounced such that a ship can
+            // truly orbit". A ship let go at circular-orbit speed (CircularOrbitSpeed) keeps going round, in a
+            // loop that stays round, from low down to most of the way out of the world's neighbourhood. Flown the
+            // way Unity does (one simple step each fiftieth of a second), with the neighbourhood worked out as the
+            // game does every step.
+            SolarSystemModel model = Build();
+            BodyState[] states = model.NewStateBuffer();
+            for (int b = 1; b < model.Count; b++)
+            {
+                BodySpec spec = model.Spec(b);
+                if (spec.kind == BodyKind.Asteroid) continue;
+                double edge = model.InfluenceRadius(b);
+                foreach (double height in new[] { spec.radius * 1.2, edge * 0.45, edge * 0.62 })
+                {
+                    double start = Math.Max(spec.radius * 1.15, height);
+                    double t = 0, dt = 0.02;
+                    model.Evaluate(t, states);
+                    Vec3d axis = model.SpinAxis(b);
+                    Vec3d outward = axis.AnyPerpendicular();
+                    Vec3d p = states[b].Position + outward * start;
+                    Vec3d v = states[b].Velocity + Vec3d.Cross(axis, outward) * model.CircularOrbitSpeed(b, start);
+                    double period = 2 * Math.PI * start / model.CircularOrbitSpeed(b, start);
+                    int near = b;
+                    double low = double.MaxValue, high = 0;
+                    for (int k = 0; k < (int)(3 * period / dt); k++)
+                    {
+                        near = model.NeighbourhoodOf(p, states, near);
+                        v += model.AccelerationAt(p, states, near) * dt;
+                        p += v * dt;
+                        t += dt;
+                        model.Evaluate(t, states);
+                        double d = Vec3d.Distance(p, states[b].Position);
+                        low = Math.Min(low, d);
+                        high = Math.Max(high, d);
+                    }
+                    string where = spec.id + " orbit at " + start.ToString("F0") + " m";
+                    Assert.Greater(low, start * 0.88, where + " sank to " + low.ToString("F0"));
+                    Assert.Less(high, start * 1.12, where + " rose to " + high.ToString("F0"));
                 }
             }
         }
@@ -324,8 +409,11 @@ namespace OrbitalAnte.Tests
             int moon = model.IndexOf("Moon");
             Vec3d point = states[earth].Position + new Vec3d(900, 100, -300);
 
-            // At Earth: carried along with Earth, pulled by Earth and the Moon. Nothing from the Sun or Mars.
-            Vec3d expected = states[earth].Acceleration + model.GravityFrom(earth, point, states) + model.GravityFrom(moon, point, states);
+            // At Earth: carried along with Earth, pulled by Earth and by the Moon's tide (the difference between the
+            // Moon's pull here and on Earth's centre, since Earth rides its rails). Nothing from the Sun or Mars.
+            Assert.AreEqual(0, model.OutsideShare(earth, Vec3d.Distance(point, states[earth].Position)), "this is calm space");
+            Vec3d expected = states[earth].Acceleration + model.GravityFrom(earth, point, states)
+                             + model.GravityFrom(moon, point, states) - model.GravityFrom(moon, states[earth].Position, states);
             Assert.AreEqual(0, Vec3d.Distance(expected, model.AccelerationAt(point, states, earth)), 1e-12);
 
             // At the Moon: carried along with the Moon, pulled by the Moon alone.
@@ -333,11 +421,11 @@ namespace OrbitalAnte.Tests
             Vec3d moonOnly = states[moon].Acceleration + model.GravityFrom(moon, nearMoon, states);
             Assert.AreEqual(0, Vec3d.Distance(moonOnly, model.AccelerationAt(nearMoon, states, moon)), 1e-12);
 
-            // In open space: the Sun and every planet, but no moons.
+            // In open space: the Sun and every other body.
             Vec3d open = new Vec3d(5000, 800, 27000);
-            Vec3d sunAndPlanets = model.GravityFrom(0, open, states);
-            for (int i = 1; i < model.Count; i++) if (model.ParentOf(i) == 0) sunAndPlanets += model.GravityFrom(i, open, states);
-            Assert.AreEqual(0, Vec3d.Distance(sunAndPlanets, model.AccelerationAt(open, states, 0)), 1e-12);
+            Vec3d everything = Vec3d.Zero;
+            for (int i = 0; i < model.Count; i++) everything += model.GravityFrom(i, open, states);
+            Assert.AreEqual(0, Vec3d.Distance(everything, model.AccelerationAt(open, states, 0)), 1e-12);
         }
 
         [Test]

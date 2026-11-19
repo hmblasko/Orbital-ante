@@ -725,6 +725,10 @@ namespace OrbitalAnte.Ship
             // Only the speed straight into the surface counts. Sliding along the ground is not a crash.
             ContactPoint contact = collision.GetContact(0);
             float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+            // Its own rover (900 kg, lined up under the davit) moves the lander only by its share of the two masses:
+            // a nudge while parking never dents it, a rover at full speed still does.
+            if (other != null && !other.isKinematic && other.GetComponent<OrbitalAnte.Rover.MoonRover>() != null)
+                speed *= other.mass / (other.mass + Mathf.Max(1f, Body.mass));
             // A building or a tree gives way to a hard enough knock (each keeps count of its own damage).
             IRammable rammed = collision.collider != null ? collision.collider.GetComponentInParent<IRammable>() : null;
             if (rammed != null) rammed.Rammed(speed, Body.mass, -contact.normal);

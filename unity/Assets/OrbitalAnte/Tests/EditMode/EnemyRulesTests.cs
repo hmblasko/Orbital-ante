@@ -72,7 +72,8 @@ namespace OrbitalAnte.Tests.EditMode
         [Test]
         public void TheFourTypesReallyDiffer()
         {
-            List<EnemyTypeSpec> roster = EnemyRoster.Defaults();
+            // The four unaligned kinds (Faction A's three tiers have their own test in FactionRulesTests).
+            List<EnemyTypeSpec> roster = EnemyRoster.Defaults().FindAll(t => t.faction == Factions.None);
             Assert.AreEqual(4, roster.Count);
             var weapons = new HashSet<string>();
             var sizes = new HashSet<float>();
@@ -97,7 +98,12 @@ namespace OrbitalAnte.Tests.EditMode
                 Assert.GreaterOrEqual(camps[i].Members.Length, new EnemyFieldRules().squadLeast);
                 for (int m = 0; m < camps[i].Members.Length; m++) seen[camps[i].Members[m]]++;
             }
-            for (int t = 0; t < seen.Length; t++) Assert.Greater(seen[t], 0, roster[t].id + " never turns up");
+            for (int t = 0; t < seen.Length; t++)
+            {
+                // Without faction rules only the unaligned kinds are drawn.
+                if (roster[t].faction == Factions.None) Assert.Greater(seen[t], 0, roster[t].id + " never turns up");
+                else Assert.AreEqual(0, seen[t], roster[t].id + " is a faction type");
+            }
             Assert.Greater(seen[0], seen[3], "the ordinary type should be the commonest, the marksman the rarest");
         }
 

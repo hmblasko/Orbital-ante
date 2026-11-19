@@ -15,7 +15,7 @@ namespace OrbitalAnte.Cockpit
     /// <summary>Draws a <see cref="DashDrawing"/>'s triangles as one piece of UI. The words are separate Text objects.</summary>
     public sealed class DashGraphic : MaskableGraphic
     {
-        public DashDrawing Drawing;
+        [System.NonSerialized] public DashDrawing Drawing;
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {

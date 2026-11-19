@@ -11,7 +11,7 @@ namespace OrbitalAnte.Core
     /// </summary>
     public static class TimeFlow
     {
-        static bool _paused;
+        static bool _paused, _held;
         static float _hitstop = 1f, _headshot = 1f, _breath = 1f;
         // The physics step the project runs at when nothing is slowing, and the last value written here.
         static float _normalStep = -1f, _wroteStep = -1f;
@@ -20,6 +20,16 @@ namespace OrbitalAnte.Core
         {
             get => _paused;
             set { if (_paused != value) { _paused = value; Apply(); } }
+        }
+
+        /// <summary>
+        /// The world stands still without the pause menu (the envelope screen during a run). Unlike
+        /// <see cref="Paused"/> it leaves sound playing.
+        /// </summary>
+        public static bool Held
+        {
+            get => _held;
+            set { if (_held != value) { _held = value; Apply(); } }
         }
 
         /// <summary>Speed during a hitstop freeze; 1 when there is none.</summary>
@@ -58,7 +68,7 @@ namespace OrbitalAnte.Core
         /// <summary>Puts the numbers together and writes the clock. Safe to call at any time.</summary>
         public static void Apply()
         {
-            float scale = TimeBlend.Scale(_paused, _hitstop, _headshot, _breath);
+            float scale = TimeBlend.Scale(_paused || _held, _hitstop, _headshot, _breath);
             if (Time.timeScale != scale) Time.timeScale = scale;
 
             // If the step is not what was last written here, something else set it (project settings, a test):
@@ -74,6 +84,7 @@ namespace OrbitalAnte.Core
         public static void Reset()
         {
             _paused = false;
+            _held = false;
             _hitstop = _headshot = _breath = 1f;
             Apply();
         }

@@ -44,6 +44,17 @@ namespace OrbitalAnte.Bases
             public GameObject[] Built;
             /// <summary>Each base's foundation, kept once made so coming back to a base does not make it again.</summary>
             public Mesh[] Foundations;
+            /// <summary>The rare gun lying at a base that holds one, while the base stands; and whether it has been taken this run.</summary>
+            public Weapons.Weapon[] Rare;
+            public bool[] RareTaken;
+            /// <summary>The one base on this world that holds the rare gun, or -1.</summary>
+            public int RareBase = -1;
+            /// <summary>The one base on this world that holds a melee item (never the rare gun's), or -1, and which item.</summary>
+            public int MeleeBase = -1;
+            public string MeleeId;
+            /// <summary>The melee item lying at a base while it stands; and whether the player has taken it this run.</summary>
+            public Melee.MeleeItem[] MeleeItems;
+            public bool[] MeleeTaken;
         }
 
         SolarSystemWorld _world;
@@ -103,6 +114,21 @@ namespace OrbitalAnte.Bases
             w = new World { Sites = BaseField.Build(Rules, surface.Terrain, random, Kinds, pad) };
             w.Built = new GameObject[w.Sites.Count];
             w.Foundations = new Mesh[w.Sites.Count];
+            w.Rare = new Weapons.Weapon[w.Sites.Count];
+            w.RareTaken = new bool[w.Sites.Count];
+            var seeds = new List<int>(w.Sites.Count);
+            for (int i = 0; i < w.Sites.Count; i++) seeds.Add(w.Sites[i].Seed);
+            w.RareBase = Combat.RareGuns.PickBase(seeds);
+            // At most one found melee item per world, at another base, chosen by weight from the world's own stream.
+            w.MeleeItems = new Melee.MeleeItem[w.Sites.Count];
+            w.MeleeTaken = new bool[w.Sites.Count];
+            w.MeleeBase = Melee.MeleeLoot.PickBase(seeds, w.RareBase);
+            if (w.MeleeBase >= 0)
+            {
+                var specs = new List<Melee.MeleeSpec>();
+                foreach (Melee.MeleeData d in Melee.MeleeData.All()) specs.Add(d.ToSpec());
+                w.MeleeId = Melee.MeleeLoot.PickItem(GameSession.Stream("melee.loot." + surface.Body.Spec.id).NextDouble(), specs);
+            }
             // Nothing natural grows through a base's floor.
             if (surface.Features != null)
             {
@@ -176,6 +202,12 @@ namespace OrbitalAnte.Bases
         void PutAway(World w, int i)
         {
             if (w.Built[i] == null) return;
+            // The rare gun is gone from the base if it is no longer lying in it (picked up, or carried off).
+            if (w.Rare != null && w.Rare[i] != null && !w.Rare[i].transform.IsChildOf(w.Built[i].transform)) w.RareTaken[i] = true;
+            else if (w.Rare != null && w.Rare[i] == null && w.RareBase == i) w.RareTaken[i] = true;
+            if (w.Rare != null) w.Rare[i] = null;
+            // A melee item still lying in the base goes with it and comes back with it; a taken one is not ours now.
+            if (w.MeleeItems != null) w.MeleeItems[i] = null;
             Destroy(w.Built[i]);
             w.Built[i] = null;
             ShownCount--;
@@ -222,7 +254,66 @@ namespace OrbitalAnte.Bases
                 try { BuildView(site, go.transform); }
                 catch (Exception e) { Debug.LogException(e); }
             }
+            PlaceRareGun(w, index, go.transform);
+            PlaceMelee(w, index, go.transform);
             return go;
+        }
+
+        /// <summary>
+        /// At most one base per world holds the rare one-hit gun, lying at its first loot point (Matthew, 16 Nov
+        /// 2026: "a gun you found that is rare"; see <see cref="Combat.RareGuns.PickBase"/>). It lies still until
+        /// picked up, and once taken it does not come back this run.
+        /// </summary>
+        void PlaceRareGun(World w, int index, Transform baseRoot)
+        {
+            if (w.Rare == null || w.RareTaken[index]) return;
+            if (w.RareBase != index) return;
+            BaseSite site = w.Sites[index];
+            var places = new List<Vector3>();
+            BaseView.Places(site, BaseKinds.Loot, places);
+            if (places.Count == 0) return;
+            Weapons.WeaponData data = Content.ContentDatabase.Get<Weapons.WeaponData>(Weapons.WeaponData.WildcardId);
+            if (data == null) return;
+            try
+            {
+                Weapons.Weapon gun = Weapons.Weapon.Create(data, baseRoot, true);
+                gun.transform.localPosition = places[0] + Vector3.up * 0.12f;
+                gun.transform.localRotation = Quaternion.Euler(0f, (site.Seed & 255) * 1.4f, 90f);
+                // Lying on show: no falling through a floor that is not solid yet, and it goes with the base.
+                // No interpolation while it rides the turning, origin-shifting base, or it lags a step behind; and no
+                // pull of its own, or a re-centre would move it once with the base and again by itself.
+                gun.HoldStill();
+                w.Rare[index] = gun;
+            }
+            catch (Exception e) { Debug.LogException(e); }
+        }
+
+        /// <summary>
+        /// At most one base per world holds a found melee item (Part B section 9: "melee weapons are rare and must
+        /// be found"; see <see cref="Melee.MeleeLoot"/>), at its last loot point, never the rare gun's base. It lies
+        /// still until taken, and once the player takes it it does not come back this run. Enemies never take it.
+        /// </summary>
+        void PlaceMelee(World w, int index, Transform baseRoot)
+        {
+            if (w.MeleeItems == null || w.MeleeBase != index || w.MeleeTaken[index] || string.IsNullOrEmpty(w.MeleeId)) return;
+            BaseSite site = w.Sites[index];
+            var places = new List<Vector3>();
+            BaseView.Places(site, BaseKinds.Loot, places);
+            int at = Melee.MeleeLoot.LootPoint(places.Count, w.RareBase == index);
+            if (at < 0) return;
+            Melee.MeleeData data = Content.ContentDatabase.Get<Melee.MeleeData>(w.MeleeId);
+            if (data == null) return;
+            try
+            {
+                Melee.MeleeItem item = Melee.MeleeItem.Create(data, baseRoot);
+                item.transform.localPosition = places[at] + Vector3.up * 0.12f;
+                item.transform.localRotation = Quaternion.Euler(0f, ((site.Seed >> 8) & 255) * 1.4f, 90f);
+                // On show like the rare gun: still, riding with the base, no pull of its own until taken.
+                item.HoldStill();
+                item.Taken += _ => w.MeleeTaken[index] = true;
+                w.MeleeItems[index] = item;
+            }
+            catch (Exception e) { Debug.LogException(e); }
         }
 
         /// <summary>Poured-concrete grey, a little warm. The models bring their own colours.</summary>

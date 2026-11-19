@@ -309,6 +309,7 @@ namespace OrbitalAnte.Space
                 GravityBody mover = _movers[i];
                 Rigidbody rb = mover.Body;
                 if (rb == null || rb.isKinematic) continue;
+                if (mover.Loose && rb.IsSleeping()) continue;
                 Vec3d local = SpaceConvert.ToVec3d(rb.position);
                 Vec3d velocity = SpaceConvert.ToVec3d(rb.linearVelocity);
                 Vec3d truePosition = Frame.ToTruePosition(local, States);

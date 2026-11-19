@@ -71,7 +71,7 @@ namespace OrbitalAnte.Audio
         public RewardRules Rewards { get; } = new RewardRules();
         public AdaptiveMusicPlayer Music { get; private set; }
         /// <summary>The space the listener is in. Game code sets this; sounds started afterwards are treated for it.</summary>
-        public ListenerSpace Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Open };
+        [System.NonSerialized] public ListenerSpace Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Open };
         /// <summary>False if the audio files or manifest are missing; callers then keep their old placeholder sounds.</summary>
         public bool Ready { get; private set; }
         public VoiceAllocator Allocator => _allocator;
@@ -353,7 +353,7 @@ namespace OrbitalAnte.Audio
                 // Searching the scene is not free: with no listener about, look twice a second, not every frame.
                 if (Time.unscaledTime < _nextListenerSearch) return Vector3.zero;
                 _nextListenerSearch = Time.unscaledTime + 0.5f;
-                foreach (AudioListener l in FindObjectsByType<AudioListener>(FindObjectsSortMode.None))
+                foreach (AudioListener l in OrbitalAnte.Core.SceneQuery.All<AudioListener>())
                 {
                     if (l.enabled && l.gameObject.activeInHierarchy) { _listener = l.transform; break; }
                 }

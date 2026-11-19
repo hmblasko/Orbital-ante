@@ -305,6 +305,7 @@ What to read off in Unity (floating outside, tethered): in **Window > Analysis >
 | Aim line (Marksman) | one line renderer while aiming | 1 per Marksman, 1 Marksman per camp |
 | Player death burst (`PlayerBurstFx`, `DeathBurst`; 15 Nov 2026) | Once a run, then the death page pauses the game. Frame 0: one breakable body (about 87 objects, 16 colliders), about 6 detachments, and aboard a kinematic cage of 98 boxes; guessed 2 to 6 ms on the Deck, plus 5 to 30 ms the first time `OA_Model`, blood or decals are drawn in a run (nothing warms them yet). Then 8 single splits over 0.31 s; 14 gibs, about 300 droplets, 14 pops over 8 voices; the cage moved each physics step for 2.6 s; 10 to 30 KB of garbage on frame 0 only. Estimated from the code | 1 body a run; 98 cage boxes; gibs within `maxActiveGibs` 40; frame 0 under 25 ms (if not: warm the shaders, then build the cage ahead, switched off) |
 | Ship floodlights (`ShipLightFx`, `OA_Beam`; 16 Nov 2026) | One cone worked out in the shaders, not a Unity light: about 30 more operations per ground, model or water pixel while lit (3-6% of the ground shader), guessed 0.05-0.2 ms with ground filling the screen. Off, or with the eye further than its reach plus 30 m: skipped by a branch on a uniform, guessed 0 ms if the Deck's compiler keeps the branch, the lit cost if it flattens it (not checked). 2 lamp discs (28 triangles, 2 draw calls), 3 global vectors a frame, 0 bytes a frame. A real spot light (no shadow) only under the simple-shader fallback. Estimated from the code, not measured | One beam (one ship); under 0.3 ms on the Deck, or drop it from water first, then from models |
+| Moon rover (`Rover/MoonRover`; 16 Nov 2026) | 51,000 triangles drawn as built (body 20,214, four wheels of 6,844, four arms of 916), about 12 draw calls, one shader; no far copy yet. Each physics step while it rolls: 4 raycasts, one box overlap against hitboxes and loose pieces (only above 3 m/s), about 20 forces, 0 bytes after the first hits. Parked with nobody in it, it is fixed to the ground and costs nothing but its draw calls. Model file 0.94 MB. Estimated from the code and files, not measured in Unity | One rover. If the Deck needs it: a far copy of the wheel (most of the triangles are its chevrons) and the body, as the enemies have |
 
 ## Earth scenery (14 Nov 2026): estimates from reading the code, not measured in Unity
 
@@ -356,6 +357,30 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Handing over a gun | one gun destroyed and one built (the same work as picking a gun up), at most once per kill | 4 times a run with the default ladder |
 | Readout and banner | their own canvas, 2 labels; the line's text is rebuilt only when it changes (a kill) | - |
 | Finding the player's guns | a scene search at most twice a second, and only while none is known | - |
+| Carried guns (16 Nov 2026) | hidden objects under the player's hand, nothing per frame; a switch is one object shown and one hidden | one per ladder step climbed (4 with the default ladder) |
+| Faction A abilities (16 Nov 2026) | No garbage per frame; a few comparisons per enemy (those without an ability return at once); no physics queries. One unlit sphere (about 760 triangles, 1 draw call, no shadow, one shared material) per raised hand and per flare in the air; a property block on each Faction A body's torso and head (2 renderers each leave the SRP batcher). A flare reaches every awake enemy once through one event. Not measured in Unity | One flare per Scout per life, 9.2 s each: at most 12 at the live cap |
+| Rare gun at bases | one gun object per standing base that holds one; one extra seeded roll per shot of a gun that can blow up | at most one per world |
+
+## Melee (16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| The melee slot (`PlayerMelee`) while an item is held | one overlap sphere (reach + 0.6 m, hitbox, gib and item layers) a frame, every frame an item is held (the in-range cue uses it): a closest-point per collider it finds (what each collider belongs to is looked up once and kept), the targeting sort with no garbage, then a line-of-sight ray only for the 1 to 3 things chosen (a blocked one is dropped and the choice made again, at most 4 times); guessed under 0.1 ms with three enemies in reach (about 40 hitboxes), not measured | 96 colliders a frame (`_overlaps`); nothing at all with no item in hand but the pick-up search over the few melee items |
+| A swing's contact | the same hits as bullets (`Mannequin.ApplyHit`), once per swing | 3 things a swing (the mailbox) |
+| Knocked-down enemies | one ray a frame per sliding body | lasts about 1.2 s |
+| Melee HUD | its own canvas, 6 elements; text rebuilt only when the item or the lock changes; the heat bar is resized only when it moves a whole pixel | - |
+| Melee items in the world | one stand-in object (a few primitives) per item lying about; at most one per world at a base, five in the arena | 1 per world |
+
+## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Loose limbs and guns pulled by the solar system (`GravityBody` with `Sank`) | per physics step each awake one gets a neighbourhood search and a pull over the body list; on a world, the air, sea and wind sample, and one full ground height question one step in four. Guessed 0.2 to 0.4 ms per step at the caps on Earth with everything awake. Resting ones are put to sleep after 0.5 s still and then cost nothing | 40 gibs + 12 loose guns |
+| Sleeping | target: Profiler Physics **Active Dynamic Bodies** back under 15 within 60 s of a fight ending (if not: the ground's own `MovePosition` may be keeping them awake; look again) | - |
+| Marks that follow what they are on (`StuckMarks`) | 48 bullet marks + 48 splats, one transform write each per frame while live, guessed under 0.1 ms; no garbage | 96 |
+| Re-centre with blood in the air | up to 500 blood + 160 spark particles copied out and back once per re-centre, guessed under 0.2 ms; the buffers are made when the systems are built | once per 2 km |
+| Blood decals (URP Decal feature, Screen Space) | 48 at most, one instanced material, drawn within 60 m. Needs the camera depth texture: a depth copy after opaques is expected (guessed 0.1 to 0.3 ms GPU at 1280 x 800). A depth prepass is not allowed: if the Frame Debugger shows one, set Depth Texture Mode to After Opaques with Depth Priming off, or use edge smoothing Fast on the Deck. Never switch on decal rendering layers | 48 |
+| `Physics.gravity` (blood and sparks only) | written when the felt pull has changed by more than 0.5 m/s squared | - |
 
 ## Lighting (asked for on 11 Nov 2026)
 
@@ -419,3 +444,22 @@ Note: in the Unity editor the numbers are worse than a real build, because the e
 Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. This is one save slot at run start, menu return and quit, with no added per-frame work. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
 
 Current save data is small. File size, allocations, storage latency and checkpoint-frame time have not been measured in Unity or on Deck; there is no promised maximum file-size cost. Profile `SaveSystem.Save`, `SaveFileStore.Write` and `FileStream.Flush` on internal storage and microSD. See `docs/reviews/save-recovery-and-version-protection.md` for the regression evidence and target-runtime checks.
+
+## Enemy cover and flanking (16 Nov 2026): estimates from reading the code, not measured
+
+| | Cap or expected cost |
+|---|---|
+| Cover searches | 1 a frame for every enemy in every place (`CoverFinder.SearchesPerFrame`); an enemy searches again only when the player has moved 6 m, after 9 s, when its cover is exposed or after 2 s with nothing found |
+| One search | one overlap sphere (none in caves), at most 14 ground rays, at most 10 places line-checked at up to about 14 checks each: typically 40 to 80 physics queries, at worst about 160 (estimate 0.1 to 0.3 ms on the Deck, not measured) |
+| Hiding enemies | two short line checks each, twice a second (is the cover still hiding it) |
+| Squad roles | plain C#, a loop over the squad's members per think; no allocations after the squad is built |
+| Cave routes | 8 remembered routes per camp, searches still capped at `CaveFooting.PlansPerFrame` (2) |
+
+
+## Prize envelopes (16 Nov 2026): estimates from the offline tool, not measured on the Deck
+
+| Work | Cost and cap |
+|---|---|
+| Painting the envelope pieces | 13 pictures, about 0.55 s in all under .NET 8 on the cloud machine (`tools/envelope_view pieces` prints each). Mono in Unity is likely 2 to 3 times slower. Painted one piece a frame while the title screen shows (`EnvelopeDirector.PaintAhead`), so the worst single frame is the seal, about 120 ms (.NET): one hitch on the title screen, never in a run. |
+| Texture memory | About 5 MB, uncompressed RGBA, kept for the session (`EnvelopeTextures`). One card (280 x 392) is painted per reveal and replaces the last. |
+| The screen while showing | One canvas, about 30 to 60 images and labels, laid out from `EnvelopeScene.Frame` each frame (one list, reused; a few small allocations a frame). Only while the envelope shows (run start and reveals), never during play. Off: nothing. |

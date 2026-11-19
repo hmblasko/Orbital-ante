@@ -37,13 +37,15 @@ namespace OrbitalAnte.Core
 
         void OnPlayerHit(HitOutcome outcome)
         {
-            if (outcome.Juice <= 0f) return;
+            if (outcome.Juice <= 0f && outcome.HitstopSeconds <= 0f) return;
             float now = Time.unscaledTime;
             float stop = 0f;
 
             if (FeelSettings.Hitstop)
             {
-                stop = outcome.Killed ? _cfg.killHitstop : outcome.Juice >= 0.9f ? _cfg.torsoHitstop : _cfg.limbHitstop;
+                // A melee swing says how long its own freeze is (already capped); a bullet's comes from its juice.
+                stop = outcome.HitstopSeconds > 0f ? outcome.HitstopSeconds
+                    : outcome.Killed ? _cfg.killHitstop : outcome.Juice >= 0.9f ? _cfg.torsoHitstop : _cfg.limbHitstop;
                 // Overlapping pops extend the freeze to the longest one; they never add up.
                 _hitstopUntil = Mathf.Max(_hitstopUntil, now + stop);
             }

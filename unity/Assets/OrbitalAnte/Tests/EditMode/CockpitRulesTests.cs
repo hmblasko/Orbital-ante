@@ -289,26 +289,31 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("MOON", all, "what the speed is measured against");
             StringAssert.Contains("LANDING", all, "which camera");
             StringAssert.Contains("FUEL", all);
-            // The Flight deck screen carries fewer words on purpose: its fuel and air are pictures (see
-            // TheFlightDeckScreen_ShowsFuelAndAir_AsPicturesThatFollowTheTanks). Its notice still says FUEL LOW.
-            if (style == DashStyle.FlightDeck) return;
+            // The Flight deck screen has no LOOK DOWN or AIR label: its fuel and air are pictures with their
+            // per cents under them (Matthew, 17 Nov 2026).
+            if (style == DashStyle.FlightDeck)
+            {
+                StringAssert.Contains("12%", all, "fuel left");
+                StringAssert.Contains("16%", all, "air left");
+                return;
+            }
             StringAssert.Contains("LOOK DOWN", all, "which button shows the camera");
             StringAssert.Contains("AIR", all);
             StringAssert.Contains("16", all, "air left");
         }
 
         [Test]
-        public void TheFlightDeckScreen_AlwaysHasTheSameSevenWords_AndNoCheapOnes()
+        public void TheFlightDeckScreen_AlwaysHasTheSameNineWords_AndNoCheapOnes()
         {
             var d = new DashDrawing();
             foreach (DashInputs input in new[] { new DashInputs { Fuel = 1f, Oxygen = 1f, Altitude = -1f }, Busy, new DashInputs { Speed = 40f, DriftZ = -1f, Altitude = 12f, Vertical = -3f, Against = "EARTH" } })
             {
                 DashModel m = Settle(input, 1f);
                 DashDesigns.Paint(DashStyle.FlightDeck, m.Readings, d);
-                Assert.AreEqual(7, d.Texts.Count, "a word was added or skipped: words must keep their place in the list");
+                Assert.AreEqual(9, d.Texts.Count, "a word was added or skipped: words must keep their place in the list");
                 foreach (DashText t in d.Texts)
                 {
-                    foreach (string cheap in new[] { "PROPERTY", "LOOK DOWN", "PUSH", "HOLDING", "HEIGHT", "CLIMB", "SINK", "SPEED vs", "%" })
+                    foreach (string cheap in new[] { "PROPERTY", "LOOK DOWN", "PUSH", "HOLDING", "HEIGHT", "CLIMB", "SINK", "SPEED vs" })
                         StringAssert.DoesNotContain(cheap, t.Text);
                 }
             }
@@ -339,7 +344,7 @@ namespace OrbitalAnte.Tests
             Assert.AreNotEqual(Picture(0.1f, 1f, fuelLow: true, clock: 0.2f), Picture(0.1f, 1f, fuelLow: true, clock: 0.7f), "and it blinks");
             Picture(0f, 0f, true, true);
             Assert.AreEqual(corners, d.VertexCount, "empty tanks keep every corner too");
-            Assert.AreEqual(7, d.Texts.Count, "and still no words for them");
+            Assert.AreEqual(9, d.Texts.Count, "and still the same words: the per cents under fuel and air");
         }
 
         // ------------------------------------------------------------------ the console's real instruments

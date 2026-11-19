@@ -33,6 +33,7 @@ namespace OrbitalAnte.Core
         public static InputAction Fire { get; private set; }
         public static InputAction Reload { get; private set; }
         public static InputAction Interact { get; private set; }
+        public static InputAction SwitchGun { get; private set; }
         public static InputAction RespawnDummies { get; private set; }
         public static InputAction HoldFire { get; private set; }
         /// <summary>Opens or closes the ship's belly hatch, from inside or from nearby outside.</summary>
@@ -45,6 +46,8 @@ namespace OrbitalAnte.Core
         public static InputAction SuitRollRight { get; private set; }
         /// <summary>Held: the astronaut takes a deep breath and the world slows (see Combat/DeepBreath).</summary>
         public static InputAction DeepBreath { get; private set; }
+        /// <summary>Swings the melee item in hand (found, never issued). Its pad button is Roll Right while floating free.</summary>
+        public static InputAction Melee { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -154,7 +157,11 @@ namespace OrbitalAnte.Core
             Fire = AddButton(Gameplay, "Fire", "<Mouse>/leftButton", "<Gamepad>/rightTrigger");
             Reload = AddButton(Gameplay, "Reload", "<Keyboard>/r", "<Gamepad>/buttonWest");
             Interact = AddButton(Gameplay, "Pick Up / Swap Weapon", "<Keyboard>/e", "<Gamepad>/buttonNorth");
-            RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", "<Gamepad>/dpad/up");
+            // Switch Gun (Matthew, 16 Nov 2026: the ladder's earlier guns stay in your inventory) takes D-pad up,
+            // the only controller input on foot that was not for play: Respawn Dummies is an arena test tool and
+            // keeps T on the keyboard.
+            SwitchGun = AddButton(Gameplay, "Switch Gun", "<Keyboard>/1", "<Gamepad>/dpad/up");
+            RespawnDummies = AddButton(Gameplay, "Respawn Dummies", "<Keyboard>/t", null);
             HoldFire = AddButton(Gameplay, "Enemies Hold Fire (toggle)", "<Keyboard>/h", "<Gamepad>/dpad/down");
             Hatch = AddButton(Gameplay, "Ship Hatch", "<Keyboard>/g", "<Gamepad>/dpad/left");
             // On the ground the same button crouches (tap) and lies you down (hold): the jets only work off it.
@@ -167,6 +174,13 @@ namespace OrbitalAnte.Core
             // D-pad way is taken on foot and Select is kept for the upgrade screen, so the last free control is
             // the right stick's click: it is under the aiming thumb already.
             DeepBreath = AddButton(Gameplay, "Focus (hold)", "<Keyboard>/q", "<Gamepad>/rightStickPress");
+            // Melee: V is free on foot; the mouse's back side button (button 4) as well, so it is under the thumb.
+            // On the controller nothing on foot is free, so it shares the right bumper with Roll Right, which only
+            // works while floating free: the bumper swings everywhere else (MeleeRules.SwingFromPress, like Jets
+            // Down crouching on the ground). Halo has melee on the right bumper too.
+            Melee = AddButton(Gameplay, "Melee", "<Keyboard>/v", "<Gamepad>/rightShoulder");
+            // A second keyboard-and-mouse slot needs its own name, or saved rebinds could not tell the two apart.
+            Melee.AddBinding("<Mouse>/backButton", groups: KeyboardMouseGroup).WithName("Mouse");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");
@@ -260,7 +274,8 @@ namespace OrbitalAnte.Core
         /// The words the controls page shows for an action, when they say more than its name. The name itself must
         /// never change once released: saved rebinds are matched to it (see InputBindingIdentity).
         /// </summary>
-        static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)" : action;
+        static string ShownName(string action) => action == "Jets Down" ? "Jets Down / Crouch (tap) / Prone (hold)"
+            : action == "Melee" ? "Melee Swing (pad: on foot; rolls while floating)" : action;
 
         static InputAction AddButton(InputActionMap map, string name, string keyboardPath, string gamepadPath)
         {
@@ -291,6 +306,11 @@ namespace OrbitalAnte.Core
                     if (binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
                     {
                         label = ShownName(action.name) + " " + Capitalize(binding.name);
+                    }
+                    else if (!binding.isPartOfComposite && !string.IsNullOrEmpty(binding.name))
+                    {
+                        // A second slot of a plain button (Melee's mouse button) says which it is.
+                        label = ShownName(action.name) + " (" + binding.name + ")";
                     }
 
                     entries.Add(new BindingEntry
