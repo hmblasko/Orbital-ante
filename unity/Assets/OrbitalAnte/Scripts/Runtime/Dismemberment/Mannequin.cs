@@ -179,7 +179,10 @@ namespace OrbitalAnte.Dismemberment
             Gib source = detachment.SourceGroup != 0 ? GibForGroup(detachment.SourceGroup) : null;
             if (source != null && source.Body != null)
             {
-                inheritedVelocity = source.Body.GetPointVelocity(rootPart.transform.position);
+                // In a jointed chunk the part moves with its own weight, not the container's.
+                inheritedVelocity = rootPart.OwnBody != null
+                    ? rootPart.OwnBody.GetPointVelocity(rootPart.transform.position)
+                    : source.Body.GetPointVelocity(rootPart.transform.position);
             }
 
             Vector3 torsoPosition = _parts[(int)BodyPartId.Torso] != null

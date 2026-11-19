@@ -15,7 +15,7 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Off: every loose chunk is one stiff object, as before.</summary>
         public bool jointed;
         /// <summary>How hard the stop at the end of a joint's range is: the beat, in cycles a second, at which the limb would bounce on it. Low is soft and stretchy, high is a wall.</summary>
-        public float limitHz = 5f;
+        public float limitHz = 9f;
         /// <summary>How quickly a limb settles on its stop: 0 bounces for ever, 1 does not bounce at all.</summary>
         public float limitDamping = 0.7f;
         /// <summary>The muscle's pull toward the joint's relaxed pose, as a beat in cycles a second. 0: none (a rope).</summary>

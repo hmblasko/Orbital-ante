@@ -28,7 +28,14 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Chunks being worked out joint by joint right now (shown on F3 and checked by tests).</summary>
         public static int LiveCount => Live.Count;
 
-        public static void ResetStatics() => Live.Clear();
+        public static void ResetStatics()
+        {
+            Live.Clear();
+            _madeOnFrame = -1;
+        }
+
+        static int _madeOnFrame = -1;
+        System.Action<Vector3, Transform> _partSank;
 
         Gib _gib;
         RagdollTuning _tuning;
@@ -67,7 +74,9 @@ namespace OrbitalAnte.Dismemberment
             BodyPart top = parts[(int)detachment.Root];
             if (top != null && top.OwnBody != null) Strip(top);
 
-            bool wanted = tuning != null && tuning.jointed && members.Length > 1;
+            // Making a body's joints is the dearest thing a kill does, so only one chunk a frame is given them:
+            // a second one cut loose in the same frame stays one stiff piece, as chunks always were.
+            bool wanted = tuning != null && tuning.jointed && members.Length > 1 && Time.frameCount != _madeOnFrame;
             if (!wanted && !hadJoints) return;
 
             GibRagdoll ragdoll = gib.Ragdoll;
@@ -95,6 +104,7 @@ namespace OrbitalAnte.Dismemberment
                 return;
             }
 
+            _madeOnFrame = Time.frameCount;
             MakeRoom(ragdoll, ragdoll._tuning);
 
             // Members come top first, so the part above is always ready before the part below is hung from it.
@@ -168,6 +178,16 @@ namespace OrbitalAnte.Dismemberment
                 Rigidbody holder = aboveId == detachment.Root ? gib.Body : above.OwnBody;
                 Join(part, above, holder, ragdoll._tuning, 0f);
             }
+            // Parts next to each other overlap at the joint by design. Left to collide they would fight their own
+            // joints and never come to rest, so a part ignores the two parts above it and its twin at the hip.
+            for (int i = 0; i < ragdoll._jointed.Count; i++)
+            {
+                BodyPart part = ragdoll._jointed[i];
+                BodyPartId aboveId = BodyLayout.Parent(part.Id);
+                Ignore(part, parts[(int)aboveId]);
+                if (aboveId != detachment.Root) Ignore(part, parts[(int)BodyLayout.Parent(aboveId)]);
+            }
+            Ignore(parts[(int)BodyPartId.LeftThigh], parts[(int)BodyPartId.RightThigh]);
             for (int i = made.Count - 1; i >= 0; i--) made[i].transform.rotation = kept[i];
             Physics.SyncTransforms();
             made.Clear();
@@ -179,6 +199,12 @@ namespace OrbitalAnte.Dismemberment
                 ragdoll.enabled = true;
             }
             else ragdoll.Rest();
+        }
+
+        static void Ignore(BodyPart a, BodyPart b)
+        {
+            if (a == null || b == null || a.Hitbox == null || b.Hitbox == null) return;
+            Physics.IgnoreCollision(a.Hitbox, b.Hitbox, true);
         }
 
         readonly List<BodyPart> _made = new List<BodyPart>();
@@ -218,8 +244,8 @@ namespace OrbitalAnte.Dismemberment
             body.angularDamping = 0.05f;
             // Joints in a chain want more passes than a lone tumbling limb, and parts that start a little inside
             // each other must ease apart, not spring apart.
-            body.solverIterations = 12;
-            body.solverVelocityIterations = 4;
+            body.solverIterations = 8;
+            body.solverVelocityIterations = 2;
             body.maxDepenetrationVelocity = 3f;
             body.useGravity = !ownPull;
             if (ownPull)
@@ -228,7 +254,8 @@ namespace OrbitalAnte.Dismemberment
                 var pull = part.gameObject.AddComponent<GravityBody>();
                 pull.SunkBelow = -1f;
                 pull.PutBackAt = 0.3f;
-                pull.Sank = ragdoll.PartSank;
+                if (ragdoll._partSank == null) ragdoll._partSank = ragdoll.PartSank;
+                pull.Sank = ragdoll._partSank;
             }
             return body;
         }

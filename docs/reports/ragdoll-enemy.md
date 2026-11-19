@@ -29,9 +29,11 @@ To keep the Deck's frame rate, only three loose pieces are jointed at once. A pi
 
 Files: `Dismemberment/RagdollRules.cs` (the rules, plain C#), `Dismemberment/GibRagdoll.cs` (the Unity side), small changes in `Gib`, `Mannequin`, `GibManager`, `BodyPart`, `MannequinConfig`.
 
+**On "maybe even from a ragdoll simulator":** no ragdoll package or simulator asset was used. The joints are Unity's own physics joints, set up by our code, because every package found would either replace the gib system (the ask was to keep it) or could not sit in the public repository. The ranges are ordinary human joint ranges.
+
 ### 2. A new enemy: the Drifter (placeholder name, no faction)
 
-- A fifth unaligned kind. Slightly taller than the trooper (1.05), a little faster, carries the pistol, keeps a middle distance and takes cover and flanks like the trooper. Toughness is the same as the trooper's: no inflated health.
+- A fifth unaligned kind. Slightly taller than the trooper (1.05), a little faster on its feet (1.15), carries the pistol, and takes cover and flanks like the trooper. It stands further back than the trooper (10 to 24 m, between the trooper and the marksman), waits longer before its first shot (0.85 s against the trooper's 0.6) and then aims straighter (2.2 degrees against 3). The pause is the tell. Toughness is the same as the trooper's: no inflated health. These numbers are first guesses.
 - It is the only kind with a jointed body for now, so the two can be compared side by side in the same fight. One tick box turns joints on for every kind (below).
 - Its model is new: a high-altitude pilot's pressure suit with a survival vest, built by `tools/blender/build_enemy_drifter.py`. A close white helmet with a wide dark visor and a breathing hose to a green regulator on the chest, a dark vest with pouches and a parachute harness over a tan suit, restraint cords and lacing on the limbs, two small oxygen bottles and a seat kit on the back instead of the trooper's big pack, tall laced boots. Same skeleton, same fourteen breakable pieces, so every gib, stump, hitbox and animation works on it.
 - 21,512 triangles (the trooper has 21,176), with a far copy of 4,585.
@@ -105,4 +107,8 @@ Links: sketchfab.com/3d-models/mercenary-astronaut-7fd399d488ae4576a0fc627158929
 
 ## Agent review
 
-Not done. The specialist agents (unity-reviewer, game-designer, deck-performance) were not run for this work; a Codex review is queued on the pull request instead.
+Codex could not review the pull request (its usage limit for reviews was reached). The three specialist agents read the work instead. None of them ran anything in Unity.
+
+- **game-designer:** the Drifter's numbers were all within about 15% of the trooper's, and its only real differences (a faster, straighter shot) were hidden ones. Changed: it now stands further back (10 to 24 m), waits 0.85 s before its first shot and keeps the straighter aim, so where it stands and its pause identify it. The report now answers the "ragdoll simulator" part of the ask. Nothing drifted from the build prompt or the constitution.
+- **deck-performance:** parts of one body colliding with each other could keep it from resting (fixed for neighbouring parts; the rest still touch, see the budget row); the kill frame was guessed too low (now one jointed chunk a frame, and the row says 1 to 3 ms); joint passes lowered from 12 to 8; the budget rows were corrected, including the per-part pull, which was kept because a change of the point of view rewrites every mover.
+- **unity-reviewer:** a re-centre could move a jointed limb twice after a chunk was shot apart (fixed in `SolarSystem.UpdateFrame`); the soft stop was soft enough for a knee to bend visibly backwards on a hard hit (`limitHz` raised from 5 to 9); a piece shot off a jointed chunk took the wrong starting speed (fixed). It judged the joint set-up (the reference pose, child rigidbodies, the springs and the drive) likely right, and said what to check first in Unity: the `RagdollTests`, whether a dead Drifter's thighs jitter and whether it rests within about two seconds, and shooting a jointed arm apart and then flying far enough to force a re-centre.

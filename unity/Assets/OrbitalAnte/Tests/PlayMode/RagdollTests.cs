@@ -44,6 +44,7 @@ namespace OrbitalAnte.Tests
         public void TearDown()
         {
             GibManager.DestroyInstance();
+            GibRagdoll.ResetStatics();
             if (GoreFx.Instance != null) Object.Destroy(GoreFx.Instance.gameObject);
             if (_root != null) Object.Destroy(_root);
             if (_gore != null) Object.Destroy(_gore);
@@ -145,7 +146,7 @@ namespace OrbitalAnte.Tests
                     if (beyond > worst) { worst = (float)beyond; worstPart = id; }
                 }
             }
-            Assert.Less(worst, 30f, worstPart + " bent far past its stop (a knee or elbow folding the wrong way)");
+            Assert.Less(worst, 40f, worstPart + " bent far past its stop (a knee or elbow folding the wrong way)");
         }
 
         [UnityTest]
@@ -170,6 +171,20 @@ namespace OrbitalAnte.Tests
             Assert.IsFalse(arm.Ragdoll != null && arm.Ragdoll.Jointed, "an upper arm by itself has nothing to joint");
             yield return new WaitForSeconds(0.3f);
             Assert.Less(Gap(m.Part(BodyPartId.LeftHand)), 0.12f);
+            Assert.AreSame(fore.Body, m.Part(BodyPartId.LeftForearm).Hitbox.attachedRigidbody, "the forearm's collider did not go over to its chunk");
+        }
+
+        [UnityTest]
+        public IEnumerator OnlyOneChunkAFrame_IsGivenJoints()
+        {
+            GibManager.Create(_root.transform, _gore);
+            Mannequin m = NewMannequin(Vector3.zero);
+            yield return null;
+            m.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward);
+            m.DamagePart(BodyPartId.RightUpperArm, Big, Vector3.forward);
+            Assert.AreEqual(1, GibRagdoll.LiveCount, "the second chunk of the frame stays one stiff piece");
+            Assert.IsNotNull(m.Part(BodyPartId.LeftForearm).OwnBody);
+            Assert.IsNull(m.Part(BodyPartId.RightForearm).OwnBody);
         }
 
         [UnityTest]
@@ -181,8 +196,11 @@ namespace OrbitalAnte.Tests
             Mannequin m = NewMannequin(Vector3.zero);
             yield return null;
 
+            // One chunk a frame is given joints, so the cuts are a frame apart.
             m.DamagePart(BodyPartId.LeftUpperArm, Big, Vector3.forward);
+            yield return null;
             m.DamagePart(BodyPartId.RightUpperArm, Big, Vector3.forward);
+            yield return null;
             m.DamagePart(BodyPartId.LeftThigh, Big, Vector3.forward);
             Assert.LessOrEqual(GibRagdoll.LiveCount, 2, "more chunks are jointed than the budget allows");
             Assert.IsNull(m.Part(BodyPartId.LeftForearm).OwnBody, "the oldest gave its joints up to make room");

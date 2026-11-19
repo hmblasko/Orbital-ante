@@ -125,11 +125,12 @@ namespace OrbitalAnte.Enemies
                 new EnemyTypeSpec { id = "Marksman", model = "EnemyMarksman", scale = 1.2f, speed = 0.9f, toughness = 0.8f, weapon = "Sniper", engageRange = 110f,
                                     reactionTime = 1.6f, aimError = 0.6f, keepFar = 200f, keepNear = 25f, holdsStill = true, hunch = 0.3f, share = 1f,
                                     aimTell = 1f, mostPerCamp = 1, atLargeBase = 1, notAtSmallBase = true },
-                // Lean and steady, a little taller than the ordinary one: keeps a middle distance and picks you off
-                // with single aimed pistol shots from cover. The first kind whose body is jointed: it crumples
+                // Lean and steady, a little taller than the ordinary one: holds a band between the ordinary
+                // one and the marksman, and takes a visible pause before a straighter shot than theirs (the pause is
+                // the tell: slower to fire than the trooper's 0.6 s, tighter than its 3 degrees). The first kind whose body is jointed: it crumples
                 // when it dies and its lost limbs fold as they fly (Matthew, 15 Nov 2026).
                 new EnemyTypeSpec { id = "Drifter", model = "EnemyDrifter", scale = 1.05f, speed = 1.15f, toughness = 1f, weapon = "Pistol", engageRange = 38f,
-                                    reactionTime = 0.5f, aimError = 2.2f, keepFar = 16f, keepNear = 6f, hunch = 0.9f, share = 2f, jointed = true },
+                                    reactionTime = 0.85f, aimError = 2.2f, keepFar = 24f, keepNear = 10f, hunch = 0.9f, share = 2f, jointed = true },
 
                 // Faction A (Soviet-spacesuit inspired; placeholder, no name). Three tiers of clearly different
                 // size, each with one thing it does that the others do not. Limbs come off as easily as on
