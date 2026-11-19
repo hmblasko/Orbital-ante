@@ -269,5 +269,77 @@ namespace OrbitalAnte.Tests
                 Assert.AreEqual(r1, r2); Assert.AreEqual(g1, g2); Assert.AreEqual(b1, b2);
             }
         }
+
+        // Standout landforms (Matthew, 15 Nov 2026: "more interesting landscape", "significantly more landscape").
+
+        static double Change(string body, Action<PlanetProfile> without, out double deepest, out double tallest)
+        {
+            PlanetTerrain with = Make(body), plain = Make(body, without);
+            double sum = 0; int n = 0; deepest = 0; tallest = 0;
+            foreach (Vec3d d in Directions(6000, 23))
+            {
+                double change = with.Height(d) - plain.Height(d);
+                sum += Math.Abs(change); n++;
+                deepest = Math.Min(deepest, change); tallest = Math.Max(tallest, change);
+            }
+            return sum / n;
+        }
+
+        [Test]
+        public void Canyons_CutDown_NeverUp_AndNoDeeperThanTheirDial()
+        {
+            foreach (string body in new[] { "Earth", "Mars", "Titan", "Moon" })
+            {
+                double depth = PlanetProfiles.Defaults().First(p => p.bodyId == body).canyonDepth;
+                Assert.Greater(depth, 0, body + " has canyons");
+                Change(body, p => p.canyonDepth = 0, out double deepest, out double tallest);
+                Assert.Less(deepest, -depth * 0.25, body + ": somewhere a canyon is cut well into the ground");
+                Assert.GreaterOrEqual(deepest, -depth - 1e-6, body + ": never deeper than the dial");
+                Assert.LessOrEqual(tallest, 1e-6, body + ": a canyon never raises ground");
+            }
+        }
+
+        [Test]
+        public void Ridges_Towers_AndDunes_OnlyAddGround_AndStayUnderTheirDials()
+        {
+            PlanetProfile mars = PlanetProfiles.Defaults().First(p => p.bodyId == "Mars");
+            Change("Mars", p => p.ridgeHeight = 0, out double low, out double high);
+            Assert.GreaterOrEqual(low, -1e-6); Assert.Greater(high, mars.ridgeHeight * 0.4); Assert.LessOrEqual(high, mars.ridgeHeight * 1.35);
+            Change("Mars", p => p.spireHeight = 0, out low, out high);
+            Assert.GreaterOrEqual(low, -1e-6); Assert.Greater(high, mars.spireHeight * 0.4); Assert.LessOrEqual(high, mars.spireHeight * 1.1);
+            Change("Mars", p => p.duneHeight = 0, out low, out high);
+            Assert.GreaterOrEqual(low, -1e-6); Assert.Greater(high, mars.duneHeight * 0.4); Assert.LessOrEqual(high, mars.duneHeight + 1e-6);
+        }
+
+        [Test]
+        public void StandoutLandforms_AreGatheredInCountry_NotSpreadEverywhere()
+        {
+            // Towers and dunes belong to their own country: most of a world has neither.
+            PlanetTerrain with = Make("Mars"), plain = Make("Mars", p => { p.spireHeight = 0; p.duneHeight = 0; });
+            int touched = 0, n = 0;
+            foreach (Vec3d d in Directions(6000, 29)) { n++; if (Math.Abs(with.Height(d) - plain.Height(d)) > 0.05) touched++; }
+            Assert.Greater(touched, n / 100, "there is tower or dune country");
+            Assert.Less(touched, n / 2, "but it is not everywhere");
+        }
+
+        [Test]
+        public void EveryWorldWithStandouts_StaysInsideItsStatedBounds_AndFarGroundLeavesTowersOut()
+        {
+            foreach (PlanetProfile profile in PlanetProfiles.Defaults())
+            {
+                if (profile.canyonDepth <= 0 && profile.ridgeHeight <= 0 && profile.spireHeight <= 0 && profile.duneHeight <= 0) continue;
+                PlanetTerrain t = Make(profile.bodyId);
+                foreach (Vec3d d in Directions(3000, 31))
+                {
+                    double h = t.Height(d);
+                    Assert.GreaterOrEqual(h, t.MinHeight - 1e-6, profile.bodyId);
+                    Assert.LessOrEqual(h, t.MaxHeight + 1e-6, profile.bodyId);
+                }
+            }
+            // Seen so coarsely that a tower is smaller than one step, the ground is the ground without towers.
+            PlanetTerrain mars = Make("Mars"), bare = Make("Mars", p => p.spireHeight = 0);
+            foreach (Vec3d d in Directions(500, 37))
+                Assert.AreEqual(bare.Height(d, 400), mars.Height(d, 400), 1e-9);
+        }
     }
 }

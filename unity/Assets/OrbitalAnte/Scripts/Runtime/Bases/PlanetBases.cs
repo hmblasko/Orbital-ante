@@ -57,6 +57,8 @@ namespace OrbitalAnte.Bases
 
         SolarSystemWorld _world;
         readonly Dictionary<int, World> _worlds = new Dictionary<int, World>();
+        readonly Dictionary<int, PlanetJobs.Handle> _searches = new Dictionary<int, PlanetJobs.Handle>();
+        readonly Dictionary<int, List<BaseSite>> _found = new Dictionary<int, List<BaseSite>>();
         readonly List<Mesh> _owned = new List<Mesh>();
         Material _material;
         float _nextLook;
@@ -80,6 +82,12 @@ namespace OrbitalAnte.Bases
             BuildView = null;
             Kinds = new[] { 1, 1, 1 };
         }
+
+        /// <summary>
+        /// True once it is known what bases a body has (or that it has none). False while its ground is not
+        /// built or the search for places is still running: ask again later, and do not take "no bases" as the answer.
+        /// </summary>
+        public bool Known(int body) => WorldOf(body) != null || _worlds.ContainsKey(body);
 
         /// <summary>The bases on a body, worked out the first time they are asked for. Null if its ground is not ready yet or it has none.</summary>
         public IReadOnlyList<BaseSite> SitesOn(int body) => WorldOf(body)?.Sites;
@@ -105,8 +113,23 @@ namespace OrbitalAnte.Bases
             Vec3d pad = Vec3d.Zero;
             if (_world.Base != null && _world.Base.Surface == surface) pad = _world.Base.Spot.Up;
             else if (surface.Body.Spec.id == "Earth") pad = LaunchSite.Find(surface.Terrain).Up;
-            var random = GameSession.Stream("bases." + surface.Body.Spec.id);
-            w = new World { Sites = BaseField.Build(Rules, surface.Terrain, random, Kinds, pad) };
+            // Looking for level ground for dozens of bases takes tens of thousandths of a second, so it is done
+            // on a background thread (the ground's rules are safe there) and this answers "not yet" meanwhile.
+            if (!_found.TryGetValue(body, out List<BaseSite> sites))
+            {
+                if (!_searches.ContainsKey(body))
+                {
+                    var random = GameSession.Stream("bases." + surface.Body.Spec.id);
+                    PlanetTerrain terrain = surface.Terrain;
+                    BaseFieldRules rules = Rules;
+                    int[] kinds = (int[])Kinds.Clone();
+                    _searches[body] = PlanetJobs.Run(() => BaseField.Build(rules, terrain, random, kinds, pad),
+                        result => { _found[body] = result; _searches.Remove(body); }, () => -9e5f);
+                }
+                return null;
+            }
+            _found.Remove(body);
+            w = new World { Sites = sites };
             w.Built = new GameObject[w.Sites.Count];
             w.Foundations = new Mesh[w.Sites.Count];
             w.Rare = new Weapons.Weapon[w.Sites.Count];
@@ -316,6 +339,8 @@ namespace OrbitalAnte.Bases
 
         void OnDestroy()
         {
+            foreach (KeyValuePair<int, PlanetJobs.Handle> search in _searches) search.Value.Cancel();
+            _searches.Clear();
             for (int i = 0; i < _owned.Count; i++) if (_owned[i] != null) Destroy(_owned[i]);
             if (_material != null) Destroy(_material);
         }

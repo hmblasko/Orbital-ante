@@ -124,6 +124,8 @@ namespace OrbitalAnte.Enemies
             if (_worlds.TryGetValue(body, out World w)) return w;
             w = null;
             PlanetSurface surface = _world.Planets != null ? _world.Planets.SurfaceOf(body) : null;
+            // The bases' guards are part of the camps, so wait until the bases have been found.
+            if (surface != null && surface.Ready && surface.Terrain != null && _world.Bases != null && !_world.Bases.Known(body)) return null;
             if (surface != null && surface.Ready && surface.Terrain != null)
             {
                 PlanetTerrain terrain = surface.Terrain;

@@ -90,6 +90,23 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void BasesAreThroughoutEveryWorld()
+        {
+            // Matthew, 15 Nov 2026: "we need more bases throughout".
+            var rules = new BaseFieldRules();
+            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 500), 50, "Earth is asked for dozens");
+            Assert.GreaterOrEqual(BaseField.BaseCount(rules, 150), 6, "the Moon for several");
+            Assert.GreaterOrEqual(Build(Terrain("Earth"), 3).Count, 30);
+            Assert.GreaterOrEqual(Build(Terrain("Mars"), 3).Count, 30);
+            List<BaseSite> moon = Build(Terrain("Moon"), 3);
+            Assert.GreaterOrEqual(moon.Count, 6);
+            // Spread round the world, not gathered on one side: some base in every one of eight parts of the sky.
+            var parts = new HashSet<int>();
+            foreach (BaseSite s in Build(Terrain("Mars"), 3)) parts.Add((s.Up.X > 0 ? 1 : 0) | (s.Up.Y > 0 ? 2 : 0) | (s.Up.Z > 0 ? 4 : 0));
+            Assert.AreEqual(8, parts.Count, "Mars has a base in every eighth of its surface");
+        }
+
+        [Test]
         public void NoBaseCrowdsTheLaunchPad()
         {
             PlanetTerrain earth = Terrain("Earth");

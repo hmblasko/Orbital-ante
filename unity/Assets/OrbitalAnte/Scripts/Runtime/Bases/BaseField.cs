@@ -13,12 +13,12 @@ namespace OrbitalAnte.Bases
     public sealed class BaseFieldRules
     {
         /// <summary>One base for every this many square metres of a world's surface.</summary>
-        public float areaPerBase = 90000f;
-        public int leastBases = 1, mostBases = 24;
+        public float areaPerBase = 36000f;
+        public int leastBases = 2, mostBases = 60;
         /// <summary>Worlds smaller than this (metres of radius) have no base: there is no room to land beside one.</summary>
         public float leastRadius = 60f;
         /// <summary>Bases are never nearer to each other than this over the ground, in metres.</summary>
-        public float spacing = 180f;
+        public float spacing = 110f;
         /// <summary>None nearer the launch pad than this, in metres.</summary>
         public float padClear = 260f;
         /// <summary>The radius of level ground each size stands on, in metres.</summary>
@@ -101,7 +101,7 @@ namespace OrbitalAnte.Bases
                 for (int shrink = 0; shrink < 3 && !found; shrink++)
                 {
                     double footprint = rules.Footprint(size);
-                    for (int tries = 0; tries < 24; tries++)
+                    for (int tries = 0; tries < 40; tries++)
                     {
                         Vec3d up = RandomDirection(random);
                         if (Math.Abs(up.Y) > 0.9) continue;   // not at the poles, where "north" stops meaning anything

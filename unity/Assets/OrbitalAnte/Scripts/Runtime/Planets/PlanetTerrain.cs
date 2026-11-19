@@ -107,6 +107,115 @@ namespace OrbitalAnte.Planets
         /// </summary>
         static double MountainGain(double erosion) => 1.0 + 0.3 * Noise3.Clamp01(erosion * 1.5);
 
+        /// <summary>
+        /// The landforms you steer toward: great canyons, knife-edged ridges, fields of rock towers and seas of
+        /// dunes. Each world has its own mix (the dials on its profile). Two broad patterns divide a world into
+        /// kinds of country, so towers gather in tower country and dunes in dune country, with ordinary land between.
+        /// </summary>
+        double Standouts(Vec3d p, Vec3d q, double height, double minW, double keep)
+        {
+            PlanetProfile f = Profile;
+            double countryA = Noise3.Perlin(p, CountrySize, _s + 31);
+            double countryB = Noise3.Perlin(p, CountrySize * 0.8, _s + 32);
+
+            if (f.canyonDepth > 0)
+            {
+                // Cut down toward a bed that is never below the canyon floor of the world, so no canyon floods
+                // or bottoms out, and lower ground is never left standing above higher ground beside it.
+                double floor = f.hasSea ? f.seaLevel + 2.5 : f.continentBias - f.continentHeight * 0.7;
+                double room = Math.Min(f.canyonDepth, height - floor);
+                if (room > 0)
+                {
+                    double d = Math.Abs(Noise3.Perlin(q, f.canyonWavelength, _s + 33)) / f.canyonWidth;
+                    if (d < 1)
+                    {
+                        // A level floor, then walls that rise in two steep pitches with a ledge between.
+                        double wall = Noise3.Smooth(0.4, 0.62, d) * 0.55 + Noise3.Smooth(0.72, 0.95, d) * 0.45;
+                        height -= (1 - wall) * room * keep;
+                    }
+                }
+            }
+
+            if (f.ridgeHeight > 0)
+            {
+                double where = Noise3.Smooth(0.08, 0.3, countryA) * keep;
+                if (where > 0)
+                {
+                    double d = Math.Abs(Noise3.Perlin(q, f.ridgeWavelength, _s + 34)) / 0.085;
+                    if (d < 1)
+                    {
+                        // A knife edge on top flaring to a broad foot, its crest rising in teeth and dropping to
+                        // gaps along its length, its flanks ribbed where rock has fallen away.
+                        double crest = 1 - d;
+                        double shape = crest * crest * (0.3 + 0.7 * crest);
+                        double along = 0.6 + 0.4 * Noise3.Perlin(p, f.ridgeWavelength * 0.23, _s + 35);
+                        double teeth = minW < 30 ? Noise3.Ridged(p, 30, 2, _s + 39, minW) : 0.45;
+                        height += shape * along * (0.72 + 0.6 * teeth * crest) * f.ridgeHeight * where;
+                    }
+                }
+            }
+
+            if (f.spireHeight > 0 && minW < f.spireSpacing)
+            {
+                double where = Noise3.Smooth(0.12, 0.3, countryB) * (1 - Noise3.Smooth(0.05, 0.25, countryA)) * keep;
+                if (where > 0)
+                {
+                    double near = Noise3.Cells(p, f.spireSpacing, _s + 36, out _, out uint id);
+                    // A little over half the cells carry a tower; each has its own height and girth.
+                    double pick = (id & 1023u) / 1023.0;
+                    if (pick < 0.55)
+                    {
+                        double tall = 0.45 + 0.55 * ((id >> 10) & 1023u) / 1023.0;
+                        double girth = 0.22 + 0.18 * ((id >> 20) & 1023u) / 1023.0;
+                        // No tower is round: its outline bulges, bites in and is cut by gullies.
+                        double edge = 1 + 0.3 * Noise3.Perlin(p, f.spireSpacing * 0.3, _s + 40)
+                                        + 0.16 * Noise3.Perlin(p, f.spireSpacing * 0.1, _s + 41)
+                                        + (minW < 3 ? 0.07 * Noise3.Perlin(p, 2.6, _s + 43) : 0);
+                        double d = near / girth * edge;
+                        if (d < 1)
+                        {
+                            // A butte: a long apron of fallen rock at the angle loose stone lies at, a cliff
+                            // band of hard rock standing out of it, sometimes a second, narrower one above,
+                            // and a top that is broken, never level.
+                            double apron = Math.Min(1, (1 - d) / 0.45) * 0.34;
+                            double cliffAt = 0.52 + 0.08 * Noise3.Perlin(p, f.spireSpacing * 0.17, _s + 44);
+                            double cliff = 1 - Noise3.Smooth(cliffAt - 0.05, cliffAt + 0.05, d);
+                            double step = ((id >> 5) & 31u) / 31.0;
+                            double upper = 1 - Noise3.Smooth(cliffAt * 0.5, cliffAt * 0.5 + 0.09, d);
+                            double firstBand = 0.66 - 0.3 * step;
+                            double top = 0.82 + 0.18 * Noise3.Perlin(p, 5.5, _s + 42) + 0.1 * (1 - d / cliffAt);
+                            double rise = apron + (1 - 0.34) * (cliff * firstBand + upper * (1 - firstBand) * top);
+                            // They fade in as the ground gets fine enough to carry them.
+                            double carried = Noise3.Smooth(minW * 0.6, minW * 1.6, f.spireSpacing * girth * 2);
+                            height += rise * tall * f.spireHeight * where * carried;
+                        }
+                    }
+                }
+            }
+
+            if (f.duneHeight > 0)
+            {
+                double where = Noise3.Smooth(0.1, 0.32, -countryA) * keep;
+                // Sand lies in the low country, not on the heights or under the sea.
+                if (f.hasSea) where *= Noise3.Smooth(f.seaLevel + 1.5, f.seaLevel + 4, height);
+                double carried = Noise3.Smooth(minW * 0.6, minW * 1.6, f.duneSpacing * 0.5);
+                if (where > 0 && carried > 0)
+                {
+                    // Crests run across the wind, which blows round a tilted pole; they waver and fork.
+                    double phase = (p.X * 0.42 + p.Y * 0.31 + p.Z * 0.85) / f.duneSpacing + Noise3.Perlin(p, f.duneSpacing * 3.5, _s + 37) * 1.4;
+                    double part = phase - Math.Floor(phase);
+                    // A long windward slope and a short steep slip face.
+                    double wave = part < 0.72 ? Noise3.Smooth(0, 0.72, part) : 1 - Noise3.Smooth(0.72, 1, part);
+                    double size = 0.55 + 0.45 * Noise3.Perlin(p, f.duneSpacing * 6, _s + 38);
+                    height += wave * size * f.duneHeight * where * carried;
+                }
+            }
+            return height;
+        }
+
+        /// <summary>The size of one kind of country (tower country, dune country, ridge country), in metres.</summary>
+        double CountrySize => Math.Max(260, Profile.hillWavelength * 4.5);
+
         /// <summary>The cross-section of a valley: 1 on its line, 0 at its edge, with a flat floor and steepening sides.</summary>
         static double Channel(double value, double width)
         {
@@ -191,6 +300,10 @@ namespace OrbitalAnte.Planets
                         double bench = (whole + 0.5 + (riser - 0.5) * 0.9 + (part - 0.5) * 0.1) * f.terraceStep;
                         height += (bench - t * f.terraceStep) * stepped;
                     }
+                }
+                if (f.canyonDepth > 0 || f.ridgeHeight > 0 || f.spireHeight > 0 || f.duneHeight > 0)
+                {
+                    height = Standouts(p, q, height, minW, keep);
                 }
             }
 
@@ -644,8 +757,8 @@ namespace OrbitalAnte.Planets
                 }
             }
             // Formations overlap now and then, so leave room for two of the biggest.
-            MaxHeight = f.continentBias + swing + f.mountainHeight * 1.5 * MountainGain(f.erosion) + up * 2;
-            MinHeight = f.continentBias - swing - f.valleyDepth - down * 2;
+            MaxHeight = f.continentBias + swing + f.mountainHeight * 1.5 * MountainGain(f.erosion) + f.ridgeHeight * 1.35 + f.spireHeight * 1.1 + f.duneHeight + up * 2;
+            MinHeight = f.continentBias - swing - f.valleyDepth - f.canyonDepth - down * 2;
         }
 
         // ------------------------------------------------------------------ holes
