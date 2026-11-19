@@ -30,3 +30,7 @@ unity/Assets/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
 # Revisit when the library grows (see docs/reports/audio-slice.md).
 unity/Assets/OrbitalAnte/Resources/Audio/**/*.wav -filter -diff -merge -text
 unity/Assets/OrbitalAnte/Resources/Audio/**/*.ogg -filter -diff -merge -text
+
+# The models' texture pictures stay in plain git (Matthew, 19 Nov 2026): cloud sessions cannot reach Git LFS, and a
+# plain pull on the Deck then needs nothing installed. This line must stay after the PNG rule above.
+unity/Assets/OrbitalAnte/Resources/Models/Textures/*.png -filter -diff -merge -text
