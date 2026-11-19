@@ -319,6 +319,7 @@ namespace OrbitalAnte.Arena
         {
             // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
             if (_gibs != null) _gibs.ReleaseAll();
+            OrbitalAnte.Creatures.StriderChunk.ClearAll();
             if (_gore != null) _gore.Clear();
             if (_weaponFx != null) _weaponFx.Clear();
 
@@ -343,6 +344,7 @@ namespace OrbitalAnte.Arena
 
             _mannequinRoot = new GameObject("Mannequins").transform;
             _mannequinRoot.SetParent(transform, false);
+            SpawnCreatures();
 
             MannequinConfig config = MannequinConfig.Load();
             // Its own named stream: other seeded systems can come and go without moving these mannequins.
@@ -376,6 +378,21 @@ namespace OrbitalAnte.Arena
                 combat.TryPickUp(weapon);
 
                 _mannequins.Add(mannequin);
+            }
+        }
+
+        /// <summary>
+        /// The alien creatures under trial: a Strider at the far end of the arena, a child of the mannequins' folder
+        /// so a respawn clears it with them. Until the fight is started it only wanders.
+        /// </summary>
+        void SpawnCreatures()
+        {
+            var config = OrbitalAnte.Creatures.CreatureConfig.Load();
+            SeededRandom rng = SeededRandom.ForStream(_seed, "arena.creatures");
+            for (int i = 0; i < config.arenaStriders; i++)
+            {
+                var at = new Vector3(Mathf.Lerp(-12f, 12f, (float)rng.NextDouble()) + i * 9f, 0f, HalfSize - 9f - i * 7f);
+                OrbitalAnte.Creatures.Strider.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Strider " + (i + 1));
             }
         }
 
