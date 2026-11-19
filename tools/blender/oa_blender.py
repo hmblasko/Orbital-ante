@@ -370,6 +370,13 @@ def save_texture_set(name, color, normal, mask, folder=None):
     Unity's way); Mask holds red = ambient occlusion (1 open, 0 a deep hollow), green = smoothness, blue = bare metal,
     and is linear. Sizes: 2048 for an enemy body, 1024 for a gun (2048 for the gun the player holds), square.
     The game's import rules (ModelTextureImportRules.cs) set compression and mip maps by the file name's ending.
+
+    Two traps (19 Nov 2026 review, not yet seen in practice):
+    - Bake the normal map on the same triangles the exporter uses: triangulate each low piece first with
+      _triangulated()'s call (bmesh.ops.triangulate with its defaults), then bake, then export. Baking on quads that
+      the exporter later splits another way gives faint diagonal shading across them.
+    - Thinning for the far copy (thin) does not respect the edges of UV islands, so pictures can smear across
+      seams on far copies. Judge the far copy with the pictures on, from 5 m, before shipping it.
     """
     folder = folder or TEXTURES
     os.makedirs(folder, exist_ok=True)

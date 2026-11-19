@@ -126,11 +126,27 @@ namespace OrbitalAnte.Look
             Material outdoor = PlanetMaterials.TexturedModel(entry.File.TextureSet, pictures.Color, pictures.Normal, pictures.Mask, 1f, 0f, PropPaintScale);
             if (outdoor != Outdoor() && !IndoorOf.ContainsKey(outdoor))
             {
+                // A new world destroys the old materials (PlanetMaterials.Configure); their entries go too.
+                ForgetDestroyed(IndoorOf);
+                ForgetDestroyed(OutdoorOf);
                 Material indoor = PlanetMaterials.TexturedModel(entry.File.TextureSet, pictures.Color, pictures.Normal, pictures.Mask, 0f, IndoorGlow, PropPaintScale);
                 IndoorOf[outdoor] = indoor;
                 OutdoorOf[indoor] = outdoor;
             }
             return outdoor;
+        }
+
+        static readonly List<Material> Dead = new List<Material>();
+
+        static void ForgetDestroyed(Dictionary<Material, Material> twins)
+        {
+            Dead.Clear();
+            foreach (KeyValuePair<Material, Material> pair in twins)
+            {
+                if (pair.Key == null || pair.Value == null) Dead.Add(pair.Key);
+            }
+            foreach (Material m in Dead) twins.Remove(m);
+            Dead.Clear();
         }
 
         static TextureSet PicturesOf(string set)

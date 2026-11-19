@@ -61,8 +61,10 @@ Shader "OrbitalAnte/Model"
             half4 color : COLOR;
             half2 finish : TEXCOORD2;
             float3 positionOS : TEXCOORD3;
+        #if defined(_OA_TEXTURED)
             float2 uv : TEXCOORD4;
             half4 tangentWS : TEXCOORD5;
+        #endif
         };
 
         Varyings vert(Attributes input)
@@ -74,9 +76,12 @@ Shader "OrbitalAnte/Model"
             output.normalWS = TransformObjectToWorldNormal(input.normalOS);
             output.color = input.color;
             output.finish = saturate(input.finish);
+        #if defined(_OA_TEXTURED)
             output.uv = input.uv;
             // The sign says which way "up" on the pictures runs; a body mirrored by its scale turns it over.
-            output.tangentWS = half4(TransformObjectToWorldDir(input.tangentOS.xyz), input.tangentOS.w * GetOddNegativeScale());
+            // Left at its own length, as Blender's bake (MikkTSpace) leaves it until the very end.
+            output.tangentWS = half4(TransformObjectToWorldDir(input.tangentOS.xyz, false), input.tangentOS.w * GetOddNegativeScale());
+        #endif
             // Painted in the object's own space and size, so the paint stays put on a thing that moves.
             float3 scale = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
             output.positionOS = input.positionOS.xyz * scale * _PaintScale;
@@ -106,9 +111,14 @@ Shader "OrbitalAnte/Model"
                 half3 albedo = SAMPLE_TEXTURE2D(_ColorMap, sampler_ColorMap, input.uv).rgb * _BaseColor.rgb;
                 half4 mask = SAMPLE_TEXTURE2D(_MaskMap, sampler_MaskMap, input.uv);
                 half3 bump = UnpackNormal(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, input.uv));
-                half3 across = normalize(input.tangentWS.xyz - normal * dot(input.tangentWS.xyz, normal));
-                half3 along = cross(normal, across) * (input.tangentWS.w > 0.0 ? 1.0 : -1.0);
-                normal = normalize(across * bump.x + along * bump.y + normal * bump.z);
+                // The frame Blender baked with (MikkTSpace): the interpolated normal and tangent as they come, the
+                // other direction across them, and only the result made one long. SafeNormalize keeps a corner with
+                // no usable direction (a squashed triangle on the pictures) from turning into a black or glittering
+                // pixel.
+                half3 smoothNormal = input.normalWS;
+                half3 across = input.tangentWS.xyz;
+                half3 along = cross(smoothNormal, across) * (input.tangentWS.w > 0.0 ? 1.0 : -1.0);
+                normal = SafeNormalize(across * bump.x + along * bump.y + smoothNormal * bump.z);
                 half hollow = mask.r;
                 half gloss = mask.g;
                 half metal = mask.b;

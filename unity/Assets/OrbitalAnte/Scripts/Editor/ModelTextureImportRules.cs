@@ -28,7 +28,7 @@ namespace OrbitalAnte.EditorTools
             var importer = (TextureImporter)assetImporter;
             // Only decide once, the first time Unity sees the file: after that, anything changed by hand in the
             // Inspector is left alone.
-            if (importer.userData == Stamp) return;
+            if (!importer.importSettingsMissing || importer.userData == Stamp) return;
             importer.userData = Stamp;
 
             string name = System.IO.Path.GetFileNameWithoutExtension(path);
