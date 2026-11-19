@@ -618,9 +618,8 @@ def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out
 # ------------------------------------------------------------------ preview pictures
 
 def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(50, 20, 35), world=(0.36, 0.5, 0.72), samples=96,
-                   glow=(), glow_strength=5.0, sun_energy=3.6, sky=0.7, finish=None):
-    """A picture of the model with soft sun and sky light, showing the per-corner paint. Not the game's shader.
-    `finish`, when given, is called with each preview material once it is wired (oa_materials.surface_detail)."""
+                   glow=(), glow_strength=5.0, sun_energy=3.6, sky=0.7):
+    """A picture of the model with soft sun and sky light, showing the per-corner paint. Not the game's shader."""
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.samples = samples
@@ -683,9 +682,6 @@ def render_preview(path, objects, eye, target, lens=50, size=(1100, 700), sun=(5
             tree.links.new(split.outputs[0], rough.inputs[1])
             tree.links.new(rough.outputs[0], tree.nodes["Principled BSDF"].inputs["Roughness"])
             tree.links.new(split.outputs[1], tree.nodes["Principled BSDF"].inputs["Metallic"])
-    if finish:
-        finish(mat)
-        finish(plain)
     for o in objects:
         o.data.materials.clear()
         o.data.materials.append(plain if o.get("oa_unchecked") else mat)

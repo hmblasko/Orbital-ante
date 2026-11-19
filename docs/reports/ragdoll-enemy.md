@@ -4,6 +4,8 @@
 
 **Nothing in this report was run in Unity.** The rules were tested in the cloud (2,556 rule tests pass), the Unity-side code was compiled against reference assemblies, and the pictures and the clip are offline previews, not game footage. The PlayMode tests written for this work have never been run.
 
+Pictures and clip: `docs/art/previews/ragdoll-enemy/` (`ragdoll_before_after.gif`, `drifter_vs_trooper_front.jpg`, `drifter_vs_trooper_three_quarter.jpg`, `drifter_vs_trooper_back.jpg`, `drifter_close.jpg`).
+
 ## What Matthew asked for
 
 15 Nov 2026: "I really want a new enemy character to implement. For now, I want a very realistic ragdoll, maybe even from a ragdoll simulator. The ragdoll should have soft limits with tension. The art style can be generally consistent with the current art style but should be more refined than the current enemies. It should not look like Roblox. It should have all the same gibbing mechanics and animations."
@@ -36,13 +38,13 @@ Files: `Dismemberment/RagdollRules.cs` (the rules, plain C#), `Dismemberment/Gib
 - A fifth unaligned kind. Slightly taller than the trooper (1.05), a little faster on its feet (1.15), carries the pistol, and takes cover and flanks like the trooper. It stands further back than the trooper (10 to 24 m, between the trooper and the marksman), waits longer before its first shot (0.85 s against the trooper's 0.6) and then aims straighter (2.2 degrees against 3). The pause is the tell. Toughness is the same as the trooper's: no inflated health. These numbers are first guesses.
 - It is the only kind with a jointed body for now, so the two can be compared side by side in the same fight. One tick box turns joints on for every kind (below).
 - Its model is new: a high-altitude pilot's pressure suit with a survival vest, built by `tools/blender/build_enemy_drifter.py`. A close white helmet with a wide dark visor and a breathing hose to a green regulator on the chest, a dark vest with pouches and a parachute harness over a tan suit, restraint cords and lacing on the limbs, two small oxygen bottles and a seat kit on the back instead of the trooper's big pack, tall laced boots. Same skeleton, same fourteen breakable pieces, so every gib, stump, hitbox and animation works on it.
-- 21,512 triangles (the trooper has 21,176), with a far copy of 4,585.
+- 21,512 triangles (the trooper has 21,176), with a far copy of 4,566.
 
 ### 3. "Less cheap": an honest answer
 
-The pictures show the Drifter beside the trooper. It has more worked detail, but it is still built the same way and drawn the same way, and to my eye it is a modest step, not the jump Matthew is asking for.
+The pictures show the Drifter beside the trooper. It has a different outline and more worked detail, but it is built the same way and drawn the same way, and to my eye it is a modest step, not the jump Matthew is asking for. It still reads as a model made in Blender by script.
 
-The main reason the enemies look like cheap Blender models is not their shapes. It is that the game draws one flat colour per corner and has **no textures**: no cloth weave, no stitching, no scuffs, no fine shading in the folds. The pictures ending `_textured` show the same two models with that kind of surface detail worked in, to show how much it adds. The game cannot draw that today. Reading textures in the game is owned by the thread "Remake enemies and guns realistically", so it was not duplicated here; the helper that made these pictures (`tools/blender/oa_materials.py`) is there for that thread to use.
+The main reason is not the shapes. The game draws one flat colour per corner and has **no textures**: no cloth weave, no stitching, no scuffs, no fine shading in the folds. I tried working that kind of detail into the offline pictures with generated patterns to show the difference; the result was barely visible and is not included. Convincing surface detail has to be baked from a sculpt or painted, and the game has to be able to read textures. Reading textures in the game is owned by the thread "Remake enemies and guns realistically", so it was not duplicated here.
 
 There are two routes to a real jump, and they can be combined:
 

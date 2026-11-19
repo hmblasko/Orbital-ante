@@ -4,8 +4,7 @@ realistic ragdoll ... more refined than the current enemies. It should not look 
     blender -b -P tools/blender/build_enemy_drifter.py            (writes EnemyDrifter.bytes and EnemyDrifterFar.bytes into the game)
     blender -b -P tools/blender/build_enemy_drifter.py -- --write-to <folder>
     blender -b -P tools/blender/build_enemy_drifter.py -- --compare <folder> [--pose <kinds.json> ready]
-                    (the trooper beside the Drifter, twice: as the game draws them now, and with cloth, scuffs and
-                     stitching worked into the surface the way textures will once the game can read them)
+                    (the trooper beside the Drifter: same place, same light, same camera)
 
 The named real thing (docs/art_direction.md): a high-altitude pilot's full pressure suit, the kind worn in the U-2
 and the SR-71, with a pilot's survival vest over it. That gives a different outline from the trooper's Moon suit:
@@ -143,11 +142,14 @@ TORSO = pad([
     (1.522, 0.050, 0.050, 0, 0.000),
 ])
 POWER = 2.4
+VEST_THICK = 0.030
 
 
 def torso_y(x, z, front=True):
     rs, rf, _, of = R.along(TORSO, z)
     reach = rf * (1.0 - min(1.0, abs(x / rs)) ** POWER) ** (1.0 / POWER)
+    if 1.10 <= z <= 1.44:
+        reach += VEST_THICK - 0.019     # things on the chest and back sit on the vest, not on the suit under it
     return of + reach if front else of - reach
 
 
@@ -163,11 +165,11 @@ def torso():
     o.append(metal(oa.lathe("collar ring", (0, 0, 1.487), (0, 0, 1), [(0.0, 0.104), (0.004, 0.121), (0.018, 0.121), (0.024, 0.106)], ALU, segments=24), 21))
 
     # The survival vest: a dark cloth shell over chest and back, open down the front, with a zip and pouches.
-    vest = band("vest", 1.105, 1.432, 0.019, VEST, n=26)
+    vest = band("vest", 1.105, 1.432, VEST_THICK, VEST, n=26)
     R.displace(vest, R.creases(0.0020, (10, 10, 16), seed=7))
     o.append(webbing(vest, 22))
-    o.append(webbing(band("vest hem", 1.096, 1.116, 0.022, VEST_LIGHT, n=26), 23))
-    o.append(webbing(band("vest collar", 1.420, 1.438, 0.022, VEST_LIGHT, n=26), 23))
+    o.append(webbing(band("vest hem", 1.096, 1.116, VEST_THICK + 0.003, VEST_LIGHT, n=26), 23))
+    o.append(webbing(band("vest collar", 1.420, 1.438, VEST_THICK + 0.003, VEST_LIGHT, n=26), 23))
     # The zip down the middle: two tapes and a row of teeth, a brass pull at the top.
     for k, (z0, z1) in enumerate(((1.112, 1.20), (1.20, 1.29), (1.29, 1.36), (1.36, 1.428))):
         zm = (z0 + z1) * 0.5
@@ -203,7 +205,7 @@ def torso():
         o.append(webbing(R.sweep("harness", path, 0.022, T.WEB, n=8, up=out, flat=0.15, cuts=2, power=3.0), 41))
         o.append(metal(small("quick release", (x, torso_y(x, 1.398) + 0.032, 1.398), (0.040, 0.012, 0.050), STEEL, bevel=0.004), 42))
         o.append(hard(tiny("release tab", (x, torso_y(x, 1.398) + 0.040, 1.384), (0.022, 0.004, 0.018), ORANGE), 43))
-    o.append(webbing(band("chest strap", 1.268, 1.300, 0.029, T.WEB, n=26), 44))
+    o.append(webbing(band("chest strap", 1.268, 1.300, VEST_THICK + 0.010, T.WEB, n=26), 44))
     o.append(metal(small("chest buckle", (0, torso_y(0, 1.284) + 0.036, 1.284), (0.058, 0.010, 0.038), STEEL, bevel=0.003), 45))
 
     # The waist: the suit's entry zip under a flap, and a webbing belt with a knife sheath on the right hip.
@@ -385,7 +387,7 @@ def triangles(parts):
     return sum(oa._triangle_count(o) for name in be.ORDER for o in parts[name])
 
 
-def compare(folder, pose=None, trooper_pose=None, textured=False):
+def compare(folder, pose=None, trooper_pose=None):
     """The trooper on the left, the Drifter on the right: same place, same light, same camera."""
     old = T.make()
     new = make()
@@ -410,16 +412,10 @@ def compare(folder, pose=None, trooper_pose=None, textured=False):
              ("drifter_close", (-1.25, 1.55, 1.50), (-0.58, 0, 1.30), 50),
              ("drifter_legs", (-1.20, 1.70, 0.60), (-0.58, 0, 0.42), 50))
     wanted = [a for a in sys.argv if a.startswith("only=")]
-    finish = None
-    if textured:
-        import oa_materials
-        finish = oa_materials.surface_detail
     for name, eye, target, lens in shots:
         if wanted and name not in wanted[0][5:].split(","):
             continue
-        tag = "_textured" if textured else ""
-        oa.render_preview(os.path.join(folder, name + tag + ".png"), shown, eye, target, lens=lens, size=(1280, 800), samples=96 if textured else 64,
-                          finish=finish)
+        oa.render_preview(os.path.join(folder, name + ".png"), shown, eye, target, lens=lens, size=(1280, 800), samples=64)
 
 
 if __name__ == "__main__":
@@ -435,7 +431,7 @@ if __name__ == "__main__":
             trooper = [k for k in kinds if k["model"] == "Enemy"][0][which]
             mine = [k for k in kinds if k["model"] == NAME]
             pose = mine[0][which] if mine else trooper
-        compare(args[args.index("--compare") + 1], pose, trooper, textured="--textured" in args)
+        compare(args[args.index("--compare") + 1], pose, trooper)
     else:
         if "--write-to" in args:
             be.OUT = os.path.abspath(args[args.index("--write-to") + 1])
