@@ -19,7 +19,7 @@ A cicada 1.7 m long with wings that span 3.6 m: a broad black armoured fore body
 
 ## How it moves (no animation clips)
 
-Its root stays on the ground under it and the pose carries its height. In the air the body pitches into its speed and banks into turns, the four wings beat in a blur (fore and hind a little out of step) and the legs are drawn up under it. Landing, the legs reach down and take the weight on springs. On the ground it walks three legs at a time, wings folded back over the abdomen like a roof. The warning lifts the abdomen and opens the wings in a shiver; the scream holds them spread and shakes the whole animal on every beat, drums flexing. Clips: the flight in, landing, warning, scream and leaving; and being shot apart, in the project files.
+Its root stays on the ground under it and the pose carries its height. In the air the body pitches into its speed and banks into turns, the four wings beat in a blur (fore and hind a little out of step) and the legs hang under it. Landing, the legs reach down and take the weight on springs. On the ground it walks three legs at a time, wings folded back over the abdomen like a roof. The warning lifts the abdomen and opens the wings in a shiver; the scream holds them spread and shakes the whole animal on every beat, drums flexing. Clips: the flight in, landing, warning, scream and leaving; and being shot apart, in the project files.
 
 ## Sounds
 
