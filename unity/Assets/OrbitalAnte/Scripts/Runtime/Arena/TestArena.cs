@@ -413,6 +413,13 @@ namespace OrbitalAnte.Arena
                 var at = new Vector3((i % 2 == 0 ? -1f : 1f) * (8f + 4f * (i / 2)), 0f, HalfSize * 0.62f - 5f * (i / 2));
                 OrbitalAnte.Creatures.Hunter.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Cave hunter " + (i + 1));
             }
+            for (int i = 0; i < config.arenaScreamers; i++)
+            {
+                // The Screamers start perched near the far end, to one side; once they have seen the player they fly
+                // to wherever they mean to scream from.
+                var at = new Vector3((i % 2 == 0 ? 1f : -1f) * 13f, 0f, HalfSize * 0.75f - 6f * (i / 2));
+                OrbitalAnte.Creatures.Screamer.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Screamer " + (i + 1));
+            }
         }
 
         /// <summary>

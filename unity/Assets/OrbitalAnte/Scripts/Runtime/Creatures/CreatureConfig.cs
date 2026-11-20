@@ -23,6 +23,9 @@ namespace OrbitalAnte.Creatures
         [Tooltip("The Cave hunter (the giant centipede): pace, its weave, the rear and the strike, how long its head lies still, hit points.")]
         public HunterRules hunter = new HunterRules();
 
+        [Tooltip("The Screamer (the cicada): its flight, where it lands, the warning, the scream's reach, cone and hurt, how long it sags afterwards, hit points.")]
+        public ScreamerRules screamer = new ScreamerRules();
+
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
 
@@ -34,6 +37,9 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("How many Cave hunters the combat test arena starts with (0 for none).")]
         [Range(0, 2)] public int arenaHunters = 1;
+
+        [Tooltip("How many Screamers the combat test arena starts with (0 for none).")]
+        [Range(0, 2)] public int arenaScreamers = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

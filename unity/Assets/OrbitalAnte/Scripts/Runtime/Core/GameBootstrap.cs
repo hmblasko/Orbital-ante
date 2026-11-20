@@ -89,6 +89,8 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Creatures.Walker.ResetStatics();
             OrbitalAnte.Creatures.Roller.ResetStatics();
             OrbitalAnte.Creatures.Hunter.ResetStatics();
+            OrbitalAnte.Creatures.Screamer.ResetStatics();
+            OrbitalAnte.Creatures.ScreamRings.ResetStatics();
             OrbitalAnte.Creatures.WalkerChunk.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
             OrbitalAnte.Items.EnvelopeDirector.ResetStatics();
