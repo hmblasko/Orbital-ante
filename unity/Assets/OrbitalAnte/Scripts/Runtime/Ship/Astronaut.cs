@@ -84,7 +84,11 @@ namespace OrbitalAnte.Ship
         public bool Dazed => _dazed > 0f;
         /// <summary>Called once, a moment after the pilot dies, with the cause in plain words. Set by whoever shows the screen.</summary>
         public static Action<string> OnDeath;
-        public static void ResetStatics() => OnDeath = null;
+        /// <summary>Walking pace outside as a share of normal, for carrying a crate of salvage (the ante tasks set it).</summary>
+        public static float CarryPace = 1f;
+        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; }
+        /// <summary>Outside and off the ground: on the jets, jumping, floating. (For the style kills.)</summary>
+        public bool Airborne => Mode == AstronautMode.Outside && !_grounded;
         float _dazed, _deadFor;
         bool _posed, _deathTold;
         // The way the last blow pushed (world), and the burst of the body when you die (null if it could not be made).
@@ -861,6 +865,12 @@ namespace OrbitalAnte.Ship
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
             }
+            else if (WorldOffers.Ask(eye, forward, dt, out string offered, out float held))
+            {
+                // Something of the world's (a crate, a supply pod) took the prompt and the press.
+                Prompt = offered;
+                if (held >= 0f) PromptProgress = held;
+            }
             else if (!flying && RoverOffered(eye, forward, dt))
             {
                 // The rover: get in, winch it down from the lander, or (held) winch it back up.
@@ -1317,8 +1327,8 @@ namespace OrbitalAnte.Ship
             if (_grounded)
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f);
-                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
+                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f) * Mathf.Clamp(CarryPace, 0.2f, 1f);
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace * Combat.RunEffects.Mods.Move);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);

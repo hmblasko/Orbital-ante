@@ -214,6 +214,10 @@ namespace OrbitalAnte.UI
             return pixels > (_system.Model.ParentOf(body) == 0 ? 10f : 18f);
         }
 
+        /// <summary>How many ante tasks a world still has (-1 while not known). Set by the task director.</summary>
+        [System.NonSerialized] public System.Func<int, int> TasksLeft;
+        readonly Dictionary<int, int> _shownTasks = new Dictionary<int, int>();
+
         void UpdateLabels()
         {
             SolarSystemModel model = _system.Model;
@@ -234,6 +238,13 @@ namespace OrbitalAnte.UI
                 }
                 if (label.gameObject.activeSelf != show) label.gameObject.SetActive(show);
                 if (!show) continue;
+                // Tasks still to do there, once that world has been visited (its bases and camps are known).
+                int tasks = TasksLeft != null ? TasksLeft(i) : -1;
+                if (!_shownTasks.TryGetValue(i, out int shownTasks) || shownTasks != tasks)
+                {
+                    _shownTasks[i] = tasks;
+                    label.text = tasks > 0 ? spec.displayName + "  (" + tasks + (tasks == 1 ? " task)" : " tasks)") : spec.displayName;
+                }
                 float dot = Mathf.Max((float)spec.radius * PixelsPerMetre, MinimumDot(spec.kind));
                 ((RectTransform)label.transform).anchoredPosition = at + new Vector2(dot + 6f, 0f);
             }

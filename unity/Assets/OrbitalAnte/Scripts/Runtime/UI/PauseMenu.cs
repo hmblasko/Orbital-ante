@@ -25,12 +25,37 @@ namespace OrbitalAnte.UI
             Quit,
             Confirm,
             Died,
+            /// <summary>Between antes: the ante just cleared, and the way on (ante tasks, 20 Nov 2026).</summary>
+            Intermission,
+            /// <summary>A page of choices the caller fills (the ante break's perk, shop and stakes pages, 20 Nov 2026).</summary>
+            Choices,
+        }
+
+        /// <summary>One button on a choices page.</summary>
+        public struct MenuChoice
+        {
+            public string Label;
+            public Action OnPick;
+            public bool Enabled;
+
+            public MenuChoice(string label, Action onPick, bool enabled = true)
+            {
+                Label = label;
+                OnPick = onPick;
+                Enabled = enabled;
+            }
         }
 
         /// <summary>Restart the run. The argument is true to keep the current seed.</summary>
         public Action<bool> RestartRequested;
         public Action QuitToMenuRequested;
         public Action QuitToDesktopRequested;
+        /// <summary>True when the current ante's target is met and it may be ended early (Hybrid). Shows the button.</summary>
+        public Func<bool> CanEndAnte;
+        /// <summary>Ends the current ante now. Only ever reached through its confirm page.</summary>
+        public Action EndAnte;
+        /// <summary>Leaves the between-antes page and starts the next ante.</summary>
+        public Action StartNextAnte;
 
         Canvas _canvas;
         readonly Dictionary<Page, GameObject> _pages = new Dictionary<Page, GameObject>();
@@ -60,6 +85,8 @@ namespace OrbitalAnte.UI
             BuildRestart();
             BuildQuit();
             BuildDied();
+            BuildIntermission();
+            BuildChoices();
             BuildConfirm();
 
             _controls = new ControlsPage();
@@ -69,12 +96,15 @@ namespace OrbitalAnte.UI
             _canvas.gameObject.SetActive(false);
         }
 
+        Text _lastHeading;
+
         RectTransform NewPage(Page page, string title, float width)
         {
             var root = UiKit.NewRect(page + "Page", _canvas.transform);
             UiKit.Stretch(root);
             var card = UiKit.Card(root, page + "Card", width);
             var heading = UiKit.LayoutLabel(card, title, 40, UiKit.PanelEdge, 54f);
+            _lastHeading = heading;
             // A slight tilt keeps it from feeling like a spreadsheet.
             heading.transform.localRotation = Quaternion.Euler(0f, 0f, 1.5f);
             _pages[page] = root.gameObject;
@@ -86,6 +116,10 @@ namespace OrbitalAnte.UI
         {
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
+            // Hybrid antes: once the target is met you may move on early. A confirmed action, never Select.
+            _endAnteButton = UiKit.Button(card, "Bank this ante now", () => Confirm(
+                "Target met. End this ante now and bank it?\nAnything you would still score this ante is given up.", Page.Main,
+                () => { Close(); EndAnte?.Invoke(); }));
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
             UiKit.Button(card, "Audio", () => Show(Page.Audio));
             UiKit.Button(card, "Feel", () => Show(Page.Feel));
@@ -158,7 +192,130 @@ namespace OrbitalAnte.UI
         }
 
         Text _diedCause;
+        Text _diedTitle;
+        Text _diedRecap;
         Button _diedSameSeed;
+        Button _endAnteButton;
+        Text _interTitle, _interBody;
+        Button _interGo;
+
+        void BuildIntermission()
+        {
+            var card = NewPage(Page.Intermission, "ANTE CLEARED", 640f);
+            _interTitle = _lastHeading;
+            _interBody = UiKit.LayoutLabel(card, string.Empty, 19, UiKit.Cream, 210f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _interGo = UiKit.Button(card, "Start the next ante", () => { Close(); StartNextAnte?.Invoke(); });
+            _defaults[Page.Intermission] = _interGo.gameObject;
+            UiKit.Button(card, "Restart", () => Show(Page.Restart));
+            UiKit.Button(card, "Quit", () => Show(Page.Quit));
+        }
+
+        /// <summary>Opens the between-antes page: what was cleared and what comes next. The game stays paused on it.</summary>
+        public void ShowIntermission(string title, string body, string goLabel)
+        {
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            if (_interTitle != null) _interTitle.text = title;
+            _interBody.text = body ?? string.Empty;
+            UiKit.ButtonText(_interGo).text = goLabel;
+            Show(Page.Intermission);
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            _diedAt = Time.unscaledTime;
+        }
+
+        // ------------------------------------------------------------------ choices page (ante break)
+
+        const int ChoiceSlots = 7;
+        Text _choiceTitle, _choiceBody;
+        readonly Button[] _choiceButtons = new Button[ChoiceSlots];
+        readonly Action[] _choiceActions = new Action[ChoiceSlots];
+        Action _choiceBack;
+
+        void BuildChoices()
+        {
+            var card = NewPage(Page.Choices, "CHOOSE", 760f);
+            _choiceTitle = _lastHeading;
+            _choiceBody = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Cream, 120f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            for (int i = 0; i < ChoiceSlots; i++)
+            {
+                int slot = i;
+                Button b = UiKit.Button(card, string.Empty, () => _choiceActions[slot]?.Invoke(), 70f, 19);
+                Text t = UiKit.ButtonText(b);
+                t.horizontalOverflow = HorizontalWrapMode.Wrap;
+                ((RectTransform)t.transform).offsetMin = new Vector2(16f, 4f);
+                ((RectTransform)t.transform).offsetMax = new Vector2(-16f, -4f);
+                _choiceButtons[i] = b;
+            }
+        }
+
+        /// <summary>
+        /// Shows a page of up to seven choices, the first enabled one selected for the controller. The game stays
+        /// paused. <paramref name="onBack"/> is what B / Esc does there (nothing if null). Each pick runs its action;
+        /// the action decides which page comes next.
+        /// </summary>
+        /// <param name="keepSlot">After a pick that stays on the same page (buying in the shop), the slot to keep the
+        /// cursor on, or the nearest enabled one; -1 selects the first enabled.</param>
+        /// <param name="holdSelection">Select nothing for a moment, so a button still held or mashed from the fight
+        /// cannot pick something unread (the first page of a break, the perk cards).</param>
+        public void ShowChoices(string title, string body, IList<MenuChoice> choices, Action onBack = null, float bodyHeight = 120f,
+            int keepSlot = -1, bool holdSelection = false)
+        {
+            if (!IsOpen) holdSelection = true;
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            if (_choiceTitle != null) _choiceTitle.text = title;
+            _choiceBody.text = body ?? string.Empty;
+            UiKit.SetLayout(_choiceBody.gameObject, string.IsNullOrEmpty(body) ? 0f : bodyHeight);
+            _choiceBack = onBack;
+            GameObject first = null;
+            for (int i = 0; i < ChoiceSlots; i++)
+            {
+                bool used = choices != null && i < choices.Count;
+                Button b = _choiceButtons[i];
+                b.gameObject.SetActive(used);
+                _choiceActions[i] = used ? choices[i].OnPick : null;
+                if (!used) continue;
+                UiKit.ButtonText(b).text = choices[i].Label;
+                b.interactable = choices[i].Enabled;
+                if (first == null && choices[i].Enabled) first = b.gameObject;
+            }
+            if (keepSlot >= 0 && choices != null)
+            {
+                for (int d = 0; d < ChoiceSlots; d++)
+                {
+                    int up = keepSlot - d, down = keepSlot + d;
+                    if (down < choices.Count && down < ChoiceSlots && choices[down].Enabled) { first = _choiceButtons[down].gameObject; break; }
+                    if (up >= 0 && up < choices.Count && choices[up].Enabled) { first = _choiceButtons[up].gameObject; break; }
+                }
+            }
+            _defaults[Page.Choices] = first;
+            Show(Page.Choices);
+            if (holdSelection)
+            {
+                if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+                _diedAt = Time.unscaledTime;
+            }
+        }
+
+        /// <summary>Restarts the run (true keeps the seed), from a page outside the menu's own (the ante break).</summary>
+        public void RequestRestart(bool sameSeed) { Close(); RestartRequested?.Invoke(sameSeed); }
+
+        public void RequestQuitToMenu() { Close(); QuitToMenuRequested?.Invoke(); }
+
+        /// <summary>The run has ended without a death (the ante timer ran out short of the target).</summary>
+        public void ShowRunOver(string title, string cause) => ShowRunOver(title, cause, null);
+
+        public void ShowRunOver(string title, string cause, string recap)
+        {
+            ShowDeath(cause, recap);
+            if (_diedTitle != null) _diedTitle.text = title;
+        }
 
         /// <summary>
         /// Shown when the pilot dies. Says what killed them in plain words, so the lesson is never hidden, and
@@ -167,7 +324,10 @@ namespace OrbitalAnte.UI
         void BuildDied()
         {
             var card = NewPage(Page.Died, "THAT WAS FATAL", 620f);
+            _diedTitle = _lastHeading;
             _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedRecap = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 0f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedRecap.gameObject.SetActive(false);
             _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
             _defaults[Page.Died] = _diedSameSeed.gameObject;
             UiKit.Button(card, "Try again with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
@@ -175,14 +335,25 @@ namespace OrbitalAnte.UI
         }
 
         /// <summary>Opens the menu on the page for a run that has ended in the pilot's death.</summary>
-        public void ShowDeath(string cause)
+        public void ShowDeath(string cause) => ShowDeath(cause, null);
+
+        /// <summary>
+        /// The death page with a run recap under the cause (20 Nov 2026): how far the run got, how close it came,
+        /// the build and any new record. No recap (the arena) leaves the page as it was.
+        /// </summary>
+        public void ShowDeath(string cause, string recap)
         {
+            bool hasRecap = !string.IsNullOrEmpty(recap);
+            _diedRecap.gameObject.SetActive(hasRecap);
+            _diedRecap.text = hasRecap ? recap : string.Empty;
+            UiKit.SetLayout(_diedRecap.gameObject, hasRecap ? 150f : 0f);
             if (!IsOpen)
             {
                 GameSession.SetPaused(true);
                 _canvas.gameObject.SetActive(true);
             }
             _diedCause.text = cause ?? string.Empty;
+            if (_diedTitle != null) _diedTitle.text = "THAT WAS FATAL";
             UiKit.ButtonText(_diedSameSeed).text = "Try again with the same seed (" + GameSession.Seed + ")";
             Show(Page.Died);
             // Nothing is chosen for a moment, so a button still held from the crash cannot skip the page.
@@ -261,6 +432,8 @@ namespace OrbitalAnte.UI
             if (_current == Page.Controls && page != Page.Controls) _controls.Close();
             foreach (var pair in _pages) pair.Value.SetActive(pair.Key == page);
             _current = page;
+            // Whether the ante can be banked is asked every time the main page shows, not only when the menu opens.
+            if (page == Page.Main && _endAnteButton != null) _endAnteButton.gameObject.SetActive(CanEndAnte != null && CanEndAnte());
 
             if (page == Page.Controls)
             {
@@ -286,8 +459,12 @@ namespace OrbitalAnte.UI
                 case Page.Confirm:
                     Show(_confirmReturn);
                     break;
+                case Page.Choices:
+                    _choiceBack?.Invoke();
+                    break;
                 case Page.Died:
-                    // The run is over: there is nothing to go back to.
+                case Page.Intermission:
+                    // The run is over, or waits for the next ante: there is nothing to go back to.
                     break;
                 default:
                     Show(Page.Main);
@@ -328,7 +505,7 @@ namespace OrbitalAnte.UI
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
             if (selected != null && selected.activeInHierarchy) return;
-            if (_current == Page.Died && Time.unscaledTime - _diedAt < DiedHold) return;
+            if ((_current == Page.Died || _current == Page.Intermission || _current == Page.Choices) && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();
