@@ -18,7 +18,9 @@ namespace OrbitalAnte.UI
         Text _frameText;
         Text _aimText;
         Text _helpText;
-        bool _debugVisible = true;
+        // The debug readout (frame times, seed, tiles) is a tool for testing, not part of the display, so it starts
+        // hidden (Matthew, 20 Nov 2026: "fix the stats appearing on the screen like they do"). F3 shows it.
+        bool _debugVisible;
 
         float _frameAccumulator;
         int _frameCount;
@@ -137,7 +139,7 @@ namespace OrbitalAnte.UI
 
             _frameText.enabled = _debugVisible;
             _aimText.enabled = _debugVisible;
-            _helpText.enabled = _debugVisible;
+            _helpText.enabled = true;
 
             UpdateFrameTime();
             UpdateCombatReadouts();

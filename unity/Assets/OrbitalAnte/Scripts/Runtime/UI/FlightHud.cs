@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Navigation;
 using OrbitalAnte.Space;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,10 +8,15 @@ using UnityEngine.UI;
 namespace OrbitalAnte.UI
 {
     /// <summary>
-    /// What you see while flying the test craft: a name and distance on every world in view, which body you are
-    /// near and how high, your speed measured against it, the pull you feel, and a marker showing which way you
-    /// are actually drifting (in space that is often not the way you are pointing).
-    /// This is a plain stand-in. The proper cockpit dash is Milestone 9.
+    /// What you see from the seat while flying: a name and distance on every world in view, and a row of instruments
+    /// along the dash (Matthew, 20 Nov 2026: the stats should be "super interesting", simple, sharp, "not like AI made
+    /// it" and easily visible; he was shown option B, a dash strip under a row of warning lamps).
+    ///
+    /// Top middle: the world you are near, big, and how high you are in words. Along the dash: five readings, each a
+    /// big number with a small unit and one short note, always in the same place (speed, height, pull, orbit, wind).
+    /// Above them: lamps for Boost, Match, Lock, Auto, the orbit's path, Pull and Brake, which flash as they come on;
+    /// one line of advice above the lamps when there is something to do. The list of keys fades after you sit down.
+    /// The rules (splitting numbers, the flash, the orbit bar) are <see cref="DashStrip"/>.
     /// </summary>
     public sealed class FlightHud : MonoBehaviour
     {
@@ -22,27 +28,66 @@ namespace OrbitalAnte.UI
             public Color Plain;
         }
 
+        sealed class Cell
+        {
+            public Text Name, Number, Unit, Note;
+            public string ShownNumber = string.Empty;
+        }
+
+        sealed class Lamp
+        {
+            public Image Glass;
+            public Text Word;
+            public bool On;
+            public float OnSince;
+            public int Shown = -1;
+            public string ShownWord = string.Empty;
+            public Color Lit;
+        }
+
+        const int CellCount = 5;
+        const float NumberBox = 96f;
+        const float StripWidth = 1140f;
+        const float StripHeight = 96f;
+        const float StripBottom = 76f;
+        const float LampWidth = 96f;
+        const float LampGap = 8f;
+        static readonly Color LampOffGlass = new Color(0.04f, 0.035f, 0.03f, 0.5f);
+        static readonly Color LampOffWord = new Color(0.965f, 0.918f, 0.824f, 0.35f);
+        static readonly Color LampInk = new Color(0.08f, 0.05f, 0.03f, 1f);
+
         SolarSystem _system;
         TestCraft _craft;
         Canvas _canvas;
         RectTransform _canvasRect;
         Text _where;
-        Text _readout;
+        Text _whereNote;
         Text _state;
         Text _help;
         RectTransform _drift;
         Text _driftLabel;
+        readonly Cell[] _cells = new Cell[CellCount];
+        readonly Lamp[] _lamps = new Lamp[7];
+        RectTransform _orbitBar, _orbitFill, _orbitNotch;
         readonly Dictionary<int, Marker> _markers = new Dictionary<int, Marker>();
         // Markers move every frame, so they get a canvas of their own and the steady readouts are left alone.
         Canvas _markerCanvas;
         RectTransform _markerRect;
         // Words are refreshed a few times a second, not every frame: nobody can read faster, and building text
-        // every frame leaves a steady trickle of rubbish for the game to clear up.
+        // every frame leaves a steady trickle of rubbish for the game to clear up. Numbers roll every frame, but
+        // their text is only rebuilt when the shown digits change.
         const float TextInterval = 0.125f;
         float _nextText;
         float _nextHelp;
         bool _refreshText;
-        static readonly Color TargetColor = new Color(0.45f, 0.85f, 1f);
+        float _seatedAt;
+        double _shownSpeed = double.NaN, _shownHeight = double.NaN;
+        double _trueSpeed, _trueHeight;
+        long _speedKey = long.MinValue, _heightKey = long.MinValue;
+        bool _heightKnown;
+        OrbitKind _orbitKind;
+        static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+        static readonly Color TargetColor = new Color(0.51f, 0.84f, 0.98f);
 
         public void Build(SolarSystem system, TestCraft craft)
         {
@@ -54,6 +99,7 @@ namespace OrbitalAnte.UI
             _markerCanvas = UiKit.CreateCanvas("FlightMarkers", transform, 8);
             _markerCanvas.GetComponent<GraphicRaycaster>().enabled = false;
             _markerRect = (RectTransform)_markerCanvas.transform;
+            _seatedAt = Time.unscaledTime;
 
             // Aiming mark: a small open cross, so the thing you are pointing at is not hidden behind it.
             for (int i = 0; i < 4; i++)
@@ -62,48 +108,133 @@ namespace OrbitalAnte.UI
                 float angle = 90f * i;
                 Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
                 tick.anchorMin = tick.anchorMax = tick.pivot = new Vector2(0.5f, 0.5f);
-                tick.anchoredPosition = dir * 13f;
-                tick.sizeDelta = new Vector2(10f, 2f);
+                tick.anchoredPosition = dir * 11f;
+                tick.sizeDelta = new Vector2(8f, 2f);
                 tick.localRotation = Quaternion.Euler(0f, 0f, angle);
-                UiKit.AddImage(tick, new Color(0.96f, 0.91f, 0.80f, 0.8f));
+                UiKit.AddImage(tick, new Color(0.965f, 0.918f, 0.824f, 0.85f));
             }
 
-            _where = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 26, UiKit.PanelEdge));
-            UiKit.Pin((RectTransform)_where.transform, new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(900f, 34f));
+            Font numbers = UiKit.NumberFont, labels = UiKit.LabelFont;
 
-            _readout = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 22, UiKit.Cream, TextAnchor.LowerLeft));
-            UiKit.Pin((RectTransform)_readout.transform, new Vector2(0f, 0f), new Vector2(22f, 52f), new Vector2(860f, 168f));
+            // Top middle: the world, big, and the height in words under it.
+            _where = UiKit.Halo(UiKit.DashLabel(_canvas.transform, string.Empty, 40, UiKit.DashAmber, numbers, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_where.transform, new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(900f, 46f));
+            _whereNote = UiKit.Halo(UiKit.DashLabel(_canvas.transform, string.Empty, 14, UiKit.DashCream, labels, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_whereNote.transform, new Vector2(0.5f, 1f), new Vector2(0f, -56f), new Vector2(900f, 20f));
 
-            _state = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 24, UiKit.PanelEdge));
-            UiKit.Pin((RectTransform)_state.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -150f), new Vector2(1000f, 32f));
+            BuildStrip(numbers, labels);
+            BuildLamps(labels);
 
-            _help = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 16, UiKit.Muted, TextAnchor.LowerLeft, FontStyle.Normal));
-            UiKit.Pin((RectTransform)_help.transform, new Vector2(0f, 0f), new Vector2(22f, 10f), new Vector2(1230f, 40f));
+            _state = UiKit.Halo(UiKit.DashLabel(_canvas.transform, string.Empty, 15, UiKit.DashAmber, labels, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_state.transform, new Vector2(0.5f, 0f), new Vector2(0f, StripBottom + StripHeight + 52f), new Vector2(1100f, 22f));
+
+            _targetLine = UiKit.Halo(UiKit.DashLabel(_canvas.transform, string.Empty, 15, UiKit.DashBlue, labels, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_targetLine.transform, new Vector2(0.5f, 0f), new Vector2(0f, StripBottom + StripHeight + 78f), new Vector2(1100f, 22f));
+
+            _help = UiKit.Halo(UiKit.DashLabel(_canvas.transform, string.Empty, 13, UiKit.DashDim, labels, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_help.transform, new Vector2(0.5f, 0f), new Vector2(0f, 40f), new Vector2(1240f, 22f));
 
             // Drift marker: a ring with a dot, placed where your velocity points.
-            _drift = UiKit.NewRect("DriftMarker", _canvas.transform);
+            // On the markers' canvas, which is rebuilt every frame anyway, so its moving does not rebuild the readings.
+            _drift = UiKit.NewRect("DriftMarker", _markerCanvas.transform);
             _drift.anchorMin = _drift.anchorMax = _drift.pivot = new Vector2(0.5f, 0.5f);
             _drift.sizeDelta = new Vector2(26f, 26f);
             UiKit.AddImage(_drift, new Color(0.45f, 0.95f, 0.6f, 0.35f), UiKit.Circle);
             var core = UiKit.NewRect("Core", _drift);
             UiKit.Pin(core, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8f, 8f));
             UiKit.AddImage(core, new Color(0.45f, 0.95f, 0.6f, 1f), UiKit.Circle);
-            _driftLabel = Shadowed(UiKit.Label(_drift, string.Empty, 15, new Color(0.45f, 0.95f, 0.6f)));
-            UiKit.Pin((RectTransform)_driftLabel.transform, new Vector2(0.5f, 0f), new Vector2(0f, -20f), new Vector2(200f, 20f));
+            _driftLabel = UiKit.Halo(UiKit.DashLabel(_drift, string.Empty, 12, new Color(0.45f, 0.95f, 0.6f), labels, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_driftLabel.transform, new Vector2(0.5f, 0f), new Vector2(0f, -20f), new Vector2(200f, 18f));
         }
 
-        static Text Shadowed(Text text)
+        void BuildStrip(Font numbers, Font labels)
         {
-            var shadow = text.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
-            shadow.effectDistance = new Vector2(1.5f, -1.5f);
-            return text;
+            // A see-through dark plate along the dash with an amber rule on top: a row of real instruments.
+            var strip = UiKit.NewRect("DashStrip", _canvas.transform);
+            UiKit.Pin(strip, new Vector2(0.5f, 0f), new Vector2(0f, StripBottom), new Vector2(StripWidth, StripHeight));
+            UiKit.AddImage(strip, UiKit.DashPlate);
+            var rule = UiKit.NewRect("Rule", strip);
+            UiKit.Pin(rule, new Vector2(0.5f, 1f), Vector2.zero, new Vector2(StripWidth, 2f));
+            UiKit.AddImage(rule, UiKit.DashAmber);
+
+            string[] names = { "SPEED", "HEIGHT", "PULL", "ORBIT", "WIND" };
+            float cellWidth = StripWidth / CellCount;
+            for (int i = 0; i < CellCount; i++)
+            {
+                var cell = UiKit.NewRect("Cell " + names[i], strip);
+                cell.anchorMin = cell.anchorMax = cell.pivot = new Vector2(0f, 1f);
+                cell.anchoredPosition = new Vector2(i * cellWidth, 0f);
+                cell.sizeDelta = new Vector2(cellWidth, StripHeight);
+                if (i > 0)
+                {
+                    var divider = UiKit.NewRect("Divider", cell);
+                    UiKit.Pin(divider, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(1f, StripHeight - 28f));
+                    UiKit.AddImage(divider, new Color(0.965f, 0.918f, 0.824f, 0.35f));
+                }
+                var c = new Cell
+                {
+                    Name = UiKit.DashLabel(cell, names[i], 12, UiKit.DashDim, labels),
+                    Number = UiKit.DashLabel(cell, string.Empty, 46, UiKit.DashCream, numbers),
+                    Unit = UiKit.DashLabel(cell, string.Empty, 12, UiKit.DashDim, labels),
+                    Note = UiKit.DashLabel(cell, string.Empty, 12, UiKit.DashDim, labels),
+                };
+                UiKit.Pin((RectTransform)c.Name.transform, new Vector2(0f, 1f), new Vector2(20f, -8f), new Vector2(cellWidth - 30f, 18f));
+                // Digits are right-aligned in a fixed box and the unit sits at a fixed place after it, so a rolling
+                // number never pushes its unit about (the number face's digits are not all one width).
+                c.Number.alignment = TextAnchor.MiddleRight;
+                UiKit.Pin((RectTransform)c.Number.transform, new Vector2(0f, 1f), new Vector2(14f, -24f), new Vector2(NumberBox, 52f));
+                UiKit.Pin((RectTransform)c.Unit.transform, new Vector2(0f, 1f), new Vector2(14f + NumberBox + 6f, -53f), new Vector2(70f, 18f));
+                UiKit.Pin((RectTransform)c.Note.transform, new Vector2(0f, 0f), new Vector2(20f, 6f), new Vector2(cellWidth - 30f, 18f));
+                _cells[i] = c;
+
+                if (i == 3)
+                {
+                    // Orbit bar: filled to your speed across the world, the notch is what a circle at this height needs.
+                    _orbitBar = UiKit.NewRect("OrbitBar", cell);
+                    UiKit.Pin(_orbitBar, new Vector2(1f, 1f), new Vector2(-16f, -42f), new Vector2(84f, 6f));
+                    UiKit.AddImage(_orbitBar, new Color(0.965f, 0.918f, 0.824f, 0.22f));
+                    _orbitFill = UiKit.NewRect("Fill", _orbitBar);
+                    _orbitFill.anchorMin = Vector2.zero;
+                    _orbitFill.anchorMax = new Vector2(0f, 1f);
+                    _orbitFill.pivot = new Vector2(0f, 0.5f);
+                    _orbitFill.offsetMin = _orbitFill.offsetMax = Vector2.zero;
+                    UiKit.AddImage(_orbitFill, Color.white);
+                    _orbitNotch = UiKit.NewRect("Notch", _orbitBar);
+                    _orbitNotch.anchorMin = _orbitNotch.anchorMax = new Vector2(0f, 0.5f);
+                    _orbitNotch.pivot = new Vector2(0.5f, 0.5f);
+                    _orbitNotch.sizeDelta = new Vector2(2f, 16f);
+                    UiKit.AddImage(_orbitNotch, UiKit.DashCream);
+                }
+            }
+        }
+
+        void BuildLamps(Font labels)
+        {
+            float total = _lamps.Length * LampWidth + (_lamps.Length - 1) * LampGap;
+            for (int i = 0; i < _lamps.Length; i++)
+            {
+                var rt = UiKit.NewRect("Lamp " + (DashLamp)i, _canvas.transform);
+                float x = -total * 0.5f + LampWidth * 0.5f + i * (LampWidth + LampGap);
+                UiKit.Pin(rt, new Vector2(0.5f, 0f), new Vector2(x, StripBottom + StripHeight + 10f), new Vector2(LampWidth, 28f));
+                rt.pivot = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = new Vector2(x, StripBottom + StripHeight + 10f);
+                var lamp = new Lamp { Glass = UiKit.AddImage(rt, LampOffGlass) };
+                var edge = rt.gameObject.AddComponent<Outline>();
+                edge.effectColor = new Color(0.965f, 0.918f, 0.824f, 0.28f);
+                edge.effectDistance = new Vector2(1f, -1f);
+                lamp.Word = UiKit.DashLabel(rt, DashStrip.LampWord((DashLamp)i), 14, LampOffWord, labels, TextAnchor.MiddleCenter);
+                UiKit.Stretch((RectTransform)lamp.Word.transform);
+                _lamps[i] = lamp;
+            }
         }
 
         public void SetVisible(bool visible)
         {
+            bool was = _canvas != null && _canvas.gameObject.activeSelf;
             if (_canvas != null) _canvas.gameObject.SetActive(visible);
             if (_markerCanvas != null) _markerCanvas.gameObject.SetActive(visible);
+            // Sitting down (or coming back from the map) shows the keys again for a while.
+            if (visible && !was) _seatedAt = Time.unscaledTime;
         }
 
         void LateUpdate()
@@ -115,30 +246,50 @@ namespace OrbitalAnte.UI
                 _nextText = Time.unscaledTime + TextInterval;
                 UpdateReadouts();
             }
+            UpdateHelp();
+            RollNumbers();
+            UpdateLamps();
             UpdateDriftMarker();
             UpdateBodyMarkers();
+            // When the target's own marker is not drawn (too big, off screen, or out of the marked set), its distance
+            // and closing speed move to a fixed line above the advice, so they never vanish on the way in.
+            string line = _craft.Target >= 0 && !_targetMarked ? _targetLineWords : string.Empty;
+            SetText(_targetLine, line);
         }
 
         /// <summary>
-        /// Height in plain words. Over real ground it is the height above the ground straight below (or above
-        /// the sea), which is the number you need for landing; otherwise the height above the body's round surface.
+        /// Height for the top line and the height cell. Over real ground it is the height above the ground straight
+        /// below (or above the sea), which is the number you need for landing; otherwise the height above the body's
+        /// round surface.
         /// </summary>
-        string DescribeHeight(int anchor, Vector3 position)
+        void ReadHeight(int anchor, Vector3 position, out double metres, out bool known, out string note)
         {
+            known = true;
             Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
             if (planets != null)
             {
                 Planets.GroundReading ground = planets.Read(anchor, position);
                 if (ground.Known)
                 {
-                    if (ground.Underwater) return SpaceConvert.Distance(-ground.AboveSea) + " under water   " + SpaceConvert.Distance(System.Math.Max(0, ground.AboveGround)) + " above the sea bed";
-                    if (ground.InCave) return "in a cave";
-                    string label = ground.OverSea ? " above the sea" : " above the ground";
-                    double height = System.Math.Max(0, ground.OverSea ? ground.AboveSea : ground.AboveGround);
-                    return SpaceConvert.Distance(height) + label + (ground.InsideClouds ? "   (inside the clouds)" : ground.UnderClouds ? "   (under the clouds)" : string.Empty);
+                    if (ground.Underwater)
+                    {
+                        metres = -ground.AboveSea;
+                        note = "UNDER WATER";
+                        return;
+                    }
+                    if (ground.InCave)
+                    {
+                        metres = System.Math.Max(0, ground.AboveGround);
+                        note = "IN A CAVE";
+                        return;
+                    }
+                    metres = System.Math.Max(0, ground.OverSea ? ground.AboveSea : ground.AboveGround);
+                    note = ground.InsideClouds ? "IN THE CLOUDS" : ground.OverSea ? "ABOVE THE SEA" : "ABOVE GROUND";
+                    return;
                 }
             }
-            return SpaceConvert.Distance(_system.AltitudeAbove(anchor, position)) + " up";
+            metres = _system.AltitudeAbove(anchor, position);
+            note = "ABOVE THE SURFACE";
         }
 
         void UpdateReadouts()
@@ -148,143 +299,306 @@ namespace OrbitalAnte.UI
             Vector3 position = _craft.transform.position;
             float speed = _craft.Body.linearVelocity.magnitude;
             float pull = _craft.Gravity.FeltGravity.magnitude;
+            float thrust = _craft.Config.thrust;
             int target = _craft.Target;
 
+            // Top middle: where you are.
+            string heightNote = string.Empty;
             if (anchor == 0)
             {
-                _where.text = "OPEN SPACE";
+                SetText(_where, "OPEN SPACE");
+                SetText(_whereNote, "FAR FROM ANY WORLD");
+                _heightKnown = false;
             }
             else
             {
-                _where.text = model.Spec(anchor).displayName.ToUpperInvariant() + "   " + DescribeHeight(anchor, position);
+                SetText(_where, model.Spec(anchor).displayName.ToUpperInvariant());
+                ReadHeight(anchor, position, out _trueHeight, out _heightKnown, out heightNote);
+                DashStrip.SplitDistance(_trueHeight, out string hn, out string hu);
+                SetText(_whereNote, hn + " " + hu + " " + heightNote);
             }
 
-            string against = anchor == 0 ? "the Sun" : model.Spec(anchor).displayName + (_system.Frame.Rotating ? "'s ground" : string.Empty);
-            string text =
-                "Speed  " + FormatSpeed(speed) + "   against " + against + "\n" +
-                "Pull   " + pull.ToString("0.0") + " m/s\u00B2";
-            if (anchor > 0) text += DescribeOrbit(model, anchor, position);
-            if (target >= 0)
+            // Speed.
+            _trueSpeed = speed;
+            string against = anchor == 0 ? "THE SUN" : model.Spec(anchor).displayName.ToUpperInvariant() + (_system.Frame.Rotating ? " GROUND" : string.Empty);
+            SetCell(0, null, null, "VS " + against, DashTone.Plain);
+
+            // Height.
+            if (_heightKnown) SetCell(1, null, null, heightNote, DashTone.Plain);
+            else SetCell(1, "-", string.Empty, "OPEN SPACE", DashTone.Plain);
+
+            // Pull against what the thrusters can push.
+            bool heavy = pull > thrust && !_craft.Boosting && !_craft.Landed && !_craft.Grounded;
+            SetCell(2, pull.ToString("0.0", Inv), "M/S\u00B2", "THRUST " + thrust.ToString("0", Inv), heavy ? DashTone.Act : DashTone.Plain);
+
+            // Orbit.
+            _orbitKind = OrbitKind.None;
+            if (anchor > 0 && (_craft.Landed || _craft.Grounded))
             {
-                float closing = _craft.ClosingSpeed;
-                text += (_craft.LockedTarget >= 0 ? "\nLOCKED ON " : "\nAimed at ") + model.Spec(target).displayName + "   " + SpaceConvert.Distance(_craft.TargetDistance) + "   " +
-                        (closing >= 0f ? "closing " : "pulling away ") + FormatSpeed(Mathf.Abs(closing));
+                // Standing on the ground, the spin of the world reads as a "falling" path: say landed instead.
+                SetCell(3, "-", string.Empty, "LANDED", DashTone.Plain);
+                _orbitBar.gameObject.SetActive(false);
             }
-            else if (_craft.NearNose >= 0)
+            else if (anchor > 0) UpdateOrbit(model, anchor, position);
+            else
             {
-                // Nothing dead ahead, but Lock would still take this one: say so, so a rough aim is enough.
-                text += "\nNearest the nose: " + model.Spec(_craft.NearNose).displayName + "   (" + Key(GameInput.LockTarget) + " locks it)";
+                SetCell(3, "-", string.Empty, "NO WORLD TO CIRCLE", DashTone.Plain);
+                _orbitBar.gameObject.SetActive(false);
             }
+
             // What the surroundings are doing to you, so nothing slows or pushes the craft without saying so.
             Planets.PlanetWorld planets = Planets.PlanetWorld.Instance;
+            string windNote = "NO AIR";
+            DashTone windTone = DashTone.Plain;
+            float wind = 0f;
             if (planets != null && planets.Sky != null && planets.Sky.Surface != null)
             {
                 Planets.PlanetSky sky = planets.Sky;
-                if (sky.Air.Underwater) text += "\nUnder water: it slows you and holds you up";
-                else if (sky.Air.Drag > 0.005) text += "\nThick air: it slows you down";
-                if (sky.Weather.Intensity > 0.05) text += "\nWind   " + FormatSpeed((float)sky.Weather.Wind.Magnitude) + "   it carries you sideways";
+                if (sky.Weather.Intensity > 0.05) wind = (float)sky.Weather.Wind.Magnitude;
+                if (sky.Air.Underwater) { windNote = "WATER SLOWS YOU"; windTone = DashTone.Watch; }
+                else if (sky.Air.Drag > 0.005) { windNote = wind > 0f ? "THICK AIR, CARRIES YOU" : "THICK AIR SLOWS YOU"; windTone = DashTone.Watch; }
+                else windNote = wind > 0f ? "CARRIES YOU SIDEWAYS" : "STILL AIR";
             }
-            _readout.text = text;
+            DashStrip.SplitSpeed(wind, out string wn, out string wu);
+            SetCell(4, wn, wu, windNote, windTone);
 
-            // One line of plain advice, most urgent first.
-            bool mustBrake = target >= 0 && _craft.ClosingSpeed > 30f && _craft.StoppingDistance > _craft.TargetDistance * 0.8f;
+            UpdateTargetWords(model, target);
+            UpdateAdvice(model, target, pull, thrust);
+        }
+
+        void UpdateOrbit(SolarSystemModel model, int anchor, Vector3 position)
+        {
+            // The orbit aid (Matthew, 16 Nov 2026): what speed across the world's face holds a circle at this height,
+            // how fast you are really going across it, and where the path you are coasting on goes. Measured against
+            // the world's centre, not its spinning ground, because that is what an orbit is.
+            Vec3d local = SpaceConvert.ToVec3d(position);
+            BodyState[] states = _system.States;
+            Vec3d offset = _system.Frame.ToTruePosition(local, states) - states[anchor].Position;
+            Vec3d velocity = _system.Frame.ToTrueVelocity(local, SpaceConvert.ToVec3d(_craft.Body.linearVelocity), states) - states[anchor].Velocity;
+            OrbitReading orbit = OrbitPath.Read(model, anchor, offset, velocity);
+            _orbitKind = orbit.Kind;
+
+            DashStrip.SplitSpeed(orbit.SideSpeed, out string n, out string u);
+            DashStrip.SplitSpeed(orbit.CircleSpeed, out string cn, out string cu);
+            string note;
+            if (orbit.Kind == OrbitKind.Orbit || orbit.Kind == OrbitKind.Tugged)
+            {
+                DashStrip.SplitDistance(orbit.LowHeight, out string ln, out string lu);
+                DashStrip.SplitDistance(orbit.HighHeight, out string hn, out string hu);
+                note = "LOW " + ln + " " + lu + "  HIGH " + hn + " " + hu;
+            }
+            else note = "NEEDS " + cn + " " + cu;
+            SetCell(3, n, u, note, orbit.Kind == OrbitKind.None ? DashTone.Plain : DashStrip.OrbitTone(orbit.Kind));
+
+            DashStrip.OrbitBar(orbit.SideSpeed, orbit.CircleSpeed, out float fill, out float notch);
+            bool show = orbit.CircleSpeed > 0.0;
+            if (_orbitBar.gameObject.activeSelf != show) _orbitBar.gameObject.SetActive(show);
+            if (!show) return;
+            float width = _orbitBar.sizeDelta.x;
+            _orbitFill.sizeDelta = new Vector2(width * fill, 0f);
+            _orbitFill.GetComponent<Image>().color = UiKit.ToneColor(orbit.Kind == OrbitKind.None ? DashTone.Watch : DashStrip.OrbitTone(orbit.Kind));
+            _orbitNotch.anchoredPosition = new Vector2(width * notch, 0f);
+        }
+
+        void UpdateTargetWords(SolarSystemModel model, int target)
+        {
+            // The target's numbers live on its marker (see UpdateBodyMarkers); here only the lamp and the advice.
+            _targetWords = string.Empty;
+            if (target >= 0)
+            {
+                float closing = _craft.ClosingSpeed;
+                DashStrip.SplitDistance(_craft.TargetDistance, out string dn, out string du);
+                DashStrip.SplitSpeed(Mathf.Abs(closing), out string sn, out string su);
+                _targetWords = dn + " " + du + "   " + (closing >= 0f ? "CLOSING " : "PULLING AWAY ") + sn + " " + su;
+                _targetLineWords = "[ " + model.Spec(target).displayName.ToUpperInvariant() + " ]   " + _targetWords;
+            }
+            else _targetLineWords = string.Empty;
+        }
+
+        string _targetWords = string.Empty;
+        string _targetLineWords = string.Empty;
+        bool _targetMarked;
+        Text _targetLine;
+
+        void UpdateAdvice(SolarSystemModel model, int target, float pull, float thrust)
+        {
+            // One line of plain advice, most urgent first. The lamps say what is on; this says what to do.
+            _mustBrake = target >= 0 && _craft.ClosingSpeed > 30f && _craft.StoppingDistance > _craft.TargetDistance * 0.8f;
+            string words = string.Empty;
+            Color colour = UiKit.DashAmber;
             if (_craft.PilotOn)
             {
                 int key = (int)_craft.Order.Phase * 10000 + (int)Mathf.Clamp(_craft.Order.SecondsLeft, 0f, 5999f);
                 if (key != _pilotKey)
                 {
                     _pilotKey = key;
-                    _pilotWords = Navigation.Autopilot.Words(_craft.Order.Phase, _craft.Order.SecondsLeft) + "     touch the thrust to take over";
+                    _pilotWords = Autopilot.Words(_craft.Order.Phase, _craft.Order.SecondsLeft) + "     TOUCH THE THRUST TO TAKE OVER";
                 }
-                _state.text = _pilotWords;
-                _state.color = UiKit.PanelEdge;
+                words = _pilotWords;
             }
             else if (Time.unscaledTime - _craft.LastStopTime < 4f && _craft.LastStopWords.Length > 0)
             {
-                _state.text = _craft.LastStopWords;
-                _state.color = _craft.LastStop == Navigation.PilotStop.Arrived || _craft.LastStop == Navigation.PilotStop.PilotTookOver ? UiKit.PanelEdge : UiKit.Danger;
+                words = _craft.LastStopWords.ToUpperInvariant();
+                colour = _craft.LastStop == PilotStop.Arrived || _craft.LastStop == PilotStop.PilotTookOver ? UiKit.DashAmber : UiKit.DashRed;
             }
             else if (_craft.MatchingVelocity)
             {
-                string who = model.Spec(_craft.MatchBody).displayName;
-                _state.text = _craft.RelativeVelocity().magnitude > 0.5f ? "MATCHING VELOCITY WITH " + who.ToUpperInvariant() : "VELOCITY MATCHED WITH " + who.ToUpperInvariant();
-                _state.color = UiKit.PanelEdge;
+                string who = model.Spec(_craft.MatchBody).displayName.ToUpperInvariant();
+                words = _craft.RelativeVelocity().magnitude > 0.5f ? "MATCHING VELOCITY WITH " + who : "VELOCITY MATCHED WITH " + who;
             }
-            else if (mustBrake)
+            else if (_mustBrake)
             {
-                _state.text = "BRAKE NOW:  aim at " + model.Spec(target).displayName + " and hold Match Velocity";
-                _state.color = UiKit.Danger;
+                words = "BRAKE NOW: AIM AT " + model.Spec(target).displayName.ToUpperInvariant() + " AND HOLD " + _keyMatch;
+                colour = UiKit.DashRed;
             }
-            else if (pull > _craft.Config.thrust && !_craft.Boosting)
+            else if (pull > thrust && !_craft.Boosting && !_craft.Landed && !_craft.Grounded)
             {
-                _state.text = "PULL IS STRONGER THAN YOUR THRUSTERS:  use Boost";
-                _state.color = UiKit.Danger;
+                words = "PULL IS STRONGER THAN YOUR THRUSTERS: HOLD " + _keyBoost;
+                colour = UiKit.DashRed;
             }
-            else if (_craft.Boosting && _craft.ThrustInput.sqrMagnitude > 0.01f)
+            else if (target < 0 && _craft.NearNose >= 0)
             {
-                _state.text = "BOOST";
-                _state.color = UiKit.PanelEdge;
+                // Nothing dead ahead, but Lock would still take this one: say so, so a rough aim is enough.
+                words = "NEAREST THE NOSE: " + model.Spec(_craft.NearNose).displayName.ToUpperInvariant() + "    " + _keyLock + " LOCKS IT";
+                colour = UiKit.DashCream;
+            }
+            SetText(_state, words);
+            if (_state.color != colour) _state.color = colour;
+        }
+
+        bool _mustBrake;
+        string _keyMatch = "MATCH", _keyBoost = "BOOST", _keyLock = "LOCK";
+
+        void UpdateHelp()
+        {
+            float alpha = DashStrip.KeysAlpha(Time.unscaledTime - _seatedAt);
+            Color c = UiKit.DashDim;
+            c.a = alpha;
+            if (_help.color != c) _help.color = c;
+            if (_help.enabled != alpha > 0f) _help.enabled = alpha > 0f;
+            if (GameInput.Asset == null || Time.unscaledTime < _nextHelp) return;
+            // The key names only change when a control is rebound, so look them up now and then (the advice line
+            // uses the same names, so it builds no strings for them).
+            _nextHelp = Time.unscaledTime + 2f;
+            _keyMatch = Key(GameInput.MatchVelocity);
+            _keyBoost = Key(GameInput.Boost);
+            _keyLock = Key(GameInput.LockTarget);
+            if (alpha <= 0f) return;
+            bool pad = GameInput.UsingGamepad;
+            SetText(_help, ((pad ? "L STICK" : "W A S D") + " THRUST    " + Key(GameInput.FlyUp) + " / " + Key(GameInput.FlyDown) + " UP / DOWN    " +
+                            (pad ? "R STICK LOOK (CLICK TO TURN)    " : "HOLD " + Key(GameInput.FlySteer) + " TURN    ") +
+                            Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) + " ROLL    " +
+                            Key(GameInput.Boost) + " BOOST    " + Key(GameInput.MatchVelocity) + " MATCH    " + Key(GameInput.LockTarget) + " LOCK    " +
+                            Key(GameInput.Autopilot) + " AUTOPILOT    " + Key(GameInput.ToggleMap) + " MAP").ToUpperInvariant());
+        }
+
+        void UpdateLamps()
+        {
+            bool thrusting = _craft.ThrustInput.sqrMagnitude > 0.01f;
+            float pull = _craft.Gravity.FeltGravity.magnitude;
+            SetLamp(DashLamp.Boost, _craft.Boosting && thrusting, null);
+            SetLamp(DashLamp.Match, _craft.MatchingVelocity, null);
+            SetLamp(DashLamp.Lock, _craft.LockedTarget >= 0, null);
+            SetLamp(DashLamp.Auto, _craft.PilotOn, null);
+            bool onGround = _craft.Landed || _craft.Grounded;
+            bool orbitOn = _orbitKind != OrbitKind.None && _system.Frame.Anchor > 0 && !onGround;
+            SetLamp(DashLamp.Orbit, orbitOn, orbitOn ? DashStrip.OrbitWord(_orbitKind) : DashStrip.LampWord(DashLamp.Orbit));
+            SetLamp(DashLamp.Pull, pull > _craft.Config.thrust && !_craft.Boosting && !onGround, null);
+            SetLamp(DashLamp.Brake, _mustBrake, null);
+        }
+
+        void SetLamp(DashLamp which, bool on, string word)
+        {
+            Lamp lamp = _lamps[(int)which];
+            float now = Time.unscaledTime;
+            if (on && !lamp.On) lamp.OnSince = now;
+            lamp.On = on;
+            if (word != null && word != lamp.ShownWord)
+            {
+                lamp.ShownWord = word;
+                lamp.Word.text = word;
+                lamp.Shown = -1;
+            }
+            bool lit = DashStrip.LampLit(on, now - lamp.OnSince);
+            Color glow = UiKit.ToneColor(DashStrip.LampTone(which, _orbitKind));
+            int state = lit ? 1 : 0;
+            if (state == lamp.Shown && (!lit || glow == lamp.Lit)) return;
+            lamp.Shown = state;
+            lamp.Lit = glow;
+            if (lit)
+            {
+                glow.a = 0.92f;
+                lamp.Glass.color = glow;
+                lamp.Word.color = LampInk;
             }
             else
             {
-                _state.text = string.Empty;
-            }
-
-            if (GameInput.Asset != null && Time.unscaledTime >= _nextHelp)
-            {
-                // The key names only change when a control is rebound, so look them up now and then.
-                _nextHelp = Time.unscaledTime + 2f;
-                bool pad = GameInput.UsingGamepad;
-                _help.text = "Thrusters: " + (pad ? "left stick, " : "W A S D, ") + Key(GameInput.FlyUp) + " up, " + Key(GameInput.FlyDown) + " down     " +
-                             (pad ? "Right stick looks around (click it to turn the ship, click again to look), roll " : "Turn the ship: hold " + Key(GameInput.FlySteer) + ", roll ") +
-                             Key(GameInput.RollLeft) + " / " + Key(GameInput.RollRight) +
-                             "     Boost: " + Key(GameInput.Boost) + "     Match velocity: hold " + Key(GameInput.MatchVelocity) +
-                             "     Lock: " + Key(GameInput.LockTarget) + "     Autopilot: " + Key(GameInput.Autopilot) + "     Map: " + Key(GameInput.ToggleMap);
+                lamp.Glass.color = LampOffGlass;
+                lamp.Word.color = LampOffWord;
             }
         }
 
-        /// <summary>
-        /// The orbit aid (Matthew, 16 Nov 2026): what speed across the world's face holds a circle at this height,
-        /// how fast you are really going across it, and where the path you are coasting on goes. Measured against
-        /// the world's centre, not its spinning ground, because that is what an orbit is.
-        /// </summary>
-        string DescribeOrbit(SolarSystemModel model, int anchor, Vector3 position)
+        void RollNumbers()
         {
-            Vec3d local = SpaceConvert.ToVec3d(position);
-            BodyState[] states = _system.States;
-            Vec3d offset = _system.Frame.ToTruePosition(local, states) - states[anchor].Position;
-            Vec3d velocity = _system.Frame.ToTrueVelocity(local, SpaceConvert.ToVec3d(_craft.Body.linearVelocity), states) - states[anchor].Velocity;
-            Navigation.OrbitReading orbit = Navigation.OrbitPath.Read(model, anchor, offset, velocity);
-            string text = "\nOrbit  a circle here needs " + FormatSpeed((float)orbit.CircleSpeed) + " across   you: " + FormatSpeed((float)orbit.SideSpeed);
-            string name = model.Spec(anchor).displayName;
-            switch (orbit.Kind)
+            // Speed and height roll toward the truth, so a change is seen as movement, not a flicker of digits.
+            float dt = Time.unscaledDeltaTime;
+            // Digits are only rebuilt when what they show changes (an integer key per shown value), so the strip
+            // makes no new strings frame to frame while a number holds still on screen.
+            _shownSpeed = DashStrip.RollToward(_shownSpeed, _trueSpeed, dt);
+            long speedKey = DashStrip.SpeedKey(_shownSpeed);
+            if (speedKey != _speedKey)
             {
-                case Navigation.OrbitKind.Orbit:
-                    text += "\nIN ORBIT   low point " + SpaceConvert.Distance(orbit.LowHeight) + "   high point " + SpaceConvert.Distance(orbit.HighHeight);
-                    break;
-                case Navigation.OrbitKind.Tugged:
-                    text += "\nOrbit, but the high point (" + SpaceConvert.Distance(orbit.HighHeight) + ") reaches where the " +
-                            (model.ParentOf(anchor) == 0 ? "Sun" : model.Spec(model.ParentOf(anchor)).displayName) + " tugs at it";
-                    break;
-                case Navigation.OrbitKind.MeetsGround:
-                    text += "\nThis path comes down to the ground: go faster across to stay up";
-                    break;
-                case Navigation.OrbitKind.Leaves:
-                    text += "\nThis path leaves " + name + ": slow down across to stay";
-                    break;
+                _speedKey = speedKey;
+                DashStrip.SplitSpeed(_shownSpeed, out string sn, out string su);
+                SetNumber(0, sn, su);
             }
-            return text;
+            if (_heightKnown)
+            {
+                _shownHeight = DashStrip.RollToward(_shownHeight, _trueHeight, dt);
+                long heightKey = DashStrip.DistanceKey(_shownHeight);
+                if (heightKey != _heightKey)
+                {
+                    _heightKey = heightKey;
+                    DashStrip.SplitDistance(_shownHeight, out string hn, out string hu);
+                    SetNumber(1, hn, hu);
+                }
+            }
+            else
+            {
+                _shownHeight = double.NaN;
+                _heightKey = long.MinValue;
+            }
+        }
+
+        void SetCell(int index, string number, string unit, string note, DashTone tone)
+        {
+            Cell cell = _cells[index];
+            if (number != null) SetNumber(index, number, unit);
+            SetText(cell.Note, note);
+            Color numberColour = UiKit.ToneColor(tone);
+            if (cell.Number.color != numberColour) cell.Number.color = numberColour;
+            Color noteColour = tone == DashTone.Plain ? UiKit.DashDim : numberColour;
+            if (cell.Note.color != noteColour) cell.Note.color = noteColour;
+        }
+
+        void SetNumber(int index, string number, string unit)
+        {
+            Cell cell = _cells[index];
+            if (number == cell.ShownNumber && cell.Unit.text == unit) return;
+            cell.ShownNumber = number;
+            cell.Number.text = number;
+            cell.Unit.text = unit;
+        }
+
+        static void SetText(Text label, string text)
+        {
+            if (label.text != text) label.text = text;
         }
 
         int _pilotKey = -1;
         string _pilotWords = string.Empty;
 
-        static string Key(UnityEngine.InputSystem.InputAction action) => GameInput.Describe(action);
-
-        static string FormatSpeed(float metresPerSecond)
-        {
-            return metresPerSecond < 100f ? metresPerSecond.ToString("0.0") + " m/s" : Mathf.RoundToInt(metresPerSecond) + " m/s";
-        }
+        static string Key(UnityEngine.InputSystem.InputAction action) => GameInput.Describe(action).ToUpperInvariant();
 
         void UpdateDriftMarker()
         {
@@ -304,7 +618,7 @@ namespace OrbitalAnte.UI
             _drift.gameObject.SetActive(onScreen);
             if (!onScreen) return;
             _drift.anchoredPosition = ToCanvas(view);
-            if (_refreshText) _driftLabel.text = ahead ? "heading" : "coming from";
+            if (_refreshText) _driftLabel.text = ahead ? "HEADING" : "COMING FROM";
         }
 
         Vector2 ToCanvas(Vector3 viewport)
@@ -315,6 +629,7 @@ namespace OrbitalAnte.UI
 
         void UpdateBodyMarkers()
         {
+            _targetMarked = false;
             SolarSystemModel model = _system.Model;
             Camera cam = _craft.Eye;
             Vector3 eye = cam.transform.position;
@@ -341,6 +656,7 @@ namespace OrbitalAnte.UI
                 bool show = relevant && view.z > 0f && view.x > 0f && view.x < 1f && view.y > 0f && view.y < 1f
                             && size < _markerRect.rect.height * 0.3f;
 
+                if (i == target) _targetMarked = show;
                 if (!_markers.TryGetValue(i, out Marker marker))
                 {
                     if (!show) continue;
@@ -353,14 +669,18 @@ namespace OrbitalAnte.UI
                 marker.Root.anchoredPosition = ToCanvas(view);
                 // A dot for things too small to see; once the body itself is visible the dot gets out of the way.
                 marker.Dot.enabled = size < 5f;
-                ((RectTransform)marker.Label.transform).anchoredPosition = new Vector2(0f, -(Mathf.Max(size, 5f) + 14f));
+                ((RectTransform)marker.Label.transform).anchoredPosition = new Vector2(0f, -(Mathf.Max(size, 5f) + 6f));
                 if (_refreshText)
                 {
                     bool aimed = i == target;
                     marker.Label.color = aimed ? TargetColor : marker.Plain;
-                    marker.Label.text = aimed
-                        ? "[ " + spec.displayName + "  " + SpaceConvert.Distance(surfaceDistance) + " ]"
-                        : spec.displayName + "  " + SpaceConvert.Distance(surfaceDistance);
+                    DashStrip.SplitDistance(surfaceDistance, out string dn, out string du);
+                    // The aimed body carries the numbers you steer by: how far, and how fast it is coming.
+                    string text = aimed && _targetWords.Length > 0
+                        ? "[ " + spec.displayName.ToUpperInvariant() + " ]\n" + _targetWords
+                        : aimed ? "[ " + spec.displayName.ToUpperInvariant() + "  " + dn + " " + du + " ]"
+                        : spec.displayName.ToUpperInvariant() + "  " + dn + " " + du;
+                    if (marker.Label.text != text) marker.Label.text = text;
                 }
             }
         }
@@ -375,12 +695,13 @@ namespace OrbitalAnte.UI
             bright.a = 1f;
             var marker = new Marker { Root = root, Dot = UiKit.AddImage(root, bright, UiKit.Circle) };
             bool major = spec.kind != BodyKind.Moon && spec.kind != BodyKind.Asteroid;
-            marker.Label = Shadowed(UiKit.Label(root, string.Empty, major ? 17 : 14, major ? UiKit.Cream : UiKit.Muted,
-                TextAnchor.MiddleCenter, FontStyle.Normal));
+            marker.Label = UiKit.Halo(UiKit.DashLabel(root, string.Empty, major ? 14 : 12, major ? UiKit.DashCream : UiKit.DashDim,
+                UiKit.LabelFont, TextAnchor.UpperCenter));
             marker.Plain = marker.Label.color;
             var labelRect = (RectTransform)marker.Label.transform;
-            labelRect.anchorMin = labelRect.anchorMax = labelRect.pivot = new Vector2(0.5f, 0.5f);
-            labelRect.sizeDelta = new Vector2(260f, 22f);
+            labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            labelRect.pivot = new Vector2(0.5f, 1f);
+            labelRect.sizeDelta = new Vector2(320f, 20f);
             return marker;
         }
     }
