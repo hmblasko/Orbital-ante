@@ -39,7 +39,7 @@ The head is moved over the ground and every joint of the body is drawn along beh
 
 - 31 rule tests in `HunterRulesTests`: what a cut takes and that it never kills; the two ways it dies; reach and rear going with length; the body following its head at a fixed spacing through hard turns; the rear's height and the strike laying it flat; the lock and the step aside; the still head and the loop; a cut stopping a strike but not twice running; someone circling inside its reach still being reared at; never backing up; legs reaching the ground; the left fang as the right one rolled over; the model against the layout. Whole suite: 2,624 passed, 1 skipped.
 - The Unity-side code compiles against Unity reference assemblies.
-- The model: 2,244 triangles in the file, 13,370 as drawn (a segment is one mesh drawn sixteen times, a leg thirty-two), FARDRAWN as the far copy; seen from inside 0.00%.
+- The model: 2,244 triangles in the file, 13,370 as drawn (a segment is one mesh drawn sixteen times, a leg thirty-two), 7,737 as the far copy; seen from inside 0.00%.
 
 ## Agent review
 
