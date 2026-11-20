@@ -1006,9 +1006,222 @@ def roller_sockets():
             oa.socket("StumpRim", (L["stump"], 0, 0))]
 
 
+# ====================================================================== the Cave hunter (giant centipede)
+
+# It starts from a real thing: the Amazonian giant centipede, Scolopendra gigantea, at about twenty times life
+# size. A flat body of many alike segments, each under a glossy mahogany back plate with two fine grooves down it
+# and a paler rear edge, soft pleated skin along the sides, a pale plate underneath, and one pair of amber legs
+# that darken to a claw; a flat rust-red head shield with a cluster of four small eyes each side, two long beaded
+# feelers, and under the head the two heavy curved venom fangs with black points; the last pair of legs long,
+# thick and thorny, held out behind.
+# The body is a chain: each piece is modelled round its own node on the line of the spine, +Y toward the head, +Z
+# its back. A leg, a feeler and a tail leg are modelled from their roots, +Y along, bending only toward +Z, so they
+# are the same either side. A fang is the right one, curving in toward -X, the same above as below: the left one is
+# it rolled half a turn. Held by the rule test HunterModelFile_MatchesTheLayout against Creatures/HunterLayout.cs.
+HUNTER = {
+    "spacing": 0.34,                                    # from one node to the next
+    "head": 0.46, "head_half": 0.23,                    # the head runs from spacing / 2 behind its node to the rest in front
+    "seg_half": 0.21, "seg_top": 0.09, "seg_bottom": 0.09,
+    "hip": (0.19, 0.0, -0.04),
+    "leg": 0.52, "leg_radius": 0.03,
+    "fang_root": (0.10, 0.16, -0.05), "fang": 0.30,
+    "feeler_root": (0.10, 0.24, 0.05), "feeler": 0.95,
+    "tail_root": (0.10, -0.14, 0.0), "tail_leg": 0.85,
+    "stump": 0.05,
+}
+MAHOGANY, RUSSET, PITCH = (0.066, 0.019, 0.013), (0.34, 0.15, 0.07), (0.022, 0.010, 0.008)
+AMBER = (0.36, 0.20, 0.045)
+HUNTER_FLAT = {"plate": ((0.30, 0.12, 0.09), 0.55), "margin": ((0.50, 0.28, 0.16), 0.5), "head": ((0.50, 0.17, 0.08), 0.55),
+               "under": ((0.60, 0.46, 0.30), 0.3), "side": ((0.42, 0.26, 0.18), 0.2), "leg": ((0.70, 0.48, 0.16), 0.45),
+               "tail": ((0.52, 0.26, 0.10), 0.45), "fang": ((0.42, 0.14, 0.07), 0.6), "feeler": ((0.62, 0.38, 0.14), 0.4),
+               "joint": ((0.46, 0.30, 0.20), 0.2), "flesh": ((0.78, 0.50, 0.44), 0.6), "eye": ((0.05, 0.04, 0.04), 0.85)}
+HUNTER_MATERIALS = {
+    "plate": lambda: mats.chitin("plate", MAHOGANY, RUSSET, PITCH, under=(0.30, 0.20, 0.12), seed=41.0, bumps=0.12, growth=0.0, mottle=0.22, gloss=0.62),
+    "margin": lambda: mats.chitin("margin", (0.21, 0.085, 0.040), (0.40, 0.22, 0.11), PITCH, seed=42.0, bumps=0.08, growth=0.0, mottle=0.3, gloss=0.6),
+    "head": lambda: mats.chitin("head", (0.24, 0.055, 0.022), (0.42, 0.18, 0.08), PITCH, under=(0.34, 0.20, 0.10), seed=43.0, bumps=0.2, growth=0.0, mottle=0.3, gloss=0.6),
+    "under": lambda: mats.chitin("under", (0.30, 0.20, 0.10), (0.44, 0.34, 0.20), (0.10, 0.05, 0.03), seed=44.0, bumps=0.12, growth=0.0, mottle=0.4, gloss=0.34),
+    "side": lambda: mats.membrane("side", (0.24, 0.13, 0.085), seed=45.0),
+    "leg": lambda: mats.chitin("leg", AMBER, (0.50, 0.36, 0.14), (0.10, 0.04, 0.02), seed=46.0, bumps=0.15, growth=0.0, mottle=0.4, size=0.6,
+                               tip=(1, 0.36, 0.50, (0.035, 0.016, 0.010)), gloss=0.5),
+    "tail": lambda: mats.chitin("tail", (0.26, 0.10, 0.035), (0.44, 0.26, 0.10), (0.06, 0.025, 0.015), seed=47.0, bumps=0.3, growth=0.0, mottle=0.4, size=0.7,
+                                tip=(1, 0.62, 0.84, (0.035, 0.016, 0.010)), gloss=0.5),
+    "fang": lambda: mats.chitin("fang", (0.22, 0.05, 0.02), (0.40, 0.18, 0.08), PITCH, seed=48.0, bumps=0.08, growth=0.0, mottle=0.2, size=0.6,
+                                tip=(1, 0.12, 0.25, (0.012, 0.008, 0.008)), gloss=0.7),
+    "feeler": lambda: mats.chitin("feeler", (0.32, 0.17, 0.045), (0.48, 0.32, 0.12), (0.10, 0.04, 0.02), seed=49.0, bumps=0.1, growth=0.0, mottle=0.3, size=0.5,
+                                  tip=(1, 0.55, 0.95, (0.10, 0.045, 0.02)), gloss=0.45),
+    "joint": lambda: mats.membrane("joint", (0.26, 0.15, 0.09), seed=50.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.70, 0.62, 0.46), red=(0.36, 0.09, 0.05), seed=51.0),
+    "eye": lambda: mats.eye("eye", colour=(0.010, 0.008, 0.008), glint=(0.10, 0.05, 0.03)),
+}
+
+
+def leftovers(g, radius, skin):
+    """The wound (`Stump`, modelled at this radius, +Y out of it) and the two lumps that come out of a burst."""
+    hi, up = g.hi, (0, 0, 1)
+    meat = g.ball("wound meat", (0, 0.008, 0), radius * 0.86, scale=(1.0, 0.55, 1.0), around=9)
+    real.displace(meat, lambda p: 0.007 * noise.noise(p * 40.0) + 0.004 * noise.noise(p * 90.0))
+    g.add(meat, "flesh", "Stump")
+    ragged = [(-0.034 + 0.058 * i / 8, radius * (0.98 + 0.07 * i / 8), radius * (1.02 + 0.07 * i / 8)) for i in range(9)]
+    collar = g.skin("wound skin", (0, 0, 0), (0, 1, 0), up, [ragged[0], ragged[4], ragged[8]] if not hi else ragged, around=10, step=0.03, power=2.25)
+    bm = bmesh.new()
+    bm.from_mesh(collar.data)
+    for v in bm.verts:
+        if v.co.y > 0.0:
+            a = math.atan2(v.co.z, v.co.x)
+            v.co.y += (v.co.y / 0.024) * 0.014 * (noise.noise(Vector((math.cos(a) * 3.1, math.sin(a) * 3.1, 8.0))) + 0.35 * math.sin(a * 5.0))
+            v.co.y = max(v.co.y, 0.003)
+    bm.to_mesh(collar.data)
+    bm.free()
+    g.add(collar, skin, "Stump")
+    for k, (size, squash) in enumerate((((0.12, (1.0, 0.8, 0.6))), ((0.095, (0.8, 1.0, 0.7))))):
+        piece = "Meat%d" % k
+        lump = g.ball("meat", (0, 0, 0), size, scale=squash, around=10)
+        real.displace(lump, lambda p, k=k: 0.018 * noise.noise(p * 9.0 + Vector((k * 5.0, 3.0, 0))) + 0.008 * noise.noise(p * 24.0))
+        g.add(lump, "flesh", piece)
+        bit = real.ball_patch("skin bit", (0, 0, 0), (0.2, 0.1, 1.0), (0, 1, 0), size * squash[2] * 1.02, (0, 58), 0, 360, (0.5, 0.5, 0.5),
+                              thickness=0.008, n=40 if hi else 9, m=14 if hi else 3)
+        bit.data.transform(Matrix.Diagonal((squash[0] / squash[2] * 0.96, squash[1] / squash[2] * 0.96, 1.0, 1.0)))
+        g.add(bit, skin, piece)
+
+
+def hunter(hi):
+    g = Maker(hi, HUNTER_FLAT, HUNTER_MATERIALS)
+    L = HUNTER
+    up = (0, 0, 1)
+    half, top, bottom = L["seg_half"], L["seg_top"], L["seg_bottom"]
+    sp = L["spacing"]
+
+    # ------------------------------------------------------------- Seg: a back plate, pleated sides, a plate underneath, two hips
+    front, rear = sp * 0.5, -sp * 0.5 - 0.035
+    # Front to back: narrow and low where it tucks under the plate before it, widest two thirds of the way back,
+    # drawn in a little at its rear corners.
+    shape = [(1.00, 0.80, 0.80, 0.5), (0.86, 0.90, 0.92, 0.8), (0.60, 0.97, 1.0, 1.0), (0.30, 1.00, 1.0, 1.0), (0.08, 0.985, 0.97, 1.0), (0.00, 0.93, 0.90, 0.9)]
+    cuts = 26
+    if hi:
+        shape = [(1.0 - i / cuts,) + tuple(real.along([(1.0 - k[0],) + k[1:] for k in shape], i / cuts)) for i in range(cuts + 1)]
+    rows = [(rear + (front - rear) * t, half * wide, top * tall, 0.030 * skirt) for t, wide, tall, skirt in shape]
+    plate = arch("plate", rows, 0.014, 48 if hi else 10, tuck=22.0)
+    if hi:
+        # The two fine grooves a centipede's back plates carry, a shallow dish between them, and a slow unevenness.
+        real.displace(plate, lambda p: (-0.0045 * (math.exp(-((abs(p.x) - 0.062) / 0.007) ** 2)) + 0.003 * noise.noise(p * 9.0)
+                                        + 0.0010 * math.sin(p.y * 240.0)) * max(0.0, p.z / top))
+    g.add(plate, "plate", "Seg", second=("margin", lambda c, n: c.y < rear + 0.030))
+    # The soft body between the plates: pleated along its sides.
+    keys = [(0.00, half * 0.80, 0.066, 0, -0.012), (0.04, half * 0.90, 0.078, 0, -0.012), (sp - 0.04, half * 0.90, 0.078, 0, -0.012), (sp, half * 0.80, 0.066, 0, -0.012)]
+    if hi:
+        pleated = []
+        for i in range(48):
+            t = sp * i / 47
+            rs, rf, _, of = real.along(keys, t)
+            fold = 1.0 + 0.022 * math.sin(math.pi * 2 * t / 0.028)
+            pleated.append((t, rs * fold, rf, 0, of))
+        keys = pleated
+    g.add(g.skin("side", (0, -sp * 0.5, 0.0), (0, 1, 0), up, keys, around=10, step=0.11, power=2.5), "side", "Seg")
+    # The soft joint to the segment behind: a ball over the joint, so a bend never opens a gap.
+    g.add(g.ball("link", (0, -sp * 0.5, -0.010), 0.082, scale=(2.05, 1.0, 0.86), around=8), "side", "Seg")
+    # The plate underneath: flat, paler.
+    g.add(g.ball("belly plate", (0, -0.005, -bottom + 0.022), 0.15, scale=(0.92, 0.98, 0.15), around=8), "under", "Seg")
+    hip = Vector(L["hip"])
+    for side in (-1, 1):
+        g.add(g.ball("hip", (side * (hip.x - 0.015), 0, hip.z), 0.045, scale=(1.1, 1.2, 0.85), around=6), "joint", "Seg")
+        # The breathing hole above each hip (only in the pictures).
+        g.add(g.ball("spiracle", (side * (half * 0.90), 0.06, 0.012), 0.012, scale=(0.5, 1.5, 0.8), around=5), "eye", "Seg", only='hi')
+
+    # ------------------------------------------------------------- Head: a flat shield, eye clusters, the plate the fangs hang from
+    hl, hh = L["head"], L["head_half"]
+    back = -sp * 0.5
+    hk = [(0.00, hh * 0.80, 0.062, 0, 0.004), (0.05, hh * 0.96, 0.076, 0, 0.004), (0.18, hh, 0.080, 0, 0.004), (0.30, hh * 0.90, 0.070, 0, 0.0),
+          (0.39, hh * 0.66, 0.052, 0, -0.006), (0.445, hh * 0.36, 0.030, 0, -0.012), (hl, hh * 0.10, 0.010, 0, -0.016)]
+    shield = g.skin("head", (0, back, 0.0), (0, 1, 0), up, hk, around=14, step=0.06, power=2.5)
+    if hi:
+        # A shallow groove down the middle and two that run out to the feelers.
+        real.displace(shield, lambda p: (-0.004 * math.exp(-(p.x / 0.008) ** 2) - 0.003 * math.exp(-((abs(p.x) - 0.03 - max(0.0, p.y) * 0.5) / 0.007) ** 2)
+                                         + 0.003 * noise.noise(p * 12.0)) * (1.0 if p.z > 0.02 else 0.0))
+    g.add(shield, "head", "Head")
+    # The plate under the head that the fangs are hinged to, and the mouth behind them.
+    g.add(g.ball("fang plate", (0, 0.04, -0.062), 0.17, scale=(1.0, 1.05, 0.26), around=9), "under", "Head")
+    g.add(g.ball("mouth", (0, 0.20, -0.048), 0.060, scale=(1.1, 1.2, 0.5), around=6), "joint", "Head")
+    for side in (-1, 1):
+        # Four small eyes in a cluster on each front corner.
+        for k, (dx, dy, r) in enumerate(((0.0, 0.0, 0.017), (0.018, -0.024, 0.014), (-0.012, -0.030, 0.013), (0.010, 0.026, 0.012))):
+            g.add(g.ball("eye", (side * (0.150 + dx), 0.150 + dy, 0.058 - abs(dx) * 0.3), r, around=6 if k == 0 else 5), "eye", "Head", only=None if k < 2 else 'hi')
+        g.add(g.ball("feeler socket", (side * L["feeler_root"][0], L["feeler_root"][1], L["feeler_root"][2] - 0.012), 0.034, scale=(1.0, 1.0, 0.8), around=6), "joint", "Head")
+        g.add(g.ball("fang hinge", (side * L["fang_root"][0], L["fang_root"][1] - 0.02, L["fang_root"][2]), 0.050, scale=(1.0, 1.2, 0.8), around=6), "joint", "Head")
+        # The small second jaws, tucked between the fangs.
+        g.add(g.spine("palp", (side * 0.035, 0.22, -0.055), (side * 0.15, 1.0, -0.2), 0.09, 0.016, around=4, bend=(-side * 0.3, 0, -0.1)), "leg", "Head")
+
+    # ------------------------------------------------------------- Fang (the right one): heavy at the root, hooked in, a black point
+    fl = L["fang"]
+    # (distance, radius sideways, radius up, shift toward -X, shift up): it bows out, then hooks in across the mouth.
+    fk = [(0.00, 0.046, 0.040, 0.000, 0), (0.04, 0.054, 0.046, -0.012, 0), (0.11, 0.046, 0.040, -0.028, 0), (0.18, 0.034, 0.030, -0.018, 0),
+          (0.24, 0.021, 0.019, 0.022, 0), (0.28, 0.010, 0.009, 0.062, 0), (fl, 0.003, 0.003, 0.088, 0)]
+    g.add(g.skin("fang", (0, 0, 0), (0, 1, 0), up, fk, around=8, step=0.035, power=2.0), "fang", "Fang")
+
+    # ------------------------------------------------------------- Feeler: long, beaded, lifting then drooping to its tip
+    el = L["feeler"]
+    ek = [(0.00, 0.024, 0.024, 0, 0.0), (0.20, 0.020, 0.020, 0, 0.040), (0.50, 0.013, 0.013, 0, 0.060), (0.80, 0.007, 0.007, 0, 0.030), (el, 0.003, 0.003, 0, -0.020)]
+    if hi:
+        beaded = []
+        beads = 22
+        for i in range(beads * 6 + 1):
+            t = el * i / (beads * 6)
+            rs, rf, os_, of = real.along(ek, t)
+            swell = 1.0 + 0.16 * math.sin(math.pi * 2 * i / 6 - math.pi / 2)
+            beaded.append((t, rs * swell, rf * swell, os_, of))
+        feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, beaded, around=5, step=el / (beads * 6) * 6, power=2.0)
+    else:
+        feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, ek, around=5, step=0.16, power=2.0)
+    g.add(feeler, "feeler", "Feeler")
+
+    # ------------------------------------------------------------- Leg: arched up at the knee, down to a dark claw; the same either side
+    leg = L["leg"]
+    lk = [(0.00, 0.026, 0.028, 0, 0.000), (0.03, 0.032, 0.034, 0, 0.012), (0.12, 0.028, 0.030, 0, 0.066), (0.135, 0.022, 0.023, 0, 0.072),
+          (0.15, 0.026, 0.027, 0, 0.078), (0.25, 0.021, 0.022, 0, 0.092), (0.265, 0.016, 0.017, 0, 0.090), (0.28, 0.019, 0.020, 0, 0.086),
+          (0.39, 0.013, 0.014, 0, 0.050), (0.40, 0.010, 0.010, 0, 0.046), (0.47, 0.008, 0.008, 0, 0.018), (leg, 0.003, 0.003, 0, 0.000)]
+    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=6, step=0.065, power=2.0), "leg", "Leg")
+    g.add(g.ball("leg joint", (0, 0, 0), 0.030, around=5), "joint", "Leg")
+    for y in (0.135, 0.265, 0.395):
+        # The darker skin of each joint (only in the pictures).
+        rs, rf, _, of = real.along(lk, y)
+        g.add(g.ball("leg band", (0, y, of), rs * 1.12, scale=(1.0, 0.7, 1.05), around=5), "joint", "Leg", only='hi')
+
+    # ------------------------------------------------------------- TailLeg: long, thick and thorny, lifting a little
+    tl = L["tail_leg"]
+    tk = [(0.00, 0.040, 0.042, 0, 0.000), (0.04, 0.050, 0.052, 0, 0.006), (0.24, 0.044, 0.046, 0, 0.040), (0.26, 0.034, 0.035, 0, 0.043),
+          (0.28, 0.040, 0.041, 0, 0.046), (0.48, 0.030, 0.031, 0, 0.056), (0.50, 0.023, 0.024, 0, 0.056), (0.52, 0.026, 0.027, 0, 0.055),
+          (0.70, 0.016, 0.017, 0, 0.034), (0.78, 0.010, 0.010, 0, 0.018), (tl, 0.003, 0.003, 0, 0.000)]
+    g.add(g.skin("tail leg", (0, 0, 0), (0, 1, 0), up, tk, around=7, step=0.08, power=2.0), "tail", "TailLeg")
+    g.add(g.ball("tail joint", (0, 0, 0), 0.045, around=6), "joint", "TailLeg")
+    r = random.Random(53)
+    for k in range(16):
+        # Thorns on its first two joints (four of them real shapes, the rest in the pictures).
+        y = r.uniform(0.06, 0.46)
+        rs, rf, _, of = real.along(tk, y)
+        a = r.uniform(-2.4, 2.4) + math.pi / 2 * (1 if k % 2 else -1) * 0.0
+        way = Vector((math.sin(a), 0.5, -math.cos(a)))
+        g.add(g.spine("thorn", (math.sin(a) * rs * 0.8, y, of - math.cos(a) * rf * 0.8), way, r.uniform(0.018, 0.032), 0.007, around=3), "tail", "TailLeg",
+              only=None if k < 4 else 'hi')
+
+    leftovers(g, L["stump"], "side")
+    return g
+
+
+def hunter_sockets():
+    L = HUNTER
+    sp = L["spacing"]
+    return [oa.socket("SegEnd", (0, sp * 0.5, 0)), oa.socket("SegSide", (L["seg_half"], 0, -L["seg_bottom"])), oa.socket("SegTop", (0, 0, L["seg_top"])),
+            oa.socket("HeadEnd", (0, L["head"] - sp * 0.5, 0)), oa.socket("HeadSide", (L["head_half"], 0, 0)),
+            oa.socket("HipR", L["hip"]), oa.socket("LegEnd", (0, L["leg"], 0)), oa.socket("LegSide", (L["leg_radius"], 0, 0)),
+            oa.socket("FangRootR", L["fang_root"]), oa.socket("FangEnd", (0, L["fang"], 0)),
+            oa.socket("FeelerRootR", L["feeler_root"]), oa.socket("FeelerEnd", (0, L["feeler"], 0)),
+            oa.socket("TailRootR", L["tail_root"]), oa.socket("TailLegEnd", (0, L["tail_leg"], 0)),
+            oa.socket("StumpRim", (L["stump"], 0, 0))]
+
+
 # ---------------------------------------------------------------------- building
 
-CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048)}
+CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
+             "Hunter": (hunter, hunter_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
@@ -1019,7 +1232,7 @@ FAR_HOW = {"Sprinter": (0.40, 40, ("hip", "back plate", "eye knob", "beak", "joi
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
 # Shapes whose far copy is the shape itself: a thinned arch crumples and opens.
-FAR_KEEP = {"Roller": ("plate", "brow")}
+FAR_KEEP = {"Roller": ("plate", "brow"), "Hunter": ("plate",)}
 FINE = {"Sprinter": (("bristle",), "hair")}
 FAR_SHARE = 0.30
 ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
@@ -1161,9 +1374,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
             bpy.data.objects.remove(o)
     if name != "Strider":
         # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
-        apart = 1.25 if name == "Roller" else 0.45
+        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 0.45
         row = [(piece, Matrix.Translation(((k - 0.5 * (len(parts) - 1)) * apart + 0.2, 0, 0.30))) for k, piece in enumerate(parts)]
-        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name == "Roller" else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
         return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)

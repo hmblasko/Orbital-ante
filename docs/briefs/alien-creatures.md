@@ -11,14 +11,14 @@ Names here are placeholders. Each creature is original work that starts from a r
 | 1 | Japanese spider crab | Strider | open ground | Walks up on eight stilt legs and throws a long claw | 10 limbs of 3 pieces each |
 | 2 | Camel spider | Sprinter | deserts, shade | Dashes and stops on the way in, then lunges and bites | 8 legs and 2 feelers of 3 pieces each, 2 jaws |
 | 3 | Giant isopod | Roller | anywhere | Armoured; curls into a ball, bowls at you, lands on its back | 7 plates, 14 legs, the tail fan |
-| 4 | Giant centipede | Cave hunter | caves | Hangs from the roof and drops | body segments, each with legs |
+| 4 | Giant centipede | Cave hunter | caves | Weaves in, rears and strikes down; shot through, the head end fights on shorter (hanging from the roof and dropping is not built yet) | 16 body segments (it is cut in two at any of 13), 32 legs |
 | 5 | Cicada | Screamer | trees, cliffs | Its scream is the weapon | wings, legs |
 | 6 | Bobbit worm | Ambusher | soft ground | Waits buried, strikes and drags | jaws, body lengths |
 | 7 | Olm | Blind stalker | caves | Blind: finds you by movement and electronics | legs, tail, gills |
 | 8 | Goliath tigerfish | Pack biter | water | Hunts in packs | fins, jaw, tail |
 | 9 | Megamouth shark | Drifting maw | water | Slow, pulls you in | fins, jaw |
 
-Built so far (19 Nov 2026): 1, 2 and 3, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
+Built so far (20 Nov 2026): 1, 2, 3 and 4, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
 
 The research behind the list is the report "Unusual animals for alien creatures" in the project's files.
 

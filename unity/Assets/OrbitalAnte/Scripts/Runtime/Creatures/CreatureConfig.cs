@@ -20,6 +20,9 @@ namespace OrbitalAnte.Creatures
         [Tooltip("The Roller (the giant isopod): pace on foot, its roll and the warning before it, how long it lies on its back, hit points.")]
         public RollerRules roller = new RollerRules();
 
+        [Tooltip("The Cave hunter (the giant centipede): pace, its weave, the rear and the strike, how long its head lies still, hit points.")]
+        public HunterRules hunter = new HunterRules();
+
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
 
@@ -28,6 +31,9 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("How many Rollers the combat test arena starts with (0 for none).")]
         [Range(0, 2)] public int arenaRollers = 1;
+
+        [Tooltip("How many Cave hunters the combat test arena starts with (0 for none).")]
+        [Range(0, 2)] public int arenaHunters = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="RollerDump.cs" />
+    <Compile Include="HunterDump.cs" />
     <Compile Include="$(OARuntime)Core/Vec3d.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerLayout.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerBody.cs" />
@@ -18,6 +19,10 @@
     <Compile Include="$(OARuntime)Creatures/RollerBody.cs" />
     <Compile Include="$(OARuntime)Creatures/RollerAnimator.cs" />
     <Compile Include="$(OARuntime)Creatures/RollerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterBrain.cs" />
     <Compile Include="$(OARuntime)Core/SeededRandom.cs" />
   </ItemGroup>
 </Project>
