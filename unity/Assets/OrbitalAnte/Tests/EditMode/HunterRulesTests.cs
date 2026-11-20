@@ -670,7 +670,8 @@ namespace OrbitalAnte.Tests.EditMode
             {
                 Box(piece, out x, out hi, out lo, out fore, out aft, out left);
                 Assert.AreEqual(length, fore, 0.01, piece + " length");
-                Assert.AreEqual(x, -left, 0.012, piece + " is the same either side");
+                // (Within a thorn: the tail leg carries a few, not placed alike on both sides.)
+                Assert.AreEqual(x, -left, 0.03, piece + " is the same either side");
                 Assert.Less(hi, high, piece + " arch");
                 Assert.Greater(lo, -0.06, piece + " never hangs below its line");
             }

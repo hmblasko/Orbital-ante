@@ -1040,7 +1040,7 @@ HUNTER_MATERIALS = {
     "margin": lambda: mats.chitin("margin", (0.21, 0.085, 0.040), (0.40, 0.22, 0.11), PITCH, seed=42.0, bumps=0.08, growth=0.0, mottle=0.3, gloss=0.6),
     "head": lambda: mats.chitin("head", (0.24, 0.055, 0.022), (0.42, 0.18, 0.08), PITCH, under=(0.34, 0.20, 0.10), seed=43.0, bumps=0.2, growth=0.0, mottle=0.3, gloss=0.6),
     "under": lambda: mats.chitin("under", (0.30, 0.20, 0.10), (0.44, 0.34, 0.20), (0.10, 0.05, 0.03), seed=44.0, bumps=0.12, growth=0.0, mottle=0.4, gloss=0.34),
-    "side": lambda: mats.membrane("side", (0.24, 0.13, 0.085), seed=45.0),
+    "side": lambda: mats.membrane("side", (0.24, 0.13, 0.085), seed=45.0, size=3.0),
     "leg": lambda: mats.chitin("leg", AMBER, (0.50, 0.36, 0.14), (0.10, 0.04, 0.02), seed=46.0, bumps=0.15, growth=0.0, mottle=0.4, size=0.6,
                                tip=(1, 0.36, 0.50, (0.035, 0.016, 0.010)), gloss=0.5),
     "tail": lambda: mats.chitin("tail", (0.26, 0.10, 0.035), (0.44, 0.26, 0.10), (0.06, 0.025, 0.015), seed=47.0, bumps=0.3, growth=0.0, mottle=0.4, size=0.7,
@@ -1113,7 +1113,7 @@ def hunter(hi):
         for i in range(48):
             t = sp * i / 47
             rs, rf, _, of = real.along(keys, t)
-            fold = 1.0 + 0.022 * math.sin(math.pi * 2 * t / 0.028)
+            fold = 1.0 + 0.016 * math.sin(math.pi * 2 * t / 0.068)
             pleated.append((t, rs * fold, rf, 0, of))
         keys = pleated
     g.add(g.skin("side", (0, -sp * 0.5, 0.0), (0, 1, 0), up, keys, around=10, step=0.11, power=2.5), "side", "Seg")
