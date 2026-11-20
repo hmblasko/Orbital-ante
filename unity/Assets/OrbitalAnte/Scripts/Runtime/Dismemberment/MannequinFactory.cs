@@ -278,7 +278,7 @@ namespace OrbitalAnte.Dismemberment
                 if (AddModel(go, BodyPartId.Head, modelled))
                 {
                     col.radius = ModelHeadRadius;
-                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), 0f);
+                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), _fitted ? BodyFit.HeadForward(_model) : 0f);
                     neck = 0.165f;
                 }
                 else

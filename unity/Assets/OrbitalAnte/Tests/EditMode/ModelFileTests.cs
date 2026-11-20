@@ -822,7 +822,18 @@ namespace OrbitalAnte.Tests
             float helmetHalfWidth = across[(int)(across.Count * 0.9f)];
             Assert.Less(ball, helmetHalfWidth * 1.25f, file + ": the head's hitbox is wider than the helmet");
             Assert.Greater(ball, helmetHalfWidth * 0.8f, file + ": the head's hitbox is much narrower than the helmet");
-            Assert.AreEqual(0f, BodyFit.HeadRise("Enemy"));
+            // The ball sits on the helmet front to back too: it may not reach more than 4 cm behind the back of
+            // the helmet, measured where the helmet is (the head piece also carries the collar below it). The front
+            // is not measured, because a lens or a visor can stand well proud of the helmet.
+            float helmetBack = float.MaxValue;
+            float centreY = 0.015f + BodyFit.HeadRise(name);
+            for (int v = 0; v < head.VertexCount; v++)
+            {
+                if (System.Math.Abs(head.Positions[v * 3 + 1] - centreY) > 0.04f) continue;
+                helmetBack = System.Math.Min(helmetBack, head.Positions[v * 3 + 2]);
+            }
+            Assert.Greater(BodyFit.HeadForward(name) - ball, helmetBack - 0.04f, file + ": the head's hitbox stands out behind the helmet");
+            Assert.Less(centreY + ball, top + 0.06f, file + ": the head's hitbox stands well above the helmet");
             Assert.Less(BodyFit.HeadRise("EnemyBruiser"), -0.03f, "the bruiser's helmet is sunk into its collar");
             Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));
             Assert.AreEqual(1f, BodyFit.Thickness("something nobody made", BodyPartId.Head));
