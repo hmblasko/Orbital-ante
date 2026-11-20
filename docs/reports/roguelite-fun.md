@@ -13,7 +13,7 @@ Research and plan: Claude Doc "Roguelite fun: research and plan". This report co
 | The break between antes is one page with six rows: Pick a perk, Shop, Scratch ticket, Raise the stakes, Start ante, Restart or quit. It shows banked points, run score, what you can spend ("spending never lowers your score"), your sets and the next target. | Fast, legible choices with a cost; low cognitive load | 2, 5, 7 |
 | 23 perks that all do something in the game (gun and melee damage, damage taken, healing on kills, Focus, move speed, ladder speed, long-shot distance, time back), in five families: Gunner, Brawler, Ghost, Pilot, Daredevil, plus three wild ones. Every strong perk has its cost written on it (Glass Cannon, All In, Fleet Foot, Thick Skin...). | Builds that change how you play; trade-offs, not straight upgrades | 2, 6 |
 | Family sets: hold 3 of a family and its set bonus turns on (shown as GUNNER 2/3, then SET ON). The draft offers families you already hold more often, so a set is reachable in a normal run. Skipping a pick pays 250 to spend. | Visible synergy; a plan you can steer | 2, 5, 6 |
-| Raise the stakes: before an ante, choose Hunted (more heavies, enemies sharper), Thin Air (suit air drains faster) or Short Fuse (60 s less). Each says exactly what it does and its own points multiplier (x1.25, x1.10, x1.25, never over the existing risk cap). | Chosen risk for chosen reward | 5, 8 |
+| Raise the stakes: before an ante, choose Hunted (more heavies, enemies sharper), Thin Air (health does not come back by itself; kills, perks and the ship still heal) or Short Fuse (60 s less). Each says exactly what it does and its own points multiplier (x1.25, x1.10, x1.25, never over the existing risk cap). | Chosen risk for chosen reward | 5, 8 |
 | Rising pressure each ante: enemies react and aim a little sooner (down to a floor), and from ante 4 a seeded share of plain enemies wake as their side's heavy tier. Never more health. The break says what the next ante brings. An enemy keeps its kind for the whole run. | Rising challenge that stays learnable | 3, 8 |
 | Run recap on the death and run-over pages (antes cleared, score, best ante and best score), saved (save version 4). Quitting to desktop records the run too. | Death as progress; a reason to go again | 6 |
 
@@ -36,7 +36,7 @@ Research and plan: Claude Doc "Roguelite fun: research and plan". This report co
 
 ## Unverified (needs Unity)
 
-Everything that is seen or felt: the break pages on the Deck's screen and with a controller, whether perks feel strong enough, enemy sharpness at high antes, the heavies' share, Thin Air's air drain, the recap text, frame cost.
+Everything that is seen or felt: the break pages on the Deck's screen and with a controller, whether perks feel strong enough, enemy sharpness at high antes, the heavies' share, how hard Thin Air is without regeneration, the recap text, frame cost.
 
 ## Playtest on the Steam Deck (after this is merged into the testing branch)
 

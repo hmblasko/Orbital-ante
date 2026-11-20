@@ -28,6 +28,7 @@ namespace OrbitalAnte.Tasks
         string _breakNote;
         bool _tacticalNextAnte, _tacticalThisAnte, _voucherNextAnte;
         bool _recorded;
+        int _landingRefundFrame = -1;
 
         // ------------------------------------------------------------------ the build, published
 
@@ -63,8 +64,14 @@ namespace OrbitalAnte.Tasks
             if (!result.Awarded || Run == null) return;
             RunMods mods = RunEffects.Mods;
             float back = 0f;
-            if (mods.LandingTimeBack > 0f && (e.kind == ScoreEventKind.NewPlanet || e.kind == ScoreEventKind.NewMoon || e.kind == ScoreEventKind.DifficultLanding))
+            // One touchdown can score twice (a first landing that is also a hard one): time back once per touchdown
+            // (Codex review, PR 75), so a perk gives exactly what its card says.
+            if (mods.LandingTimeBack > 0f && (e.kind == ScoreEventKind.NewPlanet || e.kind == ScoreEventKind.NewMoon || e.kind == ScoreEventKind.DifficultLanding)
+                && Time.frameCount != _landingRefundFrame)
+            {
+                _landingRefundFrame = Time.frameCount;
                 back += mods.LandingTimeBack;
+            }
             if (back > 0f) GiveTimeBack(back);
         }
 

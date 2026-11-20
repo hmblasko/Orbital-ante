@@ -222,6 +222,7 @@ namespace OrbitalAnte.Enemies
             CombatWorld.Player = crew.Armour;
 
             Tally();
+            ApplySharpness();
             WakeNext();
             if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.4f;
@@ -428,7 +429,7 @@ namespace OrbitalAnte.Enemies
                 // reacts and aims a little sharper. Never more health: that would break constitution rule 3.
                 type = HeavierKind(type, body, camp, m);
                 EnemyTypeSpec spec = _config.roster[type];
-                MannequinConfig config = Sharpened(type, ConfigFor(type));
+                MannequinConfig config = ConfigFor(type);
                 // Spread round the camp's middle, a couple of metres apart.
                 float angle = (m + jitter * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
                 // A base's guards are spread over its floor, not bunched in the middle.
@@ -475,6 +476,7 @@ namespace OrbitalAnte.Enemies
                 if (combat != null)
                 {
                     combat.SetSeed(combatSeed);
+                    combat.Sharpness = SharpnessNow;
                     combat.Squad = _wakingSquad;
                     combat.Ability = spec.ability;
                     combat.Faction = c.Faction;
@@ -577,10 +579,23 @@ namespace OrbitalAnte.Enemies
         public static int PressureAnte = 1;
         public static int PressureSeed;
 
-        MannequinConfig[] _sharpConfigs;
-        float _sharpAt = 1f;
-        /// <summary>Every sharpened copy made this run, destroyed with the spawner (enemies woken earlier still hold old ones until then).</summary>
-        readonly List<MannequinConfig> _sharpMade = new List<MannequinConfig>();
+        static float SharpnessNow => Mathf.Clamp(Pressure.Sharpness, 0.4f, 1f);
+        float _sharpApplied = 1f;
+
+        /// <summary>A new ante's pressure reaches enemies already awake too (Codex review, PR 75): their kind stays.</summary>
+        void ApplySharpness()
+        {
+            float sharp = SharpnessNow;
+            if (Mathf.Approximately(sharp, _sharpApplied)) return;
+            _sharpApplied = sharp;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Mannequin who = _live[i].Who;
+                if (who == null) continue;
+                var combat = who.GetComponent<MannequinCombat>();
+                if (combat != null) combat.Sharpness = sharp;
+            }
+        }
 
         /// <summary>The kind each enemy first woke as this run, so one that comes back later is still the same kind.</summary>
         readonly Dictionary<long, int> _wokeAs = new Dictionary<long, int>();
@@ -610,27 +625,6 @@ namespace OrbitalAnte.Enemies
                 if (Tasks.EnemyTiers.KindFor(other.id, other.scale) == Ante.ScoreEventKind.EnemyTier3) return i;
             }
             return type;
-        }
-
-        /// <summary>A copy of a kind's settings with sharper reactions and aim, made once per kind per sharpness.</summary>
-        MannequinConfig Sharpened(int type, MannequinConfig config)
-        {
-            float sharp = Mathf.Clamp(Pressure.Sharpness, 0.4f, 1f);
-            if (sharp >= 0.999f) return config;
-            if (_sharpConfigs == null || _sharpConfigs.Length != _config.roster.Count || !Mathf.Approximately(_sharpAt, sharp))
-            {
-                // The old copies are not destroyed: enemies woken earlier still hold them (a few small objects a run).
-                _sharpConfigs = new MannequinConfig[_config.roster.Count];
-                _sharpAt = sharp;
-            }
-            if (_sharpConfigs[type] != null) return _sharpConfigs[type];
-            MannequinConfig copy = Instantiate(config);
-            copy.name = config.name + " sharp";
-            _sharpMade.Add(copy);
-            copy.reactionTime *= sharp;
-            copy.aimError *= sharp;
-            _sharpConfigs[type] = copy;
-            return copy;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>
@@ -717,8 +711,6 @@ namespace OrbitalAnte.Enemies
 
         void OnDestroy()
         {
-            for (int i = 0; i < _sharpMade.Count; i++) if (_sharpMade[i] != null) Destroy(_sharpMade[i]);
-            _sharpMade.Clear();
             CombatWorld.PlayerDroppedGun -= CountLooseGun;
             if (CombatWorld.DropParent == transform) CombatWorld.DropParent = null;
             GoreFx.Weight = 1f;
