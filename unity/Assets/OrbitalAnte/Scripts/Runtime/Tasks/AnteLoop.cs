@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Ante;
+using OrbitalAnte.Combat;
 using OrbitalAnte.Core;
 using OrbitalAnte.UI;
 using UnityEngine;
@@ -14,11 +15,11 @@ namespace OrbitalAnte.Tasks
     /// right of the visor: ante, time left, points banked against the target (counted up like a slot machine), the
     /// streak and the last few "+points" lines.
     ///
-    /// Lives on the game's root object next to Focus and the gun ladder. Between antes the pause menu shows a
-    /// simple card (the full upgrade screen, perk draft and scratch-off are not built yet: their picks are given
-    /// up). The arena has no ante loop.
+    /// Lives on the game's root object next to Focus and the gun ladder. Between antes the pause menu shows the
+    /// ante break (perk draft, shop, scratch-off, raise the stakes: AnteLoop.Break.cs, 20 Nov 2026). The arena
+    /// has no ante loop.
     /// </summary>
-    public sealed class AnteLoop : MonoBehaviour
+    public sealed partial class AnteLoop : MonoBehaviour
     {
         /// <summary>The live loop while a solar-system run is on, otherwise null.</summary>
         public static AnteLoop Current { get; private set; }
@@ -63,11 +64,18 @@ namespace OrbitalAnte.Tasks
             Config = TaskConfig.Load();
             Streak = new Streak(Config.rules.streakWindow);
             BuildHud();
+            RunPerksFx.Note += OnPerkNote;
         }
 
         void OnDestroy()
         {
+            RunPerksFx.Note -= OnPerkNote;
             if (Current == this) Current = null;
+        }
+
+        void OnPerkNote(string text)
+        {
+            if (Run != null) Pop(text);
         }
 
         /// <summary>A solar-system run has begun: ante 1, a full timer, nothing banked.</summary>
@@ -76,8 +84,12 @@ namespace OrbitalAnte.Tasks
             EndRun();
             if (!Config.enabled) return;
             AnteBalance balance = AnteBalanceData.Load().balance;
-            Run = new AnteRun(balance, seed);
+            // The full perk list (20 Nov 2026): every perk in it is wired into the game.
+            Run = new AnteRun(balance, seed, RoguelitePerks.Create());
             Current = this;
+            ResetBreak();
+            _skippedPerk = false;
+            PublishBuild();
             PlayTime = 0f;
             _seenPhase = Run.Director.Phase;
             _diedFirst = false;
@@ -93,7 +105,11 @@ namespace OrbitalAnte.Tasks
         /// <summary>The run's world is gone. Nothing scores until the next run.</summary>
         public void EndRun()
         {
+            // A run left mid-ante (restart or quit) still counts toward the records.
+            if (Run != null && !_recorded) RecapAndRecord();
             Run = null;
+            Enemies.EnemySpawner.Pressure = new EnemyPressure { Sharpness = 1f };
+            Enemies.EnemySpawner.PressureAnte = 1;
             if (Current == this) Current = null;
             if (_canvas != null) _canvas.gameObject.SetActive(false);
         }
@@ -117,8 +133,10 @@ namespace OrbitalAnte.Tasks
         {
             AnteLoop loop = Current;
             if (loop == null || loop.Run == null) return default;
+            loop.BeforeReport(ref scoreEvent);
             ScoreResult result = loop.Run.Report(scoreEvent);
             if (result.Awarded && result.points > 0) loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label);
+            loop.AfterReport(scoreEvent, result, label);
             return result;
         }
 
@@ -181,29 +199,21 @@ namespace OrbitalAnte.Tasks
                 case AntePhase.Failed:
                     // A death has its own page with its own cause; only the timer needs one here.
                     if (!_diedFirst && Menu != null)
-                        Menu.ShowRunOver("TIME'S UP", "Ante " + ante + " needed " + Run.Director.Target.ToString("N0", Inv)
-                            + " points and you banked " + Run.Ledger.AnteEarned.ToString("N0", Inv) + ". Run score "
-                            + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ".");
+                        Menu.ShowRunOver("TIME'S UP", "The clock ran out on ante " + ante + ".", RecapAndRecord());
                     break;
             }
         }
 
         void ShowCard()
         {
-            if (Menu == null || Run == null) return;
-            int ante = Run.Director.Ante;
-            int next = Run.Balance.TargetFor(ante + 1);
-            string body = "You banked " + Run.Ledger.AnteEarned.ToString("N0", Inv) + " of " + Run.Director.Target.ToString("N0", Inv)
-                          + ".\nRun score " + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ".\n\n"
-                          + "Ante " + (ante + 1) + " needs " + next.ToString("N0", Inv) + " in " + Clock(Run.Balance.anteSeconds) + ".\n"
-                          + "The world stays as you left it: what you cleared stays cleared.";
-            Menu.ShowIntermission("ANTE " + ante + " CLEARED", body, "Start ante " + (ante + 1));
+            // The ante break (20 Nov 2026) replaces the simple card.
+            ShowBreak();
         }
 
         void ShowVictory()
         {
             if (Menu == null || Run == null) return;
-            Menu.ShowRunOver("ALL ANTES CLEARED", "Run score " + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ". That is the whole run.");
+            Menu.ShowRunOver("ALL ANTES CLEARED", "That is the whole run.", RecapAndRecord());
         }
 
         /// <summary>For the pause menu: may the player end the ante now (target met, Hybrid)?</summary>
@@ -226,6 +236,8 @@ namespace OrbitalAnte.Tasks
             _shown = 0f;
             Audio.AudioDirector.PlayLocal("reward.multiplier");
             Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0", Inv) + " TO BANK");
+            _skippedPerk = false;
+            BeginAnteEffects();
             AnteBegan?.Invoke(Run.Director.Ante);
         }
 

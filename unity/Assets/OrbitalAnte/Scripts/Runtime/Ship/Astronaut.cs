@@ -1328,7 +1328,7 @@ namespace OrbitalAnte.Ship
             {
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
                 float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f) * Mathf.Clamp(CarryPace, 0.2f, 1f);
-                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace * Combat.RunEffects.Mods.Move);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);

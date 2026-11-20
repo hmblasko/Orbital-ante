@@ -90,8 +90,9 @@ namespace OrbitalAnte.Combat
         {
             // Only living enemies give breath back: shooting bits off your own ship does not count.
             if (!outcome.Enemy) return;
-            if (outcome.Killed) Breath.Earn(Breath.Rules.perKill);
-            else if (outcome.Severed) Breath.Earn(Breath.Rules.perLimb);
+            float gain = RunEffects.Mods.FocusGain;
+            if (outcome.Killed) Breath.Earn(Breath.Rules.perKill * gain);
+            else if (outcome.Severed) Breath.Earn(Breath.Rules.perLimb * gain);
         }
 
         void Update()

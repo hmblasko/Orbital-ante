@@ -27,6 +27,23 @@ namespace OrbitalAnte.UI
             Died,
             /// <summary>Between antes: the ante just cleared, and the way on (ante tasks, 20 Nov 2026).</summary>
             Intermission,
+            /// <summary>A page of choices the caller fills (the ante break's perk, shop and stakes pages, 20 Nov 2026).</summary>
+            Choices,
+        }
+
+        /// <summary>One button on a choices page.</summary>
+        public struct MenuChoice
+        {
+            public string Label;
+            public Action OnPick;
+            public bool Enabled;
+
+            public MenuChoice(string label, Action onPick, bool enabled = true)
+            {
+                Label = label;
+                OnPick = onPick;
+                Enabled = enabled;
+            }
         }
 
         /// <summary>Restart the run. The argument is true to keep the current seed.</summary>
@@ -69,6 +86,7 @@ namespace OrbitalAnte.UI
             BuildQuit();
             BuildDied();
             BuildIntermission();
+            BuildChoices();
             BuildConfirm();
 
             _controls = new ControlsPage();
@@ -175,6 +193,7 @@ namespace OrbitalAnte.UI
 
         Text _diedCause;
         Text _diedTitle;
+        Text _diedRecap;
         Button _diedSameSeed;
         Button _endAnteButton;
         Text _interTitle, _interBody;
@@ -207,10 +226,76 @@ namespace OrbitalAnte.UI
             _diedAt = Time.unscaledTime;
         }
 
-        /// <summary>The run has ended without a death (the ante timer ran out short of the target).</summary>
-        public void ShowRunOver(string title, string cause)
+        // ------------------------------------------------------------------ choices page (ante break)
+
+        const int ChoiceSlots = 7;
+        Text _choiceTitle, _choiceBody;
+        readonly Button[] _choiceButtons = new Button[ChoiceSlots];
+        readonly Action[] _choiceActions = new Action[ChoiceSlots];
+        Action _choiceBack;
+
+        void BuildChoices()
         {
-            ShowDeath(cause);
+            var card = NewPage(Page.Choices, "CHOOSE", 760f);
+            _choiceTitle = _lastHeading;
+            _choiceBody = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Cream, 120f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            for (int i = 0; i < ChoiceSlots; i++)
+            {
+                int slot = i;
+                Button b = UiKit.Button(card, string.Empty, () => _choiceActions[slot]?.Invoke(), 70f, 19);
+                Text t = UiKit.ButtonText(b);
+                t.horizontalOverflow = HorizontalWrapMode.Wrap;
+                ((RectTransform)t.transform).offsetMin = new Vector2(16f, 4f);
+                ((RectTransform)t.transform).offsetMax = new Vector2(-16f, -4f);
+                _choiceButtons[i] = b;
+            }
+        }
+
+        /// <summary>
+        /// Shows a page of up to seven choices, the first enabled one selected for the controller. The game stays
+        /// paused. <paramref name="onBack"/> is what B / Esc does there (nothing if null). Each pick runs its action;
+        /// the action decides which page comes next.
+        /// </summary>
+        public void ShowChoices(string title, string body, IList<MenuChoice> choices, Action onBack = null, float bodyHeight = 120f)
+        {
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            if (_choiceTitle != null) _choiceTitle.text = title;
+            _choiceBody.text = body ?? string.Empty;
+            UiKit.SetLayout(_choiceBody.gameObject, string.IsNullOrEmpty(body) ? 0f : bodyHeight);
+            _choiceBack = onBack;
+            GameObject first = null;
+            for (int i = 0; i < ChoiceSlots; i++)
+            {
+                bool used = choices != null && i < choices.Count;
+                Button b = _choiceButtons[i];
+                b.gameObject.SetActive(used);
+                _choiceActions[i] = used ? choices[i].OnPick : null;
+                if (!used) continue;
+                UiKit.ButtonText(b).text = choices[i].Label;
+                b.interactable = choices[i].Enabled;
+                if (first == null && choices[i].Enabled) first = b.gameObject;
+            }
+            _defaults[Page.Choices] = first;
+            Show(Page.Choices);
+            _diedAt = Time.unscaledTime;
+        }
+
+        /// <summary>Opens the Quit page (from the ante break). Its Back goes to the pause page.</summary>
+        public void ShowQuitPage() => Show(Page.Quit);
+
+        /// <summary>Opens the Restart page (from the ante break).</summary>
+        public void ShowRestartPage() => Show(Page.Restart);
+
+        /// <summary>The run has ended without a death (the ante timer ran out short of the target).</summary>
+        public void ShowRunOver(string title, string cause) => ShowRunOver(title, cause, null);
+
+        public void ShowRunOver(string title, string cause, string recap)
+        {
+            ShowDeath(cause, recap);
             if (_diedTitle != null) _diedTitle.text = title;
         }
 
@@ -223,6 +308,8 @@ namespace OrbitalAnte.UI
             var card = NewPage(Page.Died, "THAT WAS FATAL", 620f);
             _diedTitle = _lastHeading;
             _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedRecap = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 0f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _diedRecap.gameObject.SetActive(false);
             _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
             _defaults[Page.Died] = _diedSameSeed.gameObject;
             UiKit.Button(card, "Try again with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
@@ -230,8 +317,18 @@ namespace OrbitalAnte.UI
         }
 
         /// <summary>Opens the menu on the page for a run that has ended in the pilot's death.</summary>
-        public void ShowDeath(string cause)
+        public void ShowDeath(string cause) => ShowDeath(cause, null);
+
+        /// <summary>
+        /// The death page with a run recap under the cause (20 Nov 2026): how far the run got, how close it came,
+        /// the build and any new record. No recap (the arena) leaves the page as it was.
+        /// </summary>
+        public void ShowDeath(string cause, string recap)
         {
+            bool hasRecap = !string.IsNullOrEmpty(recap);
+            _diedRecap.gameObject.SetActive(hasRecap);
+            _diedRecap.text = hasRecap ? recap : string.Empty;
+            UiKit.SetLayout(_diedRecap.gameObject, hasRecap ? 150f : 0f);
             if (!IsOpen)
             {
                 GameSession.SetPaused(true);
@@ -344,6 +441,9 @@ namespace OrbitalAnte.UI
                 case Page.Confirm:
                     Show(_confirmReturn);
                     break;
+                case Page.Choices:
+                    _choiceBack?.Invoke();
+                    break;
                 case Page.Died:
                 case Page.Intermission:
                     // The run is over, or waits for the next ante: there is nothing to go back to.
@@ -387,7 +487,7 @@ namespace OrbitalAnte.UI
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
             if (selected != null && selected.activeInHierarchy) return;
-            if ((_current == Page.Died || _current == Page.Intermission) && Time.unscaledTime - _diedAt < DiedHold) return;
+            if ((_current == Page.Died || _current == Page.Intermission || _current == Page.Choices) && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();

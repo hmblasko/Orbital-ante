@@ -32,6 +32,7 @@ namespace OrbitalAnte.Core
         Combat.DeepBreathFx _deepBreath;
         Combat.GunLadderFx _gunLadder;
         Tasks.AnteLoop _anteLoop;
+        Combat.RunPerksFx _runPerks;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
@@ -92,6 +93,8 @@ namespace OrbitalAnte.Core
             WorldOffers.ResetStatics();
             OrbitalAnte.Tasks.TaskConfig.ResetStatics();
             OrbitalAnte.Tasks.AnteLoop.ResetStatics();
+            Combat.RunEffects.ResetStatics();
+            Combat.RunPerksFx.ResetStatics();
             OrbitalAnte.Tasks.TaskDirector.ResetStatics();
         }
 
@@ -134,6 +137,8 @@ namespace OrbitalAnte.Core
             _gunLadder = gameObject.AddComponent<Combat.GunLadderFx>();
             // The ante loop too: its timer, score and the card between antes outlive any one world.
             _anteLoop = gameObject.AddComponent<Tasks.AnteLoop>();
+            // The perks that answer kills (heals, rounds back, double ladder kills), next to the ladder they feed.
+            _runPerks = gameObject.AddComponent<Combat.RunPerksFx>();
             _anteLoop.Menu = _pauseMenu;
             _anteLoop.Envelopes = _envelopes;
             _pauseMenu.CanEndAnte = _anteLoop.CanEndAnte;
@@ -246,7 +251,7 @@ namespace OrbitalAnte.Core
             {
                 // A death ends the ante run too; the death page says what happened.
                 if (_anteLoop != null) _anteLoop.PlayerDied();
-                _pauseMenu.ShowDeath(cause);
+                _pauseMenu.ShowDeath(cause, _anteLoop != null ? _anteLoop.RecapAndRecord() : null);
             };
         }
 
@@ -321,6 +326,9 @@ namespace OrbitalAnte.Core
                 Ship.Astronaut astronaut = _space.Astronaut;
                 if (astronaut != null)
                 {
+                    // The run's build (perks, attributes, hazard) acts on this player only.
+                    Combat.RunEffects.Attach(astronaut.Armour, () => astronaut.Stances.Current != Spacewalk.Stance.Stand, astronaut.SuitTanks);
+                    if (_runPerks != null) _runPerks.Weapons = astronaut.Weapons;
                     // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
                     _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
                         () => astronaut.InTheOpen && !Cockpit.CockpitDash.WatchingScreen);
@@ -352,6 +360,8 @@ namespace OrbitalAnte.Core
             // A run ending before Ante 9 loses its sealed envelope.
             if (_envelopes != null) _envelopes.RunEnded();
             if (_anteLoop != null) _anteLoop.EndRun();
+            Combat.RunEffects.Clear();
+            if (_runPerks != null) { _runPerks.ResetForNewRun(); _runPerks.Weapons = null; }
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.

@@ -61,12 +61,14 @@ namespace OrbitalAnte.Enemies
         public static event System.Action<EnemyDown> Down;
         /// <summary>Raised when a member of a camp stands up near the player: body, camp, member, and the character.</summary>
         public static event System.Action<int, int, int, Mannequin> Woke;
-        public static void ResetStatics() { Down = null; Woke = null; }
+        public static void ResetStatics() { Down = null; Woke = null; Pressure = new Ante.EnemyPressure { Sharpness = 1f }; PressureAnte = 1; PressureSeed = 0; }
 
         sealed class Live
         {
             public Mannequin Who;
             public int Body, Camp, Member;
+            /// <summary>The kind it woke as (a plain enemy can wake as a heavy in a later ante, 20 Nov 2026).</summary>
+            public int Type = -1;
             public bool Counted;
             public Weapon Gun;
         }
@@ -422,8 +424,11 @@ namespace OrbitalAnte.Enemies
                 if (w.Gone[camp][m] || MemberPresent(body, camp, m)) continue;
                 made = true;
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
+                // Tougher antes (20 Nov 2026): some plain enemies wake as their side's heavy kind, and everyone
+                // reacts and aims a little sharper. Never more health: that would break constitution rule 3.
+                type = HeavierKind(type, body + "." + camp + "." + m);
                 EnemyTypeSpec spec = _config.roster[type];
-                MannequinConfig config = ConfigFor(type);
+                MannequinConfig config = Sharpened(type, ConfigFor(type));
                 // Spread round the camp's middle, a couple of metres apart.
                 float angle = (m + jitter * 0.6f) * Mathf.PI * 2f / size, far = 2f + 1.2f * (m % 3);
                 // A base's guards are spread over its floor, not bunched in the middle.
@@ -480,7 +485,7 @@ namespace OrbitalAnte.Enemies
                     _guns.Add(weapon);
                     gun = weapon;
                 }
-                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun });
+                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun, Type = type });
                 Woke?.Invoke(body, camp, m, who);
                 LiveCount++;
                 PresentCount++;
@@ -492,7 +497,7 @@ namespace OrbitalAnte.Enemies
         {
             if (Down == null) return;
             EnemyCamp c = w.Camps[l.Camp];
-            int type = Mathf.Clamp(c.Members[l.Member], 0, _config.roster.Count - 1);
+            int type = l.Type >= 0 ? l.Type : Mathf.Clamp(c.Members[l.Member], 0, _config.roster.Count - 1);
             EnemyTypeSpec spec = _config.roster[type];
             string bodyId = _world.System != null && l.Body >= 0 && l.Body < _world.System.Bodies.Length ? _world.System.Bodies[l.Body].Spec.id : l.Body.ToString();
             Down(new EnemyDown
@@ -559,6 +564,55 @@ namespace OrbitalAnte.Enemies
             for (int i = 0; i < _live.Count; i++)
                 if (_live[i].Who != null && _live[i].Body == body && _live[i].Camp == camp && _live[i].Member == member) return true;
             return false;
+        }
+
+        // ------------------------------------------------------------------ tougher antes (20 Nov 2026)
+
+        /// <summary>
+        /// The ante's pressure, set by the ante loop. Sharpness multiplies reaction time and aim error; a share of
+        /// plain enemies wakes as the heavy kind of their side.
+        /// </summary>
+        public static Ante.EnemyPressure Pressure = new Ante.EnemyPressure { Sharpness = 1f };
+        public static int PressureAnte = 1;
+        public static int PressureSeed;
+
+        MannequinConfig[] _sharpConfigs;
+        float _sharpAt = 1f;
+
+        int HeavierKind(int type, string who)
+        {
+            if (Pressure.HeavyShare <= 0f) return type;
+            EnemyTypeSpec spec = _config.roster[type];
+            if (Tasks.EnemyTiers.KindFor(spec.id, spec.scale) != Ante.ScoreEventKind.EnemyTier1) return type;
+            if (!Ante.EnemyPressure.WakesHeavy(Pressure, PressureSeed, who, PressureAnte)) return type;
+            string side = spec.faction ?? string.Empty;
+            for (int i = 0; i < _config.roster.Count; i++)
+            {
+                EnemyTypeSpec other = _config.roster[i];
+                if ((other.faction ?? string.Empty) != side) continue;
+                if (Tasks.EnemyTiers.KindFor(other.id, other.scale) == Ante.ScoreEventKind.EnemyTier3) return i;
+            }
+            return type;
+        }
+
+        /// <summary>A copy of a kind's settings with sharper reactions and aim, made once per kind per sharpness.</summary>
+        MannequinConfig Sharpened(int type, MannequinConfig config)
+        {
+            float sharp = Mathf.Clamp(Pressure.Sharpness, 0.4f, 1f);
+            if (sharp >= 0.999f) return config;
+            if (_sharpConfigs == null || _sharpConfigs.Length != _config.roster.Count || !Mathf.Approximately(_sharpAt, sharp))
+            {
+                // The old copies are not destroyed: enemies woken earlier still hold them (a few small objects a run).
+                _sharpConfigs = new MannequinConfig[_config.roster.Count];
+                _sharpAt = sharp;
+            }
+            if (_sharpConfigs[type] != null) return _sharpConfigs[type];
+            MannequinConfig copy = Instantiate(config);
+            copy.name = config.name + " sharp " + sharp.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+            copy.reactionTime *= sharp;
+            copy.aimError *= sharp;
+            _sharpConfigs[type] = copy;
+            return copy;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>

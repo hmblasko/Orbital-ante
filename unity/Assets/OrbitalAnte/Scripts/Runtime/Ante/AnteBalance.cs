@@ -192,6 +192,33 @@ namespace OrbitalAnte.Ante
         public int scratchSmallCash = 150;
         public int scratchBigCash = 300;
 
+        // ---- The ante break, families, hazards and tougher antes (20 Nov 2026, roguelite fun pass; my numbers, not playtested) ----
+        /// <summary>Points to spend for passing on all three perks.</summary>
+        public int perkSkipCash = 150;
+        /// <summary>How many perks of one family turn on its bonus.</summary>
+        public int familySetSize = 3;
+        /// <summary>Health share under which "low health" perks work (0.3 is under 30%).</summary>
+        public float lowHealthLine = 0.30f;
+        /// <summary>What "close" means for close-range perks, in metres.</summary>
+        public float closeRange = 8f;
+        /// <summary>The LONG SHOT distance the perk text quotes; the task rules hold the real one.</summary>
+        public float longShotMetres = 60f;
+        /// <summary>Hunted: enemies react and aim this much sharper (their reaction time and aim error are multiplied by it).</summary>
+        public float huntedSharpness = 0.75f;
+        /// <summary>Hunted: extra share of plain enemies that wake as the heavy kind.</summary>
+        public float huntedHeavyShare = 0.20f;
+        /// <summary>Short fuse: seconds taken off the ante.</summary>
+        public float shortFuseSeconds = 60f;
+        /// <summary>Tougher antes: each ante after the first multiplies enemy reaction time and aim error by this.</summary>
+        public float sharpnessPerAnte = 0.95f;
+        /// <summary>Tougher antes: they never get sharper than this.</summary>
+        public float sharpnessFloor = 0.65f;
+        /// <summary>Tougher antes: from this ante on, some plain enemies wake as the heavy kind.</summary>
+        public int heavyFromAnte = 4;
+        /// <summary>Share of plain enemies that wake as the heavy kind for each ante from <see cref="heavyFromAnte"/>.</summary>
+        public float heavySharePerAnte = 0.08f;
+        public float heavyShareMax = 0.40f;
+
         // ---- Starting resources (prototype values only; nothing reads these yet) ----
         public float playerHp = 100f;
         public float shipHull = 160f;
