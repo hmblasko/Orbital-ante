@@ -194,7 +194,7 @@ namespace OrbitalAnte.Ante
 
         // ---- The ante break, families, hazards and tougher antes (20 Nov 2026, roguelite fun pass; my numbers, not playtested) ----
         /// <summary>Points to spend for passing on all three perks.</summary>
-        public int perkSkipCash = 150;
+        public int perkSkipCash = 250;
         /// <summary>How many perks of one family turn on its bonus.</summary>
         public int familySetSize = 3;
         /// <summary>Health share under which "low health" perks work (0.3 is under 30%).</summary>
@@ -207,6 +207,12 @@ namespace OrbitalAnte.Ante
         public float huntedSharpness = 0.75f;
         /// <summary>Hunted: extra share of plain enemies that wake as the heavy kind.</summary>
         public float huntedHeavyShare = 0.20f;
+        /// <summary>Each hazard's own points multiplier (design review, 20 Nov 2026: the costs differ), held to riskMax.</summary>
+        public float huntedRisk = 1.25f;
+        public float thinAirRisk = 1.10f;
+        public float shortFuseRisk = 1.25f;
+        /// <summary>How much more likely a perk of a family the player already holds is to be offered (2 is twice as likely).</summary>
+        public float heldFamilyWeight = 2f;
         /// <summary>Short fuse: seconds taken off the ante.</summary>
         public float shortFuseSeconds = 60f;
         /// <summary>Tougher antes: each ante after the first multiplies enemy reaction time and aim error by this.</summary>

@@ -474,3 +474,12 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | Task views | Mast 6 shared-mesh pieces (about 210 triangles, 6 draw calls, 5 colliders); crate 2 (1 collider); pod 4 (1 collider, off while it falls); marked-target light 1 sphere. No shadows. Built within 900 m, put away beyond 1.1 km (colliders too) | about 150 draw calls if every mast on a world were near at once |
 | Task lights | Unlit opaque cylinders, 1 draw call each, no shadow or transparency; about 2 px wide; no taller than the world is wide; hidden within 25 m | `liveNearby` (3) shared, plus one per falling or landed drop |
 | Colliders on the planet body | Every solid task piece is a shape of the world's kinematic rigidbody. Cost per shape not measured | about 150 a world at most |
+
+## Ante break and run build (20 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `RunEffects` questions | A few multiplies per shot, blow or enemy hit; the build is rebuilt only when it changes (between antes). 0 B a frame | none needed |
+| `RunPerksFx` | Runs only on an enemy kill. 0 B at rest | one kill at a time |
+| `EnemyPressure` | One hash per enemy woken (int overload, no strings); a sharpened `EnemyConfig` copy per kind per ante, destroyed with the spawner | at most one copy per enemy kind |
+| Break pages | UI built once (7 buttons) and relabelled; only while the game is paused between antes | 7 buttons |

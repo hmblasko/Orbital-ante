@@ -426,7 +426,7 @@ namespace OrbitalAnte.Enemies
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
                 // Tougher antes (20 Nov 2026): some plain enemies wake as their side's heavy kind, and everyone
                 // reacts and aims a little sharper. Never more health: that would break constitution rule 3.
-                type = HeavierKind(type, body + "." + camp + "." + m);
+                type = HeavierKind(type, body, camp, m);
                 EnemyTypeSpec spec = _config.roster[type];
                 MannequinConfig config = Sharpened(type, ConfigFor(type));
                 // Spread round the camp's middle, a couple of metres apart.
@@ -544,6 +544,7 @@ namespace OrbitalAnte.Enemies
         {
             IReadOnlyList<EnemyCamp> camps = KnownCamps(body);
             if (camps == null || camp < 0 || camp >= camps.Count || member < 0 || member >= camps[camp].Members.Length) return null;
+            if (_wokeAs.TryGetValue(MemberKey(body, camp, member), out int woke) && woke >= 0 && woke < _config.roster.Count) return _config.roster[woke];
             return _config.roster[Mathf.Clamp(camps[camp].Members[member], 0, _config.roster.Count - 1)];
         }
 
@@ -578,13 +579,29 @@ namespace OrbitalAnte.Enemies
 
         MannequinConfig[] _sharpConfigs;
         float _sharpAt = 1f;
+        /// <summary>Every sharpened copy made this run, destroyed with the spawner (enemies woken earlier still hold old ones until then).</summary>
+        readonly List<MannequinConfig> _sharpMade = new List<MannequinConfig>();
 
-        int HeavierKind(int type, string who)
+        /// <summary>The kind each enemy first woke as this run, so one that comes back later is still the same kind.</summary>
+        readonly Dictionary<long, int> _wokeAs = new Dictionary<long, int>();
+
+        static long MemberKey(int body, int camp, int member) => ((long)body << 40) ^ ((long)camp << 16) ^ (uint)member;
+
+        int HeavierKind(int type, int body, int camp, int member)
+        {
+            long key = MemberKey(body, camp, member);
+            if (_wokeAs.TryGetValue(key, out int known)) return known;
+            int chosen = ChooseKind(type, body, camp, member);
+            _wokeAs[key] = chosen;
+            return chosen;
+        }
+
+        int ChooseKind(int type, int body, int camp, int member)
         {
             if (Pressure.HeavyShare <= 0f) return type;
             EnemyTypeSpec spec = _config.roster[type];
             if (Tasks.EnemyTiers.KindFor(spec.id, spec.scale) != Ante.ScoreEventKind.EnemyTier1) return type;
-            if (!Ante.EnemyPressure.WakesHeavy(Pressure, PressureSeed, who, PressureAnte)) return type;
+            if (!Ante.EnemyPressure.WakesHeavy(Pressure, PressureSeed, body, camp, member, PressureAnte)) return type;
             string side = spec.faction ?? string.Empty;
             for (int i = 0; i < _config.roster.Count; i++)
             {
@@ -608,7 +625,8 @@ namespace OrbitalAnte.Enemies
             }
             if (_sharpConfigs[type] != null) return _sharpConfigs[type];
             MannequinConfig copy = Instantiate(config);
-            copy.name = config.name + " sharp " + sharp.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+            copy.name = config.name + " sharp";
+            _sharpMade.Add(copy);
             copy.reactionTime *= sharp;
             copy.aimError *= sharp;
             _sharpConfigs[type] = copy;
@@ -699,6 +717,8 @@ namespace OrbitalAnte.Enemies
 
         void OnDestroy()
         {
+            for (int i = 0; i < _sharpMade.Count; i++) if (_sharpMade[i] != null) Destroy(_sharpMade[i]);
+            _sharpMade.Clear();
             CombatWorld.PlayerDroppedGun -= CountLooseGun;
             if (CombatWorld.DropParent == transform) CombatWorld.DropParent = null;
             GoreFx.Weight = 1f;

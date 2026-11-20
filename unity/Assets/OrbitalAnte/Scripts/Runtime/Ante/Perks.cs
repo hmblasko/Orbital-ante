@@ -383,7 +383,7 @@ namespace OrbitalAnte.Ante
             for (int slot = 0; slot < balance.perkChoices; slot++)
             {
                 PerkRarity wanted = RollRarity(rng, balance);
-                PerkDefinition pick = PickOfRarity(rng, catalog, loadout, offers, wanted, null);
+                PerkDefinition pick = PickOfRarity(rng, catalog, loadout, offers, wanted, null, balance.heldFamilyWeight);
                 if (pick == null) break;      // nothing left to offer
                 offers.Add(pick);
             }
@@ -393,7 +393,7 @@ namespace OrbitalAnte.Ante
                 // Swap the last offer for a useful one, cheapest rarity first, if there is one.
                 var withoutLast = new List<PerkDefinition>(offers);
                 withoutLast.RemoveAt(withoutLast.Count - 1);
-                PerkDefinition useful = PickOfRarity(rng, catalog, loadout, withoutLast, PerkRarity.Common, unavailable);
+                PerkDefinition useful = PickOfRarity(rng, catalog, loadout, withoutLast, PerkRarity.Common, unavailable, balance.heldFamilyWeight);
                 if (useful != null) offers[offers.Count - 1] = useful;
             }
             return offers;
@@ -429,7 +429,7 @@ namespace OrbitalAnte.Ante
         };
 
         static PerkDefinition PickOfRarity(SeededRandom rng, IReadOnlyList<PerkDefinition> catalog, PerkLoadout loadout,
-            List<PerkDefinition> alreadyOffered, PerkRarity wanted, ICollection<string> mustBeUsefulGiven)
+            List<PerkDefinition> alreadyOffered, PerkRarity wanted, ICollection<string> mustBeUsefulGiven, float heldFamilyWeight = 1f)
         {
             var candidates = new List<PerkDefinition>();
             PerkRarity[] order = Fallback[(int)wanted];
@@ -444,6 +444,10 @@ namespace OrbitalAnte.Ante
                     if (perk.unique && loadout != null && loadout.Has(perk.id)) continue;
                     if (mustBeUsefulGiven != null && !IsUseful(perk, mustBeUsefulGiven)) continue;
                     candidates.Add(perk);
+                    // A family the player has started is more likely to come up, so a set is reachable in a short
+                    // run (design review, 20 Nov 2026). Perks with no family are never weighted.
+                    if (perk.family != PerkFamily.None && loadout != null && loadout.FamilyCount(perk.family) > 0)
+                        for (int extra = 1; extra < Math.Max(1, (int)Math.Round(heldFamilyWeight)); extra++) candidates.Add(perk);
                 }
                 if (candidates.Count > 0) return rng.Pick(candidates);
             }

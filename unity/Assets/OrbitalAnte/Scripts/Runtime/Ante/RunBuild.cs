@@ -53,7 +53,7 @@ namespace OrbitalAnte.Ante
                 P("frequent_flyer", "Frequent Flyer", PerkRarity.Common, PerkFamily.Pilot,
                     new PerkEffect(ScoreEventKind.NewPlanet, null, 0.20f), new PerkEffect(ScoreEventKind.NewMoon, null, 0.20f),
                     new PerkEffect(ScoreEventKind.DifficultLanding, null, 0.20f)),
-                P("fleet_foot", "Fleet Foot", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.MoveSpeed, 0.10f)),
+                P("fleet_foot", "Fleet Foot", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.MoveSpeed, 0.12f), E(PerkStat.IncomingDamage, 0.05f)),
                 P("on_the_clock", "On the Clock", PerkRarity.Rare, PerkFamily.Pilot, E(PerkStat.LandingTimeBack, 12f)),
 
                 // ---- Daredevil: risk for reward ----
@@ -74,8 +74,8 @@ namespace OrbitalAnte.Ante
                     id = PerkCatalog.ChainPerkId, displayName = "Change of Pace", rarity = PerkRarity.Rare,
                     effects = new[] { new PerkEffect(PerkStat.ChainScoreBonus, 0.10f) },
                 },
-                P("thick_skin", "Thick Skin", PerkRarity.Common, PerkFamily.None, E(PerkStat.MaxHp, 0.15f)),
-                P("quick_mend", "Quick Mend", PerkRarity.Common, PerkFamily.None, E(PerkStat.RegenRate, 0.30f)),
+                P("thick_skin", "Thick Skin", PerkRarity.Common, PerkFamily.None, E(PerkStat.MaxHp, 0.15f), E(PerkStat.MoveSpeed, -0.05f)),
+                P("quick_mend", "Quick Mend", PerkRarity.Common, PerkFamily.None, E(PerkStat.RegenRate, 0.30f), E(PerkStat.MaxHp, -0.05f)),
             };
         }
     }
@@ -91,10 +91,10 @@ namespace OrbitalAnte.Ante
         {
             switch (family)
             {
-                case PerkFamily.Gunner: return new[] { new PerkEffect(PerkStat.GunDamage, 0.15f), new PerkEffect(PerkStat.RoundsOnKill, 5f) };
+                case PerkFamily.Gunner: return new[] { new PerkEffect(PerkStat.RoundsOnKill, 6f), new PerkEffect(PerkStat.IncomingDamage, -0.10f) };
                 case PerkFamily.Brawler: return new[] { new PerkEffect(PerkStat.FocusOnMeleeKill, 0.25f) };
                 case PerkFamily.Ghost: return new[] { new PerkEffect(PerkStat.TimeOnLongShot, 5f) };
-                case PerkFamily.Pilot: return new[] { new PerkEffect(PerkStat.LandingTimeBack, 15f), new PerkEffect(PerkStat.MoveSpeed, 0.10f) };
+                case PerkFamily.Pilot: return new[] { new PerkEffect(PerkStat.LandingTimeBack, 10f), new PerkEffect(PerkStat.MoveSpeed, 0.10f) };
                 case PerkFamily.Daredevil: return new[] { new PerkEffect(PerkStat.HealOnLowHealthKill, 20f) };
                 default: return new PerkEffect[0];
             }
@@ -158,8 +158,8 @@ namespace OrbitalAnte.Ante
             switch (hazard)
             {
                 case Hazard.Hunted:
-                    return "enemies react and aim " + Percent(1f - balance.huntedSharpness) + " sharper, and " + Percent(balance.huntedHeavyShare)
-                           + " more of them are heavies";
+                    return "enemies react and aim " + Percent(1f - balance.huntedSharpness) + " sharper, and 1 in "
+                           + Math.Max(1, (int)Math.Round(1.0 / Math.Max(0.01f, balance.huntedHeavyShare))) + " more plain enemies come as heavies";
                 case Hazard.ThinAir: return "health does not come back by itself; kills, perks and the ship still heal";
                 case Hazard.ShortFuse: return "the ante is " + Clock(balance.anteSeconds - balance.shortFuseSeconds) + " instead of " + Clock(balance.anteSeconds);
                 default: return "play the ante as it comes";
@@ -167,7 +167,18 @@ namespace OrbitalAnte.Ante
         }
 
         /// <summary>The score multiplier a hazard earns (the formula's accepted-risk number).</summary>
-        public static float Multiplier(Hazard hazard, AnteBalance balance) => hazard == Hazard.None ? 1f : balance.riskAccepted;
+        public static float Multiplier(Hazard hazard, AnteBalance balance)
+        {
+            float m;
+            switch (hazard)
+            {
+                case Hazard.Hunted: m = balance.huntedRisk; break;
+                case Hazard.ThinAir: m = balance.thinAirRisk; break;
+                case Hazard.ShortFuse: m = balance.shortFuseRisk; break;
+                default: return 1f;
+            }
+            return Math.Max(1f, Math.Min(balance.riskMax, m));
+        }
 
         /// <summary>Seconds the ante starts with under a hazard.</summary>
         public static float AnteSeconds(Hazard hazard, AnteBalance balance)
@@ -216,6 +227,22 @@ namespace OrbitalAnte.Ante
         /// Whether one enemy wakes as a heavy. A fair, stable roll from who it is and the ante, so the same enemy
         /// is the same kind every time it wakes in an ante, and the run's seeded streams are never touched.
         /// </summary>
+        public static bool WakesHeavy(EnemyPressure pressure, int runSeed, int body, int camp, int member, int ante)
+        {
+            if (pressure.HeavyShare <= 0f) return false;
+            unchecked
+            {
+                uint h = 2166136261u ^ (uint)runSeed;
+                h = (h ^ (uint)body) * 16777619u;
+                h = (h ^ (uint)camp) * 16777619u;
+                h = (h ^ (uint)member) * 16777619u;
+                h = (h ^ (uint)ante) * 16777619u;
+                h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12;
+                return (h % 10000u) / 10000f < pressure.HeavyShare;
+            }
+        }
+
+        /// <summary>The same roll keyed by a name (for tests and anything without camp numbers).</summary>
         public static bool WakesHeavy(EnemyPressure pressure, int runSeed, string who, int ante)
         {
             if (pressure.HeavyShare <= 0f || string.IsNullOrEmpty(who)) return false;

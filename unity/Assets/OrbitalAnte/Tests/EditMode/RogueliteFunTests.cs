@@ -92,6 +92,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("+20% points for clearing a base", Perk("perk.quiet_professional").Describe());
             Assert.AreEqual("+20% points for kills, -40% health regeneration", Perk("perk.all_in").Describe());
             Assert.AreEqual("+15% walking speed, +10% damage taken", Perk("perk.no_brakes").Describe());
+            Assert.AreEqual("+15% max HP, -5% walking speed", Perk("perk.thick_skin").Describe());
         }
 
         [Test]
@@ -157,21 +158,37 @@ namespace OrbitalAnte.Tests
             RunMods two = RunMods.From(Holding("perk.quick_study", "perk.hot_brass"), null, Hazard.None, balance);
             RunMods three = RunMods.From(Holding("perk.quick_study", "perk.hot_brass", "perk.steady_hands"), null, Hazard.None, balance);
             Assert.AreEqual(8, two.RoundsOnKill);
-            Assert.AreEqual(1f, two.GunDamage, 1e-5f);
-            // Steady Hands +10% and the Gunner set's +15%.
-            Assert.AreEqual(1.25f, three.GunDamage, 1e-5f);
-            Assert.AreEqual(13, three.RoundsOnKill);
+            Assert.AreEqual(1f, two.Incoming, 1e-5f);
+            // The Gunner set: 6 more rounds a kill and 10% less damage taken.
+            Assert.AreEqual(14, three.RoundsOnKill);
+            Assert.AreEqual(0.90f, three.Incoming, 1e-5f);
+            Assert.AreEqual(1.10f, three.GunDamage, 1e-5f);
             Assert.AreEqual("GUNNER 2/3", PerkFamilies.Progress(Holding("perk.quick_study", "perk.hot_brass"), PerkFamily.Gunner, balance));
+        }
+
+        [Test]
+        public void AStartedFamily_ComesUpMoreOften()
+        {
+            var balance = new AnteBalance();
+            List<PerkDefinition> catalog = RoguelitePerks.Create();
+            PerkLoadout none = new PerkLoadout(), gunner = Holding("perk.quick_study");
+            int plain = 0, started = 0;
+            for (int seed = 0; seed < 400; seed++)
+            {
+                foreach (PerkDefinition p in PerkDraft.Roll(PerkDraft.StreamFor(seed, 1), catalog, none, balance)) if (p.family == PerkFamily.Gunner) plain++;
+                foreach (PerkDefinition p in PerkDraft.Roll(PerkDraft.StreamFor(seed, 1), catalog, gunner, balance)) if (p.family == PerkFamily.Gunner) started++;
+            }
+            Assert.Greater(started, plain);
         }
 
         [Test]
         public void StackingNeverPassesTheCap()
         {
             var balance = new AnteBalance();
-            RunMods m = RunMods.From(Holding("perk.steady_hands", "perk.trigger_discipline", "perk.quick_study", "perk.glass_cannon"), null, Hazard.None, balance);
-            // Gun damage perks: 0.10 + 0.22 + set 0.15 + weapon 0.20 = 0.67, held to 0.40 per stat (weapon is its own stat).
-            Assert.LessOrEqual(m.GunDamage, 1f + balance.perkStatStackCap * 2f + 1e-4f);
-            Assert.AreEqual(1f + 0.20f + balance.perkStatStackCap, m.GunDamage, 1e-4f);
+            var cheap = new AnteBalance { perkStatStackCap = 0.25f };
+            RunMods m = RunMods.From(Holding("perk.steady_hands", "perk.trigger_discipline", "perk.glass_cannon"), null, Hazard.None, cheap);
+            // Gun damage perks 0.10 + 0.22 = 0.32, held to the cap; weapon damage 0.20 is its own stat.
+            Assert.AreEqual(1f + 0.20f + 0.25f, m.GunDamage, 1e-4f);
         }
 
         [Test]
@@ -233,9 +250,13 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1f, HazardRules.Multiplier(Hazard.None, b));
             foreach (Hazard h in HazardRules.Offered)
             {
-                Assert.AreEqual(b.riskAccepted, HazardRules.Multiplier(h, b), 1e-5f);
+                Assert.Greater(HazardRules.Multiplier(h, b), 1f);
+                Assert.LessOrEqual(HazardRules.Multiplier(h, b), b.riskMax);
                 Assert.IsNotEmpty(HazardRules.Describe(h, b));
             }
+            // The costlier hazards pay more.
+            Assert.Greater(HazardRules.Multiplier(Hazard.Hunted, b), HazardRules.Multiplier(Hazard.ThinAir, b));
+            StringAssert.Contains("1 in 5 more plain enemies", HazardRules.Describe(Hazard.Hunted, b));
             Assert.AreEqual(240f, HazardRules.AnteSeconds(Hazard.ShortFuse, b), 1e-4f);
             Assert.AreEqual(300f, HazardRules.AnteSeconds(Hazard.Hunted, b), 1e-4f);
             StringAssert.Contains("4:00 instead of 5:00", HazardRules.Describe(Hazard.ShortFuse, b));
@@ -250,6 +271,11 @@ namespace OrbitalAnte.Tests
             int a = plain.Report(new ScoreEvent { claimId = "x", kind = ScoreEventKind.SalvageDelivered }).points;
             int b = risky.Report(new ScoreEvent { claimId = "x", kind = ScoreEventKind.SalvageDelivered, acceptedRisk = true }).points;
             Assert.Greater(b, a);
+            var huntedRun = new AnteRun(new AnteBalance(), 1);
+            int c = huntedRun.Report(new ScoreEvent { claimId = "x", kind = ScoreEventKind.SalvageDelivered, acceptedRisk = true, riskMultiplier = 1.25f }).points;
+            Assert.Greater(c, b);
+            var capped = new AnteRun(new AnteBalance(), 1);
+            Assert.AreEqual(c, capped.Report(new ScoreEvent { claimId = "x", kind = ScoreEventKind.SalvageDelivered, acceptedRisk = true, riskMultiplier = 9f }).points);
         }
 
         // ---- tougher antes ----

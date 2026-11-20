@@ -420,6 +420,8 @@ namespace OrbitalAnte.Core
 
         public void QuitToDesktop()
         {
+            // The run's records are saved on the way out.
+            if (_anteLoop != null) _anteLoop.EndRun();
             GameSession.SetPaused(false);
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

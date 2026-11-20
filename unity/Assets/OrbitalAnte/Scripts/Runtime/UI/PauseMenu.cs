@@ -256,8 +256,14 @@ namespace OrbitalAnte.UI
         /// paused. <paramref name="onBack"/> is what B / Esc does there (nothing if null). Each pick runs its action;
         /// the action decides which page comes next.
         /// </summary>
-        public void ShowChoices(string title, string body, IList<MenuChoice> choices, Action onBack = null, float bodyHeight = 120f)
+        /// <param name="keepSlot">After a pick that stays on the same page (buying in the shop), the slot to keep the
+        /// cursor on, or the nearest enabled one; -1 selects the first enabled.</param>
+        /// <param name="holdSelection">Select nothing for a moment, so a button still held or mashed from the fight
+        /// cannot pick something unread (the first page of a break, the perk cards).</param>
+        public void ShowChoices(string title, string body, IList<MenuChoice> choices, Action onBack = null, float bodyHeight = 120f,
+            int keepSlot = -1, bool holdSelection = false)
         {
+            if (!IsOpen) holdSelection = true;
             if (!IsOpen)
             {
                 GameSession.SetPaused(true);
@@ -279,16 +285,28 @@ namespace OrbitalAnte.UI
                 b.interactable = choices[i].Enabled;
                 if (first == null && choices[i].Enabled) first = b.gameObject;
             }
+            if (keepSlot >= 0 && choices != null)
+            {
+                for (int d = 0; d < ChoiceSlots; d++)
+                {
+                    int up = keepSlot - d, down = keepSlot + d;
+                    if (down < choices.Count && down < ChoiceSlots && choices[down].Enabled) { first = _choiceButtons[down].gameObject; break; }
+                    if (up >= 0 && up < choices.Count && choices[up].Enabled) { first = _choiceButtons[up].gameObject; break; }
+                }
+            }
             _defaults[Page.Choices] = first;
             Show(Page.Choices);
-            _diedAt = Time.unscaledTime;
+            if (holdSelection)
+            {
+                if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+                _diedAt = Time.unscaledTime;
+            }
         }
 
-        /// <summary>Opens the Quit page (from the ante break). Its Back goes to the pause page.</summary>
-        public void ShowQuitPage() => Show(Page.Quit);
+        /// <summary>Restarts the run (true keeps the seed), from a page outside the menu's own (the ante break).</summary>
+        public void RequestRestart(bool sameSeed) { Close(); RestartRequested?.Invoke(sameSeed); }
 
-        /// <summary>Opens the Restart page (from the ante break).</summary>
-        public void ShowRestartPage() => Show(Page.Restart);
+        public void RequestQuitToMenu() { Close(); QuitToMenuRequested?.Invoke(); }
 
         /// <summary>The run has ended without a death (the ante timer ran out short of the target).</summary>
         public void ShowRunOver(string title, string cause) => ShowRunOver(title, cause, null);
