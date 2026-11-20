@@ -97,8 +97,13 @@ namespace OrbitalAnte.Ante
     public sealed class AnteBalance
     {
         // ---- Run structure ----
-        /// <summary>Score needed to clear each ante. The number of entries is the number of antes.</summary>
-        public int[] anteTargets = { 850, 1100, 1450, 1850, 2350, 3000, 3700, 4550, 5500 };
+        /// <summary>
+        /// Score needed to clear each ante. The number of entries is the number of antes. Matthew (20 Nov 2026) chose
+        /// targets that ask for more real effort as the ante rises: divided by the value scale K(ante), ante 4 asks
+        /// about 1.6 times the effort of ante 1 (effort 850, 1100, 1250, 1360, 1500, 1600, 1700, 1800, 1900), so
+        /// first-time players tend to run out of time around ante 3 to 4 until enemies get tougher with the ante.
+        /// </summary>
+        public int[] anteTargets = { 850, 1370, 1950, 2650, 3600, 4680, 5980, 7530, 9350 };
         /// <summary>How much more every action is worth each ante: K(a) = 1 + linear*(a-1) + quadratic*(a-1)^2.</summary>
         public float valueScaleLinear = 0.21f;
         public float valueScaleQuadratic = 0.035f;

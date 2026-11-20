@@ -56,7 +56,7 @@ Code:
 
 ## What was tested, and how
 
-- `dotnet test tools/rules-tests`: 2,580 passed, 0 failed, 1 skipped (a Unity-only file). These include 26 new tests in `Tests/EditMode/TaskRulesTests.cs`:
+- `dotnet test tools/rules-tests`: 2,581 passed, 0 failed, 1 skipped (a Unity-only file). These include 26 new tests in `Tests/EditMode/TaskRulesTests.cs`:
   - style feats, splats, fresh tools per ante, the streak;
   - base clears and feats, masts (cells, ram, calls, "has called"), salvage, drops and their clock;
   - enemy tiers, hard landings and their cells, claim ids, reaches on small worlds;
@@ -88,7 +88,7 @@ Code:
   - the drop gives three ladder kills once an ante, not a whole gun, and half a Focus meter;
   - the streak is spent only when it helps, and its sound plays at five;
   - a world-clear bonus.
-  - Left for Matthew: whether targets should rise faster, and whether Select should bank the ante (below).
+  - Left for Matthew: whether targets should rise faster (Matthew chose yes, see below), and whether Select should bank the ante.
   - Its rough sum: on foot, ante 1's 850 takes about 3.5 to 5 minutes from the pad, so it is tight but possible. That was worked out on paper, not played.
 - **Steam Deck review:** found a likely hitch of about 10 to 40 ms on arriving at a world, from up to about 225 primitives built in one frame. Fixed:
   - views are built one a pass, never in the layout frame;
@@ -113,9 +113,12 @@ Code:
   - the upgrade screen, perk draft and scratch-off;
   - enemies getting tougher with the ante.
 
+## Ante targets (Matthew's choice, 20 Nov 2026)
+
+Matthew chose "Yes, about 1.6x by ante 4". The targets are now 850, 1,370, 1,950, 2,650, 3,600, 4,680, 5,980, 7,530 and 9,350. Divided by each ante's points multiplier, that is about 850, 1,100, 1,250, 1,360, 1,500, 1,600, 1,700, 1,800 and 1,900 points of ante 1 work, so ante 4 asks about 1.6 times ante 1. A rule test holds it there. Whether that ends first runs around ante 3 to 4 is worked out on paper, not played.
+
 ## Questions for Matthew
 
-- **Should ante targets rise in real effort?** Today each target grows only as fast as the points' own ante multiplier, so ante 4 asks about the same effort as ante 1. Part B wants first-time players dying around ante 3 to 4. Recommended: about 1.6 times the ante 1 effort by ante 4, until enemies scale with the ante.
 - **Should Select bank the ante** once the target is met (later opening the upgrade screen, as Part B section 2 says)? Floodlights would keep L only.
 
 ## Playtest steps (on the Deck)
