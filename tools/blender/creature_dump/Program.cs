@@ -48,6 +48,7 @@ static class Program
         string scene = args[1];
         if (args.Length > 2 && args[2] == RollerLayout.Model) return RollerDump.Run(args[0], scene);
         if (args.Length > 2 && args[2] == HunterLayout.Model) return HunterDump.Run(args[0], scene);
+        if (args.Length > 2 && args[2] == ScreamerLayout.Model) return ScreamerDump.Run(args[0], scene);
         WalkerLayout _l = args.Length > 2 ? WalkerLayout.For(args[2]) : WalkerLayout.Strider;
         if (_l == null) { Console.Error.WriteLine("no such kind: " + args[2]); return 2; }
         bool quick = _l == WalkerLayout.Sprinter;

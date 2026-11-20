@@ -60,7 +60,7 @@ namespace OrbitalAnte.Creatures
             new Vec3d(0.66, 0.0, 0.02),
             new Vec3d(0.52, 0.0, -0.56),
         };
-        public const double LegLength = 0.40, ShinLength = 0.48, LegRadius = 0.035;
+        public const double LegLength = 0.40, ShinLength = 0.48, LegRadius = 0.03;
         /// <summary>How high the middle of its fore body is carried when it stands, and when it lies on its belly.</summary>
         public const double StandHeight = 0.44, BellyHeight = 0.25;
         public const double StumpRadius = 0.05;

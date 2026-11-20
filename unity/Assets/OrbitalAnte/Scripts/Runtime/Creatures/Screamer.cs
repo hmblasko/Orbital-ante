@@ -76,7 +76,9 @@ namespace OrbitalAnte.Creatures
         readonly Transform[] _leg = new Transform[ScreamerLayout.Legs], _shin = new Transform[ScreamerLayout.Legs];
         /// <summary>Where it started and a direction along the ground, both in its parent's space, so they hold on a world that turns.</summary>
         Vector3 _home, _north;
-        bool _blocked, _sees, _loud;
+        bool _blocked, _sees, _loud, _unsettled;
+        Vector3 _playerWas;
+        bool _playerKnown;
         float _nextLook;
         ScreamerMode _lastMode = ScreamerMode.Perch;
         Material _material;
@@ -237,6 +239,10 @@ namespace OrbitalAnte.Creatures
             if (hostile)
             {
                 senses.Player = D(transform.InverseTransformPoint(feet));
+                // How the player is moving, so it can land where they are going.
+                if (_playerKnown) senses.PlayerVelocity = D(transform.InverseTransformDirection((feet - _playerWas) / dt));
+                _playerWas = feet;
+                _playerKnown = true;
                 if (Time.time >= _nextLook)
                 {
                     // Four looks a second: near enough, and nothing solid between it and the player.
@@ -250,6 +256,7 @@ namespace OrbitalAnte.Creatures
             else
             {
                 _sees = false;
+                _playerKnown = false;
             }
 
             ScreamerOrders orders = Brain.Think(Body, senses, dt);
@@ -267,11 +274,12 @@ namespace OrbitalAnte.Creatures
                 _animator.Flinch(new Vec3d(0, -3.0, 0));
             }
             Vector3 moved = Move(orders, dt);
-            if (InAir(orders.Mode)) Settle((float)orders.Height, dt);
+            // In the air, and after landing until it is down, its root is eased onto the ground below it.
+            if (InAir(orders.Mode) || _unsettled) _unsettled = Settle((float)orders.Height, dt);
             Pose(dt, orders, moved / dt);
             // While the player can see it, its hitboxes must be where it is drawn when their shot is traced.
             if (_sees) Physics.SyncTransforms();
-            if (_rings != null) _rings.Run(orders.Mode == ScreamerMode.Scream, RingsFrom(), transform.forward, up, (float)ScreamerBrain.Range(_rules, Body), _rules.coneHalfAngle, dt);
+            if (_rings != null) _rings.Run(orders.Mode == ScreamerMode.Scream, orders.Pulse, RingsFrom(), transform.forward, up, (float)ScreamerBrain.Range(_rules, Body), _rules.coneHalfAngle, dt);
             if (orders.Pulse && hostile) Hurt(eye, feet);
         }
 
@@ -286,8 +294,24 @@ namespace OrbitalAnte.Creatures
             _screaming = Mathf.Max(0, _screaming + (on ? 1 : -1));
             Audio.AudioDirector audio = Audio.AudioDirector.Instance;
             if (audio == null) return;
-            if (on) audio.SetLoop(ScreamSound, 1f, 0.05f, transform);
-            else if (_screaming == 0) audio.SetLoop(ScreamSound, 0f, 0.12f);
+            if (on)
+            {
+                audio.SetLoop(ScreamSound, 1f, 0.05f, _body != null ? _body : transform);
+                return;
+            }
+            if (_screaming == 0)
+            {
+                audio.SetLoop(ScreamSound, 0f, 0.12f);
+                return;
+            }
+            // Another is still screaming: the sound goes to it.
+            for (int i = 0; i < Everyone.Count; i++)
+            {
+                Screamer other = Everyone[i];
+                if (other == null || other == this || !other._loud) continue;
+                audio.SetLoop(ScreamSound, 1f, 0.05f, other._body != null ? other._body : other.transform);
+                break;
+            }
         }
 
         void Quieten() => Loud(false);
@@ -295,9 +319,12 @@ namespace OrbitalAnte.Creatures
         /// <summary>One beat of the scream: whoever is in the cone, in range and in plain sight of it is hurt.</summary>
         void Hurt(Transform eye, Vector3 feet)
         {
-            double rate = ScreamerBrain.DamageRate(_rules, Body, D(transform.InverseTransformPoint(feet)));
+            // Measured from its mouth to the player's chest, so the cone that hurts is the round one the rings draw.
+            Vector3 mouth = RingsFrom(), chest = eye.position - transform.up * 0.4f;
+            double rate = ScreamerBrain.DamageRate(_rules, Body, D(transform.InverseTransformDirection(chest - mouth)));
             if (rate <= 0.0) return;
-            Vector3 from = RingsFrom(), head = eye.position;
+            // (From inside its body, so a wall its mouth has been pushed into still stops the scream.)
+            Vector3 from = Chest(), head = eye.position;
             // Anything solid between them stops it: cover is the answer.
             if (Physics.Linecast(from, head, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
             PlayerHealth player = CombatWorld.Player;
@@ -317,7 +344,8 @@ namespace OrbitalAnte.Creatures
             float height = (float)orders.Height;
             // Stopped by anything solid where its body is: at its height in the air, just off the ground on foot.
             float radius = air ? 0.55f : 0.36f;
-            Vector3 step = to - transform.position, probe = up * (air ? height + 0.5f : 0.5f);
+            // (Never lower than a body length, so taking off is not blocked by the ground it leaves.)
+            Vector3 step = to - transform.position, probe = up * (air ? Mathf.Max(height, 0.3f) + 0.5f : 0.5f);
             if (Physics.CheckSphere(to + probe, radius, Layers.WorldMask, QueryTriggerInteraction.Ignore)
                 || Physics.SphereCast(transform.position + probe, radius, step.normalized, out _, step.magnitude, Layers.WorldMask, QueryTriggerInteraction.Ignore))
             {
@@ -339,12 +367,14 @@ namespace OrbitalAnte.Creatures
         }
 
         /// <summary>In the air its root follows the ground below it, eased, so flying over a wall is not a jump.</summary>
-        void Settle(float height, float dt)
+        bool Settle(float height, float dt)
         {
             Vector3 up = transform.up, at = transform.position;
-            if (!Physics.Raycast(at + up * (height + 3f), -up, out RaycastHit ground, height + 15f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
-            float rise = Vector3.Dot(ground.point - at, up);
-            transform.position = at + up * Mathf.Clamp(rise, -7f * dt, 7f * dt);
+            if (!Physics.Raycast(at + up * (height + 3f), -up, out RaycastHit ground, height + 15f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return false;
+            float rise = Vector3.Dot(ground.point - at, up), step = Mathf.Clamp(rise, -7f * dt, 7f * dt);
+            transform.position = at + up * step;
+            // The answer: is there still some way to go.
+            return Mathf.Abs(rise - step) > 0.02f;
         }
 
         void Pose(float dt, in ScreamerOrders orders, Vector3 velocity)
@@ -433,7 +463,8 @@ namespace OrbitalAnte.Creatures
             if (_body != null) Wound(_body, V(ScreamerLayout.HingeOf(index)), Quaternion.LookRotation(new Vector3(s, 0.5f, 0f), Vector3.up), 0.05f);
             // A wing is light and broad: it is thrown less hard than a leg and tumbles.
             WalkerChunk chunk = Throw(wing, "Screamer wing", 1.2f, direction * 2f + outward * Random.Range(2f, 4f) + up * Random.Range(1.5f, 3f));
-            Wound(wing, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), 0.05f);
+            // (Not at its death: a dozen wounds at once is a dozen objects nobody looks at.)
+            if (loud) Wound(wing, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), 0.05f);
             if (loud) Pop(chunk.transform.position, outward, 8, "gore.pop.small");
         }
 
@@ -448,7 +479,7 @@ namespace OrbitalAnte.Creatures
             WalkerChunk chunk = Throw(leg, "Screamer leg", 1.5f, direction * 3f + outward * Random.Range(3f, 5f) + up * Random.Range(2f, 4f));
             // The shin goes with it, still bent as it was.
             if (shin != null) Loosen(shin, chunk.transform);
-            Wound(leg, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), (float)ScreamerLayout.LegRadius * 1.4f);
+            if (loud) Wound(leg, Vector3.zero, Quaternion.Euler(0f, 180f, 0f), (float)ScreamerLayout.LegRadius * 1.4f);
             if (loud) Pop(chunk.transform.position, outward, 8, "gore.pop.small");
         }
 
@@ -621,7 +652,7 @@ namespace OrbitalAnte.Creatures
         {
             if (_mesh != null) return _mesh;
             const int steps = 40;
-            const float inner = 0.975f;
+            const float inner = 0.94f;
             var points = new Vector3[steps * 2];
             var triangles = new int[steps * 12];
             for (int i = 0; i < steps; i++)
@@ -657,22 +688,19 @@ namespace OrbitalAnte.Creatures
             }
         }
 
-        /// <summary>Called every frame by its Screamer: starts rings while it screams, and moves the ones on their way.</summary>
-        public void Run(bool screaming, Vector3 from, Vector3 forward, Vector3 up, float range, float halfAngle, float dt)
+        /// <summary>Called every frame by its Screamer: starts a ring on each beat of the scream, and moves the ones on their way.</summary>
+        public void Run(bool screaming, bool beat, Vector3 from, Vector3 forward, Vector3 up, float range, float halfAngle, float dt)
         {
             if (!screaming && !_on) return;
-            float gap = range / Count;
             bool any = false;
-            float nearest = float.MaxValue;
-            for (int i = 0; i < Count; i++) if (_far[i] >= 0f) nearest = Mathf.Min(nearest, _far[i]);
             for (int i = 0; i < Count; i++)
             {
                 if (_far[i] < 0f)
                 {
-                    // A new ring sets off once the last one is a gap ahead.
-                    if (!screaming || nearest < gap) continue;
+                    // A new ring sets off on each beat of the scream: the ring is the hurt.
+                    if (!beat) continue;
+                    beat = false;
                     _far[i] = 0.4f;
-                    nearest = 0.4f;
                     _ring[i].gameObject.SetActive(true);
                 }
                 _far[i] += Speed * dt;
@@ -683,7 +711,7 @@ namespace OrbitalAnte.Creatures
                     continue;
                 }
                 any = true;
-                float radius = Mathf.Max(0.15f, _far[i] * Mathf.Tan(halfAngle));
+                float radius = Mathf.Max(0.5f, _far[i] * Mathf.Tan(halfAngle));
                 _ring[i].SetPositionAndRotation(from + forward * _far[i], Quaternion.LookRotation(forward, up));
                 _ring[i].localScale = new Vector3(radius, radius, 1f);
             }

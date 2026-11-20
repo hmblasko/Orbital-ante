@@ -1218,10 +1218,228 @@ def hunter_sockets():
             oa.socket("StumpRim", (L["stump"], 0, 0))]
 
 
+# ====================================================================== the Screamer (cicada)
+
+# A copy of ScreamerLayout (Blender axes: x, forward, up). The rule test ScreamerModelFile_MatchesTheLayout holds
+# the two together through the sockets.
+SCREAMER = {
+    "back": -0.34, "front": 0.52, "half": 0.30, "tall": 0.24,       # the fore body, round its own middle
+    "abdomen_joint": (0.0, -0.30, 0.0), "abdomen": 0.86, "abdomen_half": 0.25,
+    "drum": (0.27, -0.16, 0.02), "drum_radius": 0.15,
+    "fore_hinge": (0.20, 0.10, 0.17), "hind_hinge": (0.19, -0.12, 0.14),
+    "fore_wing": 1.62, "fore_chord": 0.56, "hind_wing": 0.95, "hind_chord": 0.50,
+    "hips": ((0.15, 0.26, -0.17), (0.17, 0.04, -0.18), (0.15, -0.18, -0.17)),
+    "leg": 0.40, "shin": 0.48, "leg_radius": 0.03,
+    "stump": 0.05,
+}
+JET, EMBER, SOOT = (0.013, 0.012, 0.013), (0.50, 0.17, 0.025), (0.006, 0.006, 0.007)
+SCREAMER_FLAT = {"shell": ((0.13, 0.12, 0.12), 0.6), "collar": ((0.62, 0.34, 0.10), 0.55), "under": ((0.60, 0.42, 0.22), 0.35),
+                 "abdomen": ((0.14, 0.12, 0.12), 0.55), "band": ((0.66, 0.36, 0.10), 0.5), "drum": ((0.66, 0.56, 0.38), 0.5),
+                 "wing": ((0.24, 0.20, 0.17), 0.5), "vein": ((0.78, 0.42, 0.10), 0.5), "leg": ((0.62, 0.34, 0.10), 0.45),
+                 "joint": ((0.44, 0.28, 0.16), 0.2), "flesh": ((0.78, 0.62, 0.44), 0.6), "eye": ((0.62, 0.08, 0.05), 0.85)}
+SCREAMER_MATERIALS = {
+    "shell": lambda: mats.chitin("shell", JET, EMBER, SOOT, under=(0.20, 0.10, 0.04), seed=61.0, bumps=0.18, growth=0.0, mottle=0.10, gloss=0.66),
+    "collar": lambda: mats.chitin("collar", (0.36, 0.13, 0.022), (0.56, 0.30, 0.08), SOOT, seed=62.0, bumps=0.10, growth=0.0, mottle=0.3, gloss=0.6),
+    "under": lambda: mats.chitin("under", (0.30, 0.16, 0.06), (0.46, 0.32, 0.16), (0.06, 0.03, 0.02), seed=63.0, bumps=0.12, growth=0.0, mottle=0.4, gloss=0.36),
+    "abdomen": lambda: mats.chitin("abdomen", (0.016, 0.014, 0.014), EMBER, SOOT, under=(0.34, 0.18, 0.06), seed=64.0, bumps=0.10, growth=0.0, mottle=0.06, gloss=0.6),
+    "band": lambda: mats.chitin("band", (0.40, 0.15, 0.025), (0.58, 0.32, 0.09), SOOT, under=(0.36, 0.20, 0.07), seed=65.0, bumps=0.06, growth=0.0, mottle=0.3, gloss=0.55),
+    "drum": lambda: mats.chitin("drum", (0.34, 0.25, 0.13), (0.50, 0.42, 0.26), (0.07, 0.035, 0.015), seed=66.0, bumps=0.0, growth=0.0, mottle=0.3, gloss=0.5),
+    "wing": lambda: mats.chitin("wing", (0.050, 0.036, 0.026), (0.16, 0.085, 0.035), (0.014, 0.011, 0.010), seed=67.0, bumps=0.0, growth=0.0, mottle=0.35, size=1.6, gloss=0.7),
+    "vein": lambda: mats.chitin("vein", (0.52, 0.19, 0.022), (0.66, 0.36, 0.10), (0.10, 0.03, 0.01), seed=68.0, bumps=0.0, growth=0.0, mottle=0.2, size=0.5, gloss=0.5),
+    "leg": lambda: mats.chitin("leg", (0.36, 0.13, 0.022), (0.52, 0.28, 0.08), (0.05, 0.02, 0.01), seed=69.0, bumps=0.12, growth=0.0, mottle=0.3, size=0.6,
+                               tip=(1, 0.30, 0.48, (0.016, 0.012, 0.010)), gloss=0.5),
+    "joint": lambda: mats.membrane("joint", (0.22, 0.11, 0.05), seed=70.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.70, 0.60, 0.40), red=(0.36, 0.10, 0.05), seed=71.0),
+    "eye": lambda: mats.eye("eye", colour=(0.30, 0.012, 0.008), glint=(0.9, 0.25, 0.12)),
+}
+
+
+def wing(g, name, piece, length, outline, veins, crosses):
+    """A wing from its hinge: +Y along it, flat, its trailing edge toward +X, the same above as below.
+    outline: (share of the length, across) points going round once. veins: paths of (share, across) from the base
+    out, the first one the thick leading edge. crosses: short veins between them."""
+    thick = 0.012
+    flat = [(s * length, c) for s, c in outline]
+    # The outline is rounded: finely for the pictures, enough for the game that its edge is a curve.
+    rounded = real.smooth_path([Vector((0, y, z)) for y, z in flat] + [Vector((0, flat[0][0], flat[0][1]))], cuts=5 if g.hi else 2)
+    flat = [(p[1], p[2]) for p in rounded[:-1]]
+    # Drawn standing on edge, then laid flat: across becomes +X, its thickness up and down.
+    sheet = oa.slab(name, flat, thick, (0.5, 0.5, 0.5), bevel=0.004 if g.hi else 0.0, segments=2)
+    lay = Matrix.Rotation(math.radians(90), 4, 'Y')
+    sheet.data.transform(lay)
+    if g.hi:
+        oa.densify(sheet, 0.02)
+    g.add(sheet, "wing", piece)
+    for k, path in enumerate(veins):
+        points = [Vector((c, s * length, 0.0)) for s, c in path]
+        if g.hi:
+            points = real.smooth_path(points, 3)
+        radius = 0.019 if k == 0 else 0.0115
+        radii = [radius * (1.0 - 0.55 * i / (len(points) - 1)) for i in range(len(points))]
+        # The leading edge is a real shape in the game too; the rest are only in the pictures.
+        g.add(real.sweep("vein", points, radius, (0.5, 0.5, 0.5), n=10 if g.hi else 4, radii=radii), "vein", piece, only=None if k == 0 else 'hi')
+    for a, b in crosses:
+        points = [Vector((a[1], a[0] * length, 0.0)), Vector((b[1], b[0] * length, 0.0))]
+        g.add(real.sweep("cross vein", points, 0.0075, (0.5, 0.5, 0.5), n=8), "vein", piece, only='hi')
+    # The vein that runs round just inside the outer edge, closing the cells.
+    inset = []
+    middle = (0.5 * length, 0.2)
+    for y, c in flat:
+        share = y / length
+        if share < 0.42 or c < 0.0:
+            continue
+        inset.append((share, Vector((c + (middle[1] - c) * 0.13, y + (middle[0] - y) * 0.07, 0.0))))
+    inset.sort(key=lambda e: -math.atan2(e[1].x - middle[1], e[1].y - middle[0]))
+    if g.hi and len(inset) > 3:
+        g.add(real.sweep("edge vein", real.smooth_path([p for _, p in inset], 2), 0.0075, (0.5, 0.5, 0.5), n=8), "vein", piece, only='hi')
+    g.add(g.ball("wing root", (0.015, 0.0, 0), 0.042, scale=(1.3, 1.0, 0.75), around=6), "joint", piece)
+
+
+def screamer(hi):
+    g = Maker(hi, SCREAMER_FLAT, SCREAMER_MATERIALS)
+    L = SCREAMER
+    up = (0, 0, 1)
+    back, front, half, tall = L["back"], L["front"], L["half"], L["tall"]
+
+    # ------------------------------------------------------------- Body: a domed thorax, a broad short head with eyes at its corners
+    tk = [(0.00, half * 0.68, tall * 0.70, 0, 0.0), (0.06, half * 0.88, tall * 0.88, 0, 0.0), (0.24, half, tall, 0, 0.0), (0.44, half * 0.99, tall * 0.97, 0, 0.0),
+          (0.58, half * 0.90, tall * 0.86, 0, -0.005), (0.68, half * 0.80, tall * 0.72, 0, -0.012)]
+    thorax = g.skin("thorax", (0, back, 0.0), (0, 1, 0), up, tk, around=18, step=0.085, power=2.3)
+    if hi:
+        # The W of grooves a cicada carries on its back, a cross ridge at the rear, and a slow unevenness.
+        def back_marks(p):
+            if p.z < 0.04:
+                return 0.0
+            w = abs(abs(p.x) - 0.085 - 0.10 * max(0.0, (p.y + 0.05)))
+            groove = -0.006 * math.exp(-(w / 0.010) ** 2) * (1.0 if -0.22 < p.y < 0.20 else 0.0)
+            ridge = 0.007 * math.exp(-((p.y + 0.25) / 0.016) ** 2) * math.exp(-(p.x / 0.12) ** 2)
+            return groove + ridge + 0.003 * noise.noise(p * 10.0)
+        real.displace(thorax, back_marks)
+    g.add(thorax, "shell", "Body", second=("under", lambda c, n: n.z < -0.55))
+    # The collar behind the head.
+    ck = [(0.00, half * 0.86, tall * 0.80, 0, 0.0), (0.03, half * 0.95, tall * 0.90, 0, 0.0), (0.10, half * 0.94, tall * 0.88, 0, -0.004), (0.14, half * 0.84, tall * 0.76, 0, -0.008)]
+    g.add(g.skin("collar", (0, 0.20, 0.0), (0, 1, 0), up, ck, around=14, step=0.05, power=2.3), "collar", "Body")
+    # The head: short and very wide, sloping down to the front.
+    hk = [(0.00, half * 0.80, tall * 0.66, 0, -0.012), (0.06, half * 0.88, tall * 0.66, 0, -0.016), (0.12, half * 0.80, tall * 0.58, 0, -0.024),
+          (0.17, half * 0.56, tall * 0.44, 0, -0.034), (front - 0.30, half * 0.22, tall * 0.22, 0, -0.045)]
+    g.add(g.skin("head", (0, 0.30, 0.0), (0, 1, 0), up, hk, around=12, step=0.045, power=2.3), "shell", "Body")
+    # The swollen, ribbed front of the face, and the beak folded back between the legs.
+    face = g.ball("face", (0, 0.425, -0.075), 0.105, scale=(0.95, 0.85, 1.05), around=9)
+    if hi:
+        real.displace(face, lambda p: 0.004 * math.sin(p.z * 150.0) * (1.0 if p.y > 0.40 else 0.0))
+    g.add(face, "collar", "Body")
+    g.add(g.spine("beak", (0, 0.40, -0.15), (0, -1.0, -0.16), 0.40, 0.034, around=6), "under", "Body")
+    for side in (-1, 1):
+        # Big wide-set eyes, three small ones between them, a bristle of a feeler under each.
+        g.add(g.ball("eye", (side * 0.222, 0.395, 0.035), 0.078, scale=(1.0, 1.05, 1.0), around=9), "eye", "Body")
+        g.add(g.ball("small eye", (side * 0.045, 0.385, 0.128), 0.020, around=5), "eye", "Body")
+        g.add(g.spine("feeler", (side * 0.10, 0.46, 0.01), (side * 0.45, 1.0, 0.25), 0.13, 0.011, around=4), "leg", "Body")
+        for hinge in (L["fore_hinge"], L["hind_hinge"]):
+            g.add(g.ball("wing socket", (side * (hinge[0] - 0.03), hinge[1], hinge[2] - 0.02), 0.058, scale=(1.0, 1.25, 0.8), around=6), "joint", "Body")
+        for hip in L["hips"]:
+            g.add(g.ball("hip", (side * (hip[0] - 0.02), hip[1], hip[2] + 0.03), 0.060, scale=(1.0, 1.1, 0.9), around=6), "joint", "Body")
+    g.add(g.ball("small eye", (0, 0.425, 0.108), 0.020, around=5), "eye", "Body")
+    # The paler plates underneath.
+    g.add(g.ball("breast", (0, 0.03, -tall + 0.062), 0.24, scale=(0.86, 1.40, 0.24), around=9), "under", "Body")
+
+    # ------------------------------------------------------------- Abdomen: from its joint back along -Y, ringed, hollow sounding
+    al, ah = L["abdomen"], L["abdomen_half"]
+    ak = [(0.00, ah * 0.78, 0.17, 0, 0.0), (0.07, ah * 0.98, 0.205, 0, 0.0), (0.26, ah, 0.215, 0, 0.0), (0.46, ah * 0.90, 0.195, 0, -0.004),
+          (0.64, ah * 0.66, 0.145, 0, -0.010), (0.78, ah * 0.34, 0.075, 0, -0.016), (al, 0.018, 0.016, 0, -0.020)]
+    rings_at = [0.12 + 0.105 * i for i in range(7)]
+    if hi:
+        ringed = []
+        for i in range(130):
+            t = al * i / 129
+            rs, rf, os_, of = real.along(ak, t)
+            # Each ring overlaps the next: a step down just behind its rear edge.
+            lap = min(1.0, min(abs(t - r) for r in rings_at) / 0.012)
+            step = 1.0 - 0.035 * (1.0 - lap)
+            ringed.append((t, rs * step, rf * step, os_, of))
+        ak = ringed
+    belly = g.skin("abdomen", (0, 0, 0), (0, -1, 0), up, ak, around=18, step=0.105, power=2.2)
+    def banded(c, n):
+        if n.z < -0.55:
+            return False
+        t = -c.y
+        return any(-0.034 < t - r < 0.0 for r in rings_at)
+    g.add(belly, "abdomen", "Abdomen", second=("band", banded))
+    g.add(g.ball("waist", (0, 0, 0), 0.16, scale=(1.25, 1.0, 1.0), around=8), "joint", "Abdomen")
+    g.add(g.ball("belly plates", (0, -0.30, -0.15), 0.22, scale=(0.80, 1.5, 0.28), around=8), "under", "Abdomen")
+    # The hollow each drum sits over.
+    d = L["drum"]
+    for side in (-1, 1):
+        g.add(g.ball("drum seat", (side * (d[0] - 0.075), d[1], d[2]), 0.13, scale=(0.5, 1.0, 1.0), around=7), "joint", "Abdomen")
+
+    # ------------------------------------------------------------- Drum (the right one): a pale ribbed dome in a dark rim
+    dr = L["drum_radius"]
+    dome = g.ball("drum", (0.0, 0, 0), dr * 0.94, scale=(0.46, 1.0, 1.0), around=14)
+    if hi:
+        real.displace(dome, lambda p: 0.0075 * math.sin(p.y * 190.0) * max(0.0, 1.0 - (p.y * p.y + p.z * p.z) / (dr * dr * 0.80)))
+    g.add(dome, "drum", "Drum")
+    g.add(g.ball("drum rim", (-0.022, 0, 0), dr, scale=(0.30, 1.0, 1.0), around=14), "shell", "Drum")
+
+    # ------------------------------------------------------------- the wings
+    fl, hl = L["fore_wing"], L["hind_wing"]
+    fore = [(0.00, -0.035), (0.30, -0.050), (0.70, -0.040), (0.92, 0.030), (1.00, 0.150), (0.955, 0.300), (0.80, 0.440), (0.58, 0.510),
+            (0.36, 0.430), (0.16, 0.250), (0.03, 0.090)]
+    fore_veins = [[(0.00, -0.020), (0.30, -0.036), (0.70, -0.026), (0.90, 0.030), (0.985, 0.140)],
+                  [(0.00, 0.010), (0.30, 0.040), (0.60, 0.080), (0.80, 0.130), (0.955, 0.210)],
+                  [(0.00, 0.025), (0.25, 0.110), (0.50, 0.200), (0.72, 0.290), (0.90, 0.330)],
+                  [(0.00, 0.040), (0.20, 0.170), (0.42, 0.300), (0.62, 0.400), (0.76, 0.440)],
+                  [(0.02, 0.060), (0.14, 0.190), (0.28, 0.320), (0.42, 0.430)],
+                  [(0.60, 0.080), (0.74, 0.200), (0.86, 0.290), (0.93, 0.320)],
+                  [(0.50, 0.200), (0.62, 0.300), (0.70, 0.400), (0.72, 0.470)]]
+    fore_crosses = [((0.45, 0.058), (0.42, 0.170)), ((0.70, 0.104), (0.67, 0.160)), ((0.83, 0.150), (0.80, 0.245)), ((0.80, 0.313), (0.70, 0.400)),
+                    ((0.34, 0.145), (0.31, 0.240)), ((0.56, 0.228), (0.52, 0.350)), ((0.88, 0.060), (0.86, 0.165)), ((0.93, 0.230), (0.905, 0.325))]
+    wing(g, "fore wing", "ForeWing", fl, fore, fore_veins, fore_crosses)
+    hind = [(0.00, -0.020), (0.40, -0.032), (0.80, -0.010), (1.00, 0.110), (0.93, 0.290), (0.72, 0.430), (0.46, 0.468), (0.20, 0.350), (0.04, 0.120)]
+    hind_veins = [[(0.00, -0.008), (0.40, -0.018), (0.80, 0.004), (0.98, 0.110)],
+                  [(0.00, 0.015), (0.35, 0.090), (0.65, 0.170), (0.93, 0.250)],
+                  [(0.00, 0.030), (0.28, 0.170), (0.52, 0.300), (0.72, 0.400)],
+                  [(0.02, 0.050), (0.18, 0.200), (0.34, 0.340), (0.46, 0.440)]]
+    hind_crosses = [((0.50, 0.130), (0.45, 0.262)), ((0.78, 0.208), (0.66, 0.368)), ((0.30, 0.182), (0.27, 0.280)), ((0.70, 0.010), (0.68, 0.178))]
+    wing(g, "hind wing", "HindWing", hl, hind, hind_veins, hind_crosses)
+
+    # ------------------------------------------------------------- Leg and Shin: the same either side, bending only upward
+    leg, shin = L["leg"], L["shin"]
+    lk = [(0.00, 0.028, 0.032, 0, 0.0), (0.05, 0.036, 0.044, 0, 0.004), (0.20, 0.033, 0.040, 0, 0.006), (0.34, 0.027, 0.030, 0, 0.002), (leg, 0.023, 0.025, 0, 0.0)]
+    g.add(g.skin("thigh", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.10, power=2.1), "leg", "Leg")
+    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=6), "joint", "Leg")
+    for k, y in enumerate((0.10, 0.18, 0.26, 0.32)):
+        # The thorns under a cicada's thigh (two of them real shapes).
+        g.add(g.spine("thorn", (0, y, -0.040), (0, 0.35, -1.0), 0.045 - 0.006 * k, 0.011, around=4), "leg", "Leg", only=None if k % 2 == 0 else 'hi')
+    sk_ = [(0.00, 0.022, 0.024, 0, 0.0), (0.04, 0.025, 0.028, 0, 0.0), (0.26, 0.017, 0.019, 0, 0.0), (0.345, 0.013, 0.014, 0, 0.0),
+           (0.355, 0.010, 0.010, 0, 0.0), (0.37, 0.012, 0.012, 0, 0.0), (0.455, 0.008, 0.009, 0, -0.004), (shin, 0.003, 0.003, 0, -0.014)]
+    g.add(g.skin("shin", (0, 0, 0), (0, 1, 0), up, sk_, around=6, step=0.09, power=2.0), "leg", "Shin")
+    g.add(g.ball("knee", (0, 0, 0), 0.030, around=6), "joint", "Shin")
+    for k, y in enumerate((0.12, 0.20, 0.28)):
+        # Short spurs along the shin (only in the pictures).
+        g.add(g.spine("spur", (0, y, -0.018), (0, 0.6, -1.0), 0.03, 0.006, around=3), "leg", "Shin", only='hi')
+
+    leftovers(g, L["stump"], "joint")
+    return g
+
+
+def screamer_sockets():
+    L = SCREAMER
+    out = [oa.socket("BodyFront", (0, L["front"], 0)), oa.socket("BodyBack", (0, L["back"], 0)), oa.socket("BodySide", (L["half"], 0, 0)),
+           oa.socket("BodyTop", (0, 0, L["tall"])), oa.socket("AbdomenJoint", L["abdomen_joint"]), oa.socket("AbdomenEnd", (0, -L["abdomen"], 0)),
+           oa.socket("AbdomenSide", (L["abdomen_half"], 0, 0)), oa.socket("DrumR", L["drum"]), oa.socket("DrumRim", (0, L["drum_radius"], 0)),
+           oa.socket("ForeHingeR", L["fore_hinge"]), oa.socket("HindHingeR", L["hind_hinge"]),
+           oa.socket("ForeWingEnd", (0, L["fore_wing"], 0)), oa.socket("ForeWingChord", (L["fore_chord"], 0, 0)),
+           oa.socket("HindWingEnd", (0, L["hind_wing"], 0)), oa.socket("HindWingChord", (L["hind_chord"], 0, 0)),
+           oa.socket("LegEnd", (0, L["leg"], 0)), oa.socket("ShinEnd", (0, L["shin"], 0)), oa.socket("LegSide", (L["leg_radius"], 0, 0)),
+           oa.socket("StumpRim", (L["stump"], 0, 0))]
+    for k, hip in enumerate(L["hips"]):
+        out.append(oa.socket("Hip%dR" % k, hip))
+    return out
+
+
 # ---------------------------------------------------------------------- building
 
 CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
-             "Hunter": (hunter, hunter_sockets, 2048)}
+             "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
@@ -1374,9 +1592,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
             bpy.data.objects.remove(o)
     if name != "Strider":
         # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
-        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 0.45
+        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 1.0 if name == "Screamer" else 0.45
         row = [(piece, Matrix.Translation(((k - 0.5 * (len(parts) - 1)) * apart + 0.2, 0, 0.30))) for k, piece in enumerate(parts)]
-        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter", "Screamer") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
         return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)

@@ -2,7 +2,7 @@ using System;
 
 namespace OrbitalAnte.Creatures
 {
-    /// <summary>Hit points of a Screamer. A wing, a leg or a drum comes off in one or two rifle hits.</summary>
+    /// <summary>Hit points of a Screamer. A wing or a leg comes off in two rifle hits, a drum in three.</summary>
     [Serializable]
     public struct ScreamerHp
     {
@@ -14,7 +14,7 @@ namespace OrbitalAnte.Creatures
         /// <summary>The armoured fore body and head: the slow way.</summary>
         public double Body;
 
-        public static ScreamerHp Default => new ScreamerHp { ForeWing = 40, HindWing = 30, Leg = 30, Drum = 45, Abdomen = 150, Body = 300 };
+        public static ScreamerHp Default => new ScreamerHp { ForeWing = 40, HindWing = 30, Leg = 30, Drum = 70, Abdomen = 150, Body = 300 };
     }
 
     /// <summary>What a hit took off. Reused by the next hit: read it before hitting again.</summary>

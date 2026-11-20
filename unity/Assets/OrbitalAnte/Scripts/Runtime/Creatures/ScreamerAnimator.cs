@@ -204,8 +204,8 @@ namespace OrbitalAnte.Creatures
                 Vec3d foot = rest + reach * (along * moving) + new Vec3d(0, up * moving, 0);
                 // Out of breath it twitches; screaming, its feet are braced.
                 if (mode == ScreamerMode.Spent) foot = foot + new Vec3d(0, Math.Max(0.0, Math.Sin(_time * 9.0 + leg * 2.1)) * 0.02, 0);
-                // In the air the legs hang tucked under it, the front pair forward.
-                Vec3d tucked = bodyAt + bodyTurn.Rotate(ScreamerLayout.HipOf(leg) + new Vec3d(sign * 0.20, -0.36 + 0.03 * Math.Sin(_time * 5.0 + leg), 0.16 - 0.14 * place));
+                // In the air the legs are drawn up under it, knees out, feet trailing.
+                Vec3d tucked = bodyAt + bodyTurn.Rotate(ScreamerLayout.HipOf(leg) + new Vec3d(sign * 0.12, -0.20 + 0.03 * Math.Sin(_time * 5.0 + leg), -0.20 + 0.06 * (1 - place)));
                 foot = foot + (tucked - foot) * air;
                 Bend(hip, foot, sign, pose, leg);
             }
@@ -240,7 +240,7 @@ namespace OrbitalAnte.Creatures
             double len = Math.Max(Math.Abs(l1 - l2) + 0.02, Math.Min(l1 + l2 - 0.004, far));
             double a = (l1 * l1 - l2 * l2 + len * len) / (2.0 * len);
             double h = Math.Sqrt(Math.Max(0.0, l1 * l1 - a * a));
-            var pole = new Vec3d(sign * 0.35, 1.0, 0.0);
+            var pole = new Vec3d(sign * 0.6, 1.0, 0.0);
             Vec3d p = pole - dir * Vec3d.Dot(pole, dir);
             p = p.SqrMagnitude > 1e-9 ? p.Normalized : Vec3d.Up;
             Vec3d knee = hip + dir * a + p * h;

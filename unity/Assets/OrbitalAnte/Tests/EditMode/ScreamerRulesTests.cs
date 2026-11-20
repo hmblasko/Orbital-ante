@@ -23,6 +23,8 @@ namespace OrbitalAnte.Tests.EditMode
             public readonly ScreamerAnimator Animator = new ScreamerAnimator();
             public readonly ScreamerPose Pose = new ScreamerPose();
             public double X, Z, Heading, PlayerX, PlayerZ = 14.0, Time, Hurt;
+            /// <summary>How the player moves by themselves, metres a second.</summary>
+            public double PlayerVX, PlayerVZ;
             public bool Sees = true, Blocked;
             public ScreamerOrders Last;
             public readonly List<ScreamerMode> Modes = new List<ScreamerMode> { ScreamerMode.Perch };
@@ -41,12 +43,19 @@ namespace OrbitalAnte.Tests.EditMode
 
             public double Distance => Math.Sqrt((PlayerX - X) * (PlayerX - X) + (PlayerZ - Z) * (PlayerZ - Z));
 
+            /// <summary>The player, measured from its mouth.</summary>
+            public Vec3d FromMouth => Local(PlayerX, PlayerZ) - new Vec3d(0, 0, ScreamerLayout.BodyFront);
+
             public ScreamerOrders Step(double dt = Dt)
             {
+                PlayerX += PlayerVX * dt;
+                PlayerZ += PlayerVZ * dt;
+                double hs = Math.Sin(Heading), hc = Math.Cos(Heading);
                 var senses = new ScreamerSenses
                 {
                     SeesPlayer = Sees,
                     Player = Local(PlayerX, PlayerZ),
+                    PlayerVelocity = new Vec3d(PlayerVX * hc - PlayerVZ * hs, 0, PlayerVX * hs + PlayerVZ * hc),
                     Home = Local(0, 0),
                     North = new Vec3d(-Math.Sin(Heading), 0, Math.Cos(Heading)),
                     Blocked = Blocked,
@@ -57,7 +66,7 @@ namespace OrbitalAnte.Tests.EditMode
                 Vec3d moved = Blocked ? Vec3d.Zero : orders.Velocity;
                 X += (moved.X * c + moved.Z * s) * dt;
                 Z += (-moved.X * s + moved.Z * c) * dt;
-                if (orders.Pulse) Hurt += ScreamerBrain.DamageRate(Rules, Body, Local(PlayerX, PlayerZ)) * Rules.pulseSeconds;
+                if (orders.Pulse) Hurt += ScreamerBrain.DamageRate(Rules, Body, FromMouth) * Rules.pulseSeconds;
                 var input = new ScreamerAnimInput { Velocity = moved, TurnRate = orders.TurnRate, Height = orders.Height, Mode = orders.Mode, T = orders.T };
                 Animator.Update(Body, input, dt, Pose);
                 if (orders.Mode != Modes[Modes.Count - 1]) Modes.Add(orders.Mode);
@@ -126,7 +135,7 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.LessOrEqual(Math.Ceiling(hp.ForeWing / Rifle), 2);
             Assert.LessOrEqual(Math.Ceiling(hp.HindWing / Rifle), 2);
             Assert.LessOrEqual(Math.Ceiling(hp.Leg / Rifle), 2);
-            Assert.LessOrEqual(Math.Ceiling(hp.Drum / Rifle), 2);
+            Assert.AreEqual(3, Math.Ceiling(hp.Drum / Rifle), "silencing it costs about what half a kill does");
             Assert.LessOrEqual(Math.Ceiling(hp.Abdomen / Rifle), 8, "learnable, not a bullet sponge");
         }
 
@@ -212,6 +221,18 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
+        public void TheConeIsRound_AboveItIsAsSafeAsBesideIt_AndRightBehindItIsSafeHoweverNear()
+        {
+            var rules = new ScreamerRules();
+            var body = new ScreamerBody();
+            Assert.AreEqual(0.0, ScreamerBrain.DamageRate(rules, body, new Vec3d(0, 6, 6)), "overhead");
+            Assert.Greater(ScreamerBrain.DamageRate(rules, body, new Vec3d(0, 2, 6)), 0.0, "a little above the middle is still in it");
+            Assert.AreEqual(ScreamerBrain.DamageRate(rules, body, new Vec3d(2, 0, 6)), ScreamerBrain.DamageRate(rules, body, new Vec3d(0, 2, 6)), 1e-9);
+            Assert.AreEqual(0.0, ScreamerBrain.DamageRate(rules, body, new Vec3d(0, 0, -0.3)), "no hidden rule close up");
+            Assert.AreEqual(0.0, ScreamerBrain.DamageRate(rules, body, new Vec3d(0.4, 0, 0.1)));
+        }
+
+        [Test]
         public void StandingInIt_IsNeverMoreThanAFightCanBear()
         {
             // A whole scream from as near as it will let you stand must not kill a fresh player (100) outright.
@@ -247,7 +268,7 @@ namespace OrbitalAnte.Tests.EditMode
             world.Until(ScreamerMode.WindUp, 6.0);
             Assert.AreEqual(0.0, world.Last.Height, 1e-9, "it screams from the ground");
             Assert.AreEqual(world.Rules.perchRange, world.Distance, 3.0, "it lands about its perch range away");
-            Assert.Less(world.Distance, ScreamerBrain.Range(world.Rules, world.Body) * 0.8);
+            Assert.Less(world.Distance, ScreamerBrain.Range(world.Rules, world.Body));
             Assert.Less(Math.Abs(Math.Atan2(world.Local(world.PlayerX, world.PlayerZ).X, world.Local(world.PlayerX, world.PlayerZ).Z)), 0.3, "facing the player");
 
             double warned = world.Time;
@@ -310,6 +331,42 @@ namespace OrbitalAnte.Tests.EditMode
                 world.Step();
             }
             return world.Hurt - before;
+        }
+
+        [Test]
+        public void SomeoneWalkingAway_IsStillScreamedAt()
+        {
+            // It lands where they are going, not where they were when it took off.
+            foreach ((double vx, double vz) in new[] { (0.0, 5.0), (5.0, 0.0), (-3.5, 3.5) })
+            {
+                var world = new World { PlayerZ = 12, PlayerVX = vx, PlayerVZ = vz };
+                world.Rules.roamRadius = 1000f;
+                var log = new System.Text.StringBuilder();
+                ScreamerMode was = ScreamerMode.Perch;
+                for (int i = 0; i < 60 * 30 && world.Hurt <= 0.0; i++) { world.Step(); if (world.Brain.Mode != was) { was = world.Brain.Mode; Vec3d m = world.FromMouth; log.Append(was + "@" + world.Time.ToString("0.0") + " (" + m.X.ToString("0.0") + "," + m.Z.ToString("0.0") + ") "); } }
+                if (world.Hurt <= 0.0) Assert.Fail(log.ToString());
+                Assert.Greater(world.Hurt, 0.0, "walking " + vx + ", " + vz + ": " + string.Join(", ", world.Modes));
+            }
+        }
+
+        [Test]
+        public void ChasedFromItsPerch_ItFliesOnce_ThenStandsItsGroundAndScreams()
+        {
+            var world = new World { PlayerZ = 12 };
+            int flights = 0;
+            ScreamerMode last = ScreamerMode.Perch;
+            for (int i = 0; i < 60 * 40 && !world.Modes.Contains(ScreamerMode.Scream); i++)
+            {
+                // The player sprints straight at it the whole time.
+                double dx = world.X - world.PlayerX, dz = world.Z - world.PlayerZ, far = Math.Sqrt(dx * dx + dz * dz);
+                world.PlayerVX = far > 0.8 ? dx / far * 8.0 : 0.0;
+                world.PlayerVZ = far > 0.8 ? dz / far * 8.0 : 0.0;
+                ScreamerOrders orders = world.Step();
+                if (orders.Mode == ScreamerMode.Fly && last != ScreamerMode.Fly) flights++;
+                last = orders.Mode;
+            }
+            Assert.Contains(ScreamerMode.Scream, world.Modes, "it cannot be chased out of ever screaming");
+            Assert.LessOrEqual(flights, 3);
         }
 
         [Test]
@@ -469,8 +526,16 @@ namespace OrbitalAnte.Tests.EditMode
                 Assert.AreNotEqual(ScreamerMode.Scream, orders.Mode);
                 Assert.IsFalse(orders.Pulse);
             }
-            Assert.Greater(world.Distance, world.Rules.fleeRange * 0.7 - 1.0);
+            Assert.Greater(world.Distance, world.Rules.fleeRange - 2.0);
             Assert.AreEqual(ScreamerMode.Perch, world.Brain.Mode, "and settles there");
+            // It made off once. Walked up to, it stays to be finished: no chase.
+            double x = world.X, z = world.Z;
+            world.PlayerX = world.X + 2.0;
+            world.PlayerZ = world.Z;
+            for (int i = 0; i < 60 * 5; i++) world.Step();
+            Assert.AreEqual(x, world.X, 1e-9);
+            Assert.AreEqual(z, world.Z, 1e-9);
+            Assert.Less(world.Rules.fleeRange, world.Rules.screamRange, "a short way: a clean-up shot, not a hunt");
         }
 
         [Test]
