@@ -33,6 +33,8 @@ namespace OrbitalAnte.Planets
             public Node[] Children;
             public GameObject Go;
             public Mesh Mesh;
+            /// <summary>The ground's triangles without the skirts, for the collider (see ChunkData.GroundIndexCount).</summary>
+            public Mesh ColliderMesh;
             public MeshCollider Collider;
             public bool Solid;
             public bool HasMesh;
@@ -240,6 +242,7 @@ namespace OrbitalAnte.Planets
         {
             if (this == null || Terrain != null) return;
             Terrain = build.Terrain;
+            _built = new BuiltGround(Terrain);
             PlacementPositions = build.PlacementPositions;
             Weather = new WeatherModel(Profile, Body.Spec.id, SurfaceRadius, _seed);
             // The safety net sits under the lowest ground and the deepest cave.
@@ -639,10 +642,7 @@ namespace OrbitalAnte.Planets
         public bool AnyReshaped => _reshaped.Count > 0;
         public void ForgetReshaped() => _reshaped.Clear();
 
-        /// <summary>
-        /// True if the ground showing under a point is solid and in its finest shape, so its real height is
-        /// what <see cref="GroundRadius"/> says. Coarser ground can be metres off.
-        /// </summary>
+        /// <summary>True if the ground showing under a point is solid and in its finest shape.</summary>
         public bool FineSolidAt(Vec3d point)
         {
             Node n = SupportingNode(point);
@@ -692,7 +692,8 @@ namespace OrbitalAnte.Planets
         void MakeSolid(Node n)
         {
             if (n.Collider == null) n.Collider = n.Go.AddComponent<MeshCollider>();
-            if (n.Collider.sharedMesh != n.Mesh) n.Collider.sharedMesh = n.Mesh;
+            Mesh shape = n.ColliderMesh != null ? n.ColliderMesh : n.Mesh;
+            if (n.Collider.sharedMesh != shape) n.Collider.sharedMesh = shape;
             n.Collider.enabled = true;
             n.Solid = true;
         }
@@ -810,6 +811,12 @@ namespace OrbitalAnte.Planets
             n.Mesh.SetUVs(0, DirectionBuffer);
             n.Mesh.SetColors(ColorBuffer);
             n.Mesh.SetTriangles(chunk.Triangles, 0, true);
+            if (n.ColliderMesh == null) n.ColliderMesh = new Mesh { name = "GroundCollider" };
+            n.ColliderMesh.Clear();
+            n.ColliderMesh.SetVertices(VertexBuffer);
+            n.ColliderMesh.SetTriangles(chunk.Triangles, 0, chunk.GroundIndexCount, 0, true);
+            // A tile being rebuilt while solid takes its new shape at once (MakeSolid assigns it otherwise).
+            if (n.Collider != null && n.Collider.enabled) n.Collider.sharedMesh = n.ColliderMesh;
             n.HasMesh = true;
             n.RequiredCaves = build.RequiredCaves;
 
@@ -853,9 +860,10 @@ namespace OrbitalAnte.Planets
                 }
             }
             // A dead node may still be in the scatter list this frame; a fresh object avoids mixing the two up.
-            var spare = new Node { Go = n.Go, Mesh = n.Mesh, Collider = n.Collider, Dead = true };
+            var spare = new Node { Go = n.Go, Mesh = n.Mesh, ColliderMesh = n.ColliderMesh, Collider = n.Collider, Dead = true };
             n.Go = null;
             n.Mesh = null;
+            n.ColliderMesh = null;
             n.Collider = null;
             if (spare.Go != null) _spare.Push(spare);
         }
@@ -863,6 +871,7 @@ namespace OrbitalAnte.Planets
         static void DestroyNode(Node n)
         {
             if (n.Mesh != null) Destroy(n.Mesh);
+            if (n.ColliderMesh != null) Destroy(n.ColliderMesh);
             if (n.Go != null) Destroy(n.Go);
         }
 
@@ -1094,8 +1103,28 @@ namespace OrbitalAnte.Planets
 
         // ------------------------------------------------------------------ questions other scripts ask
 
-        /// <summary>Distance from the body's centre to the ground in a direction, in metres.</summary>
+        BuiltGround _built;
+
+        /// <summary>
+        /// Distance from the body's centre to the ground in a direction, in metres: the ground that is really
+        /// there, the triangles of the tile showing under that direction, which are also what you collide with.
+        /// Feet, the sinking check and the height readout must all agree with the collider, or someone standing
+        /// honestly is "rescued" (a bounce) and someone sunk is left there. Where no tile is showing yet it is
+        /// the ideal height (<see cref="IdealGroundRadius"/>).
+        /// </summary>
         public double GroundRadius(Vec3d direction)
+        {
+            if (Terrain == null) return BodyRadius;
+            Node n = SupportingNode(direction);
+            if (n == null || !n.Shown || !n.HasMesh || _built == null) return IdealGroundRadius(direction);
+            return _built.Radius(n.Face, n.Level, n.X, n.Y, direction);
+        }
+
+        /// <summary>
+        /// The ground with every fine bump in, as no tile draws it. For deciding where things go (it does not
+        /// change as tiles come and go), never for where a foot or a collider is.
+        /// </summary>
+        public double IdealGroundRadius(Vec3d direction)
         {
             return Terrain != null ? SurfaceRadius + Terrain.Height(direction) : BodyRadius;
         }
