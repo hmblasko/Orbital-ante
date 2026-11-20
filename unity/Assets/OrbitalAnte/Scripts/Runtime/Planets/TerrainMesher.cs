@@ -12,6 +12,12 @@ namespace OrbitalAnte.Planets
         /// <summary>r, g, b per corner, 0 to 1.</summary>
         public float[] Colors;
         public int[] Triangles;
+        /// <summary>
+        /// How many of <see cref="Triangles"/> (as indices, three a triangle) are the ground itself; the rest are
+        /// the skirts. Only the ground goes in the collider: a skirt is an upright wall at a tile's edge, and where
+        /// tiles of different detail meet it stands a little proud and catches the suit.
+        /// </summary>
+        public int GroundIndexCount;
         /// <summary>The middle of the tile on the ground, in metres from the body's centre.</summary>
         public Vec3d Centre;
         /// <summary>Lowest and highest ground in the tile, in metres above the body's surface radius.</summary>
@@ -192,6 +198,7 @@ namespace OrbitalAnte.Planets
                     }
                 }
             }
+            data.GroundIndexCount = tri;
             // Skirts are drawn from both sides: they are only ever glimpsed edge-on, and this cannot be got wrong.
             for (int e = 0; e < 4; e++)
             {
@@ -208,6 +215,81 @@ namespace OrbitalAnte.Planets
             if (tri != triangles.Length) Array.Resize(ref triangles, tri);
             data.Triangles = triangles;
             return data;
+        }
+
+        /// <summary>
+        /// Distance from the body's centre to the ground a tile really has in a direction: the flat triangle of
+        /// <see cref="Build"/> under it, with the same corners, the same diagonal and the same left-out fine bumps.
+        /// That is the shape that is drawn and that the collider is made from, so this is where a foot really
+        /// stands. <see cref="PlanetTerrain.Height"/> with no wavelength is the ideal ground with every bump in, and
+        /// can lie a metre or more off it (fine bumps, cliffs cut across by a triangle). Directions outside the tile
+        /// are measured on its nearest edge cell.
+        /// </summary>
+        public static double SurfaceRadius(PlanetTerrain terrain, int face, int level, int ix, int iy, Vec3d direction)
+        {
+            SurfaceCell(face, level, ix, iy, direction, out int i, out int j, out bool far);
+            CellPlane(terrain, face, level, ix, iy, i, j, far, out Vec3d normal, out double offset);
+            return RadiusOnPlane(normal, offset, direction);
+        }
+
+        /// <summary>
+        /// Which of a tile's squares a direction falls in (clamped to the tile), and which of its two triangles:
+        /// <paramref name="far"/> is the one with the square's far corner. Cheap: no ground is worked out.
+        /// </summary>
+        public static void SurfaceCell(int face, int level, int ix, int iy, Vec3d direction, out int i, out int j, out bool far)
+        {
+            const int n = Quads;
+            double size = 2.0 / (1 << level);
+            CubeSphere.LocateOn(direction, face, out double u, out double v);
+            double fx = (u - (-1 + ix * size)) / size * n, fy = (v - (-1 + iy * size)) / size * n;
+            i = Math.Min(n - 1, Math.Max(0, (int)Math.Floor(fx)));
+            j = Math.Min(n - 1, Math.Max(0, (int)Math.Floor(fy)));
+            far = (fx - i) + (fy - j) > 1;
+        }
+
+        /// <summary>
+        /// The flat plane of one of a tile's triangles, as Build makes it: points x on it have dot(normal, x) =
+        /// offset, in metres from the body's centre. Build's two triangles in a square are a-b-c and b-d-c (a the
+        /// square's low corner, d its far one), so the diagonal is b-c.
+        /// </summary>
+        public static void CellPlane(PlanetTerrain terrain, int face, int level, int ix, int iy, int i, int j, bool far, out Vec3d normal, out double offset)
+        {
+            const int n = Quads;
+            double size = 2.0 / (1 << level);
+            double minWavelength = CellSize(terrain.Radius, level) * 1.6;
+            double u0 = -1 + ix * size, v0 = -1 + iy * size;
+            // Corners are placed exactly as Build places them (same sums), so the plane is the mesh's own.
+            double ua = u0 + i / (double)n * size, ub = u0 + (i + 1) / (double)n * size;
+            double va = v0 + j / (double)n * size, vb = v0 + (j + 1) / (double)n * size;
+            Vec3d b = Corner(terrain, face, ub, va, minWavelength);
+            Vec3d c = Corner(terrain, face, ua, vb, minWavelength);
+            Vec3d other = far ? Corner(terrain, face, ub, vb, minWavelength) : Corner(terrain, face, ua, va, minWavelength);
+            normal = Vec3d.Cross(c - b, other - b);
+            double length = normal.Magnitude;
+            if (length < 1e-12)
+            {
+                // A squashed triangle (never on real ground): a ball through its corners instead.
+                normal = Vec3d.Zero;
+                offset = (b.Magnitude + c.Magnitude + other.Magnitude) / 3.0;
+                return;
+            }
+            normal = normal / length;
+            offset = Vec3d.Dot(normal, b);
+        }
+
+        /// <summary>Distance from the centre to a plane from <see cref="CellPlane"/> along a direction.</summary>
+        public static double RadiusOnPlane(Vec3d normal, double offset, Vec3d direction)
+        {
+            if (normal.SqrMagnitude < 0.5) return offset;
+            double along = Vec3d.Dot(normal, direction.Normalized);
+            if (Math.Abs(along) < 1e-9) return offset;
+            return offset / along;
+        }
+
+        static Vec3d Corner(PlanetTerrain terrain, int face, double u, double v, double minWavelength)
+        {
+            Vec3d dir = CubeSphere.Direction(face, u, v);
+            return dir * (terrain.Radius + terrain.Sample(dir, minWavelength).Height);
         }
     }
 }
