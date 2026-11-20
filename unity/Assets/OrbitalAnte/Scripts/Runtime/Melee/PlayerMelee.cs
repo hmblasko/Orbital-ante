@@ -540,6 +540,7 @@ namespace OrbitalAnte.Melee
             outcome.HitstopSeconds = living ? stop : 0f;
             if (outcome.Enemy) outcome.Juice = Mathf.Max(outcome.Juice, 0.25f);
             if (blow.Takedown) outcome.Label = "Takedown";
+            outcome.Source = HitSource.Melee;
             CombatEvents.RaisePlayerHit(outcome);
 
             string sound = blow.Clang ? MeleeRules.SoundEvent(MeleeCatalog.FryingPanId, "clang") : blow.Takedown ? MeleeRules.SoundEvent(MeleeCatalog.ButterflyKnifeId, "takedown")

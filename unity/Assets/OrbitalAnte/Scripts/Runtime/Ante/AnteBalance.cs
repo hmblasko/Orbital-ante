@@ -57,6 +57,8 @@ namespace OrbitalAnte.Ante
         BaseRetakeMission = 17,
         /// <summary>One piece of salvage brought back to the base. Pays once per piece.</summary>
         SalvageDelivered = 18,
+        /// <summary>An enemy installation brought down (a signal mast, 20 Nov 2026). Pays once per installation.</summary>
+        InstallationDestroyed = 19,
     }
 
     public enum PlayerAttribute
@@ -143,10 +145,14 @@ namespace OrbitalAnte.Ante
         /// See docs/design/ante-point-system.md.
         /// </summary>
         public int salvageDelivered = 240;
+        /// <summary>A signal mast brought down (20 Nov 2026, first guess): the size of a satellite repair, a short job done under fire.</summary>
+        public int installationDestroyed = 180;
 
         // ---- Anti-farm caps (my provisional numbers; the handoff says "with caps" without giving them) ----
         public int underThreatRecoveriesPerAnte = 3;
         public int retakeMissionsPerBasePerRun = 2;
+        /// <summary>Hard landings that pay in one ante (20 Nov 2026, mine): hopping from spot to spot must not beat fighting.</summary>
+        public int difficultLandingsPerAnte = 3;
 
         // ---- Attributes ----
         public int maxAttributeLevel = 4;
@@ -223,6 +229,7 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.DifficultLanding: return difficultLanding;
                 case ScoreEventKind.UnderThreatRecovery: return underThreatRecovery;
                 case ScoreEventKind.SalvageDelivered: return salvageDelivered;
+                case ScoreEventKind.InstallationDestroyed: return installationDestroyed;
                 // Missions carry their own value, kept inside the allowed range by the score service.
                 case ScoreEventKind.OptionalMission:
                 case ScoreEventKind.BaseRetakeMission: return optionalMissionMin;
@@ -239,7 +246,8 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.EnemyTier3:
                 case ScoreEventKind.EnemyElite:
                 case ScoreEventKind.ShipDestroyed:
-                case ScoreEventKind.ShipHijacked: return ScoreCategory.Combat;
+                case ScoreEventKind.ShipHijacked:
+                case ScoreEventKind.InstallationDestroyed: return ScoreCategory.Combat;
                 case ScoreEventKind.BountyDead:
                 case ScoreEventKind.BountyAlive: return ScoreCategory.Bounty;
                 case ScoreEventKind.NewMoon:

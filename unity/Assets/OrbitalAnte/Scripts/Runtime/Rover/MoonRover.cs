@@ -936,6 +936,7 @@ namespace OrbitalAnte.Rover
             var hit = new HitInfo { Damage = damage, Point = at, Direction = direction, Normal = -direction, Lethal = lethal };
             HitOutcome outcome = who.ApplyHit(part, hit);
             // It counts as the player's doing (hit markers, the gun ladder's kills, Focus), as long as someone drives.
+            outcome.Source = HitSource.Rover;
             if (outcome.Hit && Driver != null) CombatEvents.RaisePlayerHit(outcome);
         }
 

@@ -100,6 +100,23 @@ namespace OrbitalAnte.Combat
             _owed = !HandOverNextGun();
         }
 
+        /// <summary>The next step's gun is still there to be given (the ladder is on and not at the top).</summary>
+        public bool CanGiveNextGun => Ladder != null && !Ladder.AtTop;
+
+        /// <summary>
+        /// Hands over the next step's gun now, without a kill (a supply drop). False when the ladder is off or
+        /// already at the top. The kill count for the new step starts from nothing.
+        /// </summary>
+        public bool GiveNextGunNow()
+        {
+            if (Ladder == null || !Ladder.SkipStep()) return false;
+            _nextSearch = 0f;
+            _owed = !HandOverNextGun();
+            return true;
+        }
+
+        public static GunLadderFx Instance => _instance;
+
         /// <summary>Gives the player the gun of the step they are on. False if there was no player to give it to.</summary>
         bool HandOverNextGun()
         {

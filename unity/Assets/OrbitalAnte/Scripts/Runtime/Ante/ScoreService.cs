@@ -27,6 +27,11 @@ namespace OrbitalAnte.Ante
         public string capGroup;
         /// <summary>The game checked a real feat of skill (set by the reporting system, never by the player).</summary>
         public bool verifiedSkill;
+        /// <summary>
+        /// How many feats the game checked on this event (style kills, quick or quiet clears; 20 Nov 2026). One gives
+        /// the verified skill bonus, two or more the skill ceiling. <see cref="verifiedSkill"/> alone counts as one.
+        /// </summary>
+        public int skillFeats;
         /// <summary>The player chose a real, visible risk beforehand.</summary>
         public bool acceptedRisk;
         /// <summary>True for anything that came back after being cleared (respawned enemies, a base retaken without a mission). These never score.</summary>
@@ -147,7 +152,8 @@ namespace OrbitalAnte.Ante
                             && _chainUsesThisAnte < _balance.chainUsesPerAnte;
             if (useChain) perkBonus += chain;
 
-            float skill = scoreEvent.verifiedSkill ? _balance.skillVerified : 1f;
+            int feats = Math.Max(scoreEvent.skillFeats, scoreEvent.verifiedSkill ? 1 : 0);
+            float skill = feats >= 2 ? _balance.skillMax : feats == 1 ? _balance.skillVerified : 1f;
             float risk = scoreEvent.acceptedRisk ? _balance.riskAccepted : 1f;
             int points = ScoreMath.Award(_balance, basePoints, ante, perkBonus, skill, risk);
 
@@ -190,6 +196,9 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.BaseRetakeMission:
                     limit = _balance.retakeMissionsPerBasePerRun;
                     return "cap:retake:" + (scoreEvent.capGroup ?? "");
+                case ScoreEventKind.DifficultLanding:
+                    limit = _balance.difficultLandingsPerAnte;
+                    return "cap:landing:ante" + ante;
                 default:
                     return null;
             }

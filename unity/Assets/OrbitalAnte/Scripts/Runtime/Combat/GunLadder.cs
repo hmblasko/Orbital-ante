@@ -139,6 +139,18 @@ namespace OrbitalAnte.Combat
             return true;
         }
 
+        /// <summary>
+        /// Climbs one step without a kill (a supply drop's gun). Kills already made on this step are not carried
+        /// over. False at the top, where there is nothing more to give.
+        /// </summary>
+        public bool SkipStep()
+        {
+            if (AtTop) return false;
+            Rung++;
+            KillsOnRung = 0;
+            return true;
+        }
+
         /// <summary>A new run: back to the first step with no kills.</summary>
         public void Reset()
         {
