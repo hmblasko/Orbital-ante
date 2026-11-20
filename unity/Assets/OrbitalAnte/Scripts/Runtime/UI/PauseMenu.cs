@@ -25,12 +25,20 @@ namespace OrbitalAnte.UI
             Quit,
             Confirm,
             Died,
+            /// <summary>Between antes: the ante just cleared, and the way on (ante tasks, 20 Nov 2026).</summary>
+            Intermission,
         }
 
         /// <summary>Restart the run. The argument is true to keep the current seed.</summary>
         public Action<bool> RestartRequested;
         public Action QuitToMenuRequested;
         public Action QuitToDesktopRequested;
+        /// <summary>True when the current ante's target is met and it may be ended early (Hybrid). Shows the button.</summary>
+        public Func<bool> CanEndAnte;
+        /// <summary>Ends the current ante now. Only ever reached through its confirm page.</summary>
+        public Action EndAnte;
+        /// <summary>Leaves the between-antes page and starts the next ante.</summary>
+        public Action StartNextAnte;
 
         Canvas _canvas;
         readonly Dictionary<Page, GameObject> _pages = new Dictionary<Page, GameObject>();
@@ -60,6 +68,7 @@ namespace OrbitalAnte.UI
             BuildRestart();
             BuildQuit();
             BuildDied();
+            BuildIntermission();
             BuildConfirm();
 
             _controls = new ControlsPage();
@@ -69,12 +78,15 @@ namespace OrbitalAnte.UI
             _canvas.gameObject.SetActive(false);
         }
 
+        Text _lastHeading;
+
         RectTransform NewPage(Page page, string title, float width)
         {
             var root = UiKit.NewRect(page + "Page", _canvas.transform);
             UiKit.Stretch(root);
             var card = UiKit.Card(root, page + "Card", width);
             var heading = UiKit.LayoutLabel(card, title, 40, UiKit.PanelEdge, 54f);
+            _lastHeading = heading;
             // A slight tilt keeps it from feeling like a spreadsheet.
             heading.transform.localRotation = Quaternion.Euler(0f, 0f, 1.5f);
             _pages[page] = root.gameObject;
@@ -86,6 +98,10 @@ namespace OrbitalAnte.UI
         {
             var card = NewPage(Page.Main, "PAUSED", 520f);
             _defaults[Page.Main] = UiKit.Button(card, "Resume", Resume).gameObject;
+            // Hybrid antes: once the target is met you may move on early. A confirmed action, never Select.
+            _endAnteButton = UiKit.Button(card, "Bank this ante now", () => Confirm(
+                "Target met. End this ante now and bank it?\nAnything you would still score this ante is given up.", Page.Main,
+                () => { Close(); EndAnte?.Invoke(); }));
             UiKit.Button(card, "Controls", () => Show(Page.Controls));
             UiKit.Button(card, "Audio", () => Show(Page.Audio));
             UiKit.Button(card, "Feel", () => Show(Page.Feel));
@@ -158,7 +174,45 @@ namespace OrbitalAnte.UI
         }
 
         Text _diedCause;
+        Text _diedTitle;
         Button _diedSameSeed;
+        Button _endAnteButton;
+        Text _interTitle, _interBody;
+        Button _interGo;
+
+        void BuildIntermission()
+        {
+            var card = NewPage(Page.Intermission, "ANTE CLEARED", 640f);
+            _interTitle = _lastHeading;
+            _interBody = UiKit.LayoutLabel(card, string.Empty, 19, UiKit.Cream, 210f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _interGo = UiKit.Button(card, "Start the next ante", () => { Close(); StartNextAnte?.Invoke(); });
+            _defaults[Page.Intermission] = _interGo.gameObject;
+            UiKit.Button(card, "Restart", () => Show(Page.Restart));
+            UiKit.Button(card, "Quit", () => Show(Page.Quit));
+        }
+
+        /// <summary>Opens the between-antes page: what was cleared and what comes next. The game stays paused on it.</summary>
+        public void ShowIntermission(string title, string body, string goLabel)
+        {
+            if (!IsOpen)
+            {
+                GameSession.SetPaused(true);
+                _canvas.gameObject.SetActive(true);
+            }
+            if (_interTitle != null) _interTitle.text = title;
+            _interBody.text = body ?? string.Empty;
+            UiKit.ButtonText(_interGo).text = goLabel;
+            Show(Page.Intermission);
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            _diedAt = Time.unscaledTime;
+        }
+
+        /// <summary>The run has ended without a death (the ante timer ran out short of the target).</summary>
+        public void ShowRunOver(string title, string cause)
+        {
+            ShowDeath(cause);
+            if (_diedTitle != null) _diedTitle.text = title;
+        }
 
         /// <summary>
         /// Shown when the pilot dies. Says what killed them in plain words, so the lesson is never hidden, and
@@ -167,6 +221,7 @@ namespace OrbitalAnte.UI
         void BuildDied()
         {
             var card = NewPage(Page.Died, "THAT WAS FATAL", 620f);
+            _diedTitle = _lastHeading;
             _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
             _defaults[Page.Died] = _diedSameSeed.gameObject;
@@ -183,6 +238,7 @@ namespace OrbitalAnte.UI
                 _canvas.gameObject.SetActive(true);
             }
             _diedCause.text = cause ?? string.Empty;
+            if (_diedTitle != null) _diedTitle.text = "THAT WAS FATAL";
             UiKit.ButtonText(_diedSameSeed).text = "Try again with the same seed (" + GameSession.Seed + ")";
             Show(Page.Died);
             // Nothing is chosen for a moment, so a button still held from the crash cannot skip the page.
@@ -261,6 +317,8 @@ namespace OrbitalAnte.UI
             if (_current == Page.Controls && page != Page.Controls) _controls.Close();
             foreach (var pair in _pages) pair.Value.SetActive(pair.Key == page);
             _current = page;
+            // Whether the ante can be banked is asked every time the main page shows, not only when the menu opens.
+            if (page == Page.Main && _endAnteButton != null) _endAnteButton.gameObject.SetActive(CanEndAnte != null && CanEndAnte());
 
             if (page == Page.Controls)
             {
@@ -287,7 +345,8 @@ namespace OrbitalAnte.UI
                     Show(_confirmReturn);
                     break;
                 case Page.Died:
-                    // The run is over: there is nothing to go back to.
+                case Page.Intermission:
+                    // The run is over, or waits for the next ante: there is nothing to go back to.
                     break;
                 default:
                     Show(Page.Main);
@@ -328,7 +387,7 @@ namespace OrbitalAnte.UI
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
             if (selected != null && selected.activeInHierarchy) return;
-            if (_current == Page.Died && Time.unscaledTime - _diedAt < DiedHold) return;
+            if ((_current == Page.Died || _current == Page.Intermission) && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();

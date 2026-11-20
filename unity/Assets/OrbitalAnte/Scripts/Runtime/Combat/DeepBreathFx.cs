@@ -21,6 +21,8 @@ namespace OrbitalAnte.Combat
         const float BarWidth = 200f;
 
         static DeepBreathFx _instance;
+        /// <summary>The one on the game root, or null (tests, menus).</summary>
+        public static DeepBreathFx Instance => _instance;
 
         /// <summary>
         /// How slowed the world is by a deep breath right now, 0 (not at all) to 1 (fully). 0 when there is

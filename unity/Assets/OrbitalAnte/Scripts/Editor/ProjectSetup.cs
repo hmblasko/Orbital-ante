@@ -76,6 +76,8 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Tasks.TaskConfig>(ConfigFolder + "/TaskConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ante.AnteBalanceData>(ConfigFolder + "/AnteBalance.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
@@ -330,6 +332,9 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
+            // The ante loop and its tasks (20 Nov 2026): points, targets and timer, then the tasks' own dials.
+            CreateAssetIfMissing<OrbitalAnte.Ante.AnteBalanceData>(ConfigFolder + "/AnteBalance.asset");
+            CreateAssetIfMissing<OrbitalAnte.Tasks.TaskConfig>(ConfigFolder + "/TaskConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset");

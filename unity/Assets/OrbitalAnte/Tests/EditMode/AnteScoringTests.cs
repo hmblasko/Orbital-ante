@@ -101,7 +101,8 @@ namespace OrbitalAnte.Tests
         public void TheDefaultNumbersAreTheHandoffNumbers()
         {
             var balance = new AnteBalance();
-            CollectionAssert.AreEqual(new[] { 850, 1100, 1450, 1850, 2350, 3000, 3700, 4550, 5500 }, balance.anteTargets);
+            // Targets raised by Matthew's choice of 20 Nov 2026 (more real effort per ante); the rest are the handoff numbers.
+            CollectionAssert.AreEqual(new[] { 850, 1370, 1950, 2650, 3600, 4680, 5980, 7530, 9350 }, balance.anteTargets);
             Assert.AreEqual(45, balance.BasePoints(ScoreEventKind.EnemyTier1));
             Assert.AreEqual(85, balance.BasePoints(ScoreEventKind.EnemyTier2));
             Assert.AreEqual(150, balance.BasePoints(ScoreEventKind.EnemyTier3));
