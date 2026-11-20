@@ -26,6 +26,7 @@ namespace OrbitalAnte.UI
             public Image Dot;
             public Text Label;
             public Color Plain;
+            public long ShownKey = long.MinValue;
         }
 
         sealed class Cell
@@ -402,19 +403,26 @@ namespace OrbitalAnte.UI
 
         void UpdateTargetWords(SolarSystemModel model, int target)
         {
-            // The target's numbers live on its marker (see UpdateBodyMarkers); here only the lamp and the advice.
-            _targetWords = string.Empty;
-            if (target >= 0)
+            // The target's numbers live on its marker (see UpdateBodyMarkers), or on a fixed line when its marker is
+            // not drawn. The words are only rebuilt when the shown numbers change.
+            if (target < 0)
             {
-                float closing = _craft.ClosingSpeed;
-                DashStrip.SplitDistance(_craft.TargetDistance, out string dn, out string du);
-                DashStrip.SplitSpeed(Mathf.Abs(closing), out string sn, out string su);
-                _targetWords = dn + " " + du + "   " + (closing >= 0f ? "CLOSING " : "PULLING AWAY ") + sn + " " + su;
-                _targetLineWords = "[ " + model.Spec(target).displayName.ToUpperInvariant() + " ]   " + _targetWords;
+                _targetWords = string.Empty;
+                _targetLineWords = string.Empty;
+                _targetKey = long.MinValue;
+                return;
             }
-            else _targetLineWords = string.Empty;
+            float closing = _craft.ClosingSpeed;
+            long key = DashStrip.DistanceKey(_craft.TargetDistance) * 31 + DashStrip.SpeedKey(Mathf.Abs(closing)) * 2 + (closing >= 0f ? 1 : 0) + (long)target * 1000003;
+            if (key == _targetKey) return;
+            _targetKey = key;
+            DashStrip.SplitDistance(_craft.TargetDistance, out string dn, out string du);
+            DashStrip.SplitSpeed(Mathf.Abs(closing), out string sn, out string su);
+            _targetWords = dn + " " + du + "   " + (closing >= 0f ? "CLOSING " : "PULLING AWAY ") + sn + " " + su;
+            _targetLineWords = "[ " + model.Spec(target).displayName.ToUpperInvariant() + " ]   " + _targetWords;
         }
 
+        long _targetKey = long.MinValue;
         string _targetWords = string.Empty;
         string _targetLineWords = string.Empty;
         bool _targetMarked;
@@ -674,6 +682,12 @@ namespace OrbitalAnte.UI
                 {
                     bool aimed = i == target;
                     marker.Label.color = aimed ? TargetColor : marker.Plain;
+                    // Only rebuild the words when what they show changes (the rounded distance, aimed or not, the
+                    // target line), so a still sky makes no new strings.
+                    long key = DashStrip.DistanceKey(surfaceDistance) * 4 + (aimed ? (_targetWords.Length > 0 ? 2 : 1) : 0);
+                    if (aimed && _targetWords.Length > 0) key ^= (long)_targetWords.GetHashCode() << 20;
+                    if (key == marker.ShownKey) continue;
+                    marker.ShownKey = key;
                     DashStrip.SplitDistance(surfaceDistance, out string dn, out string du);
                     // The aimed body carries the numbers you steer by: how far, and how fast it is coming.
                     string text = aimed && _targetWords.Length > 0
