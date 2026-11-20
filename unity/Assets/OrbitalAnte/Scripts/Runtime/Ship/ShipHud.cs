@@ -15,6 +15,8 @@ namespace OrbitalAnte.Ship
     {
         const float NoticeSeconds = 4f;
         const float ListInterval = 0.25f;
+        // Wide enough for the longest line ("FRONT RIGHT THRUSTERS  BROKEN, LOOSE" at 14 px in the monospaced labels).
+        const float PlateWidth = 360f;
 
         Ship _ship;
         Astronaut _astronaut;
@@ -22,6 +24,7 @@ namespace OrbitalAnte.Ship
         SystemMap _map;
         Canvas _canvas;
         Text _prompt, _notice, _damage;
+        RectTransform _damagePlate;
         RectTransform _barBack, _barFill, _dot;
         string _shipNotice = string.Empty;
         float _shipNoticeTime = -100f;
@@ -58,11 +61,22 @@ namespace OrbitalAnte.Ship
             _barFill.offsetMax = new Vector2(2f, -2f);
             UiKit.AddImage(_barFill, UiKit.PanelEdge);
 
+            // Under the world's name and height (FlightHud's top middle), so the two never sit on each other.
             _notice = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 28, UiKit.PanelEdge));
-            UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(1000f, 36f));
+            UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 1f), new Vector2(0f, -88f), new Vector2(1000f, 36f));
 
-            _damage = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperRight));
-            UiKit.Pin((RectTransform)_damage.transform, new Vector2(1f, 1f), new Vector2(-22f, -110f), new Vector2(420f, 440f));
+            // Hurt parts, top right, on a dark plate in the seat display's lettering: one line each, the colour says
+            // how bad (Matthew, 20 Nov 2026 display redesign). Every hurt part is still listed.
+            _damagePlate = UiKit.NewRect("DamagePlate", _canvas.transform);
+            UiKit.Pin(_damagePlate, new Vector2(1f, 1f), new Vector2(-18f, -18f), new Vector2(PlateWidth, 40f));
+            UiKit.AddImage(_damagePlate, UiKit.DashPlate);
+            _damagePlate.gameObject.SetActive(false);
+            Text title = UiKit.DashLabel(_damagePlate, "SHIP", 12, UiKit.DashDim, UiKit.LabelFont, TextAnchor.UpperLeft);
+            UiKit.Pin((RectTransform)title.transform, new Vector2(0f, 1f), new Vector2(14f, -8f), new Vector2(120f, 16f));
+            _damage = UiKit.DashLabel(_damagePlate, string.Empty, 14, UiKit.DashCream, UiKit.LabelFont, TextAnchor.UpperLeft);
+            _damage.supportRichText = true;
+            _damage.lineSpacing = 1.15f;
+            UiKit.Pin((RectTransform)_damage.transform, new Vector2(0f, 1f), new Vector2(14f, -28f), new Vector2(PlateWidth - 24f, 400f));
 
             ship.PartDamaged += OnPartDamaged;
             ship.PartRepaired += OnPartRepaired;
@@ -161,20 +175,32 @@ namespace OrbitalAnte.Ship
             _nextList = now + ListInterval;
             _text.Length = 0;
             ShipModel model = _ship.Model;
+            int lines = 0;
             for (int i = 0; i < model.Count; i++)
             {
                 PartState state = model.State(i);
                 // Anything short of perfect is listed, so there is no hidden damage.
                 if (state == PartState.Sound && !model.NeedsRepair(i)) continue;
-                _text.Append(model.Parts[i].Name).Append(": ");
+                float fraction = model.Fraction(i);
+                bool gone = state == PartState.Lost || state == PartState.Broken;
+                _text.Append(gone ? "<color=#EC4838>" : fraction < 0.6f ? "<color=#F59E33>" : "<color=#F6EAD2>");
+                _text.Append(model.Parts[i].Name.ToUpperInvariant()).Append("  ");
                 if (state == PartState.Lost) _text.Append("GONE");
-                else if (state == PartState.Broken) _text.Append(model.TearProgress(i) > 0.5f ? "BROKEN, COMING LOOSE" : "BROKEN");
-                else _text.Append(Mathf.RoundToInt(model.Fraction(i) * 100f)).Append('%');
-                _text.Append('\n');
+                else if (state == PartState.Broken) _text.Append(model.TearProgress(i) > 0.5f ? "BROKEN, LOOSE" : "BROKEN");
+                else _text.Append(Mathf.RoundToInt(fraction * 100f)).Append('%');
+                _text.Append("</color>\n");
+                lines++;
             }
-            if (!model.CabinIntact) _text.Append("Cabin open to the outside\n");
+            if (!model.CabinIntact)
+            {
+                _text.Append("<color=#EC4838>CABIN OPEN TO SPACE</color>\n");
+                lines++;
+            }
             string list = _text.ToString();
             if (_damage.text != list) _damage.text = list;
+            bool plate = lines > 0;
+            if (_damagePlate.gameObject.activeSelf != plate) _damagePlate.gameObject.SetActive(plate);
+            if (plate) _damagePlate.sizeDelta = new Vector2(PlateWidth, 40f + _damage.preferredHeight);
         }
     }
 }

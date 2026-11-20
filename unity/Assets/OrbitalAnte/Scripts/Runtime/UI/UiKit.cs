@@ -57,6 +57,78 @@ namespace OrbitalAnte.UI
             }
         }
 
+        static Font _numbers, _labels;
+
+        /// <summary>
+        /// The seat display's big numbers: Saira Condensed Bold, a clean technical condensed face that packs large
+        /// digits into little room (SIL OFL, <c>Resources/Fonts</c>; Matthew, 20 Nov 2026: no generic fonts, easily
+        /// visible). Falls back to <see cref="BoldFont"/>.
+        /// </summary>
+        public static Font NumberFont
+        {
+            get
+            {
+                if (_numbers != null) return _numbers;
+                _numbers = Resources.Load<Font>("Fonts/SairaCondensed-Bold");
+                if (_numbers == null) _numbers = BoldFont;
+                return _numbers;
+            }
+        }
+
+        /// <summary>
+        /// The seat display's small labels and lamp words: Chivo Mono SemiBold, a sturdy monospace that stays clear at
+        /// 12 px, so labels line up like printed panel lettering (SIL OFL). Falls back to <see cref="BoldFont"/>.
+        /// </summary>
+        public static Font LabelFont
+        {
+            get
+            {
+                if (_labels != null) return _labels;
+                _labels = Resources.Load<Font>("Fonts/ChivoMono-SemiBold");
+                if (_labels == null) _labels = BoldFont;
+                return _labels;
+            }
+        }
+
+        /// <summary>The seat display's colours: each one means something (see <see cref="DashTone"/>), nothing else is coloured.</summary>
+        public static readonly Color DashCream = new Color(0.965f, 0.918f, 0.824f);
+        public static readonly Color DashDim = new Color(0.69f, 0.65f, 0.59f);
+        public static readonly Color DashAmber = new Color(0.96f, 0.62f, 0.20f);
+        public static readonly Color DashRed = new Color(0.925f, 0.28f, 0.22f);
+        public static readonly Color DashBlue = new Color(0.51f, 0.84f, 0.98f);
+        public static readonly Color DashGreen = new Color(0.55f, 0.86f, 0.55f);
+        public static readonly Color DashPlate = new Color(0.04f, 0.035f, 0.03f, 0.68f);
+
+        public static Color ToneColor(DashTone tone)
+        {
+            switch (tone)
+            {
+                case DashTone.Watch: return DashAmber;
+                case DashTone.Act: return DashRed;
+                case DashTone.Target: return DashBlue;
+                case DashTone.Good: return DashGreen;
+                default: return DashCream;
+            }
+        }
+
+        /// <summary>A label in one of the seat display's own faces. The faces are single weights, so no fake bold.</summary>
+        public static Text DashLabel(Transform parent, string text, int size, Color color, Font font,
+            TextAnchor anchor = TextAnchor.MiddleLeft)
+        {
+            var rt = NewRect("Label", parent);
+            var label = rt.gameObject.AddComponent<Text>();
+            label.font = font;
+            label.fontStyle = FontStyle.Normal;
+            label.text = text;
+            label.fontSize = size;
+            label.color = color;
+            label.alignment = anchor;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.raycastTarget = false;
+            return label;
+        }
+
         static Font BuiltinFont()
         {
             Font font = null;
