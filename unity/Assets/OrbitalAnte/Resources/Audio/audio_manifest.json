@@ -122,6 +122,46 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "creature.screamer.scream",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_scream"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Screamer's scream, a loop for as long as it lasts: both drums buckling about 190 times a second, not quite together, ringing its hollow abdomen; it throbs five times a second, which is the beat it hurts on."
+  },
+  {
+   "id": "creature.screamer.windup",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_windup"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Screamer's warning: single dry clicks of its drums that quicken into a rattle over one second, rising, with a hard double click at 0.6 s where it takes aim. The end of the climb is the moment the scream starts."
+  },
+  {
    "id": "enemy.flare.fire",
    "bus": "CombatImpacts",
    "clips": [

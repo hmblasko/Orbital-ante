@@ -30,3 +30,5 @@ For a still picture, copy a scene's file and add `"only": <frame>` with its own 
 ## The Roller
 
 `dotnet run -- out.json <walk|roll|lose> Roller` runs the Roller's rules (`RollerDump.cs`): `roll` is its own brain against someone standing still (the curl, the roll, on its back, getting up), `lose` shoots plates, legs and the tail off and then bursts it. Every frame carries its own camera, which follows the animal. Segments and plates are written with their widening in the matrix.
+
+`dotnet run -- out.json <strike|lose> Screamer` runs the Screamer's rules (`ScreamerDump.cs`): `strike` is its own brain against someone standing still (the flight in, the landing, the warning, the scream, sagging afterwards, flying on), `lose` shoots a drum off in the warning, two wings in the air (it falls), two legs and another wing, then bursts it. Every frame carries its own camera. The rings of the scream are the game's own effect and are not drawn.

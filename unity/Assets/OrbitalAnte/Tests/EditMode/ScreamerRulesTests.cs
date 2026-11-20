@@ -760,5 +760,124 @@ namespace OrbitalAnte.Tests.EditMode
                 Assert.GreaterOrEqual(world.Pose.BodyPosition.Y, ScreamerLayout.BellyHeight - 0.08, "never through the ground");
             }
         }
+
+        // ------------------------------------------------------------------ the model
+
+        static ModelFile Load(string id)
+        {
+            string folder = Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            {
+                folder = null;
+                string dir = TestContext.CurrentContext.TestDirectory;
+                for (int i = 0; i < 10 && dir != null && folder == null; i++)
+                {
+                    foreach (string candidate in new[] { Path.Combine(dir, "unity", "Assets", "OrbitalAnte", "Resources", "Models"), Path.Combine(dir, "Assets", "OrbitalAnte", "Resources", "Models") })
+                        if (Directory.Exists(candidate)) folder = candidate;
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+            if (folder == null) Assert.Ignore("Resources/Models not found");
+            string path = Path.Combine(folder, id + ".bytes");
+            if (!File.Exists(path)) Assert.Ignore("this model is not in the game yet: " + path);
+            ModelFile model = ModelFile.Parse(File.ReadAllBytes(path), out string problem);
+            Assert.IsNotNull(model, problem);
+            return model;
+        }
+
+        static void AssertSocket(ModelFile model, string name, double x, double y, double z)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing " + name);
+            Assert.AreEqual(x, s.X, 0.002, name + " x");
+            Assert.AreEqual(y, s.Y, 0.002, name + " y");
+            Assert.AreEqual(z, s.Z, 0.002, name + " z");
+        }
+
+        [Test]
+        public void ScreamerModelFile_MatchesTheLayout()
+        {
+            // tools/blender/build_creatures.py carries its own copy of ScreamerLayout (SCREAMER). If either changes,
+            // this fails until the script is changed to match and run again.
+            ModelFile model = Load(ScreamerLayout.Model);
+            AssertSocket(model, "BodyFront", 0, 0, ScreamerLayout.BodyFront);
+            AssertSocket(model, "BodyBack", 0, 0, ScreamerLayout.BodyBack);
+            AssertSocket(model, "BodySide", ScreamerLayout.BodyHalfWidth, 0, 0);
+            AssertSocket(model, "BodyTop", 0, ScreamerLayout.BodyHalfHeight, 0);
+            AssertSocket(model, "AbdomenJoint", ScreamerLayout.AbdomenJoint.X, ScreamerLayout.AbdomenJoint.Y, ScreamerLayout.AbdomenJoint.Z);
+            AssertSocket(model, "AbdomenEnd", 0, 0, -ScreamerLayout.AbdomenLength);
+            AssertSocket(model, "AbdomenSide", ScreamerLayout.AbdomenHalfWidth, 0, 0);
+            AssertSocket(model, "DrumR", ScreamerLayout.DrumAt.X, ScreamerLayout.DrumAt.Y, ScreamerLayout.DrumAt.Z);
+            AssertSocket(model, "DrumRim", 0, 0, ScreamerLayout.DrumRadius);
+            AssertSocket(model, "ForeHingeR", ScreamerLayout.ForeHinge.X, ScreamerLayout.ForeHinge.Y, ScreamerLayout.ForeHinge.Z);
+            AssertSocket(model, "HindHingeR", ScreamerLayout.HindHinge.X, ScreamerLayout.HindHinge.Y, ScreamerLayout.HindHinge.Z);
+            AssertSocket(model, "ForeWingEnd", 0, 0, ScreamerLayout.ForeWingLength);
+            AssertSocket(model, "ForeWingChord", ScreamerLayout.ForeWingChord, 0, 0);
+            AssertSocket(model, "HindWingEnd", 0, 0, ScreamerLayout.HindWingLength);
+            AssertSocket(model, "HindWingChord", ScreamerLayout.HindWingChord, 0, 0);
+            AssertSocket(model, "LegEnd", 0, 0, ScreamerLayout.LegLength);
+            AssertSocket(model, "ShinEnd", 0, 0, ScreamerLayout.ShinLength);
+            AssertSocket(model, "LegSide", ScreamerLayout.LegRadius, 0, 0);
+            AssertSocket(model, "StumpRim", ScreamerLayout.StumpRadius, 0, 0);
+            for (int k = 0; k < 3; k++) AssertSocket(model, "Hip" + k + "R", ScreamerLayout.Hip[k].X, ScreamerLayout.Hip[k].Y, ScreamerLayout.Hip[k].Z);
+            string[] pieces = { ScreamerLayout.BodyPiece, ScreamerLayout.AbdomenPiece, ScreamerLayout.DrumPiece, ScreamerLayout.ForeWingPiece, ScreamerLayout.HindWingPiece,
+                                ScreamerLayout.LegPiece, ScreamerLayout.ShinPiece, ScreamerLayout.Stump, ScreamerLayout.Meat[0], ScreamerLayout.Meat[1] };
+            foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            Assert.IsTrue(model.Textured, "the Screamer is drawn with pictures");
+
+            // The shapes are the size the rules (and the hitboxes) think they are. Front and back are along +Z.
+            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft)
+            {
+                ModelPart part = model.Part(piece);
+                right = float.MinValue; left = float.MaxValue; hi = float.MinValue; lo = float.MaxValue; fore = float.MinValue; aft = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    right = Math.Max(right, part.Positions[i * 3]);
+                    left = Math.Min(left, part.Positions[i * 3]);
+                    hi = Math.Max(hi, part.Positions[i * 3 + 1]);
+                    lo = Math.Min(lo, part.Positions[i * 3 + 1]);
+                    fore = Math.Max(fore, part.Positions[i * 3 + 2]);
+                    aft = Math.Min(aft, part.Positions[i * 3 + 2]);
+                }
+            }
+            Box(ScreamerLayout.BodyPiece, out float right, out float left, out float hi, out float lo, out float fore, out float aft);
+            Assert.AreEqual(ScreamerLayout.BodyHalfWidth, right, 0.03, "fore body half width");
+            Assert.AreEqual(-right, left, 0.01, "the fore body is the same either side");
+            Assert.AreEqual(ScreamerLayout.BodyHalfHeight, hi, 0.03, "fore body top");
+            Assert.AreEqual(ScreamerLayout.BodyFront, fore, 0.09, "fore body front (its feelers reach a little past)");
+            Assert.AreEqual(ScreamerLayout.BodyBack, aft, 0.03, "fore body back");
+            Assert.Greater(lo, -ScreamerLayout.BodyHalfHeight - 0.07);
+
+            Box(ScreamerLayout.AbdomenPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(ScreamerLayout.AbdomenHalfWidth, right, 0.03, "abdomen half width");
+            Assert.AreEqual(-ScreamerLayout.AbdomenLength, aft, 0.02, "the abdomen runs back from its joint");
+            Assert.Less(fore, 0.2, "and only its waist is in front of the joint");
+
+            // The drum: round, bulging toward +X, the same above as below so the left one can be the right one turned over.
+            Box(ScreamerLayout.DrumPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(ScreamerLayout.DrumRadius, hi, 0.012);
+            Assert.AreEqual(hi, -lo, 0.006, "the same above as below");
+            Assert.AreEqual(ScreamerLayout.DrumRadius, fore, 0.012);
+            Assert.Greater(right, 0.045, "it bulges out");
+            Assert.Less(-left, 0.08, "and its rim is sunk no deeper into the flank than that");
+
+            // A wing reaches its length, is flat, trails toward +X, and is the same above as below.
+            foreach ((string piece, double length, double chord) in new[] { (ScreamerLayout.ForeWingPiece, ScreamerLayout.ForeWingLength, ScreamerLayout.ForeWingChord), (ScreamerLayout.HindWingPiece, ScreamerLayout.HindWingLength, ScreamerLayout.HindWingChord) })
+            {
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft);
+                Assert.AreEqual(length, fore, 0.02, piece + " length");
+                Assert.AreEqual(chord, right - left, 0.04, piece + " chord");
+                Assert.Greater(right, -left * 3.0, piece + " trails toward +X");
+                Assert.AreEqual(hi, -lo, 0.004, piece + " is the same above as below");
+                Assert.Less(hi, 0.05, piece + " is flat");
+            }
+            // A leg and a shin reach their lengths and are the same either side.
+            foreach ((string piece, double length) in new[] { (ScreamerLayout.LegPiece, ScreamerLayout.LegLength), (ScreamerLayout.ShinPiece, ScreamerLayout.ShinLength) })
+            {
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft);
+                Assert.AreEqual(length, fore, 0.02, piece + " length");
+                Assert.AreEqual(right, -left, 0.006, piece + " is the same either side");
+                Assert.Less(right, 0.06);
+            }
+        }
     }
 }
