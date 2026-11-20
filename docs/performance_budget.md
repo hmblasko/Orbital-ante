@@ -481,5 +481,5 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 |---|---|---|
 | `RunEffects` questions | A few multiplies per shot, blow or enemy hit; the build is rebuilt only when it changes (between antes). 0 B a frame | none needed |
 | `RunPerksFx` | Runs only on an enemy kill. 0 B at rest | one kill at a time |
-| `EnemyPressure` | One hash per enemy woken (int overload, no strings); a sharpened `EnemyConfig` copy per kind per ante, destroyed with the spawner | at most one copy per enemy kind |
+| `EnemyPressure` | One hash per enemy woken (int overload, no strings); sharpness is a number on each enemy, rewritten over the live enemies only when an ante changes it | once per ante |
 | Break pages | UI built once (7 buttons) and relabelled; only while the game is paused between antes | 7 buttons |

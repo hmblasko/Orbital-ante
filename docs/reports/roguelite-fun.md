@@ -32,7 +32,8 @@ Research and plan: Claude Doc "Roguelite fun: research and plan". This report co
 
 - **Unity reviewer:** an unbraced declaration in `TaskDirector` (fixed), cursor jumping to the top after every buy (kept in place now), a held button firing the death page (held off), Back on the restart/quit page (now its own page), quit to desktop not recording the run (now does), an enemy changing kind between antes (now keeps it).
 - **Game designer:** picks lost by pressing Start (asks first now), sets unreachable (held families weighted), pressure hidden (now on the break page), scratch odds shown before you scratch, one multiplier for all hazards (now each its own), cheap perks with no cost (costs added), skip reward raised to 250, Gunner and Pilot set bonuses changed so they don't overlap caps.
-- **Steam Deck performance:** a string made per woken enemy (int version now), sharpened enemy settings leaked (destroyed with the spawner). Budget lines added to `docs/performance_budget.md`.
+- **Codex review (PR 75):** a first landing that was also a hard landing gave the landing time-back twice (now once per touchdown); enemies already awake kept the old ante's sharpness (now updated live). Both fixed.
+- **Steam Deck performance:** a string made per woken enemy (int version now); sharpened enemy settings leaked (now no copies at all: sharpness is a number on each enemy). Budget lines added to `docs/performance_budget.md`.
 
 ## Unverified (needs Unity)
 
