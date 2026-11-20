@@ -420,6 +420,13 @@ namespace OrbitalAnte.Arena
                 var at = new Vector3((i % 2 == 0 ? 1f : -1f) * 13f, 0f, HalfSize * 0.75f - 6f * (i / 2));
                 OrbitalAnte.Creatures.Screamer.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Screamer " + (i + 1));
             }
+            for (int i = 0; i < config.arenaAmbushers; i++)
+            {
+                // The Ambushers wait in the open middle of the arena, on the way to everything else; once they feel
+                // someone they cannot reach they tunnel after them.
+                var at = new Vector3((i % 2 == 0 ? -3f : 4f), 0f, HalfSize * (0.18f + 0.3f * i));
+                OrbitalAnte.Creatures.Ambusher.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Ambusher " + (i + 1));
+            }
         }
 
         /// <summary>

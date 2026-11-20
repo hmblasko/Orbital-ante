@@ -33,6 +33,21 @@ namespace OrbitalAnte.Player
         /// <summary>Current movement in metres per second. Things the player drops inherit it.</summary>
         public Vector3 Velocity => _horizontalVelocity + Vector3.up * _verticalVelocity;
 
+        Vector3 _carried;
+        bool _held;
+        /// <summary>
+        /// Something has hold of the player and is dragging them this fast (metres a second, level): they can look
+        /// and shoot but not walk or jump. It must be said again every frame; the frame it is not, they are free.
+        /// </summary>
+        public void Carry(Vector3 velocity)
+        {
+            _held = true;
+            _carried = new Vector3(velocity.x, 0f, velocity.z);
+        }
+
+        /// <summary>Something has hold of the player this frame.</summary>
+        public bool Held => _held;
+
         public void Initialize(PlayerConfig config, Camera eye)
         {
             Config = config;
@@ -151,6 +166,12 @@ namespace OrbitalAnte.Player
         void Move(float dt)
         {
             Vector2 input = Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f);
+            // Held by something: their own legs do nothing, and they go where they are dragged.
+            bool held = _held;
+            Vector3 carried = _carried;
+            _held = false;
+            _carried = Vector3.zero;
+            if (held) input = Vector2.zero;
             bool grounded = _controller.isGrounded;
             if (grounded) _lastGroundedTime = Time.time;
 
@@ -164,7 +185,7 @@ namespace OrbitalAnte.Player
             if (grounded && _verticalVelocity < 0f) _verticalVelocity = -2f;
 
             bool canJump = Time.time - _lastGroundedTime <= Config.coyoteTime;
-            if (canJump && GameInput.Jump.WasPressedThisFrame())
+            if (canJump && !held && GameInput.Jump.WasPressedThisFrame())
             {
                 _verticalVelocity = Mathf.Sqrt(2f * Config.gravity * Config.jumpHeight);
                 _lastGroundedTime = -10f;
@@ -172,6 +193,7 @@ namespace OrbitalAnte.Player
 
             _verticalVelocity -= Config.gravity * dt;
 
+            if (held) _horizontalVelocity = carried;
             Vector3 velocity = _horizontalVelocity + Vector3.up * _verticalVelocity;
             CollisionFlags flags = _controller.Move(velocity * dt);
             if ((flags & CollisionFlags.Above) != 0 && _verticalVelocity > 0f) _verticalVelocity = 0f;
