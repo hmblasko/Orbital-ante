@@ -21,10 +21,10 @@ namespace OrbitalAnte.Tests
         {
             Assert.AreEqual(0, StyleKill.Feats(new KillFacts(), out string none));
             Assert.AreEqual(string.Empty, none);
-            Assert.AreEqual(1, StyleKill.Feats(new KillFacts { headshot = true }, out string one));
-            Assert.AreEqual("HEADSHOT", one);
-            Assert.AreEqual(2, StyleKill.Feats(new KillFacts { headshot = true, airborne = true }, out string two));
-            Assert.AreEqual("HEADSHOT + AIRBORNE", two);
+            Assert.AreEqual(1, StyleKill.Feats(new KillFacts { oneShot = true }, out string one));
+            Assert.AreEqual("ONE SHOT", one);
+            Assert.AreEqual(2, StyleKill.Feats(new KillFacts { oneShot = true, airborne = true }, out string two));
+            Assert.AreEqual("ONE SHOT + AIRBORNE", two);
         }
 
         [Test]
@@ -38,16 +38,47 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void AFreshGun_IsOneNotAmongTheLastFewKills_AndTheFirstKillIsNeverFresh()
+        public void AFreshTool_IsItsFirstKillThisAnte_AfterAKillWithAnother_AndOnlyOnce()
         {
-            var fresh = new GunFreshness(3);
-            Assert.IsFalse(fresh.IsFresh("Rifle"), "the run's first kill is not a switch, so it is not a feat");
+            var fresh = new GunFreshness();
+            Assert.IsFalse(fresh.IsFresh("Rifle"), "the first kill of an ante is not a switch");
             fresh.Remember("Rifle");
             Assert.IsFalse(fresh.IsFresh("Rifle"));
-            fresh.Remember("Pistol");
+            Assert.IsTrue(fresh.IsFresh("melee"));
             fresh.Remember("melee");
-            fresh.Remember("rover");
-            Assert.IsTrue(fresh.IsFresh("Rifle"), "three other kills later the rifle is fresh again");
+            Assert.IsFalse(fresh.IsFresh("melee"), "cycling back earns nothing more this ante");
+            Assert.IsFalse(fresh.IsFresh("Rifle"));
+            fresh.Clear();
+            fresh.Remember("melee");
+            Assert.IsTrue(fresh.IsFresh("Rifle"), "a new ante starts afresh");
+        }
+
+        [Test]
+        public void ASplat_IsOnlyEverOneFeat()
+        {
+            Assert.AreEqual(1, StyleKill.Feats(new KillFacts { rover = true, oneShot = true, airborne = true, freshGun = true }, out string label));
+            Assert.AreEqual("SPLAT", label);
+        }
+
+        [Test]
+        public void Reaches_AreHeldToAShareOfASmallWorld()
+        {
+            var rules = Rules();
+            Assert.AreEqual(rules.mastReach, rules.MastReachOn(10000), 1e-3f);
+            Assert.AreEqual(75f, rules.MastReachOn(150), 1e-3f);
+            Assert.LessOrEqual(rules.DropFarOn(150), 0.35 * System.Math.PI * 150 + 1e-3);
+            Assert.Less(rules.DropNearOn(150), rules.DropFarOn(150));
+            Assert.LessOrEqual(rules.NearbyOn(500), System.Math.PI * 500 + 1e-3);
+        }
+
+        [Test]
+        public void AMast_RemembersThatItCalled()
+        {
+            var mast = new SignalMast(3, 70f, 45f);
+            mast.Calls(0f, true);
+            Assert.IsFalse(mast.HasCalled);
+            mast.Calls(45f, true);
+            Assert.IsTrue(mast.HasCalled);
         }
 
         [Test]
@@ -279,20 +310,6 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(r.Awarded);
             Assert.AreEqual(balance.installationDestroyed, r.basePoints);
             Assert.AreEqual(ScoreCategory.Combat, r.category);
-        }
-
-        [Test]
-        public void TheGunLadder_CanSkipAStepForASupplyDrop_ButNotPastTheTop()
-        {
-            var real = new HashSet<string> { "Pistol", "Smg", "Rifle", "Shotgun", "Sniper" };
-            var ladder = new Combat.GunLadder(new Combat.GunLadderRules(), id => real.Contains(id));
-            ladder.AddKill();
-            Assert.IsTrue(ladder.SkipStep());
-            Assert.AreEqual(1, ladder.Rung);
-            Assert.AreEqual(0, ladder.KillsOnRung);
-            while (ladder.SkipStep()) { }
-            Assert.IsTrue(ladder.AtTop);
-            Assert.IsFalse(ladder.SkipStep());
         }
     }
 }

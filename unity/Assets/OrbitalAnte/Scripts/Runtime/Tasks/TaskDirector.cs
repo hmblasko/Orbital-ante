@@ -16,18 +16,21 @@ namespace OrbitalAnte.Tasks
     /// The ante tasks in the solar system (Matthew, 20 Nov 2026; batch 1 of the plan "Ante tasks plan"). There is
     /// no task menu: every task is a thing you can see from where you are, and you choose which to do and how.
     ///
-    ///  - Kills score by kind, with style feats (headshot, airborne, rover, melee, a gun not used lately, all four
-    ///    limbs off) and a streak of quick kills. A world's marked target (a red light over one guard) is worth more.
-    ///  - Clear a base: every guard down. Quiet (no guard saw you) and quick are feats.
+    ///  - Kills score by kind, with style feats (one shot, long shot, airborne, melee, the first kill this ante with
+    ///    another tool, all four limbs off; a rover splat is one feat and only that) and a streak of quick kills.
+    ///    A world's marked target (a red light over one enemy) is worth more.
+    ///  - Clear a base: every guard down. Quiet (no guard saw you) and quick are feats. Every base on a world: a bonus.
     ///  - Signal masts near some bases call every enemy in reach onto you every so often until all their cells are
-    ///    shot out or a rover rams them.
-    ///  - Salvage crates near bases, carried (or driven) back aboard the ship.
-    ///  - Supply drops fall near you during an ante: race the enemies for it, then take a Focus refill (press) or
-    ///    the gun ladder's next gun (hold).
-    ///  - First landing on each world, and hard landings on rough ground (soft ones are a feat).
+    ///    shot out or a rover rams them at speed. Down before its first call is a feat.
+    ///  - Salvage crates near bases, carried back aboard the ship (driving it home is allowed, but only a crate
+    ///    carried on foot all the way and never hurt is a feat).
+    ///  - Supply drops fall near you during an ante: race the enemies for it, then take half a Focus meter (press) or
+    ///    three gun-ladder kills (hold, once an ante).
+    ///  - First landing on each world, and hard landings on rough ground (very soft ones are a feat).
     ///
-    /// A tall light stands over the nearest few tasks not done yet. Rules are in <see cref="TaskRules"/> and the
-    /// points go through <see cref="AnteLoop.Report"/>. Lives on the solar world and goes with it.
+    /// A tall light stands over the nearest few tasks not done yet. Every reach is held to a share of the world, which
+    /// is a few hundred metres across. Rules are in <see cref="TaskRules"/> and the points go through
+    /// <see cref="AnteLoop.Report"/>. Lives on the solar world and goes with it.
     /// </summary>
     public sealed class TaskDirector : MonoBehaviour, IWorldOffer
     {
@@ -35,8 +38,7 @@ namespace OrbitalAnte.Tasks
         AnteLoop _loop;
         TaskConfig _config;
         TaskRules _rules;
-        AnteBalance _balance;
-        GunFreshness _fresh;
+        readonly GunFreshness _fresh = new GunFreshness();
         DropClock _dropClock;
 
         // ------------------------------------------------------------------ per world
@@ -45,21 +47,30 @@ namespace OrbitalAnte.Tasks
             public int Body;
             public string Id;
             public PlanetSurface Surface;
+            public double Radius;
             public readonly List<MastTask> Masts = new List<MastTask>();
             public readonly List<CrateTask> Crates = new List<CrateTask>();
             public readonly List<BaseTask> Bases = new List<BaseTask>();
             public int MarkCamp = -1, MarkMember = -1;
+            public bool Cleared;
+            public Transform Frame => Surface.Body.transform;
         }
 
         abstract class Placed
         {
             public WorldTasks World;
             public Vec3d Dir;
+            /// <summary>Where it stands in its world's own space, from the ideal ground (good to a few metres: for distances only).</summary>
+            public Vector3 Local;
             public GameObject View;
-            public Beacon Light;
             public float SnapAt;
-            public Vector3 WorldPoint => World.Surface.Body.transform.TransformPoint(SpaceConvert.ToVector3(Dir * World.Surface.GroundRadius(Dir)));
             public abstract bool Live { get; }
+            public void Place(Vec3d dir)
+            {
+                Dir = dir;
+                Local = SpaceConvert.ToVector3(dir * World.Surface.IdealGroundRadius(dir));
+            }
+            public Vector3 WorldPoint => World.Frame.TransformPoint(Local);
         }
 
         sealed class MastTask : Placed
@@ -68,6 +79,7 @@ namespace OrbitalAnte.Tasks
             public SignalMast Rule;
             public Renderer[] Cells;
             public Collider[] CellColliders;
+            public bool InReach;
             public override bool Live => !Rule.Down;
         }
 
@@ -76,6 +88,7 @@ namespace OrbitalAnte.Tasks
             public int Index;
             public readonly SalvageCrate Rule = new SalvageCrate();
             public Collider Box;
+            public bool Driven;
             public override bool Live => Rule.State == CrateState.Lying;
         }
 
@@ -85,6 +98,7 @@ namespace OrbitalAnte.Tasks
             public BaseSite Site;
             public BaseClear Rule;
             public bool Done;
+            public bool Told;
             public override bool Live => !Done;
         }
 
@@ -92,6 +106,8 @@ namespace OrbitalAnte.Tasks
         {
             public int Number, Ante;
             public SupplyDrop Rule;
+            public Collider Shell;
+            public GameObject OwnLight;
             public override bool Live => Rule.State == DropState.Falling || Rule.State == DropState.Landed;
         }
 
@@ -103,7 +119,7 @@ namespace OrbitalAnte.Tasks
         {
             public float At;
             public KillFacts Facts;
-            public bool Killed;
+            public int Hits;
         }
 
         struct WokeRecord
@@ -114,22 +130,31 @@ namespace OrbitalAnte.Tasks
 
         readonly Dictionary<Mannequin, HitRecord> _hits = new Dictionary<Mannequin, HitRecord>();
         readonly Dictionary<Mannequin, WokeRecord> _woke = new Dictionary<Mannequin, WokeRecord>();
-        readonly HashSet<Mannequin> _marked = new HashSet<Mannequin>();
+        readonly Dictionary<Mannequin, GameObject> _marked = new Dictionary<Mannequin, GameObject>();
         readonly List<Mannequin> _scratch = new List<Mannequin>();
+        readonly List<Mannequin> _gone = new List<Mannequin>();
 
         // ------------------------------------------------------------------ carrying, opening, landing
         CrateTask _carried;
         DropTask _holdingDrop;
         float _held;
+        int _ladderDropAnte;
         bool _wasLanded = true;
         float _lastTouchSpeed;
         float _quietUntil;
         readonly HashSet<string> _noFirstLanding = new HashSet<string>();
+        OrbitalAnte.Player.PlayerHealth _watchedArmour;
 
-        static readonly System.Predicate<Mannequin> IsGone = m => m == null;
+        // ------------------------------------------------------------------ prompts (rebuilt only when they change)
+        string _key, _promptCarry, _promptDrop, _promptDropGun, _promptCrate;
+        float _keyAt = -1f;
+
+        // ------------------------------------------------------------------ slow pass
         float _slowAt;
+        bool _laidOutThisFrame;
         readonly List<Placed> _candidates = new List<Placed>();
         readonly List<float> _distances = new List<float>();
+        readonly List<Beacon> _pool = new List<Beacon>();
         bool _raising;
 
         float Now => _loop != null ? _loop.PlayTime : Time.time;
@@ -141,8 +166,6 @@ namespace OrbitalAnte.Tasks
             _loop = loop;
             _config = loop != null ? loop.Config : TaskConfig.Load();
             _rules = _config.rules;
-            _balance = loop != null && loop.Run != null ? loop.Run.Balance : AnteBalanceData.Load().balance;
-            _fresh = new GunFreshness(_rules.freshGunMemory);
             _dropClock = new DropClock(_rules);
             var problems = _rules.Problems();
             if (problems.Count > 0) Debug.LogWarning("Task rules: " + string.Join(" ", problems));
@@ -175,11 +198,15 @@ namespace OrbitalAnte.Tasks
             WorldOffers.Remove(this);
             if (_loop != null) _loop.AnteBegan -= OnAnteBegan;
             Astronaut.CarryPace = 1f;
-            Astronaut a = Player;
-            if (a != null && a.Armour != null) a.Armour.Damaged -= OnArmourDamaged;
+            if (_watchedArmour != null) _watchedArmour.Damaged -= OnArmourDamaged;
+            _watchedArmour = null;
         }
 
-        void OnAnteBegan(int ante) => _dropClock.AnteStarted(_loop.PlayTime);
+        void OnAnteBegan(int ante)
+        {
+            _dropClock.AnteStarted(_loop.PlayTime);
+            _fresh.Clear();
+        }
 
         Astronaut Player => _world != null ? _world.Astronaut : null;
 
@@ -192,11 +219,14 @@ namespace OrbitalAnte.Tasks
             return AnteLoop.Report(e, label);
         }
 
-        /// <summary>A task finished while a long streak was running gets one more feat, and the streak is spent.</summary>
-        int StreakFeat(ref string label)
+        /// <summary>
+        /// A task finished while a long streak is running gets one more feat and the streak is spent, but only when
+        /// that raises the bonus (two feats is already the ceiling, so the streak is kept for the next task).
+        /// </summary>
+        int StreakFeat(int feats, ref string label)
         {
             Streak streak = _loop != null ? _loop.Streak : null;
-            if (streak == null || streak.CountAt(Now) < _rules.streakForFeat) return 0;
+            if (feats >= 2 || streak == null || streak.CountAt(Now) < _rules.streakForFeat) return 0;
             streak.Spend(Now);
             label = string.IsNullOrEmpty(label) ? "ON A STREAK" : label + " + ON A STREAK";
             return 1;
@@ -210,15 +240,19 @@ namespace OrbitalAnte.Tasks
         {
             if (!outcome.Enemy || !(outcome.Target is Mannequin who) || who == null) return;
             Astronaut player = Player;
+            bool known = _hits.TryGetValue(who, out HitRecord before);
             var facts = new KillFacts
             {
-                headshot = outcome.HeadshotKill,
                 airborne = player != null && player.Airborne,
                 rover = outcome.Source == HitSource.Rover,
                 melee = outcome.Source == HitSource.Melee,
             };
             if (outcome.Killed)
             {
+                // The first hit that landed on it, and from how far.
+                facts.oneShot = !known || before.Hits == 0;
+                if (player != null && player.Eye != null && !facts.rover && !facts.melee)
+                    facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= _rules.longShot * _rules.longShot;
                 string gun = facts.rover ? "rover" : facts.melee ? "melee"
                            : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
                                ? player.Weapons.Current.Data.Id : "gun";
@@ -226,13 +260,21 @@ namespace OrbitalAnte.Tasks
                 _fresh.Remember(gun);
                 facts.takenApart = AllFourLimbsOff(who);
             }
-            _hits[who] = new HitRecord { At = Now, Facts = facts, Killed = outcome.Killed };
+            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
 
-            // A guard of a base was engaged: its clear's clock starts.
+            // A guard of a base was engaged: its clear's clock starts, and the feats are said once.
             if (_woke.TryGetValue(who, out WokeRecord w) && _world.Enemies != null)
             {
                 BaseTask b = BaseFor(w.Body, _world.Enemies.BaseOfCamp(w.Body, w.Camp));
-                if (b != null) b.Rule.Engaged(Now);
+                if (b != null && !b.Done)
+                {
+                    b.Rule.Engaged(Now);
+                    if (!b.Told)
+                    {
+                        b.Told = true;
+                        AnteLoop.Note("BASE: clear it unseen for QUIET, within " + Mathf.RoundToInt(_rules.baseQuickSeconds) + " s for QUICK");
+                    }
+                }
             }
         }
 
@@ -254,7 +296,12 @@ namespace OrbitalAnte.Tasks
         void OnEnemyDown(EnemySpawner.EnemyDown e)
         {
             Mannequin who = e.Who;
-            bool marked = who != null && _marked.Remove(who);
+            bool marked = who != null && _marked.TryGetValue(who, out GameObject glow);
+            if (marked)
+            {
+                if (glow != null) Destroy(glow);
+                _marked.Remove(who);
+            }
             if (who != null && _hits.TryGetValue(who, out HitRecord hit) && Now - hit.At <= 20f)
             {
                 _hits.Remove(who);
@@ -276,7 +323,8 @@ namespace OrbitalAnte.Tasks
                     label = string.IsNullOrEmpty(style) ? "KILL" : style;
                 }
                 int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
-                if (streak >= 3 && streak % 3 == 0) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.6f);
+                // The sound comes when the streak starts paying: the next task gets the feat.
+                if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
                 Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
             }
             if (who != null) _woke.Remove(who);
@@ -289,29 +337,34 @@ namespace OrbitalAnte.Tasks
                 {
                     b.Done = true;
                     int feats = b.Rule.Feats(_rules, Now, out string label);
-                    feats += StreakFeat(ref label);
+                    feats += StreakFeat(feats, ref label);
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     Score(ScoreEventKind.OptionalMission, TaskIds.BaseClear(e.BodyId, e.BaseIndex), feats,
                         Join("BASE CLEARED", label), _rules.BaseClearPoints(e.BaseSize));
-                    if (b.Light != null) b.Light.Show(false);
+                    CheckWorldCleared(b.World);
                 }
             }
         }
 
+        void CheckWorldCleared(WorldTasks w)
+        {
+            if (w == null || w.Cleared || w.Bases.Count == 0) return;
+            for (int i = 0; i < w.Bases.Count; i++) if (!w.Bases[i].Done) return;
+            w.Cleared = true;
+            Audio.AudioDirector.PlayLocal("reward.tier4");
+            Score(ScoreEventKind.OptionalMission, "worldclear:" + w.Id, 0,
+                "EVERY BASE ON " + (w.Surface.Body.Spec.displayName ?? w.Id).ToUpperInvariant(), _rules.worldClear);
+        }
+
         void Mark(Mannequin who)
         {
-            if (!_marked.Add(who)) return;
+            if (_marked.ContainsKey(who)) return;
             Transform head = who.Rig != null && who.Rig.Head != null ? who.Rig.Head : who.transform;
-            var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            glow.name = "MarkedTargetLight";
-            Destroy(glow.GetComponent<Collider>());
-            var r = glow.GetComponent<Renderer>();
-            r.sharedMaterial = Mat.Unlit(new Color(1f, 0.18f, 0.12f) * 2.4f);
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             float scale = Mathf.Max(0.1f, head.lossyScale.y);
-            glow.transform.SetParent(head, false);
-            glow.transform.localPosition = Vector3.up * (0.42f / scale);
-            glow.transform.localScale = Vector3.one * (0.16f / scale);
+            Renderer glow = Piece(head, PrimitiveType.Sphere, Mat.Unlit(new Color(1f, 0.18f, 0.12f) * 2.4f),
+                Vector3.up * (0.42f / scale), Vector3.one * (0.16f / scale), false);
+            glow.name = "MarkedTargetLight";
+            _marked[who] = glow.gameObject;
         }
 
         void OnAlarm(Vector3 at, float radius, Vector3 playerAt, string faction)
@@ -319,12 +372,13 @@ namespace OrbitalAnte.Tasks
             if (_raising) return;
             WorldTasks w = Here(out _);
             if (w == null) return;
+            Vector3 local = w.Frame.InverseTransformPoint(at);
             for (int i = 0; i < w.Bases.Count; i++)
             {
                 BaseTask b = w.Bases[i];
                 if (b.Done) continue;
                 float reach = (float)b.Site.Footprint + 40f;
-                if ((b.WorldPoint - at).sqrMagnitude <= reach * reach) b.Rule.Alarm();
+                if ((b.Local - local).sqrMagnitude <= reach * reach) b.Rule.Alarm();
             }
         }
 
@@ -357,13 +411,18 @@ namespace OrbitalAnte.Tasks
             if (_world.Enemies == null || _world.Enemies.KnownCamps(body) == null) return null;
             WorldTasks w = LayOut(body, surface);
             _worlds[body] = w;
+            _laidOutThisFrame = true;
+            // Its marked target may have stood up a moment before the world was laid out.
+            if (_rules.markedTargets && w.MarkCamp >= 0)
+                foreach (KeyValuePair<Mannequin, WokeRecord> kv in _woke)
+                    if (kv.Key != null && kv.Value.Body == body && kv.Value.Camp == w.MarkCamp && kv.Value.Member == w.MarkMember) { Mark(kv.Key); break; }
             return w;
         }
 
         WorldTasks LayOut(int body, PlanetSurface surface)
         {
             string id = surface.Body.Spec.id;
-            var w = new WorldTasks { Body = body, Id = id, Surface = surface };
+            var w = new WorldTasks { Body = body, Id = id, Surface = surface, Radius = surface.SurfaceRadius };
             SeededRandom random = GameSession.Stream("tasks." + id);
             IReadOnlyList<BaseSite> sites = _world.Bases.SitesOn(body);
             PlanetTerrain terrain = surface.Terrain;
@@ -372,7 +431,9 @@ namespace OrbitalAnte.Tasks
             {
                 BaseSite s = sites[i];
                 _world.Enemies.BaseGuards(body, i, out int guards, out int left);
-                var b = new BaseTask { World = w, Index = i, Site = s, Dir = s.Up, Rule = new BaseClear((int)s.Size, guards) };
+                var b = new BaseTask { World = w, Index = i, Site = s, Rule = new BaseClear((int)s.Size, guards) };
+                b.Dir = s.Up;
+                b.Local = SpaceConvert.ToVector3(s.Centre);
                 // Cleared earlier in this run (the world was left and come back to): it stays done.
                 b.Done = guards == 0 || left == 0;
                 w.Bases.Add(b);
@@ -381,17 +442,24 @@ namespace OrbitalAnte.Tasks
                 bool mast = random.NextDouble() < _rules.mastShare;
                 Vec3d spot = Near(s, random, _rules.mastNear, _rules.mastFar);
                 if (mast && Dry(terrain, spot))
-                    w.Masts.Add(new MastTask { World = w, Index = i, Dir = spot, Rule = new SignalMast(_rules.mastCells, _rules.mastCellHealth, _rules.mastCallEvery) });
+                {
+                    var m = new MastTask { World = w, Index = i, Rule = new SignalMast(_rules.mastCells, _rules.mastCellHealth, _rules.mastCallEvery) };
+                    m.Place(spot);
+                    w.Masts.Add(m);
+                }
             }
 
             for (int n = 0; n < _rules.salvagePerWorld && sites.Count > 0; n++)
             {
                 BaseSite s = sites[random.Range(0, sites.Count)];
                 Vec3d spot = Near(s, random, _rules.salvageNear, _rules.salvageFar);
-                if (Dry(terrain, spot)) w.Crates.Add(new CrateTask { World = w, Index = n, Dir = spot });
+                if (!Dry(terrain, spot)) continue;
+                var c = new CrateTask { World = w, Index = n };
+                c.Place(spot);
+                w.Crates.Add(c);
             }
 
-            // One marked target a world: the first member of a camp picked from the seed.
+            // One marked target a world: one member of a camp picked from the seed.
             IReadOnlyList<EnemyCamp> camps = _world.Enemies.KnownCamps(body);
             if (camps != null && camps.Count > 0)
             {
@@ -420,6 +488,7 @@ namespace OrbitalAnte.Tasks
         void Update()
         {
             if (_world == null) return;
+            _laidOutThisFrame = false;
             WorldTasks w = Here(out Vector3 player);
             float now = Now;
             Astronaut a = Player;
@@ -432,30 +501,38 @@ namespace OrbitalAnte.Tasks
             if (Time.time < _slowAt) return;
             _slowAt = Time.time + 0.25f;
             if (w == null) { ShowNoLights(); return; }
-            UpdateMasts(w, player, now);
-            BuildNearViews(w, player);
+            Vector3 local = w.Frame.InverseTransformPoint(player);
+            UpdateMasts(w, local, player, now);
+            // Never build in the frame a world's tasks were laid out: one heavy thing a frame.
+            if (!_laidOutThisFrame) BuildNearViews(w, local);
             CheckSpotted();
-            UpdateLights(w, player);
+            UpdateLights(w, local);
         }
 
         // ------------------------------------------------------------------ masts
 
-        void UpdateMasts(WorldTasks w, Vector3 player, float now)
+        void UpdateMasts(WorldTasks w, Vector3 local, Vector3 player, float now)
         {
+            float reach = _rules.MastReachOn(w.Radius);
+            Astronaut a = Player;
+            bool open = a != null && a.InTheOpen;
             for (int i = 0; i < w.Masts.Count; i++)
             {
                 MastTask m = w.Masts[i];
                 if (m.Rule.Down) continue;
-                Vector3 at = m.WorldPoint;
-                bool inReach = (at - player).sqrMagnitude <= _rules.mastReach * _rules.mastReach && Player != null && Player.InTheOpen;
+                bool inReach = open && (m.Local - local).sqrMagnitude <= reach * reach;
+                // Coming into a standing mast's reach: say how long before it calls (no hidden timers).
+                if (inReach && !m.InReach) AnteLoop.Note("SIGNAL MAST IN RANGE: it calls for help in " + Mathf.RoundToInt(_rules.mastCallEvery) + " s");
+                m.InReach = inReach;
                 if (!m.Rule.Calls(now, inReach)) continue;
                 // Every enemy in reach, of either side, is told where the player is.
+                Vector3 at = m.WorldPoint;
                 _raising = true;
-                CombatWorld.RaiseAlarm(at, _rules.mastReach, player, Factions.None);
-                CombatWorld.RaiseAlarm(at, _rules.mastReach, player, Factions.A);
+                CombatWorld.RaiseAlarm(at, reach, player, Factions.None);
+                CombatWorld.RaiseAlarm(at, reach, player, Factions.A);
                 _raising = false;
                 Audio.AudioDirector.Play("enemy.flare.fire", at, 1f, 0.7f);
-                AnteLoop.Note("A SIGNAL MAST CALLED FOR HELP: SHOOT OUT ITS CELLS");
+                AnteLoop.Note("THE MAST CALLED FOR HELP: SHOOT OUT ITS CELLS");
             }
         }
 
@@ -487,14 +564,14 @@ namespace OrbitalAnte.Tasks
                 if (m.Cells[i] != null) m.Cells[i].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
                 if (m.CellColliders[i] != null) m.CellColliders[i].enabled = false;
             }
-            // It falls over where it stood (no physics: it is part of the world's ground).
+            // It falls over where it stood (a stand-in: no physics, it is part of the world's ground).
             if (m.View != null) m.View.transform.GetChild(0).localRotation = Quaternion.Euler(78f, Random.Range(0f, 360f), 0f);
-            if (m.Light != null) m.Light.Show(false);
-            string label = rammed ? "RAMMED" : !float.IsNaN(m.Rule.BrokenWithin) && m.Rule.BrokenWithin <= _rules.mastQuickSeconds ? "QUICK" : string.Empty;
+            // Ramming pays the mast but is never a feat; shooting it out before it ever called is.
+            string label = !rammed && !m.Rule.HasCalled ? "BEFORE IT CALLED" : string.Empty;
             int feats = label.Length > 0 ? 1 : 0;
-            feats += StreakFeat(ref label);
+            feats += StreakFeat(feats, ref label);
             Audio.AudioDirector.PlayLocal("reward.tier2");
-            Score(ScoreEventKind.InstallationDestroyed, TaskIds.Mast(m.World.Id, m.Index), feats, Join("MAST DOWN", label));
+            Score(ScoreEventKind.InstallationDestroyed, TaskIds.Mast(m.World.Id, m.Index), feats, Join(rammed ? "MAST RAMMED" : "MAST DOWN", label));
         }
 
         // ------------------------------------------------------------------ salvage
@@ -503,6 +580,7 @@ namespace OrbitalAnte.Tasks
         {
             if (_carried == null) return;
             if (a == null || a.Eye == null) { DropCarried(null); return; }
+            if (a.Mode == AstronautMode.Driving) _carried.Driven = true;
             // Into the lift or aboard: delivered.
             if (a.Mode == AstronautMode.Aboard || a.Mode == AstronautMode.Lift || a.Mode == AstronautMode.Seated)
             {
@@ -512,9 +590,10 @@ namespace OrbitalAnte.Tasks
                 c.Rule.Deliver();
                 if (c.View != null) Destroy(c.View);
                 c.View = null;
-                string label = c.Rule.HurtWhileCarried ? string.Empty : "UNSCRATCHED";
+                // Only a crate carried on foot all the way, and never hurt on the way, is a feat.
+                string label = c.Rule.HurtWhileCarried || c.Driven ? string.Empty : "CARRIED HOME UNSCRATCHED";
                 int feats = label.Length > 0 ? 1 : 0;
-                feats += StreakFeat(ref label);
+                feats += StreakFeat(feats, ref label);
                 Audio.AudioDirector.PlayLocal("reward.loot.rare");
                 Score(ScoreEventKind.SalvageDelivered, TaskIds.Salvage(c.World.Id, c.Index), feats, Join("SALVAGE DELIVERED", label));
             }
@@ -531,11 +610,16 @@ namespace OrbitalAnte.Tasks
             _carried = c;
             Astronaut.CarryPace = _rules.carrySpeed;
             if (c.Box != null) c.Box.enabled = false;
+            c.View.SetActive(true);
             c.View.transform.SetParent(a.Eye.transform, false);
-            c.View.transform.localPosition = new Vector3(0.18f, -0.62f, 0.95f);
+            c.View.transform.localPosition = new Vector3(0.24f, -0.85f, 0.85f);
             c.View.transform.localRotation = Quaternion.identity;
-            if (c.Light != null) c.Light.Show(false);
-            if (a.Armour != null) { a.Armour.Damaged -= OnArmourDamaged; a.Armour.Damaged += OnArmourDamaged; }
+            if (a.Armour != null && _watchedArmour != a.Armour)
+            {
+                if (_watchedArmour != null) _watchedArmour.Damaged -= OnArmourDamaged;
+                _watchedArmour = a.Armour;
+                _watchedArmour.Damaged += OnArmourDamaged;
+            }
             Audio.AudioDirector.PlayLocal("ui.select");
             AnteLoop.Note("CARRY IT BACK ABOARD THE SHIP");
         }
@@ -547,12 +631,11 @@ namespace OrbitalAnte.Tasks
             Astronaut.CarryPace = 1f;
             if (c == null) return;
             c.Rule.Drop();
-            if (a != null && a.Eye != null && c.View != null && c.World.Surface != null)
+            if (c.View != null && c.World.Surface != null)
             {
-                // Put down at the player's feet, on the world it is on.
-                Transform body = c.World.Surface.Body.transform;
-                Vector3 feet = a.Eye.transform.position + a.Eye.transform.forward * 1.2f;
-                c.Dir = SpaceConvert.ToVec3d(body.InverseTransformPoint(feet)).Normalized;
+                Transform body = c.World.Frame;
+                Vector3 put = a != null && a.Eye != null ? a.Eye.transform.position + a.Eye.transform.forward * 1.2f : c.View.transform.position;
+                c.Place(SpaceConvert.ToVec3d(body.InverseTransformPoint(put)).Normalized);
                 c.View.transform.SetParent(body, false);
                 Stand(c);
             }
@@ -571,25 +654,18 @@ namespace OrbitalAnte.Tasks
             {
                 DropTask d = _drops[i];
                 if (d.Rule.Tick(now)) Landed(d);
-                if (d.Rule.State == DropState.Landed && _world.Enemies != null && _world.Enemies.LivingWithin(d.WorldPoint, _rules.dropReachedWithin))
+                if (d.Rule.State == DropState.Landed && d.View != null && _world.Enemies != null
+                    && _world.Enemies.LivingWithin(d.View.transform.position, _rules.dropReachedWithin))
                     d.Rule.EnemyNear(0f);
-                if (d.View != null)
+                if (d.View != null && d.Rule.State == DropState.Falling)
                 {
-                    if (d.Rule.State == DropState.Falling)
-                    {
-                        double ground = d.World.Surface.GroundRadius(d.Dir);
-                        float above = 600f * (1f - d.Rule.Fallen(now));
-                        d.View.transform.localPosition = SpaceConvert.ToVector3(d.Dir * (ground + above));
-                    }
-                    else if (d.Rule.State != DropState.Landed)
-                    {
-                        Destroy(d.View);
-                        d.View = null;
-                    }
+                    float above = 600f * (1f - d.Rule.Fallen(now));
+                    d.View.transform.localPosition = d.Local + SpaceConvert.ToVector3(d.Dir) * above;
                 }
                 if (d.Rule.State == DropState.Gone || d.Rule.State == DropState.Opened)
                 {
                     if (d.View != null) Destroy(d.View);
+                    d.View = null;
                     if (_holdingDrop == d) _holdingDrop = null;
                     _drops.RemoveAt(i);
                 }
@@ -598,24 +674,26 @@ namespace OrbitalAnte.Tasks
 
         void LaunchDrop(WorldTasks w, Vector3 player, float now)
         {
-            Transform body = w.Surface.Body.transform;
-            Vec3d here = SpaceConvert.ToVec3d(body.InverseTransformPoint(player));
-            Vec3d up = here.Normalized;
+            Transform body = w.Frame;
+            Vec3d up = SpaceConvert.ToVec3d(body.InverseTransformPoint(player)).Normalized;
             Vec3d side = Vec3d.Cross(up, System.Math.Abs(up.Y) < 0.9 ? Vec3d.Up : Vec3d.Right).Normalized;
             Vec3d other = Vec3d.Cross(up, side);
             SeededRandom random = GameSession.Stream("tasks.drops.a" + _loop.Run.Director.Ante + "." + _dropClock.Given);
+            float near = _rules.DropNearOn(w.Radius), far = Mathf.Max(near, _rules.DropFarOn(w.Radius));
             Vec3d dir = up;
             for (int tries = 0; tries < 8; tries++)
             {
+                // A distance over the ground, turned into an angle round the world.
                 double angle = random.NextDouble() * System.Math.PI * 2.0;
-                double distance = _rules.dropNear + random.NextDouble() * System.Math.Max(0f, _rules.dropFar - _rules.dropNear);
-                dir = (up * here.Magnitude + (side * System.Math.Cos(angle) + other * System.Math.Sin(angle)) * distance).Normalized;
+                double round = (near + random.NextDouble() * (far - near)) / System.Math.Max(1.0, w.Radius);
+                Vec3d along = side * System.Math.Cos(angle) + other * System.Math.Sin(angle);
+                dir = (up * System.Math.Cos(round) + along * System.Math.Sin(round)).Normalized;
                 if (Dry(w.Surface.Terrain, dir)) break;
             }
-            var d = new DropTask { World = w, Dir = dir, Number = _dropClock.Given - 1, Ante = _loop.Run.Director.Ante, Rule = new SupplyDrop(_rules, now) };
-            d.View = BuildPod(body);
-            d.View.transform.localRotation = Quaternion.FromToRotation(Vector3.up, SpaceConvert.ToVector3(dir));
-            d.Light = new Beacon(d.View.transform, _config.haulBeacon);
+            var d = new DropTask { World = w, Number = _dropClock.Given - 1, Ante = _loop.Run.Director.Ante, Rule = new SupplyDrop(_rules, now) };
+            d.Place(dir);
+            d.Local = SpaceConvert.ToVector3(dir * w.Surface.GroundRadius(dir));
+            BuildPod(d);
             _drops.Add(d);
             Audio.AudioDirector.PlayLocal("reward.discovery");
             AnteLoop.Note("SUPPLY DROP INCOMING: GET THERE FIRST");
@@ -624,34 +702,64 @@ namespace OrbitalAnte.Tasks
         void Landed(DropTask d)
         {
             if (d.View != null) Stand(d);
+            // Solid only once it is down: a moving collider on the planet's body costs every physics step.
+            if (d.Shell != null) d.Shell.enabled = true;
             Vector3 at = d.WorldPoint;
+            float heard = _rules.DropHeardOn(d.World.Radius);
             // It is loud: everyone within earshot comes to look.
             _raising = true;
-            CombatWorld.RaiseAlarm(at, _rules.dropHeardFrom, at, Factions.None);
-            CombatWorld.RaiseAlarm(at, _rules.dropHeardFrom, at, Factions.A);
+            CombatWorld.RaiseAlarm(at, heard, at, Factions.None);
+            CombatWorld.RaiseAlarm(at, heard, at, Factions.A);
             _raising = false;
             Audio.AudioDirector.Play("impact.metal", at, 1f, 0.5f);
+        }
+
+        bool LadderOffered
+        {
+            get
+            {
+                Combat.GunLadderFx ladder = Combat.GunLadderFx.Instance;
+                return ladder != null && ladder.CanClimb && _loop != null && _loop.Run != null && _ladderDropAnte != _loop.Run.Director.Ante;
+            }
         }
 
         void OpenDrop(DropTask d, bool gun)
         {
             if (!d.Rule.Open()) return;
-            Combat.GunLadderFx ladder = Combat.GunLadderFx.Instance;
-            bool gave = gun && ladder != null && ladder.GiveNextGunNow();
-            if (!gave)
+            bool kills = false;
+            if (gun && LadderOffered)
+            {
+                kills = Combat.GunLadderFx.Instance.CreditKills(_rules.dropLadderKills);
+                if (kills) _ladderDropAnte = _loop.Run.Director.Ante;
+            }
+            if (!kills)
             {
                 Combat.DeepBreathFx breath = Combat.DeepBreathFx.Instance;
-                if (breath != null && breath.Breath != null) breath.Breath.Earn(1f);
-                Audio.AudioDirector.PlayLocal("reward.tier1");
+                if (breath != null && breath.Breath != null) breath.Breath.Earn(_rules.dropFocus);
             }
+            Audio.AudioDirector.PlayLocal("reward.tier1");
             string label = d.Rule.Reached ? "CONTESTED" : string.Empty;
             int feats = label.Length > 0 ? 1 : 0;
-            feats += StreakFeat(ref label);
+            feats += StreakFeat(feats, ref label);
             Score(ScoreEventKind.OptionalMission, TaskIds.Drop(d.Ante, d.Number), feats,
-                Join(gave ? "SUPPLY DROP: NEW GUN" : "SUPPLY DROP: FOCUS FULL", label), _rules.dropPoints);
+                Join(kills ? "SUPPLY DROP: +" + _rules.dropLadderKills + " GUN KILLS" : "SUPPLY DROP: FOCUS", label), _rules.dropPoints);
         }
 
         // ------------------------------------------------------------------ what the player is offered
+
+        /// <summary>The Interact key's name, looked up again once a second (a rebind shows within a second).</summary>
+        void RefreshPrompts()
+        {
+            if (_key != null && Time.unscaledTime < _keyAt) return;
+            _keyAt = Time.unscaledTime + 1f;
+            string key = GameInput.Describe(GameInput.Interact);
+            if (key == _key) return;
+            _key = key;
+            _promptCarry = "Carrying salvage: take it aboard the ship  (" + key + " to put it down)";
+            _promptDrop = key + ": refill half your Focus";
+            _promptDropGun = key + ": refill half your Focus     hold " + key + ": +" + _rules.dropLadderKills + " gun kills";
+            _promptCrate = key + ": pick up salvage (slows you down)";
+        }
 
         public bool Offer(Vector3 eye, Vector3 forward, float dt, out string prompt, out float progress)
         {
@@ -659,27 +767,33 @@ namespace OrbitalAnte.Tasks
             progress = -1f;
             Astronaut a = Player;
             if (a == null || GameInput.Interact == null) return false;
-            string key = GameInput.Describe(GameInput.Interact);
 
+            // Something else wants this press: a gun or melee weapon to pick up, or the rover to climb into.
+            bool pickupNear = (a.Weapons != null && a.Weapons.NearbyPickup != null) || (a.Melee != null && a.Melee.NearbyPickup != null);
             if (_carried != null)
             {
+                bool roverNear = _world.Rover != null && (_world.Rover.transform.position - eye).sqrMagnitude < 4.5f * 4.5f;
+                if (pickupNear || roverNear) return false;
                 if (GameInput.Interact.WasPressedThisFrame()) { DropCarried(a); return false; }
-                prompt = "Carrying salvage: take it aboard the ship  (" + key + " to put it down)";
+                RefreshPrompts();
+                prompt = _promptCarry;
                 return true;
             }
 
-            // A landed supply drop: press for Focus, hold for the next gun.
+            // A landed supply drop: press for Focus, hold for gun-ladder kills.
+            if (pickupNear) { _holdingDrop = null; return false; }
             DropTask drop = NearestDrop(eye);
+            // Walking away mid-hold lets go: coming back never opens it without a new press.
+            if (_holdingDrop != drop) _holdingDrop = null;
             if (drop != null)
             {
-                Combat.GunLadderFx ladder = Combat.GunLadderFx.Instance;
-                bool canGun = ladder != null && ladder.CanGiveNextGun;
+                bool canGun = LadderOffered;
                 if (GameInput.Interact.WasPressedThisFrame()) { _holdingDrop = drop; _held = 0f; }
                 if (_holdingDrop == drop)
                 {
                     if (GameInput.Interact.IsPressed())
                     {
-                        _held += dt;
+                        _held += TimeFlow.PlayerDelta(dt);
                         if (canGun && _held >= _rules.dropHoldForGun) { _holdingDrop = null; OpenDrop(drop, true); return false; }
                     }
                     else
@@ -689,7 +803,8 @@ namespace OrbitalAnte.Tasks
                         return false;
                     }
                 }
-                prompt = canGun ? key + ": refill Focus     hold " + key + ": next gun" : key + ": refill Focus";
+                RefreshPrompts();
+                prompt = canGun ? _promptDropGun : _promptDrop;
                 if (_holdingDrop == drop && canGun) progress = Mathf.Clamp01(_held / Mathf.Max(0.05f, _rules.dropHoldForGun));
                 return true;
             }
@@ -698,7 +813,8 @@ namespace OrbitalAnte.Tasks
             if (crate != null)
             {
                 if (GameInput.Interact.WasPressedThisFrame()) { PickUp(crate, a); return false; }
-                prompt = key + ": pick up salvage (slows you down)";
+                RefreshPrompts();
+                prompt = _promptCrate;
                 return true;
             }
             return false;
@@ -717,14 +833,13 @@ namespace OrbitalAnte.Tasks
 
         CrateTask NearestCrate(Vector3 eye, Vector3 forward)
         {
-            Astronaut a = Player;
-            if (a == null || _world.System == null || _world.System.Focus == null) return null;
+            if (_world.System == null || _world.System.Focus == null) return null;
             WorldTasks w = WorldFor(_world.System.Focus.Neighbourhood);
             if (w == null) return null;
             for (int i = 0; i < w.Crates.Count; i++)
             {
                 CrateTask c = w.Crates[i];
-                if (c.Rule.State != CrateState.Lying || c.View == null) continue;
+                if (c.Rule.State != CrateState.Lying || c.View == null || !c.View.activeSelf) continue;
                 Vector3 to = c.View.transform.position - eye;
                 if (to.sqrMagnitude > 2.8f * 2.8f) continue;
                 if (to.sqrMagnitude > 1f && Vector3.Dot(to.normalized, forward) < 0.75f) continue;
@@ -748,6 +863,8 @@ namespace OrbitalAnte.Tasks
             _wasLanded = landed;
         }
 
+        readonly List<double> _around = new List<double>(8);
+
         void Touchdown(Ship.Ship ship, int body)
         {
             PlanetSurface surface = _world.Planets != null && body > 0 ? _world.Planets.SurfaceOf(body) : null;
@@ -764,25 +881,41 @@ namespace OrbitalAnte.Tasks
                     "FIRST LANDING: " + (surface.Body.Spec.displayName ?? id).ToUpperInvariant());
             }
 
-            // Rough ground: the ground around the legs rises and falls by more than the relief.
+            // Rough ground: the ground under the legs stands well above or below the ground around them.
             Transform t = surface.Body.transform;
-            Vec3d here = SpaceConvert.ToVec3d(t.InverseTransformPoint(ship.transform.position));
-            Vec3d up = here.Normalized;
+            Vec3d up = SpaceConvert.ToVec3d(t.InverseTransformPoint(ship.transform.position)).Normalized;
             double radius = surface.GroundRadius(up);
             Vec3d side = Vec3d.Cross(up, System.Math.Abs(up.Y) < 0.9 ? Vec3d.Up : Vec3d.Right).Normalized;
             Vec3d other = Vec3d.Cross(up, side);
-            var around = new List<double>(8);
+            _around.Clear();
             for (int i = 0; i < 8; i++)
             {
                 double angle = i * System.Math.PI / 4.0;
                 Vec3d dir = (up * radius + (side * System.Math.Cos(angle) + other * System.Math.Sin(angle)) * _rules.hardLandingSample).Normalized;
-                around.Add(surface.GroundRadius(dir));
+                _around.Add(surface.GroundRadius(dir));
             }
-            if (!LandingRelief.IsHard(radius, around, _rules.hardLandingRelief)) return;
+            if (!LandingRelief.IsHard(radius, _around, _rules.hardLandingRelief)) return;
+            if (OnAFoundation(body, surface, t, ship.transform.position, up)) return;
             string cell = LandingRelief.Cell(up.X, up.Y, up.Z, radius, _rules.hardLandingCell);
             string label = _lastTouchSpeed <= _rules.softTouchdown ? "FEATHER SOFT" : string.Empty;
             int feats = label.Length > 0 ? 1 : 0;
             Score(ScoreEventKind.DifficultLanding, TaskIds.HardLanding(id, cell), feats, Join("HARD LANDING", label));
+        }
+
+        /// <summary>The pad and the bases stand on their own level floors: landing there is never a hard landing.</summary>
+        bool OnAFoundation(int body, PlanetSurface surface, Transform frame, Vector3 at, Vec3d up)
+        {
+            if (_world.Base != null && _world.Base.Surface == surface
+                && Vec3d.Dot(up, _world.Base.Spot.Up) > System.Math.Cos(60.0 / System.Math.Max(1.0, surface.SurfaceRadius))) return true;
+            WorldTasks w = WorldFor(body);
+            if (w == null) return false;
+            Vector3 local = frame.InverseTransformPoint(at);
+            for (int i = 0; i < w.Bases.Count; i++)
+            {
+                float reach = (float)w.Bases[i].Site.Footprint + 8f;
+                if ((w.Bases[i].Local - local).sqrMagnitude < reach * reach) return true;
+            }
+            return false;
         }
 
         // ------------------------------------------------------------------ spotted
@@ -790,7 +923,7 @@ namespace OrbitalAnte.Tasks
         /// <summary>A living guard that knows where the player is spoils that base's quiet clear.</summary>
         void CheckSpotted()
         {
-            if (_world.Enemies == null || _woke.Count == 0) return;
+            if (_world.Enemies == null) return;
             _scratch.Clear();
             foreach (KeyValuePair<Mannequin, WokeRecord> kv in _woke)
             {
@@ -809,65 +942,101 @@ namespace OrbitalAnte.Tasks
                     if (kv.Key == null || Now - kv.Value.At > 30f) _scratch.Add(kv.Key);
                 for (int i = 0; i < _scratch.Count; i++) _hits.Remove(_scratch[i]);
             }
-            _marked.RemoveWhere(IsGone);
+            _gone.Clear();
+            foreach (KeyValuePair<Mannequin, GameObject> kv in _marked) if (kv.Key == null) _gone.Add(kv.Key);
+            for (int i = 0; i < _gone.Count; i++) _marked.Remove(_gone[i]);
         }
 
         // ================================================================== views
 
         const float BuildWithin = 900f;
+        const float HideBeyond = 1100f;
         const float SnapWithin = 250f;
 
-        void BuildNearViews(WorldTasks w, Vector3 player)
+        /// <summary>Builds at most one view a pass (the nearest missing), and puts far ones away (their colliders too).</summary>
+        void BuildNearViews(WorldTasks w, Vector3 local)
         {
-            float build2 = BuildWithin * BuildWithin;
-            for (int i = 0; i < w.Masts.Count; i++)
-            {
-                MastTask m = w.Masts[i];
-                if (m.View == null && (m.WorldPoint - player).sqrMagnitude < build2) BuildMast(m);
-                Snap(m, player);
-            }
+            float build2 = BuildWithin * BuildWithin, hide2 = HideBeyond * HideBeyond;
+            Placed nearest = null;
+            float best = build2;
+            for (int i = 0; i < w.Masts.Count; i++) Visit(w.Masts[i], local, hide2, ref nearest, ref best);
             for (int i = 0; i < w.Crates.Count; i++)
-            {
-                CrateTask c = w.Crates[i];
-                if (c.View == null && c.Rule.State == CrateState.Lying && (c.WorldPoint - player).sqrMagnitude < build2) BuildCrate(c);
-                if (c != _carried) Snap(c, player);
-            }
+                if (w.Crates[i] != _carried && w.Crates[i].Rule.State == CrateState.Lying) Visit(w.Crates[i], local, hide2, ref nearest, ref best);
+            if (nearest is MastTask m) BuildMast(m);
+            else if (nearest is CrateTask c) BuildCrate(c);
         }
 
-        void Snap(Placed p, Vector3 player)
+        void Visit(Placed p, Vector3 local, float hide2, ref Placed nearest, ref float best)
         {
-            if (p.View == null || Time.time < p.SnapAt || p.View.transform.parent != p.World.Surface.Body.transform) return;
-            p.SnapAt = Time.time + 1f;
-            if ((p.View.transform.position - player).sqrMagnitude > SnapWithin * SnapWithin) return;
-            Stand(p);
+            float d2 = (p.Local - local).sqrMagnitude;
+            if (p.View == null)
+            {
+                if (d2 < best) { best = d2; nearest = p; }
+                return;
+            }
+            bool on = d2 < hide2;
+            if (p.View.activeSelf != on) p.View.SetActive(on);
+            if (on && d2 < SnapWithin * SnapWithin && Time.time >= p.SnapAt)
+            {
+                p.SnapAt = Time.time + 1f;
+                Stand(p);
+            }
         }
 
         /// <summary>Stands a view on the ground that is really built under it, upright to its world.</summary>
         static void Stand(Placed p)
         {
-            Vector3 up = SpaceConvert.ToVector3(p.Dir);
             p.View.transform.localPosition = SpaceConvert.ToVector3(p.Dir * p.World.Surface.GroundRadius(p.Dir));
-            p.View.transform.localRotation = Quaternion.FromToRotation(Vector3.up, up);
+            p.View.transform.localRotation = Quaternion.FromToRotation(Vector3.up, SpaceConvert.ToVector3(p.Dir));
         }
 
         GameObject Root(Placed p, string name)
         {
             var go = new GameObject(name);
-            go.transform.SetParent(p.World.Surface.Body.transform, false);
+            go.transform.SetParent(p.World.Frame, false);
             p.View = go;
             Stand(p);
             return go;
         }
 
+        static readonly Dictionary<PrimitiveType, Mesh> Shapes = new Dictionary<PrimitiveType, Mesh>();
+
+        /// <summary>Unity's own primitive shape, taken once and shared (its collider is never made).</summary>
+        static Mesh Shape(PrimitiveType type)
+        {
+            if (Shapes.TryGetValue(type, out Mesh mesh) && mesh != null) return mesh;
+            var go = GameObject.CreatePrimitive(type);
+            mesh = go.GetComponent<MeshFilter>().sharedMesh;
+            DestroyImmediate(go);
+            Shapes[type] = mesh;
+            return mesh;
+        }
+
+        public static void ResetStatics() => Shapes.Clear();
+
+        /// <summary>
+        /// One piece of a stand-in: a shared primitive shape, no shadow, and a collider only when it is solid, so
+        /// nothing is added to the planet's body and then taken away again.
+        /// </summary>
         static Renderer Piece(Transform parent, PrimitiveType type, Material m, Vector3 at, Vector3 size, bool solid)
         {
-            var go = GameObject.CreatePrimitive(type);
+            var go = new GameObject(type.ToString());
             go.transform.SetParent(parent, false);
             go.transform.localPosition = at;
             go.transform.localScale = size;
-            if (!solid) Destroy(go.GetComponent<Collider>());
-            var r = go.GetComponent<Renderer>();
+            go.AddComponent<MeshFilter>().sharedMesh = Shape(type);
+            var r = go.AddComponent<MeshRenderer>();
             r.sharedMaterial = m;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            if (solid)
+            {
+                switch (type)
+                {
+                    case PrimitiveType.Cube: go.AddComponent<BoxCollider>(); break;
+                    case PrimitiveType.Sphere: go.AddComponent<SphereCollider>(); break;
+                    default: go.AddComponent<CapsuleCollider>(); break;
+                }
+            }
             return r;
         }
 
@@ -904,9 +1073,7 @@ namespace OrbitalAnte.Tasks
                 hit.Struck = (damage, point, normal) => HitCell(m, which, damage, point, normal);
                 m.Cells[i] = cell;
                 m.CellColliders[i] = cell.GetComponent<Collider>();
-                if (m.Rule.CellBroken(i)) { cell.sharedMaterial = dark; m.CellColliders[i].enabled = false; }
             }
-            m.Light = new Beacon(root.transform, _config.fightBeacon);
         }
 
         void BuildCrate(CrateTask c)
@@ -917,120 +1084,120 @@ namespace OrbitalAnte.Tasks
             Renderer box = Piece(root.transform, PrimitiveType.Cube, shell, new Vector3(0f, 0.3f, 0f), new Vector3(0.8f, 0.6f, 0.55f), true);
             c.Box = box.GetComponent<Collider>();
             Piece(box.transform, PrimitiveType.Cube, band, new Vector3(0f, 0.15f, 0f), new Vector3(1.02f, 0.12f, 1.02f), false);
-            c.Light = new Beacon(root.transform, _config.haulBeacon);
         }
 
-        GameObject BuildPod(Transform body)
+        void BuildPod(DropTask d)
         {
             var go = new GameObject("SupplyDrop");
-            go.transform.SetParent(body, false);
+            go.transform.SetParent(d.World.Frame, false);
+            go.transform.localRotation = Quaternion.FromToRotation(Vector3.up, SpaceConvert.ToVector3(d.Dir));
+            d.View = go;
             Material shell = Mat.Lit(new Color(0.78f, 0.78f, 0.80f), 0.5f);
             Material glow = Mat.Unlit(new Color(0.40f, 0.85f, 1f) * 2.4f);
-            Piece(go.transform, PrimitiveType.Cylinder, shell, new Vector3(0f, 0.7f, 0f), new Vector3(1f, 0.7f, 1f), true);
+            Renderer body = Piece(go.transform, PrimitiveType.Cylinder, shell, new Vector3(0f, 0.7f, 0f), new Vector3(1f, 0.7f, 1f), true);
+            d.Shell = body.GetComponent<Collider>();
+            d.Shell.enabled = false;
             Piece(go.transform, PrimitiveType.Cylinder, glow, new Vector3(0f, 1.0f, 0f), new Vector3(1.04f, 0.08f, 1.04f), false);
             Piece(go.transform, PrimitiveType.Sphere, glow, new Vector3(0f, 1.5f, 0f), new Vector3(0.35f, 0.35f, 0.35f), false);
-            return go;
+            // A drop carries its own light: it moves too fast for the shared ones.
+            Renderer beam = Piece(go.transform, PrimitiveType.Cylinder, Mat.Unlit(BeamColour(_config.haulBeacon)), Vector3.zero, Vector3.one, false);
+            beam.name = "TaskLight";
+            d.OwnLight = beam.gameObject;
         }
 
         // ------------------------------------------------------------------ the lights over tasks
 
-        /// <summary>A tall thin column of light over a task, drawn wider far off so it can be seen from kilometres.</summary>
+        static Color BeamColour(Color c) => new Color(c.r, c.g, c.b) * 1.6f;
+
+        /// <summary>About two pixels wide at any distance, standing on its task; up to 300 m tall, never taller than the world is wide.</summary>
+        static void FitBeam(Transform beam, float distance, double worldRadius)
+        {
+            float half = Mathf.Min(150f, (float)worldRadius * 0.5f);
+            float width = Mathf.Max(0.35f, distance * 0.0035f);
+            beam.localScale = new Vector3(width, half, width);
+            beam.localPosition = new Vector3(0f, half, 0f);
+        }
+
+        /// <summary>One of the few shared lights, moved to whichever tasks are lit (never one per task).</summary>
         sealed class Beacon
         {
-            readonly GameObject _go;
+            public readonly Transform Root;
+            readonly Transform _beam;
+            readonly Renderer _renderer;
+            Color _colour;
 
-            public Beacon(Transform over, Color colour)
+            public Beacon(Transform parent)
             {
-                _go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                _go.name = "TaskLight";
-                Object.Destroy(_go.GetComponent<Collider>());
-                var r = _go.GetComponent<Renderer>();
-                r.sharedMaterial = Mat.Unlit(new Color(colour.r, colour.g, colour.b) * 1.6f);
-                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                r.receiveShadows = false;
-                _go.transform.SetParent(over, false);
-                _go.SetActive(false);
+                Root = new GameObject("TaskLight").transform;
+                Root.SetParent(parent, false);
+                _renderer = Piece(Root, PrimitiveType.Cylinder, Mat.Unlit(Color.white), Vector3.zero, Vector3.one, false);
+                _beam = _renderer.transform;
+                Root.gameObject.SetActive(false);
             }
 
             public void Show(bool on)
             {
-                if (_go != null && _go.activeSelf != on) _go.SetActive(on);
+                if (Root != null && Root.gameObject.activeSelf != on) Root.gameObject.SetActive(on);
             }
 
-            public void Fit(float distance)
+            public void Put(Transform world, Vector3 local, Vec3d up, Color colour, float distance, double worldRadius)
             {
-                if (_go == null) return;
-                // About two pixels wide at any distance, 300 m tall, standing on the task.
-                float width = Mathf.Max(0.35f, distance * 0.0035f);
-                Vector3 parentScale = _go.transform.parent != null ? _go.transform.parent.lossyScale : Vector3.one;
-                float s = Mathf.Max(0.01f, parentScale.y);
-                _go.transform.localScale = new Vector3(width / s, 150f / s, width / s);
-                _go.transform.localPosition = new Vector3(0f, 150f / s, 0f);
+                if (Root.parent != world) Root.SetParent(world, false);
+                Root.localPosition = local;
+                Root.localRotation = Quaternion.FromToRotation(Vector3.up, SpaceConvert.ToVector3(up));
+                if (colour != _colour)
+                {
+                    _colour = colour;
+                    _renderer.sharedMaterial = Mat.Unlit(BeamColour(colour));
+                }
+                FitBeam(_beam, distance, worldRadius);
+                Show(true);
             }
         }
 
-        void UpdateLights(WorldTasks w, Vector3 player)
-        {
-            _candidates.Clear();
-            for (int i = 0; i < w.Bases.Count; i++)
-            {
-                BaseTask b = w.Bases[i];
-                if (b.Done) { if (b.Light != null) b.Light.Show(false); continue; }
-                if (b.View == null)
-                {
-                    // A base's light hangs from a marker of our own over the middle of its floor.
-                    var go = new GameObject("BaseTask");
-                    go.transform.SetParent(w.Surface.Body.transform, false);
-                    go.transform.localPosition = SpaceConvert.ToVector3(b.Site.Centre);
-                    go.transform.localRotation = Quaternion.FromToRotation(Vector3.up, SpaceConvert.ToVector3(b.Site.Up));
-                    b.View = go;
-                    b.Light = new Beacon(go.transform, _config.fightBeacon);
-                }
-                _candidates.Add(b);
-            }
-            for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Light != null) { if (w.Masts[i].Live) _candidates.Add(w.Masts[i]); else w.Masts[i].Light.Show(false); }
-            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Light != null) { if (w.Crates[i].Live) _candidates.Add(w.Crates[i]); else w.Crates[i].Light.Show(false); }
-            for (int i = 0; i < _drops.Count; i++) if (_drops[i].Light != null && _drops[i].World == w) _candidates.Add(_drops[i]);
+        Color ColourOf(Placed p) => p is BaseTask || p is MastTask ? _config.fightBeacon : _config.haulBeacon;
 
-            // The nearest few within reach are lit; the rest wait until you are closer.
+        void UpdateLights(WorldTasks w, Vector3 local)
+        {
+            while (_pool.Count < Mathf.Max(0, _rules.liveNearby)) _pool.Add(new Beacon(w.Frame));
+
+            _candidates.Clear();
+            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Live) _candidates.Add(w.Bases[i]);
+            for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) _candidates.Add(w.Masts[i]);
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live && w.Crates[i] != _carried) _candidates.Add(w.Crates[i]);
+
+            // The nearest few within reach are lit, and none closer than 25 m (you can see the thing itself).
             _distances.Clear();
-            for (int i = 0; i < _candidates.Count; i++) _distances.Add((_candidates[i].View.transform.position - player).magnitude);
-            float reach = _rules.nearbyReach;
-            for (int pick = 0; pick < _rules.liveNearby; pick++)
+            for (int i = 0; i < _candidates.Count; i++) _distances.Add((_candidates[i].Local - local).magnitude);
+            float reach = _rules.NearbyOn(w.Radius);
+            int used = 0;
+            for (int pick = 0; pick < _pool.Count; pick++)
             {
                 int best = -1;
                 for (int i = 0; i < _candidates.Count; i++)
-                    if (_distances[i] >= 0f && _distances[i] <= reach && (best < 0 || _distances[i] < _distances[best])) best = i;
+                    if (_distances[i] > 25f && _distances[i] <= reach && (best < 0 || _distances[i] < _distances[best])) best = i;
                 if (best < 0) break;
-                // Close enough to see the thing itself: no light needed, and it never stands in your face.
-                bool lit = _distances[best] > 25f;
-                _candidates[best].Light.Show(lit);
-                if (lit) _candidates[best].Light.Fit(_distances[best]);
+                Placed p = _candidates[best];
+                _pool[used++].Put(w.Frame, p.Local, p.Dir, ColourOf(p), _distances[best], w.Radius);
                 _distances[best] = -1f;
             }
-            for (int i = 0; i < _candidates.Count; i++) if (_distances[i] >= 0f) _candidates[i].Light.Show(false);
+            for (int i = used; i < _pool.Count; i++) _pool[i].Show(false);
 
-            // Supply drops in the air are always lit: they are the thing to race for.
+            // Supply drops carry their own light, on while falling and until you are close.
             for (int i = 0; i < _drops.Count; i++)
             {
                 DropTask d = _drops[i];
-                if (d.Light == null || d.View == null) continue;
-                float dist = (d.View.transform.position - player).magnitude;
+                if (d.OwnLight == null || d.View == null) continue;
+                float dist = (d.View.transform.localPosition - local).magnitude;
                 bool on = d.Rule.State == DropState.Falling || (d.Rule.State == DropState.Landed && dist > 25f);
-                d.Light.Show(on);
-                if (on) d.Light.Fit(dist);
+                if (d.OwnLight.activeSelf != on) d.OwnLight.SetActive(on);
+                if (on) FitBeam(d.OwnLight.transform, dist, w.Radius);
             }
         }
 
         void ShowNoLights()
         {
-            foreach (KeyValuePair<int, WorldTasks> kv in _worlds)
-            {
-                WorldTasks w = kv.Value;
-                for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Light != null) w.Bases[i].Light.Show(false);
-                for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Light != null) w.Masts[i].Light.Show(false);
-                for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Light != null) w.Crates[i].Light.Show(false);
-            }
+            for (int i = 0; i < _pool.Count; i++) _pool[i].Show(false);
         }
 
         /// <summary>For the system map: how many tasks are still to do on a world (-1 if not known yet).</summary>

@@ -503,6 +503,9 @@ namespace OrbitalAnte.Rover
         /// <summary>A knock big enough to hurt reached the driver (see <see cref="RoverHandling.Hurt"/>).</summary>
         void OnCollisionEnter(Collision collision)
         {
+            // A signal mast's pole is part of its planet's compound collider, so only this side hears the knock.
+            var mast = collision.collider != null ? collision.collider.GetComponent<OrbitalAnte.Tasks.MastRam>() : null;
+            if (mast != null && Now == Where.Rolling) mast.Struck(collision.relativeVelocity.magnitude);
             if (Driver == null || Now != Where.Rolling) return;
             int layer = collision.collider.gameObject.layer;
             if (layer == Layers.Gib || layer == Layers.Item) return;

@@ -54,6 +54,8 @@ namespace OrbitalAnte.Tasks
         float _noteLeft;
         bool _counting;
 
+        static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
         public static void ResetStatics() => Current = null;
 
         void Awake()
@@ -116,7 +118,7 @@ namespace OrbitalAnte.Tasks
             AnteLoop loop = Current;
             if (loop == null || loop.Run == null) return default;
             ScoreResult result = loop.Run.Report(scoreEvent);
-            if (result.Awarded && result.points > 0) loop.Pop("+" + result.points.ToString("N0") + "  " + label);
+            if (result.Awarded && result.points > 0) loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label);
             return result;
         }
 
@@ -136,7 +138,8 @@ namespace OrbitalAnte.Tasks
         void Update()
         {
             if (Run == null) return;
-            bool paused = GameSession.Paused;
+            // The run-start envelope holds the world without pausing it: the clock waits too.
+            bool paused = GameSession.Paused || TimeFlow.Held;
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
             Run.Tick(dt, paused);
@@ -178,9 +181,9 @@ namespace OrbitalAnte.Tasks
                 case AntePhase.Failed:
                     // A death has its own page with its own cause; only the timer needs one here.
                     if (!_diedFirst && Menu != null)
-                        Menu.ShowRunOver("TIME'S UP", "Ante " + ante + " needed " + Run.Director.Target.ToString("N0")
-                            + " points and you banked " + Run.Ledger.AnteEarned.ToString("N0") + ". Run score "
-                            + Run.Ledger.LifetimeRunScore.ToString("N0") + ".");
+                        Menu.ShowRunOver("TIME'S UP", "Ante " + ante + " needed " + Run.Director.Target.ToString("N0", Inv)
+                            + " points and you banked " + Run.Ledger.AnteEarned.ToString("N0", Inv) + ". Run score "
+                            + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ".");
                     break;
             }
         }
@@ -190,9 +193,9 @@ namespace OrbitalAnte.Tasks
             if (Menu == null || Run == null) return;
             int ante = Run.Director.Ante;
             int next = Run.Balance.TargetFor(ante + 1);
-            string body = "You banked " + Run.Ledger.AnteEarned.ToString("N0") + " of " + Run.Director.Target.ToString("N0")
-                          + ".\nRun score " + Run.Ledger.LifetimeRunScore.ToString("N0") + ".\n\n"
-                          + "Ante " + (ante + 1) + " needs " + next.ToString("N0") + " in " + Clock(Run.Balance.anteSeconds) + ".\n"
+            string body = "You banked " + Run.Ledger.AnteEarned.ToString("N0", Inv) + " of " + Run.Director.Target.ToString("N0", Inv)
+                          + ".\nRun score " + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ".\n\n"
+                          + "Ante " + (ante + 1) + " needs " + next.ToString("N0", Inv) + " in " + Clock(Run.Balance.anteSeconds) + ".\n"
                           + "The world stays as you left it: what you cleared stays cleared.";
             Menu.ShowIntermission("ANTE " + ante + " CLEARED", body, "Start ante " + (ante + 1));
         }
@@ -200,7 +203,7 @@ namespace OrbitalAnte.Tasks
         void ShowVictory()
         {
             if (Menu == null || Run == null) return;
-            Menu.ShowRunOver("ALL ANTES CLEARED", "Run score " + Run.Ledger.LifetimeRunScore.ToString("N0") + ". That is the whole run.");
+            Menu.ShowRunOver("ALL ANTES CLEARED", "Run score " + Run.Ledger.LifetimeRunScore.ToString("N0", Inv) + ". That is the whole run.");
         }
 
         /// <summary>For the pause menu: may the player end the ante now (target met, Hybrid)?</summary>
@@ -222,7 +225,7 @@ namespace OrbitalAnte.Tasks
             Streak.Clear();
             _shown = 0f;
             Audio.AudioDirector.PlayLocal("reward.multiplier");
-            Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0") + " TO BANK");
+            Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0", Inv) + " TO BANK");
             AnteBegan?.Invoke(Run.Director.Ante);
         }
 
@@ -236,7 +239,7 @@ namespace OrbitalAnte.Tasks
 
         void BuildHud()
         {
-            _canvas = UiKit.CreateCanvas("AnteHUD", transform, 9);
+            _canvas = UiKit.CreateCanvas("AnteHUD", transform, 11);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
             Color gold = Config.scoreColour;
 
@@ -345,7 +348,7 @@ namespace OrbitalAnte.Tasks
             {
                 _shownPoints = points;
                 _shownTarget = target;
-                _scoreLine.text = points.ToString("N0") + " / " + target.ToString("N0");
+                _scoreLine.text = points.ToString("N0", Inv) + " / " + target.ToString("N0", Inv);
                 float share = target > 0 ? Mathf.Clamp01(points / (float)target) : 0f;
                 ((RectTransform)_barFill.transform).sizeDelta = new Vector2(200f * share, 0f);
                 _barFill.color = points >= target ? new Color(0.55f, 1f, 0.55f) : Config.scoreColour;
@@ -358,9 +361,12 @@ namespace OrbitalAnte.Tasks
                 _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
             }
 
+            // Aboard, the ship's damage list takes this corner: the lines wait (the score still counts up).
+            bool popsShown = OrbitalAnte.Ship.Ship.Boarded == null;
             for (int i = 0; i < _pops.Length; i++)
             {
                 if (_popLeft[i] <= 0f) continue;
+                if (_pops[i].gameObject.activeSelf != popsShown) _pops[i].gameObject.SetActive(popsShown);
                 _popLeft[i] -= dt;
                 if (_popLeft[i] <= 0f) _pops[i].gameObject.SetActive(false);
                 else

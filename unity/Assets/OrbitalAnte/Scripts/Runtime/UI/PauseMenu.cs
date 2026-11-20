@@ -184,7 +184,7 @@ namespace OrbitalAnte.UI
         {
             var card = NewPage(Page.Intermission, "ANTE CLEARED", 640f);
             _interTitle = _lastHeading;
-            _interBody = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 150f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _interBody = UiKit.LayoutLabel(card, string.Empty, 19, UiKit.Cream, 210f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _interGo = UiKit.Button(card, "Start the next ante", () => { Close(); StartNextAnte?.Invoke(); });
             _defaults[Page.Intermission] = _interGo.gameObject;
             UiKit.Button(card, "Restart", () => Show(Page.Restart));
@@ -292,7 +292,6 @@ namespace OrbitalAnte.UI
             _canvas.gameObject.SetActive(true);
             _seedLabel.text = "Seed " + GameSession.Seed + "   |   " + GameSession.BuildLabel;
             UiKit.ButtonText(_sameSeedButton).text = "Restart with the same seed (" + GameSession.Seed + ")";
-            if (_endAnteButton != null) _endAnteButton.gameObject.SetActive(CanEndAnte != null && CanEndAnte());
             Show(Page.Main);
         }
 
@@ -318,6 +317,8 @@ namespace OrbitalAnte.UI
             if (_current == Page.Controls && page != Page.Controls) _controls.Close();
             foreach (var pair in _pages) pair.Value.SetActive(pair.Key == page);
             _current = page;
+            // Whether the ante can be banked is asked every time the main page shows, not only when the menu opens.
+            if (page == Page.Main && _endAnteButton != null) _endAnteButton.gameObject.SetActive(CanEndAnte != null && CanEndAnte());
 
             if (page == Page.Controls)
             {

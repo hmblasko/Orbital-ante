@@ -23,17 +23,19 @@ namespace OrbitalAnte.Tasks
         public string DescribeForDebug() => "signal mast cell " + Cell;
     }
 
-    /// <summary>The pole of a signal mast: a rover driven into it fast enough brings the whole mast down.</summary>
+    /// <summary>
+    /// The pole of a signal mast: a rover driven into it fast enough brings the whole mast down. The pole is part of
+    /// its planet's compound collider, so Unity tells the planet, not the pole: the rover reports the knock here
+    /// (MoonRover.OnCollisionEnter).
+    /// </summary>
     public sealed class MastRam : MonoBehaviour
     {
-        public float Speed = 7f;
+        public float Speed = 15f;
         [NonSerialized] public Action Rammed;
 
-        void OnCollisionEnter(Collision c)
+        public void Struck(float closingSpeed)
         {
-            if (Rammed == null || c.rigidbody == null) return;
-            if (c.rigidbody.GetComponentInParent<OrbitalAnte.Rover.MoonRover>() == null) return;
-            if (c.relativeVelocity.magnitude >= Speed) Rammed();
+            if (Rammed != null && closingSpeed >= Speed) Rammed();
         }
     }
 }

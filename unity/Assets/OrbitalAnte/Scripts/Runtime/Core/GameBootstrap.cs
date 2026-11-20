@@ -92,6 +92,7 @@ namespace OrbitalAnte.Core
             WorldOffers.ResetStatics();
             OrbitalAnte.Tasks.TaskConfig.ResetStatics();
             OrbitalAnte.Tasks.AnteLoop.ResetStatics();
+            OrbitalAnte.Tasks.TaskDirector.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -308,9 +309,9 @@ namespace OrbitalAnte.Core
                 _space = _world.AddComponent<Space.SolarSystemWorld>();
                 _space.Build(seed);
                 // The ante loop and its tasks: points toward each ante's target, and the things in the world that pay them.
-                if (_anteLoop != null)
+                if (_anteLoop != null) _anteLoop.BeginRun(seed);
+                if (_anteLoop != null && _anteLoop.Run != null)
                 {
-                    _anteLoop.BeginRun(seed);
                     var tasks = _world.AddComponent<Tasks.TaskDirector>();
                     tasks.Init(_space, _anteLoop);
                     if (_space.Map != null) _space.Map.TasksLeft = tasks.TasksLeftOn;

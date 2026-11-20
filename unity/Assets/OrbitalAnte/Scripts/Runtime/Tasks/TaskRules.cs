@@ -21,8 +21,8 @@ namespace OrbitalAnte.Tasks
         public float streakWindow = 8f;
         /// <summary>At this streak the next finished task counts as a feat (the ante rules' skill bonus).</summary>
         public int streakForFeat = 5;
-        /// <summary>A kill with a gun that made none of the last this-many kills counts as a "fresh gun" feat.</summary>
-        public int freshGunMemory = 3;
+        /// <summary>A kill from at least this far (metres from the eye) is a long shot.</summary>
+        public float longShot = 60f;
 
         // ---------------------------------------------------------------- bases
         /// <summary>Points for clearing a base's last guard, by size (small, medium, large). Scored as an optional mission.</summary>
@@ -38,15 +38,13 @@ namespace OrbitalAnte.Tasks
         /// <summary>Glowing cells on a mast; all must go to bring it down.</summary>
         public int mastCells = 3;
         /// <summary>Damage a cell takes before it breaks (a rifle round is about 20).</summary>
-        public float mastCellHealth = 45f;
+        public float mastCellHealth = 70f;
         /// <summary>While a mast stands and the player is in its reach, it calls everyone near onto the player this often.</summary>
         public float mastCallEvery = 45f;
         /// <summary>How near the player must be for the mast to call, and how far its call is heard.</summary>
         public float mastReach = 250f;
-        /// <summary>All cells broken this soon after the first counts as a feat.</summary>
-        public float mastQuickSeconds = 5f;
-        /// <summary>A rover hitting a mast at least this fast breaks every cell.</summary>
-        public float mastRamSpeed = 7f;
+        /// <summary>A rover hitting a mast at least this fast breaks every cell (it takes a run-up). Ramming is never a feat.</summary>
+        public float mastRamSpeed = 15f;
 
         // ---------------------------------------------------------------- salvage
         /// <summary>Crates of salvage per world, each near a different base.</summary>
@@ -70,8 +68,12 @@ namespace OrbitalAnte.Tasks
         public float dropReachedWithin = 6f;
         /// <summary>A pod nobody opens is gone this long after it lands.</summary>
         public float dropLasts = 240f;
-        /// <summary>Hold Interact this long at a pod to take the next gun instead of a Focus refill.</summary>
+        /// <summary>Hold Interact this long at a pod to take gun-ladder kills instead of a Focus refill.</summary>
         public float dropHoldForGun = 0.6f;
+        /// <summary>The share of the Focus meter a pod refills (Deep Breath otherwise only refills from limbs and kills).</summary>
+        public float dropFocus = 0.5f;
+        /// <summary>Kills a pod counts toward the gun ladder when held (once an ante; after that it is Focus only).</summary>
+        public int dropLadderKills = 3;
 
         // ---------------------------------------------------------------- marked targets
         /// <summary>One marked target per world that has camps.</summary>
@@ -79,7 +81,7 @@ namespace OrbitalAnte.Tasks
 
         // ---------------------------------------------------------------- landings
         /// <summary>A touchdown at this speed or less is soft enough to count as a feat.</summary>
-        public float softTouchdown = 1.5f;
+        public float softTouchdown = 0.7f;
         /// <summary>
         /// A landing counts as hard when the ground under the ship is at least this many metres above or below the
         /// average of the ground around it (a rock-tower top, a ridge, a canyon floor).
@@ -91,11 +93,30 @@ namespace OrbitalAnte.Tasks
         public float hardLandingCell = 300f;
 
         // ---------------------------------------------------------------- how many to show
-        /// <summary>The game keeps at least this many tasks lit within <see cref="nearbyReach"/> of the player.</summary>
+        /// <summary>The game lights this many of the nearest tasks within <see cref="nearbyReach"/> of the player.</summary>
         public int liveNearby = 3;
         public float nearbyReach = 1500f;
-        /// <summary>Task lights are seen from this far (they fade out closer than a few metres).</summary>
-        public float beaconSeenFrom = 4000f;
+
+        // ---------------------------------------------------------------- whole worlds
+        /// <summary>Points for clearing every base on a world (Part B section 12), as an optional mission.</summary>
+        public int worldClear = 400;
+
+        /// <summary>
+        /// Distances are first guesses for a large world; the worlds are a few hundred metres across (Earth 500 m,
+        /// the Moon 150 m), so every reach is held to a share of the world. Over the ground, not straight through it.
+        /// </summary>
+        public static float Fit(float value, double worldRadius, double share)
+        {
+            if (worldRadius <= 0) return value;
+            return (float)Math.Min(value, worldRadius * share);
+        }
+
+        public float MastReachOn(double r) => Fit(mastReach, r, 0.5);
+        public float DropHeardOn(double r) => Fit(dropHeardFrom, r, 0.5);
+        public float NearbyOn(double r) => Fit(nearbyReach, r, Math.PI);
+        /// <summary>A drop lands this far over the ground from the player: kept under a third of the way round.</summary>
+        public float DropNearOn(double r) => Fit(dropNear, r, 0.35 * Math.PI * 0.55);
+        public float DropFarOn(double r) => Fit(dropFar, r, 0.35 * Math.PI);
 
         public int BaseClearPoints(int size) => size >= 2 ? baseClearLarge : size == 1 ? baseClearMedium : baseClearSmall;
 
@@ -113,15 +134,21 @@ namespace OrbitalAnte.Tasks
     /// <summary>What the game saw about one kill, for the style check. Set by the game, never by the player.</summary>
     public struct KillFacts
     {
-        public bool headshot;
+        /// <summary>
+        /// The first hit that landed on that enemy killed it. (Not "headshot": the head is the only way to die, so
+        /// nearly every kill would be one; the gold headshot marker stays as feedback only.)
+        /// </summary>
+        public bool oneShot;
+        /// <summary>The killing hit came from at least <see cref="TaskRules.longShot"/> away.</summary>
+        public bool longShot;
         /// <summary>The player was off the ground: jetpack, a jump, floating.</summary>
         public bool airborne;
         /// <summary>Run over with the rover.</summary>
         public bool rover;
         public bool melee;
-        /// <summary>The gun that made the kill made none of the player's last few kills.</summary>
+        /// <summary>The first kill this ante with this tool, after a kill with another one (it rewards switching, once a tool).</summary>
         public bool freshGun;
-        /// <summary>For a marked target: all four limbs were off before the kill.</summary>
+        /// <summary>All four limbs were off before the kill.</summary>
         public bool takenApart;
     }
 
@@ -136,9 +163,15 @@ namespace OrbitalAnte.Tasks
         {
             int n = 0;
             label = string.Empty;
-            if (f.headshot) Add(ref n, ref label, "HEADSHOT");
+            // A splat is its own feat and only that: the rover is fast and easy, so nothing stacks on it.
+            if (f.rover)
+            {
+                label = "SPLAT";
+                return 1;
+            }
+            if (f.oneShot) Add(ref n, ref label, "ONE SHOT");
+            if (f.longShot) Add(ref n, ref label, "LONG SHOT");
             if (f.airborne) Add(ref n, ref label, "AIRBORNE");
-            if (f.rover) Add(ref n, ref label, "SPLAT");
             if (f.melee) Add(ref n, ref label, "MELEE");
             if (f.freshGun) Add(ref n, ref label, "FRESH GUN");
             if (f.takenApart) Add(ref n, ref label, "TAKEN APART");
@@ -159,31 +192,24 @@ namespace OrbitalAnte.Tasks
         }
     }
 
-    /// <summary>Which guns made the player's last few kills, for the "fresh gun" feat.</summary>
+    /// <summary>
+    /// The tools (each gun, melee, the rover) that have made a kill this ante, for the "fresh gun" feat. A tool is
+    /// fresh once an ante, and only after a kill with another tool, so cycling can earn it at most once a tool.
+    /// </summary>
     public sealed class GunFreshness
     {
-        readonly int _memory;
-        readonly List<string> _last = new List<string>();
+        readonly HashSet<string> _used = new HashSet<string>();
 
-        public GunFreshness(int memory) { _memory = Math.Max(1, memory); }
+        /// <summary>True when this tool has made no kill this ante and some other tool has.</summary>
+        public bool IsFresh(string gunId) => !string.IsNullOrEmpty(gunId) && _used.Count > 0 && !_used.Contains(gunId);
 
-        /// <summary>True when this gun made none of the remembered kills (and some kill is remembered).</summary>
-        public bool IsFresh(string gunId)
-        {
-            if (string.IsNullOrEmpty(gunId) || _last.Count == 0) return false;
-            for (int i = 0; i < _last.Count; i++) if (_last[i] == gunId) return false;
-            return true;
-        }
-
-        /// <summary>Remembers a kill. Melee and the rover count as their own "guns", so they freshen the next shot.</summary>
         public void Remember(string gunId)
         {
-            if (string.IsNullOrEmpty(gunId)) return;
-            _last.Add(gunId);
-            while (_last.Count > _memory) _last.RemoveAt(0);
+            if (!string.IsNullOrEmpty(gunId)) _used.Add(gunId);
         }
 
-        public void Clear() => _last.Clear();
+        /// <summary>A new ante: every tool is fresh again.</summary>
+        public void Clear() => _used.Clear();
     }
 
     /// <summary>Kills and finished task steps in quick succession. Lapses if you stop; never takes points away.</summary>
@@ -289,6 +315,8 @@ namespace OrbitalAnte.Tasks
         public int CellsLeft { get { int n = 0; for (int i = 0; i < _cell.Length; i++) if (_cell[i] > 0f) n++; return n; } }
         public bool Down => CellsLeft == 0;
         public float BrokenWithin { get; private set; } = float.NaN;
+        /// <summary>It has called for help at least once (bringing it down before that is the feat).</summary>
+        public bool HasCalled { get; private set; }
 
         /// <summary>Damages one cell. True when this hit brought the whole mast down.</summary>
         public bool Hit(int cell, float damage, float now)
@@ -322,6 +350,7 @@ namespace OrbitalAnte.Tasks
             if (float.IsNaN(_nextCall)) { _nextCall = now + _callEvery; return false; }
             if (now < _nextCall) return false;
             _nextCall = now + _callEvery;
+            HasCalled = true;
             return true;
         }
 
