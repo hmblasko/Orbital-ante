@@ -296,7 +296,8 @@ namespace OrbitalAnte.Tasks
         void OnEnemyDown(EnemySpawner.EnemyDown e)
         {
             Mannequin who = e.Who;
-            bool marked = who != null && _marked.TryGetValue(who, out GameObject glow);
+            GameObject glow = null;
+            bool marked = who != null && _marked.TryGetValue(who, out glow);
             if (marked)
             {
                 if (glow != null) Destroy(glow);
