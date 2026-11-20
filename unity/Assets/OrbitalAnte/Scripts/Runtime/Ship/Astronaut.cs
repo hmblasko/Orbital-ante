@@ -194,10 +194,14 @@ namespace OrbitalAnte.Ship
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
             a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
-            // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
+            // Measured from the boots. The boots are the lowest point of the suit's capsule and never honestly
+            // below the ground (on a slope they stand a little above it), and the ground checked is the real,
+            // built one, so a quarter of a metre deep is already sunk (about where the check for ground under the
+            // feet stops finding it). You are put back standing just on it, not dropped from a height. (It was
+            // knee deep when the check used the ideal ground, which could be a metre off.)
             a._suitGravity.NeedsGround = true;
-            a._suitGravity.SunkBelow = -0.7f;
-            a._suitGravity.PutBackAt = 0.25f;
+            a._suitGravity.SunkBelow = -0.25f;
+            a._suitGravity.PutBackAt = 0.2f;
             suitGo.SetActive(false);
             a.SuitDials = SuitConfig.Load();
             a.SuitTanks = new SuitSupplies(a.SuitDials.rules);

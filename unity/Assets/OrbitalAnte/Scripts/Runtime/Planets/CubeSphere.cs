@@ -50,6 +50,18 @@ namespace OrbitalAnte.Planets
             v = Math.Atan(Vec3d.Dot(direction, AxisV[face]) / along) / QuarterPi;
         }
 
+        /// <summary>
+        /// Where a direction falls on a given face's grid, even a little past that face's edge (u or v beyond
+        /// plus or minus one). For a point on a tile at a cube edge, measured on the tile's own face.
+        /// </summary>
+        public static void LocateOn(Vec3d direction, int face, out double u, out double v)
+        {
+            double along = Vec3d.Dot(direction, Normal[face]);
+            if (along < 1e-12) along = 1e-12;
+            u = Math.Atan(Vec3d.Dot(direction, AxisU[face]) / along) / QuarterPi;
+            v = Math.Atan(Vec3d.Dot(direction, AxisV[face]) / along) / QuarterPi;
+        }
+
         /// <summary>Length of one face's edge on a ball of the given radius, in metres.</summary>
         public static double FaceSize(double radius) => radius * Math.PI * 0.5;
 
