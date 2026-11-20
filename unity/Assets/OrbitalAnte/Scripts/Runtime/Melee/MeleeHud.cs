@@ -72,7 +72,9 @@ namespace OrbitalAnte.Melee
             _heatFill.pivot = new Vector2(0f, 0.5f);
             _heatFill.anchoredPosition = Vector2.zero;
             _heatFill.sizeDelta = new Vector2(0f, 0f);
-            _heatImage = UiKit.AddImage(_heatFill, Cool);
+            // White here: the bar's colour is set through its renderer each frame, which multiplies with this.
+            _heatImage = UiKit.AddImage(_heatFill, Color.white);
+            _heatImage.canvasRenderer.SetColor(Cool);
 
             _note = UiKit.Label(_canvas.transform, string.Empty, 15, Mark, TextAnchor.MiddleCenter);
             UiKit.Pin((RectTransform)_note.transform, new Vector2(0.5f, 0f), new Vector2(0f, 250f), new Vector2(760f, 22f));
@@ -115,7 +117,8 @@ namespace OrbitalAnte.Melee
                 // Only when the bar's width changes by a whole pixel, so the canvas is not rebuilt every frame.
                 float width = Mathf.Round(140f * Mathf.Clamp01(heat));
                 if (!Mathf.Approximately(_heatFill.sizeDelta.x, width)) _heatFill.sizeDelta = new Vector2(width, 0f);
-                _heatImage.color = locked ? Hot : Color.Lerp(Cool, Hot, heat);
+                // Through the renderer, so a changing colour does not rebuild the bar's mesh every frame.
+                _heatImage.canvasRenderer.SetColor(locked ? Hot : Color.Lerp(Cool, Hot, heat));
             }
 
             MeleeItem about = looked != null ? looked : held;

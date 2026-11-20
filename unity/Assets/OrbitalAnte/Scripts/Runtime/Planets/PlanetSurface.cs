@@ -35,6 +35,13 @@ namespace OrbitalAnte.Planets
             public Mesh Mesh;
             /// <summary>The ground's triangles without the skirts, for the collider (see ChunkData.GroundIndexCount).</summary>
             public Mesh ColliderMesh;
+            /// <summary>
+            /// The tile's triangles (ground first, then skirts) and how many are ground, kept until the tile turns
+            /// solid: most tiles never do, so the collider's shape is only built then (<see cref="FillColliderMesh"/>).
+            /// Null once the collider mesh matches the shown mesh.
+            /// </summary>
+            public int[] ColliderTriangles;
+            public int ColliderIndexCount;
             public MeshCollider Collider;
             public bool Solid;
             public bool HasMesh;
@@ -692,10 +699,27 @@ namespace OrbitalAnte.Planets
         void MakeSolid(Node n)
         {
             if (n.Collider == null) n.Collider = n.Go.AddComponent<MeshCollider>();
+            bool refilled = FillColliderMesh(n);
             Mesh shape = n.ColliderMesh != null ? n.ColliderMesh : n.Mesh;
+            // A mesh changed in place is only re-read by the collider when it is handed over again.
+            if (refilled && n.Collider.sharedMesh == shape) n.Collider.sharedMesh = null;
             if (n.Collider.sharedMesh != shape) n.Collider.sharedMesh = shape;
             n.Collider.enabled = true;
             n.Solid = true;
+        }
+
+        /// <summary>Builds the tile's collider shape from its shown mesh, once per new shape. True when it did.</summary>
+        bool FillColliderMesh(Node n)
+        {
+            if (n.ColliderTriangles == null || n.Mesh == null) return false;
+            if (n.ColliderMesh == null) n.ColliderMesh = new Mesh { name = "GroundCollider" };
+            n.ColliderMesh.Clear();
+            VertexBuffer.Clear();
+            n.Mesh.GetVertices(VertexBuffer);
+            n.ColliderMesh.SetVertices(VertexBuffer);
+            n.ColliderMesh.SetTriangles(n.ColliderTriangles, 0, n.ColliderIndexCount, 0, true);
+            n.ColliderTriangles = null;
+            return true;
         }
 
         // ------------------------------------------------------------------ tiles
@@ -811,12 +835,16 @@ namespace OrbitalAnte.Planets
             n.Mesh.SetUVs(0, DirectionBuffer);
             n.Mesh.SetColors(ColorBuffer);
             n.Mesh.SetTriangles(chunk.Triangles, 0, true);
-            if (n.ColliderMesh == null) n.ColliderMesh = new Mesh { name = "GroundCollider" };
-            n.ColliderMesh.Clear();
-            n.ColliderMesh.SetVertices(VertexBuffer);
-            n.ColliderMesh.SetTriangles(chunk.Triangles, 0, chunk.GroundIndexCount, 0, true);
-            // A tile being rebuilt while solid takes its new shape at once (MakeSolid assigns it otherwise).
-            if (n.Collider != null && n.Collider.enabled) n.Collider.sharedMesh = n.ColliderMesh;
+            // The collider's shape (the ground without its skirts) is built only when the tile turns solid, since
+            // most tiles never do. A tile being rebuilt while solid takes its new shape at once.
+            n.ColliderTriangles = chunk.Triangles;
+            n.ColliderIndexCount = chunk.GroundIndexCount;
+            if (n.Collider != null && n.Collider.enabled)
+            {
+                FillColliderMesh(n);
+                n.Collider.sharedMesh = null;
+                n.Collider.sharedMesh = n.ColliderMesh;
+            }
             n.HasMesh = true;
             n.RequiredCaves = build.RequiredCaves;
 

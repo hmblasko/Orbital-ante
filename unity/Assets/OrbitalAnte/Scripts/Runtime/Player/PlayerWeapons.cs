@@ -37,8 +37,24 @@ namespace OrbitalAnte.Player
         public Weapon Current { get; private set; }
         /// <summary>When the player last fired (Time.time), for how far off a shot is heard.</summary>
         public float LastShotTime { get; private set; } = -100f;
-        /// <summary>What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable.</summary>
-        public IHittable AimedAt { get; private set; }
+        /// <summary>
+        /// What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable. Only the F3
+        /// debug line reads it, so the ray is cast when it is asked for (at most once a frame), not every frame.
+        /// </summary>
+        public IHittable AimedAt
+        {
+            get
+            {
+                if (_aimedFrame != Time.frameCount)
+                {
+                    _aimedFrame = Time.frameCount;
+                    _aimedAt = FindAimed();
+                }
+                return _aimedAt;
+            }
+        }
+        IHittable _aimedAt;
+        int _aimedFrame = -1;
         /// <summary>A dropped gun close enough to pick up, or null.</summary>
         public Weapon NearbyPickup { get; private set; }
         /// <summary>How good a pick-up <see cref="NearbyPickup"/> is (lower is better: degrees off the view plus ten a metre).</summary>
@@ -75,6 +91,12 @@ namespace OrbitalAnte.Player
         /// astronaut; a gun handed over later follows it.
         /// </summary>
         public bool Indoors { get; set; }
+
+        /// <summary>
+        /// Where the view's kick goes when there is no arena <see cref="FpsController"/> (the astronaut in the real
+        /// game). Null means no kick.
+        /// </summary>
+        public ViewRecoil Recoil { get; set; }
 
         /// <summary>
         /// The gun the run itself gave the player (the starting gun, or the gun ladder's latest), as the object.
@@ -229,7 +251,6 @@ namespace OrbitalAnte.Player
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            UpdateAim();
             UpdatePickup();
 
             bool canAct = _health == null || _health.Alive;
@@ -252,15 +273,16 @@ namespace OrbitalAnte.Player
             }
         }
 
-        void UpdateAim()
+        IHittable FindAimed()
         {
-            AimedAt = null;
+            if (_eye == null) return null;
             float range = Current != null ? Current.Data.range : 100f;
             var ray = new Ray(_eye.transform.position, _eye.transform.forward);
             if (Physics.Raycast(ray, out RaycastHit hit, range, Layers.ShootMask, QueryTriggerInteraction.Ignore))
             {
-                AimedAt = hit.collider.GetComponentInParent<IHittable>();
+                return hit.collider.GetComponentInParent<IHittable>();
             }
+            return null;
         }
 
         void UpdatePickup()
@@ -343,6 +365,10 @@ namespace OrbitalAnte.Player
                 if (_controller != null)
                 {
                     _controller.AddRecoil(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
+                }
+                else if (Recoil != null)
+                {
+                    Recoil.Kick(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
                 }
                 _kick = 1f;
             }
