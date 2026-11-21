@@ -70,9 +70,12 @@ namespace OrbitalAnte.UI
         Page _confirmReturn = Page.Main;
 
         public bool IsOpen => _current != Page.None;
+        /// <summary>The game's pause menu, once built (the star chart asks whether it is open before un-pausing).</summary>
+        public static PauseMenu Instance { get; private set; }
 
         public void Build(Transform uiRoot)
         {
+            Instance = this;
             _canvas = UiKit.CreateCanvas("PauseMenu", uiRoot, 100);
 
             var dim = UiKit.NewRect("Dim", _canvas.transform);
@@ -477,6 +480,8 @@ namespace OrbitalAnte.UI
         {
             if (GameSession.Mode != GameMode.Playing || GameInput.Asset == null) return;
             if (_controls.IsRebinding || Time.unscaledTime < _controls.InputBlockedUntil) return;
+            // The upgrade screen handles its own Back; the press that closed it must not open this menu too.
+            if (StarChartView.Showing || StarChartView.ClosedFrame == Time.frameCount) return;
 
             bool pausePressed = GameInput.Pause.WasPressedThisFrame();
 

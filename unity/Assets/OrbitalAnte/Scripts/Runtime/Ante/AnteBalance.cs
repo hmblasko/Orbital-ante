@@ -181,6 +181,10 @@ namespace OrbitalAnte.Ante
 
         // ---- Attributes ----
         public int maxAttributeLevel = 4;
+        /// <summary>Shop prices are multiplied by the ante's value scale, like every award (21 Nov 2026).</summary>
+        public bool shopPricesFollowValue = true;
+        /// <summary>First perk reroll's price at ante 1 (times the ante's value, doubling each time; 0 turns rerolls off).</summary>
+        public int perkRerollPrice = 150;
         public int[] damagePrices = { 250, 450, 700, 1000 };
         public int[] movementPrices = { 250, 450, 700, 1000 };
         public int[] oxygenPrices = { 200, 350, 550, 800 };
@@ -230,7 +234,9 @@ namespace OrbitalAnte.Ante
         /// <summary>Each hazard's own points multiplier (design review, 20 Nov 2026: the costs differ), held to riskMax.</summary>
         public float huntedRisk = 1.25f;
         public float thinAirRisk = 1.10f;
-        public float shortFuseRisk = 1.25f;
+        public float shortFuseRisk = 1.20f;
+        /// <summary>Thin Air: health comes back at this share of its usual speed (21 Nov 2026: none at all was a trap in the run simulator).</summary>
+        public float thinAirRegen = 0.5f;
         /// <summary>How much more likely a perk of a family the player already holds is to be offered (2 is twice as likely).</summary>
         public float heldFamilyWeight = 2f;
         /// <summary>Short fuse: seconds taken off the ante.</summary>

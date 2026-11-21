@@ -10,11 +10,20 @@ namespace OrbitalAnte.Ante
     {
         readonly AnteBalance _balance;
         readonly int[] _levels = new int[4];
+        readonly Func<int> _ante;
 
-        public AttributeShop(AnteBalance balance)
+        /// <param name="ante">The ante now, so prices follow what points are worth (21 Nov 2026). Null keeps the listed prices.</param>
+        public AttributeShop(AnteBalance balance, Func<int> ante = null)
         {
             _balance = balance;
+            _ante = ante;
         }
+
+        /// <summary>
+        /// What prices are multiplied by: the ante's value scale K, so a level costs the same effort in every ante
+        /// (21 Nov 2026: the run simulator found points piling up far past anything the shop sold by ante 6).
+        /// </summary>
+        public float PriceScale => _ante == null || !_balance.shopPricesFollowValue ? 1f : (float)ScoreMath.ValueScale(_balance, Math.Max(1, _ante()));
 
         public int Level(PlayerAttribute attribute) => _levels[(int)attribute];
 
@@ -29,7 +38,10 @@ namespace OrbitalAnte.Ante
         /// <summary>Price of the next level, or -1 if there is none.</summary>
         public int NextPrice(PlayerAttribute attribute)
         {
-            return IsMaxed(attribute) ? -1 : _balance.PricesFor(attribute)[Level(attribute)];
+            if (IsMaxed(attribute)) return -1;
+            int listed = _balance.PricesFor(attribute)[Level(attribute)];
+            float scale = PriceScale;
+            return scale <= 1f ? listed : (int)(Math.Round(listed * scale / 10.0, MidpointRounding.AwayFromZero) * 10);
         }
 
         /// <summary>Buys one level from the wallet. The ante score and the leaderboard score are not touched.</summary>

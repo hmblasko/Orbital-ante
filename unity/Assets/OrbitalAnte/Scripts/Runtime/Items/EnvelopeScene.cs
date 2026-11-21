@@ -211,7 +211,7 @@ namespace OrbitalAnte.Items
 
             float words = Smooth(0.35f, 0.95f, t);
             Text(items, "header", "THIS RUN'S ENVELOPE", 640f, 96f, 900f, 30f, 18, Muted, words, bold: true);
-            Text(items, "rule", "Sealed until you clear Ante 9.", 640f, 650f, 1000f, 40f, 28, Cream, Smooth(0.6f, 1.2f, t), bold: true);
+            Text(items, "rule", "Opens when you clear Ante 9. A run that ends sooner leaves it sealed.", 640f, 650f, 1100f, 40f, 24, Cream, Smooth(0.6f, 1.2f, t), bold: true);
             Text(items, "odds", show.oddsLine, 640f, 694f, 1200f, 28f, 17, Cream, Smooth(0.8f, 1.4f, t));
             Text(items, "prompt", show.prompt, 640f, 748f, 1000f, 26f, 16, Muted,
                 Smooth(1.2f, 1.8f, t) * (0.6f + 0.3f * (float)Math.Sin(t * 3f)));

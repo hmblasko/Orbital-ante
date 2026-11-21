@@ -12,7 +12,7 @@ namespace OrbitalAnte.Core
     /// - System: pause and debug keys. Fixed, so the player can never lock themselves out of the menu.
     /// - UI: menu navigation.
     ///
-    /// Select/View on the controller is deliberately left unbound: it is reserved for the end-of-ante upgrade screen.
+    /// Select/View on the controller opens the upgrade screen on foot (Upgrades); in the seat it is Floodlights.
     /// </summary>
     public static class GameInput
     {
@@ -48,6 +48,8 @@ namespace OrbitalAnte.Core
         public static InputAction DeepBreath { get; private set; }
         /// <summary>Swings the melee item in hand (found, never issued). Its pad button is Roll Right while floating free.</summary>
         public static InputAction Melee { get; private set; }
+        /// <summary>Opens the upgrade screen on foot once the ante's target is met (21 Nov 2026).</summary>
+        public static InputAction Upgrades { get; private set; }
 
         /// <summary>Flying controls. Rebindable, like Gameplay, and shown in the controls menu while flying.</summary>
         public static InputActionMap Flight { get; private set; }
@@ -181,6 +183,9 @@ namespace OrbitalAnte.Core
             Melee = AddButton(Gameplay, "Melee", "<Keyboard>/v", "<Gamepad>/rightShoulder");
             // A second keyboard-and-mouse slot needs its own name, or saved rebinds could not tell the two apart.
             Melee.AddBinding("<Mouse>/backButton", groups: KeyboardMouseGroup).WithName("Mouse");
+            // The upgrade screen (21 Nov 2026): Select was kept for it from the start (Part B section 2). Added last,
+            // so saved rebinds of the actions above keep their places. In the seat Select is still Floodlights.
+            Upgrades = AddButton(Gameplay, "Upgrades", "<Keyboard>/tab", "<Gamepad>/select");
 
             // ---------- Flight (rebindable) ----------
             Flight = Asset.AddActionMap("Flight");

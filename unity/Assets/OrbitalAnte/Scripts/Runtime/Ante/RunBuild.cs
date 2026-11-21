@@ -53,7 +53,7 @@ namespace OrbitalAnte.Ante
                 P("frequent_flyer", "Frequent Flyer", PerkRarity.Common, PerkFamily.Pilot,
                     new PerkEffect(ScoreEventKind.NewPlanet, null, 0.20f), new PerkEffect(ScoreEventKind.NewMoon, null, 0.20f),
                     new PerkEffect(ScoreEventKind.DifficultLanding, null, 0.20f)),
-                P("fleet_foot", "Fleet Foot", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.MoveSpeed, 0.12f), E(PerkStat.IncomingDamage, 0.05f)),
+                P("fleet_foot", "Fleet Foot", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.MoveSpeed, 0.12f), E(PerkStat.IncomingDamage, 0.03f)),
                 P("on_the_clock", "On the Clock", PerkRarity.Rare, PerkFamily.Pilot, E(PerkStat.LandingTimeBack, 12f)),
 
                 // ---- Daredevil: risk for reward ----
@@ -61,10 +61,10 @@ namespace OrbitalAnte.Ante
                 {
                     id = "perk.glass_cannon", displayName = "Glass Cannon", rarity = PerkRarity.Uncommon, family = PerkFamily.Daredevil,
                     tags = new[] { "Daredevil" },
-                    effects = new[] { E(PerkStat.WeaponDamage, 0.20f), E(PerkStat.MaxHp, -0.15f) },
+                    effects = new[] { E(PerkStat.WeaponDamage, 0.20f), E(PerkStat.MaxHp, -0.10f) },
                 },
                 P("last_stand", "Last Stand", PerkRarity.Uncommon, PerkFamily.Daredevil, E(PerkStat.LowHealthDamage, 0.30f)),
-                P("no_brakes", "No Brakes", PerkRarity.Common, PerkFamily.Daredevil, E(PerkStat.MoveSpeed, 0.15f), E(PerkStat.IncomingDamage, 0.10f)),
+                P("no_brakes", "No Brakes", PerkRarity.Common, PerkFamily.Daredevil, E(PerkStat.MoveSpeed, 0.15f), E(PerkStat.IncomingDamage, 0.06f)),
                 P("all_in", "All In", PerkRarity.Rare, PerkFamily.Daredevil,
                     new PerkEffect(ScoreEventKind.EnemyTier1, "kill", 0.20f), E(PerkStat.RegenRate, -0.40f)),
 
@@ -75,7 +75,7 @@ namespace OrbitalAnte.Ante
                     effects = new[] { new PerkEffect(PerkStat.ChainScoreBonus, 0.10f) },
                 },
                 P("thick_skin", "Thick Skin", PerkRarity.Common, PerkFamily.None, E(PerkStat.MaxHp, 0.15f), E(PerkStat.MoveSpeed, -0.05f)),
-                P("quick_mend", "Quick Mend", PerkRarity.Common, PerkFamily.None, E(PerkStat.RegenRate, 0.30f), E(PerkStat.MaxHp, -0.05f)),
+                P("quick_mend", "Quick Mend", PerkRarity.Common, PerkFamily.None, E(PerkStat.RegenRate, 0.40f)),
             };
         }
     }
@@ -132,7 +132,7 @@ namespace OrbitalAnte.Ante
         None = 0,
         /// <summary>Enemies react and aim sharper, and more of them are the heavy kind.</summary>
         Hunted = 1,
-        /// <summary>Health does not come back by itself (kills, perks and the ship still heal).</summary>
+        /// <summary>Health comes back by itself more slowly (<see cref="AnteBalance.thinAirRegen"/>); kills, perks and the ship still heal.</summary>
         ThinAir = 2,
         /// <summary>The ante is a minute shorter.</summary>
         ShortFuse = 3,
@@ -158,9 +158,9 @@ namespace OrbitalAnte.Ante
             switch (hazard)
             {
                 case Hazard.Hunted:
-                    return "enemies react and aim " + Percent(1f - balance.huntedSharpness) + " sharper, and 1 in "
-                           + Math.Max(1, (int)Math.Round(1.0 / Math.Max(0.01f, balance.huntedHeavyShare))) + " more plain enemies come as heavies";
-                case Hazard.ThinAir: return "health does not come back by itself; kills, perks and the ship still heal";
+                    return "enemies react and aim " + Percent(1f - balance.huntedSharpness) + " sharper, and a further "
+                           + Percent(balance.huntedHeavyShare) + " of plain enemies come as heavies";
+                case Hazard.ThinAir: return "health comes back at " + Percent(balance.thinAirRegen) + " of its usual speed";
                 case Hazard.ShortFuse: return "the ante is " + Clock(balance.anteSeconds - balance.shortFuseSeconds) + " instead of " + Clock(balance.anteSeconds);
                 default: return "play the ante as it comes";
             }
@@ -314,7 +314,8 @@ namespace OrbitalAnte.Ante
             m.CloseIncoming = Math.Max(0.2f, 1f + all.StatTotal(PerkStat.CloseRangeDefence, balance));
             m.MaxHealth = Math.Max(0.3f, 1f + all.StatTotal(PerkStat.MaxHp, balance));
             m.Regen = Math.Max(0f, 1f + all.StatTotal(PerkStat.RegenRate, balance));
-            m.NoRegen = hazard == Hazard.ThinAir;
+            if (hazard == Hazard.ThinAir) m.Regen *= Math.Max(0f, balance.thinAirRegen);
+            m.NoRegen = hazard == Hazard.ThinAir && balance.thinAirRegen <= 0f;
             m.Move = Math.Max(0.5f, (1f + all.StatTotal(PerkStat.MoveSpeed, balance)) * (attributes != null ? attributes.MovementMultiplier : 1f));
             m.Oxygen = attributes != null ? Math.Max(1f, attributes.OxygenMultiplier) : 1f;
             m.FocusGain = Math.Max(0f, 1f + all.StatTotal(PerkStat.FocusGain, balance));
