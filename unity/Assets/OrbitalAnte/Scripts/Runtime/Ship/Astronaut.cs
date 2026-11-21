@@ -87,11 +87,14 @@ namespace OrbitalAnte.Ship
         /// <summary>Walking pace outside as a share of normal, for carrying a crate of salvage (the ante tasks set it).</summary>
         public static float CarryPace = 1f;
         public static void ResetStatics() { OnDeath = null; CarryPace = 1f; Current = null; }
-
-        /// <summary>The player's astronaut in the solar system, or null (the arena, the title screen).</summary>
+        /// <summary>The player of the run going now, or null (the arena, the title screen).</summary>
         public static Astronaut Current { get; private set; }
-        /// <summary>True while the player is dying (the burst's hold before the death page): menus that spend stay shut.</summary>
-        public static bool Dying => Current != null && Current.Dead;
+        /// <summary>The player is dead or dying (the burst plays before the death page): nothing may be banked or picked.</summary>
+        public static bool PlayerDown => Current != null && Current.Dead;
+        /// <summary>Strapped into the seat, where Select is the floodlights and the Gameplay map is off.</summary>
+        public static bool PlayerSeated => Current != null && Current.Mode == AstronautMode.Seated;
+        /// <summary>Inside the ship (seat, cabin or lift), where the ship's damage list fills the top right.</summary>
+        public static bool PlayerInShip => Current != null && (Current.Mode == AstronautMode.Seated || Current.Mode == AstronautMode.Aboard || Current.Mode == AstronautMode.Lift);
         /// <summary>Outside and off the ground: on the jets, jumping, floating. (For the style kills.)</summary>
         public bool Airborne => Mode == AstronautMode.Outside && !_grounded;
         float _dazed, _deadFor;
@@ -138,6 +141,8 @@ namespace OrbitalAnte.Ship
         Quaternion _viewLocal = Quaternion.identity;
         // The gun's kick on the view (PlayerWeapons kicks it; ReadLookRaw turns the head by it).
         readonly OrbitalAnte.Player.ViewRecoil _recoil = new OrbitalAnte.Player.ViewRecoil();
+        // Controller aim assist (Player/AimAssist): only ever slows the sticks over an enemy.
+        readonly AimAssist _aimAssist = new AimAssist();
         bool _mendingNow;
         Vector3 _jetLocal;
         static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
@@ -294,7 +299,7 @@ namespace OrbitalAnte.Ship
         {
             Mode = mode;
             // Sitting down or taking the wheel ends any kick still settling (no gun in those hands).
-            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) _recoil.Clear();
+            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) { _recoil.Clear(); _aimAssist.Clear(); }
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
@@ -720,7 +725,8 @@ namespace OrbitalAnte.Ship
             yawDelta = kickRight;
             pitchDelta = -kickUp;
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
-            if (look.sqrMagnitude <= 0f) return;
+            // A stick let go starts its next push with no slowdown left over.
+            if (look.sqrMagnitude <= 0f) { _aimAssist.Clear(); return; }
             InputControl control = GameInput.Look.activeControl;
             if (control != null && control.device is Pointer)
             {
@@ -735,9 +741,21 @@ namespace OrbitalAnte.Ship
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 // Your own head does not slow when the world does (hitstop, Deep Breath).
                 float own = TimeFlow.PlayerDelta(dt);
-                yawDelta += shaped.x * _look.stickYawSpeed * own;
-                pitchDelta += -shaped.y * _look.stickPitchSpeed * own;
+                // Over an enemy the sticks turn a little slower, so a thumb can stop on it (never a pull).
+                float assist = AimAssistScale(own);
+                yawDelta += shaped.x * _look.stickYawSpeed * own * assist;
+                pitchDelta += -shaped.y * _look.stickPitchSpeed * own * assist;
             }
+        }
+
+        /// <summary>What the sticks' turning is multiplied by this frame: below 1 only over an enemy, with a gun out.</summary>
+        float AimAssistScale(float dt)
+        {
+            AimAssistRules rules = _look.aimAssist.Safe();
+            bool armed = Weapons != null && Weapons.enabled && Weapons.Current != null;
+            bool on = rules.enabled && FeelSettings.AimAssist && armed && (Mode == AstronautMode.Aboard || Mode == AstronautMode.Outside);
+            float closeness = on ? AimAssistProbe.BestCloseness(Eye.transform, Weapons.Current.Data.range, rules) : 0f;
+            return _aimAssist.Step(dt, closeness, rules);
         }
 
         void UpdateAboard(float dt)

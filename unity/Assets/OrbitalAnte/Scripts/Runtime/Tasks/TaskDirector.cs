@@ -157,6 +157,12 @@ namespace OrbitalAnte.Tasks
         readonly List<Beacon> _pool = new List<Beacon>();
         bool _raising;
 
+        /// <summary>
+        /// Set while the game itself raises an alarm the player did not cause (overtime's hunt), so no base loses its
+        /// QUIET clear for it. Set it, raise, clear it, all in one call.
+        /// </summary>
+        public static bool SystemAlarm;
+
         float Now => _loop != null ? _loop.PlayTime : Time.time;
         bool Scoring => _loop != null && _loop.Running;
 
@@ -383,7 +389,7 @@ namespace OrbitalAnte.Tasks
 
         void OnAlarm(Vector3 at, float radius, Vector3 playerAt, string faction)
         {
-            if (_raising) return;
+            if (_raising || SystemAlarm) return;
             WorldTasks w = Here(out _);
             if (w == null) return;
             Vector3 local = w.Frame.InverseTransformPoint(at);

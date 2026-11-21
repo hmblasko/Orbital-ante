@@ -121,6 +121,7 @@ namespace OrbitalAnte.Tasks
             _shownSeconds = _shownAnte = _shownTarget = _shownStreak = _shownPoints = -1;
             for (int i = 0; i < _pops.Length; i++) { _popLeft[i] = 0f; _pops[i].gameObject.SetActive(false); }
             _noteLeft = 0f;
+            if (_noteLine != null) _noteLine.gameObject.SetActive(false);
             _shownPerkReady = false;
             _perkLine.gameObject.SetActive(false);
             _shownTickX = -1f;
@@ -193,7 +194,8 @@ namespace OrbitalAnte.Tasks
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
             bool held = HoldClock != null && HoldClock();
-            Run.Tick(dt, paused || held);
+            // While the player's burst plays before the death page the clock stops: the run is already lost.
+            Run.Tick(dt, paused || held || OrbitalAnte.Ship.Astronaut.PlayerDown);
             UpdateOvertime(dt, paused);
 
             AntePhase phase = Run.Director.Phase;
@@ -214,7 +216,7 @@ namespace OrbitalAnte.Tasks
                 Audio.AudioDirector.PlayLocal("reward.tier2");
                 // In the seat Select is Floodlights, so the note says the pick waits for you on foot.
                 Note(Run.Director.PerkEarnedEarly
-                    ? "TARGET MET: perk ready (" + GameInput.Describe(GameInput.Upgrades) + (OrbitalAnte.Ship.Ship.Boarded != null ? " on foot" : "")
+                    ? "TARGET MET: perk ready (" + GameInput.Describe(GameInput.Upgrades) + (OrbitalAnte.Ship.Astronaut.PlayerSeated ? " on foot" : "")
                       + "). Bank from the pause menu, or keep scoring"
                     : "TARGET MET: bank it from the pause menu, or keep scoring");
             }
@@ -224,8 +226,8 @@ namespace OrbitalAnte.Tasks
             bool upgradesPressed = GameInput.Upgrades != null && GameInput.Upgrades.WasPressedThisFrame()
                 && !StarChartView.Showing && StarChartView.ClosedFrame != Time.frameCount;
             if (Menu == null || !Menu.IsOpen) _fieldPage = false;
-            if (!paused && upgradesPressed && Run.Director.IsRunning && OrbitalAnte.Ship.Ship.Boarded == null
-                && !OrbitalAnte.Ship.Astronaut.Dying && Menu != null && !Menu.IsOpen)
+            if (!paused && upgradesPressed && Run.Director.IsRunning && !OrbitalAnte.Ship.Astronaut.PlayerSeated
+                && !OrbitalAnte.Ship.Astronaut.PlayerDown && Menu != null && !Menu.IsOpen)
                 ShowFieldUpgrades();
             // The same button closes the field page it opened, as it closes the star chart.
             else if (upgradesPressed && _fieldPage && Menu != null && Menu.IsOpen && _fieldPageFrame != Time.frameCount)
@@ -259,8 +261,14 @@ namespace OrbitalAnte.Tasks
             if (eye == null) return;
             _huntIn = Mathf.Max(3f, Run.Balance.overtimeHuntEvery);
             float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
-            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
-            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
+            // The player did not trip this one, so it never spoils a base's QUIET clear.
+            TaskDirector.SystemAlarm = true;
+            try
+            {
+                AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
+                AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
+            }
+            finally { TaskDirector.SystemAlarm = false; }
         }
 
         void OnPhase(AntePhase phase)
@@ -321,7 +329,7 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>For the pause menu: may the player end the ante now (target met, Hybrid)?</summary>
-        public bool CanEndAnte() => Run != null && Run.Director.CanAdvance;
+        public bool CanEndAnte() => Run != null && Run.Director.CanAdvance && !OrbitalAnte.Ship.Astronaut.PlayerDown;
 
         /// <summary>For the pause menu: the player confirmed ending the ante now.</summary>
         public void EndAnteNow()
@@ -414,7 +422,7 @@ namespace OrbitalAnte.Tasks
             _noteLine = UiKit.Label(_canvas.transform, string.Empty, 18, gold, TextAnchor.MiddleCenter);
             UiKit.Pin((RectTransform)_noteLine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f), new Vector2(900f, 26f));
             UiKit.Halo(_noteLine, true);
-            _noteLine.gameObject.SetActive(false);
+            if (_noteLine != null) _noteLine.gameObject.SetActive(false);
 
             _canvas.gameObject.SetActive(false);
         }
@@ -533,7 +541,7 @@ namespace OrbitalAnte.Tasks
                 _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
             }
 
-            bool perkReady = d.PerkEarnedEarly && OrbitalAnte.Ship.Ship.Boarded == null;
+            bool perkReady = d.PerkEarnedEarly && !OrbitalAnte.Ship.Astronaut.PlayerInShip;
             bool pad = GameInput.UsingGamepad;
             if (perkReady != _shownPerkReady || (perkReady && pad != _shownPerkPad))
             {
@@ -544,7 +552,7 @@ namespace OrbitalAnte.Tasks
             }
 
             // Aboard, the ship's damage list takes this corner: the lines wait (the score still counts up).
-            bool popsShown = OrbitalAnte.Ship.Ship.Boarded == null;
+            bool popsShown = !OrbitalAnte.Ship.Astronaut.PlayerInShip;
             for (int i = 0; i < _pops.Length; i++)
             {
                 if (_popLeft[i] <= 0f) continue;

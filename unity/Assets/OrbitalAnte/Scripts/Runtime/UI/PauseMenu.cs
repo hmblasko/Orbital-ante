@@ -139,6 +139,7 @@ namespace OrbitalAnte.UI
             _defaults[Page.Feel] = Toggle(card, "Hitstop on limb pops", () => FeelSettings.Hitstop, v => FeelSettings.Hitstop = v).gameObject;
             Toggle(card, "Camera shake", () => FeelSettings.CameraShake, v => FeelSettings.CameraShake = v);
             Toggle(card, "Slow-mo on headshot kills", () => FeelSettings.HeadshotSlowMo, v => FeelSettings.HeadshotSlowMo = v);
+            Toggle(card, "Aim assist (controller)", () => FeelSettings.AimAssist, v => FeelSettings.AimAssist = v);
             Toggle(card, "Tips for new players", () => FeelSettings.GuideTips, v => FeelSettings.GuideTips = v);
             UiKit.Button(card, "Back", () => Show(Page.Main));
         }

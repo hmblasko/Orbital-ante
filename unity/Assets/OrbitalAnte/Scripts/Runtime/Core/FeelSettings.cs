@@ -11,6 +11,14 @@ namespace OrbitalAnte.Core
         const string ShakeKey = "oa.feel.shake";
         const string SlowMoKey = "oa.feel.headshotSlowMo";
         const string TipsKey = "oa.feel.guideTips";
+        const string AimAssistKey = "oa.feel.aimAssist";
+
+        /// <summary>Controller aim assist (the sticks slow a little over an enemy). On until the player turns it off.</summary>
+        public static bool AimAssist
+        {
+            get => PlayerPrefs.GetInt(AimAssistKey, 1) != 0;
+            set => Set(AimAssistKey, value);
+        }
 
         public static bool Hitstop
         {

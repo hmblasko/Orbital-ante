@@ -293,7 +293,7 @@ namespace OrbitalAnte.Tasks
 
         void ShowFieldUpgrades(int keepSlot)
         {
-            if (Menu == null || Run == null || !Run.Director.IsRunning || OrbitalAnte.Ship.Astronaut.Dying) { Menu?.Close(); return; }
+            if (Menu == null || Run == null || !Run.Director.IsRunning || OrbitalAnte.Ship.Astronaut.PlayerDown) { Menu?.Close(); return; }
             AnteDirector d = Run.Director;
             var body = new StringBuilder();
             body.Append("To spend: ").Append(N(Run.Ledger.SpendablePoints)).Append("  (spending never lowers your score)\n");

@@ -26,6 +26,10 @@ namespace OrbitalAnte.Player
         float _recoilReturnYaw;
         float _recoilRecovery = 14f;
 
+        /// <summary>The gun in hand, for controller aim assist (Player/AimAssist). Null means no help.</summary>
+        public PlayerWeapons Guns { get; set; }
+        readonly AimAssist _aimAssist = new AimAssist();
+
         /// <summary>Walking and sprinting speed times this (a heavy melee item); null is 1.</summary>
         public System.Func<float> SpeedScale;
         /// <summary>When true the player cannot move or look (used for the moment after being shot down).</summary>
@@ -116,7 +120,8 @@ namespace OrbitalAnte.Player
         void Look(float dt)
         {
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
-            if (look.sqrMagnitude <= 0f) return;
+            // A stick let go starts its next push with no slowdown left over.
+            if (look.sqrMagnitude <= 0f) { _aimAssist.Clear(); return; }
 
             InputControl control = GameInput.Look.activeControl;
             bool fromPointer = control != null && control.device is Pointer;
@@ -133,8 +138,13 @@ namespace OrbitalAnte.Player
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 // Your own head does not slow when the world does (hitstop, Deep Breath).
                 float own = TimeFlow.PlayerDelta(dt);
-                _yaw += shaped.x * Config.stickYawSpeed * own;
-                _pitch -= shaped.y * Config.stickPitchSpeed * own;
+                // Over an enemy the sticks turn a little slower, so a thumb can stop on it (never a pull).
+                AimAssistRules rules = Config.aimAssist.Safe();
+                bool on = rules.enabled && FeelSettings.AimAssist && Guns != null && Guns.enabled && Guns.Current != null;
+                float closeness = on ? AimAssistProbe.BestCloseness(Eye.transform, Guns.Current.Data.range, rules) : 0f;
+                float assist = _aimAssist.Step(own, closeness, rules);
+                _yaw += shaped.x * Config.stickYawSpeed * own * assist;
+                _pitch -= shaped.y * Config.stickPitchSpeed * own * assist;
             }
 
             _pitch = Mathf.Clamp(_pitch, -88f, 88f);

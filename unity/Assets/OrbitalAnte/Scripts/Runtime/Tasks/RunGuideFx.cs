@@ -75,6 +75,7 @@ namespace OrbitalAnte.Tasks
             _sawGround = false;
             _lineBody = _lineBases = _lineMasts = _lineCrates = -1;
             _tipLeft = 0f;
+            if (_tip != null) _tip.gameObject.SetActive(false);
             _gapLeft = 2f;
             _lineText = string.Empty;
             _cardDue = _active && FeelSettings.GuideTips && !_seen.Contains(GuideTip.Goal);
@@ -163,7 +164,7 @@ namespace OrbitalAnte.Tasks
             bool show = GameSession.Mode == GameMode.Playing && !paused && !Cockpit.CockpitDash.WatchingScreen;
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
             // Aboard, the ship's damage list has this corner (as the "+points" lines do); the map shows tasks per world.
-            bool lineOn = _lineText.Length > 0 && d.IsRunning && Ship.Ship.Boarded == null;
+            bool lineOn = _lineText.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip;
             if (_line.gameObject.activeSelf != lineOn) _line.gameObject.SetActive(lineOn);
         }
 

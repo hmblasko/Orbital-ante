@@ -498,3 +498,4 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | Sized pops | Size, colour and text set once per award; the fade rebuilds each label only in its last 0.5 s; one reward sound per feat or big award (the sounds' own cooldowns cap them) | 4 lines |
 | Pace tick | `TargetPace.Read` every frame: a few divides, no allocation; its words are built only when the status, points a minute or the remainder change; the tick moves only on a whole-pixel change | 1 tick, 1 label |
 | `RunRecap` | Integer adds per award, no allocation; text built once at the end of a run | one per run |
+| Aim assist | Stick only, gun in hand: per present enemy two angle checks (head, chest; about 40 for 20 enemies), then one raycast to the best; no allocation (`Mannequin.Present` is a kept list). Nothing with a mouse or no gun | 1 ray a frame |
