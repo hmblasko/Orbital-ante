@@ -50,6 +50,11 @@ namespace OrbitalAnte.Core
         public Component Target;
         /// <summary>What the player hit it with. Set where the hit is raised.</summary>
         public HitSource Source;
+        /// <summary>
+        /// The gun that fired, for a gun hit (its <c>WeaponData.Id</c>), set when the shot is made. Read this, not the
+        /// player's current gun: a kill can hand over the next ladder gun before other listeners hear the hit (Codex, PR 77).
+        /// </summary>
+        public string SourceId;
     }
 
     /// <summary>What a player's hit came from: a gun (the default), a melee swing, or the rover running someone over.</summary>

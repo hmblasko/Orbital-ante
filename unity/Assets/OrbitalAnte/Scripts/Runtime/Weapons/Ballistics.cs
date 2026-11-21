@@ -51,6 +51,7 @@ namespace OrbitalAnte.Weapons
                 result.End = wallPoint;
                 var wallHit = new HitInfo { Damage = data.torsoDamage, Point = wallPoint, Direction = direction, Normal = wallNormal };
                 result.Outcome = boarded.HitPart(boarded.CabinPart, wallHit);
+                result.Outcome.SourceId = data.Id;
                 if (fx != null) fx.Impact(wallPoint, wallNormal, boarded.transform);
                 if (result.Outcome.Hit) CombatEvents.RaisePlayerHit(result.Outcome);
                 return result;
@@ -79,6 +80,7 @@ namespace OrbitalAnte.Weapons
                 Lethal = data.oneHitKill,
             };
             result.Outcome = target.Hit(info);
+            result.Outcome.SourceId = data.Id;
 
             if (target is Weapon)
             {

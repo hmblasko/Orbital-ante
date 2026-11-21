@@ -257,6 +257,7 @@ namespace OrbitalAnte.Tasks
                     facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
                 }
                 string gun = facts.rover ? "rover" : facts.melee ? "melee"
+                           : !string.IsNullOrEmpty(outcome.SourceId) ? outcome.SourceId
                            : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
                                ? player.Weapons.Current.Data.Id : "gun";
                 facts.freshGun = _fresh.IsFresh(gun);
@@ -332,6 +333,13 @@ namespace OrbitalAnte.Tasks
                 ScoreResult paid = Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
                 // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
                 if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
+            }
+            // A guard that saw the player and died between the quarter-second spotted checks still gives the base
+            // away (Codex, PR 77): read its awareness before forgetting it, so QUIET never depends on timing.
+            if (who != null && _woke.TryGetValue(who, out WokeRecord dying) && dying.Combat != null && dying.Combat.AwareOfPlayer && _world.Enemies != null)
+            {
+                BaseTask seenBase = BaseFor(dying.Body, _world.Enemies.BaseOfCamp(dying.Body, dying.Camp));
+                if (seenBase != null) seenBase.Rule.Alarm();
             }
             if (who != null) _woke.Remove(who);
 
