@@ -185,7 +185,7 @@ namespace OrbitalAnte.Tests
             run.Director.ConfirmAdvance();
             run.BeginNextAnte();
             Assert.AreEqual(2, run.Director.Ante);
-            Assert.AreEqual(1100, run.Director.Target);
+            Assert.AreEqual(1370, run.Director.Target);
             Assert.AreEqual(0, run.Ledger.AnteEarned, "the 250 over the first target does not help with the second");
             Assert.IsFalse(run.Director.TargetMet);
             Assert.AreEqual(1100, run.Ledger.SpendablePoints);

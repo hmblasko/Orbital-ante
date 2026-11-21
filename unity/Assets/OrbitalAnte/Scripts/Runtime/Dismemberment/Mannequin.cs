@@ -137,6 +137,7 @@ namespace OrbitalAnte.Dismemberment
                 Head = part.Id == BodyPartId.Head,
                 Juice = JuiceFor(result, groupBefore),
                 Label = BodyLayout.DisplayName(part.Id),
+                Target = this,
             };
         }
 

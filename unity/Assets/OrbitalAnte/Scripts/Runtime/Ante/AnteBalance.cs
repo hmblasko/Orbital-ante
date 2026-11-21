@@ -57,6 +57,8 @@ namespace OrbitalAnte.Ante
         BaseRetakeMission = 17,
         /// <summary>One piece of salvage brought back to the base. Pays once per piece.</summary>
         SalvageDelivered = 18,
+        /// <summary>An enemy installation brought down (a signal mast, 20 Nov 2026). Pays once per installation.</summary>
+        InstallationDestroyed = 19,
     }
 
     public enum PlayerAttribute
@@ -95,8 +97,13 @@ namespace OrbitalAnte.Ante
     public sealed class AnteBalance
     {
         // ---- Run structure ----
-        /// <summary>Score needed to clear each ante. The number of entries is the number of antes.</summary>
-        public int[] anteTargets = { 850, 1100, 1450, 1850, 2350, 3000, 3700, 4550, 5500 };
+        /// <summary>
+        /// Score needed to clear each ante. The number of entries is the number of antes. Matthew (20 Nov 2026) chose
+        /// targets that ask for more real effort as the ante rises: divided by the value scale K(ante), ante 4 asks
+        /// about 1.6 times the effort of ante 1 (effort 850, 1100, 1250, 1360, 1500, 1600, 1700, 1800, 1900), so
+        /// first-time players tend to run out of time around ante 3 to 4 until enemies get tougher with the ante.
+        /// </summary>
+        public int[] anteTargets = { 850, 1370, 1950, 2650, 3600, 4680, 5980, 7530, 9350 };
         /// <summary>How much more every action is worth each ante: K(a) = 1 + linear*(a-1) + quadratic*(a-1)^2.</summary>
         public float valueScaleLinear = 0.21f;
         public float valueScaleQuadratic = 0.035f;
@@ -143,10 +150,14 @@ namespace OrbitalAnte.Ante
         /// See docs/design/ante-point-system.md.
         /// </summary>
         public int salvageDelivered = 240;
+        /// <summary>A signal mast brought down (20 Nov 2026, first guess): the size of a satellite repair, a short job done under fire.</summary>
+        public int installationDestroyed = 180;
 
         // ---- Anti-farm caps (my provisional numbers; the handoff says "with caps" without giving them) ----
         public int underThreatRecoveriesPerAnte = 3;
         public int retakeMissionsPerBasePerRun = 2;
+        /// <summary>Hard landings that pay in one ante (20 Nov 2026, mine): hopping from spot to spot must not beat fighting.</summary>
+        public int difficultLandingsPerAnte = 3;
 
         // ---- Attributes ----
         public int maxAttributeLevel = 4;
@@ -223,6 +234,7 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.DifficultLanding: return difficultLanding;
                 case ScoreEventKind.UnderThreatRecovery: return underThreatRecovery;
                 case ScoreEventKind.SalvageDelivered: return salvageDelivered;
+                case ScoreEventKind.InstallationDestroyed: return installationDestroyed;
                 // Missions carry their own value, kept inside the allowed range by the score service.
                 case ScoreEventKind.OptionalMission:
                 case ScoreEventKind.BaseRetakeMission: return optionalMissionMin;
@@ -239,7 +251,8 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.EnemyTier3:
                 case ScoreEventKind.EnemyElite:
                 case ScoreEventKind.ShipDestroyed:
-                case ScoreEventKind.ShipHijacked: return ScoreCategory.Combat;
+                case ScoreEventKind.ShipHijacked:
+                case ScoreEventKind.InstallationDestroyed: return ScoreCategory.Combat;
                 case ScoreEventKind.BountyDead:
                 case ScoreEventKind.BountyAlive: return ScoreCategory.Bounty;
                 case ScoreEventKind.NewMoon:

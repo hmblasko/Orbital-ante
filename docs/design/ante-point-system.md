@@ -43,14 +43,16 @@ Tests: `Tests/EditMode/AnteScoringTests.cs`, `AnteDirectorTests.cs`, `AnteReward
 | Ante | Target | K | Target in ante-1 points | Per minute at 300 s |
 |---|---|---|---|---|
 | 1 | 850 | 1.000 | 850 | 170 |
-| 2 | 1,100 | 1.245 | 884 | 177 |
-| 3 | 1,450 | 1.560 | 929 | 186 |
-| 4 | 1,850 | 1.945 | 951 | 190 |
-| 5 | 2,350 | 2.400 | 979 | 196 |
-| 6 | 3,000 | 2.925 | 1,026 | 205 |
-| 7 | 3,700 | 3.520 | 1,051 | 210 |
-| 8 | 4,550 | 4.185 | 1,087 | 217 |
-| 9 | 5,500 | 4.920 | 1,118 | 224 |
+| 2 | 1,370 | 1.245 | 1,100 | 220 |
+| 3 | 1,950 | 1.560 | 1,250 | 250 |
+| 4 | 2,650 | 1.945 | 1,362 | 272 |
+| 5 | 3,600 | 2.400 | 1,500 | 300 |
+| 6 | 4,680 | 2.925 | 1,600 | 320 |
+| 7 | 5,980 | 3.520 | 1,699 | 340 |
+| 8 | 7,530 | 4.185 | 1,799 | 360 |
+| 9 | 9,350 | 4.920 | 1,900 | 380 |
+
+Matthew chose on 20 Nov 2026 that each ante should ask for noticeably more real work: about 1.6 times ante 1 by ante 4, so first-time players tend to run out of time around ante 3 to 4 until enemies get tougher with the ante. (The first targets asked for almost the same work every ante.)
 
 The last two columns are arithmetic, not a test result. They divide each target by K to show how much real work an ante asks for.
 
