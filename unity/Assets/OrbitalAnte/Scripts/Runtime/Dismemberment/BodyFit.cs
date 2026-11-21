@@ -30,6 +30,23 @@ namespace OrbitalAnte.Dismemberment
                 case "EnemyRunner": return -0.012f;
                 case "EnemyBruiser": return -0.050f;
                 case "EnemyMarksman": return 0.010f;
+                // Matthew's Tripo soldier (20 Nov 2026): its helmet sits a little lower and further forward on the
+                // neck than the script-built trooper's did, so the ball moves with it (see HeadForward).
+                case "Enemy": return -0.035f;
+                default: return 0f;
+            }
+        }
+
+        /// <summary>
+        /// How far forward of the neck the middle of this kind's helmet sits, in metres before the body is scaled.
+        /// The Tripo trooper's helmet and visor stand about 7 cm forward of the neck: with the ball left on the neck,
+        /// shots behind the helmet counted as head hits and shots on the visor missed it.
+        /// </summary>
+        public static float HeadForward(string model)
+        {
+            switch (model)
+            {
+                case "Enemy": return 0.07f;
                 default: return 0f;
             }
         }
