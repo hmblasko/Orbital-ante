@@ -250,6 +250,7 @@ namespace OrbitalAnte.Tasks
                 Pause = GameInput.Describe(GameInput.Pause),
                 LiftOff = GameInput.Describe(GameInput.FlyUp),
                 Interact = GameInput.Describe(GameInput.Interact),
+                Upgrades = GameInput.Describe(GameInput.Upgrades),
             };
         }
 

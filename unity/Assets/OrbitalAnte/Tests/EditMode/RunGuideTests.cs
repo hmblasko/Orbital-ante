@@ -12,7 +12,7 @@ namespace OrbitalAnte.Tests
     {
         static readonly RunGuide.Keys K = new RunGuide.Keys
         {
-            Map = "M", Lock = "T", Autopilot = "Y", Pause = "Esc", LiftOff = "Space", Interact = "E",
+            Map = "M", Lock = "T", Autopilot = "Y", Pause = "Esc", LiftOff = "Space", Interact = "E", Upgrades = "Tab",
         };
 
         [Test]
@@ -154,6 +154,7 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("9 antes", card);
             StringAssert.Contains("die", card);
             StringAssert.Contains("Space", card);
+            StringAssert.Contains("Tab opens the shop", card);
         }
 
         [Test]

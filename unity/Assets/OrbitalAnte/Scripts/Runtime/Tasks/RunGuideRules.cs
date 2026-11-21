@@ -128,7 +128,7 @@ namespace OrbitalAnte.Tasks
         /// <summary>Key names the tips need, for whichever device is in use.</summary>
         public struct Keys
         {
-            public string Map, Lock, Autopilot, Pause, LiftOff, Interact;
+            public string Map, Lock, Autopilot, Pause, LiftOff, Interact, Upgrades;
         }
 
         /// <summary>The words of a tip. Keys are filled in by the caller so the rule stays free of input code.</summary>
@@ -161,6 +161,7 @@ namespace OrbitalAnte.Tasks
              .Append(anteSeconds / 60).Append(" minute clock runs out. The target rises every ante.\n");
             s.Append("Points come from enemy bases, signal masts, salvage crates and stylish kills, on any world.\n");
             s.Append("Between antes, pick perks and spend points to get stronger. Clear ").Append(antes).Append(" antes to win.\n");
+            s.Append("On foot, ").Append(Key(k.Upgrades)).Append(" opens the shop at any time, and this ante's perk once its target is met.\n");
             s.Append("Miss the clock and it's overtime: enemies hunt you until you make the target.\n");
             s.Append("Your guns upgrade as you kill. The run ends only when you die.\n\n");
             s.Append("Hold ").Append(Key(k.LiftOff)).Append(" to lift off. The clock starts once you leave the pad.");

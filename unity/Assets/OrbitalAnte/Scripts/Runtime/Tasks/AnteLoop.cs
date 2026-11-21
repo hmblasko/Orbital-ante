@@ -218,10 +218,18 @@ namespace OrbitalAnte.Tasks
                       + "). Bank from the pause menu, or keep scoring"
                     : "TARGET MET: bank it from the pause menu, or keep scoring");
             }
-            // The pick earned in the field (21 Nov 2026): Upgrades opens the star chart on foot.
-            if (!paused && Run.Director.PerkEarnedEarly && OrbitalAnte.Ship.Ship.Boarded == null && GameInput.Upgrades != null && GameInput.Upgrades.WasPressedThisFrame()
-                && (Menu == null || !Menu.IsOpen) && !StarChartView.Showing && StarChartView.ClosedFrame != Time.frameCount)
-                ShowFieldPerks();
+            // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
+            // star chart once the target is met. In the seat Select is still Floodlights.
+            // Never while dying: the burst's hold keeps the ante running for a moment, and nothing may be spent then.
+            bool upgradesPressed = GameInput.Upgrades != null && GameInput.Upgrades.WasPressedThisFrame()
+                && !StarChartView.Showing && StarChartView.ClosedFrame != Time.frameCount;
+            if (Menu == null || !Menu.IsOpen) _fieldPage = false;
+            if (!paused && upgradesPressed && Run.Director.IsRunning && OrbitalAnte.Ship.Ship.Boarded == null
+                && !OrbitalAnte.Ship.Astronaut.Dying && Menu != null && !Menu.IsOpen)
+                ShowFieldUpgrades();
+            // The same button closes the field page it opened, as it closes the star chart.
+            else if (upgradesPressed && _fieldPage && Menu != null && Menu.IsOpen && _fieldPageFrame != Time.frameCount)
+                Menu.Close();
             UpdateHud(dt, paused);
         }
 

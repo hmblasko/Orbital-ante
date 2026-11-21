@@ -126,6 +126,7 @@ namespace OrbitalAnte.Tasks
         void ShowBreak()
         {
             if (Menu == null || Run == null) return;
+            _fieldPage = false;
             AnteBalance b = Run.Balance;
             int ante = Run.Director.Ante;
             int next = b.EndlessTargetFor(ante + 1);   // the same as TargetFor for the listed antes; past them for Keep going
@@ -250,29 +251,85 @@ namespace OrbitalAnte.Tasks
             page.title = "PERK EARNED";
             page.subtitle = "Target met: this ante's pick is yours now. Take it, or keep it for the break.";
             page.backLabel = "Later";
-            page.footer = "The clock is stopped while this is open. The ticket and the shop wait for the break.";
+            page.footer = "The clock is stopped while this is open. The free ticket waits for the break.";
             page.take = perk =>
             {
                 _chartView.Hide();
-                if (!Run.TakePerk(perk)) return;
-                _skippedPerk = false;
-                AnnouncePerk(perk);
-                PublishBuild();
-                Note(_breakNote);
-                _breakNote = null;
+                if (Run.TakePerk(perk))
+                {
+                    _skippedPerk = false;
+                    AnnouncePerk(perk);
+                    PublishBuild();
+                    _fieldNote = _breakNote;
+                    _breakNote = null;
+                }
+                ShowFieldUpgrades(1);
             };
             page.skip = () =>
             {
                 _chartView.Hide();
                 int cash = Run.SkipCash;
-                if (!Run.Director.PerkEarnedEarly || !Run.SkipPerks()) return;
-                _skippedPerk = true;
-                Audio.AudioDirector.PlayLocal("reward.points.rack_end");
-                Note("Skipped the perks: +" + N(cash) + " to spend at the break");
+                if (Run.Director.PerkEarnedEarly && Run.SkipPerks())
+                {
+                    _skippedPerk = true;
+                    Audio.AudioDirector.PlayLocal("reward.points.rack_end");
+                    _fieldNote = "Skipped the perks: +" + N(cash) + " to spend.";
+                }
+                ShowFieldUpgrades(1);
             };
             page.reroll = () => { if (Run.RerollPerks()) Rerolled(true); };
-            page.back = () => _chartView.Hide();
+            page.back = () => { _chartView.Hide(); ShowFieldUpgrades(0); };
             _chartView.Show(page);
+        }
+
+        string _fieldNote;
+
+        /// <summary>
+        /// Upgrades out on a world (21 Nov 2026; Matthew said yes to the shop on Select as well as the perk): one
+        /// short page, paused while it is open. The perk row opens the star chart once the target is met; the shop
+        /// is the break's own shop. The free ticket and Raise the stakes stay at the break, so it still matters.
+        /// </summary>
+        void ShowFieldUpgrades() => ShowFieldUpgrades(-1);
+
+        void ShowFieldUpgrades(int keepSlot)
+        {
+            if (Menu == null || Run == null || !Run.Director.IsRunning || OrbitalAnte.Ship.Astronaut.Dying) { Menu?.Close(); return; }
+            AnteDirector d = Run.Director;
+            var body = new StringBuilder();
+            body.Append("To spend: ").Append(N(Run.Ledger.SpendablePoints)).Append("  (spending never lowers your score)\n");
+            string sets = SetsLine();
+            if (sets.Length > 0) body.Append(sets).Append("\n");
+            if (!string.IsNullOrEmpty(_fieldNote)) body.Append(_fieldNote).Append("\n");
+            body.Append("The clock is stopped while this is open. Prices rise when the next ante starts. The free ticket waits for the break.");
+            _fieldNote = null;
+
+            var choices = new List<PauseMenu.MenuChoice>();
+            if (d.PerkEarnedEarly)
+            {
+                int offers = Run.PerkOffers().Count;
+                choices.Add(new PauseMenu.MenuChoice("Pick a perk  (" + offers + " on offer)", () => ShowFieldPerks(0), offers > 0));
+            }
+            else if (d.PerkTakenEarly) choices.Add(new PauseMenu.MenuChoice("Perk: " + LastPerkName(), null, false));
+            else if (d.IsLastAnte) choices.Add(new PauseMenu.MenuChoice("Perk: none on the last ante", null, false));
+            else choices.Add(new PauseMenu.MenuChoice("Perk: yours when you meet the target  (" + N(Mathf.Max(0, d.Target - Run.Ledger.AnteEarned)) + " to go)", null, false));
+            choices.Add(new PauseMenu.MenuChoice("Shop  (" + N(Run.Ledger.SpendablePoints) + " to spend)", () => ShowShop(-1, () => ShowFieldUpgrades(1))));
+            choices.Add(new PauseMenu.MenuChoice("Back to the game", () => Menu.Close()));
+            Menu.ShowChoices("UPGRADES", body.ToString(), choices, () => Menu.Close(), 120f, keepSlot);
+            OpenedFieldPage();
+        }
+
+        bool _fieldPage;
+        int _fieldPageFrame = -1;
+
+        /// <summary>
+        /// A field page is up: pausing turned the Gameplay map off, so Upgrades alone is switched back on, and the
+        /// press that opened (or came back to) the page must not also close it.
+        /// </summary>
+        void OpenedFieldPage()
+        {
+            _fieldPage = true;
+            _fieldPageFrame = Time.frameCount;
+            if (GameInput.Upgrades != null) GameInput.Upgrades.Enable();
         }
 
         void Rerolled(bool field)
@@ -333,9 +390,10 @@ namespace OrbitalAnte.Tasks
 
         static readonly PlayerAttribute[] Attributes = { PlayerAttribute.Damage, PlayerAttribute.Movement, PlayerAttribute.Oxygen, PlayerAttribute.Defense };
 
-        void ShowShop() => ShowShop(-1);
+        void ShowShop() => ShowShop(-1, () => { _keepSlot = 1; ShowBreak(); });
 
-        void ShowShop(int keepSlot)
+        /// <summary>The shop, at the break or in the field; <paramref name="back"/> is where Back and B go.</summary>
+        void ShowShop(int keepSlot, System.Action back)
         {
             AnteBalance b = Run.Balance;
             var choices = new List<PauseMenu.MenuChoice>();
@@ -349,10 +407,12 @@ namespace OrbitalAnte.Tasks
                     : AttributeName(a) + "   level " + level + " > " + (level + 1) + "   " + N(price) + "\n" + what;
                 bool can = price >= 0 && Run.Ledger.SpendablePoints >= price;
                 int slot = i;
-                choices.Add(new PauseMenu.MenuChoice(label, () => Buy(a, slot), can));
+                choices.Add(new PauseMenu.MenuChoice(label, () => Buy(a, slot, back), can));
             }
-            choices.Add(new PauseMenu.MenuChoice("Back", () => { _keepSlot = 1; ShowBreak(); }));
-            Menu.ShowChoices("SHOP", "To spend: " + N(Run.Ledger.SpendablePoints) + ". These last for the whole run.", choices, ShowBreak, 40f, keepSlot);
+            choices.Add(new PauseMenu.MenuChoice("Back", back));
+            Menu.ShowChoices("SHOP", "To spend: " + N(Run.Ledger.SpendablePoints) + ". These last for the whole run. Prices rise when the next ante starts.",
+                choices, back, 40f, keepSlot);
+            if (_fieldPage) OpenedFieldPage();
         }
 
         static string AttributeName(PlayerAttribute a)
@@ -372,21 +432,21 @@ namespace OrbitalAnte.Tasks
             {
                 case PlayerAttribute.Damage: return "+" + Pct(b.damagePerLevel) + " damage a level";
                 case PlayerAttribute.Movement: return "+" + Pct(b.movementPerLevel) + " walking speed a level";
-                case PlayerAttribute.Oxygen: return "+" + Pct(b.oxygenPerLevel) + " suit air a level";
+                case PlayerAttribute.Oxygen: return "suit air lasts " + Pct(b.oxygenPerLevel) + " longer a level";
                 default: return Pct(b.defensePerLevel) + " less damage taken a level";
             }
         }
 
         static string Pct(float v) => Mathf.RoundToInt(v * 100f) + "%";
 
-        void Buy(PlayerAttribute a, int slot)
+        void Buy(PlayerAttribute a, int slot, System.Action back)
         {
             if (Run.TryBuyAttribute(a))
             {
                 Audio.AudioDirector.PlayLocal("reward.tier1");
                 PublishBuild();
             }
-            ShowShop(slot);
+            ShowShop(slot, back);
         }
 
         void Scratch()

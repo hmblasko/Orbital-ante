@@ -86,7 +86,12 @@ namespace OrbitalAnte.Ship
         public static Action<string> OnDeath;
         /// <summary>Walking pace outside as a share of normal, for carrying a crate of salvage (the ante tasks set it).</summary>
         public static float CarryPace = 1f;
-        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; }
+        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; Current = null; }
+
+        /// <summary>The player's astronaut in the solar system, or null (the arena, the title screen).</summary>
+        public static Astronaut Current { get; private set; }
+        /// <summary>True while the player is dying (the burst's hold before the death page): menus that spend stay shut.</summary>
+        public static bool Dying => Current != null && Current.Dead;
         /// <summary>Outside and off the ground: on the jets, jumping, floating. (For the style kills.)</summary>
         public bool Airborne => Mode == AstronautMode.Outside && !_grounded;
         float _dazed, _deadFor;
@@ -155,6 +160,7 @@ namespace OrbitalAnte.Ship
             var go = new GameObject("Astronaut");
             go.layer = Layers.Player;
             var a = go.AddComponent<Astronaut>();
+            Current = a;
             a._config = config;
             a._look = PlayerConfig.Load();
             a._system = system;
@@ -1536,6 +1542,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            if (Current == this) Current = null;
             if (Suit != null)
             {
                 var capsule = Suit.GetComponent<CapsuleCollider>();

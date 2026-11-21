@@ -40,7 +40,8 @@ everything, and only the Deck can tell.
    New three (reroll), Back.
 2. **Upgrade in the field.** Once an ante's target is met, the pick is yours at once. The readout says
    "PERK READY · TAB" (or SELECT). On foot, Tab or Select opens the chart as PERK EARNED; the game pauses while it is
-   open. Later keeps it for the break. It is that ante's one pick; the ticket and the shop stay at the break. Not
+   open. Later keeps it for the break. It is that ante's one pick; the free ticket stays at the break. Since the follow-up
+   below, Tab or Select opens an UPGRADES page with the shop as well. Not
    on the last ante. In the seat Select is still Floodlights.
 3. **Rerolls**: 150 points × the ante's value, doubling each time in the same break, from the wallet only.
    **Shop prices** follow the ante's value (250 becomes 390 at ante 3), and so do the skip money and the scratch
@@ -109,6 +110,26 @@ Full tables: project files `orbital-ante/fun-psychology/run-sim-after-changes.md
 Solo protocol (from the research): before playing, write down what you expect for each item above. After each
 session, note the best moment, the worst moment, the moment you nearly quit, and whether you'd want any of the time
 back. Report it as "one player, n runs".
+
+## Follow-up: the shop in the field (21 Nov 2026)
+
+Matthew said yes to Select out on a world opening the shop as well as the perk pick. On foot, Tab or Select now
+opens a short UPGRADES page at any time in an ante (paused, clock stopped): "Pick a perk" once the target is met
+(it opens the star chart; Later comes back to the page), the shop, and Back to the game. Before the target the perk
+row says how many points are still to go. The free ticket and Raise the stakes stay at the break. Shop prices are
+the ones for the ante being played, so a level bought mid-ante 3 costs what it would at ante 3's break, a little
+more than at ante 2's: buying now or waiting for the break is a small, visible trade. The goal card and How to
+play now say "On foot, Tab opens the shop at any time, and this ante's perk once its target is met."
+
+Problem: points sat unused for a whole ante and the wallet grew past what the shop sells. Hypothesis: a shop one
+press away gets points spent when they would help. Smallest test: on the Deck, play two antes and note whether you
+opened the shop mid-ante and why. Acceptance: the wallet at each break is under about 1.5 times the cheapest
+level left, and no mid-fight shop visit felt like cheating. Not run in Unity.
+
+Review (Opus agents): the page could open during the death hold and spend on a lost run (now shut while dying);
+Tab / Select did not close the page it opened (now it does); prices rising at the next ante was not said (now on
+the page and the shop); the oxygen line now says "suit air lasts 10% longer a level", since the gauge's per cent
+does not move. No per-frame cost added.
 
 ## Agent review
 
