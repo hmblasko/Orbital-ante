@@ -460,3 +460,26 @@ Current save data is small. File size, allocations, storage latency and checkpoi
 | Painting the envelope pieces | 13 pictures, about 0.55 s in all under .NET 8 on the cloud machine (`tools/envelope_view pieces` prints each). Mono in Unity is likely 2 to 3 times slower. Painted one piece a frame while the title screen shows (`EnvelopeDirector.PaintAhead`), so the worst single frame is the seal, about 120 ms (.NET): one hitch on the title screen, never in a run. |
 | Texture memory | About 5 MB, uncompressed RGBA, kept for the session (`EnvelopeTextures`). One card (280 x 392) is painted per reveal and replaces the last. |
 | The screen while showing | One canvas, about 30 to 60 images and labels, laid out from `EnvelopeScene.Frame` each frame (one list, reused; a few small allocations a frame). Only while the envelope shows (run start and reveals), never during play. Off: nothing. |
+
+## Ante loop and tasks (20 Nov 2026): estimates from reading the code, not measured in Unity
+
+The Steam Deck review's worst finding (up to about 225 primitives built in one frame on arriving at a world) was fixed before merge: views are built one per slow pass and never in the frame a world's tasks are laid out, pieces use shared meshes with colliders only where solid, and the lights are a small shared pool.
+
+| | Cost | Cap |
+|---|---|---|
+| `AnteLoop` readout | One canvas, 9 labels with halo; text rewritten only when it changes (clock once a second, score each frame only during a count-up of at most 1.2 s). About 100 B of garbage a second at rest. Guessed under 0.05 ms a frame | 4 "+points" lines |
+| `TaskDirector` every frame | Carrying, landing, supply drops; one `LivingWithin` (up to the live enemy count) while a drop is on the ground. Interact prompts are cached and the key name is looked up once a second. Guessed under 0.05 ms, 0 B a frame | 1 drop at a time |
+| `TaskDirector` slow pass (4 a second) | Distance tests in the world's own space against positions stored at layout (no ground questions), mast calls, building at most one view, snapping views within 250 m once a second, the spotted check over woken enemies, choosing lights over at most about 80 tasks. Guessed 0.05 to 0.15 ms on a Deck | 50 bases, about 25 masts, 2 crates a world |
+| Laying out a world's tasks | Once per world per run: about 27 height questions plus a loop over bases and camps. Guessed under 1 ms on a Deck, in a frame of its own | once per world |
+| Task views | Mast 6 shared-mesh pieces (about 210 triangles, 6 draw calls, 5 colliders); crate 2 (1 collider); pod 4 (1 collider, off while it falls); marked-target light 1 sphere. No shadows. Built within 900 m, put away beyond 1.1 km (colliders too) | about 150 draw calls if every mast on a world were near at once |
+| Task lights | Unlit opaque cylinders, 1 draw call each, no shadow or transparency; about 2 px wide; no taller than the world is wide; hidden within 25 m | `liveNearby` (3) shared, plus one per falling or landed drop |
+| Colliders on the planet body | Every solid task piece is a shape of the world's kinematic rigidbody. Cost per shape not measured | about 150 a world at most |
+
+## Ante break and run build (20 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `RunEffects` questions | A few multiplies per shot, blow or enemy hit; the build is rebuilt only when it changes (between antes). 0 B a frame | none needed |
+| `RunPerksFx` | Runs only on an enemy kill. 0 B at rest | one kill at a time |
+| `EnemyPressure` | One hash per enemy woken (int overload, no strings); sharpness is a number on each enemy, rewritten over the live enemies only when an ante changes it | once per ante |
+| Break pages | UI built once (7 buttons) and relabelled; only while the game is paused between antes | 7 buttons |

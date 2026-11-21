@@ -72,7 +72,7 @@ namespace OrbitalAnte.Weapons
             var part = target as BodyPart;
             var info = new HitInfo
             {
-                Damage = part != null ? data.DamageFor(part.Id) : data.torsoDamage,
+                Damage = (part != null ? data.DamageFor(part.Id) : data.torsoDamage) * Combat.RunEffects.GunShot(),
                 Point = hit.point,
                 Direction = direction,
                 Normal = hit.normal,
@@ -122,7 +122,7 @@ namespace OrbitalAnte.Weapons
             if (health != null)
             {
                 result.HitPlayer = true;
-                health.TakeDamage(data.playerDamage, direction);
+                health.TakeDamage(Combat.RunEffects.Taken(health, data.playerDamage, hit.distance), direction);
             }
             else
             {

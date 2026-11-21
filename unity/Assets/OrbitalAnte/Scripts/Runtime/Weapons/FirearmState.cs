@@ -78,6 +78,13 @@ namespace OrbitalAnte.Weapons
         public FirearmSpec Spec => _spec;
         public int Ammo { get; private set; }
         public bool Reloading => _reloadLeft > 0f;
+
+        /// <summary>Puts rounds straight into the magazine, never past full (a perk's refill on a kill, 20 Nov 2026). A reload under way carries on.</summary>
+        public void AddRounds(int rounds)
+        {
+            if (rounds <= 0) return;
+            Ammo = Math.Min(_spec.MagazineSize, Ammo + rounds);
+        }
         /// <summary>0 at the start of a reload, 1 when it finishes. 0 when not reloading.</summary>
         public float ReloadProgress => Reloading && _reloadTotal > 0f ? 1f - _reloadLeft / _reloadTotal : 0f;
         /// <summary>Extra aim error built up by recent shots, in degrees.</summary>
