@@ -10,7 +10,10 @@ namespace OrbitalAnte.Dismemberment
     public static class BodyFit
     {
         // Head, torso, upper arm, forearm, hand, thigh, shin, foot.
-        static readonly float[] Trooper = { 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f };
+        // The trooper's torso is 1.2 since it became Matthew's Tripo soldier (20 Nov 2026): its chest rig and pack make
+        // it about 0.26 m round the middle where the script-built one was 0.215 (rule test
+        // TrooperModelFile_ItsTorsoHitboxCoversItsMiddle).
+        static readonly float[] Trooper = { 1f, 1.2f, 1f, 1f, 1f, 1f, 1f, 1f };
         static readonly float[] Runner = { 0.88f, 0.88f, 0.76f, 0.80f, 0.88f, 0.80f, 0.78f, 0.88f };
         static readonly float[] Bruiser = { 0.80f, 1.25f, 1.26f, 1.62f, 1.42f, 1.26f, 1.34f, 1.26f };
         static readonly float[] Marksman = { 0.88f, 0.90f, 0.84f, 0.84f, 0.94f, 0.86f, 0.84f, 0.94f };
