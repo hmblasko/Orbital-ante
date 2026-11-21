@@ -518,7 +518,7 @@ namespace OrbitalAnte.Melee
             if (target == null) return;
             bool living = c.Living && m.Alive;
             Vector3 point = target.Hitbox != null ? target.Hitbox.ClosestPoint(_eye.transform.position) : target.transform.position;
-            var hit = new HitInfo { Damage = blow.Damage, Point = point, Direction = dir, Normal = -dir, Sever = blow.Sever };
+            var hit = new HitInfo { Damage = blow.Damage * Combat.RunEffects.MeleeBlow(), Point = point, Direction = dir, Normal = -dir, Sever = blow.Sever };
             HitOutcome outcome = m.ApplyHit(target, hit);
 
             MannequinCombat combat = CombatOf(m);

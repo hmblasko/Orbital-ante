@@ -125,6 +125,17 @@ namespace OrbitalAnte.Ante
             return true;
         }
 
+        /// <summary>
+        /// Puts time back on the running ante (a perk's reward) or takes it away (the Short Fuse hazard; 20 Nov 2026).
+        /// Never leaves less than one second, and does nothing outside a running ante.
+        /// </summary>
+        public void AdjustSeconds(float delta)
+        {
+            if (!IsRunning || WaitingForPlayer || delta == 0f || float.IsNaN(delta)) return;
+            SecondsLeft = Math.Max(1f, SecondsLeft + delta);
+            Changed?.Invoke();
+        }
+
         public void PlayerDied()
         {
             if (IsRunning) End(AntePhase.Failed);

@@ -212,10 +212,10 @@ namespace OrbitalAnte.Tasks
 
         // ================================================================== scoring helpers
 
-        ScoreResult Score(ScoreEventKind kind, string claim, int feats, string label, int missionPoints = 0)
+        ScoreResult Score(ScoreEventKind kind, string claim, int feats, string label, int missionPoints = 0, string tag = null)
         {
             if (!Scoring) return default;
-            var e = new ScoreEvent { claimId = claim, kind = kind, skillFeats = feats, missionBasePoints = missionPoints };
+            var e = new ScoreEvent { claimId = claim, kind = kind, skillFeats = feats, missionBasePoints = missionPoints, tag = tag };
             return AnteLoop.Report(e, label);
         }
 
@@ -252,7 +252,10 @@ namespace OrbitalAnte.Tasks
                 // The first hit that landed on it, and from how far.
                 facts.oneShot = !known || before.Hits == 0;
                 if (player != null && player.Eye != null && !facts.rover && !facts.melee)
-                    facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= _rules.longShot * _rules.longShot;
+                {
+                    float longShot = Mathf.Max(10f, _rules.longShot - Combat.RunEffects.Mods.LongShotCloser);
+                    facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
+                }
                 string gun = facts.rover ? "rover" : facts.melee ? "melee"
                            : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
                                ? player.Weapons.Current.Data.Id : "gun";
@@ -326,7 +329,9 @@ namespace OrbitalAnte.Tasks
                 int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
                 // The sound comes when the streak starts paying: the next task gets the feat.
                 if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
-                Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
+                ScoreResult paid = Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
+                // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
+                if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
             }
             if (who != null) _woke.Remove(who);
 
@@ -341,7 +346,7 @@ namespace OrbitalAnte.Tasks
                     feats += StreakFeat(feats, ref label);
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     Score(ScoreEventKind.OptionalMission, TaskIds.BaseClear(e.BodyId, e.BaseIndex), feats,
-                        Join("BASE CLEARED", label), _rules.BaseClearPoints(e.BaseSize));
+                        Join("BASE CLEARED", label), _rules.BaseClearPoints(e.BaseSize), "base");
                     CheckWorldCleared(b.World);
                 }
             }

@@ -294,7 +294,7 @@ namespace OrbitalAnte.Tests.EditMode
         {
             var data = new SaveData { version = 2, runsStarted = 12, unopenedEnvelopes = null, items = null };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
-            Assert.AreEqual(3, data.version);
+            Assert.AreEqual(SaveData.CurrentVersion, data.version);
             Assert.AreEqual(12, data.runsStarted);
             Assert.IsNotNull(data.items);
             Assert.IsNotNull(data.unopenedEnvelopes);

@@ -61,12 +61,14 @@ namespace OrbitalAnte.Enemies
         public static event System.Action<EnemyDown> Down;
         /// <summary>Raised when a member of a camp stands up near the player: body, camp, member, and the character.</summary>
         public static event System.Action<int, int, int, Mannequin> Woke;
-        public static void ResetStatics() { Down = null; Woke = null; }
+        public static void ResetStatics() { Down = null; Woke = null; Pressure = new Ante.EnemyPressure { Sharpness = 1f }; PressureAnte = 1; PressureSeed = 0; }
 
         sealed class Live
         {
             public Mannequin Who;
             public int Body, Camp, Member;
+            /// <summary>The kind it woke as (a plain enemy can wake as a heavy in a later ante, 20 Nov 2026).</summary>
+            public int Type = -1;
             public bool Counted;
             public Weapon Gun;
         }
@@ -220,6 +222,7 @@ namespace OrbitalAnte.Enemies
             CombatWorld.Player = crew.Armour;
 
             Tally();
+            ApplySharpness();
             WakeNext();
             if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.4f;
@@ -422,6 +425,9 @@ namespace OrbitalAnte.Enemies
                 if (w.Gone[camp][m] || MemberPresent(body, camp, m)) continue;
                 made = true;
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
+                // Tougher antes (20 Nov 2026): some plain enemies wake as their side's heavy kind, and everyone
+                // reacts and aims a little sharper. Never more health: that would break constitution rule 3.
+                type = HeavierKind(type, body, camp, m);
                 EnemyTypeSpec spec = _config.roster[type];
                 MannequinConfig config = ConfigFor(type);
                 // Spread round the camp's middle, a couple of metres apart.
@@ -470,6 +476,7 @@ namespace OrbitalAnte.Enemies
                 if (combat != null)
                 {
                     combat.SetSeed(combatSeed);
+                    combat.Sharpness = SharpnessNow;
                     combat.Squad = _wakingSquad;
                     combat.Ability = spec.ability;
                     combat.Faction = c.Faction;
@@ -480,7 +487,7 @@ namespace OrbitalAnte.Enemies
                     _guns.Add(weapon);
                     gun = weapon;
                 }
-                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun });
+                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun, Type = type });
                 Woke?.Invoke(body, camp, m, who);
                 LiveCount++;
                 PresentCount++;
@@ -492,7 +499,7 @@ namespace OrbitalAnte.Enemies
         {
             if (Down == null) return;
             EnemyCamp c = w.Camps[l.Camp];
-            int type = Mathf.Clamp(c.Members[l.Member], 0, _config.roster.Count - 1);
+            int type = l.Type >= 0 ? l.Type : Mathf.Clamp(c.Members[l.Member], 0, _config.roster.Count - 1);
             EnemyTypeSpec spec = _config.roster[type];
             string bodyId = _world.System != null && l.Body >= 0 && l.Body < _world.System.Bodies.Length ? _world.System.Bodies[l.Body].Spec.id : l.Body.ToString();
             Down(new EnemyDown
@@ -539,6 +546,7 @@ namespace OrbitalAnte.Enemies
         {
             IReadOnlyList<EnemyCamp> camps = KnownCamps(body);
             if (camps == null || camp < 0 || camp >= camps.Count || member < 0 || member >= camps[camp].Members.Length) return null;
+            if (_wokeAs.TryGetValue(MemberKey(body, camp, member), out int woke) && woke >= 0 && woke < _config.roster.Count) return _config.roster[woke];
             return _config.roster[Mathf.Clamp(camps[camp].Members[member], 0, _config.roster.Count - 1)];
         }
 
@@ -559,6 +567,64 @@ namespace OrbitalAnte.Enemies
             for (int i = 0; i < _live.Count; i++)
                 if (_live[i].Who != null && _live[i].Body == body && _live[i].Camp == camp && _live[i].Member == member) return true;
             return false;
+        }
+
+        // ------------------------------------------------------------------ tougher antes (20 Nov 2026)
+
+        /// <summary>
+        /// The ante's pressure, set by the ante loop. Sharpness multiplies reaction time and aim error; a share of
+        /// plain enemies wakes as the heavy kind of their side.
+        /// </summary>
+        public static Ante.EnemyPressure Pressure = new Ante.EnemyPressure { Sharpness = 1f };
+        public static int PressureAnte = 1;
+        public static int PressureSeed;
+
+        static float SharpnessNow => Mathf.Clamp(Pressure.Sharpness, 0.4f, 1f);
+        float _sharpApplied = 1f;
+
+        /// <summary>A new ante's pressure reaches enemies already awake too (Codex review, PR 75): their kind stays.</summary>
+        void ApplySharpness()
+        {
+            float sharp = SharpnessNow;
+            if (Mathf.Approximately(sharp, _sharpApplied)) return;
+            _sharpApplied = sharp;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Mannequin who = _live[i].Who;
+                if (who == null) continue;
+                var combat = who.GetComponent<MannequinCombat>();
+                if (combat != null) combat.Sharpness = sharp;
+            }
+        }
+
+        /// <summary>The kind each enemy first woke as this run, so one that comes back later is still the same kind.</summary>
+        readonly Dictionary<long, int> _wokeAs = new Dictionary<long, int>();
+
+        static long MemberKey(int body, int camp, int member) => ((long)body << 40) ^ ((long)camp << 16) ^ (uint)member;
+
+        int HeavierKind(int type, int body, int camp, int member)
+        {
+            long key = MemberKey(body, camp, member);
+            if (_wokeAs.TryGetValue(key, out int known)) return known;
+            int chosen = ChooseKind(type, body, camp, member);
+            _wokeAs[key] = chosen;
+            return chosen;
+        }
+
+        int ChooseKind(int type, int body, int camp, int member)
+        {
+            if (Pressure.HeavyShare <= 0f) return type;
+            EnemyTypeSpec spec = _config.roster[type];
+            if (Tasks.EnemyTiers.KindFor(spec.id, spec.scale) != Ante.ScoreEventKind.EnemyTier1) return type;
+            if (!Ante.EnemyPressure.WakesHeavy(Pressure, PressureSeed, body, camp, member, PressureAnte)) return type;
+            string side = spec.faction ?? string.Empty;
+            for (int i = 0; i < _config.roster.Count; i++)
+            {
+                EnemyTypeSpec other = _config.roster[i];
+                if ((other.faction ?? string.Empty) != side) continue;
+                if (Tasks.EnemyTiers.KindFor(other.id, other.scale) == Ante.ScoreEventKind.EnemyTier3) return i;
+            }
+            return type;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>

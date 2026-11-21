@@ -34,6 +34,8 @@ namespace OrbitalAnte.Ante
         public int skillFeats;
         /// <summary>The player chose a real, visible risk beforehand.</summary>
         public bool acceptedRisk;
+        /// <summary>The risk's own multiplier when it has one (a hazard, 20 Nov 2026); 0 uses the standard accepted-risk number. Held to the risk ceiling.</summary>
+        public float riskMultiplier;
         /// <summary>True for anything that came back after being cleared (respawned enemies, a base retaken without a mission). These never score.</summary>
         public bool isRespawn;
         /// <summary>For bounties: which faction posted it ("A", "B", "C").</summary>
@@ -154,7 +156,8 @@ namespace OrbitalAnte.Ante
 
             int feats = Math.Max(scoreEvent.skillFeats, scoreEvent.verifiedSkill ? 1 : 0);
             float skill = feats >= 2 ? _balance.skillMax : feats == 1 ? _balance.skillVerified : 1f;
-            float risk = scoreEvent.acceptedRisk ? _balance.riskAccepted : 1f;
+            float risk = !scoreEvent.acceptedRisk ? 1f
+                : scoreEvent.riskMultiplier > 0f ? Math.Max(1f, Math.Min(_balance.riskMax, scoreEvent.riskMultiplier)) : _balance.riskAccepted;
             int points = ScoreMath.Award(_balance, basePoints, ante, perkBonus, skill, risk);
 
             _claims.TryClaim(scoreEvent.claimId);

@@ -24,6 +24,12 @@ namespace OrbitalAnte.AI
         MannequinLocomotion _loco;
         MannequinRig _rig;
         MannequinConfig _cfg;
+
+        /// <summary>How much sooner this enemy reacts and how much truer it aims than its kind's settings (1 = as set;
+        /// set by the spawner from the ante's pressure, and changed on enemies already awake when an ante starts).</summary>
+        [System.NonSerialized] public float Sharpness = 1f;
+        float ReactionTime => _cfg.reactionTime * Sharpness;
+        float AimError => _cfg.aimError * Sharpness;
         SeededRandom _rng = new SeededRandom(7);
 
         int _gunSide = MannequinRig.Right;
@@ -484,7 +490,7 @@ namespace OrbitalAnte.AI
             {
                 // Never an instant shot: there is always a beat between spotting the player and firing.
                 _seesPlayer = true;
-                _reactAt = now + _cfg.reactionTime;
+                _reactAt = now + ReactionTime;
                 _shootPhase = true;
                 _phaseEnd = now + Rand(1.5f, 2.6f);
             }
@@ -844,7 +850,7 @@ namespace OrbitalAnte.AI
             Vector3 muzzle = Weapon.Muzzle.position;
             Vector3 toTarget = PlayerAimPoint - muzzle;
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
-            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + _cfg.aimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
+            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + AimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
 
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);
