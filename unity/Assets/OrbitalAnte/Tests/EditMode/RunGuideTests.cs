@@ -170,10 +170,10 @@ namespace OrbitalAnte.Tests
         [Test]
         public void TheWorldLine_ListsWhatIsLeft_OrSaysToMoveOn()
         {
-            Assert.AreEqual("MARS: 2 BASES · 1 MAST", WorldTaskLine.Compose("Mars", 2, 1, 0));
-            Assert.AreEqual("MOON: 1 BASE · 3 CRATES", WorldTaskLine.Compose("Moon", 1, 0, 3));
-            Assert.AreEqual("EUROPA: ALL DONE. FLY TO ANOTHER WORLD", WorldTaskLine.Compose("Europa", 0, 0, 0));
-            Assert.AreEqual(string.Empty, WorldTaskLine.Compose("Mars", -1, 0, 0), "not known yet");
+            Assert.AreEqual("MARS: 2 MASTS · 1 CRATE", WorldTaskLine.Compose("Mars", 2, 1));
+            Assert.AreEqual("MOON: 3 CRATES", WorldTaskLine.Compose("Moon", 0, 3));
+            Assert.AreEqual("EUROPA: ALL DONE. FLY TO ANOTHER WORLD", WorldTaskLine.Compose("Europa", 0, 0));
+            Assert.AreEqual(string.Empty, WorldTaskLine.Compose("Mars", -1, 0), "not known yet");
         }
     }
 }

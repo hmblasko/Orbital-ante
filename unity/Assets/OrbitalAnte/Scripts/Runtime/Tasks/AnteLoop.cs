@@ -153,7 +153,7 @@ namespace OrbitalAnte.Tasks
 
         /// <summary>
         /// Hands a scoring event to the live run. <paramref name="label"/> is the short line shown with the points
-        /// ("HEADSHOT", "BASE CLEARED"). Returns what it was worth (nothing outside a running ante).
+        /// ("KILL", "MAST DOWN"). Returns what it was worth (nothing outside a running ante).
         /// </summary>
         public static ScoreResult Report(ScoreEvent scoreEvent, string label)
         {

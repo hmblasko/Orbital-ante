@@ -5,7 +5,7 @@ using OrbitalAnte.Tasks;
 
 namespace OrbitalAnte.Tests
 {
-    /// <summary>The ante tasks' rules with no Unity objects (20 Nov 2026): style, streak, bases, masts, salvage, drops, landings, ids.</summary>
+    /// <summary>The ante tasks' rules with no Unity objects (20 Nov 2026): style, streak, masts, salvage, drops, landings, ids.</summary>
     public class TaskRulesTests
     {
         static TaskRules Rules() => new TaskRules();
@@ -101,48 +101,6 @@ namespace OrbitalAnte.Tests
             for (int i = 0; i < 5; i++) streak.Add(i);
             streak.Spend(5f);
             Assert.AreEqual(1, streak.CountAt(5f));
-        }
-
-        [Test]
-        public void ABase_IsClearedByItsLastGuard_Once()
-        {
-            var b = new BaseClear(1, 3);
-            Assert.IsFalse(b.GuardDown(1f));
-            Assert.IsFalse(b.GuardDown(2f));
-            Assert.IsTrue(b.GuardDown(3f));
-            Assert.IsFalse(b.GuardDown(4f), "a base clears once");
-            Assert.AreEqual(0, b.Left);
-        }
-
-        [Test]
-        public void ABaseCleared_Unseen_AndFast_HasBothFeats()
-        {
-            var rules = Rules();
-            var b = new BaseClear(0, 2);
-            b.Engaged(10f);
-            b.GuardDown(20f);
-            b.GuardDown(30f);
-            Assert.AreEqual(2, b.Feats(rules, 30f, out string label));
-            Assert.AreEqual("QUIET + QUICK", label);
-        }
-
-        [Test]
-        public void ABaseCleared_AfterBeingSeen_AndSlowly_HasNoFeats()
-        {
-            var rules = Rules();
-            var b = new BaseClear(0, 1);
-            b.Engaged(0f);
-            b.Alarm();
-            b.GuardDown(rules.baseQuickSeconds + 1f);
-            Assert.AreEqual(0, b.Feats(rules, rules.baseQuickSeconds + 1f, out _));
-        }
-
-        [Test]
-        public void BiggerBases_PayMore()
-        {
-            var rules = Rules();
-            Assert.Less(rules.BaseClearPoints(0), rules.BaseClearPoints(1));
-            Assert.Less(rules.BaseClearPoints(1), rules.BaseClearPoints(2));
         }
 
         [Test]
@@ -273,10 +231,10 @@ namespace OrbitalAnte.Tests
         {
             var ids = new HashSet<string>
             {
-                TaskIds.Enemy("Mars", 1, 2), TaskIds.Enemy("Mars", 2, 1), TaskIds.BaseClear("Mars", 3), TaskIds.Mast("Mars", 3),
+                TaskIds.Enemy("Mars", 1, 2), TaskIds.Enemy("Mars", 2, 1), TaskIds.Mast("Mars", 3),
                 TaskIds.Salvage("Mars", 0), TaskIds.Drop(1, 0), TaskIds.Drop(2, 0), TaskIds.FirstLanding("Mars"), TaskIds.HardLanding("Mars", "1.2"),
             };
-            Assert.AreEqual(9, ids.Count);
+            Assert.AreEqual(8, ids.Count);
         }
 
         [Test]

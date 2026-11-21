@@ -30,7 +30,7 @@ namespace OrbitalAnte.Tasks
         readonly RunStartHold _hold = new RunStartHold();
         HashSet<GuideTip> _seen;
         bool _active, _cardDue, _mapOpened, _sawGround, _unsaved;
-        int _lineBody = -1, _lineBases = -1, _lineMasts = -1, _lineCrates = -1;
+        int _lineBody = -1, _lineMasts = -1, _lineCrates = -1;
         float _tipLeft, _gapLeft, _lineEvery;
 
         Canvas _canvas;
@@ -73,7 +73,7 @@ namespace OrbitalAnte.Tasks
             _hold.Reset();
             _mapOpened = false;
             _sawGround = false;
-            _lineBody = _lineBases = _lineMasts = _lineCrates = -1;
+            _lineBody = _lineMasts = _lineCrates = -1;
             _tipLeft = 0f;
             _gapLeft = 2f;
             _lineText = string.Empty;
@@ -143,17 +143,16 @@ namespace OrbitalAnte.Tasks
             {
                 _lineEvery = 0.5f;
                 // Words are made only when the world or a count changes.
-                int body = -1, b = 0, m = 0, c = 0;
+                int body = -1, m = 0, c = 0;
                 string name = null;
-                if (_tasks != null && _tasks.TryCountsHere(out name, out b, out m, out c) && _world != null && _world.System.Focus != null)
+                if (_tasks != null && _tasks.TryCountsHere(out name, out m, out c) && _world != null && _world.System.Focus != null)
                     body = _world.System.Focus.Neighbourhood;
-                if (body != _lineBody || b != _lineBases || m != _lineMasts || c != _lineCrates)
+                if (body != _lineBody || m != _lineMasts || c != _lineCrates)
                 {
                     _lineBody = body;
-                    _lineBases = b;
                     _lineMasts = m;
                     _lineCrates = c;
-                    _lineText = body >= 0 ? WorldTaskLine.Compose(name, b, m, c) : string.Empty;
+                    _lineText = body >= 0 ? WorldTaskLine.Compose(name, m, c) : string.Empty;
                     _line.text = _lineText;
                 }
             }
@@ -188,7 +187,7 @@ namespace OrbitalAnte.Tasks
 
             // The world line's counts, at most half a second old, are enough here.
             bool near = _lineBody >= 0;
-            bool hasTasks = near && _lineBases + _lineMasts + _lineCrates > 0;
+            bool hasTasks = near && _lineMasts + _lineCrates > 0;
             var astronaut = _world != null ? _world.Astronaut : null;
             var ship = _world != null ? _world.Ship : null;
             bool atControls = astronaut != null && ship != null && astronaut.Mode == Ship.AstronautMode.Seated
