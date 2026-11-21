@@ -483,3 +483,9 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | `RunPerksFx` | Runs only on an enemy kill. 0 B at rest | one kill at a time |
 | `EnemyPressure` | One hash per enemy woken (int overload, no strings); sharpness is a number on each enemy, rewritten over the live enemies only when an ante changes it | once per ante |
 | Break pages | UI built once (7 buttons) and relabelled; only while the game is paused between antes | 7 buttons |
+
+## Run guide (21 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `RunGuideFx` | One canvas, 2 labels with halo. The "left to score here" line counts the current world's bases, masts and crates twice a second (short lists, no allocation) and rewrites its text only when it changes; the tip check runs only between tips. Guessed under 0.02 ms a frame | 1 tip on screen |

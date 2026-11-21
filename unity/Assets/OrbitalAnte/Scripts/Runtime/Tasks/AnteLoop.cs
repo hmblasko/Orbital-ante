@@ -57,7 +57,18 @@ namespace OrbitalAnte.Tasks
 
         static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
 
-        public static void ResetStatics() => Current = null;
+        public static void ResetStatics()
+        {
+            Current = null;
+            HoldClock = null;
+        }
+
+        /// <summary>
+        /// True while the ante clock should wait though the game is not paused: ante 1 waits on the pad until
+        /// liftoff (<see cref="RunStartHold"/>, set by <c>RunGuideFx</c>). Points still count while it waits.
+        /// </summary>
+        public static Func<bool> HoldClock;
+        bool _shownHeld;
 
         void Awake()
         {
@@ -160,7 +171,8 @@ namespace OrbitalAnte.Tasks
             bool paused = GameSession.Paused || TimeFlow.Held;
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
-            Run.Tick(dt, paused);
+            bool held = HoldClock != null && HoldClock();
+            Run.Tick(dt, paused || held);
 
             AntePhase phase = Run.Director.Phase;
             if (phase != _seenPhase)
@@ -257,7 +269,7 @@ namespace OrbitalAnte.Tasks
 
             // Top right, the corner Part B section 13 keeps for notices. The ship's damage list starts at -110.
             _anteLine = UiKit.Label(_canvas.transform, string.Empty, 16, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_anteLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -16f), new Vector2(320f, 22f));
+            UiKit.Pin((RectTransform)_anteLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -16f), new Vector2(460f, 22f));
             UiKit.Halo(_anteLine);
 
             _scoreLine = UiKit.Label(_canvas.transform, string.Empty, 26, gold, TextAnchor.MiddleRight);
@@ -284,7 +296,7 @@ namespace OrbitalAnte.Tasks
             for (int i = 0; i < _pops.Length; i++)
             {
                 _pops[i] = UiKit.Label(_canvas.transform, string.Empty, 17, gold, TextAnchor.MiddleRight);
-                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -100f - i * 21f), new Vector2(420f, 21f));
+                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -122f - i * 21f), new Vector2(420f, 21f));
                 UiKit.Halo(_pops[i]);
                 _pops[i].gameObject.SetActive(false);
             }
@@ -326,11 +338,13 @@ namespace OrbitalAnte.Tasks
 
             AnteDirector d = Run.Director;
             int seconds = Mathf.CeilToInt(d.SecondsLeft);
-            if (seconds != _shownSeconds || d.Ante != _shownAnte)
+            bool held = HoldClock != null && HoldClock();
+            if (seconds != _shownSeconds || d.Ante != _shownAnte || held != _shownHeld)
             {
                 _shownSeconds = seconds;
                 _shownAnte = d.Ante;
-                _anteLine.text = "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft);
+                _shownHeld = held;
+                _anteLine.text = "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  STARTS AT LIFTOFF" : string.Empty);
                 // The last half minute is in the warning colour.
                 _anteLine.color = d.IsRunning && d.SecondsLeft <= 30f && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
             }
