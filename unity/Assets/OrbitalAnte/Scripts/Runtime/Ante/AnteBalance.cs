@@ -14,6 +14,18 @@ namespace OrbitalAnte.Ante
         Hybrid = 2,
     }
 
+    /// <summary>
+    /// What a timer run-out short of the target does. Matthew chose Overtime on 21 Nov 2026 (the game ends only
+    /// when the player dies): the ante stays open and enemies hunt harder until the target is met; the break after
+    /// it is the usual one, perk pick included (Matthew, 21 Nov 2026).
+    /// EndRun is the old rule (TIME'S UP ends the run), kept for playtests.
+    /// </summary>
+    public enum MissedTarget
+    {
+        Overtime = 0,
+        EndRun = 1,
+    }
+
     /// <summary>Whether clearing the last ante also gives a scratch-off. Matthew chose between antes only on 14 Nov 2026.</summary>
     public enum FinalScratchTiming
     {
@@ -114,6 +126,14 @@ namespace OrbitalAnte.Ante
         public float stopwatchMaxPerAnte = 90f;
         public AnteEndCondition endCondition = AnteEndCondition.Hybrid;
         public FinalScratchTiming finalScratch = FinalScratchTiming.BetweenAntesOnly;
+        /// <summary>A timer run-out short of the target (Matthew, 21 Nov 2026: Overtime).</summary>
+        public MissedTarget missedTarget = MissedTarget.Overtime;
+        /// <summary>In overtime, how often the enemies near you are told where you are (seconds).</summary>
+        public float overtimeHuntEvery = 15f;
+        /// <summary>In overtime, how far that call carries (metres). Only enemies already awake near you hear it.</summary>
+        public float overtimeHuntRadius = 140f;
+        /// <summary>After the last ante, "Keep going" antes each ask this much more than the one before (21 Nov 2026).</summary>
+        public float endlessTargetGrowth = 1.25f;
 
         // ---- Award multipliers ----
         public float perkScoreBonusCap = 0.25f;
@@ -244,6 +264,17 @@ namespace OrbitalAnte.Ante
             if (AnteCount == 0) return 0;
             int index = Math.Max(0, Math.Min(AnteCount - 1, ante - 1));
             return anteTargets[index];
+        }
+
+        /// <summary>
+        /// The target for any ante, past the last one too: after the listed antes each asks
+        /// <see cref="endlessTargetGrowth"/> times the one before, rounded to 10 (for "Keep going" runs).
+        /// </summary>
+        public int EndlessTargetFor(int ante)
+        {
+            if (AnteCount == 0 || ante <= AnteCount) return TargetFor(ante);
+            double t = anteTargets[AnteCount - 1] * Math.Pow(Math.Max(1.0, endlessTargetGrowth), ante - AnteCount);
+            return (int)Math.Min(int.MaxValue - 10, Math.Round(t / 10.0, MidpointRounding.AwayFromZero) * 10.0);
         }
 
         public int BasePoints(ScoreEventKind kind)

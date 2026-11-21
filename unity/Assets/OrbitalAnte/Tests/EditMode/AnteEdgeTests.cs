@@ -38,7 +38,7 @@ namespace OrbitalAnte.Tests
         [Test]
         public void JustBeforeTheEndTheAnteIsStillOpen()
         {
-            var run = new AnteRun(new AnteBalance(), 3);
+            var run = new AnteRun(new AnteBalance { missedTarget = MissedTarget.EndRun }, 3);
             run.Tick(299.5f, false);
             Assert.AreEqual(AntePhase.Running, run.Director.Phase);
             Assert.AreEqual(0.5f, run.Director.SecondsLeft, 0.001f);
@@ -61,7 +61,7 @@ namespace OrbitalAnte.Tests
         [Test]
         public void AHugeTickEndsTheAnteOnceAndNeverGoesBelowZero()
         {
-            var run = new AnteRun(new AnteBalance(), 3);
+            var run = new AnteRun(new AnteBalance { missedTarget = MissedTarget.EndRun }, 3);
             run.Tick(1e9f, false);
             Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
             Assert.AreEqual(0f, run.Director.SecondsLeft);

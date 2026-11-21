@@ -37,7 +37,12 @@ namespace OrbitalAnte.Tasks
         {
             if (Run == null) { RunEffects.Clear(); return; }
             RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte));
-            Enemies.EnemySpawner.Pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
+            // In overtime the enemies are as sharp as under Hunted. Not its extra heavies: an enemy keeps the kind it
+            // first woke as for the whole run, so heavies woken in overtime would stay heavies in every later ante.
+            EnemyPressure pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
+            if (Run.Director.InOvertime && CurrentHazard != Hazard.Hunted)
+                pressure.Sharpness = Mathf.Max(0.4f, pressure.Sharpness * Run.Balance.huntedSharpness);
+            Enemies.EnemySpawner.Pressure = pressure;
             Enemies.EnemySpawner.PressureAnte = Run.Director.Ante;
             Enemies.EnemySpawner.PressureSeed = Run.Seed;
         }
@@ -77,6 +82,8 @@ namespace OrbitalAnte.Tasks
 
         void GiveTimeBack(float seconds)
         {
+            // No clock in overtime (or once it has run out): say nothing rather than promise time that never comes.
+            if (Run.Director.WaitingForPlayer) return;
             Run.Director.AdjustSeconds(seconds);
             Pop("+" + Mathf.RoundToInt(seconds) + " s ON THE CLOCK");
         }
@@ -121,7 +128,7 @@ namespace OrbitalAnte.Tasks
             if (Menu == null || Run == null) return;
             AnteBalance b = Run.Balance;
             int ante = Run.Director.Ante;
-            int next = b.TargetFor(ante + 1);
+            int next = b.EndlessTargetFor(ante + 1);   // the same as TargetFor for the listed antes; past them for Keep going
 
             var body = new StringBuilder();
             body.Append("Banked ").Append(N(Run.Ledger.AnteEarned)).Append(" of ").Append(N(Run.Director.Target))
@@ -130,6 +137,7 @@ namespace OrbitalAnte.Tasks
             string sets = SetsLine();
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_breakNote)) body.Append(_breakNote).Append("\n");
+            if (Run.Director.ClearedInOvertime) body.Append("Made it in overtime. Close one!\n");
             body.Append("Ante ").Append(ante + 1).Append(" needs ").Append(N(next)).Append(" in ")
                 .Append(Clock(HazardRules.AnteSeconds(_nextHazard, b))).Append(". What you cleared stays cleared.\n");
             body.Append(PressureLine(ante + 1));

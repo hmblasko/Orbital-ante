@@ -40,6 +40,11 @@ namespace OrbitalAnte.Ante
         public int repairRefillVouchers;
         public int temporaryTacticalPerks;
         public int cosmeticTokens;
+        /// <summary>Keep going after the last ante, and overtime (21 Nov 2026).</summary>
+        public bool endless;
+        public bool inOvertime;
+        public float overtimeSeconds;
+        public bool clearedInOvertime;
     }
 
     /// <summary>
@@ -157,6 +162,10 @@ namespace OrbitalAnte.Ante
                 repairRefillVouchers = RepairRefillVouchers,
                 temporaryTacticalPerks = TemporaryTacticalPerks,
                 cosmeticTokens = CosmeticTokens,
+                endless = Director.Endless,
+                inOvertime = Director.InOvertime,
+                overtimeSeconds = Director.OvertimeSeconds,
+                clearedInOvertime = Director.ClearedInOvertime,
             };
             Claims.Export(state.claims, state.counterKeys, state.counterValues);
             for (int i = 0; i < Perks.Owned.Count; i++) state.perkIds.Add(Perks.Owned[i].id);
@@ -181,6 +190,7 @@ namespace OrbitalAnte.Ante
                 }
             }
             AntePhase phase = Enum.IsDefined(typeof(AntePhase), state.phase) ? (AntePhase)state.phase : AntePhase.Running;
+            run.Director.RestoreLater(state.endless, state.inOvertime, state.overtimeSeconds, state.clearedInOvertime);
             run.Director.Restore(state.ante, phase, state.secondsLeft, state.stopwatchSecondsAdded, state.runSeconds,
                 state.perkDraftPending, state.scratchPending);
             run.Score.ImportChain(state.chainHasLast, state.chainLastCategory, state.chainLastSeconds, state.chainUsesThisAnte);

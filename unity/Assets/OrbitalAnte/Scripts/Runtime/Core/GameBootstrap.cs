@@ -33,6 +33,7 @@ namespace OrbitalAnte.Core
         Combat.GunLadderFx _gunLadder;
         Tasks.AnteLoop _anteLoop;
         Combat.RunPerksFx _runPerks;
+        Tasks.RunGuideFx _guide;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
@@ -144,6 +145,11 @@ namespace OrbitalAnte.Core
             _pauseMenu.CanEndAnte = _anteLoop.CanEndAnte;
             _pauseMenu.EndAnte = _anteLoop.EndAnteNow;
             _pauseMenu.StartNextAnte = _anteLoop.StartNextAnte;
+            // The goal card, the clock waiting for liftoff, first-run tips and the "left to score here" line.
+            _guide = gameObject.AddComponent<Tasks.RunGuideFx>();
+            _guide.Loop = _anteLoop;
+            _guide.Menu = _pauseMenu;
+            _guide.Envelopes = _envelopes;
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
             OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
@@ -320,6 +326,7 @@ namespace OrbitalAnte.Core
                     var tasks = _world.AddComponent<Tasks.TaskDirector>();
                     tasks.Init(_space, _anteLoop);
                     if (_space.Map != null) _space.Map.TasksLeft = tasks.TasksLeftOn;
+                    if (_guide != null) _guide.BeginRun(_space, tasks);
                 }
                 _hud.SetArenaMode(false);
                 _hud.ExtraDebug = _space.DescribeForDebug;
@@ -346,7 +353,8 @@ namespace OrbitalAnte.Core
             _hud.SetVisible(true);
 
             GameSession.SetMode(GameMode.Playing);
-            GameInput.Play.Enable();
+            // The run-start envelope turns the controls on when it is closed.
+            if (_envelopes == null || !_envelopes.Showing) GameInput.Play.Enable();
             SetCursorLocked(true);
         }
 
@@ -360,6 +368,7 @@ namespace OrbitalAnte.Core
             // A run ending before Ante 9 loses its sealed envelope.
             if (_envelopes != null) _envelopes.RunEnded();
             if (_anteLoop != null) _anteLoop.EndRun();
+            if (_guide != null) _guide.EndRun();
             Combat.RunEffects.Clear();
             if (_runPerks != null) { _runPerks.ResetForNewRun(); _runPerks.Weapons = null; }
             if (_world == null) return;

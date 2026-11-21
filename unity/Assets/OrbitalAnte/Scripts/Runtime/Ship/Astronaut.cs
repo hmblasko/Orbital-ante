@@ -131,6 +131,8 @@ namespace OrbitalAnte.Ship
         SuitFx _fx;
         float _airDrawn, _jetPush, _rollEase;
         Quaternion _viewLocal = Quaternion.identity;
+        // The gun's kick on the view (PlayerWeapons kicks it; ReadLookRaw turns the head by it).
+        readonly OrbitalAnte.Player.ViewRecoil _recoil = new OrbitalAnte.Player.ViewRecoil();
         bool _mendingNow;
         Vector3 _jetLocal;
         static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
@@ -256,6 +258,8 @@ namespace OrbitalAnte.Ship
             // The small kick of the view when a limb pops (Milestone 2), as in the arena; Pause > Feel switches it off.
             _hitShake = Eye.gameObject.AddComponent<CameraShake>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
+            // The real game has no arena controller, so the gun's kick goes to the astronaut's own head.
+            Weapons.Recoil = _recoil;
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
             Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
             // A rare gun that blows up ends the run, like any other death, with the cause on the death page.
@@ -283,6 +287,8 @@ namespace OrbitalAnte.Ship
         void SetMode(AstronautMode mode)
         {
             Mode = mode;
+            // Sitting down or taking the wheel ends any kick still settling (no gun in those hands).
+            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) _recoil.Clear();
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
@@ -559,6 +565,8 @@ namespace OrbitalAnte.Ship
                 if (Mode == AstronautMode.Aboard)
                 {
                     // Thrown about the cabin: for a moment you can do nothing but watch.
+                    // A gun's kick from this moment is lost in the tumble, not saved up for when you get up.
+                    _recoil.Clear();
                     PoseOnly();
                     _posed = true;
                     PoseBelt();
@@ -701,16 +709,18 @@ namespace OrbitalAnte.Ship
         /// <summary>How far the player turned their head this frame, in degrees (pitch positive is downward).</summary>
         void ReadLookRaw(float dt, out float yawDelta, out float pitchDelta)
         {
-            yawDelta = 0f;
-            pitchDelta = 0f;
+            // A gun's kick turns the head first (the rifle climbs while the trigger is held; Part B Milestone 3).
+            _recoil.Step(dt, out float kickUp, out float kickRight);
+            yawDelta = kickRight;
+            pitchDelta = -kickUp;
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
             if (look.sqrMagnitude <= 0f) return;
             InputControl control = GameInput.Look.activeControl;
             if (control != null && control.device is Pointer)
             {
                 // Mouse movement is already "distance moved this frame".
-                yawDelta = look.x * _look.mouseSensitivity;
-                pitchDelta = -look.y * _look.mouseSensitivity;
+                yawDelta += look.x * _look.mouseSensitivity;
+                pitchDelta += -look.y * _look.mouseSensitivity;
             }
             else
             {
@@ -719,8 +729,8 @@ namespace OrbitalAnte.Ship
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 // Your own head does not slow when the world does (hitstop, Deep Breath).
                 float own = TimeFlow.PlayerDelta(dt);
-                yawDelta = shaped.x * _look.stickYawSpeed * own;
-                pitchDelta = -shaped.y * _look.stickPitchSpeed * own;
+                yawDelta += shaped.x * _look.stickYawSpeed * own;
+                pitchDelta += -shaped.y * _look.stickPitchSpeed * own;
             }
         }
 

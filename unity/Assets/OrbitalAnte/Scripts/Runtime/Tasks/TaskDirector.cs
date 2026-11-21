@@ -1207,6 +1207,25 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>For the system map: how many tasks are still to do on a world (-1 if not known yet).</summary>
+        /// <summary>
+        /// What is still to score on the world the player is at (its neighbourhood), for the line under the ante readout.
+        /// False in deep space, at a world with no tasks laid out yet, or with no focus.
+        /// </summary>
+        public bool TryCountsHere(out string world, out int bases, out int masts, out int crates)
+        {
+            world = null;
+            bases = masts = crates = 0;
+            if (_world == null || _world.System == null || _world.System.Focus == null) return false;
+            int body = _world.System.Focus.Neighbourhood;
+            WorldTasks w = WorldFor(body);
+            if (w == null) return false;
+            world = _world.System.Model.Spec(body).displayName;
+            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Live) bases++;
+            for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) masts++;
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live) crates++;
+            return true;
+        }
+
         public int TasksLeftOn(int body)
         {
             WorldTasks w = WorldFor(body);
