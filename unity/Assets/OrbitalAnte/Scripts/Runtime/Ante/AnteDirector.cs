@@ -10,7 +10,7 @@ namespace OrbitalAnte.Ante
         Intermission = 1,
         /// <summary>The last ante was cleared.</summary>
         Victory = 2,
-        /// <summary>The run is over: the timer ran out short of the target, or the player died.</summary>
+        /// <summary>The run is over: the player died (or, with <see cref="MissedTarget.EndRun"/>, the timer ran out short of the target).</summary>
         Failed = 3,
     }
 
@@ -58,12 +58,23 @@ namespace OrbitalAnte.Ante
         /// <summary>The free scratch-off earned by clearing the last ante has not been used yet.</summary>
         public bool ScratchPending { get; private set; }
 
-        public int Target => _balance.TargetFor(Ante);
+        public int Target => Endless ? _balance.EndlessTargetFor(Ante) : _balance.TargetFor(Ante);
+        /// <summary>The player chose to keep going after clearing the last ante: antes go on, each asking more, until they die.</summary>
+        public bool Endless { get; private set; }
         public bool TargetMet => _ledger.AnteEarned >= Target;
         public bool IsRunning => Phase == AntePhase.Running;
-        public bool IsLastAnte => Ante >= _balance.AnteCount;
-        /// <summary>The timer has run out but the ante is still open, waiting for the player to move on (OnPlayerAdvance only).</summary>
+        public bool IsLastAnte => !Endless && Ante >= _balance.AnteCount;
+        /// <summary>The timer has run out but the ante is still open: waiting for the player to move on (OnPlayerAdvance), or in overtime.</summary>
         public bool WaitingForPlayer => IsRunning && SecondsLeft <= 0f;
+        /// <summary>
+        /// The clock ran out short of the target and the ante goes on until it is met (Matthew, 21 Nov 2026).
+        /// Nothing else changes in the rules here: the ante loop makes the enemies hunt; the break that follows is the usual one.
+        /// </summary>
+        public bool InOvertime { get; private set; }
+        /// <summary>Seconds spent in overtime this ante.</summary>
+        public float OvertimeSeconds { get; private set; }
+        /// <summary>The ante just cleared was cleared in overtime (said on the break page).</summary>
+        public bool ClearedInOvertime { get; private set; }
 
         /// <summary>Raised after the phase or the ante changes.</summary>
         public event Action Changed;
@@ -72,6 +83,13 @@ namespace OrbitalAnte.Ante
         public void Tick(float deltaSeconds, bool paused)
         {
             if (paused || !IsRunning || deltaSeconds <= 0f) return;
+            if (InOvertime)
+            {
+                RunSeconds += deltaSeconds;
+                OvertimeSeconds += deltaSeconds;
+                if (TargetMet) Clear();
+                return;
+            }
             if (SecondsLeft <= 0f)
             {
                 RunSeconds += deltaSeconds;     // already waiting for the player; play time still counts
@@ -84,7 +102,15 @@ namespace OrbitalAnte.Ante
             if (SecondsLeft > 0f) return;
 
             SecondsLeft = 0f;
-            if (!TargetMet) End(AntePhase.Failed);
+            if (!TargetMet && _balance.missedTarget == MissedTarget.Overtime)
+            {
+                InOvertime = true;
+                float over = deltaSeconds - used;
+                RunSeconds += over;
+                OvertimeSeconds += over;
+                Changed?.Invoke();
+            }
+            else if (!TargetMet) End(AntePhase.Failed);
             else if (_balance.endCondition != AnteEndCondition.OnPlayerAdvance) Clear();
             else
             {
@@ -151,8 +177,25 @@ namespace OrbitalAnte.Ante
             StopwatchSecondsAdded = 0f;
             PerkDraftPending = false;
             ScratchPending = false;
+            InOvertime = false;
+            OvertimeSeconds = 0f;
+            ClearedInOvertime = false;
             Phase = AntePhase.Running;
             Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>
+        /// From the victory page: keep going. The run gets the usual break (perk pick and ticket) and then antes past
+        /// the last, each with a bigger target (<see cref="AnteBalance.EndlessTargetFor"/>), until the player dies.
+        /// </summary>
+        public bool ContinueEndless()
+        {
+            if (Phase != AntePhase.Victory) return false;
+            Endless = true;
+            PerkDraftPending = true;
+            ScratchPending = true;
+            End(AntePhase.Intermission);
             return true;
         }
 
@@ -161,6 +204,8 @@ namespace OrbitalAnte.Ante
 
         void Clear()
         {
+            ClearedInOvertime = InOvertime;
+            InOvertime = false;
             if (IsLastAnte)
             {
                 // The perk draft would have nothing left to affect. No scratch-off at victory unless the setting says so (Matthew chose none, 14 Nov 2026).
@@ -169,6 +214,7 @@ namespace OrbitalAnte.Ante
                 End(AntePhase.Victory);
                 return;
             }
+            // Cleared in overtime still gives the perk pick (Matthew, 21 Nov 2026: "okay with perks continuing even in overtime").
             PerkDraftPending = true;
             ScratchPending = true;
             End(AntePhase.Intermission);
@@ -182,7 +228,7 @@ namespace OrbitalAnte.Ante
 
         public void Restore(int ante, AntePhase phase, float secondsLeft, float stopwatchAdded, float runSeconds, bool perkPending, bool scratchPending)
         {
-            Ante = Math.Max(1, Math.Min(Math.Max(1, _balance.AnteCount), ante));
+            Ante = Endless ? Math.Max(1, ante) : Math.Max(1, Math.Min(Math.Max(1, _balance.AnteCount), ante));
             Phase = phase;
             SecondsLeft = Math.Max(0f, secondsLeft);
             StopwatchSecondsAdded = Math.Max(0f, stopwatchAdded);

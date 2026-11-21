@@ -161,7 +161,8 @@ namespace OrbitalAnte.Tasks
              .Append(anteSeconds / 60).Append(" minute clock runs out. The target rises every ante.\n");
             s.Append("Points come from enemy bases, signal masts, salvage crates and stylish kills, on any world.\n");
             s.Append("Between antes, pick perks and spend points to get stronger. Clear ").Append(antes).Append(" antes to win.\n");
-            s.Append("Your guns upgrade as you kill. The run ends when you die.\n\n");
+            s.Append("Miss the clock and it's overtime: enemies hunt you until you make the target.\n");
+            s.Append("Your guns upgrade as you kill. The run ends only when you die.\n\n");
             s.Append("Hold ").Append(Key(k.LiftOff)).Append(" to lift off. The clock starts once you leave the pad.");
             return s.ToString();
         }

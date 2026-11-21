@@ -68,7 +68,8 @@ namespace OrbitalAnte.Tasks
         /// liftoff (<see cref="RunStartHold"/>, set by <c>RunGuideFx</c>). Points still count while it waits.
         /// </summary>
         public static Func<bool> HoldClock;
-        bool _shownHeld;
+        bool _shownHeld, _wasOvertime;
+        float _huntIn;
 
         void Awake()
         {
@@ -104,6 +105,7 @@ namespace OrbitalAnte.Tasks
             PlayTime = 0f;
             _seenPhase = Run.Director.Phase;
             _diedFirst = false;
+            _wasOvertime = false;
             _toldTargetMet = false;
             Streak.Clear();
             _shown = 0f;
@@ -173,6 +175,7 @@ namespace OrbitalAnte.Tasks
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
             bool held = HoldClock != null && HoldClock();
             Run.Tick(dt, paused || held);
+            UpdateOvertime(dt, paused);
 
             AntePhase phase = Run.Director.Phase;
             if (phase != _seenPhase)
@@ -182,6 +185,9 @@ namespace OrbitalAnte.Tasks
             }
             // Restart, then Back out of its confirm page, closes the menu: the card between antes comes back.
             if (phase == AntePhase.Intermission && !paused && Menu != null && !Menu.IsOpen) ShowCard();
+            // The same for the victory page (Keep going or End the run), once the envelope's reveal is done.
+            if (phase == AntePhase.Victory && !_recorded && !paused && Menu != null && !Menu.IsOpen
+                && (Envelopes == null || !Envelopes.Showing)) ShowVictory();
 
             if (Run.Director.IsRunning && Run.Director.TargetMet && !_toldTargetMet)
             {
@@ -190,6 +196,36 @@ namespace OrbitalAnte.Tasks
                 Note("TARGET MET: bank it from the pause menu, or keep scoring");
             }
             UpdateHud(dt, paused);
+        }
+
+        /// <summary>
+        /// Overtime (Matthew, 21 Nov 2026): the clock ran out short of the target, the ante goes on, and the enemies
+        /// hunt. They get Hunted's sharpness and heavies, and every <see cref="AnteBalance.overtimeHuntEvery"/> seconds
+        /// those near are told where the player is (a place to go and look, as a flare gives, never a live track).
+        /// </summary>
+        void UpdateOvertime(float dt, bool paused)
+        {
+            bool ot = Run != null && Run.Director.InOvertime;
+            if (ot != _wasOvertime)
+            {
+                _wasOvertime = ot;
+                PublishBuild();
+                if (ot)
+                {
+                    _huntIn = 1f;
+                    Audio.AudioDirector.PlayLocal("player.suit.alarm", 0.8f);
+                    Note("OVERTIME: REACH " + Run.Director.Target.ToString("N0", Inv) + ". THEY'RE HUNTING YOU");
+                }
+            }
+            if (!ot || paused) return;
+            _huntIn -= dt;
+            if (_huntIn > 0f) return;
+            _huntIn = Mathf.Max(3f, Run.Balance.overtimeHuntEvery);
+            Transform eye = AI.CombatWorld.PlayerEye;
+            if (eye == null) return;
+            float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
+            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
+            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
         }
 
         void OnPhase(AntePhase phase)
@@ -225,7 +261,23 @@ namespace OrbitalAnte.Tasks
         void ShowVictory()
         {
             if (Menu == null || Run == null) return;
-            Menu.ShowRunOver("ALL ANTES CLEARED", "That is the whole run.", RecapAndRecord());
+            // Nothing is recorded yet: a run that keeps going is recorded when it really ends.
+            int score = Run.Ledger.LifetimeRunScore;
+            Menu.ShowChoices("ALL ANTES CLEARED",
+                "You cleared all " + Run.Director.Ante + " antes. Run score " + score.ToString("N0", Inv) + ".\n"
+                + "Keep going for endless antes, each one asking more, until you die. Your best ante counts on the records.",
+                new List<PauseMenu.MenuChoice>
+                {
+                    new PauseMenu.MenuChoice("Keep going", () =>
+                    {
+                        if (Run != null && Run.Director.ContinueEndless()) Audio.AudioDirector.PlayLocal("reward.multiplier");
+                    }),
+                    new PauseMenu.MenuChoice("End the run here", () =>
+                    {
+                        if (Run == null) return;
+                        Menu.ShowRunOver("ALL ANTES CLEARED", "That is the whole run.", RecapAndRecord());
+                    }),
+                }, null, 110f, -1, true);
         }
 
         /// <summary>For the pause menu: may the player end the ante now (target met, Hybrid)?</summary>
@@ -246,6 +298,7 @@ namespace OrbitalAnte.Tasks
             _toldTargetMet = false;
             Streak.Clear();
             _shown = 0f;
+            _wasOvertime = false;
             Audio.AudioDirector.PlayLocal("reward.multiplier");
             Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0", Inv) + " TO BANK");
             _skippedPerk = false;
@@ -339,14 +392,18 @@ namespace OrbitalAnte.Tasks
             AnteDirector d = Run.Director;
             int seconds = Mathf.CeilToInt(d.SecondsLeft);
             bool held = HoldClock != null && HoldClock();
+            // In overtime the line counts up how long you have been over instead.
+            if (d.InOvertime) seconds = -1 - Mathf.FloorToInt(d.OvertimeSeconds);
             if (seconds != _shownSeconds || d.Ante != _shownAnte || held != _shownHeld)
             {
                 _shownSeconds = seconds;
                 _shownAnte = d.Ante;
                 _shownHeld = held;
-                _anteLine.text = "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  STARTS AT LIFTOFF" : string.Empty);
-                // The last half minute is in the warning colour.
-                _anteLine.color = d.IsRunning && d.SecondsLeft <= 30f && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
+                _anteLine.text = d.InOvertime
+                    ? "ANTE " + d.Ante + "   OVERTIME +" + Clock(Mathf.Floor(d.OvertimeSeconds))
+                    : "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  STARTS AT LIFTOFF" : string.Empty);
+                // The last half minute, and overtime, are in the warning colour.
+                _anteLine.color = d.IsRunning && (d.InOvertime || d.SecondsLeft <= 30f) && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
             }
 
             // The slot-machine count-up: the shown number runs to the real one, never taking more than 1.2 s.

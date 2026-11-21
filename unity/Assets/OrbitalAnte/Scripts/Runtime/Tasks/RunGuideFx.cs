@@ -231,7 +231,7 @@ namespace OrbitalAnte.Tasks
                     FeelSettings.GuideTips = false;
                     Menu.Close();
                 }),
-            }, Menu.Close, 230f);
+            }, Menu.Close, 260f);
         }
 
         void Remember(GuideTip tip)

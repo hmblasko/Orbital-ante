@@ -37,7 +37,9 @@ namespace OrbitalAnte.Tasks
         {
             if (Run == null) { RunEffects.Clear(); return; }
             RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte));
-            Enemies.EnemySpawner.Pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
+            // In overtime the enemies hunt as under Hunted, whatever was chosen (the points multiplier stays the chosen one's).
+            Hazard pressure = Run.Director.InOvertime ? Hazard.Hunted : CurrentHazard;
+            Enemies.EnemySpawner.Pressure = EnemyPressure.For(Run.Director.Ante, pressure, Run.Balance);
             Enemies.EnemySpawner.PressureAnte = Run.Director.Ante;
             Enemies.EnemySpawner.PressureSeed = Run.Seed;
         }
@@ -121,7 +123,7 @@ namespace OrbitalAnte.Tasks
             if (Menu == null || Run == null) return;
             AnteBalance b = Run.Balance;
             int ante = Run.Director.Ante;
-            int next = b.TargetFor(ante + 1);
+            int next = b.EndlessTargetFor(ante + 1);   // the same as TargetFor for the listed antes; past them for Keep going
 
             var body = new StringBuilder();
             body.Append("Banked ").Append(N(Run.Ledger.AnteEarned)).Append(" of ").Append(N(Run.Director.Target))
@@ -130,6 +132,7 @@ namespace OrbitalAnte.Tasks
             string sets = SetsLine();
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_breakNote)) body.Append(_breakNote).Append("\n");
+            if (Run.Director.ClearedInOvertime) body.Append("Made it in overtime. Close one!\n");
             body.Append("Ante ").Append(ante + 1).Append(" needs ").Append(N(next)).Append(" in ")
                 .Append(Clock(HazardRules.AnteSeconds(_nextHazard, b))).Append(". What you cleared stays cleared.\n");
             body.Append(PressureLine(ante + 1));
