@@ -290,6 +290,7 @@ namespace OrbitalAnte.Arena
             Weapons = eyeGo.AddComponent<PlayerWeapons>();
             // Dropped guns are parented to the arena's weapon folder, which is (re)made with the mannequins.
             Weapons.Initialize(config, PlayerCamera, Player, Health, null);
+            Player.Guns = Weapons;
             // A rare gun that blows up knocks the test player down like any other death here.
             Weapons.Backfired += cause => { if (Health.Alive) Health.TakeDamage(Health.Max * 10f, -PlayerCamera.transform.forward); };
 

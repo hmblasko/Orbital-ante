@@ -31,7 +31,14 @@ namespace OrbitalAnte.Dismemberment
         /// <summary>Raised for every chunk that comes off any character. Effects (blood, sound) listen here.</summary>
         public static event Action<Mannequin, Detachment, Gib, HitInfo> AnyPartDetached;
 
-        public static void ResetStatics() => AnyPartDetached = null;
+        public static void ResetStatics() { AnyPartDetached = null; _present.Clear(); }
+
+        static readonly List<Mannequin> _present = new List<Mannequin>(64);
+        /// <summary>Every character switched on in the scene (living or not), for aim assist. Never changed by callers.</summary>
+        public static IReadOnlyList<Mannequin> Present => _present;
+
+        void OnEnable() => _present.Add(this);
+        void OnDisable() => _present.Remove(this);
 
         readonly BodyPart[] _parts = new BodyPart[BodyLayout.Count];
         readonly Dictionary<int, Gib> _gibs = new Dictionary<int, Gib>();
