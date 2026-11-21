@@ -91,7 +91,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("LONG SHOT counts from 45 m instead of 60", Perk("perk.eagle_eye").Describe());
             Assert.AreEqual("+20% points for clearing a base", Perk("perk.quiet_professional").Describe());
             Assert.AreEqual("+20% points for kills, -40% health regeneration", Perk("perk.all_in").Describe());
-            Assert.AreEqual("+15% walking speed, +10% damage taken", Perk("perk.no_brakes").Describe());
+            Assert.AreEqual("+15% walking speed, +6% damage taken", Perk("perk.no_brakes").Describe());
             Assert.AreEqual("+15% max HP, -5% walking speed", Perk("perk.thick_skin").Describe());
         }
 
@@ -133,7 +133,7 @@ namespace OrbitalAnte.Tests
             RunMods m = RunMods.From(Holding("perk.glass_cannon"), null, Hazard.None, new AnteBalance());
             Assert.AreEqual(1.20f, m.GunDamage, 1e-5f);
             Assert.AreEqual(1.20f, m.MeleeDamage, 1e-5f);
-            Assert.AreEqual(0.85f, m.MaxHealth, 1e-5f);
+            Assert.AreEqual(0.90f, m.MaxHealth, 1e-5f);
         }
 
         [Test]
@@ -256,11 +256,15 @@ namespace OrbitalAnte.Tests
             }
             // The costlier hazards pay more.
             Assert.Greater(HazardRules.Multiplier(Hazard.Hunted, b), HazardRules.Multiplier(Hazard.ThinAir, b));
-            StringAssert.Contains("1 in 5 more plain enemies", HazardRules.Describe(Hazard.Hunted, b));
+            StringAssert.Contains("a further 20% of plain enemies", HazardRules.Describe(Hazard.Hunted, b));
             Assert.AreEqual(240f, HazardRules.AnteSeconds(Hazard.ShortFuse, b), 1e-4f);
             Assert.AreEqual(300f, HazardRules.AnteSeconds(Hazard.Hunted, b), 1e-4f);
             StringAssert.Contains("4:00 instead of 5:00", HazardRules.Describe(Hazard.ShortFuse, b));
-            Assert.IsTrue(RunMods.From(null, null, Hazard.ThinAir, b).NoRegen);
+            // Thin Air slows health coming back to half (21 Nov 2026: none at all was a trap in the run simulator).
+            RunMods thin = RunMods.From(null, null, Hazard.ThinAir, b);
+            Assert.IsFalse(thin.NoRegen);
+            Assert.AreEqual(0.5f, thin.Regen, 1e-5f);
+            Assert.AreEqual("health comes back at 50% of its usual speed", HazardRules.Describe(Hazard.ThinAir, b));
         }
 
         [Test]

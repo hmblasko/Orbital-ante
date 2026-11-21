@@ -45,8 +45,14 @@ namespace OrbitalAnte.Tasks
 
         // ------------------------------------------------------------------ what you see
         Canvas _canvas;
-        Text _anteLine, _scoreLine, _streakLine, _noteLine;
-        Image _barFill;
+        Text _anteLine, _scoreLine, _streakLine, _noteLine, _perkLine;
+        StarChartView _chartView;
+        RunRecap _recap;
+        bool _shownPerkReady, _shownPerkPad;
+        Image _barFill, _paceTick;
+        Text _paceLine;
+        PaceReading _shownPace = new PaceReading { status = (PaceStatus)(-1) };
+        float _shownTickX = -1f;
         readonly Text[] _pops = new Text[4];
         readonly float[] _popLeft = new float[4];
         float _shown;
@@ -61,6 +67,7 @@ namespace OrbitalAnte.Tasks
         {
             Current = null;
             HoldClock = null;
+            StarChartView.ResetStatics();
         }
 
         /// <summary>
@@ -76,6 +83,7 @@ namespace OrbitalAnte.Tasks
             Config = TaskConfig.Load();
             Streak = new Streak(Config.rules.streakWindow);
             BuildHud();
+            _chartView = StarChartView.Create(transform);
             RunPerksFx.Note += OnPerkNote;
         }
 
@@ -98,6 +106,7 @@ namespace OrbitalAnte.Tasks
             AnteBalance balance = AnteBalanceData.Load().balance;
             // The full perk list (20 Nov 2026): every perk in it is wired into the game.
             Run = new AnteRun(balance, seed, RoguelitePerks.Create());
+            _recap = new RunRecap();
             Current = this;
             ResetBreak();
             _skippedPerk = false;
@@ -112,6 +121,9 @@ namespace OrbitalAnte.Tasks
             _shownSeconds = _shownAnte = _shownTarget = _shownStreak = _shownPoints = -1;
             for (int i = 0; i < _pops.Length; i++) { _popLeft[i] = 0f; _pops[i].gameObject.SetActive(false); }
             _noteLeft = 0f;
+            _shownPerkReady = false;
+            _perkLine.gameObject.SetActive(false);
+            _shownTickX = -1f;
             AnteBegan?.Invoke(1);
         }
 
@@ -125,6 +137,7 @@ namespace OrbitalAnte.Tasks
             Enemies.EnemySpawner.PressureAnte = 1;
             if (Current == this) Current = null;
             if (_canvas != null) _canvas.gameObject.SetActive(false);
+            if (_chartView != null) _chartView.Hide();
         }
 
         /// <summary>The player died: the run is over (the death page is shown by the astronaut, not here).</summary>
@@ -148,8 +161,14 @@ namespace OrbitalAnte.Tasks
             if (loop == null || loop.Run == null) return default;
             loop.BeforeReport(ref scoreEvent);
             ScoreResult result = loop.Run.Report(scoreEvent);
-            if (result.Awarded && result.points > 0) loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label);
+            if (result.Awarded && result.points > 0)
+            {
+                // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
+                PopLook look = PopFeedback.For(scoreEvent, result, PopFeedback.BigAt(loop.Run.Balance, loop.Run.Director.Ante));
+                loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label, look);
+            }
             loop.AfterReport(scoreEvent, result, label);
+            loop._recap?.Add(scoreEvent, result, loop.Run.Director.Ante, label);
             return result;
         }
 
@@ -193,8 +212,16 @@ namespace OrbitalAnte.Tasks
             {
                 _toldTargetMet = true;
                 Audio.AudioDirector.PlayLocal("reward.tier2");
-                Note("TARGET MET: bank it from the pause menu, or keep scoring");
+                // In the seat Select is Floodlights, so the note says the pick waits for you on foot.
+                Note(Run.Director.PerkEarnedEarly
+                    ? "TARGET MET: perk ready (" + GameInput.Describe(GameInput.Upgrades) + (OrbitalAnte.Ship.Ship.Boarded != null ? " on foot" : "")
+                      + "). Bank from the pause menu, or keep scoring"
+                    : "TARGET MET: bank it from the pause menu, or keep scoring");
             }
+            // The pick earned in the field (21 Nov 2026): Upgrades opens the star chart on foot.
+            if (!paused && Run.Director.PerkEarnedEarly && OrbitalAnte.Ship.Ship.Boarded == null && GameInput.Upgrades != null && GameInput.Upgrades.WasPressedThisFrame()
+                && (Menu == null || !Menu.IsOpen) && !StarChartView.Showing && StarChartView.ClosedFrame != Time.frameCount)
+                ShowFieldPerks();
             UpdateHud(dt, paused);
         }
 
@@ -346,15 +373,31 @@ namespace OrbitalAnte.Tasks
             fill.anchoredPosition = Vector2.zero;
             fill.sizeDelta = new Vector2(0f, 0f);
             _barFill = UiKit.AddImage(fill, gold);
+            // Where a steady pace would be by now (TargetPace): a thin tick on the bar, and words only when behind.
+            var tick = UiKit.NewRect("Pace", back);
+            tick.anchorMin = tick.anchorMax = new Vector2(0f, 0.5f);
+            tick.pivot = new Vector2(0.5f, 0.5f);
+            tick.sizeDelta = new Vector2(2f, 11f);
+            _paceTick = UiKit.AddImage(tick, new Color(1f, 1f, 1f, 0.75f));
+            _paceLine = UiKit.Label(_canvas.transform, string.Empty, 13, UiKit.Muted, TextAnchor.MiddleRight);
+            // The same row as PERK READY: the two never show together (behind or over means the target is not met).
+            UiKit.Pin((RectTransform)_paceLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -118f), new Vector2(320f, 20f));
+            UiKit.Halo(_paceLine);
 
             _streakLine = UiKit.Label(_canvas.transform, string.Empty, 15, Config.styleColour, TextAnchor.MiddleRight);
             UiKit.Pin((RectTransform)_streakLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -78f), new Vector2(320f, 20f));
             UiKit.Halo(_streakLine);
 
+            // Under the world's task line (RunGuideFx, -98): a pick is waiting (21 Nov 2026), so the reward is never missed but never forced.
+            _perkLine = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight);
+            UiKit.Pin((RectTransform)_perkLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -118f), new Vector2(320f, 20f));
+            UiKit.Halo(_perkLine);
+            _perkLine.gameObject.SetActive(false);
+
             for (int i = 0; i < _pops.Length; i++)
             {
                 _pops[i] = UiKit.Label(_canvas.transform, string.Empty, 17, gold, TextAnchor.MiddleRight);
-                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -122f - i * 21f), new Vector2(420f, 21f));
+                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -142f - i * 24f), new Vector2(420f, 24f));
                 UiKit.Halo(_pops[i]);
                 _pops[i].gameObject.SetActive(false);
             }
@@ -368,20 +411,33 @@ namespace OrbitalAnte.Tasks
             _canvas.gameObject.SetActive(false);
         }
 
-        void Pop(string text)
+        void Pop(string text) => Pop(text, PopFeedback.LookFor(PopTier.Plain));
+
+        void Pop(string text, PopLook look)
         {
             // Newest at the top: the others move down one line and the oldest falls off.
             ShiftPops();
             _pops[0].text = text;
-            _popLeft[0] = Mathf.Max(0.5f, Config.popSeconds);
+            _pops[0].fontSize = look.fontSize;
+            _popColour[0] = look.styleColour ? Config.styleColour : Config.scoreColour;
+            _pops[0].color = _popColour[0];
+            _popLeft[0] = Mathf.Max(0.5f, Config.popSeconds * look.seconds / 2.4f);
             _pops[0].gameObject.SetActive(true);
+            if (!string.IsNullOrEmpty(look.sound)) Audio.AudioDirector.PlayLocal(look.sound, look.volume);
+            _rackEndVolume = Mathf.Max(_rackEndVolume, look.rackEndVolume);
         }
+
+        readonly Color[] _popColour = new Color[4];
+        float _rackEndVolume = 0.6f;
 
         void ShiftPops()
         {
             for (int k = _pops.Length - 1; k > 0; k--)
             {
                 _pops[k].text = _pops[k - 1].text;
+                _pops[k].fontSize = _pops[k - 1].fontSize;
+                _popColour[k] = _popColour[k - 1];
+                _pops[k].color = _popColour[k];
                 _popLeft[k] = _popLeft[k - 1];
                 _pops[k].gameObject.SetActive(_popLeft[k] > 0f);
             }
@@ -429,7 +485,8 @@ namespace OrbitalAnte.Tasks
             else if (_counting)
             {
                 _counting = false;
-                Audio.AudioDirector.PlayLocal("reward.points.rack_end", 0.7f);
+                Audio.AudioDirector.PlayLocal("reward.points.rack_end", _rackEndVolume);
+                _rackEndVolume = 0.6f;
             }
             int points = Mathf.FloorToInt(_shown);
             int target = d.Target;
@@ -443,11 +500,39 @@ namespace OrbitalAnte.Tasks
                 _barFill.color = points >= target ? new Color(0.55f, 1f, 0.55f) : Config.scoreColour;
             }
 
+            float anteClock = HazardRules.AnteSeconds(CurrentHazard, Run.Balance) + d.StopwatchSecondsAdded;
+            PaceReading pace = TargetPace.Read(earned, target, d.SecondsLeft, anteClock, over, held || !d.IsRunning);
+            bool tickOn = pace.status != PaceStatus.Met && pace.status != PaceStatus.Overtime && d.IsRunning && !held;
+            if (_paceTick.gameObject.activeSelf != tickOn) _paceTick.gameObject.SetActive(tickOn);
+            // Moved only a whole pixel at a time, so the readout is not re-batched every frame for nothing.
+            float tickX = Mathf.Round(200f * pace.expectedShare);
+            if (tickOn && tickX != _shownTickX)
+            {
+                _shownTickX = tickX;
+                ((RectTransform)_paceTick.transform).anchoredPosition = new Vector2(tickX, 0f);
+            }
+            if (!TargetPace.SameWords(pace, _shownPace))
+            {
+                _shownPace = pace;
+                _paceLine.text = TargetPace.Words(pace);
+                _paceLine.color = pace.status == PaceStatus.Overtime ? UiKit.Danger : UiKit.Muted;
+            }
+
             int streak = Streak.CountAt(PlayTime);
             if (streak != _shownStreak)
             {
                 _shownStreak = streak;
                 _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
+            }
+
+            bool perkReady = d.PerkEarnedEarly && OrbitalAnte.Ship.Ship.Boarded == null;
+            bool pad = GameInput.UsingGamepad;
+            if (perkReady != _shownPerkReady || (perkReady && pad != _shownPerkPad))
+            {
+                _shownPerkReady = perkReady;
+                _shownPerkPad = pad;
+                _perkLine.gameObject.SetActive(perkReady);
+                if (perkReady) _perkLine.text = "PERK READY · " + GameInput.Describe(GameInput.Upgrades).ToUpperInvariant();
             }
 
             // Aboard, the ship's damage list takes this corner: the lines wait (the score still counts up).
@@ -460,7 +545,7 @@ namespace OrbitalAnte.Tasks
                 if (_popLeft[i] <= 0f) _pops[i].gameObject.SetActive(false);
                 else
                 {
-                    Color c = _pops[i].color;
+                    Color c = _popColour[i];
                     c.a = Mathf.Clamp01(_popLeft[i] / 0.5f);
                     _pops[i].color = c;
                 }

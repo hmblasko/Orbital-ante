@@ -489,3 +489,12 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | | Cost | Cap |
 |---|---|---|
 | `RunGuideFx` | One canvas, 2 labels with halo. The "left to score here" line counts the current world's bases, masts and crates twice a second (short lists, no allocation) and rewrites its text only when it changes; the tip check runs only between tips. Guessed under 0.02 ms a frame | 1 tip on screen |
+
+## Fun pass: star chart, sized pops, pace tick, recap (21 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `StarChartView` | Its own canvas (order 110), built at boot with 3 cards and 3 buttons, inactive until opened: no work a frame while closed. The 640 x 400 sky texture (1 MB, kept for the session) is made on the first open, while paused (guessed a few ms on the Deck). Open (game paused): the pulse fades 1 to 2 images with `canvasRenderer.SetAlpha` (a re-batch of this canvas, about 100 graphics, guessed 0.1 to 0.3 ms); a card change rebuilds about 60 chart objects (guessed 1 to 3 ms and some garbage); 20 to 40 UI draw calls. The 3D world keeps rendering behind the cover, as under the pause menu (a follow-up for both: stop the world cameras while a full-screen page is up) | open only while paused; 5 families x 3 stars |
+| Sized pops | Size, colour and text set once per award; the fade rebuilds each label only in its last 0.5 s; one reward sound per feat or big award (the sounds' own cooldowns cap them) | 4 lines |
+| Pace tick | `TargetPace.Read` every frame: a few divides, no allocation; its words are built only when the status, points a minute or the remainder change; the tick moves only on a whole-pixel change | 1 tick, 1 label |
+| `RunRecap` | Integer adds per award, no allocation; text built once at the end of a run | one per run |

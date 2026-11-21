@@ -124,6 +124,26 @@ namespace OrbitalAnte.Ante
             return string.Join(", ", parts);
         }
 
+        /// <summary>One effect in words, for a card that shows gains and costs on separate lines (21 Nov 2026).</summary>
+        public static string DescribeEffect(PerkEffect effect, AnteBalance balance = null) => Describe(effect, balance ?? new AnteBalance());
+
+        /// <summary>True for an effect that makes the player worse off (shown as the card's cost).</summary>
+        public static bool IsCost(PerkEffect effect)
+        {
+            if (effect == null) return false;
+            switch (effect.stat)
+            {
+                case PerkStat.IncomingDamage:
+                case PerkStat.CloseRangeDefence:
+                    return effect.value > 0f;
+                case PerkStat.LadderDoubleEvery:
+                case PerkStat.LongShotCloser:
+                    return false;
+                default:
+                    return effect.value < 0f;
+            }
+        }
+
         /// <summary>Plain words for what a score bonus pays on.</summary>
         static string PointsFor(ScoreEventKind kind, string tag)
         {

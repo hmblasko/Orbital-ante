@@ -151,7 +151,7 @@ namespace OrbitalAnte.Tasks
             else choices.Add(new PauseMenu.MenuChoice("Perk: " + LastPerkName(), null, false));
             choices.Add(new PauseMenu.MenuChoice("Shop  (" + N(Run.Ledger.SpendablePoints) + " to spend)", ShowShop));
             choices.Add(Run.Director.ScratchPending
-                ? new PauseMenu.MenuChoice("Scratch the free ticket\n" + ScratchOddsLine(b), Scratch)
+                ? new PauseMenu.MenuChoice("Scratch the free ticket\n" + ScratchOddsLine(b, Run), Scratch)
                 : new PauseMenu.MenuChoice("Ticket scratched", null, false));
             choices.Add(new PauseMenu.MenuChoice("Raise the stakes: " + HazardRules.Name(_nextHazard)
                 + (_nextHazard == Hazard.None ? "" : "  (points x" + HazardRules.Multiplier(_nextHazard, b).ToString("0.00", Inv) + ")"), ShowStakes));
@@ -220,51 +220,88 @@ namespace OrbitalAnte.Tasks
             return parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
         }
 
-        void ShowPerks()
+        /// <summary>The break's perk pick, on the star chart (Matthew chose option A, 21 Nov 2026).</summary>
+        void ShowPerks() => ShowPerks(0);
+
+        void ShowPerks(int selected)
         {
-            List<PerkDefinition> offers = Run.PerkOffers();
-            AnteBalance b = Run.Balance;
-            var choices = new List<PauseMenu.MenuChoice>();
-            for (int i = 0; i < offers.Count; i++)
+            if (_chartView == null || Run == null) return;
+            StarChartPage page = ChartPage(selected);
+            page.title = "PICK A PERK";
+            page.backLabel = "Back to the break";
+            page.footer = PressureLine(Run.Director.Ante + 1);
+            page.take = perk => { _chartView.Hide(); TakePerk(perk); };
+            page.skip = () => { _chartView.Hide(); SkipPerks(); };
+            page.reroll = () => { if (Run.RerollPerks()) Rerolled(false); };
+            page.back = () => { _chartView.Hide(); ShowBreak(); };
+            _chartView.Show(page);
+        }
+
+        /// <summary>
+        /// The same pick in the field (21 Nov 2026, Matthew: apply the rewarded upgrades from a Select menu during
+        /// the game): open once the ante's target is met, on foot, paused while it is up. Later keeps it for the break.
+        /// </summary>
+        void ShowFieldPerks() => ShowFieldPerks(0);
+
+        void ShowFieldPerks(int selected)
+        {
+            if (_chartView == null || Run == null || !Run.Director.PerkEarnedEarly) return;
+            StarChartPage page = ChartPage(selected);
+            page.title = "PERK EARNED";
+            page.subtitle = "Target met: this ante's pick is yours now. Take it, or keep it for the break.";
+            page.backLabel = "Later";
+            page.footer = "The clock is stopped while this is open. The ticket and the shop wait for the break.";
+            page.take = perk =>
             {
-                PerkDefinition perk = offers[i];
-                string family = perk.family == PerkFamily.None ? "WILD CARD" : FamilyAfter(perk.family);
-                string label = perk.displayName.ToUpperInvariant() + "   " + family + "   " + perk.rarity.ToString().ToUpperInvariant()
-                               + "\n" + perk.Describe(b);
-                choices.Add(new PauseMenu.MenuChoice(label, () => TakePerk(perk)));
-            }
-            choices.Add(new PauseMenu.MenuChoice("Skip all three: +" + N(b.perkSkipCash) + " to spend", SkipPerks));
-            choices.Add(new PauseMenu.MenuChoice("Back", ShowBreak));
-            string body = "Take one. Three of one family turns on its set bonus.\n" + SetBonusesLine(offers);
-            Menu.ShowChoices("PICK A PERK", body, choices, ShowBreak, 110f, -1, true);
-        }
-
-        /// <summary>"GUNNER 2/3": the family count once this card is taken.</summary>
-        string FamilyAfter(PerkFamily family)
-        {
-            int have = Run.Perks.FamilyCount(family) + 1, need = PerkFamilies.SetSize(Run.Balance);
-            string name = family.ToString().ToUpperInvariant();
-            return have >= need ? name + " " + Mathf.Min(have, need) + "/" + need + " SET!" : name + " " + have + "/" + need;
-        }
-
-        /// <summary>What each offered family's set gives, so the long-term pull is visible next to the short-term one.</summary>
-        string SetBonusesLine(List<PerkDefinition> offers)
-        {
-            var seen = new HashSet<PerkFamily>();
-            var parts = new List<string>();
-            for (int i = 0; i < offers.Count; i++)
+                _chartView.Hide();
+                if (!Run.TakePerk(perk)) return;
+                _skippedPerk = false;
+                AnnouncePerk(perk);
+                PublishBuild();
+                Note(_breakNote);
+                _breakNote = null;
+            };
+            page.skip = () =>
             {
-                PerkFamily f = offers[i].family;
-                if (f == PerkFamily.None || !seen.Add(f)) continue;
-                parts.Add(f + " set: " + PerkFamilies.Describe(f, Run.Balance));
-            }
-            return string.Join("\n", parts);
+                _chartView.Hide();
+                int cash = Run.SkipCash;
+                if (!Run.Director.PerkEarnedEarly || !Run.SkipPerks()) return;
+                _skippedPerk = true;
+                Audio.AudioDirector.PlayLocal("reward.points.rack_end");
+                Note("Skipped the perks: +" + N(cash) + " to spend at the break");
+            };
+            page.reroll = () => { if (Run.RerollPerks()) Rerolled(true); };
+            page.back = () => _chartView.Hide();
+            _chartView.Show(page);
         }
 
-        void TakePerk(PerkDefinition perk)
+        void Rerolled(bool field)
         {
-            if (!Run.TakePerk(perk)) { ShowBreak(); return; }
-            _skippedPerk = false;
+            Audio.AudioDirector.PlayLocal("reward.points.rack_end", 0.6f);
+            int keep = Mathf.Max(0, _chartView.SelectedIndex);
+            if (field) ShowFieldPerks(keep); else ShowPerks(keep);
+        }
+
+        /// <summary>What every perk page shares: the offers, the build so far, the wallet, the reroll.</summary>
+        StarChartPage ChartPage(int selected)
+        {
+            int price = Run.RerollPrice;
+            return new StarChartPage
+            {
+                loadout = Run.Perks,
+                offers = Run.PerkOffers(),
+                balance = Run.Balance,
+                wallet = Run.Ledger.SpendablePoints,
+                rerollPrice = price,
+                canReroll = Run.Balance.perkRerollPrice > 0 && Run.Ledger.SpendablePoints >= price,
+                skipCash = Run.SkipCash,
+                selected = selected,
+            };
+        }
+
+        /// <summary>The sound and the line for a perk taken: a bigger one when it completes a set.</summary>
+        void AnnouncePerk(PerkDefinition perk)
+        {
             Audio.AudioDirector.PlayLocal("reward.tier2");
             _breakNote = perk.displayName + ": " + perk.Describe(Run.Balance);
             if (perk.family != PerkFamily.None && Run.Perks.FamilyCount(perk.family) == PerkFamilies.SetSize(Run.Balance))
@@ -272,6 +309,13 @@ namespace OrbitalAnte.Tasks
                 Audio.AudioDirector.PlayLocal("reward.tier4");
                 _breakNote = perk.family.ToString().ToUpperInvariant() + " SET ON: " + PerkFamilies.Describe(perk.family, Run.Balance);
             }
+        }
+
+        void TakePerk(PerkDefinition perk)
+        {
+            if (!Run.TakePerk(perk)) { ShowBreak(); return; }
+            _skippedPerk = false;
+            AnnouncePerk(perk);
             PublishBuild();
             _keepSlot = 0;
             ShowBreak();
@@ -279,12 +323,11 @@ namespace OrbitalAnte.Tasks
 
         void SkipPerks()
         {
-            if (!Run.Director.PerkDraftPending) { ShowBreak(); return; }
-            Run.Director.MarkPerkDraftTaken();
-            Run.Ledger.AddBankOnly(Run.Balance.perkSkipCash);
+            int cash = Run.SkipCash;
+            if (!Run.Director.PerkDraftPending || !Run.SkipPerks()) { ShowBreak(); return; }
             _skippedPerk = true;
             Audio.AudioDirector.PlayLocal("reward.points.rack_end");
-            _breakNote = "Skipped the perks: +" + N(Run.Balance.perkSkipCash) + " to spend.";
+            _breakNote = "Skipped the perks: +" + N(cash) + " to spend.";
             ShowBreak();
         }
 
@@ -355,7 +398,7 @@ namespace OrbitalAnte.Tasks
             {
                 case ScratchOutcome.SmallCash:
                 case ScratchOutcome.BigCash:
-                    _breakNote = "Ticket: +" + N(ScratchOff.CashFor(b, got.Value)) + " to spend.";
+                    _breakNote = "Ticket: +" + N(Run.ScratchCash(got.Value)) + " to spend.";
                     Audio.AudioDirector.PlayLocal("reward.points.rack_end");
                     break;
                 case ScratchOutcome.RepairRefillVoucher:
@@ -377,10 +420,10 @@ namespace OrbitalAnte.Tasks
             ShowBreak();
         }
 
-        static string ScratchOddsLine(AnteBalance b)
+        static string ScratchOddsLine(AnteBalance b, AnteRun run)
         {
-            return Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.SmallCash)) + "% +" + b.scratchSmallCash
-                   + ", " + Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.BigCash)) + "% +" + b.scratchBigCash
+            return Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.SmallCash)) + "% +" + N(run.ScratchCash(ScratchOutcome.SmallCash))
+                   + ", " + Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.BigCash)) + "% +" + N(run.ScratchCash(ScratchOutcome.BigCash))
                    + ", " + Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.RepairRefillVoucher)) + "% refill"
                    + ", " + Mathf.RoundToInt(ScratchOff.OddsPercent(b, ScratchOutcome.TemporaryTacticalPerk)) + "% boost"
                    + ", " + ScratchOff.OddsPercent(b, ScratchOutcome.CosmeticToken).ToString("0.#", Inv) + "% token";
@@ -424,7 +467,8 @@ namespace OrbitalAnte.Tasks
             if (Run == null) return null;
             int ante = Run.Director.Ante, score = Run.Ledger.LifetimeRunScore;
             int target = Run.Director.Target, banked = Run.Ledger.AnteEarned;
-            int cleared = Run.Director.Phase == AntePhase.Victory ? ante : ante - 1;
+            // At the break (restart or quit from it) the ante shown is the one just cleared.
+            int cleared = Run.Director.Phase == AntePhase.Victory || Run.Director.Phase == AntePhase.Intermission ? ante : ante - 1;
 
             Save.SaveData save = Save.SaveSystem.Data;
             bool newAnte = false, newScore = false;
@@ -441,7 +485,8 @@ namespace OrbitalAnte.Tasks
             }
 
             var s = new StringBuilder();
-            s.Append("Reached ante ").Append(ante);
+            // Gain framed: what was cleared first, then the distance to the next (plain numbers, never dressed up as "so close").
+            s.Append("Cleared ").Append(Mathf.Max(0, cleared)).Append(cleared == 1 ? " ante" : " antes").Append(", reached ante ").Append(ante);
             if (Run.Director.Phase != AntePhase.Victory && banked < target)
                 s.Append(", ").Append(N(target - banked)).Append(" short of ").Append(N(target));
             s.Append(".   Run score ").Append(N(score)).Append(".\n");
@@ -454,6 +499,8 @@ namespace OrbitalAnte.Tasks
                 for (int i = 0; i < Run.Perks.Owned.Count; i++) names.Add(Run.Perks.Owned[i].displayName);
                 s.Append("Build: ").Append(string.Join(", ", names)).Append("\n");
             }
+            string story = _recap != null ? _recap.Lines() : string.Empty;
+            if (story.Length > 0) s.Append(story).Append("\n");
             if (newAnte) s.Append("NEW RECORD: your highest ante!\n");
             else if (newScore) s.Append("NEW RECORD: your best run score!\n");
             return s.ToString().TrimEnd('\n');
