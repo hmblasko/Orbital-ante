@@ -1,6 +1,6 @@
 # Clear goals: start, goal card, clock at liftoff, tips, title screen (21 Nov 2026)
 
-Matthew asked (21 Nov 2026): "Prepare the game into a fully functioning game with clear goals". Plan: Claude Doc "Complete playable loop: audit and plan". This report covers batch B (start and goals). Batch A (merging PRs 73, 75, 74 into playtest) waits on Matthew's yes; batch C (what a missed target does, after ante 9, fuller recap) waits on his decision card.
+Matthew asked (21 Nov 2026): "Prepare the game into a fully functioning game with clear goals". Plan: Claude Doc "Complete playable loop: audit and plan". This report covers batch B (start and goals). Batch A (merging PRs 73, 75, 74 into playtest) waits on Matthew's yes; batch C's first two pieces (what a missed target does, after the last ante) are below; the fuller recap is with the roguelite thread.
 
 **Nothing here has been run in Unity.** It compiles against reference assemblies and the rule tests pass in the cloud.
 
@@ -54,3 +54,23 @@ Everything seen or felt: the title pages and goal card on the Deck's screen and 
 9. Watch for the tip about the map, open the map, then watch for the lock and autopilot tip.
 10. Fly to any world. Check the line under the score says what is left there.
 11. Tell me what felt clear, what didn't, and anything that overlapped or didn't show up.
+
+## Batch C: overtime and Keep going (21 Nov 2026)
+
+Matthew chose "Overtime until you hit it" on the decision card, and said perks continue even in overtime.
+
+| Built | Problem it answers | Constitution |
+|---|---|---|
+| When the clock runs out short of the target the run goes on in overtime: the readout says ANTE n OVERTIME +m:ss in red, an alarm sounds once with OVERTIME: REACH N. THEY'RE HUNTING YOU, and every 15 s the enemies near you are told where you are. The ante clears the moment you reach the target, and the break says "Made it in overtime. Close one!" The perk pick is still offered. | A missed clock ended the run, which went against "the game ends only on player death" (13 Nov) | 3, 5, 8 |
+| In overtime enemies react and aim as sharply as under Hunted, but no extra heavies (an enemy keeps the kind it woke as for the whole run, so heavies would have stayed for every later ante). | Found in review | 3 |
+| After the last ante: a page with Keep going (endless antes, each target 1.25 times the one before, rounded to 10) or End the run here. Records are written only when the run really ends. | Ante 9 just stopped | 6 |
+| Saved runs keep Keep going and overtime. A long-shot kill's "+time" is not shown in overtime (there is no clock to add to). | Found in review | 3, 5 |
+| The old rule (time's up ends the run) is kept as a dial: `AnteBalance.missedTarget = EndRun`. | So it can be compared | 10 |
+
+Tests: 2,634 passed, 1 skipped. New tests: into overtime in every end mode, clears at the target with the perk still offered, nothing carried over, pause and death in overtime, the last ante cleared in overtime is the win, Keep going's targets, endless targets keep the listed ones, and Keep going plus overtime survive a save round trip. Compile check clean.
+
+Agent review (one Opus read, Unity, design and Deck): heavies woken in overtime would last all run (fixed: sharpness only); the long-shot "+time" popped in overtime but added nothing (fixed); saved runs dropped Keep going and overtime (fixed, with a test); the alarm's reach comment was wrong (fixed); the overtime readout and alarms could run after death (fixed); Keep going played the break's fanfare on top of its own sound (fixed); one weak test assertion (fixed).
+
+Unverified (needs Unity): how overtime feels, whether enemies really come to the alarm in time, the red readout on the Deck's screen.
+
+Extra Deck steps: 12. In a run, let ante 1's clock run out without reaching the target. Check the readout turns red and counts up, and enemies start coming. 13. Reach the target and check the break opens with the perk pick. 14. (Long) clear the last ante and press Keep going: the next ante's target should be bigger.

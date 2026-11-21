@@ -68,7 +68,7 @@ namespace OrbitalAnte.Tasks
         /// liftoff (<see cref="RunStartHold"/>, set by <c>RunGuideFx</c>). Points still count while it waits.
         /// </summary>
         public static Func<bool> HoldClock;
-        bool _shownHeld, _wasOvertime;
+        bool _shownHeld, _wasOvertime, _fromVictory;
         float _huntIn;
 
         void Awake()
@@ -205,7 +205,7 @@ namespace OrbitalAnte.Tasks
         /// </summary>
         void UpdateOvertime(float dt, bool paused)
         {
-            bool ot = Run != null && Run.Director.InOvertime;
+            bool ot = Run != null && Run.Director.IsRunning && Run.Director.InOvertime;
             if (ot != _wasOvertime)
             {
                 _wasOvertime = ot;
@@ -220,9 +220,9 @@ namespace OrbitalAnte.Tasks
             if (!ot || paused) return;
             _huntIn -= dt;
             if (_huntIn > 0f) return;
-            _huntIn = Mathf.Max(3f, Run.Balance.overtimeHuntEvery);
             Transform eye = AI.CombatWorld.PlayerEye;
             if (eye == null) return;
+            _huntIn = Mathf.Max(3f, Run.Balance.overtimeHuntEvery);
             float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
@@ -234,6 +234,8 @@ namespace OrbitalAnte.Tasks
             switch (phase)
             {
                 case AntePhase.Intermission:
+                    // Keep going after the last ante comes here too: its sounds were played on the victory page.
+                    if (_fromVictory) { _fromVictory = false; ShowCard(); break; }
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     // Ante 9 is the envelope's; clearing earlier antes changes nothing there yet, but it is told.
                     if (Envelopes != null) Envelopes.AnteCleared(ante);
@@ -270,7 +272,10 @@ namespace OrbitalAnte.Tasks
                 {
                     new PauseMenu.MenuChoice("Keep going", () =>
                     {
-                        if (Run != null && Run.Director.ContinueEndless()) Audio.AudioDirector.PlayLocal("reward.multiplier");
+                        if (Run == null) return;
+                        _fromVictory = true;
+                        if (Run.Director.ContinueEndless()) Audio.AudioDirector.PlayLocal("reward.multiplier");
+                        else _fromVictory = false;
                     }),
                     new PauseMenu.MenuChoice("End the run here", () =>
                     {
@@ -393,17 +398,18 @@ namespace OrbitalAnte.Tasks
             int seconds = Mathf.CeilToInt(d.SecondsLeft);
             bool held = HoldClock != null && HoldClock();
             // In overtime the line counts up how long you have been over instead.
-            if (d.InOvertime) seconds = -1 - Mathf.FloorToInt(d.OvertimeSeconds);
+            bool over = d.IsRunning && d.InOvertime;
+            if (over) seconds = -1 - Mathf.FloorToInt(d.OvertimeSeconds);
             if (seconds != _shownSeconds || d.Ante != _shownAnte || held != _shownHeld)
             {
                 _shownSeconds = seconds;
                 _shownAnte = d.Ante;
                 _shownHeld = held;
-                _anteLine.text = d.InOvertime
+                _anteLine.text = over
                     ? "ANTE " + d.Ante + "   OVERTIME +" + Clock(Mathf.Floor(d.OvertimeSeconds))
                     : "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  STARTS AT LIFTOFF" : string.Empty);
                 // The last half minute, and overtime, are in the warning colour.
-                _anteLine.color = d.IsRunning && (d.InOvertime || d.SecondsLeft <= 30f) && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
+                _anteLine.color = d.IsRunning && (over || d.SecondsLeft <= 30f) && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
             }
 
             // The slot-machine count-up: the shown number runs to the real one, never taking more than 1.2 s.

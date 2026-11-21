@@ -37,9 +37,12 @@ namespace OrbitalAnte.Tasks
         {
             if (Run == null) { RunEffects.Clear(); return; }
             RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte));
-            // In overtime the enemies hunt as under Hunted, whatever was chosen (the points multiplier stays the chosen one's).
-            Hazard pressure = Run.Director.InOvertime ? Hazard.Hunted : CurrentHazard;
-            Enemies.EnemySpawner.Pressure = EnemyPressure.For(Run.Director.Ante, pressure, Run.Balance);
+            // In overtime the enemies are as sharp as under Hunted. Not its extra heavies: an enemy keeps the kind it
+            // first woke as for the whole run, so heavies woken in overtime would stay heavies in every later ante.
+            EnemyPressure pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
+            if (Run.Director.InOvertime && CurrentHazard != Hazard.Hunted)
+                pressure.Sharpness = Mathf.Max(0.4f, pressure.Sharpness * Run.Balance.huntedSharpness);
+            Enemies.EnemySpawner.Pressure = pressure;
             Enemies.EnemySpawner.PressureAnte = Run.Director.Ante;
             Enemies.EnemySpawner.PressureSeed = Run.Seed;
         }
@@ -79,6 +82,8 @@ namespace OrbitalAnte.Tasks
 
         void GiveTimeBack(float seconds)
         {
+            // No clock in overtime (or once it has run out): say nothing rather than promise time that never comes.
+            if (Run.Director.WaitingForPlayer) return;
             Run.Director.AdjustSeconds(seconds);
             Pop("+" + Mathf.RoundToInt(seconds) + " s ON THE CLOCK");
         }

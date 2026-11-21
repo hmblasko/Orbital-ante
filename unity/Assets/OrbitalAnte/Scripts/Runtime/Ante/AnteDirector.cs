@@ -164,6 +164,7 @@ namespace OrbitalAnte.Ante
 
         public void PlayerDied()
         {
+            InOvertime = false;
             if (IsRunning) End(AntePhase.Failed);
         }
 
@@ -224,6 +225,15 @@ namespace OrbitalAnte.Ante
         {
             Phase = phase;
             Changed?.Invoke();
+        }
+
+        /// <summary>Keep going and overtime from a saved run. Call before <see cref="Restore"/> (endless antes go past the last).</summary>
+        public void RestoreLater(bool endless, bool inOvertime, float overtimeSeconds, bool clearedInOvertime)
+        {
+            Endless = endless;
+            InOvertime = inOvertime;
+            OvertimeSeconds = Math.Max(0f, overtimeSeconds);
+            ClearedInOvertime = clearedInOvertime;
         }
 
         public void Restore(int ante, AntePhase phase, float secondsLeft, float stopwatchAdded, float runSeconds, bool perkPending, bool scratchPending)

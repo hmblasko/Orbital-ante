@@ -130,7 +130,7 @@ namespace OrbitalAnte.Ante
         public MissedTarget missedTarget = MissedTarget.Overtime;
         /// <summary>In overtime, how often the enemies near you are told where you are (seconds).</summary>
         public float overtimeHuntEvery = 15f;
-        /// <summary>In overtime, how far that call carries (metres; also held to a share of the world's size).</summary>
+        /// <summary>In overtime, how far that call carries (metres). Only enemies already awake near you hear it.</summary>
         public float overtimeHuntRadius = 140f;
         /// <summary>After the last ante, "Keep going" antes each ask this much more than the one before (21 Nov 2026).</summary>
         public float endlessTargetGrowth = 1.25f;

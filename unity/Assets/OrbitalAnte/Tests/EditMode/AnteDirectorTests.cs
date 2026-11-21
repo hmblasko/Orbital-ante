@@ -289,9 +289,10 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(0f, run.Director.SecondsLeft, "no time back once the clock has run out");
             Assert.IsFalse(run.Director.UseStopwatch());
             Assert.IsFalse(run.Director.ConfirmAdvance(), "can't end an ante whose target isn't met");
+            Assert.IsTrue(run.Director.InOvertime);
             run.Director.PlayerDied();
             Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
-            Assert.IsFalse(run.Director.InOvertime == true && run.Director.IsRunning);
+            Assert.IsFalse(run.Director.InOvertime, "a death ends overtime too");
         }
 
         [Test]
@@ -330,6 +331,27 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(630, run.Director.Target, "625 rounded to 10");
             run.Director.PlayerDied();
             Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
+        }
+
+        [Test]
+        public void KeepGoingAndOvertime_SurviveASaveRoundTrip()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300);
+            Earn(run, 300);
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            Assert.IsTrue(run.Director.ContinueEndless());
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.IsTrue(run.BeginNextAnte() == false);
+            run.Tick(300f, false);
+            run.Tick(12f, false);
+            Assert.IsTrue(run.Director.InOvertime);
+
+            AnteRun back = AnteRun.Import(run.Balance, run.Export());
+            Assert.AreEqual(2, back.Director.Ante, "an endless ante is not clamped to the last listed one");
+            Assert.IsTrue(back.Director.Endless);
+            Assert.IsTrue(back.Director.InOvertime);
+            Assert.AreEqual(12f, back.Director.OvertimeSeconds, 0.001f);
+            Assert.AreEqual(run.Director.Target, back.Director.Target);
         }
 
         [Test]
