@@ -224,7 +224,7 @@ def ui_move(rng, v):
     return finish(x, -8, 0.01)
 
 
-@sfx("ui.select", "ui", volumeDb=-15, cooldownMs=60, maxVoices=2, priority=150, **UI)
+@sfx("ui.select", "ui", volumeDb=-15, pitchVar=0.35, volVarDb=0.8, cooldownMs=60, maxVoices=2, priority=150, **UI)
 def ui_select(rng, v):
     """Choosing a menu item: a tick with a little upward note (A to D) behind it."""
     x = dsp.stereo(dsp.pad_to(metal_hit(rng, 0.06, [1174, 1760, 2637], hardness=0.5), secs(0.35)))
@@ -232,7 +232,7 @@ def ui_select(rng, v):
     return finish(x, -6, 0.08)
 
 
-@sfx("ui.back", "ui", volumeDb=-16, cooldownMs=60, maxVoices=2, priority=150, **UI)
+@sfx("ui.back", "ui", volumeDb=-16, pitchVar=0.35, volVarDb=0.8, cooldownMs=60, maxVoices=2, priority=150, **UI)
 def ui_back(rng, v):
     """Backing out: the same two notes falling (D to A)."""
     x = _synth(line("D6:.1 A5:.4", vel=85), synth.v_pluck, 0.35, rng, bright=0.7, decay=0.1)

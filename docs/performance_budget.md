@@ -379,6 +379,12 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Blood decals (URP Decal feature, Screen Space) | 48 at most, one instanced material, drawn within 60 m. Needs the camera depth texture: a depth copy after opaques is expected (guessed 0.1 to 0.3 ms GPU at 1280 x 800). A depth prepass is not allowed: if the Frame Debugger shows one, set Depth Texture Mode to After Opaques with Depth Priming off, or use edge smoothing Fast on the Deck. Never switch on decal rendering layers | 48 |
 | `Physics.gravity` (blood and sparks only) | written when the felt pull has changed by more than 0.5 m/s squared | - |
 
+## Handmade feel (22 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Rocks, trees and plants set into the ground one by one (`NaturalPose`) | a few multiplies and one hash per thing when it is shown, nothing per frame. Each rock colour now has up to 9 shared materials (3 shades x 3 warmths) instead of 1, so the SRP batcher sees a few more material switches on scattered ground (guessed under 0.1 ms CPU on the Deck) | 9 materials per scatter colour |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:

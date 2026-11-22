@@ -70,7 +70,8 @@ A realistic suit in one pale colour is harder to read than teal against orange. 
 - **Natural colours for every surface**, measured against photographs. Ground: real rock, soil, sand, ice. Hardware: real cloth, metal, paint, rubber. Nothing brighter than pale sand except snow, ice and white cloth in full sun.
 - **Colour comes from light and air**, not from paint. Warm sunlight, sky-coloured shadow, sunsets, each world's own sky and haze: this is where the picture's colour and mood live. A grey rock at sunset is not grey.
 - **Strong colour is saved for meaning**: warnings, things that shine, the bands that tell enemies apart, loot.
-- The colour grade is turned down to match: less added saturation, no teal and amber push. (A dial on the Look asset; today's value stays until Matthew has seen the new models in the game.)
+- The colour grade is turned down to match: less added saturation, no teal and amber push. Done 22 Nov 2026 (`GradeDefaults`: contrast 5, saturation 0, split tone 0.18, vignette 0.1), because a strong teal and amber grade is the stock look of generated pictures. Older Look assets take the new grade by themselves (`gradeVersion`); set it to 9999 on the asset to keep a grade of your own.
+- **Nothing scattered looks stamped out.** Loose rocks are half buried, tipped and stretched one by one; trees lean a little and differ in girth; no two stones on a slope are quite the same shade (`NaturalPose`). Landmarks and balanced rocks stay nearly upright, because a hoodoo that leans far reads as broken.
 
 ### 2. Lighting
 - **Soft sunlight with a natural fall-off.** The old look firmed the edge between light and dark into a band, which is a cartoon habit. The band's firmness is now a dial on the Look asset (`Light Band`). It is left at the old value (0.6) and will be turned down while looking at the new models in the game, not before.
