@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Melee;
 using OrbitalAnte.Weapons;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -59,11 +60,8 @@ namespace OrbitalAnte.Player
         public Weapon NearbyPickup { get; private set; }
         /// <summary>How good a pick-up <see cref="NearbyPickup"/> is (lower is better: degrees off the view plus ten a metre).</summary>
         public float NearbyPickupScore { get; private set; } = float.MaxValue;
-        /// <summary>
-        /// Asked before Interact takes the gun on the ground, with its score: true when something else the player
-        /// could take is better (a melee item lying closer to the crosshair), so one press takes only one thing.
-        /// </summary>
-        public System.Func<float, bool> YieldPickup;
+        // Paired by PlayerMelee.Initialize on the player's eye.
+        internal PlayerMelee MeleeSlot { get; set; }
         /// <summary>Guns carried but not in hand (the ladder's earlier guns), next out first.</summary>
         public IReadOnlyList<Weapon> Carried => _carried;
         /// <summary>
@@ -254,8 +252,14 @@ namespace OrbitalAnte.Player
             UpdatePickup();
 
             bool canAct = _health == null || _health.Alive;
-            if (canAct && NearbyPickup != null && GameInput.Interact.WasPressedThisFrame()
-                && (YieldPickup == null || !YieldPickup(NearbyPickupScore)))
+            bool take = canAct && GameInput.Interact != null && GameInput.Interact.WasPressedThisFrame();
+            // Compare both slots from this view before equipping anything changes the set of dropped items.
+            if (MeleeSlot != null && MeleeSlot.isActiveAndEnabled && MeleeSlot.UpdatePickup(NearbyPickupScore, take))
+            {
+                NearbyPickup = null;
+                NearbyPickupScore = float.MaxValue;
+            }
+            else if (take && NearbyPickup != null)
             {
                 Equip(NearbyPickup);
             }

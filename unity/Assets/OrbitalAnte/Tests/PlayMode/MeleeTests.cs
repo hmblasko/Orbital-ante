@@ -5,7 +5,11 @@ using OrbitalAnte.Content;
 using OrbitalAnte.Core;
 using OrbitalAnte.Dismemberment;
 using OrbitalAnte.Melee;
+using OrbitalAnte.Player;
+using OrbitalAnte.Weapons;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.TestTools;
 
 namespace OrbitalAnte.Tests
@@ -49,7 +53,6 @@ namespace OrbitalAnte.Tests
             eyeGo.transform.SetParent(_root.transform, false);
             _eye = eyeGo.AddComponent<Camera>();
             _melee = eyeGo.AddComponent<PlayerMelee>();
-            _melee.Initialize(_eye, null, _root.transform);
         }
 
         [TearDown]
@@ -73,8 +76,10 @@ namespace OrbitalAnte.Tests
         /// <summary>Puts the eye at a place, looking at a point.</summary>
         void Look(Vector3 from, Vector3 at) => _eye.transform.SetPositionAndRotation(from, Quaternion.LookRotation(at - from, Vector3.up));
 
-        MeleeItem Give(string id)
+        MeleeItem Give(string id, PlayerWeapons weapons = null)
         {
+            if (_melee.Swing == null)
+                _melee.Initialize(_eye, weapons, _root.transform);
             MeleeItem item = MeleeItem.Create(ContentDatabase.Get<MeleeData>(id), _root.transform);
             _melee.Take(item);
             Assert.AreEqual(item, _melee.Held);
@@ -151,6 +156,62 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1, _severed, "one cut a swing");
             Assert.Less(_mannequin.Model.PartsOnBody, onBody);
             Assert.IsTrue(_mannequin.Alive);
+        }
+
+        [UnityTest]
+        public IEnumerator InteractAfterTurning_TakesOnlyThePickupNowUnderTheCrosshair()
+        {
+            var interact = GameInput.Interact;
+            bool wasEnabled = interact.enabled;
+            InputBinding oldBinding = interact.bindings[1];
+            Gamepad previousPad = Gamepad.current;
+            Gamepad pad = InputSystem.AddDevice<Gamepad>();
+            try
+            {
+                interact.ApplyBindingOverride(1, "<Gamepad>/buttonNorth");
+                interact.Enable();
+                if (WeaponFx.Instance == null) WeaponFx.Create(_root.transform);
+                Vector3 eye = new Vector3(12f, 2f, 12f);
+                Look(eye, eye + Vector3.back);
+                var weapons = _eye.gameObject.AddComponent<PlayerWeapons>();
+                weapons.Initialize(PlayerConfig.Load(), _eye, null, null, _root.transform);
+                MeleeItem heldBat = Give(MeleeCatalog.BaseballBatId, weapons);
+                MeleeItem pan = MeleeItem.Create(ContentDatabase.Get<MeleeData>(MeleeCatalog.FryingPanId), _root.transform);
+                pan.transform.position = eye + new Vector3(0.5f, 0f, 1f);
+                pan.HoldStill();
+                Weapon pistol = Weapon.Create(WeaponData.Pistol, _root.transform, true);
+                pistol.transform.position = eye + Vector3.forward;
+                pistol.HoldStill();
+                yield return null;
+
+                // Both items are in reach. The prior frame's gun score was from facing away.
+                Look(eye, pistol.transform.position);
+                InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.North));
+                yield return null;
+                Assert.AreSame(pistol, weapons.Current);
+                Assert.AreSame(heldBat, _melee.Held, "taking the gun must keep the bat");
+                Assert.IsFalse(pan.Held);
+
+                Weapon rifle = Weapon.Create(WeaponData.Rifle, _root.transform, true);
+                rifle.transform.position = eye + Vector3.forward;
+                rifle.HoldStill();
+                InputSystem.QueueStateEvent(pad, new GamepadState());
+                yield return null;
+
+                Look(eye, pan.transform.position);
+                InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.North));
+                yield return null;
+                Assert.AreSame(pan, _melee.Held);
+                Assert.AreSame(pistol, weapons.Current, "taking the pan must keep the pistol");
+                Assert.AreEqual(WeaponHold.Dropped, rifle.Hold);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(pad);
+                if (previousPad != null && previousPad.added) previousPad.MakeCurrent();
+                interact.ApplyBindingOverride(1, oldBinding);
+                if (!wasEnabled) interact.Disable();
+            }
         }
 
         [UnityTest]
