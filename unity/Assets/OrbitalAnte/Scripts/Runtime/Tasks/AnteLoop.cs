@@ -261,14 +261,8 @@ namespace OrbitalAnte.Tasks
             if (eye == null) return;
             _huntIn = Mathf.Max(3f, Run.Balance.overtimeHuntEvery);
             float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
-            // The player did not trip this one, so it never spoils a base's QUIET clear.
-            TaskDirector.SystemAlarm = true;
-            try
-            {
-                AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
-                AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
-            }
-            finally { TaskDirector.SystemAlarm = false; }
+            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
+            AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
         }
 
         void OnPhase(AntePhase phase)

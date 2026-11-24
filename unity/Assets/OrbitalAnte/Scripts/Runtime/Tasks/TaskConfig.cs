@@ -15,7 +15,7 @@ namespace OrbitalAnte.Tasks
         [Tooltip("enabled: untick to play a run with no ante timer, no score and no tasks (as before 20 Nov 2026).")]
         public bool enabled = true;
 
-        [Tooltip("Streak, base clears, signal masts, salvage, supply drops, marked targets, landings and how many lit tasks to keep near you.")]
+        [Tooltip("Streak, signal masts, salvage, supply drops, marked targets, landings and how many lit tasks to keep near you.")]
         public TaskRules rules = new TaskRules();
 
         [Header("How it looks")]
@@ -23,7 +23,7 @@ namespace OrbitalAnte.Tasks
         public Color scoreColour = new Color(1f, 0.82f, 0.38f);
         [Tooltip("The streak and style labels.")]
         public Color styleColour = new Color(0.55f, 0.92f, 1f);
-        [Tooltip("The column of light over a task you have not done yet: base clears and masts.")]
+        [Tooltip("The column of light over a task you have not done yet: signal masts.")]
         public Color fightBeacon = new Color(1f, 0.42f, 0.22f, 0.55f);
         [Tooltip("The column of light over salvage and supply drops.")]
         public Color haulBeacon = new Color(0.40f, 0.85f, 1f, 0.55f);

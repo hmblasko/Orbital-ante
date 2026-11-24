@@ -153,13 +153,6 @@ namespace OrbitalAnte.Tasks
         readonly List<Placed> _candidates = new List<Placed>();
         readonly List<float> _distances = new List<float>();
         readonly List<Beacon> _pool = new List<Beacon>();
-        bool _raising;
-
-        /// <summary>
-        /// Set while the game itself raises an alarm the player did not cause (overtime's hunt), so no base loses its
-        /// QUIET clear for it. Set it, raise, clear it, all in one call.
-        /// </summary>
-        public static bool SystemAlarm;
 
         float Now => _loop != null ? _loop.PlayTime : Time.time;
         bool Scoring => _loop != null && _loop.Running;
@@ -474,10 +467,8 @@ namespace OrbitalAnte.Tasks
                 if (!m.Rule.Calls(now, inReach)) continue;
                 // Every enemy in reach, of either side, is told where the player is.
                 Vector3 at = m.WorldPoint;
-                _raising = true;
                 CombatWorld.RaiseAlarm(at, reach, player, Factions.None);
                 CombatWorld.RaiseAlarm(at, reach, player, Factions.A);
-                _raising = false;
                 Audio.AudioDirector.Play("enemy.flare.fire", at, 1f, 0.7f);
                 AnteLoop.Note("THE MAST CALLED FOR HELP: SHOOT OUT ITS CELLS");
             }
@@ -654,10 +645,8 @@ namespace OrbitalAnte.Tasks
             Vector3 at = d.WorldPoint;
             float heard = _rules.DropHeardOn(d.World.Radius);
             // It is loud: everyone within earshot comes to look.
-            _raising = true;
             CombatWorld.RaiseAlarm(at, heard, at, Factions.None);
             CombatWorld.RaiseAlarm(at, heard, at, Factions.A);
-            _raising = false;
             Audio.AudioDirector.Play("impact.metal", at, 1f, 0.5f);
         }
 
