@@ -141,13 +141,13 @@ namespace OrbitalAnte.Tasks
                 case GuideTip.LockAndFly:
                     return "Point the nose at a world and press " + Key(k.Lock) + " to lock it, then " + Key(k.Autopilot) + " for the autopilot.";
                 case GuideTip.WhatScores:
-                    return "Points here: enemy bases, signal masts and salvage crates. Stylish kills score extra.";
+                    return "Points here: enemies, signal masts and salvage crates. Stylish kills score extra.";
                 case GuideTip.FirstPoints:
                     return "First points! Score " + N(target) + " before the clock runs out to clear the ante.";
                 case GuideTip.Bank:
                     return "Target met! The ante clears when the clock runs out. Keep scoring, or end it now from the pause menu (" + Key(k.Pause) + ").";
                 case GuideTip.HurryUp:
-                    return "One minute left on the clock. Go for the nearest base, mast or crate.";
+                    return "One minute left on the clock. Go for the nearest fight, mast or crate.";
                 default:
                     return string.Empty;
             }
@@ -159,7 +159,7 @@ namespace OrbitalAnte.Tasks
             var s = new StringBuilder();
             s.Append("Each ante, score ").Append(N(target)).Append(" points before its ")
              .Append(anteSeconds / 60).Append(" minute clock runs out. The target rises every ante.\n");
-            s.Append("Points come from enemy bases, signal masts, salvage crates and stylish kills, on any world.\n");
+            s.Append("Points come from kills (stylish ones score extra), signal masts, salvage crates and new worlds.\n");
             s.Append("Between antes, pick perks and spend points to get stronger. Clear ").Append(antes).Append(" antes to win.\n");
             s.Append("On foot, ").Append(Key(k.Upgrades)).Append(" opens the shop at any time, and this ante's perk once its target is met.\n");
             s.Append("Miss the clock and it's overtime: enemies hunt you until you make the target.\n");
@@ -201,17 +201,16 @@ namespace OrbitalAnte.Tasks
 
     /// <summary>
     /// The line under the ante readout that says what is left to score on the world you are at
-    /// ("MARS: 2 BASES · 1 MAST · 3 CRATES"), so the goal is never only in the map. Plain C#.
+    /// ("MARS: 1 MAST · 3 CRATES"), so the goal is never only in the map. Plain C#.
     /// </summary>
     public static class WorldTaskLine
     {
-        public static string Compose(string world, int bases, int masts, int crates)
+        public static string Compose(string world, int masts, int crates)
         {
             string name = string.IsNullOrEmpty(world) ? "HERE" : world.ToUpperInvariant();
-            if (bases < 0 || masts < 0 || crates < 0) return string.Empty;
-            if (bases + masts + crates == 0) return name + ": ALL DONE. FLY TO ANOTHER WORLD";
-            var parts = new List<string>(3);
-            if (bases > 0) parts.Add(bases + (bases == 1 ? " BASE" : " BASES"));
+            if (masts < 0 || crates < 0) return string.Empty;
+            if (masts + crates == 0) return name + ": ALL DONE. FLY TO ANOTHER WORLD";
+            var parts = new List<string>(2);
             if (masts > 0) parts.Add(masts + (masts == 1 ? " MAST" : " MASTS"));
             if (crates > 0) parts.Add(crates + (crates == 1 ? " CRATE" : " CRATES"));
             return name + ": " + string.Join(" · ", parts);

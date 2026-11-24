@@ -46,7 +46,7 @@ namespace OrbitalAnte.Ante
                 P("patient_hunter", "Patient Hunter", PerkRarity.Uncommon, PerkFamily.Ghost, E(PerkStat.LowStanceDamage, 0.20f)),
                 P("cold_blood", "Cold Blood", PerkRarity.Common, PerkFamily.Ghost, E(PerkStat.FocusGain, 0.30f)),
                 P("quiet_professional", "Quiet Professional", PerkRarity.Uncommon, PerkFamily.Ghost,
-                    new PerkEffect(ScoreEventKind.OptionalMission, "base", 0.20f)),
+                    new PerkEffect(ScoreEventKind.InstallationDestroyed, null, 0.20f)),
 
                 // ---- Pilot: the ship, the rover, getting about ----
                 P("road_rage", "Road Rage", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.HealOnSplat, 10f)),

@@ -147,7 +147,6 @@ namespace OrbitalAnte.Ante
         /// <summary>Plain words for what a score bonus pays on.</summary>
         static string PointsFor(ScoreEventKind kind, string tag)
         {
-            if (tag == "base") return "clearing a base";
             if (tag == "kill") return "kills";
             switch (kind)
             {
