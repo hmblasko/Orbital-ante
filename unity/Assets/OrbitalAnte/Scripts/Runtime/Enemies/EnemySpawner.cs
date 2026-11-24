@@ -71,6 +71,7 @@ namespace OrbitalAnte.Enemies
             public int Type = -1;
             public bool Counted;
             public Weapon Gun;
+            public MannequinCombat Combat;
         }
 
         SolarSystemWorld _world;
@@ -81,6 +82,13 @@ namespace OrbitalAnte.Enemies
         Vector3 _gravityBefore;
         bool _gravityTaken;
         float _nextThink;
+        readonly LullClock _lull = new LullClock();
+        float _lullTickedAt = -1f;
+        SeededRandom _lullRandom;
+        /// <summary>The camp last woken for a lull (-1 none): it is called once it stands, and nothing else wakes for the lull meanwhile.</summary>
+        World _lullWorld;
+        int _lullCamp = -1;
+        float _lullCampUntil;
         GibManager _gibs;
 
         void OnWorldShifted(Vector3 by)
@@ -323,13 +331,18 @@ namespace OrbitalAnte.Enemies
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
+            LullAction lull = Restless(w);
             if (w == null || height > _config.field.wakeRange) return;
 
             // Wake the nearest sleeping camp that still has anyone in it, one a think, so the cost is spread.
             // A base's guards come first, and room is kept for the guards of a base the player is heading for:
             // nobody should reach an empty base and have its guards appear round them.
             int best = -1, bestGuards = -1, held = 0;
-            double nearest = _config.field.wakeRange, nearestGuards = _config.field.wakeRange, nearestHeld = _config.field.sleepRange;
+            // After a long quiet with nobody standing near, a camp further off may wake (Restless, below).
+            double nearest = lull == LullAction.WakeFurther
+                    ? System.Math.Max(_config.field.wakeRange, System.Math.Min(_config.lull.wakeReach, _config.field.sleepRange * 0.95))
+                    : _config.field.wakeRange,
+                nearestGuards = _config.field.wakeRange, nearestHeld = _config.field.sleepRange;
             for (int c = 0; c < w.Camps.Count; c++)
             {
                 if (w.Awake[c] || w.Left[c] == 0) continue;
@@ -350,9 +363,12 @@ namespace OrbitalAnte.Enemies
                 held = 0;
             }
             if (best < 0) return;
+            // A lull's wake is remembered, so its squad is the one called once it stands, however far it measures.
+            bool forLull = lull == LullAction.WakeFurther && bestGuards < 0 && w.Camps[best].HomeRadius <= 0;
             // The fallen still lying about count too: they cost as much to draw as the living.
             if (PresentCount + w.Left[best] + held > _config.field.liveCap) return;
             w.Awake[best] = true;
+            if (forLull) { _lullWorld = w; _lullCamp = best; _lullCampUntil = Time.time + 10f; }
             _wakingWorld = w;
             _wakingSurface = surface;
             _wakingBody = body;
@@ -388,6 +404,85 @@ namespace OrbitalAnte.Enemies
                     for (int i = 0; i < _places.Count; i++) _wakingLookouts.Add(SpaceConvert.ToVector3(s.ToBody(_places[i].x, _places[i].y, _places[i].z)));
                 }
             }
+        }
+
+        /// <summary>
+        /// Restless camps (<see cref="LullRules"/>): keeps the quiet clock, and when it runs out sends the nearest
+        /// standing squad to look where the player is. Answers WakeFurther when nobody is standing near enough.
+        /// </summary>
+        LullAction Restless(World w)
+        {
+            float now = Time.time;
+            float dt = _lullTickedAt < 0f ? 0f : now - _lullTickedAt;
+            _lullTickedAt = now;
+            Transform eye = CombatWorld.PlayerEye;
+            if (w == null || eye == null)
+            {
+                _lull.Reset();
+                return LullAction.Wait;
+            }
+            LullRules rules = _config.lull;
+            float reach = rules != null ? rules.callReach : 0f;
+            float best = reach * reach;
+            Live callee = null, woken = null;
+            bool fighting = false;
+            Vector3 at = eye.position;
+            if (_lullWorld != null && (_lullWorld != w || _lullCamp < 0 || !_lullWorld.Awake[_lullCamp] || _lullWorld.Left[_lullCamp] == 0))
+            { _lullWorld = null; _lullCamp = -1; }
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive || l.Who.State == MovementState.HeadOnly) continue;
+                if (l.Combat.AwareOfPlayer) { fighting = true; break; }
+                // The camp woken for this lull answers it whatever the straight-line distance (it was woken over the ground).
+                if (_lullWorld != null && _worlds.TryGetValue(l.Body, out World ww) && ww == _lullWorld && l.Camp == _lullCamp)
+                {
+                    float dw = (l.Who.transform.position - at).sqrMagnitude;
+                    if (woken == null || dw < (woken.Who.transform.position - at).sqrMagnitude) woken = l;
+                    continue;
+                }
+                // A base's or a cave's guards keep their posts: only camps out in the open answer a lull.
+                if (_worlds.TryGetValue(l.Body, out World lw) && lw.Camps[l.Camp].HomeRadius > 0) continue;
+                float d = (l.Who.transform.position - at).sqrMagnitude;
+                if (d < best) { best = d; callee = l; }
+            }
+            // Driving, the clock stands still: a squad sent to a place long driven past, or a camp woken far off and
+            // put back to sleep a moment later, is wasted. Hiding stands it still too.
+            Astronaut crew = _world.Astronaut;
+            bool hiding = crew != null && (crew.Hiding || crew.Mode == AstronautMode.Driving);
+            // While the lull's camp is still standing up (a few seconds at most), the clock waits: no second camp wakes.
+            if (_lullWorld != null && woken == null && !fighting)
+            {
+                if (now < _lullCampUntil) return LullAction.Wait;
+                _lullWorld = null;
+                _lullCamp = -1;
+            }
+            if (woken != null && !fighting) { callee = woken; best = (woken.Who.transform.position - at).sqrMagnitude; }
+            LullAction action = _lull.Tick(rules, PressureAnte, dt, true, fighting, hiding, callee != null);
+            if (action != LullAction.Call || callee == null) return action;
+            _lullWorld = null;
+            _lullCamp = -1;
+            // The callee's whole squad comes (or, with no squad, those right beside it), each remembering the
+            // place for long enough to get there. The place is near the player, not on them: a patrol drifting
+            // their way, not a squad that knows.
+            Vector3 from = callee.Who.transform.position;
+            float radius = Mathf.Max(1f, rules.callRadius);
+            if (_lullRandom == null) _lullRandom = SeededRandom.ForStream(PressureSeed, "enemies.lull");
+            Vector3 up = callee.Who.transform.up;
+            Vector3 side = Vector3.ProjectOnPlane(new Vector3((float)_lullRandom.NextDouble() - 0.5f, (float)_lullRandom.NextDouble() - 0.5f,
+                                                              (float)_lullRandom.NextDouble() - 0.5f), up);
+            if (side.sqrMagnitude > 1e-6f) at += side.normalized * (Mathf.Max(0f, rules.placeSpread) * (float)_lullRandom.NextDouble());
+            float speed = 2f;
+            float memory = Mathf.Sqrt(best) / speed + 15f;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive) continue;
+                bool same = callee.Combat.Squad != null ? l.Combat.Squad == callee.Combat.Squad
+                                                        : (l.Who.transform.position - from).sqrMagnitude <= radius * radius;
+                if (same) l.Combat.SendToLook(at, memory, rules.walkInFrom);
+            }
+            return action;
         }
 
         static double HomeRadius(EnemyCamp camp, PlanetSurface surface)
@@ -487,7 +582,7 @@ namespace OrbitalAnte.Enemies
                     _guns.Add(weapon);
                     gun = weapon;
                 }
-                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun, Type = type });
+                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun, Type = type, Combat = combat });
                 Woke?.Invoke(body, camp, m, who);
                 LiveCount++;
                 PresentCount++;

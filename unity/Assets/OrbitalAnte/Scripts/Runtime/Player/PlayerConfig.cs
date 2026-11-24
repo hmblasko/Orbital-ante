@@ -33,6 +33,8 @@ namespace OrbitalAnte.Player
         public float fieldOfView = 80f;
         [Tooltip("Controller aim assist: the sticks turn a little slower over an enemy's head or chest. Never pulls the aim, never helps a mouse.")]
         public AimAssistRules aimAssist = AimAssistRules.Default;
+        [Tooltip("Floating free, each shot pushes you back a little, by the gun's kick (a sniper shot is a shove, a held SMG a drift). Match Velocity takes it off.")]
+        public ZeroGKickRules zeroGKick = ZeroGKickRules.Default;
 
         [Header("Health (bare minimum so enemies shooting back can be tested)")]
         public float maxHealth = 100f;

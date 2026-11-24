@@ -107,6 +107,11 @@ namespace OrbitalAnte.Ship
         // On foot: standing, crouched or prone, and the quiet sneak (see Spacewalk/Stances.cs).
         public StanceState Stances { get; } = new StanceState();
         public bool Sneaking { get; private set; }
+        /// <summary>
+        /// Out on foot and keeping hidden: crouched, prone, sneaking, or in a cave dark enough to halve how far you
+        /// are seen. A long quiet never sends a squad to a hiding player (Enemies/LullRules).
+        /// </summary>
+        public bool Hiding { get; private set; }
         CapsuleCollider _body;
         float _walkingAt, _airborneFor;
         Func<Stance, bool> _roomFor;
@@ -136,6 +141,8 @@ namespace OrbitalAnte.Ship
         public bool TakeJetPuff() { bool puff = _jetPuff; _jetPuff = false; return puff; }
         bool _jetPuff, _matchWasHeld;
         MatchTarget _matchTarget;
+        /// <summary>The speed Match Velocity would match, kept from the last physics step (a shot's drift cap reads it).</summary>
+        Vector3 _matchReference;
         SuitFx _fx;
         float _airDrawn, _jetPush, _rollEase;
         Quaternion _viewLocal = Quaternion.identity;
@@ -280,6 +287,10 @@ namespace OrbitalAnte.Ship
             Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
                 : Ship != null ? Ship.transform.up : Vector3.up;
             Weapons.InShip = () => Mode != AstronautMode.Outside;
+            // Floating free, a shot pushes you back like a melee hit does (Player/ZeroGKick). Only the suit's speed.
+            Weapons.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Weapons.ShooterVelocity = () => Suit != null ? Suit.linearVelocity - _matchReference : Vector3.zero;
+            Weapons.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
 
             // The melee slot: empty until an item is found. Floating free, a hit pushes you back (by the struck
             // mass against yours, capped; only ever the suit's speed, never a turn of the view).
@@ -329,7 +340,7 @@ namespace OrbitalAnte.Ship
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
-            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; }
+            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; Hiding = false; }
         }
 
         void EnterSeat(bool instant)
@@ -1104,8 +1115,9 @@ namespace OrbitalAnte.Ship
             bool moving = onFoot && _walkingAt > 0.15f;
             bool shot = Weapons != null && Time.time - Weapons.LastShotTime < rules.shotLoudFor;
             // In the dark of a cave network you are picked out only from closer.
-            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
-                                         * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            float dark = OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules) * dark;
+            Hiding = onFoot && (Stances.Current != Stance.Stand || Sneaking || dark < 0.7f);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
             // The laser sword's hum carries whatever stance you are in: no sneaking with it.
             if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
@@ -1355,6 +1367,7 @@ namespace OrbitalAnte.Ship
                 : !hasBody ? Vector3.zero
                 : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.VelocityOfSeenFrom(body, Suit.position);
             Vector3 relative = Suit.linearVelocity - reference;
+            _matchReference = reference;
 
             Vector3 jets = Vector3.zero;
             float factor = SuitTanks.PushFactor;

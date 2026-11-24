@@ -31,6 +31,8 @@ namespace OrbitalAnte.Enemies
         public SpinUpRules spinUp = new SpinUpRules();
         [Tooltip("Faction A's Line: its covering fire while a squadmate is out on a flank.")]
         public SuppressRules suppress = new SuppressRules();
+        [Tooltip("Restless camps: after this long a quiet with nobody to fight, the nearest squad comes looking for you (never while you hide).")]
+        public LullRules lull = new LullRules();
         [Tooltip("Seconds a dead enemy's body is left lying before it is cleared away.")]
         public float bodySeconds = 25f;
 

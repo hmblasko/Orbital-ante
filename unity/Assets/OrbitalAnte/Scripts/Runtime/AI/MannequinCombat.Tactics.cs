@@ -134,7 +134,7 @@ namespace OrbitalAnte.AI
             }
 
             Vector3 eye = CombatWorld.PlayerEye.position;
-            _heardAt = null;
+            _heardAt = null; _sentUntil = -1000f;
             SetHeardBeat(false, null);
 
             // Sent round the side?

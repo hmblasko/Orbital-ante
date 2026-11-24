@@ -251,7 +251,9 @@ namespace OrbitalAnte.Tasks
                 {
                     _huntIn = 1f;
                     Audio.AudioDirector.PlayLocal("player.suit.alarm", 0.8f);
-                    Note("OVERTIME: REACH " + Run.Director.Target.ToString("N0", Inv) + ". THEY'RE HUNTING YOU");
+                    // A chosen hazard stops paying here (HazardRules.PaysNow), and the note says so.
+                    Note("OVERTIME: REACH " + Run.Director.Target.ToString("N0", Inv) + ". THEY'RE HUNTING YOU"
+                         + (CurrentHazard != Hazard.None ? " · " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + " STILL ON, BONUS OVER" : ""));
                 }
             }
             if (!ot || paused) return;

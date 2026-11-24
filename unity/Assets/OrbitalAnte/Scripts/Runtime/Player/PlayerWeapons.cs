@@ -99,6 +99,16 @@ namespace OrbitalAnte.Player
         public ViewRecoil Recoil { get; set; }
 
         /// <summary>
+        /// True while the shooter floats free with no pull to stand against (the astronaut outside, Posture.Free).
+        /// Null or false: shots never push (the arena, the ground, aboard).
+        /// </summary>
+        public Func<bool> FloatingFree;
+        /// <summary>The shooter's speed now, for the drift cap of <see cref="ZeroGKick"/>.</summary>
+        public Func<Vector3> ShooterVelocity;
+        /// <summary>Adds a push to the shooter's speed (metres per second, world space).</summary>
+        public Action<Vector3> PushBack;
+
+        /// <summary>
         /// The gun the run itself gave the player (the starting gun, or the gun ladder's latest), as the object.
         /// Null once it has been swapped for a gun off the ground and destroyed.
         /// </summary>
@@ -370,8 +380,21 @@ namespace OrbitalAnte.Player
                 {
                     Recoil.Kick(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
                 }
+                PushShooter(data.recoilPitch, shot.RecoilScale);
                 _kick = 1f;
             }
+        }
+
+        /// <summary>Floating free, the shot pushes the shooter back along the line of fire (<see cref="ZeroGKick"/>).</summary>
+        void PushShooter(float recoilPitch, float recoilScale)
+        {
+            if (PushBack == null || FloatingFree == null || _config == null || !FloatingFree()) return;
+            float push = ZeroGKick.ShotPush(_config.zeroGKick, recoilPitch, recoilScale);
+            if (push <= 0f) return;
+            Vector3 back = -_eye.transform.forward;
+            float along = ShooterVelocity != null ? Vector3.Dot(ShooterVelocity(), back) : 0f;
+            float given = ZeroGKick.Applied(_config.zeroGKick, push, along);
+            if (given > 0f) PushBack(back * given);
         }
 
         static SeededRandom FreshBackfireRolls() => new SeededRandom(unchecked((int)DateTime.UtcNow.Ticks ^ (int)(DateTime.UtcNow.Ticks >> 32)));

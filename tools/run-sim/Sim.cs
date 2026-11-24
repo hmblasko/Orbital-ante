@@ -144,7 +144,7 @@ namespace OrbitalAnte.RunSim
             ScoreResult Report(ScoreEventKind kind, string tag, int feats)
             {
                 var e = new ScoreEvent { claimId = "sim:" + (claim++), kind = kind, tag = tag, skillFeats = feats, verifiedSkill = feats > 0 };
-                if (hazard != Hazard.None) { e.acceptedRisk = true; e.riskMultiplier = HazardRules.Multiplier(hazard, balance); }
+                if (HazardRules.PaysNow(hazard, run.Director.InOvertime)) { e.acceptedRisk = true; e.riskMultiplier = HazardRules.Multiplier(hazard, balance); }
                 var r = run.Report(e);
                 if (r.Awarded) Pop();
                 return r;

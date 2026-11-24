@@ -59,7 +59,8 @@ namespace OrbitalAnte.Tasks
         /// <summary>Called by <see cref="Report"/>: the chosen risk, and time back from perks.</summary>
         void BeforeReport(ref ScoreEvent e)
         {
-            if (CurrentHazard == Hazard.None) return;
+            // The stakes pay only while the clock runs: in overtime the bet is lost (HazardRules.PaysNow).
+            if (!HazardRules.PaysNow(CurrentHazard, Run.Director.InOvertime)) return;
             e.acceptedRisk = true;
             e.riskMultiplier = HazardRules.Multiplier(CurrentHazard, Run.Balance);
         }
@@ -116,7 +117,7 @@ namespace OrbitalAnte.Tasks
             _breakNote = null;
             PublishBuild();
             if (CurrentHazard != Hazard.None)
-                Note("ANTE " + Run.Director.Ante + ": " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + ", POINTS x" + HazardRules.Multiplier(CurrentHazard, Run.Balance).ToString("0.00", Inv));
+                Note("ANTE " + Run.Director.Ante + ": " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + ", POINTS x" + HazardRules.Multiplier(CurrentHazard, Run.Balance).ToString("0.00", Inv) + " UNTIL THE CLOCK RUNS OUT");
         }
 
         // ------------------------------------------------------------------ the break's pages
@@ -500,11 +501,11 @@ namespace OrbitalAnte.Tasks
             {
                 Hazard h = HazardRules.Offered[i];
                 string mark = _nextHazard == h ? "CHOSEN:  " : "";
-                choices.Add(new PauseMenu.MenuChoice(mark + HazardRules.Name(h).ToUpperInvariant() + "   points x" + HazardRules.Multiplier(h, b).ToString("0.00", Inv)
+                choices.Add(new PauseMenu.MenuChoice(mark + HazardRules.Name(h).ToUpperInvariant() + "   points x" + HazardRules.Multiplier(h, b).ToString("0.00", Inv) + " on the clock"
                     + "\n" + HazardRules.Describe(h, b), () => PickHazard(h)));
             }
             choices.Add(new PauseMenu.MenuChoice("Back", ShowBreak));
-            Menu.ShowChoices("RAISE THE STAKES", "One hazard for the next ante, chosen now. Every point that ante pays more.\n"
+            Menu.ShowChoices("RAISE THE STAKES", "One hazard for the next ante, chosen now. Its points bonus lasts while the ante clock runs. In overtime the hazard stays, but points pay x1.00.\n"
                 + PressureLine(Run.Director.Ante + 1), choices, ShowBreak, 60f);
         }
 
