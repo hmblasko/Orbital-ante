@@ -18,6 +18,9 @@ namespace OrbitalAnte.Tasks
         [Tooltip("Streak, signal masts, salvage, supply drops, marked targets, landings and how many lit tasks to keep near you.")]
         public TaskRules rules = new TaskRules();
 
+        [Tooltip("Bonus missions offered at the break (Part B section 5): how many, which worlds, how many kills, and what each kind pays.")]
+        public ContractRules contracts = new ContractRules();
+
         [Header("How it looks")]
         [Tooltip("The ante readout and the points that pop up.")]
         public Color scoreColour = new Color(1f, 0.82f, 0.38f);

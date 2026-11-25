@@ -326,6 +326,7 @@ namespace OrbitalAnte.Core
                     var tasks = _world.AddComponent<Tasks.TaskDirector>();
                     tasks.Init(_space, _anteLoop);
                     if (_space.Map != null) _space.Map.TasksLeft = tasks.TasksLeftOn;
+                    if (_space.Map != null) _space.Map.ContractBody = () => Tasks.AnteLoop.ContractBody;
                     if (_guide != null) _guide.BeginRun(_space, tasks);
                 }
                 _hud.SetArenaMode(false);
