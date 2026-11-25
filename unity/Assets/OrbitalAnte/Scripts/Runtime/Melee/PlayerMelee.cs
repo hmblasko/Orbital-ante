@@ -42,7 +42,6 @@ namespace OrbitalAnte.Melee
         readonly List<MeleeCandidate> _candidates = new List<MeleeCandidate>(64);
         readonly List<MeleeCandidate> _chosen = new List<MeleeCandidate>(4);
         readonly List<Vector3> _points = new List<Vector3>(64);
-        int _tookOnFrame = -1;
         /// <summary>What a swing cannot pass through: the ground, walls and rocks, and the rover.</summary>
         const int SolidMask = Layers.WorldMask | (1 << Layers.Vehicle);
 
@@ -148,7 +147,7 @@ namespace OrbitalAnte.Melee
             _swing = new MeleeSwing(new MeleeSpec());
             _heat = new MeleeHeat(null);
             _hud = MeleeHud.Create(transform);
-            if (_weapons != null) _weapons.YieldPickup = score => BetterPickupThan(score);
+            if (_weapons != null) _weapons.MeleeSlot = this;
         }
 
         public void SetDropParent(Transform parent) => _dropParent = parent;
@@ -175,7 +174,6 @@ namespace OrbitalAnte.Melee
             if (item == null || item == Held || _pivot == null) return;
             DropHeld();
             Held = item;
-            _tookOnFrame = Time.frameCount;
             item.TakeByPlayer();
             item.transform.SetParent(_pivot, false);
             item.transform.localPosition = ItemOffset;
@@ -223,17 +221,8 @@ namespace OrbitalAnte.Melee
             Destroy(item.gameObject);
         }
 
-        /// <summary>True when the melee item on the ground is a better take than a gun with this pick-up score.</summary>
-        bool BetterPickupThan(float gunScore)
-        {
-            if (!isActiveAndEnabled) return false;
-            // This press already took a melee weapon (whichever Update ran first): the gun is not taken too.
-            if (_tookOnFrame == Time.frameCount) return true;
-            UpdatePickup();
-            return NearbyPickup != null && NearbyPickupScore <= gunScore;
-        }
-
-        void UpdatePickup()
+        /// <summary>Finds the best melee pickup within the gun's score. Returns true when melee wins, even after taking it.</summary>
+        internal bool UpdatePickup(float gunScore, bool take)
         {
             NearbyPickup = null;
             NearbyPickupScore = float.MaxValue;
@@ -251,12 +240,16 @@ namespace OrbitalAnte.Melee
                 float angle = distance > 0.01f ? Vector3.Angle(forward, to) : 0f;
                 if (angle > 40f && distance > 1.9f) continue;
                 float score = angle + distance * 10f;
-                if (score < NearbyPickupScore)
+                if (score <= gunScore && score < NearbyPickupScore)
                 {
                     NearbyPickupScore = score;
                     NearbyPickup = m;
                 }
             }
+
+            if (NearbyPickup == null) return false;
+            if (take && (CanAct == null || CanAct())) Take(NearbyPickup);
+            return true;
         }
 
         // ------------------------------------------------------------------ per frame
@@ -268,10 +261,9 @@ namespace OrbitalAnte.Melee
             if (dt <= 0f) return;
             bool canAct = CanAct == null || CanAct();
 
-            UpdatePickup();
-            float gunScore = _weapons != null && _weapons.NearbyPickup != null ? _weapons.NearbyPickupScore : float.MaxValue;
-            if (canAct && NearbyPickup != null && NearbyPickupScore <= gunScore && GameInput.Interact.WasPressedThisFrame())
-                Take(NearbyPickup);
+            // With a gun slot, its Update resolves both pickups from the same aim and handles Interact.
+            if (_weapons == null || !_weapons.isActiveAndEnabled)
+                UpdatePickup(float.MaxValue, GameInput.Interact.WasPressedThisFrame());
 
             if (Held == null)
             {
