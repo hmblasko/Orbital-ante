@@ -364,6 +364,7 @@ namespace OrbitalAnte.Tasks
     public sealed class SalvageCrate
     {
         public CrateState State { get; private set; } = CrateState.Lying;
+        public bool AwaitingDelivery => State != CrateState.Delivered;
         /// <summary>The player was hurt at some point while carrying it (no clean-delivery feat).</summary>
         public bool HurtWhileCarried { get; private set; }
 
@@ -388,6 +389,40 @@ namespace OrbitalAnte.Tasks
             if (State != CrateState.Carried) return false;
             State = CrateState.Delivered;
             return true;
+        }
+    }
+
+    /// <summary>The two choices on a landed pod. Gun credit stops at the next unlock. A tap always claims the pod.</summary>
+    public readonly struct SupplyDropOffer
+    {
+        public readonly int GunKills;
+        public readonly int FocusPercent;
+
+        public SupplyDropOffer(TaskRules rules, float meter, int killsToNext)
+        {
+            GunKills = Math.Max(0, Math.Min(rules.dropLadderKills, killsToNext));
+            FocusPercent = meter < 1f && rules.dropFocus > 0f
+                ? Percent(Math.Min(1f, meter + rules.dropFocus) - meter) : 0;
+        }
+
+        // -1 means a positive gain below one percent. It must never be shown as zero.
+        static int Percent(float share) => share <= 0f ? 0 : share < 0.01f ? -1
+            : (int)Math.Round(share * 100f, MidpointRounding.AwayFromZero);
+        static string Amount(int percent) => percent < 0 ? "<1%" : percent + "%";
+        static string Kills(int count) => count + (count == 1 ? " gun kill" : " gun kills");
+
+        public string Prompt(string key)
+        {
+            string tap = key + ": claim points";
+            if (FocusPercent != 0) tap += " + " + Amount(FocusPercent) + " Focus";
+            return GunKills > 0 ? tap + "     hold " + key + ": points + " + Kills(GunKills) : tap;
+        }
+
+        public static string Receipt(int killsCredited, float focusGained)
+        {
+            if (killsCredited > 0) return "SUPPLY DROP: +" + Kills(killsCredited).ToUpperInvariant();
+            if (focusGained > 0f) return "SUPPLY DROP: +" + Amount(Percent(focusGained)) + " FOCUS";
+            return "SUPPLY DROP";
         }
     }
 

@@ -187,11 +187,15 @@ namespace OrbitalAnte.Tests
         {
             var crate = new SalvageCrate();
             Assert.IsFalse(crate.Deliver());
+            Assert.IsTrue(crate.AwaitingDelivery);
             Assert.IsTrue(crate.PickUp());
+            Assert.IsTrue(crate.AwaitingDelivery, "picking up the last crate must not clear the world objective");
             crate.Hurt();
             Assert.IsTrue(crate.Drop());
+            Assert.IsTrue(crate.AwaitingDelivery);
             Assert.IsTrue(crate.PickUp());
             Assert.IsTrue(crate.Deliver());
+            Assert.IsFalse(crate.AwaitingDelivery);
             Assert.IsTrue(crate.HurtWhileCarried);
             Assert.IsFalse(crate.PickUp(), "delivered salvage is gone");
         }
@@ -233,6 +237,45 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(2, clock.Given);
             clock.AnteStarted(500f);
             Assert.AreEqual(0, clock.Given);
+        }
+
+        [Test]
+        public void PodBesideAGunUnlock_ShowsOnlyTheKillItCanActuallyCredit()
+        {
+            var ladder = new Combat.GunLadder();
+            while (ladder.KillsLeft > 1) ladder.AddKill();
+            var offer = new SupplyDropOffer(Rules(), 1f, ladder.KillsLeft);
+            Assert.AreEqual(1, offer.GunKills);
+            Assert.AreEqual("Y: claim points     hold Y: points + 1 gun kill", offer.Prompt("Y"));
+            Assert.IsTrue(ladder.AddKill());
+            Assert.AreEqual("SUPPLY DROP: +1 GUN KILL", SupplyDropOffer.Receipt(offer.GunKills, 0f));
+            Assert.AreEqual(0, ladder.KillsOnRung, "the bonus ends at the unlock");
+        }
+
+        [Test]
+        public void PodWithACustomRefill_PreviewsAndReportsOnlyTheRoomLeftInTheMeter()
+        {
+            var rules = Rules();
+            rules.dropFocus = 0.25f;
+            var breath = new Combat.DeepBreath(new Combat.DeepBreathRules { seconds = 10f });
+            breath.Tick(1f, true);
+            var offer = new SupplyDropOffer(rules, breath.Meter, 8);
+            Assert.AreEqual("E: claim points + 10% Focus     hold E: points + 3 gun kills", offer.Prompt("E"));
+            float before = breath.Meter;
+            breath.Earn(rules.dropFocus);
+            Assert.AreEqual("SUPPLY DROP: +10% FOCUS", SupplyDropOffer.Receipt(0, breath.Meter - before));
+        }
+
+        [Test]
+        public void PodWithNoSecondaryReward_StillOffersPoints()
+        {
+            var rules = Rules();
+            Assert.AreEqual("Y: claim points", new SupplyDropOffer(rules, 1f, 0).Prompt("Y"));
+            rules.dropLadderKills = 0;
+            rules.dropFocus = 0f;
+            Assert.AreEqual("Y: claim points", new SupplyDropOffer(rules, 0.5f, 3).Prompt("Y"));
+            Assert.AreEqual("SUPPLY DROP", SupplyDropOffer.Receipt(0, 0f));
+            Assert.AreEqual("SUPPLY DROP: +<1% FOCUS", SupplyDropOffer.Receipt(0, 0.002f));
         }
 
         [Test]

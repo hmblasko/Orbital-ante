@@ -114,7 +114,7 @@ namespace OrbitalAnte.Tasks
             // Most urgent first: a met target and a short clock are about this very moment.
             if (s.TargetMet && !Has(seen, GuideTip.Bank)) return GuideTip.Bank;
             if (!s.TargetMet && s.SecondsLeft > 0f && s.SecondsLeft <= HurryAt && !Has(seen, GuideTip.HurryUp)) return GuideTip.HurryUp;
-            if (s.Scored && !Has(seen, GuideTip.FirstPoints)) return GuideTip.FirstPoints;
+            if (s.Scored && !s.TargetMet && !Has(seen, GuideTip.FirstPoints)) return GuideTip.FirstPoints;
             // The rest wait for liftoff: on the pad the goal card has just said what to do.
             if (!s.Lifted) return GuideTip.None;
             if (s.AtTheControls && !s.MapOpenedThisRun && !Has(seen, GuideTip.OpenMap)) return GuideTip.OpenMap;
@@ -157,13 +157,18 @@ namespace OrbitalAnte.Tasks
         public static string GoalCard(int target, int anteSeconds, int antes, Keys k)
         {
             var s = new StringBuilder();
-            s.Append("Each ante, score ").Append(N(target)).Append(" points before its ")
-             .Append(anteSeconds / 60).Append(" minute clock runs out. The target rises every ante.\n");
+            s.Append("Ante 1: score ").Append(N(target)).Append(" points in ");
+            int minutes = anteSeconds / 60, seconds = anteSeconds % 60;
+            if (minutes > 0) s.Append(minutes).Append(minutes == 1 ? " minute" : " minutes");
+            if (minutes > 0 && seconds > 0) s.Append(" ");
+            if (minutes == 0 || seconds > 0) s.Append(seconds).Append(seconds == 1 ? " second" : " seconds");
+            s.Append(". The target rises each ante.\n");
             s.Append("Points come from enemy bases, signal masts, salvage crates and stylish kills, on any world.\n");
             s.Append("Between antes, pick perks and spend points to get stronger. Clear ").Append(antes).Append(" antes to win.\n");
             s.Append("Miss the clock and it's overtime: enemies hunt you until you make the target.\n");
             s.Append("Your guns upgrade as you kill. The run ends only when you die.\n\n");
-            s.Append("Hold ").Append(Key(k.LiftOff)).Append(" to lift off. The clock starts once you leave the pad.");
+            s.Append("Hold ").Append(Key(k.LiftOff)).Append(" to lift off. The clock starts at liftoff, on stepping outside, ")
+             .Append("on your first points, or after ").Append((int)RunStartHold.MaxHoldSeconds).Append(" seconds on the pad.");
             return s.ToString();
         }
 
@@ -204,11 +209,15 @@ namespace OrbitalAnte.Tasks
     /// </summary>
     public static class WorldTaskLine
     {
+        /// <summary>The carried crate has a destination even if there are other tasks or the current world's counts are unknown.</summary>
+        public static string Objective(string localTasks, bool carryingSalvage) =>
+            carryingSalvage ? "SALVAGE: RETURN TO YOUR SHIP'S LIFT" : localTasks;
+
         public static string Compose(string world, int bases, int masts, int crates)
         {
             string name = string.IsNullOrEmpty(world) ? "HERE" : world.ToUpperInvariant();
             if (bases < 0 || masts < 0 || crates < 0) return string.Empty;
-            if (bases + masts + crates == 0) return name + ": ALL DONE. FLY TO ANOTHER WORLD";
+            if (bases + masts + crates == 0) return name + ": NO MARKED TASKS LEFT";
             var parts = new List<string>(3);
             if (bases > 0) parts.Add(bases + (bases == 1 ? " BASE" : " BASES"));
             if (masts > 0) parts.Add(masts + (masts == 1 ? " MAST" : " MASTS"));
