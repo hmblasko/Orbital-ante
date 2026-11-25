@@ -207,3 +207,12 @@ The guns are placeholder shapes until you add models. To swap one in:
 - **Planets (and only planets) are bright pink, or the ground is black**: one of the game's own planet shaders did not compile on your machine. Please copy the red shader error from the Console and send it to me. To keep playing meanwhile: in the Project window open `Assets/OrbitalAnte/Resources/Planets`, click **Planets**, and in the Inspector tick **Settings > Simple Shaders**. Press Play again. Skies and far-off planets look plainer, but everything works. The debug readout (F3) then says SIMPLE SHADERS.
 - **Keyboard and controller do nothing**: menu **Edit > Project Settings > Player > Other Settings > Active Input Handling**, choose **Input System Package (New)**, and let Unity restart.
 - **Package errors on first open** (something like "cannot find package version"): menu **Window > Package Manager**, select the package named in the error, and click **Update** or **Install**. Then tell me which one so I can fix the version number.
+
+
+## Make a Steam Deck playtest build
+
+1. In Unity Hub, install the editor in `unity/ProjectSettings/ProjectVersion.txt` with Linux Build Support. Close the project in the editor.
+2. Open a terminal in the repository. Run `python3 tools/build_deck.py` (on Windows, `py -3 tools/build_deck.py`). For a custom install, set `UNITY_EDITOR` to the full path of the Unity executable first.
+3. The command runs project setup, restarts the editor in batch mode and builds a Linux x86-64 development player. It prints the paths to the setup and build logs. Each run writes to a new folder under `builds/`.
+4. Copy the entire printed `Player` folder to the Deck. In Desktop Mode, right-click `OrbitalAnte.x86_64`, open **Properties > Permissions** and enable **Is executable** if needed. In Steam choose **Games > Add a Non-Steam Game to My Library > Browse**, then select the executable.
+5. Open the game in Gaming Mode. Start a run, check the cockpit panes and terrain, move and interact using the Deck controls, and return to the menu. Record the build's commit and any problem you see.

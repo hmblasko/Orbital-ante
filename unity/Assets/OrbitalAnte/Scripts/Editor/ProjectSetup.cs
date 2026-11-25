@@ -8,6 +8,7 @@ using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
 using OrbitalAnte.Weapons;
 using UnityEditor;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -108,6 +109,40 @@ namespace OrbitalAnte.EditorTools
             catch (Exception e)
             {
                 Debug.LogError("Orbital Ante: setup failed: " + e);
+            }
+            EditorApplication.Exit(code);
+        }
+
+        /// <summary>Builds the native Linux playtest player after setup has finished in a previous editor process.</summary>
+        public static void BuildDeckPlaytest()
+        {
+            int code = 1;
+            try
+            {
+                const BuildTarget target = BuildTarget.StandaloneLinux64;
+                if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, target))
+                    throw new InvalidOperationException("Install Linux Build Support for this editor in Unity Hub.");
+                string output = Environment.GetEnvironmentVariable("OA_DECK_EXECUTABLE");
+                if (string.IsNullOrEmpty(output) || !Path.IsPathRooted(output))
+                    throw new InvalidOperationException("Run tools/build_deck.py to set the player output path.");
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+                    throw new InvalidOperationException("The startup scene is missing after setup: " + ScenePath);
+
+                BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = output,
+                    target = target,
+                    subtarget = (int)StandaloneBuildSubtarget.Player,
+                    options = BuildOptions.Development | BuildOptions.StrictMode
+                });
+                if (report == null || report.summary.result != BuildResult.Succeeded)
+                    throw new InvalidOperationException("Linux player build failed. See the build log for details.");
+                code = 0;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Orbital Ante: " + e);
             }
             EditorApplication.Exit(code);
         }
