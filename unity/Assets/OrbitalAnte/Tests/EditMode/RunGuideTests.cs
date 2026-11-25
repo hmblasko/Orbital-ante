@@ -129,6 +129,13 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void MeetingTheTargetBeforeTheFirstPointsTip_DoesNotAskForItAgain()
+        {
+            var s = new GuideState { Running = true, Scored = true, TargetMet = true, SecondsLeft = 45f };
+            Assert.AreEqual(GuideTip.None, RunGuide.Next(s, new HashSet<GuideTip> { GuideTip.Bank }));
+        }
+
+        [Test]
         public void NoTips_BetweenAntes()
         {
             var s = new GuideState { Running = false, Lifted = true, Scored = true, TargetMet = true };
@@ -157,6 +164,28 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("Tab opens the shop", card);
         }
 
+        [TestCase(30, "30 seconds")]
+        [TestCase(60, "1 minute.")]
+        [TestCase(91, "1 minute 31 seconds")]
+        public void GoalCard_NamesTheFirstTargetAndWhenTheClockStarts(int seconds, string duration)
+        {
+            string card = RunGuide.GoalCard(850, seconds, 9, K);
+            StringAssert.Contains("Ante 1: score 850", card);
+            StringAssert.Contains(duration, card);
+            StringAssert.Contains("stepping outside", card);
+            StringAssert.Contains("first points", card);
+            StringAssert.Contains((int)RunStartHold.MaxHoldSeconds + " seconds on the pad", card);
+        }
+
+        [TestCase("MARS: 2 MASTS")]
+        [TestCase("MOON: NO MARKED TASKS LEFT")]
+        [TestCase("")]
+        public void CarriedSalvage_TakesPriorityUntilPutDownOrDelivered(string localTasks)
+        {
+            Assert.AreEqual("SALVAGE: RETURN TO YOUR SHIP'S LIFT", WorldTaskLine.Objective(localTasks, true));
+            Assert.AreEqual(localTasks, WorldTaskLine.Objective(localTasks, false));
+        }
+
         [Test]
         public void SeenTips_SurviveBeingStored_AndJunkIsDropped()
         {
@@ -169,11 +198,11 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TheWorldLine_ListsWhatIsLeft_OrSaysToMoveOn()
+        public void TheWorldLine_ListsOnlyTheMarkedTasksLeft()
         {
             Assert.AreEqual("MARS: 2 MASTS · 1 CRATE", WorldTaskLine.Compose("Mars", 2, 1));
             Assert.AreEqual("MOON: 3 CRATES", WorldTaskLine.Compose("Moon", 0, 3));
-            Assert.AreEqual("EUROPA: ALL DONE. FLY TO ANOTHER WORLD", WorldTaskLine.Compose("Europa", 0, 0));
+            Assert.AreEqual("EUROPA: NO MARKED TASKS LEFT", WorldTaskLine.Compose("Europa", 0, 0));
             Assert.AreEqual(string.Empty, WorldTaskLine.Compose("Mars", -1, 0), "not known yet");
         }
     }

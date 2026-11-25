@@ -475,7 +475,7 @@ namespace OrbitalAnte.Tasks
                 _shownHeld = held;
                 _anteLine.text = over
                     ? "ANTE " + d.Ante + "   OVERTIME +" + Clock(Mathf.Floor(d.OvertimeSeconds))
-                    : "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  STARTS AT LIFTOFF" : string.Empty);
+                    : "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  CLOCK ON HOLD" : string.Empty);
                 // The last half minute, and overtime, are in the warning colour.
                 _anteLine.color = d.IsRunning && (over || d.SecondsLeft <= 30f) && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
             }

@@ -134,6 +134,7 @@ namespace OrbitalAnte.Tasks
 
         // ------------------------------------------------------------------ carrying, opening, landing
         CrateTask _carried;
+        public bool CarryingSalvage => _carried != null;
         DropTask _holdingDrop;
         float _held;
         int _ladderDropAnte;
@@ -144,7 +145,8 @@ namespace OrbitalAnte.Tasks
         OrbitalAnte.Player.PlayerHealth _watchedArmour;
 
         // ------------------------------------------------------------------ prompts (rebuilt only when they change)
-        string _key, _promptCarry, _promptDrop, _promptDropGun, _promptCrate;
+        string _key, _promptCarry, _promptDrop, _promptCrate;
+        SupplyDropOffer _shownDropOffer;
         float _keyAt = -1f;
 
         // ------------------------------------------------------------------ slow pass
@@ -650,35 +652,43 @@ namespace OrbitalAnte.Tasks
             Audio.AudioDirector.Play("impact.metal", at, 1f, 0.5f);
         }
 
-        bool LadderOffered
+        SupplyDropOffer CurrentDropOffer()
         {
-            get
-            {
-                Combat.GunLadderFx ladder = Combat.GunLadderFx.Instance;
-                return ladder != null && ladder.CanClimb && _loop != null && _loop.Run != null && _ladderDropAnte != _loop.Run.Director.Ante;
-            }
+            var ladder = Combat.GunLadderFx.Instance;
+            var breath = Combat.DeepBreathFx.Instance;
+            bool allowCredit = ladder != null && ladder.CanClimb && _loop != null && _loop.Run != null
+                && _ladderDropAnte != _loop.Run.Director.Ante;
+            return new SupplyDropOffer(_rules, breath != null && breath.Breath != null ? breath.Breath.Meter : 1f,
+                allowCredit ? ladder.Ladder.KillsLeft : 0);
         }
 
-        void OpenDrop(DropTask d, bool gun)
+        void OpenDrop(DropTask d, int gunKills)
         {
             if (!d.Rule.Open()) return;
-            bool kills = false;
-            if (gun && LadderOffered)
+            var ladder = Combat.GunLadderFx.Instance;
+            int credited = 0;
+            float gained = 0f;
+            if (gunKills > 0 && ladder != null && ladder.CreditKills(gunKills))
             {
-                kills = Combat.GunLadderFx.Instance.CreditKills(_rules.dropLadderKills);
-                if (kills) _ladderDropAnte = _loop.Run.Director.Ante;
+                credited = gunKills;
+                _ladderDropAnte = _loop.Run.Director.Ante;
             }
-            if (!kills)
+            else
             {
-                Combat.DeepBreathFx breath = Combat.DeepBreathFx.Instance;
-                if (breath != null && breath.Breath != null) breath.Breath.Earn(_rules.dropFocus);
+                var fx = Combat.DeepBreathFx.Instance;
+                if (fx != null && fx.Breath != null)
+                {
+                    float before = fx.Breath.Meter;
+                    fx.Breath.Earn(_rules.dropFocus);
+                    gained = fx.Breath.Meter - before;
+                }
             }
             Audio.AudioDirector.PlayLocal("reward.tier1");
             string label = d.Rule.Reached ? "CONTESTED" : string.Empty;
             int feats = label.Length > 0 ? 1 : 0;
             feats += StreakFeat(feats, ref label);
             Score(ScoreEventKind.OptionalMission, TaskIds.Drop(d.Ante, d.Number), feats,
-                Join(kills ? "SUPPLY DROP: +" + _rules.dropLadderKills + " GUN KILLS" : "SUPPLY DROP: FOCUS", label), _rules.dropPoints);
+                Join(SupplyDropOffer.Receipt(credited, gained), label), _rules.dropPoints);
         }
 
         // ------------------------------------------------------------------ what the player is offered
@@ -692,8 +702,7 @@ namespace OrbitalAnte.Tasks
             if (key == _key) return;
             _key = key;
             _promptCarry = "Carrying salvage: take it aboard the ship  (" + key + " to put it down)";
-            _promptDrop = key + ": refill half your Focus";
-            _promptDropGun = key + ": refill half your Focus     hold " + key + ": +" + _rules.dropLadderKills + " gun kills";
+            _promptDrop = null;
             _promptCrate = key + ": pick up salvage (slows you down)";
         }
 
@@ -723,24 +732,31 @@ namespace OrbitalAnte.Tasks
             if (_holdingDrop != drop) _holdingDrop = null;
             if (drop != null)
             {
-                bool canGun = LadderOffered;
+                SupplyDropOffer offer = CurrentDropOffer();
+                bool canGun = offer.GunKills > 0;
                 if (GameInput.Interact.WasPressedThisFrame()) { _holdingDrop = drop; _held = 0f; }
                 if (_holdingDrop == drop)
                 {
                     if (GameInput.Interact.IsPressed())
                     {
                         _held += TimeFlow.PlayerDelta(dt);
-                        if (canGun && _held >= _rules.dropHoldForGun) { _holdingDrop = null; OpenDrop(drop, true); return false; }
+                        if (canGun && _held >= _rules.dropHoldForGun) { _holdingDrop = null; OpenDrop(drop, offer.GunKills); return false; }
                     }
                     else
                     {
                         _holdingDrop = null;
-                        OpenDrop(drop, false);
+                        OpenDrop(drop, 0);
                         return false;
                     }
                 }
                 RefreshPrompts();
-                prompt = canGun ? _promptDropGun : _promptDrop;
+                if (_promptDrop == null || offer.GunKills != _shownDropOffer.GunKills
+                    || offer.FocusPercent != _shownDropOffer.FocusPercent)
+                {
+                    _shownDropOffer = offer;
+                    _promptDrop = offer.Prompt(_key);
+                }
+                prompt = _promptDrop;
                 if (_holdingDrop == drop && canGun) progress = Mathf.Clamp01(_held / Mathf.Max(0.05f, _rules.dropHoldForGun));
                 return true;
             }
@@ -1148,7 +1164,7 @@ namespace OrbitalAnte.Tasks
             if (w == null) return false;
             world = _world.System.Model.Spec(body).displayName;
             for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) masts++;
-            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live) crates++;
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Rule.AwaitingDelivery) crates++;
             return true;
         }
 
@@ -1158,7 +1174,7 @@ namespace OrbitalAnte.Tasks
             if (w == null) return -1;
             int n = 0;
             for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) n++;
-            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live) n++;
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Rule.AwaitingDelivery) n++;
             return n;
         }
     }
