@@ -47,11 +47,16 @@ namespace OrbitalAnte.Tasks
         /// worth about a third of an early ante: a real reason to take one, never a replacement for playing.
         /// </summary>
         public int huntPoints = 300;
-        public int landPoints = 260;
+        /// <summary>Each enemy a bounty asks for over <see cref="huntFirst"/> adds this much.</summary>
+        public int huntPointsPerExtra = 40;
+        /// <summary>Low, because the landing also pays its own first-landing points.</summary>
+        public int landPoints = 250;
         public int stylePoints = 340;
         public int takenApartPoints = 400;
         public int mastPoints = 320;
         public int salvagePoints = 380;
+
+        public int HuntPoints(int needed) => huntPoints + Math.Max(0, needed - huntFirst) * Math.Max(0, huntPointsPerExtra);
 
         public int HuntCount(int ante)
         {
@@ -93,6 +98,9 @@ namespace OrbitalAnte.Tasks
         public bool landedOn;
         /// <summary>The player is there now.</summary>
         public bool here;
+        /// <summary>Enemies still to fight there (at least), when <see cref="enemiesCounted"/>: a bounty never asks for more.</summary>
+        public int enemiesLeft;
+        public bool enemiesCounted;
     }
 
     /// <summary>One bonus mission: what to do, how far along, and what it pays.</summary>
@@ -168,7 +176,7 @@ namespace OrbitalAnte.Tasks
                 switch (Kind)
                 {
                     case ContractKind.Bounty: return "Take down " + Plural(Needed, "enemy", "enemies") + " on " + World + ".";
-                    case ContractKind.Survey: return "Land the ship on " + World + ".";
+                    case ContractKind.Survey: return "Land the ship on " + World + " (its first landing pays too).";
                     case ContractKind.Style:
                         return "Get " + Plural(Needed, StyleName(Style) + " kill", StyleName(Style) + " kills") + " (" + StyleHow(Style) + "), anywhere.";
                     case ContractKind.Masts: return "Bring down " + Plural(Needed, "signal mast", "signal masts") + ", anywhere.";
@@ -248,6 +256,8 @@ namespace OrbitalAnte.Tasks
     /// <summary>Draws the break's offers.</summary>
     public static class ContractBoard
     {
+        public const int MostOffers = 5;
+
         static readonly ContractStyle[] Styles =
             { ContractStyle.OneShot, ContractStyle.LongShot, ContractStyle.Airborne, ContractStyle.TakenApart, ContractStyle.Melee };
 
@@ -260,6 +270,8 @@ namespace OrbitalAnte.Tasks
         {
             var offers = new List<Contract>();
             if (rules == null || !rules.enabled || rules.offers <= 0 || random == null) return offers;
+            // The page holds the offers plus "No bonus mission" and "Back" in its seven buttons.
+            int most = Math.Min(rules.offers, MostOffers);
 
             int reach = Math.Max(1, rules.nearestWorlds);
             var huntWorlds = new List<ContractWorld>();
@@ -270,7 +282,7 @@ namespace OrbitalAnte.Tasks
                 {
                     ContractWorld w = nearby[i];
                     if (w.body < 0 || string.IsNullOrEmpty(w.name)) continue;
-                    if (huntWorlds.Count < reach) huntWorlds.Add(w);
+                    if (huntWorlds.Count < reach && (!w.enemiesCounted || w.enemiesLeft >= rules.HuntCount(ante))) huntWorlds.Add(w);
                     if (!w.here && !w.landedOn && surveyWorlds.Count < reach) surveyWorlds.Add(w);
                 }
             }
@@ -280,7 +292,7 @@ namespace OrbitalAnte.Tasks
             if (surveyWorlds.Count > 0) kinds.Add(ContractKind.Survey);
             random.Shuffle(kinds);
 
-            for (int i = 0; i < kinds.Count && offers.Count < rules.offers; i++)
+            for (int i = 0; i < kinds.Count && offers.Count < most; i++)
             {
                 var c = new Contract { Kind = kinds[i], Ante = ante };
                 switch (c.Kind)
@@ -291,7 +303,7 @@ namespace OrbitalAnte.Tasks
                         c.Body = w.body;
                         c.World = w.name;
                         c.Needed = rules.HuntCount(ante);
-                        c.BasePoints = rules.huntPoints;
+                        c.BasePoints = rules.HuntPoints(c.Needed);
                         break;
                     }
                     case ContractKind.Survey:

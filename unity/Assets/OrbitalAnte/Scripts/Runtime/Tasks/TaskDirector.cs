@@ -226,6 +226,8 @@ namespace OrbitalAnte.Tasks
                     name = spec.displayName ?? spec.id,
                     landedOn = _noFirstLanding.Contains(spec.id),
                     here = _nearBodies[k] == here,
+                    enemiesLeft = _world.Enemies != null ? _world.Enemies.EnemiesLeftAtLeast(_nearBodies[k], spec.radius) : 0,
+                    enemiesCounted = _world.Enemies != null,
                 });
             }
         }

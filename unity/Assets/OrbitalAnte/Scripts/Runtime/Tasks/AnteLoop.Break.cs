@@ -163,7 +163,10 @@ namespace OrbitalAnte.Tasks
             if (TryContractRow(out PauseMenu.MenuChoice contract)) choices.Add(contract);
             choices.Add(new PauseMenu.MenuChoice("Start ante " + (ante + 1), StartPressed));
             choices.Add(new PauseMenu.MenuChoice("Restart or quit", ShowLeave));
-            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, 190f, _keepSlot);
+            // Seven rows at full height no longer fit a 1280 x 800 screen (agent review, 25 Nov 2026): shorter rows then.
+            bool full = choices.Count >= 7;
+            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, full ? 176f : 190f, _keepSlot,
+                false, full ? 56f : PauseMenu.ChoiceButtonHeight);
             _keepSlot = -1;
         }
 

@@ -120,7 +120,7 @@ namespace OrbitalAnte.Tests
         public void ASurvey_IsDoneByLandingOnItsWorld()
         {
             var c = new Contract { Kind = ContractKind.Survey, Body = 7, World = "Venus", Needed = 1 };
-            Assert.AreEqual("Land the ship on Venus.", c.Task);
+            StringAssert.StartsWith("Land the ship on Venus", c.Task);
             Assert.IsFalse(c.Landed(5));
             Assert.IsFalse(c.Kill(7, default));
             Assert.IsTrue(c.Landed(7));
@@ -142,6 +142,34 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void ABounty_NeverNamesAWorldWithFewerEnemiesLeftThanItAsks()
+        {
+            var near = new List<ContractWorld>
+            {
+                new ContractWorld { body = 5, name = "Mars", enemiesLeft = 40, enemiesCounted = true },
+                new ContractWorld { body = 11, name = "Deimos", enemiesLeft = 3, enemiesCounted = true },
+                new ContractWorld { body = 12, name = "Phobos", enemiesLeft = 5, enemiesCounted = true },
+            };
+            for (int seed = 0; seed < 400; seed++)
+                foreach (Contract c in ContractBoard.Offer(new ContractRules(), 2, near, false, new SeededRandom(seed)))
+                    if (c.Kind == ContractKind.Bounty)
+                    {
+                        Assert.AreNotEqual(11, c.Body, "Deimos has 3 left and the bounty asks 5");
+                        Assert.LessOrEqual(c.Needed, c.Body == 12 ? 5 : 40);
+                    }
+        }
+
+        [Test]
+        public void ABiggerBountyPaysMore_AndOffersAreCappedToFitThePage()
+        {
+            var r = new ContractRules();
+            Assert.AreEqual(r.huntPoints, r.HuntPoints(r.huntFirst));
+            Assert.AreEqual(r.huntPoints + 4 * r.huntPointsPerExtra, r.HuntPoints(r.huntFirst + 4));
+            var many = new ContractRules { offers = 9 };
+            Assert.LessOrEqual(ContractBoard.Offer(many, 2, Near(), false, new SeededRandom(3)).Count, ContractBoard.MostOffers);
+        }
+
+        [Test]
         public void TheBountyGrowsSlowlyWithTheAnte_AndIsCapped()
         {
             var r = new ContractRules();
@@ -157,7 +185,7 @@ namespace OrbitalAnte.Tests
         {
             var r = new ContractRules();
             var b = new AnteBalance();
-            foreach (int p in new[] { r.huntPoints, r.landPoints, r.stylePoints, r.takenApartPoints, r.mastPoints, r.salvagePoints })
+            foreach (int p in new[] { r.huntPoints, r.HuntPoints(r.huntMost), r.landPoints, r.stylePoints, r.takenApartPoints, r.mastPoints, r.salvagePoints })
             {
                 Assert.GreaterOrEqual(p, b.optionalMissionMin);
                 Assert.LessOrEqual(p, b.optionalMissionMax);

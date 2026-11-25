@@ -26,6 +26,7 @@ namespace OrbitalAnte.Tasks
         string _contractResult;
         Text _contractLine;
         string _shownContract;
+        int _shownContractKey;
 
         ContractRules ContractDials => Config != null && Config.contracts != null ? Config.contracts : DefaultContracts;
         static readonly ContractRules DefaultContracts = new ContractRules();
@@ -135,7 +136,7 @@ namespace OrbitalAnte.Tasks
             }
             choices.Add(new PauseMenu.MenuChoice(_nextContract == null ? "> No bonus mission" : "No bonus mission", () => { _nextContract = null; _keepSlot = 4; ShowBreak(); }));
             choices.Add(new PauseMenu.MenuChoice("Back to the break", () => { _keepSlot = 4; ShowBreak(); }));
-            Menu.ShowChoices("BONUS MISSION", body.ToString(), choices, () => { _keepSlot = 4; ShowBreak(); }, 60f);
+            Menu.ShowChoices("BONUS MISSION", body.ToString(), choices, () => { _keepSlot = 4; ShowBreak(); }, 76f);
         }
 
         // ------------------------------------------------------------------ what happened in the world
@@ -210,8 +211,12 @@ namespace OrbitalAnte.Tasks
             bool on = c != null && Run.Director.IsRunning && !OrbitalAnte.Ship.Astronaut.PlayerInShip;
             if (_contractLine.gameObject.activeSelf != on) _contractLine.gameObject.SetActive(on);
             if (!on) return;
-            string text = "BONUS · " + c.Progress + (c.Paid ? string.Empty : "  +" + N(ContractPreview(c)));
-            if (text == _shownContract) return;
+            // Words only when the count changes (no string built per frame).
+            int key = c.Done * 2 + (c.Paid ? 1 : 0);
+            if (_shownContract != null && key == _shownContractKey) return;
+            _shownContractKey = key;
+            // "~": the pop-up adds perks and the stakes to this.
+            string text = "BONUS · " + c.Progress + (c.Paid ? string.Empty : "  ~+" + N(ContractPreview(c)));
             _shownContract = text;
             _contractLine.text = text;
             _contractLine.color = c.Paid ? Config.scoreColour : UiKit.Cream;
