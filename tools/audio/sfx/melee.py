@@ -45,7 +45,7 @@ def _thud(rng, length, f0, decay, crack=0.0):
 
 # ----------------------------------------------------------------------------- shared
 
-@sfx("melee.pickup", "melee", volumeDb=-8, cooldownMs=200, **OWN)
+@sfx("melee.pickup", "melee", volumeDb=-8, pitchVar=0.8, volVarDb=1.0, cooldownMs=200, **OWN)
 def pickup(rng, v):
     """Taking a melee weapon in hand: a grip creak and a soft knock."""
     n = secs(0.35)
@@ -55,7 +55,7 @@ def pickup(rng, v):
     return finish(x, -4, 0.05)
 
 
-@sfx("melee.drop", "melee", volumeDb=-10, cooldownMs=200, **OWN)
+@sfx("melee.drop", "melee", volumeDb=-10, pitchVar=1.0, volVarDb=1.5, cooldownMs=200, **OWN)
 def drop(rng, v):
     """Letting go of one: a dull clatter."""
     x = _thud(rng, 0.4, 250, 0.06, crack=0.5)
@@ -112,7 +112,7 @@ def sword_hit(rng, v):
     return finish(crackle + sizzle + burst, -3, 0.08)
 
 
-@sfx("melee.laser_sword.sweet", "melee", variants=1, volumeDb=-3, **HIT)
+@sfx("melee.laser_sword.sweet", "melee", variants=1, volumeDb=-3, pitchVar=0.4, volVarDb=1.0, **HIT)
 def sword_sweet(rng, v):
     """Same as a hit, longer and brighter."""
     return sword_hit(rng, 1)
@@ -197,7 +197,7 @@ def mailbox_hit(rng, v):
     return finish(dsp.saturate(x * 0.8 + th, 1.5), -2, 0.1, hp=170)
 
 
-@sfx("melee.mailbox.sweet", "melee", variants=1, volumeDb=-1, **HIT)
+@sfx("melee.mailbox.sweet", "melee", variants=1, volumeDb=-1, pitchVar=0.6, volVarDb=1.0, **HIT)
 def mailbox_sweet(rng, v):
     return mailbox_hit(rng, 2)
 
@@ -224,7 +224,7 @@ def knife_hit(rng, v):
     return finish(x, -4, 0.04)
 
 
-@sfx("melee.butterfly_knife.sweet", "melee", volumeDb=-5, **HIT)
+@sfx("melee.butterfly_knife.sweet", "melee", volumeDb=-5, pitchVar=0.6, volVarDb=1.0, **HIT)
 def knife_sweet(rng, v):
     return knife_hit(rng, 1)
 
@@ -257,12 +257,12 @@ def pan_hit(rng, v):
     return finish(x * 0.7 + _thud(rng, 0.5, 130, 0.05), -3, 0.06)
 
 
-@sfx("melee.frying_pan.sweet", "melee", volumeDb=-3, **HIT)
+@sfx("melee.frying_pan.sweet", "melee", volumeDb=-3, pitchVar=0.5, volVarDb=1.0, **HIT)
 def pan_sweet(rng, v):
     return pan_hit(rng, 1)
 
 
-@sfx("melee.frying_pan.clang", "melee", volumeDb=0, cooldownMs=150, **HIT)
+@sfx("melee.frying_pan.clang", "melee", volumeDb=0, pitchVar=0.7, volVarDb=1.5, cooldownMs=150, **HIT)
 def pan_clang(rng, v):
     """The pan on a helmet: the one sound everybody waits for, a long bright CLANG that rings on."""
     x = metal_hit(rng, 1.6, [523, 1247, 2093, 3011, 4410], decays=[0.6, 0.4, 0.25, 0.15, 0.08],

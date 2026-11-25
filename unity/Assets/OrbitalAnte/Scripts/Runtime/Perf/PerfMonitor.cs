@@ -38,9 +38,17 @@ namespace OrbitalAnte.Perf
             if (Instance == this) Instance = null;
         }
 
+        int _skipFrames;
+
         void Update()
         {
-            if (GameSession.Mode != GameMode.Playing || GameSession.Paused) return;
+            if (GameSession.Mode != GameMode.Playing || GameSession.Paused)
+            {
+                // The frames just after a pause are the paused pace (and the menu's close), not play: leave them out.
+                _skipFrames = 2;
+                return;
+            }
+            if (_skipFrames > 0) { _skipFrames--; return; }
             Stats.Add(Time.unscaledDeltaTime);
         }
 

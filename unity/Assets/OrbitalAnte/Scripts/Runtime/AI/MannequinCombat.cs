@@ -396,7 +396,7 @@ namespace OrbitalAnte.AI
             _loco.Hold = false;
             _grabbing = null;
             _seesPlayer = false;
-            _heardAt = null;
+            _heardAt = null; _sentUntil = -1000f;
             _heardHolding = false;
         }
 
@@ -465,10 +465,10 @@ namespace OrbitalAnte.AI
                 if (hears && (_heardAt == null || now - _heardTime >= HeardEvery))
                 {
                     if (_heardAt == null && !chasing) _heardPauseUntil = now + HeardPause;
-                    _heardAt = CombatWorld.PlayerEye.position;
+                    _heardAt = CombatWorld.PlayerEye.position; _sentUntil = -1000f;
                     _heardTime = now;
                 }
-                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) _heardAt = null;
+                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) { _heardAt = null; _sentUntil = -1000f; }
 
                 bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
                 SetHeardBeat(pausing, _heardAt);
@@ -476,12 +476,16 @@ namespace OrbitalAnte.AI
                 else if (_heardAt != null && !pausing) _loco.Destination = _heardAt;
                 else _loco.Destination = null;
                 bool hunting = chasing || _heardAt != null;
-                _loco.Hurry = chasing && _cfg.rushes;
+                // Sent by a long quiet (SendToLook): it runs until it is near, then comes on low and careful.
+                _loco.Hurry = (chasing && _cfg.rushes)
+                              || (!chasing && _heardAt != null && !pausing && now < _sentUntil
+                                  && (transform.position - _heardAt.Value).sqrMagnitude > _sentWalkIn * _sentWalkIn);
                 // Coming to look for the player: low and careful, gun up.
                 _loco.Tactical = hunting ? _cfg.tacticalHunch : 0f;
                 return;
             }
             _heardAt = null;
+            _sentUntil = -1000f;
             SetHeardBeat(false, null);
             _loco.Tactical = _cfg.tacticalHunch;
             _lastSaw = now;

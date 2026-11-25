@@ -50,9 +50,10 @@ namespace OrbitalAnte.Tasks
             public double Radius;
             public readonly List<MastTask> Masts = new List<MastTask>();
             public readonly List<CrateTask> Crates = new List<CrateTask>();
+            /// <summary>The bases' foundations, only so landing on one is never a hard landing. Clearing bases is no
+            /// longer a task (Matthew, 21 Nov 2026: "I don't like the system where you go after outposts ... remove it").</summary>
             public readonly List<BaseTask> Bases = new List<BaseTask>();
             public int MarkCamp = -1, MarkMember = -1;
-            public bool Cleared;
             public Transform Frame => Surface.Body.transform;
         }
 
@@ -96,10 +97,7 @@ namespace OrbitalAnte.Tasks
         {
             public int Index;
             public BaseSite Site;
-            public BaseClear Rule;
-            public bool Done;
-            public bool Told;
-            public override bool Live => !Done;
+            public override bool Live => false;
         }
 
         sealed class DropTask : Placed
@@ -136,6 +134,7 @@ namespace OrbitalAnte.Tasks
 
         // ------------------------------------------------------------------ carrying, opening, landing
         CrateTask _carried;
+        public bool CarryingSalvage => _carried != null;
         DropTask _holdingDrop;
         float _held;
         int _ladderDropAnte;
@@ -146,7 +145,8 @@ namespace OrbitalAnte.Tasks
         OrbitalAnte.Player.PlayerHealth _watchedArmour;
 
         // ------------------------------------------------------------------ prompts (rebuilt only when they change)
-        string _key, _promptCarry, _promptDrop, _promptDropGun, _promptCrate;
+        string _key, _promptCarry, _promptDrop, _promptCrate;
+        SupplyDropOffer _shownDropOffer;
         float _keyAt = -1f;
 
         // ------------------------------------------------------------------ slow pass
@@ -155,7 +155,6 @@ namespace OrbitalAnte.Tasks
         readonly List<Placed> _candidates = new List<Placed>();
         readonly List<float> _distances = new List<float>();
         readonly List<Beacon> _pool = new List<Beacon>();
-        bool _raising;
 
         float Now => _loop != null ? _loop.PlayTime : Time.time;
         bool Scoring => _loop != null && _loop.Running;
@@ -185,7 +184,6 @@ namespace OrbitalAnte.Tasks
             CombatEvents.PlayerHitSomething += OnPlayerHit;
             EnemySpawner.Down += OnEnemyDown;
             EnemySpawner.Woke += OnEnemyWoke;
-            CombatWorld.Alarm += OnAlarm;
             WorldOffers.Add(this);
         }
 
@@ -194,7 +192,6 @@ namespace OrbitalAnte.Tasks
             CombatEvents.PlayerHitSomething -= OnPlayerHit;
             EnemySpawner.Down -= OnEnemyDown;
             EnemySpawner.Woke -= OnEnemyWoke;
-            CombatWorld.Alarm -= OnAlarm;
             WorldOffers.Remove(this);
             if (_loop != null) _loop.AnteBegan -= OnAnteBegan;
             Astronaut.CarryPace = 1f;
@@ -266,20 +263,6 @@ namespace OrbitalAnte.Tasks
             }
             _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
 
-            // A guard of a base was engaged: its clear's clock starts, and the feats are said once.
-            if (_woke.TryGetValue(who, out WokeRecord w) && _world.Enemies != null)
-            {
-                BaseTask b = BaseFor(w.Body, _world.Enemies.BaseOfCamp(w.Body, w.Camp));
-                if (b != null && !b.Done)
-                {
-                    b.Rule.Engaged(Now);
-                    if (!b.Told)
-                    {
-                        b.Told = true;
-                        AnteLoop.Note("BASE: clear it unseen for QUIET, within " + Mathf.RoundToInt(_rules.baseQuickSeconds) + " s for QUICK");
-                    }
-                }
-            }
         }
 
         static bool AllFourLimbsOff(Mannequin who)
@@ -334,41 +317,10 @@ namespace OrbitalAnte.Tasks
                 // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
                 if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
             }
-            // A guard that saw the player and died between the quarter-second spotted checks still gives the base
-            // away (Codex, PR 77): read its awareness before forgetting it, so QUIET never depends on timing.
-            if (who != null && _woke.TryGetValue(who, out WokeRecord dying) && dying.Combat != null && dying.Combat.AwareOfPlayer && _world.Enemies != null)
-            {
-                BaseTask seenBase = BaseFor(dying.Body, _world.Enemies.BaseOfCamp(dying.Body, dying.Camp));
-                if (seenBase != null) seenBase.Rule.Alarm();
-            }
             if (who != null) _woke.Remove(who);
 
-            // A base's last guard: cleared, whoever finished it.
-            if (e.BaseIndex >= 0 && _world.Enemies != null && _world.Enemies.BaseGuards(e.Body, e.BaseIndex, out int guards, out int left) && left == 0 && guards > 0)
-            {
-                BaseTask b = BaseFor(e.Body, e.BaseIndex);
-                if (b != null && !b.Done)
-                {
-                    b.Done = true;
-                    int feats = b.Rule.Feats(_rules, Now, out string label);
-                    feats += StreakFeat(feats, ref label);
-                    Audio.AudioDirector.PlayLocal("reward.tier3");
-                    Score(ScoreEventKind.OptionalMission, TaskIds.BaseClear(e.BodyId, e.BaseIndex), feats,
-                        Join("BASE CLEARED", label), _rules.BaseClearPoints(e.BaseSize), "base");
-                    CheckWorldCleared(b.World);
-                }
-            }
         }
 
-        void CheckWorldCleared(WorldTasks w)
-        {
-            if (w == null || w.Cleared || w.Bases.Count == 0) return;
-            for (int i = 0; i < w.Bases.Count; i++) if (!w.Bases[i].Done) return;
-            w.Cleared = true;
-            Audio.AudioDirector.PlayLocal("reward.tier4");
-            Score(ScoreEventKind.OptionalMission, "worldclear:" + w.Id, 0,
-                "EVERY BASE ON " + (w.Surface.Body.Spec.displayName ?? w.Id).ToUpperInvariant(), _rules.worldClear);
-        }
 
         void Mark(Mannequin who)
         {
@@ -381,32 +333,11 @@ namespace OrbitalAnte.Tasks
             _marked[who] = glow.gameObject;
         }
 
-        void OnAlarm(Vector3 at, float radius, Vector3 playerAt, string faction)
-        {
-            if (_raising) return;
-            WorldTasks w = Here(out _);
-            if (w == null) return;
-            Vector3 local = w.Frame.InverseTransformPoint(at);
-            for (int i = 0; i < w.Bases.Count; i++)
-            {
-                BaseTask b = w.Bases[i];
-                if (b.Done) continue;
-                float reach = (float)b.Site.Footprint + 40f;
-                if ((b.Local - local).sqrMagnitude <= reach * reach) b.Rule.Alarm();
-            }
-        }
 
         // ================================================================== worlds
 
         WorldTasks WorldFor(int body) => _worlds.TryGetValue(body, out WorldTasks w) ? w : null;
 
-        BaseTask BaseFor(int body, int index)
-        {
-            WorldTasks w = WorldFor(body);
-            if (w == null || index < 0) return null;
-            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Index == index) return w.Bases[i];
-            return null;
-        }
 
         /// <summary>The world the player is near, with its tasks laid out once its ground, bases and camps are known.</summary>
         WorldTasks Here(out Vector3 player)
@@ -444,12 +375,9 @@ namespace OrbitalAnte.Tasks
             for (int i = 0; i < sites.Count; i++)
             {
                 BaseSite s = sites[i];
-                _world.Enemies.BaseGuards(body, i, out int guards, out int left);
-                var b = new BaseTask { World = w, Index = i, Site = s, Rule = new BaseClear((int)s.Size, guards) };
+                var b = new BaseTask { World = w, Index = i, Site = s };
                 b.Dir = s.Up;
                 b.Local = SpaceConvert.ToVector3(s.Centre);
-                // Cleared earlier in this run (the world was left and come back to): it stays done.
-                b.Done = guards == 0 || left == 0;
                 w.Bases.Add(b);
 
                 // Every base rolls for a mast, in the same order every time for this seed.
@@ -541,10 +469,8 @@ namespace OrbitalAnte.Tasks
                 if (!m.Rule.Calls(now, inReach)) continue;
                 // Every enemy in reach, of either side, is told where the player is.
                 Vector3 at = m.WorldPoint;
-                _raising = true;
                 CombatWorld.RaiseAlarm(at, reach, player, Factions.None);
                 CombatWorld.RaiseAlarm(at, reach, player, Factions.A);
-                _raising = false;
                 Audio.AudioDirector.Play("enemy.flare.fire", at, 1f, 0.7f);
                 AnteLoop.Note("THE MAST CALLED FOR HELP: SHOOT OUT ITS CELLS");
             }
@@ -721,42 +647,48 @@ namespace OrbitalAnte.Tasks
             Vector3 at = d.WorldPoint;
             float heard = _rules.DropHeardOn(d.World.Radius);
             // It is loud: everyone within earshot comes to look.
-            _raising = true;
             CombatWorld.RaiseAlarm(at, heard, at, Factions.None);
             CombatWorld.RaiseAlarm(at, heard, at, Factions.A);
-            _raising = false;
             Audio.AudioDirector.Play("impact.metal", at, 1f, 0.5f);
         }
 
-        bool LadderOffered
+        SupplyDropOffer CurrentDropOffer()
         {
-            get
-            {
-                Combat.GunLadderFx ladder = Combat.GunLadderFx.Instance;
-                return ladder != null && ladder.CanClimb && _loop != null && _loop.Run != null && _ladderDropAnte != _loop.Run.Director.Ante;
-            }
+            var ladder = Combat.GunLadderFx.Instance;
+            var breath = Combat.DeepBreathFx.Instance;
+            bool allowCredit = ladder != null && ladder.CanClimb && _loop != null && _loop.Run != null
+                && _ladderDropAnte != _loop.Run.Director.Ante;
+            return new SupplyDropOffer(_rules, breath != null && breath.Breath != null ? breath.Breath.Meter : 1f,
+                allowCredit ? ladder.Ladder.KillsLeft : 0);
         }
 
-        void OpenDrop(DropTask d, bool gun)
+        void OpenDrop(DropTask d, int gunKills)
         {
             if (!d.Rule.Open()) return;
-            bool kills = false;
-            if (gun && LadderOffered)
+            var ladder = Combat.GunLadderFx.Instance;
+            int credited = 0;
+            float gained = 0f;
+            if (gunKills > 0 && ladder != null && ladder.CreditKills(gunKills))
             {
-                kills = Combat.GunLadderFx.Instance.CreditKills(_rules.dropLadderKills);
-                if (kills) _ladderDropAnte = _loop.Run.Director.Ante;
+                credited = gunKills;
+                _ladderDropAnte = _loop.Run.Director.Ante;
             }
-            if (!kills)
+            else
             {
-                Combat.DeepBreathFx breath = Combat.DeepBreathFx.Instance;
-                if (breath != null && breath.Breath != null) breath.Breath.Earn(_rules.dropFocus);
+                var fx = Combat.DeepBreathFx.Instance;
+                if (fx != null && fx.Breath != null)
+                {
+                    float before = fx.Breath.Meter;
+                    fx.Breath.Earn(_rules.dropFocus);
+                    gained = fx.Breath.Meter - before;
+                }
             }
             Audio.AudioDirector.PlayLocal("reward.tier1");
             string label = d.Rule.Reached ? "CONTESTED" : string.Empty;
             int feats = label.Length > 0 ? 1 : 0;
             feats += StreakFeat(feats, ref label);
             Score(ScoreEventKind.OptionalMission, TaskIds.Drop(d.Ante, d.Number), feats,
-                Join(kills ? "SUPPLY DROP: +" + _rules.dropLadderKills + " GUN KILLS" : "SUPPLY DROP: FOCUS", label), _rules.dropPoints);
+                Join(SupplyDropOffer.Receipt(credited, gained), label), _rules.dropPoints);
         }
 
         // ------------------------------------------------------------------ what the player is offered
@@ -770,8 +702,7 @@ namespace OrbitalAnte.Tasks
             if (key == _key) return;
             _key = key;
             _promptCarry = "Carrying salvage: take it aboard the ship  (" + key + " to put it down)";
-            _promptDrop = key + ": refill half your Focus";
-            _promptDropGun = key + ": refill half your Focus     hold " + key + ": +" + _rules.dropLadderKills + " gun kills";
+            _promptDrop = null;
             _promptCrate = key + ": pick up salvage (slows you down)";
         }
 
@@ -801,24 +732,31 @@ namespace OrbitalAnte.Tasks
             if (_holdingDrop != drop) _holdingDrop = null;
             if (drop != null)
             {
-                bool canGun = LadderOffered;
+                SupplyDropOffer offer = CurrentDropOffer();
+                bool canGun = offer.GunKills > 0;
                 if (GameInput.Interact.WasPressedThisFrame()) { _holdingDrop = drop; _held = 0f; }
                 if (_holdingDrop == drop)
                 {
                     if (GameInput.Interact.IsPressed())
                     {
                         _held += TimeFlow.PlayerDelta(dt);
-                        if (canGun && _held >= _rules.dropHoldForGun) { _holdingDrop = null; OpenDrop(drop, true); return false; }
+                        if (canGun && _held >= _rules.dropHoldForGun) { _holdingDrop = null; OpenDrop(drop, offer.GunKills); return false; }
                     }
                     else
                     {
                         _holdingDrop = null;
-                        OpenDrop(drop, false);
+                        OpenDrop(drop, 0);
                         return false;
                     }
                 }
                 RefreshPrompts();
-                prompt = canGun ? _promptDropGun : _promptDrop;
+                if (_promptDrop == null || offer.GunKills != _shownDropOffer.GunKills
+                    || offer.FocusPercent != _shownDropOffer.FocusPercent)
+                {
+                    _shownDropOffer = offer;
+                    _promptDrop = offer.Prompt(_key);
+                }
+                prompt = _promptDrop;
                 if (_holdingDrop == drop && canGun) progress = Mathf.Clamp01(_held / Mathf.Max(0.05f, _rules.dropHoldForGun));
                 return true;
             }
@@ -944,8 +882,6 @@ namespace OrbitalAnte.Tasks
                 if (kv.Key == null) { _scratch.Add(kv.Key); continue; }
                 WokeRecord r = kv.Value;
                 if (r.Combat == null || !kv.Key.Alive || !r.Combat.AwareOfPlayer) continue;
-                BaseTask b = BaseFor(r.Body, _world.Enemies.BaseOfCamp(r.Body, r.Camp));
-                if (b != null) b.Rule.Alarm();
             }
             for (int i = 0; i < _scratch.Count; i++) _woke.Remove(_scratch[i]);
             // Hits on enemies that were never finished are forgotten after a while.
@@ -1169,14 +1105,13 @@ namespace OrbitalAnte.Tasks
             }
         }
 
-        Color ColourOf(Placed p) => p is BaseTask || p is MastTask ? _config.fightBeacon : _config.haulBeacon;
+        Color ColourOf(Placed p) => p is MastTask ? _config.fightBeacon : _config.haulBeacon;
 
         void UpdateLights(WorldTasks w, Vector3 local)
         {
             while (_pool.Count < Mathf.Max(0, _rules.liveNearby)) _pool.Add(new Beacon(w.Frame));
 
             _candidates.Clear();
-            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Live) _candidates.Add(w.Bases[i]);
             for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) _candidates.Add(w.Masts[i]);
             for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live && w.Crates[i] != _carried) _candidates.Add(w.Crates[i]);
 
@@ -1219,18 +1154,17 @@ namespace OrbitalAnte.Tasks
         /// What is still to score on the world the player is at (its neighbourhood), for the line under the ante readout.
         /// False in deep space, at a world with no tasks laid out yet, or with no focus.
         /// </summary>
-        public bool TryCountsHere(out string world, out int bases, out int masts, out int crates)
+        public bool TryCountsHere(out string world, out int masts, out int crates)
         {
             world = null;
-            bases = masts = crates = 0;
+            masts = crates = 0;
             if (_world == null || _world.System == null || _world.System.Focus == null) return false;
             int body = _world.System.Focus.Neighbourhood;
             WorldTasks w = WorldFor(body);
             if (w == null) return false;
             world = _world.System.Model.Spec(body).displayName;
-            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Live) bases++;
             for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) masts++;
-            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live) crates++;
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Rule.AwaitingDelivery) crates++;
             return true;
         }
 
@@ -1239,9 +1173,8 @@ namespace OrbitalAnte.Tasks
             WorldTasks w = WorldFor(body);
             if (w == null) return -1;
             int n = 0;
-            for (int i = 0; i < w.Bases.Count; i++) if (w.Bases[i].Live) n++;
             for (int i = 0; i < w.Masts.Count; i++) if (w.Masts[i].Live) n++;
-            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Live) n++;
+            for (int i = 0; i < w.Crates.Count; i++) if (w.Crates[i].Rule.AwaitingDelivery) n++;
             return n;
         }
     }

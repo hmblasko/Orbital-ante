@@ -158,6 +158,7 @@ namespace OrbitalAnte.UI
             var keys = new Tasks.RunGuide.Keys
             {
                 LiftOff = GameInput.Asset != null ? GameInput.Describe(GameInput.FlyUp) : "Space",
+                Upgrades = GameInput.Asset != null ? GameInput.Describe(GameInput.Upgrades) : "Tab",
             };
             string goal = Tasks.RunGuide.GoalCard(balance.TargetFor(1), Mathf.RoundToInt(balance.anteSeconds), balance.AnteCount, keys);
             string map = GameInput.Asset != null ? GameInput.Describe(GameInput.ToggleMap) : "M";

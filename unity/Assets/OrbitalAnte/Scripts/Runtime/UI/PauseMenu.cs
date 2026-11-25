@@ -139,6 +139,7 @@ namespace OrbitalAnte.UI
             _defaults[Page.Feel] = Toggle(card, "Hitstop on limb pops", () => FeelSettings.Hitstop, v => FeelSettings.Hitstop = v).gameObject;
             Toggle(card, "Camera shake", () => FeelSettings.CameraShake, v => FeelSettings.CameraShake = v);
             Toggle(card, "Slow-mo on headshot kills", () => FeelSettings.HeadshotSlowMo, v => FeelSettings.HeadshotSlowMo = v);
+            Toggle(card, "Aim assist (controller)", () => FeelSettings.AimAssist, v => FeelSettings.AimAssist = v);
             Toggle(card, "Tips for new players", () => FeelSettings.GuideTips, v => FeelSettings.GuideTips = v);
             UiKit.Button(card, "Back", () => Show(Page.Main));
         }
@@ -433,6 +434,11 @@ namespace OrbitalAnte.UI
 
         void Show(Page page)
         {
+            // The plain pause pages draw the frozen world at half rate (PerformanceBudget.halfRateWhenPaused); the
+            // pages meant to look good (the ante break, its choices, the death recap) keep full rate.
+            bool plain = page == Page.Main || page == Page.Controls || page == Page.Feel || page == Page.Audio
+                         || page == Page.Restart || page == Page.Quit || page == Page.Confirm;
+            Perf.PerformanceBudget.Load().ApplyPaused(plain && GameSession.Mode == GameMode.Playing);
             if (_current == Page.Controls && page != Page.Controls) _controls.Close();
             foreach (var pair in _pages) pair.Value.SetActive(pair.Key == page);
             _current = page;
@@ -474,6 +480,28 @@ namespace OrbitalAnte.UI
                     Show(Page.Main);
                     break;
             }
+        }
+
+        /// <summary>
+        /// Leaving the game (alt-tab, the Steam button's overlay, the Deck put to sleep) opens the pause menu, so
+        /// nobody comes back to a lost fight (24 Nov 2026 refinement). Not in the editor, where clicking the
+        /// Inspector would pause every time. Nothing opens over a page that already pauses the game.
+        /// </summary>
+        void OnApplicationFocus(bool focused)
+        {
+            if (!focused) PauseForAway();
+        }
+
+        void OnApplicationPause(bool paused)
+        {
+            if (paused) PauseForAway();
+        }
+
+        void PauseForAway()
+        {
+            if (Application.isEditor || _canvas == null) return;
+            if (GameSession.Mode != GameMode.Playing || GameSession.Paused || IsOpen || StarChartView.Showing) return;
+            Open();
         }
 
         void Update()

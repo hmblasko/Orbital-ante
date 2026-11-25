@@ -27,15 +27,15 @@ namespace OrbitalAnte.Look
         public ToneMapping toneMapping = ToneMapping.Neutral;
         [Tooltip("Overall brightness, in camera stops. 0 is unchanged.")]
         [Range(-2f, 2f)] public float exposure = 0.12f;
-        [Range(-50f, 50f)] public float contrast = 10f;
+        [Range(-50f, 50f)] public float contrast = GradeDefaults.Contrast;
         [Tooltip("How vivid colours are. 0 is unchanged.")]
-        [Range(-50f, 50f)] public float saturation = 10f;
+        [Range(-50f, 50f)] public float saturation = GradeDefaults.Saturation;
         [Tooltip("Above 0 warms the whole picture, below cools it.")]
         [Range(-50f, 50f)] public float warmth = 5f;
-        [Tooltip("Tints shadows toward teal and highlights toward amber. 0 switches it off.")]
-        [Range(0f, 1f)] public float splitTone = 0.55f;
+        [Tooltip("Tints shadows toward teal and highlights toward amber. 0 switches it off. Kept low on purpose: a strong teal and amber grade is the stock look of generated pictures (22 Nov 2026).")]
+        [Range(0f, 1f)] public float splitTone = GradeDefaults.SplitTone;
         [Tooltip("Darkens the corners of the screen a little. 0 switches it off.")]
-        [Range(0f, 0.6f)] public float vignette = 0.2f;
+        [Range(0f, 0.6f)] public float vignette = GradeDefaults.Vignette;
 
         [Header("Edges")]
         [Tooltip("Smooths jagged edges. Multisample4 looks best but costs the most; Multisample2 is the Steam Deck default; Fast is cheapest; Off is the raw picture.")]
@@ -73,6 +73,21 @@ namespace OrbitalAnte.Look
         [Range(20000, 600000)] public int fullTriangles = DetailRule.FullTriangles;
         [Tooltip("How far off things change to their simpler copies. 1 is 24 m for an enemy and 9 m for a gun; 2 is twice as far. Raise it if you can see the change happen.")]
         [Range(0.5f, 4f)] public float farCopyDistance = 1f;
+
+        [Tooltip("Which set of built-in grade defaults this asset's finish came from. When the game's defaults move on, Contrast, Saturation, Split Tone and Vignette are set to the new defaults (your other dials are kept). Set this to 9999 to keep your own grade for good.")]
+        public int gradeVersion;
+
+        void OnEnable()
+        {
+            // An asset made before the grade was toned down still holds the old, stronger grade. Like the planets'
+            // defaults, nothing here has been edited by hand in practice, and the alternative is a step for Matthew.
+            if (gradeVersion >= GradeDefaults.Version) return;
+            contrast = GradeDefaults.Contrast;
+            saturation = GradeDefaults.Saturation;
+            splitTone = GradeDefaults.SplitTone;
+            vignette = GradeDefaults.Vignette;
+            gradeVersion = GradeDefaults.Version;
+        }
 
         static LookConfig _cached;
 

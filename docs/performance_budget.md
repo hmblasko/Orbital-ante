@@ -15,6 +15,8 @@ Status: **targets set, nothing measured yet.** Every number below is a starting 
 
 These live in the asset `Assets/OrbitalAnte/Resources/Config/PerformanceBudget` and can be changed there.
 
+On the plain pause pages (pause menu, controls, feel, audio, restart, quit, confirm) the frozen world is drawn every second frame (`PerformanceBudget.halfRateWhenPaused`, `OnDemandRendering.renderFrameInterval` 2; 24 Nov 2026): 30 pictures a second at 60 Hz while input is still read every frame. The ante break, its choices, the star chart and the death page keep full rate. `Apply()` puts it back to 1 on every un-pause. Not measured on the Deck.
+
 ## How one frame's 16.7 ms is shared out
 
 | Part | Budget | Notes |
@@ -288,6 +290,7 @@ What to read off in Unity:
 | Readout words | only built again when what they depend on changes | none while nothing changes |
 | Visor rim | four soft bands 90 px deep, about a third of the screen blended at most (all four only on a forward push). Guessed 0.1 to 0.3 ms on the graphics card. First thing to lower: band depth | 4 bands |
 | Suit sounds | 7 clips made at run start, guessed 27 to 80 ms once on a Deck; about 0.16 MB kept; 2 sources | once per run |
+| Shot push in zero-G (`ZeroGKick`; 24 Nov 2026) | Per shot while floating free: 3 delegate calls made once at setup, a dot product and one `linearVelocity` write; no allocation | 1 push a shot; drift from shooting capped at `mostDrift` 3 m/s |
 
 What to read off in Unity (floating outside, tethered): in **Window > Analysis > Profiler**, CPU Usage, Hierarchy, search `SuitHud.LateUpdate`, `SuitFx.LateUpdate` and `Astronaut.FixedUpdate` for Time ms and GC Alloc (expect 0 B on most frames), and `Canvas.BuildBatch` while drifting and then while thrusting.
 
@@ -304,6 +307,7 @@ What to read off in Unity (floating outside, tethered): in **Window > Analysis >
 | Player death burst (`PlayerBurstFx`, `DeathBurst`; 15 Nov 2026) | Once a run, then the death page pauses the game. Frame 0: one breakable body (about 87 objects, 16 colliders), about 6 detachments, and aboard a kinematic cage of 98 boxes; guessed 2 to 6 ms on the Deck, plus 5 to 30 ms the first time `OA_Model`, blood or decals are drawn in a run (nothing warms them yet). Then 8 single splits over 0.31 s; 14 gibs, about 300 droplets, 14 pops over 8 voices; the cage moved each physics step for 2.6 s; 10 to 30 KB of garbage on frame 0 only. Estimated from the code | 1 body a run; 98 cage boxes; gibs within `maxActiveGibs` 40; frame 0 under 25 ms (if not: warm the shaders, then build the cage ahead, switched off) |
 | Ship floodlights (`ShipLightFx`, `OA_Beam`; 16 Nov 2026) | One cone worked out in the shaders, not a Unity light: about 30 more operations per ground, model or water pixel while lit (3-6% of the ground shader), guessed 0.05-0.2 ms with ground filling the screen. Off, or with the eye further than its reach plus 30 m: skipped by a branch on a uniform, guessed 0 ms if the Deck's compiler keeps the branch, the lit cost if it flattens it (not checked). 2 lamp discs (28 triangles, 2 draw calls), 3 global vectors a frame, 0 bytes a frame. A real spot light (no shadow) only under the simple-shader fallback. Estimated from the code, not measured | One beam (one ship); under 0.3 ms on the Deck, or drop it from water first, then from models |
 | Moon rover (`Rover/MoonRover`; 16 Nov 2026) | 51,000 triangles drawn as built (body 20,214, four wheels of 6,844, four arms of 916), about 12 draw calls, one shader; no far copy yet. Each physics step while it rolls: 4 raycasts, one box overlap against hitboxes and loose pieces (only above 3 m/s), about 20 forces, 0 bytes after the first hits. Parked with nobody in it, it is fixed to the ground and costs nothing but its draw calls. Model file 0.94 MB. Estimated from the code and files, not measured in Unity | One rover. If the Deck needs it: a far copy of the wheel (most of the triangles are its chevrons) and the body, as the enemies have |
+| Restless camps (`LullRules`, `EnemySpawner.Restless`; 24 Nov 2026) | Once a think (0.4 s): two loops over at most 12 present enemies (distance, `AwareOfPlayer`), no allocation; a call sets a place on one squad (3 to 5 `SendToLook`). After a quiet of 35 s (20 s at the floor) with nobody within `callReach` (240 m), the nearest ordinary camp may wake from up to `wakeReach` (200 m, under 0.95 of `sleepRange`) instead of 150 m: the same wake cost as any wake (one enemy a frame); that camp is remembered and called after a 12 s grace, and nothing else wakes for the lull meanwhile. Never while driving. Guards and caves keep their own ranges. Estimated from the code, not measured | 1 call or 1 further wake per quiet; still `liveCap` 12, the fallen included |
 
 ## Earth scenery (14 Nov 2026): estimates from reading the code, not measured in Unity
 
@@ -379,6 +383,12 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | Blood decals (URP Decal feature, Screen Space) | 48 at most, one instanced material, drawn within 60 m. Needs the camera depth texture: a depth copy after opaques is expected (guessed 0.1 to 0.3 ms GPU at 1280 x 800). A depth prepass is not allowed: if the Frame Debugger shows one, set Depth Texture Mode to After Opaques with Depth Priming off, or use edge smoothing Fast on the Deck. Never switch on decal rendering layers | 48 |
 | `Physics.gravity` (blood and sparks only) | written when the felt pull has changed by more than 0.5 m/s squared | - |
 
+## Handmade feel (22 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Rocks, trees and plants set into the ground one by one (`NaturalPose`) | a few multiplies and one hash per thing when it is shown, nothing per frame. Each rock colour now has up to 9 shared materials (3 shades x 3 warmths) instead of 1, so the SRP batcher sees a few more material switches on scattered ground (guessed under 0.1 ms CPU on the Deck) | 9 materials per scatter colour |
+
 ## Lighting (asked for on 11 Nov 2026)
 
 Matthew asked for lighting to be baked in. How that is read, until he says otherwise:
@@ -415,7 +425,7 @@ While you play, the top-left readout has a line like:
 - **OVER**: more than 1% of frames were slower than 25 ms.
 - **1% worst**: only one frame in a hundred was slower than this. It is what stutter feels like, which an average hides.
 
-It only counts frames while a run is live (not in menus or while paused). When a run ends or you quit, one summary line is written to the Console (and to `Player.log` in a built game), starting with `Orbital Ante performance`.
+It only counts frames while a run is live (not in menus or while paused, or in the 2 frames after a pause ends). When a run ends or you quit, one summary line is written to the Console (and to `Player.log` in a built game), starting with `Orbital Ante performance`.
 
 Note: in the Unity editor the numbers are worse than a real build, because the editor itself takes time each frame. Editor numbers are only good for comparing one change with another. The real test is a build on the Deck.
 
@@ -498,3 +508,4 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | Sized pops | Size, colour and text set once per award; the fade rebuilds each label only in its last 0.5 s; one reward sound per feat or big award (the sounds' own cooldowns cap them) | 4 lines |
 | Pace tick | `TargetPace.Read` every frame: a few divides, no allocation; its words are built only when the status, points a minute or the remainder change; the tick moves only on a whole-pixel change | 1 tick, 1 label |
 | `RunRecap` | Integer adds per award, no allocation; text built once at the end of a run | one per run |
+| Aim assist | Stick only, gun in hand: per present enemy two angle checks (head, chest; about 40 for 20 enemies), then one raycast to the best; no allocation (`Mannequin.Present` is a kept list). Nothing with a mouse or no gun | 1 ray a frame |

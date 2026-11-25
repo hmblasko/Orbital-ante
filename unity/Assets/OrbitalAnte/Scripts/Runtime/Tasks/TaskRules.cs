@@ -24,12 +24,6 @@ namespace OrbitalAnte.Tasks
         /// <summary>A kill from at least this far (metres from the eye) is a long shot.</summary>
         public float longShot = 60f;
 
-        // ---------------------------------------------------------------- bases
-        /// <summary>Points for clearing a base's last guard, by size (small, medium, large). Scored as an optional mission.</summary>
-        public int baseClearSmall = 250, baseClearMedium = 400, baseClearLarge = 550;
-        /// <summary>Clearing a base this soon after the first shot there counts as a feat.</summary>
-        public float baseQuickSeconds = 60f;
-
         // ---------------------------------------------------------------- signal masts
         /// <summary>Share of bases that have a signal mast standing near them.</summary>
         public float mastShare = 0.5f;
@@ -97,9 +91,6 @@ namespace OrbitalAnte.Tasks
         public int liveNearby = 3;
         public float nearbyReach = 1500f;
 
-        // ---------------------------------------------------------------- whole worlds
-        /// <summary>Points for clearing every base on a world (Part B section 12), as an optional mission.</summary>
-        public int worldClear = 400;
 
         /// <summary>
         /// Distances are first guesses for a large world; the worlds are a few hundred metres across (Earth 500 m,
@@ -117,8 +108,6 @@ namespace OrbitalAnte.Tasks
         /// <summary>A drop lands this far over the ground from the player: kept under a third of the way round.</summary>
         public float DropNearOn(double r) => Fit(dropNear, r, 0.35 * Math.PI * 0.55);
         public float DropFarOn(double r) => Fit(dropFar, r, 0.35 * Math.PI);
-
-        public int BaseClearPoints(int size) => size >= 2 ? baseClearLarge : size == 1 ? baseClearMedium : baseClearSmall;
 
         public List<string> Problems()
         {
@@ -251,49 +240,6 @@ namespace OrbitalAnte.Tasks
         }
     }
 
-    /// <summary>One base's clearing: its guards, the first shot there, and whether it was done quietly.</summary>
-    public sealed class BaseClear
-    {
-        public readonly int Size;
-        public readonly int Guards;
-        public int Down { get; private set; }
-        public float FirstShot { get; private set; } = float.NaN;
-        /// <summary>A guard saw the player (or a flare went up) before the base was cleared: it was not done quietly.</summary>
-        public bool AlarmRaised { get; private set; }
-        public bool Cleared => Down >= Guards && Guards > 0;
-        public int Left => Math.Max(0, Guards - Down);
-
-        public BaseClear(int size, int guards)
-        {
-            Size = size;
-            Guards = Math.Max(0, guards);
-        }
-
-        public void Engaged(float now) { if (float.IsNaN(FirstShot)) FirstShot = now; }
-        public void Alarm() => AlarmRaised = true;
-
-        /// <summary>One guard is down. True when that was the last one.</summary>
-        public bool GuardDown(float now)
-        {
-            if (Cleared) return false;
-            Engaged(now);
-            Down++;
-            return Cleared;
-        }
-
-        /// <summary>A guard that was already gone (from before the base was looked at again) counts without starting the clock.</summary>
-        public void AlreadyGone() { if (!Cleared) Down++; }
-
-        /// <summary>Feats for the clear: quiet (never seen) and quick (within the window of the first shot).</summary>
-        public int Feats(TaskRules rules, float now, out string label)
-        {
-            int n = 0;
-            label = string.Empty;
-            if (!AlarmRaised) { n++; label = "QUIET"; }
-            if (!float.IsNaN(FirstShot) && now - FirstShot <= rules.baseQuickSeconds) { n++; label = label.Length == 0 ? "QUICK" : label + " + QUICK"; }
-            return n;
-        }
-    }
 
     /// <summary>A signal mast: cells that must all break. While it stands it calls the enemies near it onto the player.</summary>
     public sealed class SignalMast
@@ -364,6 +310,7 @@ namespace OrbitalAnte.Tasks
     public sealed class SalvageCrate
     {
         public CrateState State { get; private set; } = CrateState.Lying;
+        public bool AwaitingDelivery => State != CrateState.Delivered;
         /// <summary>The player was hurt at some point while carrying it (no clean-delivery feat).</summary>
         public bool HurtWhileCarried { get; private set; }
 
@@ -388,6 +335,40 @@ namespace OrbitalAnte.Tasks
             if (State != CrateState.Carried) return false;
             State = CrateState.Delivered;
             return true;
+        }
+    }
+
+    /// <summary>The two choices on a landed pod. Gun credit stops at the next unlock. A tap always claims the pod.</summary>
+    public readonly struct SupplyDropOffer
+    {
+        public readonly int GunKills;
+        public readonly int FocusPercent;
+
+        public SupplyDropOffer(TaskRules rules, float meter, int killsToNext)
+        {
+            GunKills = Math.Max(0, Math.Min(rules.dropLadderKills, killsToNext));
+            FocusPercent = meter < 1f && rules.dropFocus > 0f
+                ? Percent(Math.Min(1f, meter + rules.dropFocus) - meter) : 0;
+        }
+
+        // -1 means a positive gain below one percent. It must never be shown as zero.
+        static int Percent(float share) => share <= 0f ? 0 : share < 0.01f ? -1
+            : (int)Math.Round(share * 100f, MidpointRounding.AwayFromZero);
+        static string Amount(int percent) => percent < 0 ? "<1%" : percent + "%";
+        static string Kills(int count) => count + (count == 1 ? " gun kill" : " gun kills");
+
+        public string Prompt(string key)
+        {
+            string tap = key + ": claim points";
+            if (FocusPercent != 0) tap += " + " + Amount(FocusPercent) + " Focus";
+            return GunKills > 0 ? tap + "     hold " + key + ": points + " + Kills(GunKills) : tap;
+        }
+
+        public static string Receipt(int killsCredited, float focusGained)
+        {
+            if (killsCredited > 0) return "SUPPLY DROP: +" + Kills(killsCredited).ToUpperInvariant();
+            if (focusGained > 0f) return "SUPPLY DROP: +" + Amount(Percent(focusGained)) + " FOCUS";
+            return "SUPPLY DROP";
         }
     }
 
@@ -509,7 +490,6 @@ namespace OrbitalAnte.Tasks
     public static class TaskIds
     {
         public static string Enemy(string body, int camp, int member) => "enemy:" + body + ".c" + camp + ".m" + member;
-        public static string BaseClear(string body, int baseIndex) => "base:" + body + "." + baseIndex;
         public static string Mast(string body, int baseIndex) => "mast:" + body + "." + baseIndex;
         public static string Salvage(string body, int n) => "salvage:" + body + "." + n;
         public static string Drop(int ante, int n) => "drop:a" + ante + "." + n;

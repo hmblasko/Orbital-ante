@@ -46,7 +46,7 @@ namespace OrbitalAnte.Ante
                 P("patient_hunter", "Patient Hunter", PerkRarity.Uncommon, PerkFamily.Ghost, E(PerkStat.LowStanceDamage, 0.20f)),
                 P("cold_blood", "Cold Blood", PerkRarity.Common, PerkFamily.Ghost, E(PerkStat.FocusGain, 0.30f)),
                 P("quiet_professional", "Quiet Professional", PerkRarity.Uncommon, PerkFamily.Ghost,
-                    new PerkEffect(ScoreEventKind.OptionalMission, "base", 0.20f)),
+                    new PerkEffect(ScoreEventKind.InstallationDestroyed, null, 0.20f)),
 
                 // ---- Pilot: the ship, the rover, getting about ----
                 P("road_rage", "Road Rage", PerkRarity.Common, PerkFamily.Pilot, E(PerkStat.HealOnSplat, 10f)),
@@ -179,6 +179,14 @@ namespace OrbitalAnte.Ante
             }
             return Math.Max(1f, Math.Min(balance.riskMax, m));
         }
+
+        /// <summary>
+        /// Whether a chosen hazard still pays now (24 Nov 2026 refinement). A hazard is a bet on beating the clock:
+        /// once the clock has run out and the ante is in overtime, the bet is lost and points pay plain again,
+        /// while the hazard itself stays to the end of the ante. Before this, overtime made a hazard nearly free
+        /// (Short Fuse's lost minute cost nothing when the ante just went on), which the fun review flagged.
+        /// </summary>
+        public static bool PaysNow(Hazard hazard, bool inOvertime) => hazard != Hazard.None && !inOvertime;
 
         /// <summary>Seconds the ante starts with under a hazard.</summary>
         public static float AnteSeconds(Hazard hazard, AnteBalance balance)

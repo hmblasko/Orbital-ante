@@ -57,10 +57,27 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void AttributesCannotBeBoughtDuringAnAnte()
+        public void AttributesCanBeBoughtDuringAnAnte_FromTheWalletOnly()
+        {
+            // Matthew, 21 Nov 2026: the shop opens on Select out on a world, not only at the break.
+            var run = new AnteRun(new AnteBalance(), 5);
+            run.Report(new ScoreEvent { claimId = "m", kind = ScoreEventKind.OptionalMission, missionBasePoints = 550 });
+            Assert.IsTrue(run.Director.IsRunning);
+            Assert.IsTrue(run.CanShop);
+            Assert.IsTrue(run.TryBuyAttribute(PlayerAttribute.Damage));
+            Assert.AreEqual(1, run.Attributes.Level(PlayerAttribute.Damage));
+            Assert.AreEqual(300, run.Ledger.SpendablePoints);
+            Assert.AreEqual(550, run.Ledger.AnteEarned, "spending never takes from the ante's progress");
+            Assert.AreEqual(550, run.Ledger.LifetimeRunScore);
+        }
+
+        [Test]
+        public void TheShopShuts_WhenTheRunIsOver()
         {
             var run = new AnteRun(new AnteBalance(), 5);
             run.Report(new ScoreEvent { claimId = "m", kind = ScoreEventKind.OptionalMission, missionBasePoints = 550 });
+            run.Director.PlayerDied();
+            Assert.IsFalse(run.CanShop);
             Assert.IsFalse(run.TryBuyAttribute(PlayerAttribute.Damage));
             Assert.AreEqual(550, run.Ledger.SpendablePoints);
         }

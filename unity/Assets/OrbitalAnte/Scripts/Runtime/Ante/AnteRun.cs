@@ -102,11 +102,18 @@ namespace OrbitalAnte.Ante
 
         public void Tick(float deltaSeconds, bool paused) => Director.Tick(deltaSeconds, paused);
 
-        /// <summary>Attributes can only be bought on the upgrade screen, between antes.</summary>
+        /// <summary>Buys a level of an attribute from the wallet, at the break or in the field (<see cref="CanShop"/>).</summary>
         public bool TryBuyAttribute(PlayerAttribute attribute)
         {
-            return Director.Phase == AntePhase.Intermission && Attributes.TryBuy(attribute, Ledger);
+            return CanShop && Attributes.TryBuy(attribute, Ledger);
         }
+
+        /// <summary>
+        /// The shop is open at the break and, since 21 Nov 2026 (Matthew said yes to the shop on Select out on a
+        /// world), during an ante too. Prices follow the ante being played, so buying early costs the same as at its
+        /// break. Never after the run has ended.
+        /// </summary>
+        public bool CanShop => Director.Phase == AntePhase.Intermission || Director.Phase == AntePhase.Running;
 
         /// <summary>
         /// The three perks on offer for this ante's pick: at the break, or in the field once the target is met.

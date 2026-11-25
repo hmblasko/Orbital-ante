@@ -5,7 +5,7 @@ using OrbitalAnte.Tasks;
 
 namespace OrbitalAnte.Tests
 {
-    /// <summary>The ante tasks' rules with no Unity objects (20 Nov 2026): style, streak, bases, masts, salvage, drops, landings, ids.</summary>
+    /// <summary>The ante tasks' rules with no Unity objects (20 Nov 2026): style, streak, masts, salvage, drops, landings, ids.</summary>
     public class TaskRulesTests
     {
         static TaskRules Rules() => new TaskRules();
@@ -104,48 +104,6 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void ABase_IsClearedByItsLastGuard_Once()
-        {
-            var b = new BaseClear(1, 3);
-            Assert.IsFalse(b.GuardDown(1f));
-            Assert.IsFalse(b.GuardDown(2f));
-            Assert.IsTrue(b.GuardDown(3f));
-            Assert.IsFalse(b.GuardDown(4f), "a base clears once");
-            Assert.AreEqual(0, b.Left);
-        }
-
-        [Test]
-        public void ABaseCleared_Unseen_AndFast_HasBothFeats()
-        {
-            var rules = Rules();
-            var b = new BaseClear(0, 2);
-            b.Engaged(10f);
-            b.GuardDown(20f);
-            b.GuardDown(30f);
-            Assert.AreEqual(2, b.Feats(rules, 30f, out string label));
-            Assert.AreEqual("QUIET + QUICK", label);
-        }
-
-        [Test]
-        public void ABaseCleared_AfterBeingSeen_AndSlowly_HasNoFeats()
-        {
-            var rules = Rules();
-            var b = new BaseClear(0, 1);
-            b.Engaged(0f);
-            b.Alarm();
-            b.GuardDown(rules.baseQuickSeconds + 1f);
-            Assert.AreEqual(0, b.Feats(rules, rules.baseQuickSeconds + 1f, out _));
-        }
-
-        [Test]
-        public void BiggerBases_PayMore()
-        {
-            var rules = Rules();
-            Assert.Less(rules.BaseClearPoints(0), rules.BaseClearPoints(1));
-            Assert.Less(rules.BaseClearPoints(1), rules.BaseClearPoints(2));
-        }
-
-        [Test]
         public void AMast_FallsOnlyWhenEveryCellIsBroken()
         {
             var mast = new SignalMast(3, 45f, 45f);
@@ -187,11 +145,15 @@ namespace OrbitalAnte.Tests
         {
             var crate = new SalvageCrate();
             Assert.IsFalse(crate.Deliver());
+            Assert.IsTrue(crate.AwaitingDelivery);
             Assert.IsTrue(crate.PickUp());
+            Assert.IsTrue(crate.AwaitingDelivery, "picking up the last crate must not clear the world objective");
             crate.Hurt();
             Assert.IsTrue(crate.Drop());
+            Assert.IsTrue(crate.AwaitingDelivery);
             Assert.IsTrue(crate.PickUp());
             Assert.IsTrue(crate.Deliver());
+            Assert.IsFalse(crate.AwaitingDelivery);
             Assert.IsTrue(crate.HurtWhileCarried);
             Assert.IsFalse(crate.PickUp(), "delivered salvage is gone");
         }
@@ -236,6 +198,45 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void PodBesideAGunUnlock_ShowsOnlyTheKillItCanActuallyCredit()
+        {
+            var ladder = new Combat.GunLadder();
+            while (ladder.KillsLeft > 1) ladder.AddKill();
+            var offer = new SupplyDropOffer(Rules(), 1f, ladder.KillsLeft);
+            Assert.AreEqual(1, offer.GunKills);
+            Assert.AreEqual("Y: claim points     hold Y: points + 1 gun kill", offer.Prompt("Y"));
+            Assert.IsTrue(ladder.AddKill());
+            Assert.AreEqual("SUPPLY DROP: +1 GUN KILL", SupplyDropOffer.Receipt(offer.GunKills, 0f));
+            Assert.AreEqual(0, ladder.KillsOnRung, "the bonus ends at the unlock");
+        }
+
+        [Test]
+        public void PodWithACustomRefill_PreviewsAndReportsOnlyTheRoomLeftInTheMeter()
+        {
+            var rules = Rules();
+            rules.dropFocus = 0.25f;
+            var breath = new Combat.DeepBreath(new Combat.DeepBreathRules { seconds = 10f });
+            breath.Tick(1f, true);
+            var offer = new SupplyDropOffer(rules, breath.Meter, 8);
+            Assert.AreEqual("E: claim points + 10% Focus     hold E: points + 3 gun kills", offer.Prompt("E"));
+            float before = breath.Meter;
+            breath.Earn(rules.dropFocus);
+            Assert.AreEqual("SUPPLY DROP: +10% FOCUS", SupplyDropOffer.Receipt(0, breath.Meter - before));
+        }
+
+        [Test]
+        public void PodWithNoSecondaryReward_StillOffersPoints()
+        {
+            var rules = Rules();
+            Assert.AreEqual("Y: claim points", new SupplyDropOffer(rules, 1f, 0).Prompt("Y"));
+            rules.dropLadderKills = 0;
+            rules.dropFocus = 0f;
+            Assert.AreEqual("Y: claim points", new SupplyDropOffer(rules, 0.5f, 3).Prompt("Y"));
+            Assert.AreEqual("SUPPLY DROP", SupplyDropOffer.Receipt(0, 0f));
+            Assert.AreEqual("SUPPLY DROP: +<1% FOCUS", SupplyDropOffer.Receipt(0, 0.002f));
+        }
+
+        [Test]
         public void EnemyKinds_ScoreByHowHardTheyAre()
         {
             Assert.AreEqual(ScoreEventKind.EnemyTier1, EnemyTiers.KindFor("Trooper", 1f));
@@ -273,10 +274,10 @@ namespace OrbitalAnte.Tests
         {
             var ids = new HashSet<string>
             {
-                TaskIds.Enemy("Mars", 1, 2), TaskIds.Enemy("Mars", 2, 1), TaskIds.BaseClear("Mars", 3), TaskIds.Mast("Mars", 3),
+                TaskIds.Enemy("Mars", 1, 2), TaskIds.Enemy("Mars", 2, 1), TaskIds.Mast("Mars", 3),
                 TaskIds.Salvage("Mars", 0), TaskIds.Drop(1, 0), TaskIds.Drop(2, 0), TaskIds.FirstLanding("Mars"), TaskIds.HardLanding("Mars", "1.2"),
             };
-            Assert.AreEqual(9, ids.Count);
+            Assert.AreEqual(8, ids.Count);
         }
 
         [Test]

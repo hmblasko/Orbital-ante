@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Melee;
 using OrbitalAnte.Weapons;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -59,11 +60,8 @@ namespace OrbitalAnte.Player
         public Weapon NearbyPickup { get; private set; }
         /// <summary>How good a pick-up <see cref="NearbyPickup"/> is (lower is better: degrees off the view plus ten a metre).</summary>
         public float NearbyPickupScore { get; private set; } = float.MaxValue;
-        /// <summary>
-        /// Asked before Interact takes the gun on the ground, with its score: true when something else the player
-        /// could take is better (a melee item lying closer to the crosshair), so one press takes only one thing.
-        /// </summary>
-        public System.Func<float, bool> YieldPickup;
+        // Paired by PlayerMelee.Initialize on the player's eye.
+        internal PlayerMelee MeleeSlot { get; set; }
         /// <summary>Guns carried but not in hand (the ladder's earlier guns), next out first.</summary>
         public IReadOnlyList<Weapon> Carried => _carried;
         /// <summary>
@@ -97,6 +95,16 @@ namespace OrbitalAnte.Player
         /// game). Null means no kick.
         /// </summary>
         public ViewRecoil Recoil { get; set; }
+
+        /// <summary>
+        /// True while the shooter floats free with no pull to stand against (the astronaut outside, Posture.Free).
+        /// Null or false: shots never push (the arena, the ground, aboard).
+        /// </summary>
+        public Func<bool> FloatingFree;
+        /// <summary>The shooter's speed now, for the drift cap of <see cref="ZeroGKick"/>.</summary>
+        public Func<Vector3> ShooterVelocity;
+        /// <summary>Adds a push to the shooter's speed (metres per second, world space).</summary>
+        public Action<Vector3> PushBack;
 
         /// <summary>
         /// The gun the run itself gave the player (the starting gun, or the gun ladder's latest), as the object.
@@ -254,8 +262,14 @@ namespace OrbitalAnte.Player
             UpdatePickup();
 
             bool canAct = _health == null || _health.Alive;
-            if (canAct && NearbyPickup != null && GameInput.Interact.WasPressedThisFrame()
-                && (YieldPickup == null || !YieldPickup(NearbyPickupScore)))
+            bool take = canAct && GameInput.Interact != null && GameInput.Interact.WasPressedThisFrame();
+            // Compare both slots from this view before equipping anything changes the set of dropped items.
+            if (MeleeSlot != null && MeleeSlot.isActiveAndEnabled && MeleeSlot.UpdatePickup(NearbyPickupScore, take))
+            {
+                NearbyPickup = null;
+                NearbyPickupScore = float.MaxValue;
+            }
+            else if (take && NearbyPickup != null)
             {
                 Equip(NearbyPickup);
             }
@@ -370,8 +384,21 @@ namespace OrbitalAnte.Player
                 {
                     Recoil.Kick(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
                 }
+                PushShooter(data.recoilPitch, shot.RecoilScale);
                 _kick = 1f;
             }
+        }
+
+        /// <summary>Floating free, the shot pushes the shooter back along the line of fire (<see cref="ZeroGKick"/>).</summary>
+        void PushShooter(float recoilPitch, float recoilScale)
+        {
+            if (PushBack == null || FloatingFree == null || _config == null || !FloatingFree()) return;
+            float push = ZeroGKick.ShotPush(_config.zeroGKick, recoilPitch, recoilScale);
+            if (push <= 0f) return;
+            Vector3 back = -_eye.transform.forward;
+            float along = ShooterVelocity != null ? Vector3.Dot(ShooterVelocity(), back) : 0f;
+            float given = ZeroGKick.Applied(_config.zeroGKick, push, along);
+            if (given > 0f) PushBack(back * given);
         }
 
         static SeededRandom FreshBackfireRolls() => new SeededRandom(unchecked((int)DateTime.UtcNow.Ticks ^ (int)(DateTime.UtcNow.Ticks >> 32)));

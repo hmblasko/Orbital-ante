@@ -29,6 +29,15 @@ namespace OrbitalAnte.Ship
         int _shipNoticeRank;
         float _nextList;
         bool _flightShown = true;
+        bool _listOutside, _listShown = true;
+
+        /// <summary>
+        /// Out on foot or driving, the ante readout and its "+points" lines fill the top right corner down to about
+        /// -226, so the ship's list of hurt parts moves under them (24 Nov 2026 playtest pass: the two overlapped).
+        /// </summary>
+        const float ListTopAboard = -110f, ListTopOutside = -250f;
+        /// <summary>Away from the ship the list is only clutter over a fight; it comes back within this many metres.</summary>
+        const float ListNearShip = 45f;
         readonly StringBuilder _text = new StringBuilder(256);
 
         public void Build(Ship ship, Astronaut astronaut, FlightHud flightHud, SystemMap map)
@@ -66,6 +75,25 @@ namespace OrbitalAnte.Ship
 
             ship.PartDamaged += OnPartDamaged;
             ship.PartRepaired += OnPartRepaired;
+        }
+
+        /// <summary>Where the list of hurt parts goes, and whether it shows, for where the player is.</summary>
+        void PlaceList()
+        {
+            AstronautMode mode = _astronaut.Mode;
+            bool outside = mode == AstronautMode.Outside || mode == AstronautMode.Driving;
+            if (outside != _listOutside)
+            {
+                _listOutside = outside;
+                ((RectTransform)_damage.transform).anchoredPosition = new Vector2(-22f, outside ? ListTopOutside : ListTopAboard);
+            }
+            bool shown = !outside || _astronaut.Eye == null
+                         || (_astronaut.Eye.transform.position - _ship.transform.position).sqrMagnitude <= ListNearShip * ListNearShip;
+            if (shown != _listShown)
+            {
+                _listShown = shown;
+                _damage.gameObject.SetActive(shown);
+            }
         }
 
         static Text Shadowed(Text text)
@@ -159,6 +187,7 @@ namespace OrbitalAnte.Ship
 
             if (now < _nextList) return;
             _nextList = now + ListInterval;
+            PlaceList();
             _text.Length = 0;
             ShipModel model = _ship.Model;
             for (int i = 0; i < model.Count; i++)

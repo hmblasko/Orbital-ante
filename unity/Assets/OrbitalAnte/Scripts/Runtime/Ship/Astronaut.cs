@@ -86,7 +86,15 @@ namespace OrbitalAnte.Ship
         public static Action<string> OnDeath;
         /// <summary>Walking pace outside as a share of normal, for carrying a crate of salvage (the ante tasks set it).</summary>
         public static float CarryPace = 1f;
-        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; }
+        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; Current = null; }
+        /// <summary>The player of the run going now, or null (the arena, the title screen).</summary>
+        public static Astronaut Current { get; private set; }
+        /// <summary>The player is dead or dying (the burst plays before the death page): nothing may be banked or picked.</summary>
+        public static bool PlayerDown => Current != null && Current.Dead;
+        /// <summary>Strapped into the seat, where Select is the floodlights and the Gameplay map is off.</summary>
+        public static bool PlayerSeated => Current != null && Current.Mode == AstronautMode.Seated;
+        /// <summary>Inside the ship (seat, cabin or lift), where the ship's damage list fills the top right.</summary>
+        public static bool PlayerInShip => Current != null && (Current.Mode == AstronautMode.Seated || Current.Mode == AstronautMode.Aboard || Current.Mode == AstronautMode.Lift);
         /// <summary>Outside and off the ground: on the jets, jumping, floating. (For the style kills.)</summary>
         public bool Airborne => Mode == AstronautMode.Outside && !_grounded;
         float _dazed, _deadFor;
@@ -99,6 +107,11 @@ namespace OrbitalAnte.Ship
         // On foot: standing, crouched or prone, and the quiet sneak (see Spacewalk/Stances.cs).
         public StanceState Stances { get; } = new StanceState();
         public bool Sneaking { get; private set; }
+        /// <summary>
+        /// Out on foot and keeping hidden: crouched, prone, sneaking, or in a cave dark enough to halve how far you
+        /// are seen. A long quiet never sends a squad to a hiding player (Enemies/LullRules).
+        /// </summary>
+        public bool Hiding { get; private set; }
         CapsuleCollider _body;
         float _walkingAt, _airborneFor;
         Func<Stance, bool> _roomFor;
@@ -128,11 +141,15 @@ namespace OrbitalAnte.Ship
         public bool TakeJetPuff() { bool puff = _jetPuff; _jetPuff = false; return puff; }
         bool _jetPuff, _matchWasHeld;
         MatchTarget _matchTarget;
+        /// <summary>The speed Match Velocity would match, kept from the last physics step (a shot's drift cap reads it).</summary>
+        Vector3 _matchReference;
         SuitFx _fx;
         float _airDrawn, _jetPush, _rollEase;
         Quaternion _viewLocal = Quaternion.identity;
         // The gun's kick on the view (PlayerWeapons kicks it; ReadLookRaw turns the head by it).
         readonly OrbitalAnte.Player.ViewRecoil _recoil = new OrbitalAnte.Player.ViewRecoil();
+        // Controller aim assist (Player/AimAssist): only ever slows the sticks over an enemy.
+        readonly AimAssist _aimAssist = new AimAssist();
         bool _mendingNow;
         Vector3 _jetLocal;
         static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
@@ -155,6 +172,7 @@ namespace OrbitalAnte.Ship
             var go = new GameObject("Astronaut");
             go.layer = Layers.Player;
             var a = go.AddComponent<Astronaut>();
+            Current = a;
             a._config = config;
             a._look = PlayerConfig.Load();
             a._system = system;
@@ -269,6 +287,10 @@ namespace OrbitalAnte.Ship
             Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
                 : Ship != null ? Ship.transform.up : Vector3.up;
             Weapons.InShip = () => Mode != AstronautMode.Outside;
+            // Floating free, a shot pushes you back like a melee hit does (Player/ZeroGKick). Only the suit's speed.
+            Weapons.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Weapons.ShooterVelocity = () => Suit != null ? Suit.linearVelocity - _matchReference : Vector3.zero;
+            Weapons.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
 
             // The melee slot: empty until an item is found. Floating free, a hit pushes you back (by the struck
             // mass against yours, capped; only ever the suit's speed, never a turn of the view).
@@ -288,7 +310,7 @@ namespace OrbitalAnte.Ship
         {
             Mode = mode;
             // Sitting down or taking the wheel ends any kick still settling (no gun in those hands).
-            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) _recoil.Clear();
+            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) { _recoil.Clear(); _aimAssist.Clear(); }
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
@@ -318,7 +340,7 @@ namespace OrbitalAnte.Ship
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
-            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; }
+            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; Hiding = false; }
         }
 
         void EnterSeat(bool instant)
@@ -714,7 +736,8 @@ namespace OrbitalAnte.Ship
             yawDelta = kickRight;
             pitchDelta = -kickUp;
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
-            if (look.sqrMagnitude <= 0f) return;
+            // A stick let go starts its next push with no slowdown left over.
+            if (look.sqrMagnitude <= 0f) { _aimAssist.Clear(); return; }
             InputControl control = GameInput.Look.activeControl;
             if (control != null && control.device is Pointer)
             {
@@ -729,9 +752,21 @@ namespace OrbitalAnte.Ship
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 // Your own head does not slow when the world does (hitstop, Deep Breath).
                 float own = TimeFlow.PlayerDelta(dt);
-                yawDelta += shaped.x * _look.stickYawSpeed * own;
-                pitchDelta += -shaped.y * _look.stickPitchSpeed * own;
+                // Over an enemy the sticks turn a little slower, so a thumb can stop on it (never a pull).
+                float assist = AimAssistScale(own);
+                yawDelta += shaped.x * _look.stickYawSpeed * own * assist;
+                pitchDelta += -shaped.y * _look.stickPitchSpeed * own * assist;
             }
+        }
+
+        /// <summary>What the sticks' turning is multiplied by this frame: below 1 only over an enemy, with a gun out.</summary>
+        float AimAssistScale(float dt)
+        {
+            AimAssistRules rules = _look.aimAssist.Safe();
+            bool armed = Weapons != null && Weapons.enabled && Weapons.Current != null;
+            bool on = rules.enabled && FeelSettings.AimAssist && armed && (Mode == AstronautMode.Aboard || Mode == AstronautMode.Outside);
+            float closeness = on ? AimAssistProbe.BestCloseness(Eye.transform, Weapons.Current.Data.range, rules) : 0f;
+            return _aimAssist.Step(dt, closeness, rules);
         }
 
         void UpdateAboard(float dt)
@@ -1080,8 +1115,9 @@ namespace OrbitalAnte.Ship
             bool moving = onFoot && _walkingAt > 0.15f;
             bool shot = Weapons != null && Time.time - Weapons.LastShotTime < rules.shotLoudFor;
             // In the dark of a cave network you are picked out only from closer.
-            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
-                                         * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            float dark = OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules) * dark;
+            Hiding = onFoot && (Stances.Current != Stance.Stand || Sneaking || dark < 0.7f);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
             // The laser sword's hum carries whatever stance you are in: no sneaking with it.
             if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
@@ -1331,6 +1367,7 @@ namespace OrbitalAnte.Ship
                 : !hasBody ? Vector3.zero
                 : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.VelocityOfSeenFrom(body, Suit.position);
             Vector3 relative = Suit.linearVelocity - reference;
+            _matchReference = reference;
 
             Vector3 jets = Vector3.zero;
             float factor = SuitTanks.PushFactor;
@@ -1536,6 +1573,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            if (Current == this) Current = null;
             if (Suit != null)
             {
                 var capsule = Suit.GetComponent<CapsuleCollider>();

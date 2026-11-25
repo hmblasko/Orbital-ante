@@ -30,7 +30,7 @@ namespace OrbitalAnte.Tasks
         readonly RunStartHold _hold = new RunStartHold();
         HashSet<GuideTip> _seen;
         bool _active, _cardDue, _mapOpened, _sawGround, _unsaved;
-        int _lineBody = -1, _lineBases = -1, _lineMasts = -1, _lineCrates = -1;
+        int _lineBody = -1, _lineMasts = -1, _lineCrates = -1;
         float _tipLeft, _gapLeft, _lineEvery;
 
         Canvas _canvas;
@@ -73,8 +73,9 @@ namespace OrbitalAnte.Tasks
             _hold.Reset();
             _mapOpened = false;
             _sawGround = false;
-            _lineBody = _lineBases = _lineMasts = _lineCrates = -1;
+            _lineBody = _lineMasts = _lineCrates = -1;
             _tipLeft = 0f;
+            if (_tip != null) _tip.gameObject.SetActive(false);
             _gapLeft = 2f;
             _lineText = string.Empty;
             _cardDue = _active && FeelSettings.GuideTips && !_seen.Contains(GuideTip.Goal);
@@ -114,9 +115,11 @@ namespace OrbitalAnte.Tasks
             var astronaut = _world != null ? _world.Astronaut : null;
             var ship = _world != null ? _world.Ship : null;
 
+            bool mapOpen = _world != null && _world.Map != null && _world.Map.IsOpen;
+            bool show = GameSession.Mode == GameMode.Playing && !paused && !Cockpit.CockpitDash.WatchingScreen && !mapOpen;
+
             // The first run's goal card, once the run-start envelope has gone and nothing else is on screen.
-            if (_cardDue && !paused && (Menu == null || !Menu.IsOpen) && (Envelopes == null || !Envelopes.Showing)
-                && GameSession.Mode == GameMode.Playing)
+            if (_cardDue && show && (Menu == null || !Menu.IsOpen) && (Envelopes == null || !Envelopes.Showing))
             {
                 _cardDue = false;
                 ShowGoalCard();
@@ -134,7 +137,7 @@ namespace OrbitalAnte.Tasks
                 bool wasHolding = _hold.Holding;
                 _hold.Step(dt, height, outside, Loop.Run.Ledger.AnteEarned > 0);
                 if (wasHolding && !_hold.Holding) AnteLoop.Note("CLOCK STARTED: " + _hold.Released);
-                if (_world != null && _world.Map != null && _world.Map.IsOpen) _mapOpened = true;
+                if (mapOpen) _mapOpened = true;
             }
 
             // The world line, refreshed twice a second (counting a world's tasks walks short lists).
@@ -143,33 +146,31 @@ namespace OrbitalAnte.Tasks
             {
                 _lineEvery = 0.5f;
                 // Words are made only when the world or a count changes.
-                int body = -1, b = 0, m = 0, c = 0;
+                int body = -1, m = 0, c = 0;
                 string name = null;
-                if (_tasks != null && _tasks.TryCountsHere(out name, out b, out m, out c) && _world != null && _world.System.Focus != null)
+                if (_tasks != null && _tasks.TryCountsHere(out name, out m, out c) && _world != null && _world.System.Focus != null)
                     body = _world.System.Focus.Neighbourhood;
-                if (body != _lineBody || b != _lineBases || m != _lineMasts || c != _lineCrates)
+                if (body != _lineBody || m != _lineMasts || c != _lineCrates)
                 {
                     _lineBody = body;
-                    _lineBases = b;
                     _lineMasts = m;
                     _lineCrates = c;
-                    _lineText = body >= 0 ? WorldTaskLine.Compose(name, b, m, c) : string.Empty;
-                    _line.text = _lineText;
+                    _lineText = body >= 0 ? WorldTaskLine.Compose(name, m, c) : string.Empty;
                 }
             }
 
-            UpdateTips(dt, paused, d);
-
-            bool show = GameSession.Mode == GameMode.Playing && !paused && !Cockpit.CockpitDash.WatchingScreen;
+            // One-time tips are remembered on display. Keep their reading time while the map or camera covers the HUD.
+            if (show) UpdateTips(dt, d);
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
             // Aboard, the ship's damage list has this corner (as the "+points" lines do); the map shows tasks per world.
-            bool lineOn = _lineText.Length > 0 && d.IsRunning && Ship.Ship.Boarded == null;
+            string objective = WorldTaskLine.Objective(_lineText, _tasks != null && _tasks.CarryingSalvage);
+            if (_line.text != objective) _line.text = objective;
+            bool lineOn = objective.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip;
             if (_line.gameObject.activeSelf != lineOn) _line.gameObject.SetActive(lineOn);
         }
 
-        void UpdateTips(float dt, bool paused, Ante.AnteDirector d)
+        void UpdateTips(float dt, Ante.AnteDirector d)
         {
-            if (paused) return;
             if (_tipLeft > 0f)
             {
                 _tipLeft -= dt;
@@ -188,7 +189,7 @@ namespace OrbitalAnte.Tasks
 
             // The world line's counts, at most half a second old, are enough here.
             bool near = _lineBody >= 0;
-            bool hasTasks = near && _lineBases + _lineMasts + _lineCrates > 0;
+            bool hasTasks = near && _lineMasts + _lineCrates > 0;
             var astronaut = _world != null ? _world.Astronaut : null;
             var ship = _world != null ? _world.Ship : null;
             bool atControls = astronaut != null && ship != null && astronaut.Mode == Ship.AstronautMode.Seated
@@ -222,7 +223,7 @@ namespace OrbitalAnte.Tasks
             if (Menu == null) return;
             Remember(GuideTip.Goal);
             Ante.AnteBalance balance = Loop.Run.Balance;
-            string body = RunGuide.GoalCard(Loop.Run.Director.Target, Mathf.RoundToInt(balance.anteSeconds), balance.AnteCount, Keys());
+            string body = RunGuide.GoalCard(balance.TargetFor(1), Mathf.RoundToInt(balance.anteSeconds), balance.AnteCount, Keys());
             Menu.ShowChoices("YOUR GOAL", body, new List<PauseMenu.MenuChoice>
             {
                 new PauseMenu.MenuChoice("Let's go", Menu.Close),
@@ -250,6 +251,7 @@ namespace OrbitalAnte.Tasks
                 Pause = GameInput.Describe(GameInput.Pause),
                 LiftOff = GameInput.Describe(GameInput.FlyUp),
                 Interact = GameInput.Describe(GameInput.Interact),
+                Upgrades = GameInput.Describe(GameInput.Upgrades),
             };
         }
 

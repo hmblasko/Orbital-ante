@@ -409,6 +409,8 @@ namespace OrbitalAnte.Core
 
         void OnPauseChanged(bool paused)
         {
+            // Full drawing rate again whenever play goes on (the pause menu halves it on its plain pages).
+            if (!paused) Perf.PerformanceBudget.Load().ApplyPaused(false);
             if (GameSession.Mode != GameMode.Playing) return;
             if (paused) GameInput.Play.Disable();
             else GameInput.Play.Enable();
