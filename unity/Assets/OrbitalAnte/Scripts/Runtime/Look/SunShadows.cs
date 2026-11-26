@@ -20,6 +20,29 @@ namespace OrbitalAnte.Look
 
         public static bool Wanted(LookConfig look) => look != null && look.realLight && look.sunShadows;
 
+        /// <summary>
+        /// Says whether one thing casts a shadow: only when it is meant to (<paramref name="should"/>), Sun Shadows
+        /// is on, and the material it wears can draw itself into the shadow picture (the game's own ground and
+        /// model shaders can; a stand-in or glowing material may not). Everything on a world is made with casting
+        /// off, so a thing casts only where the code that makes it calls this. What casts is listed in
+        /// docs/performance_budget.md ("Sun shadows"); small plants, glowing pieces, cave walls, the cabin and task
+        /// views never do.
+        /// </summary>
+        public static void Cast(Renderer renderer, bool should)
+        {
+            if (renderer == null) return;
+            bool on = should && Wanted(LookConfig.Load()) && CanCast(renderer.sharedMaterial);
+            renderer.shadowCastingMode = on ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            // URP's own shaders obey this; the game's shaders read the shadow picture whatever it says.
+            renderer.receiveShadows = on || renderer.receiveShadows;
+        }
+
+        /// <summary>True if a material has a pass that draws into the shadow picture.</summary>
+        public static bool CanCast(Material material)
+        {
+            return material != null && material.FindPass("ShadowCaster") >= 0;
+        }
+
         public static void Apply(Light sun, LookConfig look)
         {
             if (sun == null) return;
@@ -45,6 +68,8 @@ namespace OrbitalAnte.Look
             set += Set(pipeline, "shadowCascadeCount", SunShadowRules.Cascades) ? 1 : 0;
             set += Set(pipeline, "cascade2Split", SunShadowRules.NearShare) ? 1 : 0;
             set += Set(pipeline, "mainLightShadowmapResolution", SunShadowRules.Resolution) ? 1 : 0;
+            // The cheapest soft edge (four reads a dot). Not counted: an older URP has no such setting.
+            Set(pipeline, "softShadowQuality", SunShadowRules.SoftQuality);
             Status = set == 6 ? "on" : "on, " + (6 - set) + " of 6 settings could not be set (shadows may be coarse or missing)";
         }
 
@@ -59,7 +84,7 @@ namespace OrbitalAnte.Look
                 MethodInfo setter = property.GetSetMethod(true);
                 if (setter == null) return false;
                 object current = property.GetValue(target, null);
-                object wanted = Convert.ChangeType(value, property.PropertyType);
+                object wanted = property.PropertyType.IsEnum ? Enum.ToObject(property.PropertyType, value) : Convert.ChangeType(value, property.PropertyType);
                 if (Equals(current, wanted)) return true;
                 setter.Invoke(target, new[] { wanted });
                 return true;

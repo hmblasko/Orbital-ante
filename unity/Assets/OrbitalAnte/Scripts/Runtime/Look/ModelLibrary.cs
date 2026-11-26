@@ -80,6 +80,8 @@ namespace OrbitalAnte.Look
                 go.AddComponent<MeshFilter>().sharedMesh = entry.Meshes[i];
                 var renderer = go.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = ModelFile.Shines(entry.File.Parts[i].Name) ? Shining() : material;
+                // A piece that shines by itself never casts a shadow.
+                if (ModelFile.Shines(entry.File.Parts[i].Name)) renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
                 renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
                 if (pieces != null) pieces[entry.File.Parts[i].Name] = go;

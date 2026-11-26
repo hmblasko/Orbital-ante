@@ -83,9 +83,11 @@ namespace OrbitalAnte.Planets
         /// <summary>Two pictures: a sharp one close by, a coarser one out to the full distance.</summary>
         public const int Cascades = 2;
         /// <summary>The share of the distance the sharp picture covers.</summary>
-        public const float NearShare = 0.22f;
+        public const float NearShare = 0.3f;
         /// <summary>Both pictures share one of this size.</summary>
         public const int Resolution = 2048;
+        /// <summary>URP's cheapest soft edge (its SoftShadowQuality.Low): four reads of the picture a dot.</summary>
+        public const int SoftQuality = 1;
         public const float LeastDistance = 30f, MostDistance = 250f;
 
         public static float Distance(float asked)

@@ -105,10 +105,10 @@ namespace OrbitalAnte.Tests
         {
             Assert.AreEqual(SunShadowRules.LeastDistance, SunShadowRules.Distance(0));
             Assert.AreEqual(SunShadowRules.MostDistance, SunShadowRules.Distance(9999));
-            Assert.AreEqual(120f, SunShadowRules.Distance(120f));
-            // At the default, one dot of the near shadow picture covers about 5 cm of ground.
-            Assert.Less(SunShadowRules.NearTexel(120f), 0.06f);
-            Assert.Less(SunShadowRules.NearTexel(SunShadowRules.MostDistance), 0.12f, "still no coarser than a hand's width at the furthest setting");
+            Assert.AreEqual(70f, SunShadowRules.Distance(70f));
+            // At the default, one dot of the near shadow picture covers about 4 cm of ground.
+            Assert.Less(SunShadowRules.NearTexel(70f), 0.05f);
+            Assert.Less(SunShadowRules.NearTexel(SunShadowRules.MostDistance), 0.16f, "still no coarser than a hand's width at the furthest setting");
         }
 
         // ------------------------------------------------------------------ the shaders
@@ -140,7 +140,7 @@ namespace OrbitalAnte.Tests
                 StringAssert.Contains("ApplyShadowBias", text, name + ": without the bias every face shadows itself");
                 // The switch must be a multi_compile: URP sets it for the whole game, and a shader_feature would be
                 // dropped from a build because no saved material turns it on.
-                StringAssert.Contains("#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN", text, name);
+                StringAssert.Contains("#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE", text, name);
                 StringAssert.Contains("_SHADOWS_SOFT", text, name);
                 int define = text.IndexOf("#define OA_RECEIVES_SHADOWS"), include = text.IndexOf("OA_Look.hlsl\"");
                 Assert.GreaterOrEqual(define, 0, name + " must ask the shared look for cast shadows");

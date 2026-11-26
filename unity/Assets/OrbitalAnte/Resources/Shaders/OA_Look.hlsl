@@ -275,7 +275,8 @@ half3 OA_LightAt(half3 normal, float3 positionWS, float3 up, half sunAmount, hal
     // faces (a ship's panels would otherwise catch the Sun through the ground). In open space "up" is zero.
     half reached = onWorld ? lerp(smoothstep(-0.14, 0.02, sunUp), smoothstep(-_OA_Place.x, _OA_Place.x * 2.5, sunUp), plain) : 1.0;
     // Sunlit ground all round throws a little light into every shadow (all there is on a world with no air).
-    half3 thrown = onWorld ? plainSun * (dayHere * _OA_Shade.z * plain) : half3(0.0, 0.0, 0.0);
+    // It does not fall away with a low Sun, when shadows are longest and an enemy in one most needs finding.
+    half3 thrown = onWorld ? plainSun * ((0.5 + 0.5 * dayHere) * _OA_Shade.z * plain) : half3(0.0, 0.0, 0.0);
 
     light += (sun + bounce + rim + thrown) * (sunAmount * reached);
 

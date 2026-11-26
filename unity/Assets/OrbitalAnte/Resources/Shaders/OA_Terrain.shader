@@ -139,8 +139,8 @@ Shader "OrbitalAnte/Terrain"
             #pragma vertex vert
             #pragma fragment frag
             // URP's switches for the Sun's cast shadows (OA_SunShade in OA_Look.hlsl reads them).
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
             half4 frag(Varyings input) : SV_Target
             {

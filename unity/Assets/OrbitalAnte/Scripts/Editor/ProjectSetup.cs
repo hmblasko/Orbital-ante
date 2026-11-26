@@ -640,6 +640,7 @@ namespace OrbitalAnte.EditorTools
             SetIfThere(serialized, "m_ShadowCascadeCount", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Cascades);
             SetIfThere(serialized, "m_Cascade2Split", p => p.floatValue = OrbitalAnte.Planets.SunShadowRules.NearShare);
             SetIfThere(serialized, "m_MainLightShadowmapResolution", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Resolution);
+            SetIfThere(serialized, "m_SoftShadowQuality", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.SoftQuality);
             if (serialized.ApplyModifiedPropertiesWithoutUndo()) EditorUtility.SetDirty(pipeline);
         }
 

@@ -680,7 +680,7 @@ static class TerrainView
         ab = prop ? vb : GroundLight.Fill(vb, viewerBright, skyOver, fb, spb, share, hereBright);
         double up2 = GroundLight.Reached(placeSun, look.Soft);
         double direct = GroundLight.Direct(facing, open);
-        double thrown = Math.Max(0, Math.Min(1, placeSun * 2 + 0.2)) * 0.03;
+        double thrown = (0.5 + 0.5 * Math.Max(0, Math.Min(1, placeSun * 2 + 0.2))) * 0.06;
         // (The warm bounce onto overhangs keeps the viewer's tinted sunlight in the game; near enough here.)
         r = ar * f2 + (pr * (direct + thrown) + sr * bounce) * up2;
         g = ag * f2 + (pg * (direct + thrown) + sg * bounce * 0.8) * up2;

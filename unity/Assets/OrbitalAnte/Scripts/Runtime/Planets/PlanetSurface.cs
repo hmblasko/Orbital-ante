@@ -982,6 +982,8 @@ namespace OrbitalAnte.Planets
                 renderer.sharedMaterial = _ground;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
+                // Hills and crater rims throw the long shadows of a low Sun.
+                OrbitalAnte.Look.SunShadows.Cast(renderer, true);
             }
             n.Go.SetActive(false);
 
