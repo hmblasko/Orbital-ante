@@ -275,6 +275,11 @@ namespace OrbitalAnte.Planets
             int height = width / 2;
             var pixels = new byte[width * height * 4];
             PlanetTerrain terrain = Terrain;
+            // The realistic far look also wants the lie of the land: the heights are kept as the picture is painted
+            // (no extra questions of the ground) and turned into slopes in the last slice.
+            float[] heights = PlanetMaterials.RealPlanets ? new float[width * height] : null;
+            byte[] relief = null;
+            double radius = terrain.Radius;
             // Small slices: a slice cannot be interrupted, so each must be short enough not to hold up urgent work.
             const int slices = 32;
             int slice = 0;
@@ -285,22 +290,38 @@ namespace OrbitalAnte.Planets
                 int first = height * slice / slices, end = height * (slice + 1) / slices;
                 _pictureJob = PlanetJobs.Run(() =>
                 {
-                    FarMap.Paint(terrain, width, pixels, first, end);
+                    FarMap.Paint(terrain, width, pixels, first, end, heights);
+                    if (heights != null && end >= height) relief = FarRelief.Paint(heights, width, radius, terrain.HasSea, terrain.SeaLevel);
                     return pixels;
                 }, _ =>
                 {
                     slice++;
                     if (slice < slices) Next();
-                    else OnPicture(pixels, width, height);
+                    else OnPicture(pixels, relief, width, height);
                 }, () => priority() + 500f, true);
             }
             Next();
         }
 
-        void OnPicture(byte[] pixels, int width, int height)
+        void OnPicture(byte[] pixels, byte[] relief, int width, int height)
         {
             if (this == null) return;
             _pictureJob = null;
+            if (relief != null && Body.FarLook != null)
+            {
+                // Numbers, not colours: kept exactly as written (linear).
+                var lie = new Texture2D(width, height, TextureFormat.RGBA32, true, true)
+                {
+                    name = Body.Spec.id + " relief",
+                    wrapModeU = TextureWrapMode.Repeat,
+                    wrapModeV = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Trilinear,
+                };
+                lie.SetPixelData(relief, 0);
+                lie.Apply(true, true);
+                _owned.Add(lie);
+                PlanetMaterials.SetRelief(Body.FarLook.sharedMaterial, lie, FarReliefStrength);
+            }
             _picture = new Texture2D(width, height, TextureFormat.RGBA32, true)
             {
                 name = Body.Spec.id + " surface",
@@ -319,9 +340,128 @@ namespace OrbitalAnte.Planets
             PictureReady = true;
         }
 
+        /// <summary>How strongly the land's slopes tilt the light on the far ball (1 is the true slope).</summary>
+        const float FarReliefStrength = 0.8f;
+        /// <summary>Over what share of a cloud layer's radius it fades out as the viewer comes down to it.</summary>
+        const double CloudFadeOver = 0.25;
+        static readonly Color NightLightColor = new Color(1f, 0.85f, 0.62f);
+        static readonly Color AuroraColor = new Color(0.25f, 0.74f, 0.5f, 1f);
+
+        AirLook _air;
+        GameObject _clouds;
+        Material _cloudMaterial;
+        double _cloudShell;
+        float _cloudShown = 1f, _cloudShadow, _cloudShadowShown = -1f, _cloudAmount, _cloudDrift;
+        bool _hasCloudShadow;
+
+        /// <summary>
+        /// The realistic look from space (Look asset, "Real Planets"): a true night side on the far ball, a layer
+        /// of cloud on the worlds that have one, and the air as a thin shell. False if the air shell could not be
+        /// made, and the earlier rim must be built.
+        /// </summary>
+        bool BuildOrbitLook()
+        {
+            if (!PlanetMaterials.RealPlanets) return false;
+            _air = OrbitLook.Air(Profile, BodyRadius, Interior);
+            Material far = Body.FarLook != null ? Body.FarLook.sharedMaterial : null;
+            PlanetMaterials.SetRealBody(far, _air);
+            if (OrbitLook.HasAurora(Body.Spec.id)) PlanetMaterials.SetAurora(far, AuroraColor);
+            if (!Profile.hasAtmosphere) return true;
+
+            double top = AtmosphereModel.Top(Profile, SurfaceRadius, BodyRadius);
+            // The air is measured from whatever the eye takes for the planet's edge: the ground, or an unbroken deck of cloud.
+            double edge = BodyRadius;
+            if (!Interior && OrbitLook.TryClouds(Body.Spec.id, out CloudLook look))
+            {
+                var picture = Resources.Load<Texture2D>(look.Picture);   // a shared file, never destroyed
+                _cloudMaterial = PlanetMaterials.Clouds(Body.Spec.id + " clouds", picture, look, _air);
+                if (_cloudMaterial != null)
+                {
+                    _owned.Add(_cloudMaterial);
+                    _cloudShell = BodyRadius + top * look.Height;
+                    _clouds = NewShell("Clouds", _cloudShell, _cloudMaterial);
+                    if (look.Amount >= 1) edge = _cloudShell;
+                    _cloudShadow = (float)look.Shadow;
+                    _cloudAmount = (float)look.Amount;
+                    _cloudDrift = look.DriftSeconds > 0 ? (float)(1.0 / look.DriftSeconds) : 0f;
+                    _hasCloudShadow = _cloudShadow > 0f && far != null;
+                    if (_hasCloudShadow) PlanetMaterials.SetCloudShadows(far, picture, _cloudShadow, _cloudAmount, _cloudDrift);
+                    _cloudShadowShown = _cloudShadow;
+                }
+            }
+
+            Material material = PlanetMaterials.Air(Body.Spec.id + " air", Interior ? HazeColor : SkyColor, _air);
+            if (material == null) return false;
+            _owned.Add(material);
+            _airRimMaterial = material;
+            _airRimStrength = 1f;
+            _airRimShown = 1f;
+            _airRimShell = edge * _air.Shell;
+            _airRim = NewShell("AirRim", _airRimShell, material);
+            return true;
+        }
+
+        GameObject NewShell(string shellName, double radius, Material material)
+        {
+            var shell = new GameObject(shellName);
+            shell.transform.SetParent(Body.transform, false);
+            shell.transform.localScale = Vector3.one * (float)radius;
+            shell.AddComponent<MeshFilter>().sharedMesh = SpaceMeshes.Sphere(64);
+            var renderer = shell.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return shell;
+        }
+
+        /// <summary>
+        /// Call once a frame for every body, near or far, with how far the viewer is from its centre and the
+        /// height at which its real ground takes over from the far ball. Fades the cloud layer out on the way
+        /// down to it, and the clouds' shadows on the far ball before the ground (which has none) replaces it.
+        /// </summary>
+        public void FarTick(double viewerRadius, double nearHeight)
+        {
+            if (_clouds == null) return;
+            float shown = (float)OrbitLook.ShellShown(viewerRadius, _cloudShell, CloudFadeOver);
+            if (Mathf.Abs(shown - _cloudShown) > 0.004f || (shown <= 0f) != (_cloudShown <= 0f))
+            {
+                _cloudShown = shown;
+                PlanetMaterials.SetStrength(_cloudMaterial, shown);
+                _clouds.SetActive(shown > 0.001f);
+            }
+            if (!_hasCloudShadow || Body.FarLook == null) return;
+            float shadow = _cloudShadow * (float)OrbitLook.ShadowShown(viewerRadius - BodyRadius, nearHeight);
+            if (Mathf.Abs(shadow - _cloudShadowShown) < 0.004f) return;
+            _cloudShadowShown = shadow;
+            PlanetMaterials.SetCloudShadows(Body.FarLook.sharedMaterial, null, shadow, _cloudAmount, _cloudDrift);
+        }
+
+        Texture2D _nightLights;
+
+        /// <summary>
+        /// Lights on the far ball's night side, one for each place given (the bases, once they are known).
+        /// <paramref name="sizes"/> is 0 for a small place up to 2 for a large one.
+        /// </summary>
+        public void SetNightLights(Vec3d[] directions, int[] sizes, int count)
+        {
+            if (!PlanetMaterials.RealPlanets || Interior || Body.FarLook == null || _nightLights != null || count <= 0) return;
+            const int width = 512;
+            _nightLights = new Texture2D(width, width / 2, TextureFormat.R8, false, true)
+            {
+                name = Body.Spec.id + " night lights",
+                wrapModeU = TextureWrapMode.Repeat,
+                wrapModeV = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            _nightLights.SetPixelData(FarRelief.Lights(directions, sizes, count, width), 0);
+            _nightLights.Apply(false, true);
+            _owned.Add(_nightLights);
+            PlanetMaterials.SetNightLights(Body.FarLook.sharedMaterial, _nightLights, NightLightColor);
+        }
+
         void BuildAirRim()
         {
-            if (!Profile.hasAtmosphere) return;
+            if (BuildOrbitLook() || !Profile.hasAtmosphere) return;
             double top = AtmosphereModel.Top(Profile, SurfaceRadius, BodyRadius);
             double shell = Interior ? BodyRadius * 1.025 : BodyRadius + Math.Max(top * 0.5, BodyRadius * 0.02);
             double ratio = BodyRadius / shell;

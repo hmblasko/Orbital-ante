@@ -165,6 +165,18 @@ namespace OrbitalAnte.Bases
                     surface.Features.AlsoKeepClear(w.Sites[i].Centre, w.Sites[i].Footprint + (w.Sites[i].Depth + 1.5) * 1.15 + 1.0);
             }
             _worlds[body] = w;
+            // From space, the bases are the lights on the world's night side.
+            if (w.Sites.Count > 0)
+            {
+                var places = new Vec3d[w.Sites.Count];
+                var sizes = new int[w.Sites.Count];
+                for (int i = 0; i < places.Length; i++)
+                {
+                    places[i] = w.Sites[i].Up;
+                    sizes[i] = (int)w.Sites[i].Size;
+                }
+                surface.SetNightLights(places, sizes, places.Length);
+            }
             return w;
         }
 

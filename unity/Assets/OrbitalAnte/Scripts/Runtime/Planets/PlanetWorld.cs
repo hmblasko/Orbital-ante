@@ -188,6 +188,7 @@ namespace OrbitalAnte.Planets
                 // Looking away must not retire the ground beneath the suit or a ship left behind.
                 if (!s.Near && s.Ready && (height < near || groundCount > 0)) s.SetNear(true);
                 else if (s.Near && height > near * 1.25f && groundCount == 0) s.SetNear(false);
+                s.FarTick(height + s.BodyRadius, near);
                 if (s.Near) TickSurface(s, eye, groundCount, speed);
             }
         }

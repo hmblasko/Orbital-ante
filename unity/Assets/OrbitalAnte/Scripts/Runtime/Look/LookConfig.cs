@@ -60,6 +60,8 @@ namespace OrbitalAnte.Look
         [Range(0f, 1.5f)] public float spaceBackdrop = 1f;
         [Tooltip("On: the sky is the real one. The stars are the real stars at their true places, brightness and colour, and the Milky Way lies where it really does. Off: the earlier sky, a faint painted band and evenly scattered stars.")]
         public bool realSky = true;
+        [Tooltip("On: planets seen from space have a black night side, relief that catches the light, a thin rim of air, clouds, painted gas giants and fine rings. Off: the earlier smooth balls with a wide glow.")]
+        public bool realPlanets = true;
         [Tooltip("How much the Sun's glare hides the stars and deep space near it, as it does for any eye or camera. 0 leaves the sky as bright beside the Sun as anywhere.")]
         [Range(0f, 1f)] public float sunHidesStars = 0.75f;
         [Tooltip("Size of the glow round the Sun.")]

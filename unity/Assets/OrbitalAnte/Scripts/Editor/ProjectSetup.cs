@@ -199,6 +199,7 @@ namespace OrbitalAnte.EditorTools
             Step("player settings", problems, SetUpPlayerSettings);
             Step("fog in builds", problems, SetUpFogInBuilds);
             Step("sky picture", problems, SkyTextureImportRules.Ensure);
+            Step("planet pictures", problems, PlanetTextureImportRules.Ensure);
             Step("test arena scene", problems, () => SetUpScene(interactive));
             Step("input system", problems, () => needsRestart = SetUpInputHandling());
 

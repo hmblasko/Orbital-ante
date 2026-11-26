@@ -42,10 +42,31 @@ namespace OrbitalAnte.Planets
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
         static readonly int SunGlareId = Shader.PropertyToID("_SunGlare");
         static readonly int BrightnessId = Shader.PropertyToID("_Brightness");
+        static readonly int SoftId = Shader.PropertyToID("_Soft");
+        static readonly int ReddenId = Shader.PropertyToID("_Redden");
+        static readonly int ReliefMapId = Shader.PropertyToID("_ReliefMap");
+        static readonly int ReliefId = Shader.PropertyToID("_Relief");
+        static readonly int LightsMapId = Shader.PropertyToID("_LightsMap");
+        static readonly int LightsColorId = Shader.PropertyToID("_LightsColor");
+        static readonly int CloudMapId = Shader.PropertyToID("_CloudMap");
+        static readonly int CloudShadowId = Shader.PropertyToID("_CloudShadow");
+        static readonly int AuroraId = Shader.PropertyToID("_Aurora");
+        static readonly int RingMapId = Shader.PropertyToID("_RingMap");
+        static readonly int RingRadiiId = Shader.PropertyToID("_RingRadii");
+        static readonly int DepthId = Shader.PropertyToID("_Depth");
+        static readonly int ScaleId = Shader.PropertyToID("_Scale");
+        static readonly int HideId = Shader.PropertyToID("_Hide");
+        static readonly int ShellId = Shader.PropertyToID("_Shell");
+        static readonly int AmountId = Shader.PropertyToID("_Amount");
+        static readonly int DriftId = Shader.PropertyToID("_Drift");
+        static readonly int PlanetRadiusId = Shader.PropertyToID("_PlanetRadius");
+        const string RealKeyword = "_OA_REAL";
+        const string ReliefKeyword = "_OA_RELIEF";
 
         static bool _looked;
         static bool _simple;
-        static Shader _terrain, _body, _atmosphere, _water, _sky, _model, _stars;
+        static Shader _terrain, _body, _atmosphere, _water, _sky, _model, _stars, _air, _clouds, _rings;
+        static bool _realPlanets;
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
         static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
@@ -69,7 +90,8 @@ namespace OrbitalAnte.Planets
         {
             _simple = false;
             _looked = false;
-            _terrain = _body = _atmosphere = _water = _sky = _model = _stars = null;
+            _terrain = _body = _atmosphere = _water = _sky = _model = _stars = _air = _clouds = _rings = null;
+            _realPlanets = false;
             _vertexLit = _vertexUnlit = null;
             ClearVertexCache();
         }
@@ -109,6 +131,11 @@ namespace OrbitalAnte.Planets
             _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
             // The real stars need the sky's own shader too: both fade behind a daytime sky by the same sums.
             _stars = _simple || _sky == null ? null : Find("OA_Stars", "OrbitalAnte/Stars");
+            // The realistic far planets: each piece stands by itself, and the earlier look stands in for any that is missing.
+            _realPlanets = !_simple && _body != null && OrbitalAnte.Look.LookConfig.Load().realPlanets;
+            _air = _realPlanets ? Find("OA_Air", "OrbitalAnte/Air") : null;
+            _clouds = _realPlanets ? Find("OA_Clouds", "OrbitalAnte/Clouds") : null;
+            _rings = _realPlanets ? Find("OA_Rings", "OrbitalAnte/Rings") : null;
             // Models fall back to the ground's shader (no shine) if theirs cannot be used, and go back to it when
             // Shine is turned right down on the Look asset: the way out if the model shader misbehaves on a machine.
             bool shineOff = OrbitalAnte.Look.LookConfig.Load().shine <= 0f;
@@ -369,6 +396,106 @@ namespace OrbitalAnte.Planets
         public static void SetBackdrop(Material sky, Texture picture)
         {
             if (sky != null && picture != null && sky.HasProperty(BackdropId)) sky.SetTexture(BackdropId, picture);
+        }
+
+        // ------------------------------------------------------------------ realistic far planets
+
+        /// <summary>True when far bodies take the realistic look ("Real Planets" on the Look asset, own shaders in use).</summary>
+        public static bool RealPlanets { get { Look(); return _realPlanets; } }
+
+        /// <summary>
+        /// Switches a far body's material to the realistic look: a black night side with an edge as soft as its
+        /// air makes it, and low sunlight reddened by that air.
+        /// </summary>
+        public static void SetRealBody(Material material, AirLook air)
+        {
+            if (material == null || !RealPlanets || material.shader != _body) return;
+            material.EnableKeyword(RealKeyword);
+            material.SetFloat(SoftId, (float)air.Soft);
+            material.SetVector(ReddenId, new Vector4((float)air.ReddenR, (float)air.ReddenG, (float)air.ReddenB, 0f));
+        }
+
+        /// <summary>Gives a far body the lie of its land (slopes and sea, see FarRelief), so its relief catches the light.</summary>
+        public static void SetRelief(Material material, Texture relief, float strength)
+        {
+            if (material == null || relief == null || !RealPlanets || material.shader != _body) return;
+            material.EnableKeyword(ReliefKeyword);
+            material.SetTexture(ReliefMapId, relief);
+            material.SetFloat(ReliefId, strength);
+        }
+
+        public static void SetNightLights(Material material, Texture lights, Color color)
+        {
+            if (material == null || lights == null || !material.HasProperty(LightsMapId)) return;
+            material.SetTexture(LightsMapId, lights);
+            material.SetColor(LightsColorId, color);
+        }
+
+        /// <summary>The clouds whose shadows fall on a far body. <paramref name="driftTurns"/> is turns a second, as on the cloud layer.</summary>
+        public static void SetCloudShadows(Material material, Texture clouds, float darkness, float amount, float driftTurns)
+        {
+            if (material == null || !material.HasProperty(CloudShadowId)) return;
+            if (clouds != null) material.SetTexture(CloudMapId, clouds);
+            material.SetVector(CloudShadowId, new Vector4(darkness, amount, driftTurns, 0f));
+        }
+
+        public static void SetAurora(Material material, Color color)
+        {
+            if (material != null && material.HasProperty(AuroraId)) material.SetColor(AuroraId, color);
+        }
+
+        /// <summary>The rings whose shadow falls on a far body: their strip of picture and their edges in body radii.</summary>
+        public static void SetRingShadow(Material material, Texture strip, float inner, float outer)
+        {
+            if (material == null || strip == null || !material.HasProperty(RingRadiiId)) return;
+            material.SetTexture(RingMapId, strip);
+            material.SetVector(RingRadiiId, new Vector4(inner, outer, 0f, 0f));
+        }
+
+        /// <summary>The thin shell of air round a planet seen from space, or null if it cannot be used (the earlier rim stands in).</summary>
+        public static Material Air(string name, Color color, AirLook air)
+        {
+            Look();
+            if (_air == null) return null;
+            var m = new Material(_air) { name = name };
+            color *= (float)air.Gain;
+            color.a = 1f;
+            m.SetColor(BaseColorId, color);
+            m.SetFloat(StrengthId, 1f);
+            m.SetFloat(DepthId, (float)air.Depth);
+            m.SetFloat(ScaleId, (float)air.Scale);
+            m.SetFloat(HideId, (float)air.Hide);
+            m.SetFloat(ShellId, (float)air.Shell);
+            return m;
+        }
+
+        /// <summary>A layer of cloud round a planet seen from space, or null if it cannot be used.</summary>
+        public static Material Clouds(string name, Texture picture, CloudLook clouds, AirLook air)
+        {
+            Look();
+            if (_clouds == null || picture == null) return null;
+            var m = new Material(_clouds) { name = name };
+            m.SetTexture(BaseMapId, picture);
+            m.SetFloat(StrengthId, 1f);
+            m.SetFloat(AmountId, (float)clouds.Amount);
+            m.SetFloat(DriftId, clouds.DriftSeconds > 0 ? (float)(1.0 / clouds.DriftSeconds) : 0f);
+            m.SetFloat(SoftId, (float)air.Soft);
+            m.SetVector(ReddenId, new Vector4((float)air.ReddenR, (float)air.ReddenG, (float)air.ReddenB, 0f));
+            return m;
+        }
+
+        /// <summary>Rings as one see-through band, or null if they cannot be used (the earlier solid bands stand in).</summary>
+        public static Material Rings(string name, Texture strip, float planetRadius)
+        {
+            Look();
+            if (_rings == null || strip == null) return null;
+            var m = new Material(_rings) { name = name };
+            m.SetTexture(BaseMapId, strip);
+            m.SetFloat(PlanetRadiusId, planetRadius);
+            m.SetFloat(VeilId, 1f);
+            // After the air, which would otherwise dim rings that pass in front of the planet's edge.
+            m.renderQueue = 3020;
+            return m;
         }
 
         /// <summary>The glowing rim of air seen from space, or null if the shader for it is not available.</summary>

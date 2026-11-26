@@ -69,6 +69,57 @@ static class TerrainView
                 Render(t, eye, -up, north, sun, 40, args[4], false);
                 return 0;
             }
+            case "map":
+            {
+                // The picture a body wears from far off (FarMap, the game's own), as a flat map: map <body> <width> <out.ppm> [seed]
+                int width = int.Parse(args[2]);
+                PlanetTerrain t = Make(args[1], args.Length > 4 ? int.Parse(args[4]) : 1);
+                byte[] rgba = FarMap.Paint(t, width);
+                int height = width / 2;
+                using var file = System.IO.File.Create(args[3]);
+                byte[] head = System.Text.Encoding.ASCII.GetBytes($"P6\n{width} {height}\n255\n");
+                file.Write(head, 0, head.Length);
+                var row = new byte[width * 3];
+                for (int y = height - 1; y >= 0; y--)     // the picture's first row is the south pole
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        row[x * 3] = rgba[(y * width + x) * 4];
+                        row[x * 3 + 1] = rgba[(y * width + x) * 4 + 1];
+                        row[x * 3 + 2] = rgba[(y * width + x) * 4 + 2];
+                    }
+                    file.Write(row, 0, row.Length);
+                }
+                if (args.Length > 5)
+                {
+                    // And the heights behind it: map <body> <width> <out.ppm> <seed> <heights.ppm>. Red is the
+                    // height from lowest (0) to highest (255), green is 255 where there is sea.
+                    var heights = new double[width * height];
+                    double low = 1e9, high = -1e9;
+                    double dot = t.Radius * Math.PI * 2 / width;
+                    System.Threading.Tasks.Parallel.For(0, height, y =>
+                    {
+                        for (int x = 0; x < width; x++)
+                            heights[y * width + x] = t.Sample(FarMap.Direction((x + 0.5) / width, (y + 0.5) / height), dot * 1.6).Height;
+                    });
+                    foreach (double h in heights) { low = Math.Min(low, h); high = Math.Max(high, h); }
+                    using var second = System.IO.File.Create(args[5]);
+                    second.Write(head, 0, head.Length);
+                    for (int y = height - 1; y >= 0; y--)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            double h = heights[y * width + x];
+                            row[x * 3] = (byte)Math.Round((h - low) / Math.Max(1e-6, high - low) * 255);
+                            row[x * 3 + 1] = (byte)(t.HasSea && h < t.SeaLevel ? 255 : 0);
+                            row[x * 3 + 2] = 0;
+                        }
+                        second.Write(row, 0, row.Length);
+                    }
+                    Console.WriteLine($"{args[1]} radius {t.Radius} lowest {low:F1} highest {high:F1} sea {(t.HasSea ? t.SeaLevel.ToString("F1") : "none")}");
+                }
+                return 0;
+            }
             case "land":
             {
                 // Where the land is: one letter per 6 degrees (space sea, . low, o hills, M high).

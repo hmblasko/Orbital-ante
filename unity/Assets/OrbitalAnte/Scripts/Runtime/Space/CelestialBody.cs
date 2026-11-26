@@ -111,14 +111,49 @@ namespace OrbitalAnte.Space
                 surface.transform.localScale = Vector3.one * radius;
                 body.FarLook = renderer;
                 bool star = spec.kind == BodyKind.Star;
-                Texture2D texture = plainStart ? null : PlanetTextures.Build(spec, spec.kind == BodyKind.Moon ? 192 : 384);
+                // A gas giant's cloud tops are a painted picture (tools/planet_pictures); a shared file, never destroyed.
+                string tops = PlanetMaterials.RealPlanets ? OrbitLook.CloudTops(spec.id) : null;
+                Texture2D texture = tops != null ? Resources.Load<Texture2D>(tops) : null;
+                bool painted = texture != null;
+                if (!painted && !plainStart) texture = PlanetTextures.Build(spec, spec.kind == BodyKind.Moon ? 192 : 384);
                 // The Sun shines by itself and still shows, paler, through a daytime sky.
-                renderer.sharedMaterial = PlanetMaterials.Body(spec.id, texture, plainStart ? body.MapColor : Color.white, star ? 1f : 0f, star ? 0.35f : 1f,
+                renderer.sharedMaterial = PlanetMaterials.Body(spec.id, texture, plainStart && !painted ? body.MapColor : Color.white, star ? 1f : 0f, star ? 0.35f : 1f,
                     false, star ? OrbitalAnte.Look.LookConfig.Load().sunBrightness : 1f);
             }
 
             if (spec.ringOuterRadius > spec.ringInnerRadius && spec.ringInnerRadius > 0) body.BuildRings();
             return body;
+        }
+
+        Material _ringMaterial;
+        Mesh _ringMesh;
+
+        /// <summary>
+        /// Rings as one see-through band of hundreds of ringlets, with the planet's shadow across them and theirs
+        /// on the planet. False if that cannot be used here, and the solid bands below stand in.
+        /// </summary>
+        bool BuildFineRings(float inner, float outer)
+        {
+            if (!PlanetMaterials.RealPlanets) return false;
+            var strip = Resources.Load<Texture2D>(OrbitLook.RingPicture);
+            _ringMaterial = PlanetMaterials.Rings(Spec.id + " rings", strip, (float)Spec.radius);
+            if (_ringMaterial == null) return false;
+            var rings = new GameObject("Rings");
+            rings.transform.SetParent(transform, false);
+            _ringMesh = SpaceMeshes.RingStrip(inner, outer);
+            rings.AddComponent<MeshFilter>().sharedMesh = _ringMesh;
+            var renderer = rings.AddComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterial = _ringMaterial;
+            if (FarLook != null) PlanetMaterials.SetRingShadow(FarLook.sharedMaterial, strip, inner / (float)Spec.radius, outer / (float)Spec.radius);
+            return true;
+        }
+
+        void OnDestroy()
+        {
+            if (_ringMaterial != null) Destroy(_ringMaterial);
+            if (_ringMesh != null) Destroy(_ringMesh);
         }
 
         /// <summary>
@@ -129,6 +164,7 @@ namespace OrbitalAnte.Space
         {
             float inner = (float)Spec.ringInnerRadius;
             float outer = (float)Spec.ringOuterRadius;
+            if (BuildFineRings(inner, outer)) return;
             // Fractions of the ring's width: where each band starts and ends, and how bright it is.
             float[,] bands =
             {

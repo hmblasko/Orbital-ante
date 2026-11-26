@@ -171,6 +171,42 @@ namespace OrbitalAnte.Space
         }
 
         /// <summary>
+        /// A flat band in the X-Z plane for the ring shader (OA_Rings), which draws both faces itself: one face,
+        /// and a picture coordinate that runs 0 at the inner edge to 1 at the outer.
+        /// </summary>
+        public static Mesh RingStrip(float inner, float outer, int segments = 160)
+        {
+            var vertices = new Vector3[(segments + 1) * 2];
+            var uvs = new Vector2[vertices.Length];
+            var triangles = new int[segments * 6];
+            int t = 0;
+            for (int i = 0; i <= segments; i++)
+            {
+                float turn = i / (float)segments;
+                float angle = turn * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                int v = i * 2;
+                vertices[v] = dir * inner;
+                vertices[v + 1] = dir * outer;
+                uvs[v] = new Vector2(0f, turn);
+                uvs[v + 1] = new Vector2(1f, turn);
+                if (i == segments) continue;
+                triangles[t++] = v;
+                triangles[t++] = v + 2;
+                triangles[t++] = v + 1;
+                triangles[t++] = v + 1;
+                triangles[t++] = v + 2;
+                triangles[t++] = v + 3;
+            }
+            var mesh = new Mesh { name = "RingStrip" };
+            mesh.vertices = vertices;
+            mesh.uv = uvs;
+            mesh.triangles = triangles;
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
         /// The real stars as one mesh for the star shader (OA_Stars). Each star is a square whose four corners all
         /// sit at the star's own point on a huge ball; the shader pushes them apart by a number of screen dots, so
         /// a star is a crisp round dot on any screen. A corner carries the star's tint (colour), which corner it

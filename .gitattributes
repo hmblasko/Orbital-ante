@@ -37,3 +37,4 @@ unity/Assets/OrbitalAnte/Resources/Models/Textures/*.png -filter -diff -merge -t
 
 # The baked picture of the sky is an ordinary file as well (about 5 MB), for the same reason.
 unity/Assets/OrbitalAnte/Resources/Sky/*.png -filter -diff -merge -text
+unity/Assets/OrbitalAnte/Resources/Planets/*.png -filter -diff -merge -text
