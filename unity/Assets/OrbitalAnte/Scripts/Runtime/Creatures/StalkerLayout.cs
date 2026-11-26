@@ -20,6 +20,12 @@ namespace OrbitalAnte.Creatures
         public const string Model = "Stalker";
         public const string HeadPiece = "Head", JawPiece = "Jaw", SegPiece = "Seg", TailPiece = "Tail", LegPiece = "Leg", ShinPiece = "Shin", GillPiece = "Gill", Stump = "Stump";
         public static readonly string[] Meat = { "Meat0", "Meat1" };
+        /// <summary>
+        /// The body is one shape, cut at its joints: every length has a piece of its own ("Seg0" to "Seg6", "Tail0" to
+        /// "Tail3"), drawn at its modelled size, so the animal has one outline from neck to tail tip and not a row
+        /// of like parts.
+        /// </summary>
+        public static string PieceOf(int seg) => IsTail(seg) ? TailPiece + (seg - Trunk) : SegPiece + seg;
 
         /// <summary>Lengths of trunk, and of tail behind them.</summary>
         public const int Trunk = 7, TailSegs = 4, Segs = Trunk + TailSegs;
@@ -66,7 +72,7 @@ namespace OrbitalAnte.Creatures
         public static int NodeOf(int leg) => LegSeg[PairOf(leg)] + 1;
         public static bool IsTail(int seg) => seg >= Trunk;
 
-        /// <summary>How wide and tall a length is drawn beside the pattern piece: the neck and the root of the tail are slimmer, the tail thins to its tip.</summary>
+        /// <summary>How wide a length is at its middle, as a share of SegHalfWidth (TailHalfWidth for the tail): the neck and the root of the tail are slimmer, the tail thins to its tip. The model follows these; hitboxes, hips and wounds are sized by them.</summary>
         public static double Scale(int seg)
         {
             if (seg == 0) return 0.86;
@@ -75,7 +81,7 @@ namespace OrbitalAnte.Creatures
             return 1.0 - 0.17 * (seg - Trunk);
         }
 
-        /// <summary>How tall a length is drawn beside the pattern piece. The trunk is as tall as it is wide; the tail's fin rises from the trunk's height, is tallest a length or two back and falls to the tip.</summary>
+        /// <summary>How tall a length is at its middle, as a share of SegHalfHeight (TailHalfHeight for the tail). The trunk is as tall as it is wide; the tail's fin rises from the trunk's height, is tallest a length or two back and falls to the tip.</summary>
         public static double Tall(int seg)
         {
             if (seg < Trunk) return Scale(seg);

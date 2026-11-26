@@ -512,8 +512,9 @@ namespace OrbitalAnte.Tests.EditMode
                     double gap = (w.Pose.NodePosition[n] - w.Pose.NodePosition[n - 1]).Magnitude;
                     Assert.AreEqual(StalkerLayout.Spacing, gap, 0.12, "node " + n + " at " + w.Time.ToString("0.00") + " s in " + w.Brain.Mode);
                 }
-                Assert.AreEqual(0.0, w.Pose.NodePosition[0].X, 0.08, "its head is over its root");
-                Assert.AreEqual(0.0, w.Pose.NodePosition[0].Z, 0.08);
+                // (It turns its head at the neck, half a spacing back, so looking round carries the head's node a little aside.)
+                Assert.AreEqual(0.0, w.Pose.NodePosition[0].X, 0.14, "its head is over its root");
+                Assert.AreEqual(0.0, w.Pose.NodePosition[0].Z, 0.14);
             }
         }
 
@@ -659,18 +660,21 @@ namespace OrbitalAnte.Tests.EditMode
             AssertSocket(model, "ShinEnd", 0, 0, StalkerLayout.ShinLength);
             AssertSocket(model, "LegSide", StalkerLayout.LegRadius, 0, 0);
             AssertSocket(model, "StumpRim", StalkerLayout.StumpRadius, 0, 0);
-            string[] pieces = { StalkerLayout.HeadPiece, StalkerLayout.JawPiece, StalkerLayout.SegPiece, StalkerLayout.TailPiece, StalkerLayout.LegPiece, StalkerLayout.ShinPiece,
-                                StalkerLayout.GillPiece, StalkerLayout.Stump, StalkerLayout.Meat[0], StalkerLayout.Meat[1] };
+            var pieces = new List<string> { StalkerLayout.HeadPiece, StalkerLayout.JawPiece, StalkerLayout.LegPiece, StalkerLayout.ShinPiece,
+                                            StalkerLayout.GillPiece, StalkerLayout.Stump, StalkerLayout.Meat[0], StalkerLayout.Meat[1] };
+            for (int seg = 0; seg < StalkerLayout.Segs; seg++) pieces.Add(StalkerLayout.PieceOf(seg));
             foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
             Assert.IsTrue(model.Textured, "the Blind stalker is drawn with pictures");
 
-            // The shapes are the size the rules (and the hitboxes) think they are. Along is +Z.
-            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft)
+            // The shapes are the size the rules (and the hitboxes) think they are. Along is +Z. `near` keeps only
+            // the corners within that distance of the piece's own middle, for its size there.
+            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft, float near = float.MaxValue)
             {
                 ModelPart part = model.Part(piece);
                 right = float.MinValue; left = float.MaxValue; hi = float.MinValue; lo = float.MaxValue; fore = float.MinValue; aft = float.MaxValue;
                 for (int i = 0; i < part.VertexCount; i++)
                 {
+                    if (Math.Abs(part.Positions[i * 3 + 2]) > near) continue;
                     right = Math.Max(right, part.Positions[i * 3]);
                     left = Math.Min(left, part.Positions[i * 3]);
                     hi = Math.Max(hi, part.Positions[i * 3 + 1]);
@@ -679,19 +683,52 @@ namespace OrbitalAnte.Tests.EditMode
                     aft = Math.Min(aft, part.Positions[i * 3 + 2]);
                 }
             }
-            Box(StalkerLayout.SegPiece, out float right, out float left, out float hi, out float lo, out float fore, out float aft);
-            Assert.AreEqual(StalkerLayout.SegHalfWidth, right, 0.012, "a length's width");
-            Assert.AreEqual(-right, left, 0.006, "and it is the same either side");
-            Assert.AreEqual(StalkerLayout.SegHalfHeight, hi, 0.012, "a length's upper side");
-            Assert.AreEqual(-StalkerLayout.SegHalfHeight, lo, 0.02, "and its underside");
-            Assert.Greater(fore, StalkerLayout.Spacing * 0.5 + 0.03, "a length reaches into the one in front of it");
-            Assert.Less(aft, -StalkerLayout.Spacing * 0.5 - 0.03, "and the one behind, so a bend opens no gap");
-            Assert.Less(fore - aft, StalkerLayout.Spacing + 0.20, "without running far into its neighbours");
+            float right, left, hi, lo, fore, aft;
+            // The body is one outline cut at its joints: every length has its own piece, as wide and tall at its
+            // middle as the layout says, and its ends meet its neighbours' with no step.
+            float lastWide = 0f, lastTall = 0f;
+            for (int seg = 0; seg < StalkerLayout.Segs; seg++)
+            {
+                string piece = StalkerLayout.PieceOf(seg);
+                bool tail = StalkerLayout.IsTail(seg), legs = Array.IndexOf(StalkerLayout.LegSeg, seg) >= 0;
+                double wide = (tail ? StalkerLayout.TailHalfWidth : StalkerLayout.SegHalfWidth) * StalkerLayout.Scale(seg);
+                double high = (tail ? StalkerLayout.TailHalfHeight : StalkerLayout.SegHalfHeight) * StalkerLayout.Tall(seg);
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft, 0.03f);
+                // (A length with legs swells at the shoulder or hip.)
+                Assert.AreEqual(wide, right, legs ? 0.05 : 0.015, piece + ": its width at its middle");
+                Assert.AreEqual(-right, left, 0.006, piece + " is the same either side");
+                Assert.AreEqual(high, hi, 0.015, piece + ": its upper side");
+                Assert.AreEqual(-high, lo, legs ? 0.03 : 0.015, piece + ": its underside");
 
-            Box(StalkerLayout.TailPiece, out right, out left, out hi, out lo, out fore, out aft);
-            Assert.AreEqual(StalkerLayout.TailHalfWidth, right, 0.012, "the tail is thin from side to side");
-            Assert.AreEqual(StalkerLayout.TailHalfHeight, hi, 0.015, "and tall: a fin above");
-            Assert.AreEqual(-StalkerLayout.TailHalfHeight, lo, 0.015, "and below");
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft);
+                Assert.Greater(fore, StalkerLayout.Spacing * 0.5 + 0.03, piece + " reaches into the one in front of it, so a bend opens no gap");
+                Assert.Less(fore, StalkerLayout.Spacing * 0.5 + 0.10, piece + " without running far into it");
+                if (seg < StalkerLayout.Segs - 1)
+                {
+                    Assert.Less(aft, -StalkerLayout.Spacing * 0.5 - 0.03, piece + " reaches into the one behind");
+                    Assert.Greater(aft, -StalkerLayout.Spacing * 0.5 - 0.10, piece);
+                }
+                else Assert.AreEqual(-StalkerLayout.Spacing * 0.5, aft, 0.02, "the tail ends at its tip");
+
+                // Where two lengths meet they are the same size: the corners at this one's front end against the
+                // last one's back end.
+                float frontWide = 0f, frontTall = 0f, backWide = 0f, backTall = 0f;
+                ModelPart part = model.Part(piece);
+                float joint = (float)(StalkerLayout.Spacing * 0.5);
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    float z = part.Positions[i * 3 + 2];
+                    if (Math.Abs(z - joint) < 0.002f) { frontWide = Math.Max(frontWide, part.Positions[i * 3]); frontTall = Math.Max(frontTall, part.Positions[i * 3 + 1]); }
+                    if (Math.Abs(z + joint) < 0.002f) { backWide = Math.Max(backWide, part.Positions[i * 3]); backTall = Math.Max(backTall, part.Positions[i * 3 + 1]); }
+                }
+                Assert.Greater(frontWide, 0f, piece + " has a ring of corners at its front joint");
+                if (seg > 0)
+                {
+                    Assert.AreEqual(lastWide, frontWide, 0.003, piece + " is as wide at its front as the length before it is at its back");
+                    Assert.AreEqual(lastTall, frontTall, 0.003, piece + " and as tall");
+                }
+                lastWide = backWide; lastTall = backTall;
+            }
 
             Box(StalkerLayout.HeadPiece, out right, out left, out hi, out lo, out fore, out aft);
             Assert.AreEqual(StalkerLayout.HeadLength - StalkerLayout.Spacing * 0.5, fore, 0.03, "the snout's tip");
@@ -707,15 +744,18 @@ namespace OrbitalAnte.Tests.EditMode
             Box(StalkerLayout.LegPiece, out right, out left, out hi, out lo, out fore, out aft);
             Assert.AreEqual(StalkerLayout.LegLength, fore, 0.03, "the upper leg's length");
             Assert.AreEqual(-right, left, 0.006, "a leg is the same either side: nothing is mirrored");
-            Assert.Less(right, StalkerLayout.LegRadius * 1.5);
+            Assert.Less(right, StalkerLayout.LegRadius * 2.0, "its muscle is thickest at the hip, and still a thin leg");
             Box(StalkerLayout.ShinPiece, out right, out left, out hi, out lo, out fore, out aft);
             Assert.AreEqual(StalkerLayout.ShinLength, fore, 0.09, "the shin and its toes");
             Assert.AreEqual(-right, left, 0.006, "a shin is the same either side");
 
             Box(StalkerLayout.GillPiece, out right, out left, out hi, out lo, out fore, out aft);
-            Assert.AreEqual(StalkerLayout.GillLength, fore, 0.03, "a gill's length");
-            Assert.AreEqual(-right, left, 0.01, "a gill is the same either side");
-            Assert.AreEqual(StalkerLayout.GillSpread, right, 0.06, "and spreads this wide");
+            // Its three stalks are GillLength long and GillSpread apart; their threads stand out a little beyond, no two alike.
+            Assert.Greater(fore, StalkerLayout.GillLength - 0.01, "a gill's length");
+            Assert.Less(fore, StalkerLayout.GillLength + 0.10);
+            Assert.Greater(right, StalkerLayout.GillSpread, "and spreads this wide");
+            Assert.Less(right, StalkerLayout.GillSpread + 0.14);
+            Assert.AreEqual(-right, left, 0.06, "a gill spreads as far either side: nothing is mirrored");
 
             ModelFile far = Load(StalkerLayout.Model + "Far");
             foreach (string piece in pieces) Assert.IsNotNull(far.Part(piece), "the far copy is missing " + piece);

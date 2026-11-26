@@ -51,9 +51,9 @@ static class StalkerDump
     }
 
     static Vec3d One(double s) => new Vec3d(s, s, s);
-    static Vec3d Wide(int seg) => new Vec3d(StalkerLayout.Scale(seg), StalkerLayout.Tall(seg), 1.0);
+    static Vec3d Wide(int seg) => One(1.0);
     static readonly double CutAt = StalkerLayout.Spacing * 0.5 + StalkerLayout.WoundOut;
-    static string SegName(int seg) => StalkerLayout.IsTail(seg) ? StalkerLayout.TailPiece : StalkerLayout.SegPiece;
+    static string SegName(int seg) => StalkerLayout.PieceOf(seg);
 
     public static int Run(string path, string scene)
     {

@@ -110,12 +110,11 @@ namespace OrbitalAnte.Creatures
             for (int i = 0; i < StalkerLayout.Nodes; i++)
             {
                 bool head = i == 0, tail = !head && StalkerLayout.IsTail(i - 1);
-                // The node itself is never scaled, so wounds and colliders on it keep their shape; its mesh is.
-                var node = new GameObject(head ? "Head" : tail ? "Tail " + (i - 1) : "Body " + (i - 1));
+                                var node = new GameObject(head ? "Head" : tail ? "Tail " + (i - 1) : "Body " + (i - 1));
                 node.layer = Layers.Hitbox;
                 node.transform.SetParent(transform, false);
                 _node[i] = node.transform;
-                Transform mesh = Mesh(head ? StalkerLayout.HeadPiece : tail ? StalkerLayout.TailPiece : StalkerLayout.SegPiece, node.transform);
+                Mesh(head ? StalkerLayout.HeadPiece : StalkerLayout.PieceOf(i - 1), node.transform);
                 var box = node.AddComponent<BoxCollider>();
                 if (head)
                 {
@@ -127,7 +126,6 @@ namespace OrbitalAnte.Creatures
                 {
                     float w = (float)StalkerLayout.Scale(i - 1);
                     float h = (float)StalkerLayout.Tall(i - 1);
-                    mesh.localScale = new Vector3(w, h, 1f);
                     float halfWide = (float)(tail ? StalkerLayout.TailHalfWidth : StalkerLayout.SegHalfWidth), halfTall = (float)(tail ? StalkerLayout.TailHalfHeight : StalkerLayout.SegHalfHeight);
                     // A length of tail is thin: its box is a little wider than it is drawn, so it can be hit on purpose.
                     box.size = new Vector3(Mathf.Max(0.12f, halfWide * 2f * w), halfTall * 2f * h, (float)StalkerLayout.Spacing);

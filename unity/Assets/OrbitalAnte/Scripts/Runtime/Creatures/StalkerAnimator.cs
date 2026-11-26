@@ -200,7 +200,9 @@ namespace OrbitalAnte.Creatures
                     + 0.03 * along * along * along * Math.Sin(_time * 0.7 - i * 0.4);
                 double mid = Math.Sin(Math.PI * i / Math.Max(1.0, nodes - 1.0));
                 // Head and shoulders lifted in the warning; the tail's fin rides a little higher than the belly.
-                double raise = _lift * Math.Max(0.0, 1.0 - i / 3.0) + (StalkerLayout.IsTail(i - 1) ? 0.03 : 0.0);
+                // (Eased in over the lengths either side of the tail's root: the body is one skin, and a step in the
+                // spine would show as a ledge between two lengths.)
+                double raise = _lift * Math.Max(0.0, 1.0 - i / 3.0) + 0.03 * Smooth((i - (StalkerLayout.Trunk - 2)) / 5.0);
                 pose.NodePosition[i] = flat + side * (wave * (i == 0 ? 0.3 : 1.0)) + Vec3d.Up * raise + knock * (0.4 + 0.6 * mid);
             }
 
@@ -224,6 +226,10 @@ namespace OrbitalAnte.Creatures
             _lookYaw += (lookWant - _lookYaw) * Math.Min(1.0, dt * 5.0);
             double headPitch = -0.30 * (_lift / 0.22) - 0.25 * _whip + 0.04 * Math.Sin(_time * 0.9);
             QuatD head = (pose.NodeRotation[0] * QuatD.AngleAxis(Vec3d.Up, _lookYaw) * QuatD.AngleAxis(Vec3d.Right, headPitch)).Normalized;
+            // It turns its head at the neck, half a spacing behind the head's node, so the skin of the head and of the
+            // neck stay together there however far it looks round.
+            var toNeck = new Vec3d(0, 0, -StalkerLayout.Spacing * 0.5);
+            pose.NodePosition[0] = pose.NodePosition[0] + pose.NodeRotation[0].Rotate(toNeck) - head.Rotate(toNeck);
             pose.NodeRotation[0] = head;
             pose.JawPosition = pose.NodePosition[0] + head.Rotate(StalkerLayout.JawHinge);
             pose.JawRotation = (head * QuatD.AngleAxis(Vec3d.Right, pose.Gape * StalkerLayout.JawSwing)).Normalized;

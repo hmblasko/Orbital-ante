@@ -23,15 +23,36 @@ import oa_blender as oa
 
 # ------------------------------------------------------------------ a small language for node trees
 
+REST = "rest"
+
+
+def rest_place(obj, offset=(0.0, 0.0, 0.0)):
+    """Writes where each corner of a shape is in its animal (its own place plus `offset`) for materials made with
+    rest=True. Pieces of one body that are modelled round their own joints give the offset that puts them back."""
+    mesh = obj.data
+    layer = mesh.attributes.get(REST) or mesh.attributes.new(REST, 'FLOAT_VECTOR', 'POINT')
+    flat = []
+    for v in mesh.vertices:
+        flat.extend((v.co.x + offset[0], v.co.y + offset[1], v.co.z + offset[2]))
+    layer.data.foreach_set("vector", flat)
+
+
 class Tree:
     """Builds a material's node tree from Python expressions. Values are node sockets or plain numbers/colours."""
 
-    def __init__(self, name):
+    def __init__(self, name, rest=False):
+        """rest: patterns are laid out by each corner's "rest" attribute (see `rest_place`) and not by where the
+        shape stands, so a pattern runs unbroken across pieces that are modelled and baked apart."""
         self.mat = bpy.data.materials.new(name)
         self.mat.use_nodes = True
         self.t = self.mat.node_tree
         self.t.nodes.clear()
-        self.coord = self.t.nodes.new("ShaderNodeTexCoord").outputs["Object"]
+        if rest:
+            place = self.t.nodes.new("ShaderNodeAttribute")
+            place.attribute_name = REST
+            self.coord = place.outputs["Vector"]
+        else:
+            self.coord = self.t.nodes.new("ShaderNodeTexCoord").outputs["Object"]
         geo = self.t.nodes.new("ShaderNodeNewGeometry")
         self.pointiness, self.normal = geo.outputs["Pointiness"], geo.outputs["Normal"]
 
@@ -505,11 +526,12 @@ def earth(name, colour=(0.21, 0.18, 0.15), seed=0.0):
     return m.finish(shade, 0.06, 0.0, height, occlusion=near)
 
 
-def pallid(name, base=(0.40, 0.31, 0.29), flush=(0.42, 0.19, 0.18), vein=(0.17, 0.13, 0.24), seed=0.0, furrow=0.17, along='Y', gloss=0.70):
+def pallid(name, base=(0.40, 0.31, 0.29), flush=(0.42, 0.19, 0.18), vein=(0.17, 0.13, 0.24), seed=0.0, furrow=0.17, along='Y', gloss=0.70,
+           rest=False, groove_shade=0.22, groove_depth=0.0012, vein_show=1.0, wrinkles=1.0, tips=None):
     """The skin of an animal that has never seen light: pale and a little see-through, pink where blood shows
     through (underneath, in soft patches, in the shallow furrows round its body), thin violet veins branching under
     it, a paler back, fine wrinkles, wet."""
-    m = Tree(name)
+    m = Tree(name, rest=rest)
     cloud = m.noise(5.0, 4.0, 0.6, shift=(seed, 0, 0))
     blotch = m.noise(14.0, 3.0, 0.55, shift=(seed, 3.0, 0), distortion=0.8)
     fine = m.noise(110.0, 3.0, 0.6, shift=(0, seed, 0))
@@ -525,15 +547,15 @@ def pallid(name, base=(0.40, 0.31, 0.29), flush=(0.42, 0.19, 0.18), vein=(0.17, 
     twigs = m.noise(19.0, 2.0, 0.4, shift=(0, seed, seed), distortion=2.2)
     veins = m.add(m.mul(m.step(lines, 0.468, 0.495), m.sub(1.0, m.step(lines, 0.505, 0.532))),
                   m.mul(m.mul(m.step(twigs, 0.478, 0.495), m.sub(1.0, m.step(twigs, 0.505, 0.522))), 0.6))
-    colour = m.mix(colour, vein, m.mul(veins, m.lerp(0.30, 0.55, below)))
+    colour = m.mix(colour, vein, m.mul(veins, m.lerp(0.30 * vein_show, 0.55 * vein_show, below)))
     # The furrows round its body: soft, uneven, only a little pinker.
     groove = m.sub(1.0, m.step(m.bands(along, furrow, distortion=0.9, detail=2.0), 0.0, 0.30))
-    colour = m.mix(colour, tuple(c * 0.80 for c in flush), m.mul(groove, 0.22))
+    colour = m.mix(colour, tuple(c * 0.80 for c in flush), m.mul(groove, groove_shade))
     near = m.hollows(0.04)
     grime = m.sub(1.0, m.step(near, 0.3, 0.9))
     colour = m.mix(colour, tuple(c * 0.45 for c in flush), m.mul(grime, 0.55))
     smoothness = m.lerp(m.lerp(gloss - 0.10, gloss + 0.08, cloud), 0.35, grime)
-    height = m.add(m.add(m.mul(groove, -0.0012), m.mul(wrinkle, 0.00035)), m.add(m.mul(fine, 0.0004), m.mul(veins, 0.0006)))
+    height = m.add(m.add(m.mul(groove, -groove_depth), m.mul(wrinkle, 0.00035 * wrinkles)), m.add(m.mul(fine, 0.0004), m.mul(veins, 0.0006 * vein_show)))
     return m.finish(colour, smoothness, 0.0, height, occlusion=near)
 
 
