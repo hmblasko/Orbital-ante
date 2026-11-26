@@ -15,16 +15,17 @@ namespace OrbitalAnte.Creatures
         /// <summary>The skull: it knocks.</summary>
         public double Head;
 
-        public static StalkerHp Default => new StalkerHp { Gill = 35, Leg = 45, TailSeg = 60, Trunk = 200, Head = 280 };
+        public static StalkerHp Default => new StalkerHp { Gill = 24, Leg = 45, TailSeg = 60, Trunk = 200, Head = 280 };
     }
 
-    public sealed class StalkerHit
+    public struct StalkerHit
     {
-        public int GillLost = -1, LegLost = -1;
+        public int GillLost, LegLost;
         /// <summary>The tail came off at this length (everything from it back).</summary>
-        public int TailCutAt = -1;
+        public int TailCutAt;
         public bool Killed;
         public bool Lost => GillLost >= 0 || LegLost >= 0 || TailCutAt >= 0;
+        public static StalkerHit None => new StalkerHit { GillLost = -1, LegLost = -1, TailCutAt = -1 };
     }
 
     /// <summary>
@@ -85,7 +86,7 @@ namespace OrbitalAnte.Creatures
 
         public StalkerHit HitGill(int gill, double damage, bool sever = false)
         {
-            var hit = new StalkerHit();
+            StalkerHit hit = StalkerHit.None;
             if (!Alive || !GillOn(gill)) return hit;
             _gill[gill] -= sever ? _gill[gill] : Math.Max(0.0, damage);
             if (_gill[gill] <= 0.0) hit.GillLost = gill;
@@ -94,7 +95,7 @@ namespace OrbitalAnte.Creatures
 
         public StalkerHit HitLeg(int leg, double damage, bool sever = false)
         {
-            var hit = new StalkerHit();
+            StalkerHit hit = StalkerHit.None;
             if (!Alive || !LegOn(leg)) return hit;
             _leg[leg] -= sever ? _leg[leg] : Math.Max(0.0, damage);
             if (_leg[leg] <= 0.0) hit.LegLost = leg;
@@ -104,12 +105,12 @@ namespace OrbitalAnte.Creatures
         /// <summary>A hit on length <paramref name="seg"/>: the trunk's one number, or a length of tail, which comes off there.</summary>
         public StalkerHit HitSeg(int seg, double damage, bool sever = false, bool lethal = false)
         {
-            var hit = new StalkerHit();
+            StalkerHit hit = StalkerHit.None;
             if (!Alive || !SegOn(seg)) return hit;
             if (!StalkerLayout.IsTail(seg))
             {
                 Trunk -= lethal ? Trunk : Math.Max(0.0, damage);
-                if (Trunk <= 0.0) Die(hit);
+                if (Trunk <= 0.0) Die(ref hit);
                 return hit;
             }
             int k = seg - StalkerLayout.Trunk;
@@ -124,14 +125,14 @@ namespace OrbitalAnte.Creatures
 
         public StalkerHit HitHead(double damage, bool lethal = false)
         {
-            var hit = new StalkerHit();
+            StalkerHit hit = StalkerHit.None;
             if (!Alive) return hit;
             Head -= lethal ? Head : Math.Max(0.0, damage);
-            if (Head <= 0.0) Die(hit);
+            if (Head <= 0.0) Die(ref hit);
             return hit;
         }
 
-        void Die(StalkerHit hit)
+        void Die(ref StalkerHit hit)
         {
             Alive = false;
             hit.Killed = true;

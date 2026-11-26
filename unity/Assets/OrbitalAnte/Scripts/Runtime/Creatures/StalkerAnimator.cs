@@ -15,6 +15,8 @@ namespace OrbitalAnte.Creatures
         public Vec3d Place;
         /// <summary>It hears or feels the player this frame: its gills stand out.</summary>
         public bool Aware;
+        /// <summary>It has just taken a new place: its gills kick out.</summary>
+        public bool Took;
     }
 
     /// <summary>Where every piece of a Blind stalker is, in creature space. Only the first <see cref="Nodes"/> nodes are filled.</summary>
@@ -165,6 +167,7 @@ namespace OrbitalAnte.Creatures
             _gape += (gapeWant - _gape) * Math.Min(1.0, dt * 30.0);
             double flareWant = body.GillCount > 0 ? FlareOf(mode, input.T, input.Aware) : 0.0;
             _flare += (flareWant - _flare) * Math.Min(1.0, dt * (flareWant > _flare ? 18.0 : 3.0));
+            if (input.Took && body.GillCount > 0) _flare = 1.0;
             _thrash += ((mode == StalkerMode.Reel ? Math.Sin(Math.PI * input.T) : 0.0) - _thrash) * Math.Min(1.0, dt * 14.0);
             _whip += ((mode == StalkerMode.Lunge ? 1.0 : 0.0) - _whip) * Math.Min(1.0, dt * 25.0);
             // The warning lifts its head and shoulders; the lunge throws them forward and low.

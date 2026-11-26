@@ -64,7 +64,7 @@ namespace OrbitalAnte.Tests.EditMode
                     Hurt += orders.Bite;
                     Bites++;
                 }
-                Animator.Update(Body, new StalkerAnimInput { Velocity = orders.Velocity, TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T, HasPlace = orders.HasPlace, Place = orders.Place, Aware = orders.Aware }, Dt, Pose);
+                Animator.Update(Body, new StalkerAnimInput { Velocity = orders.Velocity, TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T, HasPlace = orders.HasPlace, Place = orders.Place, Aware = orders.Aware, Took = orders.Took }, Dt, Pose);
                 if (orders.Mode != Modes[Modes.Count - 1]) Modes.Add(orders.Mode);
                 Time += Dt;
                 Last = orders;
@@ -355,6 +355,79 @@ namespace OrbitalAnte.Tests.EditMode
             var w = new World { Noise = 1.0, Player = new Vec3d(0, 0, 12), Blocked = true };
             w.Run(6);
             Assert.AreEqual(0.0, w.Travelled, 1e-9);
+        }
+
+        [Test]
+        public void KeptFromThePlaceBySomethingSolid_ItGivesItUp_AndCastsAbout()
+        {
+            // The game says "blocked" on the frames a step was refused: about every other one.
+            int frame = 0;
+            var w = new World { Noise = 1.0, Player = new Vec3d(0, 0, 12) };
+            w.Run(1.0);
+            w.Noise = 0.0;
+            w.Before = x => x.Blocked = frame++ % 2 == 0;
+            Assert.IsTrue(w.RunUntil(x => x.Brain.Mode == StalkerMode.Search, 4.0), "it does not stand at a wall for ever");
+            Assert.IsTrue(w.RunUntil(x => x.Brain.Mode == StalkerMode.Still, w.Rules.searchSeconds + 1.0));
+        }
+
+        [Test]
+        public void ASoundFromBeyondWhereItRoams_IsNeverLungedAt()
+        {
+            // Shot from far outside its ground, again and again: it comes as far as it will and casts about, and never
+            // bites the air at the edge.
+            var w = new World { Noise = 2.2, Player = new Vec3d(0, 0, 40) };
+            w.Run(30);
+            Assert.IsFalse(w.Modes.Contains(StalkerMode.Gape));
+            Assert.IsTrue(w.Modes.Contains(StalkerMode.Search));
+            Assert.LessOrEqual(w.FurthestFromHome, w.Rules.roamRadius + 4.0, "casting about takes it only a little further");
+        }
+
+        [Test]
+        public void SomeoneWalkingCirclesRoundIt_UpClose_IsStillFaced()
+        {
+            // At one metre, round and round at a walk: it feels them, and turns quicker than they can circle.
+            double angle = 0.0;
+            var w = new World { Noise = 1.0 };
+            w.Before = x =>
+            {
+                angle += 4.0 * Dt;   // a walk of 5 m/s at this distance
+                x.Player = x.Root + new Vec3d(Math.Sin(angle), 0, Math.Cos(angle)) * (StalkerLayout.Mouth + 0.9);
+            };
+            bool got = w.RunUntil(x => x.Brain.Mode == StalkerMode.Lunge, 6.0);
+            Assert.IsTrue(got, "there is no safe place at its shoulder: " + string.Join(",", w.Modes) + " yaw " + w.Yaw + " angle " + angle);
+        }
+
+        [Test]
+        public void StandingStill_AwayFromWhereYouWereHeard_IsNotFound()
+        {
+            // Heard walking; then they step well aside between two of its hearing's beats and stand still.
+            var w = new World { Noise = 1.0, Player = new Vec3d(0, 0, 12) };
+            w.RunUntil(x => x.Last.Took, 2.0);
+            w.Run(0.1);
+            w.Noise = 0.0;
+            w.Player = new Vec3d(4.0, 0, 12);
+            w.Run(20);
+            Assert.AreEqual(0, w.Bites);
+            Assert.IsFalse(w.Modes.Contains(StalkerMode.Gape), "it went where the sound was, and nobody was there");
+            Assert.IsTrue(w.Modes.Contains(StalkerMode.Search));
+        }
+
+        [Test]
+        public void EachNewPlaceItTakes_IsTold_AtItsHearingsBeat()
+        {
+            var w = new World { Noise = 1.0, Player = new Vec3d(0, 0, 60), PlayerVelocity = new Vec3d(4.0, 0, 0) };
+            w.Player = new Vec3d(-8, 0, 15);
+            int told = 0;
+            double first = -1, last = 0;
+            for (int i = 0; i < 240; i++)
+            {
+                if (!w.Step().Took || w.Brain.Mode == StalkerMode.Gape) continue;
+                told++;
+                if (first < 0) first = w.Time;
+                last = w.Time;
+            }
+            Assert.GreaterOrEqual(told, 3);
+            Assert.AreEqual(w.Rules.hearEvery, (last - first) / (told - 1), 0.05);
         }
 
         // ------------------------------------------------------------------ being hurt

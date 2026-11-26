@@ -59,7 +59,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Stalker> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string HearSound = "creature.stalker.hear", GapeSound = "creature.stalker.gape", LungeSound = "creature.stalker.lunge";
+        const string HearSound = "creature.stalker.hear", GapeSound = "creature.stalker.gape", LungeSound = "creature.stalker.lunge", ClickSound = "creature.stalker.click";
 
         StalkerRules _rules;
         readonly StalkerAnimator _animator = new StalkerAnimator();
@@ -70,7 +70,7 @@ namespace OrbitalAnte.Creatures
         Transform _jaw;
         Vector3 _home, _north, _playerWas;
         bool _blocked, _playerKnown, _lookedForPlayer;
-        float _playerSpeed;
+        float _playerSpeed, _restedFor, _unposed;
         FpsController _walker;
         PlayerWeapons _guns;
         StalkerMode _lastMode = StalkerMode.Still;
@@ -224,13 +224,14 @@ namespace OrbitalAnte.Creatures
             Vector3 at = eye.position;
             if (_playerKnown)
             {
-                float speed = (at - _playerWas).magnitude / dt;
+                // Along the ground only: a jump or a fall is not a footstep.
+                float speed = Vector3.ProjectOnPlane(at - _playerWas, transform.up).magnitude / dt;
                 // Eased, so a single odd frame is not a noise.
                 _playerSpeed = Mathf.Lerp(_playerSpeed, speed, Mathf.Min(1f, dt * 10f));
             }
             _playerWas = at;
             _playerKnown = true;
-            float noise = _playerSpeed < 0.4f ? 0f : Mathf.Clamp(_playerSpeed / 5f, 0.3f, 1.5f);
+            float noise = _playerSpeed < 0.4f ? 0f : Mathf.Clamp(_playerSpeed / 5f, 0.3f, 1.3f);   // a sprint carries further but is not "loud"
             if (_guns != null && Time.time - _guns.LastShotTime < 0.35f) noise = Mathf.Max(noise, 2.2f);
             return noise;
         }
@@ -242,7 +243,8 @@ namespace OrbitalAnte.Creatures
             float dt = Mathf.Min(Time.deltaTime, 0.05f);
             if (dt <= 0f) return;
 
-            StalkerSenses senses = Senses(dt, out Transform eye, out bool hostile);
+            // (Noise is worked out over the frame's real length, or a slow frame would make a walk a sprint.)
+            StalkerSenses senses = Senses(Time.deltaTime, out Transform eye, out bool hostile);
             StalkerOrders orders = Brain.Think(Body, senses, dt);
             if (orders.Mode != _lastMode)
             {
@@ -253,10 +255,26 @@ namespace OrbitalAnte.Creatures
                 if (orders.Mode == StalkerMode.Lunge) Audio.AudioDirector.Play(LungeSound, at);
                 _lastMode = orders.Mode;
             }
+            // Each time it takes a new place it clicks, quietly: where you are now is known.
+            else if (orders.Took && orders.Mode != StalkerMode.Still) Audio.AudioDirector.Play(ClickSound, HeadPoint(), 0.5f, 1f);
             Vector3 moved = Move(orders, dt);
-            Pose(dt, orders, moved / dt);
-            // Near the player its hitboxes must be where it is drawn when their shot is traced: its legs and gills are thin.
-            if (hostile && senses.Player.Magnitude < 30.0) Physics.SyncTransforms();
+            // Lying still with nothing to hear (most of its life) it is posed five times a second, not every frame:
+            // only the tip of its tail and its gills drift then.
+            bool resting = orders.Mode == StalkerMode.Still && !orders.Aware;
+            _restedFor = resting ? _restedFor + dt : 0f;
+            _unposed += dt;
+            bool pose = _restedFor < 3f || _unposed >= 0.2f;
+            if (pose)
+            {
+                Pose(_unposed, orders, moved / dt);
+                _unposed = 0f;
+            }
+            // Near the player, on a frame it has changed, its hitboxes must be where it is drawn when their shot is
+            // traced: its legs and gills are thin.
+            bool changed = moved != Vector3.zero || orders.TurnRate != 0.0 || (pose && !resting);
+            // (Whether or not it is after them: in the arena's calm it can still be shot.)
+            Transform near = CombatWorld.PlayerEye;
+            if (changed && near != null && (near.position - transform.position).sqrMagnitude < 900f) Physics.SyncTransforms();
             if (orders.Bite > 0.0 && hostile) Bite(eye, (float)orders.Bite);
         }
 
@@ -329,7 +347,7 @@ namespace OrbitalAnte.Creatures
 
         void Pose(float dt, in StalkerOrders orders, Vector3 velocity)
         {
-            var input = new StalkerAnimInput { Velocity = D(velocity), TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T, HasPlace = orders.HasPlace, Place = orders.Place, Aware = orders.Aware };
+            var input = new StalkerAnimInput { Velocity = D(velocity), TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T, HasPlace = orders.HasPlace, Place = orders.Place, Aware = orders.Aware, Took = orders.Took };
             _animator.Update(Body, input, dt, _pose);
             for (int i = 0; i < _pose.Nodes; i++)
                 if (_node[i] != null) _node[i].SetLocalPositionAndRotation(V(_pose.NodePosition[i]), Q(_pose.NodeRotation[i]));
@@ -393,6 +411,7 @@ namespace OrbitalAnte.Creatures
             }
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.4));
+            _restedFor = 0f;
             GoreFx gore = GoreFx.Instance;
             // The skull says it is bone: no blood, a dull knock, until it breaks. Everything else bleeds.
             if (armour && !killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.8f);
@@ -438,7 +457,7 @@ namespace OrbitalAnte.Creatures
             Pop(chunk.transform.position, outward, 12, "gore.pop.small");
         }
 
-        /// <summary>The tail comes off at a length: everything from there back leaves in one piece, still flexing as it lands.</summary>
+        /// <summary>The tail comes off at a length: everything from there back leaves in one stiff piece.</summary>
         void CutTail(int from, in HitInfo hit)
         {
             Vector3 up = transform.up;

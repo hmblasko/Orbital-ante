@@ -505,6 +505,45 @@ def earth(name, colour=(0.21, 0.18, 0.15), seed=0.0):
     return m.finish(shade, 0.06, 0.0, height, occlusion=near)
 
 
+def pallid(name, base=(0.36, 0.265, 0.245), flush=(0.40, 0.17, 0.16), vein=(0.16, 0.13, 0.22), seed=0.0, furrow=0.17, along='Y', gloss=0.66):
+    """The skin of an animal that has never seen light: pale, pink where blood shows through (underneath, and in
+    patches), thin violet veins under it, broad shallow furrows round the body, fine pores, wet."""
+    m = Tree(name)
+    cloud = m.noise(6.0, 4.0, 0.6, shift=(seed, 0, 0))
+    fine = m.noise(90.0, 3.0, 0.6, shift=(0, seed, 0))
+    colour = m.mix(tuple(c * 0.88 for c in base), tuple(min(1.0, c * 1.08) for c in base), m.lerp(cloud, fine, 0.3))
+    # Blood shows through underneath and in soft patches.
+    below = m.step(m.mul(m.up(), -1.0), -0.2, 0.9)
+    patch = m.step(m.noise(3.0, 3.0, 0.5, shift=(0, 0, seed)), 0.52, 0.75)
+    colour = m.mix(colour, flush, m.mul(m.add(m.mul(below, 0.55), m.mul(patch, 0.30)), 1.0))
+    # Veins: thin wandering lines, faint.
+    lines = m.noise(9.0, 2.0, 0.4, shift=(seed, seed, 0), distortion=2.5)
+    veins = m.mul(m.step(lines, 0.47, 0.495), m.sub(1.0, m.step(lines, 0.505, 0.53)))
+    colour = m.mix(colour, vein, m.mul(veins, 0.38))
+    # The furrows round its body are a little darker and pinker.
+    groove = m.sub(1.0, m.step(m.bands(along, furrow, distortion=0.25, detail=1.0), 0.0, 0.22))
+    colour = m.mix(colour, tuple(c * 0.62 for c in flush), m.mul(groove, 0.5))
+    near = m.hollows(0.04)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.4 for c in flush), m.mul(grime, 0.6))
+    smoothness = m.lerp(m.lerp(gloss - 0.08, gloss + 0.08, cloud), 0.3, grime)
+    height = m.add(m.mul(groove, -0.0030), m.add(m.mul(fine, 0.0005), m.mul(veins, 0.0005)))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def plume(name, colour=(0.34, 0.035, 0.045), tip=(0.13, 0.012, 0.03), seed=0.0, along='Y', reach=0.36):
+    """A gill: wet, blood red, feathery, darker toward the tips of its plumes."""
+    m = Tree(name)
+    fine = m.noise(120.0, 3.0, 0.6, shift=(seed, 0, 0))
+    barbs = m.bands(along, 0.012, distortion=0.8, detail=2.0)
+    out = m.step(m.axis(along), reach * 0.25, reach)
+    shade = m.mix(colour, tip, out)
+    shade = m.mix(shade, tuple(c * 0.5 for c in colour), m.mul(m.sub(1.0, m.step(barbs, 0.0, 0.4)), 0.5))
+    shade = m.mix(shade, tuple(min(1.0, c * 1.3) for c in colour), m.mul(fine, 0.25))
+    near = m.hollows(0.02)
+    return m.finish(shade, m.lerp(0.55, 0.75, fine), 0.0, m.mul(barbs, 0.0010), occlusion=near)
+
+
 def flesh(name, pale=(0.72, 0.58, 0.50), red=(0.42, 0.045, 0.035), seed=0.0, size=1.0, along='Y'):
     """Torn meat at a wound, the inside of a broken shell: pale wet muscle in bundles running along the limb,
     red where it is torn deepest, dark clots, shiny."""

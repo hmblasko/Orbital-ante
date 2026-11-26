@@ -33,10 +33,10 @@ namespace OrbitalAnte.Creatures
         /// <summary>From how far it hears someone walking (noise 1), with both gills. Louder is heard further, quieter nearer.</summary>
         public float hearRange = 20f;
         /// <summary>Inside this it feels a suit's electrics through its snout, however still and quiet they are.</summary>
-        public float senseRange = 3f;
+        public float senseRange = 1.5f;
         /// <summary>How often it takes a new place from what it hears: between times it is going where the sound was.</summary>
-        public float hearEvery = 0.5f;
-        /// <summary>Noise at or over this (a shot, jets) makes it run.</summary>
+        public float hearEvery = 1.0f;
+        /// <summary>Noise at or over this (a shot, jets; a sprint is under it) makes it run.</summary>
         public float loud = 1.4f;
         public float listenSeconds = 0.7f;
         /// <summary>Metres a second. The player walks at about 5 and sprints at 8.</summary>
@@ -47,7 +47,7 @@ namespace OrbitalAnte.Creatures
         /// <summary>Radians a second.</summary>
         public float turn = 2.2f;
         /// <summary>The warning before a lunge. It takes aim at <see cref="StalkerBrain.LockAt"/> of the way through.</summary>
-        public float gapeSeconds = 0.65f;
+        public float gapeSeconds = 0.9f;
         public float lungeSeconds = 0.22f;
         /// <summary>How far from its mouth a lunge reaches, with its whole tail.</summary>
         public float lungeReach = 3.2f;
@@ -62,6 +62,10 @@ namespace OrbitalAnte.Creatures
         public float homesickSeconds = 10f;
         /// <summary>It never goes after a sound further than this from where it lives.</summary>
         public float roamRadius = 28f;
+        /// <summary>Kept from where it is going by something solid for about this long, it gives the place up and casts about.</summary>
+        public float stuckSeconds = 0.8f;
+        /// <summary>How many times quicker it turns to something it feels with its snout than to a sound.</summary>
+        public float feltTurn = 2.5f;
         public StalkerHp hp = StalkerHp.Default;
         /// <summary>How long a piece shot off lies there.</summary>
         public float pieceLife = 30f;
@@ -98,6 +102,8 @@ namespace OrbitalAnte.Creatures
         public Vec3d Place;
         /// <summary>It is hearing or feeling the player this very frame.</summary>
         public bool Aware;
+        /// <summary>This frame it took a new place from what it heard or felt (its gills kick and it clicks): the player's tell that where they are now is known.</summary>
+        public bool Took;
     }
 
     /// <summary>
@@ -113,17 +119,17 @@ namespace OrbitalAnte.Creatures
     public sealed class StalkerBrain
     {
         /// <summary>How far through the warning it stops following and is aimed.</summary>
-        public const double LockAt = 0.6;
+        public const double LockAt = 0.5;
         /// <summary>How far through a lunge its jaws shut.</summary>
         public const double BiteAt = 0.7;
         /// <summary>What it has heard counts as fresh for this long.</summary>
         public const double Fresh = 0.9;
 
         readonly StalkerRules _rules;
-        double _t, _sinceHeard = 100.0, _sinceTaken = 100.0, _sinceLoud = 100.0, _sinceReel = 100.0, _quiet, _lunge, _lungeLeft, _searchTurn = 1.0;
+        double _t, _sinceHeard = 100.0, _sinceTaken = 100.0, _sinceLoud = 100.0, _sinceReel = 100.0, _quiet, _lunge, _lungeLeft, _searchTurn = 1.0, _stuck;
         // The place it has in mind, in metres east and north of home.
         double _east, _north;
-        bool _hasPlace, _bitten, _locked;
+        bool _hasPlace, _bitten, _locked, _clamped;
 
         public StalkerBrain(StalkerRules rules)
         {
@@ -145,6 +151,7 @@ namespace OrbitalAnte.Creatures
             _east = d.X * e.X + d.Z * e.Z;
             // Never further from home than it roams.
             double far = Math.Sqrt(_east * _east + _north * _north);
+            _clamped = far > _rules.roamRadius + 0.5;
             if (far > _rules.roamRadius)
             {
                 _east *= _rules.roamRadius / far;
@@ -163,6 +170,7 @@ namespace OrbitalAnte.Creatures
         {
             Mode = mode;
             _t = 0.0;
+            _stuck = 0.0;
         }
 
         /// <summary>A gill has been shot off: it reels (not twice running). True if it did.</summary>
@@ -212,10 +220,13 @@ namespace OrbitalAnte.Creatures
                 _sinceHeard = 0.0;
                 if (senses.Noise >= _rules.loud) _sinceLoud = 0.0;
                 // Its snout knows exactly; its ears give it a place now and then.
-                if (following && (feels || _sinceTaken >= _rules.hearEvery || !_hasPlace))
+                // (and, mouth open, it is listening as hard as it can: until it has taken aim it follows every sound)
+                if (following && (feels || Mode == StalkerMode.Gape || _sinceTaken >= _rules.hearEvery || !_hasPlace))
                 {
+                    // (Feeling, it knows all the time; the tell is only given at its hearing's beat.)
+                    if (_sinceTaken >= _rules.hearEvery || !_hasPlace) orders.Took = true;
                     Keep(senses, flat);
-                    _sinceTaken = 0.0;
+                    if (orders.Took) _sinceTaken = 0.0;
                 }
             }
             bool fresh = _sinceHeard < Fresh;
@@ -223,6 +234,11 @@ namespace OrbitalAnte.Creatures
             double placeDistance = place.Magnitude;
             double bearing = placeDistance > 1e-6 ? Math.Atan2(place.X, place.Z) : 0.0;
             double reach = _rules.lungeReach * body.LungeShare;
+
+            // Something solid in the way: the Unity side says so on the frames it refused a step, which is about every
+            // other one, so the time is counted up quickly and down slowly.
+            _stuck = Math.Max(0.0, _stuck + (senses.Blocked ? dt : -0.25 * dt));
+            bool stuck = _stuck >= _rules.stuckSeconds * 0.375;
 
             double TurnTo(double angle, double rate)
             {
@@ -253,20 +269,28 @@ namespace OrbitalAnte.Creatures
                     bool rush = Mode == StalkerMode.Rush;
                     if (!rush && _sinceLoud < 0.1) { Mode = StalkerMode.Rush; rush = true; }
                     else if (rush && _sinceLoud > _rules.rushSeconds) { Mode = StalkerMode.Stalk; rush = false; }
-                    orders.TurnRate = TurnTo(bearing, _rules.turn * (rush ? 1.5 : 1.0));
+                    // What it feels with its snout it snaps round at: there is no walking circles round it up close.
+                    orders.TurnRate = TurnTo(bearing, _rules.turn * (feels ? _rules.feltTurn : rush ? 1.5 : 1.0));
                     // It slows to turn, and stops for anything solid in front of it.
                     double facing = Math.Max(0.0, Math.Cos(Math.Min(Math.PI * 0.5, Math.Abs(bearing) * 1.3)));
                     double pace = (rush ? _rules.rushPace : _rules.stalkPace) * body.PaceShare * facing;
                     double mouthTo = placeDistance - StalkerLayout.Mouth;
-                    if (fresh && mouthTo < reach * 0.85 && Math.Abs(bearing) < 0.45)
+                    // A sound from further off than it roams is never lunged at: it goes as far as it will and casts about.
+                    if (fresh && (!_clamped || feels) && mouthTo < reach * 0.85 && Math.Abs(bearing) < 0.45)
                     {
                         _locked = false;
                         Enter(StalkerMode.Gape);
                     }
                     else if (mouthTo < 0.5)
                     {
-                        // At the place, and nothing there to hear.
-                        if (!fresh) Enter(StalkerMode.Search);
+                        // At the place, and nothing there to hear (or nothing it will go further for).
+                        if (!fresh || _clamped) Enter(StalkerMode.Search);
+                    }
+                    else if (stuck)
+                    {
+                        // It cannot get there: it gives the place up.
+                        _hasPlace = false;
+                        Enter(StalkerMode.Search);
                     }
                     else if (!senses.Blocked) orders.Velocity = new Vec3d(0, 0, pace);
                     break;
@@ -277,7 +301,7 @@ namespace OrbitalAnte.Creatures
                     double t = _t / _rules.gapeSeconds;
                     if (!_locked)
                     {
-                        orders.TurnRate = TurnTo(bearing, _rules.turn * 1.5);
+                        orders.TurnRate = TurnTo(bearing, _rules.turn * (feels ? _rules.feltTurn : 1.5));
                         if (t >= LockAt)
                         {
                             // Aimed: from here on a step aside is a miss.
@@ -322,7 +346,8 @@ namespace OrbitalAnte.Creatures
                     break;
 
                 case StalkerMode.Search:
-                    if (aware)
+                    // (Not for a sound from beyond where it roams: it has gone as far as it will for that.)
+                    if (aware && _hasPlace && !(_clamped && !feels))
                     {
                         Enter(_sinceLoud < 0.1 ? StalkerMode.Rush : StalkerMode.Stalk);
                         break;
@@ -354,6 +379,7 @@ namespace OrbitalAnte.Creatures
                         _quiet = 0.0;
                         Enter(StalkerMode.Still);
                     }
+                    else if (stuck) Enter(StalkerMode.Search);   // round whatever is in the way, then home again later
                     else if (!senses.Blocked) orders.Velocity = new Vec3d(0, 0, _rules.stalkPace * body.PaceShare * facing);
                     break;
                 }

@@ -1595,11 +1595,155 @@ def ambusher_sockets():
     return out
 
 
+# ====================================================================== the Blind stalker (olm)
+
+# A copy of StalkerLayout (Blender axes: x, forward, up). The rule test StalkerModelFile_MatchesTheLayout holds the
+# two together through the sockets.
+STALKER = {
+    "spacing": 0.34,
+    "head": 0.62, "head_half": 0.20, "head_tall": 0.11,
+    "seg_half": 0.17, "seg_tall": 0.16, "tail_half": 0.09, "tail_tall": 0.21,
+    "hip": (0.14, 0.0, -0.07), "leg": 0.34, "shin": 0.38, "leg_radius": 0.045,
+    "gill_root": (0.16, -0.10, 0.03), "gill": 0.36, "gill_spread": 0.13,
+    "jaw_hinge": (0.0, 0.0, -0.035), "jaw": 0.40, "mouth": 0.36,
+    "stump": 0.05,
+}
+STALKER_FLAT = {"skin": ((0.74, 0.60, 0.56), 0.6), "gill": ((0.62, 0.10, 0.12), 0.6), "mouth": ((0.50, 0.16, 0.16), 0.6),
+                "tooth": ((0.80, 0.76, 0.66), 0.5), "spot": ((0.30, 0.22, 0.26), 0.5), "flesh": ((0.78, 0.50, 0.44), 0.6)}
+STALKER_MATERIALS = {
+    "skin": lambda: mats.pallid("skin", seed=95.0),
+    "gill": lambda: mats.plume("gill", seed=96.0, reach=STALKER["gill"]),
+    "mouth": lambda: mats.flesh("mouth", pale=(0.46, 0.20, 0.20), red=(0.24, 0.03, 0.04), seed=97.0),
+    "tooth": lambda: mats.chitin("tooth", (0.48, 0.44, 0.36), (0.62, 0.58, 0.50), (0.20, 0.14, 0.10), seed=98.0, bumps=0.0, growth=0.0, mottle=0.15, size=0.4, gloss=0.6),
+    "spot": lambda: mats.pallid("spot", base=(0.12, 0.09, 0.12), flush=(0.14, 0.07, 0.09), seed=99.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.72, 0.56, 0.52), red=(0.42, 0.05, 0.05), seed=100.0),
+}
+
+
+def stalker(hi):
+    g = Maker(hi, STALKER_FLAT, STALKER_MATERIALS)
+    L = STALKER
+    up = (0, 0, 1)
+    sp, half, tall = L["spacing"], L["seg_half"], L["seg_tall"]
+    over = 0.03
+
+    # ------------------------------------------------------------- Seg: a length of trunk, soft, furrowed round, a low ridge along its back
+    keys = [(0.00, half * 0.92, tall * 0.92, 0, 0.0), (0.04, half * 0.985, tall * 0.985, 0, 0.0), (sp * 0.5 + over, half, tall, 0, 0.0),
+            (sp + 2 * over - 0.04, half * 0.985, tall * 0.985, 0, 0.0), (sp + 2 * over, half * 0.92, tall * 0.92, 0, 0.0)]
+    body = g.skin("length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=2.1)
+    if hi:
+        # Two furrows a length, a soft fold low on each flank, and skin that is never quite even.
+        real.displace(body, lambda p: -0.006 * math.exp(-((abs(p.y) - 0.085) / 0.014) ** 2)
+                                      + 0.006 * math.exp(-((p.z + 0.07) / 0.03) ** 2) * (1.0 if abs(p.x) > 0.11 else 0.0)
+                                      + 0.004 * noise.noise(p * 8.0))
+    g.add(body, "skin", "Seg")
+    g.add(g.ball("link", (0, -sp * 0.5, 0.0), tall * 0.985, scale=(half / tall, 0.85, 1.0), around=12), "skin", "Seg")
+    for side in (-1, 1):
+        for y in (-0.10, 0.0, 0.10):
+            # The line of pores down each flank that it feels movement with.
+            g.add(g.ball("pore", (side * half * 0.985, y, 0.02), 0.008, around=5), "spot", "Seg", only='hi')
+
+    # ------------------------------------------------------------- Tail: a length of tail, thin from side to side, a fin above and below
+    th, tt = L["tail_half"], L["tail_tall"]
+    keys = [(0.00, th * 0.92, tt * 0.94, 0, 0.0), (0.04, th * 0.985, tt * 0.99, 0, 0.0), (sp * 0.5 + over, th, tt, 0, 0.0),
+            (sp + 2 * over - 0.04, th * 0.985, tt * 0.99, 0, 0.0), (sp + 2 * over, th * 0.92, tt * 0.94, 0, 0.0)]
+    fin = g.skin("tail length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=1.45)
+    if hi:
+        # Fine rays in the fin, above and below the muscle.
+        real.displace(fin, lambda p: 0.0018 * math.sin(p.y * 2 * math.pi / 0.03) * (1.0 if abs(p.z) > tt * 0.5 else 0.0) + 0.003 * noise.noise(p * 9.0))
+    g.add(fin, "skin", "Tail")
+    g.add(g.ball("tail link", (0, -sp * 0.5, 0.0), tt * 0.985, scale=(th / tt, 0.30, 1.0), around=10), "skin", "Tail")
+
+    # ------------------------------------------------------------- Head: flat and pear-shaped, no eyes; its lower jaw is a piece of its own
+    hl, hh, ht = L["head"], L["head_half"], L["head_tall"]
+    back = -sp * 0.5
+    # Behind the hinge the head is whole; in front of it only the upper half (the jaw is the rest).
+    keys = [(0.00, half * 0.80, tall * 0.80, 0, 0.0), (0.06, hh * 0.86, ht * 1.0, 0, 0.0), (0.15, hh * 0.99, ht * 0.98, 0, 0.005), (0.22, hh, ht * 0.80, 0, 0.022),
+            (0.34, hh * 0.86, ht * 0.62, 0, 0.034), (0.48, hh * 0.66, ht * 0.52, 0, 0.030), (0.58, hh * 0.44, ht * 0.40, 0, 0.022), (hl, hh * 0.20, ht * 0.20, 0, 0.010)]
+    skull = g.skin("skull", (0, back, 0.0), (0, 1, 0), up, keys, around=14, step=0.06, power=2.2)
+    if hi:
+        # Jaw muscles bulging behind the cheeks, a shallow groove down the middle of the skull.
+        real.displace(skull, lambda p: 0.010 * math.exp(-(((abs(p.x) - 0.11) / 0.05) ** 2 + ((p.y + 0.02) / 0.07) ** 2)) * (1.0 if p.z > 0 else 0.0)
+                                       - 0.004 * math.exp(-(p.x / 0.012) ** 2) * (1.0 if p.z > 0.02 else 0.0) + 0.003 * noise.noise(p * 10.0))
+    g.add(skull, "skin", "Head")
+    # The roof of its mouth, seen when the jaw drops.
+    g.add(g.ball("palate", (0, 0.20, -0.026), 0.10, scale=(1.35, 2.3, 0.14), around=8), "mouth", "Head")
+    for side in (-1, 1):
+        # Where eyes would be: a dark smudge under the skin, nothing more.
+        g.add(g.ball("eye smudge", (side * 0.105, 0.22, 0.060), 0.013, scale=(1.0, 1.3, 0.4), around=5), "spot", "Head", only='hi')
+        g.add(g.ball("nostril", (side * 0.030, 0.435, 0.030), 0.007, around=5), "spot", "Head", only='hi')
+        root = L["gill_root"]
+        g.add(g.ball("gill socket", (side * (root[0] - 0.012), root[1], root[2]), 0.045, scale=(0.8, 1.2, 0.9), around=6), "skin", "Head")
+    teeth = 14 if hi else 0
+    for k in range(teeth):
+        for side in (-1, 1):
+            y = 0.06 + 0.33 * k / (teeth - 1)
+            rs, rf, os_, of = real.along(keys, y - back)
+            g.add(g.spine("tooth", (side * rs * 0.90, y, -0.024), (0, 0, -1), 0.016, 0.005, around=3), "tooth", "Head", only='hi')
+
+    # ------------------------------------------------------------- Jaw: the lower jaw, from its hinge; it hangs under the snout and drops open
+    jl = L["jaw"]
+    jk = [(0.00, hh * 0.90, 0.030, 0, -0.036), (0.10, hh * 0.92, 0.034, 0, -0.036), (0.22, hh * 0.72, 0.032, 0, -0.034), (0.32, hh * 0.50, 0.026, 0, -0.028),
+          (jl, hh * 0.20, 0.012, 0, -0.014)]
+    g.add(g.skin("jaw", (0, 0, 0), (0, 1, 0), up, jk, around=10, step=0.07, power=2.2), "skin", "Jaw")
+    # Its tongue and the floor of its mouth.
+    g.add(g.ball("tongue", (0, 0.17, -0.010), 0.085, scale=(1.15, 2.1, 0.16), around=8), "mouth", "Jaw")
+    for k in range(teeth):
+        for side in (-1, 1):
+            y = 0.05 + 0.30 * k / (teeth - 1)
+            rs, rf, os_, of = real.along(jk, y)
+            g.add(g.spine("tooth", (side * rs * 0.88, y, -0.008), (0, 0, 1), 0.014, 0.005, around=3), "tooth", "Jaw", only='hi')
+
+    # ------------------------------------------------------------- Gill: three feathered plumes from one root, the same either side, lifting
+    gl, gs = L["gill"], L["gill_spread"]
+    for k, (aside, lift, reach) in enumerate(((-1.0, 0.03, 0.88), (0.0, 0.10, 1.0), (1.0, 0.03, 0.88))):
+        end = gl * reach
+        pk = [(0.00, 0.026, 0.026, 0.0, 0.0), (end * 0.3, 0.022, 0.022, -aside * gs * 0.30, lift * 0.25), (end * 0.65, 0.016, 0.016, -aside * gs * 0.68, lift * 0.65),
+              (end, 0.004, 0.004, -aside * gs * 0.94, lift)]
+        g.add(g.skin("plume", (0, 0, 0), (0, 1, 0), up, pk, around=5, step=0.10, power=2.0), "gill", "Gill")
+        barbs = 12 if hi else 4
+        for b in range(barbs):
+            y = end * (0.22 + 0.72 * b / (barbs - 1))
+            rs, rf, os_, of = real.along(pk, y)
+            for way in (-1, 1):
+                # The filaments either side of each plume (a few real ones; the rest are in the pictures).
+                g.add(g.spine("barb", (-os_, y, of), (way * 0.8, 0.45, 0.35), 0.060 * (1.0 - 0.5 * b / barbs), 0.008 if hi else 0.012, around=3), "gill", "Gill")
+    g.add(g.ball("gill root", (0, 0.01, 0), 0.034, around=6), "gill", "Gill")
+
+    # ------------------------------------------------------------- Leg and Shin: thin and soft, the shin ending in three blunt toes
+    ll, sl, lr = L["leg"], L["shin"], L["leg_radius"]
+    lk = [(0.00, lr * 1.15, lr * 1.15, 0, 0), (ll * 0.5, lr, lr, 0, 0), (ll, lr * 0.92, lr * 0.92, 0, 0)]
+    g.add(g.skin("upper leg", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.12, power=2.0), "skin", "Leg")
+    g.add(g.ball("hip", (0, 0, 0), lr * 1.25, around=7), "skin", "Leg")
+    sk_ = [(0.00, lr * 0.95, lr * 0.95, 0, 0), (sl * 0.55, lr * 0.78, lr * 0.78, 0, 0), (sl * 0.90, lr * 0.70, lr * 0.62, 0, 0.004), (sl, lr * 0.95, lr * 0.45, 0, 0.012)]
+    g.add(g.skin("lower leg", (0, 0, 0), (0, 1, 0), up, sk_, around=7, step=0.12, power=2.0), "skin", "Shin")
+    g.add(g.ball("knee", (0, 0, 0), lr * 1.05, around=7), "skin", "Shin")
+    for k in (-1, 0, 1):
+        # Toes: they turn up toward the leg's upper side, which is the way the ground lies when it stands.
+        tk = [(0.00, 0.016, 0.014, 0, 0), (0.05, 0.014, 0.012, 0, 0.004), (0.085 + (0.012 if k == 0 else 0.0), 0.010, 0.009, 0, 0.008)]
+        g.add(g.skin("toe", (k * 0.024, sl - 0.012, 0.008), (k * 0.36, 0.62, 0.70), (0, -0.7, 0.62), tk, around=5, step=0.06, power=2.0), "skin", "Shin")
+
+    leftovers(g, L["stump"], "skin")
+    return g
+
+
+def stalker_sockets():
+    L = STALKER
+    sp = L["spacing"]
+    return [oa.socket("SegEnd", (0, sp * 0.5, 0)), oa.socket("SegSide", (L["seg_half"], 0, 0)), oa.socket("SegTop", (0, 0, L["seg_tall"])),
+            oa.socket("TailSide", (L["tail_half"], 0, 0)), oa.socket("TailTop", (0, 0, L["tail_tall"])),
+            oa.socket("HeadEnd", (0, L["head"] - sp * 0.5, 0)), oa.socket("HeadSide", (L["head_half"], 0, 0)), oa.socket("HeadTop", (0, 0, L["head_tall"])),
+            oa.socket("JawHinge", L["jaw_hinge"]), oa.socket("JawEnd", (0, L["jaw"], 0)), oa.socket("Mouth", (0, L["mouth"], 0)),
+            oa.socket("GillR", L["gill_root"]), oa.socket("GillEnd", (0, L["gill"], 0)), oa.socket("GillSide", (L["gill_spread"], 0, 0)),
+            oa.socket("HipR", L["hip"]), oa.socket("LegEnd", (0, L["leg"], 0)), oa.socket("ShinEnd", (0, L["shin"], 0)), oa.socket("LegSide", (L["leg_radius"], 0, 0)),
+            oa.socket("StumpRim", (L["stump"], 0, 0))]
+
+
 # ---------------------------------------------------------------------- building
 
 CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
              "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048),
-             "Ambusher": (ambusher, ambusher_sockets, 2048)}
+             "Ambusher": (ambusher, ambusher_sockets, 2048), "Stalker": (stalker, stalker_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
@@ -1755,9 +1899,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
             bpy.data.objects.remove(o)
     if name != "Strider":
         # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
-        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 1.0 if name in ("Screamer", "Ambusher") else 0.45
+        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 1.0 if name in ("Screamer", "Ambusher") else 0.8 if name == "Stalker" else 0.45
         row = [(piece, Matrix.Translation(((k - 0.5 * (len(parts) - 1)) * apart + 0.2, 0, 0.30))) for k, piece in enumerate(parts)]
-        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter", "Screamer", "Ambusher") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter", "Screamer", "Ambusher", "Stalker") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
         return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)
