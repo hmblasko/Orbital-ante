@@ -15,7 +15,7 @@ namespace OrbitalAnte.Creatures
         /// <summary>The armoured head: the only part of it above ground while it waits, and the slow way.</summary>
         public double Head;
 
-        public static AmbusherHp Default => new AmbusherHp { Jaw = 60, Feeler = 15, Seg = 90, Head = 260 };
+        public static AmbusherHp Default => new AmbusherHp { Jaw = 60, Feeler = 15, Seg = 90, Head = 200 };
     }
 
     /// <summary>What a hit took off. Reused by the next hit: read it before hitting again.</summary>
@@ -33,7 +33,8 @@ namespace OrbitalAnte.Creatures
     ///
     /// - It dies when its armoured head gives way, or when any one length of its body is shot through: the head end
     ///   comes away. Damage to a length is remembered, so a cut can be finished the next time it is out of its hole.
-    /// - It holds on with two jaws. With one it still bites, but cannot hold or drag; with none it is harmless.
+    /// - It holds on with two jaws. With one it still bites, but cannot hold or drag; with none it is harmless,
+    ///   and can only wait at the mouth of its hole to be finished.
     /// - It feels footsteps with five feelers: every one lost shortens how far off it notices anyone
     ///   (<see cref="FeelShare"/>).
     /// </summary>

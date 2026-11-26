@@ -13,8 +13,8 @@ namespace OrbitalAnte.Creatures
         public bool Feels;
         /// <summary>The player's feet in creature space.</summary>
         public Vec3d Player;
-        /// <summary>It has gone under for good: the ground settles flat.</summary>
-        public bool Gone;
+        /// <summary>How near it is to letting go of whoever it holds, 0 to 1.</summary>
+        public double Slack;
     }
 
     /// <summary>Where every piece of an Ambusher is, in creature space.</summary>
@@ -64,6 +64,7 @@ namespace OrbitalAnte.Creatures
         double _fromY = 0.10, _fromZ, _fromLean, _fromGape = 0.9, _fromFlat, _fromWave;
         double _y = 0.10, _z, _lean, _gape = 0.9, _flat, _wave, _mound = 1.0, _lookX, _lookZ;
         Vec3d _flinch, _flinchSpeed;
+        double _alert;
 
         public void Flinch(Vec3d push) => _flinchSpeed += push;
 
@@ -159,7 +160,6 @@ namespace OrbitalAnte.Creatures
         /// <summary>How high the ring of ground stands for a mode.</summary>
         public static double MoundOf(in AmbusherAnimInput input)
         {
-            if (input.Gone) return 0.0;
             switch (input.Mode)
             {
                 case AmbusherMode.Under: return 0.4;
@@ -195,6 +195,8 @@ namespace OrbitalAnte.Creatures
             _wave = _fromWave + (wave - _fromWave) * k;
             double gape = GapeOf(input.Mode, input.T);
             if (input.Mode == AmbusherMode.Lurk) gape += 0.04 * Math.Sin(_time * 1.3);
+            // Hurt while it holds on, its jaws slacken: the sign that it is about to let go.
+            if (input.Mode == AmbusherMode.Hold) gape += 0.35 * Math.Max(0.0, Math.Min(1.0, input.Slack));
             if (input.Mode == AmbusherMode.Coil && input.T >= AmbusherBrain.LockAt) gape += 0.03 * Math.Sin(_time * 55.0);
             _gape = _fromGape + (gape - _fromGape) * k;
             _mound += (MoundOf(input) - _mound) * Math.Min(1.0, dt * 6.0);
@@ -250,6 +252,7 @@ namespace OrbitalAnte.Creatures
 
             // ---- feelers: they stand up and sway, lean toward what it feels, and lie back flat when it strikes
             double want = input.Feels ? 1.0 : 0.0;
+            _alert += (want - _alert) * Math.Min(1.0, dt * 4.0);
             var toward = new Vec3d(input.Player.X, 0, input.Player.Z);
             toward = toward.SqrMagnitude > 1e-6 ? toward.Normalized : Vec3d.Forward;
             _lookX += (toward.X * want - _lookX) * Math.Min(1.0, dt * 5.0);
@@ -259,7 +262,8 @@ namespace OrbitalAnte.Creatures
             {
                 double around = AmbusherLayout.FeelerAngle(feeler);
                 var outward = new Vec3d(Math.Sin(around), Math.Cos(around), 0);
-                double splay = 0.35 + 0.12 * Math.Sin(_time * 1.9 + feeler * 1.7) + 1.15 * _flat;
+                // Feeling nobody they droop outward; feeling someone they stand up and lean that way.
+                double splay = 0.35 + 0.45 * (1.0 - _alert) + 0.12 * Math.Sin(_time * 1.9 + feeler * 1.7) + 1.15 * _flat * (0.55 + 0.45 * _alert);
                 Vec3d way = Vec3d.Forward * Math.Cos(splay) + outward * Math.Sin(splay)
                             + new Vec3d(0.10 * Math.Sin(_time * 2.7 + feeler * 2.3), 0, 0)
                             + new Vec3d(lookLocal.X, lookLocal.Y, 0) * (0.45 * (1.0 - _flat));

@@ -94,7 +94,7 @@ namespace OrbitalAnte.Tests.EditMode
                     Hurt += orders.Bite;
                     Bites++;
                 }
-                var input = new AmbusherAnimInput { Mode = orders.Mode, T = orders.T, Out = orders.Out, Feels = true, Player = Local(PlayerX, PlayerZ), Gone = orders.Gone };
+                var input = new AmbusherAnimInput { Mode = orders.Mode, T = orders.T, Out = orders.Out, Feels = true, Player = Local(PlayerX, PlayerZ), Slack = orders.Slack };
                 Animator.Update(Body, input, dt, Pose);
                 if (orders.Mode != Modes[Modes.Count - 1]) Modes.Add(orders.Mode);
                 Time += dt;
@@ -121,7 +121,7 @@ namespace OrbitalAnte.Tests.EditMode
             {
                 AmbusherHit hit = Body.HitJaw(jaw, 1000);
                 Assert.AreEqual(jaw, hit.JawLost);
-                Brain.Flinch();
+                Brain.Flinch(Body);
             }
         }
 
@@ -165,7 +165,7 @@ namespace OrbitalAnte.Tests.EditMode
                 body.HitHead(Rifle);
                 hits++;
             }
-            Assert.AreEqual(11, hits);
+            Assert.AreEqual(9, hits);
             Assert.Greater(AmbusherHp.Default.Head, AmbusherHp.Default.Seg * 2, "the armour is much the tougher");
         }
 
@@ -389,10 +389,10 @@ namespace OrbitalAnte.Tests.EditMode
         {
             var w = new World { PlayerZ = 4.0 };
             Assert.IsTrue(w.RunUntil(x => x.Last.Holding, 4.0));
-            w.Brain.Hurt(w.Rules.letGoDamage - 1);
+            w.Brain.Hurt(w.Rules.letGoDamage - 1, w.Body);
             w.Step();
             Assert.IsTrue(w.Last.Holding);
-            w.Brain.Hurt(2);
+            w.Brain.Hurt(2, w.Body);
             w.Step();
             Assert.IsFalse(w.Last.Holding);
             Assert.Less(w.Rules.letGoDamage, w.Rules.hp.Seg, "it lets go for less than it takes to shoot it through");
@@ -424,18 +424,65 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
-        public void WithNoJaws_ItGoesUnderForGood()
+        public void WithNoJaws_ItIsHarmless_ButStaysWhereItCanBeFinished()
         {
             var w = new World();
+            w.Run(0.2);
             w.Body.HitJaw(0, 1000);
-            w.Body.HitJaw(1, 1000);
-            Assert.IsTrue(w.RunUntil(x => x.Last.Gone, 3.0));
-            w.Run(20.0);
-            Assert.AreEqual(AmbusherMode.Under, w.Last.Mode);
-            Assert.IsTrue(w.Last.Gone);
+            w.ShootOffJaw(1);
+            w.Step();
+            // Its last jaw gone, it is thrown out along the ground and lies thrashing.
+            Assert.AreEqual(AmbusherMode.Spent, w.Last.Mode);
+            Assert.GreaterOrEqual(w.Last.Out, 2.5);
+            w.Run(w.Rules.maimedSeconds - 0.2);
+            Assert.AreEqual(AmbusherMode.Spent, w.Last.Mode, "long enough to finish it");
+            w.Run(30.0);
+            Assert.AreEqual(AmbusherMode.Lurk, w.Last.Mode, "then it can only wait at the mouth of its hole");
+            Assert.IsFalse(w.Brain.Buried, "never out of reach for good");
             Assert.AreEqual(0.0, w.Hurt);
-            Assert.AreEqual(0.0, w.FastestMove, 1e-9, "it does not even follow");
-            Assert.Less(w.Pose.Mound, 0.02, "and the ground settles flat over it");
+            Assert.AreEqual(0.0, w.FastestMove, 1e-9, "it does not follow");
+            Assert.IsFalse(w.Modes.Contains(AmbusherMode.Coil));
+            // Shot there, it does not duck away.
+            w.Brain.Hurt(Rifle, w.Body);
+            w.Step();
+            Assert.AreEqual(AmbusherMode.Lurk, w.Last.Mode);
+        }
+
+        [Test]
+        public void BackingOutOfItsReachDuringTheWarning_CallsItOff_ItDoesNotThrowItselfAtNothing()
+        {
+            var w = new World { PlayerZ = 4.2 };
+            w.Before = x =>
+            {
+                if (x.Last.Mode == AmbusherMode.Coil) x.PlayerVZ = 5.0;
+            };
+            w.Run(3.0);
+            Assert.IsFalse(w.Modes.Contains(AmbusherMode.Strike));
+            Assert.IsFalse(w.Modes.Contains(AmbusherMode.Spent), "no free kill for walking backwards");
+        }
+
+        [Test]
+        public void HurtWhileItHolds_ItsJawsSlacken_BeforeItLetsGo()
+        {
+            var w = new World { PlayerZ = 4.0 };
+            Assert.IsTrue(w.RunUntil(x => x.Last.Holding, 4.0));
+            w.Run(0.3);
+            double tight = w.Pose.Gape;
+            w.Brain.Hurt(w.Rules.letGoDamage * 0.6, w.Body);
+            w.Run(0.3);
+            Assert.IsTrue(w.Last.Holding);
+            Assert.Greater(w.Pose.Gape, tight + 0.15);
+        }
+
+        [Test]
+        public void ShotAsItComesUp_ItDucksBackUnder()
+        {
+            var w = new World { PlayerZ = 15.0 };
+            Assert.IsTrue(w.RunUntil(x => x.Last.Mode == AmbusherMode.Rise, 20.0));
+            w.Run(0.6);
+            w.Brain.Hurt(Rifle, w.Body);
+            w.Step();
+            Assert.AreEqual(AmbusherMode.Withdraw, w.Last.Mode, "its jaws cannot be picked off while it rises");
         }
 
         // ------------------------------------------------------------------ a miss
@@ -569,7 +616,7 @@ namespace OrbitalAnte.Tests.EditMode
         {
             var w = new World { PlayerZ = 18.0 };
             w.Run(0.5);
-            w.Brain.Hurt(Rifle);
+            w.Brain.Hurt(Rifle, w.Body);
             w.Step();
             Assert.AreEqual(AmbusherMode.Withdraw, w.Last.Mode);
             Assert.IsTrue(w.RunUntil(x => x.Last.Mode == AmbusherMode.Tunnel, 1.5), "sooner than it would have gone by itself");

@@ -40,10 +40,12 @@ namespace OrbitalAnte.Creatures
         /// <summary>Radians a second it swings round to face what it feels.</summary>
         public float aimTurn = 5f;
         /// <summary>Seconds its head stands out of the hole before it strikes: the warning.</summary>
-        public float coilSeconds = 0.7f;
+        public float coilSeconds = 0.9f;
         public float strikeSeconds = 0.18f;
         /// <summary>Seconds it lies stretched out after a miss.</summary>
         public float spentSeconds = 1.0f;
+        /// <summary>Seconds it lies thrashing when its second jaw is shot off.</summary>
+        public float maimedSeconds = 2.0f;
         public float withdrawSeconds = 0.6f;
         /// <summary>Seconds it stays under before it comes up or moves on.</summary>
         public float underSeconds = 1.6f;
@@ -63,7 +65,7 @@ namespace OrbitalAnte.Creatures
         public float holdDamage = 8f;
         public float holdBeat = 0.5f;
         /// <summary>It lets go by itself after this long.</summary>
-        public float holdSeconds = 4f;
+        public float holdSeconds = 3f;
         /// <summary>Metres a second it drags whoever it holds toward its hole.</summary>
         public float dragPace = 2.6f;
         /// <summary>It drags no nearer its hole than this.</summary>
@@ -115,8 +117,8 @@ namespace OrbitalAnte.Creatures
         public bool Holding;
         /// <summary>Creature space, metres a second: how the held player is dragged.</summary>
         public Vec3d Pull;
-        /// <summary>It has no jaws left and has gone under for good.</summary>
-        public bool Gone;
+        /// <summary>How near it is to letting go of whoever it holds, 0 to 1: its jaws slacken as it is hurt.</summary>
+        public double Slack;
     }
 
     /// <summary>
@@ -131,7 +133,7 @@ namespace OrbitalAnte.Creatures
     public sealed class AmbusherBrain
     {
         /// <summary>The share of the warning after which it no longer follows the player.</summary>
-        public const double LockAt = 0.6;
+        public const double LockAt = 0.55;
         /// <summary>How far short of someone its head stops, so that its jaws close round them.</summary>
         public const double GripGap = 0.55;
         /// <summary>Seconds it must have been settled at the mouth of its hole before it can strike.</summary>
@@ -141,7 +143,7 @@ namespace OrbitalAnte.Creatures
 
         readonly AmbusherRules _rules;
         double _t, _aim, _turnLeft, _out, _held, _beat, _hurt, _restless, _tunnel, _lost, _pass;
-        bool _locked, _goAfter;
+        bool _locked, _goAfter, _maimed;
 
         public AmbusherBrain(AmbusherRules rules)
         {
@@ -165,8 +167,16 @@ namespace OrbitalAnte.Creatures
         /// It has lost a jaw: a warning under way is called off and anyone it holds is let go. True if that stopped
         /// something.
         /// </summary>
-        public bool Flinch()
+        public bool Flinch(AmbusherBody body)
         {
+            if (body != null && !body.CanBite && !Buried)
+            {
+                // Its last jaw: it is thrown out along the ground and lies thrashing, where it can be finished.
+                Enter(AmbusherMode.Spent);
+                _out = Math.Max(_out, 2.5);
+                _maimed = true;
+                return true;
+            }
             if (Mode != AmbusherMode.Coil && Mode != AmbusherMode.Hold) return false;
             Enter(AmbusherMode.Withdraw);
             _goAfter = false;
@@ -177,10 +187,11 @@ namespace OrbitalAnte.Creatures
         /// It has been hurt. Holding on, enough of it makes it let go; waiting at the mouth of its hole, it ducks
         /// under and goes after whoever did it.
         /// </summary>
-        public void Hurt(double damage)
+        public void Hurt(double damage, AmbusherBody body)
         {
             if (Mode == AmbusherMode.Hold) _hurt += Math.Max(0.0, damage);
-            else if (Mode == AmbusherMode.Lurk)
+            // With no jaws it has nothing to go after anyone with: it stays where it can be finished.
+            else if ((Mode == AmbusherMode.Lurk || Mode == AmbusherMode.Rise) && body != null && body.CanBite)
             {
                 _out = 0.0;
                 Enter(AmbusherMode.Withdraw);
@@ -218,13 +229,9 @@ namespace OrbitalAnte.Creatures
                 case AmbusherMode.Lurk:
                     _t += dt;
                     _out = 0.0;
-                    if (!body.CanBite)
-                    {
-                        Enter(AmbusherMode.Withdraw);
-                        _goAfter = false;
-                        break;
-                    }
                     if (felt) orders.TurnRate = Toward(bearing, _rules.aimTurn);
+                    // With no jaws it can only wait.
+                    if (!body.CanBite) break;
                     if (felt && level && senses.ClearLine && _t >= Settle && distance < _rules.strikeRange - 0.3)
                     {
                         Enter(AmbusherMode.Coil);
@@ -252,6 +259,12 @@ namespace OrbitalAnte.Creatures
                         var lead = flat + new Vec3d(senses.PlayerVelocity.X, 0, senses.PlayerVelocity.Z) * (senses.Hostile ? ahead : 0.0);
                         double leadBearing = Math.Atan2(lead.X, lead.Z);
                         _aim = Reach(lead.Magnitude);
+                        if (lead.Magnitude > _rules.strikeRange + 0.8)
+                        {
+                            // They have backed out of its reach: it does not throw itself at nothing. It sinks back.
+                            Enter(AmbusherMode.Lurk);
+                            break;
+                        }
                         if (_t >= LockAt)
                         {
                             // From here it is aimed: it swings the rest of the way to that one place and no further.
@@ -316,14 +329,16 @@ namespace OrbitalAnte.Creatures
                     if (distance > _rules.holdAt && distance > 1e-6) orders.Pull = flat * (-_rules.dragPace / distance);
                     orders.TurnRate = Toward(bearing, _rules.aimTurn * 2.0);
                     orders.Holding = true;
+                    orders.Slack = Math.Min(1.0, _hurt / Math.Max(1.0, _rules.letGoDamage));
                     _t = _held / Math.Max(0.1, _rules.holdSeconds);
                     break;
                 }
 
                 case AmbusherMode.Spent:
-                    _t += dt / Math.Max(0.1, _rules.spentSeconds);
+                    _t += dt / Math.Max(0.1, _maimed ? _rules.maimedSeconds : _rules.spentSeconds);
                     if (_t >= 1.0)
                     {
+                        _maimed = false;
                         Enter(AmbusherMode.Withdraw);
                         _goAfter = false;
                     }
@@ -343,9 +358,8 @@ namespace OrbitalAnte.Creatures
                     _out = 0.0;
                     if (!body.CanBite)
                     {
-                        // Nothing left to bite with: it stays down for good.
-                        _t = Math.Min(_t, 1.0);
-                        orders.Gone = true;
+                        // Nothing left to bite with: it comes back up where it is, and can only wait there.
+                        if (_t >= 1.0 && senses.ClearAbove) Enter(AmbusherMode.Rise);
                         break;
                     }
                     if (_t < 1.0 && !_goAfter) break;

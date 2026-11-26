@@ -70,6 +70,9 @@ namespace OrbitalAnte.Creatures
         readonly Transform[] _jaw = new Transform[AmbusherLayout.Jaws];
         readonly Transform[] _feeler = new Transform[AmbusherLayout.Feelers];
         readonly List<Collider> _colliders = new List<Collider>();
+        readonly List<MeshRenderer> _drawn = new List<MeshRenderer>();
+        readonly MeshRenderer[] _nodeDrawn = new MeshRenderer[AmbusherLayout.Nodes];
+        bool _lookedForWalker;
         Transform _rim;
         Vector3 _home, _playerWas;
         bool _playerKnown, _clearLine, _clearAbove, _solid = true, _felt;
@@ -119,6 +122,7 @@ namespace OrbitalAnte.Creatures
                 node.transform.SetParent(transform, false);
                 _node[i] = node.transform;
                 Transform mesh = Mesh(head ? AmbusherLayout.HeadPiece : AmbusherLayout.SegPiece, node.transform);
+                _nodeDrawn[i] = mesh.GetComponent<MeshRenderer>();
                 var box = node.AddComponent<BoxCollider>();
                 if (head)
                 {
@@ -162,6 +166,7 @@ namespace OrbitalAnte.Creatures
                 _colliders.Add(capsule);
             }
             // The ring of ground round its hole is only drawn.
+            foreach (MeshRenderer renderer in GetComponentsInChildren<MeshRenderer>()) _drawn.Add(renderer);
             _rim = Mesh(AmbusherLayout.RimPiece, transform, false);
             ModelDetail.Attach(gameObject, AmbusherLayout.Model, DetailRule.BodyRange, true);
             Everyone.Add(this);
@@ -257,7 +262,7 @@ namespace OrbitalAnte.Creatures
             Pose(dt, orders, senses);
             Solid(!Brain.Buried);
             // Out of the ground it moves fast: its hitboxes must be where it is drawn when a shot is traced.
-            if (_solid && orders.Mode != AmbusherMode.Lurk) Physics.SyncTransforms();
+            if (_solid && (orders.Mode == AmbusherMode.Coil || orders.Mode == AmbusherMode.Strike || (_clearLine && orders.Mode != AmbusherMode.Lurk))) Physics.SyncTransforms();
             if (hostile && orders.Bite > 0.0) Bite(eye, (float)orders.Bite, orders.Landed);
             if (hostile && orders.Holding) Drag(eye, transform.TransformDirection(V(orders.Pull)));
         }
@@ -269,6 +274,9 @@ namespace OrbitalAnte.Creatures
             _solid = solid;
             for (int i = 0; i < _colliders.Count; i++)
                 if (_colliders[i] != null) _colliders[i].enabled = solid;
+            // Nor is any of it drawn down there.
+            for (int i = 0; i < _drawn.Count; i++)
+                if (_drawn[i] != null) _drawn[i].enabled = solid;
         }
 
         Vector3 HeadPoint() => _node[0] != null ? _node[0].position : transform.position;
@@ -285,7 +293,11 @@ namespace OrbitalAnte.Creatures
         /// <summary>Whoever it holds goes where it drags them; they can still look round and shoot.</summary>
         void Drag(Transform eye, Vector3 velocity)
         {
-            if (_walker == null) _walker = eye.GetComponentInParent<FpsController>();
+            if (_walker == null && !_lookedForWalker)
+            {
+                _walker = eye.GetComponentInParent<FpsController>();
+                _lookedForWalker = true;
+            }
             if (_walker != null) _walker.Carry(velocity);
         }
 
@@ -302,14 +314,27 @@ namespace OrbitalAnte.Creatures
 
         void Pose(float dt, in AmbusherOrders orders, in AmbusherSenses senses)
         {
-            var input = new AmbusherAnimInput { Mode = orders.Mode, T = orders.T, Out = orders.Out, Feels = _felt, Player = senses.Player, Gone = orders.Gone };
+            var input = new AmbusherAnimInput { Mode = orders.Mode, T = orders.T, Out = orders.Out, Feels = _felt, Player = senses.Player, Slack = orders.Slack };
             _animator.Update(Body, input, dt, _pose);
+            Mound();
+            // Wholly under the ground nothing of it is drawn or can be hit: its pieces are left where they are.
+            if (Brain.Buried && !_solid) return;
             for (int i = 0; i < AmbusherLayout.Nodes; i++)
-                if (_node[i] != null) _node[i].SetLocalPositionAndRotation(V(_pose.NodePosition[i]), Q(_pose.NodeRotation[i]));
+            {
+                if (_node[i] == null) continue;
+                _node[i].SetLocalPositionAndRotation(V(_pose.NodePosition[i]), Q(_pose.NodeRotation[i]));
+                // What is down the burrow is not drawn.
+                bool shown = _pose.NodePosition[i].Y > -0.3;
+                if (_nodeDrawn[i] != null && _nodeDrawn[i].enabled != shown) _nodeDrawn[i].enabled = shown;
+            }
             for (int side = 0; side < AmbusherLayout.Jaws; side++)
                 if (_jaw[side] != null) _jaw[side].SetLocalPositionAndRotation(V(_pose.JawPosition[side]), Q(_pose.JawRotation[side]));
             for (int feeler = 0; feeler < AmbusherLayout.Feelers; feeler++)
                 if (_feeler[feeler] != null) _feeler[feeler].SetLocalPositionAndRotation(V(_pose.FeelerPosition[feeler]), Q(_pose.FeelerRotation[feeler]));
+        }
+
+        void Mound()
+        {
             if (_rim != null)
             {
                 // The ring of ground sinks flat when it has gone, swells as it comes up, and runs low while it tunnels.
@@ -325,7 +350,8 @@ namespace OrbitalAnte.Creatures
         public HitOutcome TakeHit(AmbusherPart part, in HitInfo hit)
         {
             var outcome = new HitOutcome { Hit = true };
-            if (!Alive || Brain.Buried) return outcome;
+            // Under the ground, and until its head is out of it again, nothing reaches it.
+            if (!Alive || Brain.Buried || (Brain.Mode == AmbusherMode.Rise && _pose.NodePosition[0].Y < 0.0)) return outcome;
             outcome.Enemy = true;
             AmbusherHit result;
             bool armour = false;
@@ -339,7 +365,7 @@ namespace OrbitalAnte.Creatures
                     {
                         LoseJaw(result.JawLost, hit.Direction);
                         // A jaw gone calls off a warning and lets go of whoever it holds.
-                        if (Brain.Flinch()) _animator.Flinch(new Vec3d(Random.Range(-2f, 2f), 0, -3.0));
+                        if (Brain.Flinch(Body)) _animator.Flinch(new Vec3d(Random.Range(-2f, 2f), 0, -3.0));
                     }
                     outcome.Severed = result.JawLost >= 0;
                     break;
@@ -363,7 +389,7 @@ namespace OrbitalAnte.Creatures
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
-            if (!killed) Brain.Hurt(hit.Damage);
+            if (!killed) Brain.Hurt(hit.Damage, Body);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0, push.z) * (outcome.Severed ? 1.5 : 0.5));
             GoreFx gore = GoreFx.Instance;
@@ -418,10 +444,22 @@ namespace OrbitalAnte.Creatures
         WalkerChunk Throw(Transform piece, string name, float mass, Vector3 velocity)
         {
             WalkerChunk chunk = WalkerChunk.Make(name, piece.position, piece.rotation, LooseParent, mass, _rules.pieceLife, _rules.maxLoosePieces);
+            Forget(piece);
             Loosen(piece, chunk.transform);
             chunk.Body.linearVelocity = velocity;
             chunk.Body.angularVelocity = Random.onUnitSphere * Random.Range(3f, 8f);
             return chunk;
+        }
+
+        /// <summary>A piece that has left is no longer switched off and on with the animal.</summary>
+        void Forget(Transform piece)
+        {
+            foreach (Collider collider in piece.GetComponents<Collider>()) _colliders.Remove(collider);
+            foreach (MeshRenderer renderer in piece.GetComponentsInChildren<MeshRenderer>())
+            {
+                _drawn.Remove(renderer);
+                renderer.enabled = true;
+            }
         }
 
         static void Loosen(Transform piece, Transform chunk, bool solid = true)

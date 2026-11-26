@@ -447,6 +447,63 @@ def membrane(name, colour=(0.42, 0.25, 0.15), seed=0.0, along='Y', size=1.0):
     return m.finish(shade, m.lerp(0.22, 0.40, wrinkle), 0.0, height, occlusion=near)
 
 
+def sheen(name, base=(0.060, 0.030, 0.045), under=(0.30, 0.17, 0.15), lights=((0.05, 0.42, 0.30), (0.10, 0.22, 0.62), (0.42, 0.12, 0.50), (0.62, 0.34, 0.08)),
+          seed=0.0, ring=0.030, along='Y', gloss=0.74, strength=0.6):
+    """The wet skin of a bristle worm: dark, ringed all the way along, and shot with colours like oil on water
+    that change with the way the surface faces (green, blue, violet, copper). Paler underneath; dull dirt in the
+    grooves where things crowd together."""
+    m = Tree(name)
+    rings = m.bands(along, ring, distortion=0.5, detail=2.0)
+    cloud = m.noise(5.0, 4.0, 0.6, shift=(seed, 0, 0))
+    fine = m.noise(60.0, 3.0, 0.6, shift=(0, seed, 0))
+    colour = m.mix(tuple(c * 0.6 for c in base), tuple(min(1.0, c * 1.5) for c in base), m.lerp(cloud, fine, 0.4))
+    facing_up = m.up()
+    # Where on the film's run of colours this spot is: it follows the facing, and wanders.
+    film = m.add(m.add(m.mul(facing_up, 0.45), m.mul(cloud, 0.9)), m.mul(m.noise(1.6, 3.0, 0.5, shift=(0, 0, seed)), 0.8))
+    for k, light in enumerate(lights):
+        middle = 0.30 + 0.28 * k
+        band = m.mul(m.step(film, middle - 0.16, middle - 0.02), m.sub(1.0, m.step(film, middle + 0.02, middle + 0.16)))
+        colour = m.mix(colour, light, m.mul(band, m.mul(strength, m.lerp(0.55, 1.0, fine))))
+    below = m.step(m.mul(facing_up, -1.0), 0.05, 0.8)
+    colour = m.mix(colour, m.mix(tuple(c * 0.75 for c in under), under, cloud), m.mul(below, 0.85))
+    # The grooves between the rings are darker.
+    colour = m.mix(colour, tuple(c * 0.35 for c in base), m.mul(m.sub(1.0, m.step(rings, 0.0, 0.35)), 0.7))
+    near = m.hollows(0.03)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.92))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.8))
+    smoothness = m.lerp(m.lerp(gloss - 0.1, gloss + 0.08, cloud), 0.15, grime)
+    height = m.add(m.mul(rings, 0.0022), m.mul(fine, 0.0004))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def banded(name, light=(0.62, 0.50, 0.32), dark=(0.10, 0.05, 0.04), period=0.09, along='Y', seed=0.0, gloss=0.45):
+    """A feeler in light and dark bands along its length, finely ringed."""
+    m = Tree(name)
+    stripe = m.step(m.bands(along, period), 0.42, 0.58)
+    fine = m.bands(along, period / 7.0)
+    cloud = m.noise(30.0, 3.0, 0.6, shift=(seed, 0, 0))
+    colour = m.mix(dark, light, stripe)
+    colour = m.mix(colour, tuple(c * 0.6 for c in dark), m.mul(m.sub(1.0, m.step(fine, 0.0, 0.4)), 0.4))
+    colour = m.mix(colour, tuple(c * 0.8 for c in light), m.mul(cloud, 0.2))
+    near = m.hollows(0.02)
+    return m.finish(colour, m.lerp(gloss - 0.1, gloss + 0.1, cloud), 0.0, m.mul(fine, 0.0008), occlusion=near)
+
+
+def earth(name, colour=(0.21, 0.18, 0.15), seed=0.0):
+    """Ground thrown up out of a hole: clods and grit, dull, darker and damp toward the bottom of the heap's folds."""
+    m = Tree(name)
+    clod_at, clod_rnd = m.cells(16.0, shift=(seed, 0, 0), soft=0.4)
+    clod = m.mul(m.step(m.sub(0.5, clod_at), 0.0, 0.4), m.step(clod_rnd, 0.3, 0.6))
+    grit_at, grit_rnd = m.cells(70.0, shift=(0, seed, 0), soft=0.3)
+    grit = m.mul(m.step(m.sub(0.5, grit_at), 0.0, 0.35), m.step(grit_rnd, 0.4, 0.6))
+    cloud = m.noise(4.0, 4.0, 0.6, shift=(0, 0, seed))
+    shade = m.mix(tuple(c * 0.6 for c in colour), tuple(min(1.0, c * 1.3) for c in colour), m.lerp(cloud, clod_rnd, 0.4))
+    near = m.hollows(0.05)
+    shade = m.mix(shade, tuple(c * 0.35 for c in colour), m.mul(m.sub(1.0, m.step(near, 0.35, 0.95)), 0.8))
+    height = m.add(m.mul(clod, 0.012), m.mul(grit, 0.0025))
+    return m.finish(shade, 0.06, 0.0, height, occlusion=near)
+
+
 def flesh(name, pale=(0.72, 0.58, 0.50), red=(0.42, 0.045, 0.035), seed=0.0, size=1.0, along='Y'):
     """Torn meat at a wound, the inside of a broken shell: pale wet muscle in bundles running along the limb,
     red where it is torn deepest, dark clots, shiny."""
