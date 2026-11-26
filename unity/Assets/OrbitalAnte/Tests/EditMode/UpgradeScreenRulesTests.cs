@@ -122,6 +122,76 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(250, later.Attributes.NextPrice(PlayerAttribute.Damage));
         }
 
+        [TestCase(0, false, 250, 0)]
+        [TestCase(249, false, 1, 249)]
+        [TestCase(250, true, 0, 0)]
+        [TestCase(int.MaxValue, true, 0, int.MaxValue - 250)]
+        public void ShopQuote_MatchesPurchaseWithoutSpendingOrLevelling(int wallet, bool canBuy, int needed, int left)
+        {
+            var run = RunWithTarget();
+            run.Ledger.AddScore(wallet);
+            var quote = run.Attributes.Quote(PlayerAttribute.Damage, run.Ledger);
+            Assert.AreEqual(250, quote.Price);
+            Assert.AreEqual(canBuy, quote.CanBuy);
+            Assert.AreEqual(needed, quote.PointsNeeded);
+            Assert.AreEqual(left, quote.WalletAfter);
+            Assert.AreEqual(0, run.Attributes.Level(PlayerAttribute.Damage));
+            Assert.AreEqual(wallet, run.Ledger.SpendablePoints);
+            Assert.AreEqual(canBuy, run.TryBuyAttribute(PlayerAttribute.Damage));
+            Assert.AreEqual(left, run.Ledger.SpendablePoints);
+            Assert.AreEqual(wallet, run.Ledger.AnteEarned);
+            Assert.AreEqual(wallet, run.Ledger.LifetimeRunScore);
+        }
+
+        [Test]
+        public void ShopQuote_WaitingUsesTheSameLevelAtTheActualNextAntePrice()
+        {
+            var run = RunWithTarget();
+            run.Ledger.AddScore(300);
+            Assert.IsTrue(run.TryBuyAttribute(PlayerAttribute.Damage));
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            var quote = run.Attributes.Quote(PlayerAttribute.Damage, run.Ledger);
+            Assert.AreEqual(450, quote.Price);
+            Assert.AreEqual(560, quote.PriceNextAnte);
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.AreEqual(quote.PriceNextAnte, run.Attributes.NextPrice(PlayerAttribute.Damage));
+        }
+
+        [Test]
+        public void APriceAboveTheWalletLimitStaysPurchasableWithAFullWallet()
+        {
+            int ante = 1;
+            var shop = new AttributeShop(new AnteBalance { damagePrices = new[] { int.MaxValue } }, () => ante);
+            var ledger = new RunLedger();
+            ledger.AddBankOnly(int.MaxValue);
+            Assert.AreEqual(int.MaxValue, shop.Quote(PlayerAttribute.Damage, ledger).PriceNextAnte);
+            ante++;
+            Assert.IsTrue(shop.TryBuy(PlayerAttribute.Damage, ledger));
+            Assert.AreEqual(0, ledger.SpendablePoints);
+        }
+
+        [Test]
+        public void ShopQuote_HandlesUnchangedPricesFreeLevelsAndSoldOutUpgrades()
+        {
+            var balance = new AnteBalance { damagePrices = new[] { 0, 250 }, valueScaleLinear = 0f, valueScaleQuadratic = 0.001f };
+            var shop = new AttributeShop(balance, () => 1);
+            var ledger = new RunLedger();
+            Assert.IsTrue(shop.Quote(PlayerAttribute.Damage, ledger).CanBuy, "a free level needs no points");
+            Assert.IsTrue(shop.TryBuy(PlayerAttribute.Damage, ledger));
+            var rounded = shop.Quote(PlayerAttribute.Damage, ledger);
+            Assert.AreEqual(250, rounded.PriceNextAnte, "a rising scale can still round to the current price");
+            balance.valueScaleLinear = 1f;
+            balance.shopPricesFollowValue = false;
+            Assert.AreEqual(250, shop.Quote(PlayerAttribute.Damage, ledger).PriceNextAnte);
+            ledger.AddBankOnly(250);
+            Assert.IsTrue(shop.TryBuy(PlayerAttribute.Damage, ledger));
+            var soldOut = shop.Quote(PlayerAttribute.Damage, ledger);
+            Assert.AreEqual(-1, soldOut.Price);
+            Assert.AreEqual(-1, soldOut.PriceNextAnte);
+            Assert.AreEqual(0, soldOut.PointsNeeded);
+            Assert.IsFalse(soldOut.CanBuy);
+        }
+
         [Test]
         public void TheFieldPickAndRerolls_SurviveASaveAndLoad()
         {

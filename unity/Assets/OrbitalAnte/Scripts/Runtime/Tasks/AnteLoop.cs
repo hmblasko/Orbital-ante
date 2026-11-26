@@ -166,6 +166,8 @@ namespace OrbitalAnte.Tasks
             {
                 // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
                 PopLook look = PopFeedback.For(scoreEvent, result, PopFeedback.BigAt(loop.Run.Balance, loop.Run.Director.Ante));
+                if (result.chainBonusUsed)
+                    loop.Pop("Includes " + N(result.chainBonusPoints) + " from Change of Pace");
                 loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label, look);
             }
             loop.AfterReport(scoreEvent, result, label);
