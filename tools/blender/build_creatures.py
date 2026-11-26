@@ -1873,7 +1873,10 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
         if "only" in frames:
             frames["first"], frames["last"], frames["every"] = frames["only"], frames["only"] + 1, 1
         first, last, every = frames.get("first", 0), frames.get("last", len(frames["frames"])), frames.get("every", 1)
-        extra = person(frames["person"]) if "person" in frames else []
+        # "clean": true draws the animal alone on plain pale grey with no floor and nobody beside it: a reference
+        # picture (for a concept sheet, or to hand to a model generator).
+        clean = bool(frames.get("clean"))
+        extra = person(frames["person"]) if "person" in frames and not clean else []
         for k in range(first, last, every):
             shot = frames["frames"][k]
             placed = [(p["piece"], Matrix([p["m"][0:4], p["m"][4:8], p["m"][8:12], p["m"][12:16]])) for p in shot["pieces"]]
@@ -1884,10 +1887,11 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
                     o.data.materials.append(look)
             eye, target = shot.get("eye", frames["eye"]), shot.get("target", frames["target"])
             # A frame may say where the person stands in it (someone being dragged).
-            walker = person(shot["person"]) if "person" in shot else []
+            walker = person(shot["person"]) if "person" in shot and not clean else []
             shown = shown + walker
             mats.render(os.path.join(previews, "%s_%s_%04d.png" % (tag, frames["name"], k)), shown + extra, None, eye, target,
-                        lens=frames.get("lens", 30), size=tuple(frames.get("size", (960, 600))), samples=frames.get("samples", 16), floor=0.0, sun=(52, 12, 28))
+                        lens=frames.get("lens", 30), size=tuple(frames.get("size", (960, 600))), samples=frames.get("samples", 16), floor=None if clean else 0.0, sun=(52, 12, 28),
+                        **({"world": (0.86, 0.86, 0.86), "sky": 1.15, "sun_energy": 2.6} if clean else {}))
             for o in shown:
                 bpy.data.objects.remove(o)
         return
