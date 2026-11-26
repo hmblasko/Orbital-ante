@@ -217,6 +217,29 @@ namespace OrbitalAnte.Creatures
                 pose.NodeRotation[i] = WalkerAnimator.Look(f, up).Normalized;
             }
 
+            // ---- joint to joint
+            // The body is one skin cut at its joints, so two lengths must meet at the same point however the body
+            // bends or thrashes: a joint is half way between two nodes, and each length is laid from the joint in
+            // front of it toward the joint behind. (Laid by their middles, a sideways wave parted the ends.)
+            Vec3d neck = nodes > 1 ? (pose.NodePosition[0] + pose.NodePosition[1]) * 0.5 : pose.NodePosition[0];
+            Vec3d front = neck;
+            for (int i = 1; i < nodes; i++)
+            {
+                Vec3d back = i + 1 < nodes
+                    ? (pose.NodePosition[i] + pose.NodePosition[i + 1]) * 0.5
+                    : pose.NodePosition[i] + (pose.NodePosition[i] - front);
+                Vec3d f = front - back;
+                if (f.SqrMagnitude > 1e-9)
+                {
+                    f = f.Normalized;
+                    var level = new Vec3d(f.X, 0, f.Z);
+                    level = level.SqrMagnitude > 1e-9 ? level.Normalized : Vec3d.Forward;
+                    pose.NodeRotation[i] = WalkerAnimator.Look(f, Vec3d.Up - level * f.Y).Normalized;
+                    pose.NodePosition[i] = front - f * (StalkerLayout.Spacing * 0.5);
+                }
+                front = back;
+            }
+
             // ---- the head: round to what it heard, sweeping when it casts about, up for the warning
             double lookWant = 0.0;
             if (input.HasPlace && input.Place.SqrMagnitude > 0.01 && mode != StalkerMode.Lunge)
@@ -226,10 +249,10 @@ namespace OrbitalAnte.Creatures
             _lookYaw += (lookWant - _lookYaw) * Math.Min(1.0, dt * 5.0);
             double headPitch = -0.30 * (_lift / 0.22) - 0.25 * _whip + 0.04 * Math.Sin(_time * 0.9);
             QuatD head = (pose.NodeRotation[0] * QuatD.AngleAxis(Vec3d.Up, _lookYaw) * QuatD.AngleAxis(Vec3d.Right, headPitch)).Normalized;
-            // It turns its head at the neck, half a spacing behind the head's node, so the skin of the head and of the
+            // It turns its head at the neck, the joint it shares with the first length, so the skin of the head and of the
             // neck stay together there however far it looks round.
             var toNeck = new Vec3d(0, 0, -StalkerLayout.Spacing * 0.5);
-            pose.NodePosition[0] = pose.NodePosition[0] + pose.NodeRotation[0].Rotate(toNeck) - head.Rotate(toNeck);
+            pose.NodePosition[0] = neck - head.Rotate(toNeck);
             pose.NodeRotation[0] = head;
             pose.JawPosition = pose.NodePosition[0] + head.Rotate(StalkerLayout.JawHinge);
             pose.JawRotation = (head * QuatD.AngleAxis(Vec3d.Right, pose.Gape * StalkerLayout.JawSwing)).Normalized;

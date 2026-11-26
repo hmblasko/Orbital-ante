@@ -61,6 +61,12 @@ namespace OrbitalAnte.Creatures
         /// <summary>How wide a segment is at its middle beside the widest: the first few behind the head are a little slimmer. (For hitboxes and wounds: the model's own outline passes through these.)</summary>
         public static double Scale(int seg) => seg >= NeckSegs ? 1.0 : 0.82 + 0.06 * seg;
         /// <summary>
+        /// A length's ends are round and reach past its joints (a ball about the back joint, a tuck at the front), so a
+        /// wound at a cut sits this far beyond the joint, or it would be buried in the skin.
+        /// </summary>
+        public const double WoundOutBack = 0.095, WoundOutFront = 0.035;
+
+        /// <summary>
         /// The body is one skin cut at its joints, every piece ending exactly as wide as the next begins and drawn at
         /// its modelled size. The lengths behind the head widen from the neck, so each has a piece of its own ("Seg0"
         /// to "Seg2"); the rest are all alike and share "Seg".

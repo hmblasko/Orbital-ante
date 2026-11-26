@@ -110,7 +110,7 @@ namespace OrbitalAnte.Creatures
             for (int i = 0; i < StalkerLayout.Nodes; i++)
             {
                 bool head = i == 0, tail = !head && StalkerLayout.IsTail(i - 1);
-                                var node = new GameObject(head ? "Head" : tail ? "Tail " + (i - 1) : "Body " + (i - 1));
+                var node = new GameObject(head ? "Head" : tail ? "Tail " + (i - 1) : "Body " + (i - 1));
                 node.layer = Layers.Hitbox;
                 node.transform.SetParent(transform, false);
                 _node[i] = node.transform;
@@ -175,7 +175,10 @@ namespace OrbitalAnte.Creatures
             var go = new GameObject(piece);
             go.layer = hitbox ? Layers.Hitbox : Layers.Gib;
             go.transform.SetParent(parent, false);
-            go.AddComponent<MeshFilter>().sharedMesh = ModelLibrary.PartMesh(StalkerLayout.Model, piece);
+            UnityEngine.Mesh shape = ModelLibrary.PartMesh(StalkerLayout.Model, piece);
+            // An old model file has no piece of this name: say so, or the body would be hittable and not drawn.
+            if (shape == null) Debug.LogWarning("The " + StalkerLayout.Model + " model has no piece called " + piece + ". Build the model again (tools/blender/build_creatures.py).");
+            go.AddComponent<MeshFilter>().sharedMesh = shape;
             Quiet(go.AddComponent<MeshRenderer>());
             return go.transform;
         }

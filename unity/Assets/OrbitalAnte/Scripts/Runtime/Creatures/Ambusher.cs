@@ -116,7 +116,7 @@ namespace OrbitalAnte.Creatures
             for (int i = 0; i < AmbusherLayout.Nodes; i++)
             {
                 bool head = i == 0;
-                // The node itself is never scaled, so wounds and colliders on it keep their shape; its mesh is.
+                // The node itself is never scaled, so wounds and colliders on it keep their shape; its mesh is drawn at its modelled size.
                 var node = new GameObject(head ? "Head" : "Body " + (i - 1));
                 node.layer = Layers.Hitbox;
                 node.transform.SetParent(transform, false);
@@ -177,7 +177,10 @@ namespace OrbitalAnte.Creatures
             var go = new GameObject(piece);
             go.layer = hitbox ? Layers.Hitbox : Layers.Gib;
             go.transform.SetParent(parent, false);
-            go.AddComponent<MeshFilter>().sharedMesh = ModelLibrary.PartMesh(AmbusherLayout.Model, piece);
+            UnityEngine.Mesh shape = ModelLibrary.PartMesh(AmbusherLayout.Model, piece);
+            // An old model file has no piece of this name: say so, or the body would be hittable and not drawn.
+            if (shape == null) Debug.LogWarning("The " + AmbusherLayout.Model + " model has no piece called " + piece + ". Build the model again (tools/blender/build_creatures.py).");
+            go.AddComponent<MeshFilter>().sharedMesh = shape;
             Quiet(go.AddComponent<MeshRenderer>());
             return go.transform;
         }
@@ -526,8 +529,8 @@ namespace OrbitalAnte.Creatures
                 if (cut >= 0 && i == cut + 1)
                 {
                     // The length that was shot through shows the wound at both its ends.
-                    Wound(node, new Vector3(0f, 0f, (float)AmbusherLayout.Spacing * 0.5f), Quaternion.identity, cutWide);
-                    Wound(node, new Vector3(0f, 0f, -(float)AmbusherLayout.Spacing * 0.5f), Quaternion.Euler(0f, 180f, 0f), cutWide);
+                    Wound(node, new Vector3(0f, 0f, (float)(AmbusherLayout.Spacing * 0.5 + AmbusherLayout.WoundOutFront)), Quaternion.identity, cutWide);
+                    Wound(node, new Vector3(0f, 0f, -(float)(AmbusherLayout.Spacing * 0.5 + AmbusherLayout.WoundOutBack)), Quaternion.Euler(0f, 180f, 0f), cutWide);
                 }
                 if (i != 0) continue;
                 for (int side = 0; side < AmbusherLayout.Jaws; side++)
