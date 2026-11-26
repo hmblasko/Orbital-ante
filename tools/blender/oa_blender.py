@@ -440,6 +440,39 @@ def _thinned(obj, ratio):
     return copy
 
 
+def _halved(obj, times=1):
+    """A copy of a shape that is a regular net (an arched plate), with every other row and column taken out
+    `times` over. Unlike collapsing, this keeps its edges straight and its curve even, so it never crumples or
+    opens; its paint and its places on the pictures are kept."""
+    copy = obj.copy()
+    copy.data = obj.data.copy()
+    bpy.context.scene.collection.objects.link(copy)
+    bm = bmesh.new()
+    bm.from_mesh(copy.data)
+    bmesh.ops.join_triangles(bm, faces=bm.faces[:], cmp_seam=False, cmp_sharp=False, cmp_uvs=True, cmp_vcols=False, cmp_materials=True,
+                             angle_face_threshold=3.2, angle_shape_threshold=3.2)
+    bm.to_mesh(copy.data)
+    bm.free()
+    mod = copy.modifiers.new("halve", 'DECIMATE')
+    mod.decimate_type = 'UNSUBDIV'
+    mod.iterations = 2 * times
+    graph = bpy.context.evaluated_depsgraph_get()
+    mesh = bpy.data.meshes.new_from_object(copy.evaluated_get(graph), preserve_all_data_layers=True, depsgraph=graph)
+    copy.modifiers.remove(mod)
+    old = copy.data
+    copy.data = mesh
+    _carry_paint(old, mesh)
+    bpy.data.meshes.remove(old)
+    bm = bmesh.new()
+    bm.from_mesh(copy.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.to_mesh(copy.data)
+    bm.free()
+    for p in copy.data.polygons:
+        p.use_smooth = True
+    return copy
+
+
 _VIEWS = []
 
 
@@ -642,7 +675,7 @@ def _carry_paint(full, thinned):
             layer.data[i].color = c
 
 
-def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=(), thin_too=()):
+def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out=(), thin_too=(), halve=()):
     """The far copy of a model: the same pieces by the same names, in about `target` triangles in all.
 
     parts is a list of (name, [objects]) as export() takes it; the result is another, made of new objects (the
@@ -661,17 +694,25 @@ def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out
     else, the rounded shapes that carry most of the triangles and thin gracefully, is thinned by the same
     share, found by trying, with none taken below `least` triangles. A shape named in `leave_out` is not in
     the far copy at all: for one that barely shows in the full model and pokes through its cover when thinned.
+    A shape named in `halve` is a regular net too fine to keep whole and too open to collapse (an arched plate):
+    every other row and column is taken out of it (see _halved).
     A shape named in `thin_too` is thinned however small it is: for small rounded things there are many of
     (fingers), which thin without crumpling and would otherwise take the triangles the limbs need.
 
     The line it prints says how often the far copy is seen from inside (see inside_out_share). It should say
     0.00%, as the full model does: anything else is a hole to go and look for in the preview, in magenta.
     """
-    keep, leave_out, thin_too = set(keep), set(leave_out), set(thin_too)
+    keep, leave_out, thin_too, halve = set(keep), set(leave_out), set(thin_too), set(halve)
 
     def kept_whole(o, n):
         base = o.name.split(".")[0]
         return (n <= whole and base not in thin_too) or base in keep
+
+    def one(o, ratio):
+        n = _triangle_count(o)
+        if o.name.split(".")[0] in halve:
+            return _halved(o)
+        return _thinned(o, 1.0 if kept_whole(o, n) else max(ratio, least / float(n)))
 
     plain, fixed = [], 0
     for name, objects in parts:
@@ -686,10 +727,7 @@ def thin(parts, target, drop_below=0.035, whole=64, least=24, keep=(), leave_out
     def made(ratio, keep):
         total, out = fixed, []
         for name, objects in plain:
-            copies = []
-            for o in objects:
-                n = _triangle_count(o)
-                copies.append(_thinned(o, 1.0 if kept_whole(o, n) else max(ratio, least / float(n))))
+            copies = [one(o, ratio) for o in objects]
             biggest = max(range(len(objects)), key=lambda k: max(objects[k].dimensions)) if objects else -1
             copies = _drop_hidden(copies, objects)
             if objects and all(c is None for c in copies):

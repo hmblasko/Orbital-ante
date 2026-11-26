@@ -841,7 +841,7 @@ ROLLER_FLAT = {"plate": ((0.44, 0.38, 0.43), 0.42), "margin": ((0.64, 0.58, 0.55
                "joint": ((0.50, 0.40, 0.36), 0.2), "flesh": ((0.78, 0.50, 0.44), 0.6), "eye": ((0.07, 0.06, 0.08), 0.85)}
 ROLLER_MATERIALS = {
     "plate": lambda: mats.chitin("plate", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=21.0, bumps=0.30, growth=0.25, mottle=0.45, gloss=0.50),
-    "margin": lambda: mats.chitin("margin", (0.40, 0.34, 0.34), (0.60, 0.54, 0.50), SOOT, under=(0.58, 0.50, 0.46), seed=22.0, bumps=0.15, growth=0.15, mottle=0.3, gloss=0.52, vein_show=0.6, wrinkles=0.4),
+    "margin": lambda: mats.chitin("margin", (0.40, 0.34, 0.34), (0.60, 0.54, 0.50), SOOT, under=(0.58, 0.50, 0.46), seed=22.0, bumps=0.15, growth=0.15, mottle=0.3, gloss=0.52),
     "head": lambda: mats.chitin("head", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=23.0, bumps=0.45, growth=0.2, mottle=0.5, gloss=0.48),
     "tail": lambda: mats.chitin("tail", MAUVE, BONE, SOOT, under=(0.58, 0.50, 0.46), seed=24.0, bumps=0.40, growth=0.3, mottle=0.5, gloss=0.46),
     "under": lambda: mats.chitin("under", (0.36, 0.28, 0.26), (0.52, 0.45, 0.40), (0.12, 0.07, 0.06), seed=25.0, bumps=0.2, growth=0.0, mottle=0.5, gloss=0.30),
@@ -853,7 +853,7 @@ ROLLER_MATERIALS = {
 }
 
 
-def arch(name, rows, thickness, around, tuck=35.0):
+def arch(name, rows, thickness, around, tuck=35.0, smooth=50.0):
     """A curved roof plate with thickness. rows: (y, half width, top, skirt depth), front to back; the cross-section
     is half an oval over the spine with a skirt each side that tucks in under it."""
     def profile(half, top, skirt, inset):
@@ -879,13 +879,29 @@ def arch(name, rows, thickness, around, tuck=35.0):
     for outer, inner in (rings[0], rings[-1]):
         for k in range(around):
             bm.faces.new((outer[k], outer[k + 1], inner[k + 1], inner[k]))
-    return oa._new_object(name, bm, (0.5, 0.5, 0.5), 50.0)
+    return oa._new_object(name, bm, (0.5, 0.5, 0.5), smooth)
 
 
 def roller(hi):
     g = Maker(hi, ROLLER_FLAT, ROLLER_MATERIALS)
     L = ROLLER
     up = (0, 0, 1)
+
+    def whip(name, base, way, length, radius, bend, around, cuts):
+        """A feeler: a long tapering whip in one smooth curve, thick and ringed where it leaves the head."""
+        base, way, bend = Vector(base), Vector(way).normalized(), Vector(bend)
+        side = way.orthogonal().normalized()
+        other = way.cross(side)
+        n = around * 4 if hi else around
+        cuts = cuts * 5 if hi else cuts
+        rings = []
+        for i in range(cuts + 1):
+            t = i / cuts
+            thick = radius * (1.25 - 0.25 * min(1.0, t / 0.06)) * (1.0 - 0.93 * t ** 0.8)
+            if hi:
+                thick *= 1.0 + 0.06 * math.sin(t * length * 2 * math.pi / 0.03)
+            rings.append(real.ring(base - way * (radius * 0.4) * (1 - t) + way * (length * t) + bend * (length * t * t), side, other, max(thick, 0.0015), max(thick, 0.0015), n))
+        return real.loft(name, rings, (0.5, 0.5, 0.5), smooth=80.0)
     seg, back, belly = L["seg"], L["back"], L["belly"]
 
     # ------------------------------------------------------------- Plate: an arch of armour, its rear edge over the next one
@@ -894,17 +910,18 @@ def roller(hi):
     # Front to back: it starts narrow and low, tucked under the plate before it, and is full size where that one ends.
     shape = [(1.00, 0.860, 0.860, 0.80), (0.80, 0.905, 0.905, 0.92), (0.60, 0.950, 0.950, 1.0), (0.42, 0.992, 0.992, 1.0), (0.15, 1.000, 1.000, 1.0), (0.00, 0.988, 0.980, 1.0)]
     rows = []
-    cuts = 28 if hi else 0
-    if hi:
+    # (The game's plate is cut finely enough that its curve is a curve: it is the animal's outline.)
+    cuts = 28 if hi else 8
+    if cuts:
         shape = [(1.0 - i / cuts,) + tuple(real.along([(1.0 - k[0],) + k[1:] for k in shape], i / cuts)) for i in range(cuts + 1)]
     for t, wide, tall, skirt in shape:
         rows.append((rear + (front - rear) * t, half * wide, back * tall, L["skirt"] * skirt))
-    plate = arch("plate", rows, 0.030, 56 if hi else 12)
+    plate = arch("plate", rows, 0.030, 56 if hi else 24, smooth=72.0)
     if hi:
         # Fine growth lines across the plate and a slow unevenness, for the bake.
         real.displace(plate, lambda p: 0.0016 * math.sin(p.y * 190.0) + 0.004 * noise.noise(p * 7.0)
                       + 0.010 * math.exp(-(p.x / 0.05) ** 2) * max(0.0, p.z / back))        # a low keel down the middle of the back
-    g.add(plate, "plate", "Plate", second=("margin", lambda c, n: c.y < rear + 0.050))
+    g.add(plate, "plate", "Plate", second=("margin", lambda c, n: c.y < rear + 0.050), smooth=72.0)
 
     # ------------------------------------------------------------- Seg: the soft body under a plate, with a hip each side
     # From 0.26 above the spine (under the plate) to the belly below it.
@@ -918,10 +935,10 @@ def roller(hi):
             fold = 1.0 + 0.018 * math.sin(math.pi * 2 * t / 0.045)
             ridged.append((t, rs * fold, rf * fold, 0, of))
         keys = ridged
-    g.add(g.skin("seg", (0, -seg * 0.5 - 0.015, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=2.6), "under", "Seg")
+    g.add(g.skin("seg", (0, -seg * 0.5 - 0.015, 0.0), (0, 1, 0), up, keys, around=16, step=0.06, power=2.6), "under", "Seg", smooth=80.0)
     hip = Vector(L["hip"])
     for side in (-1, 1):
-        g.add(g.ball("hip", (side * hip.x, 0, hip.z), 0.060, scale=(1.0, 1.1, 0.9), around=6), "joint", "Seg")
+        g.add(g.ball("hip", (side * hip.x, 0, hip.z), 0.060, scale=(1.0, 1.1, 0.9), around=9), "joint", "Seg", smooth=80.0)
         # The swimming flap under each side (only its shape in the pictures).
         g.add(g.ball("flap", (side * 0.16, -0.02, -belly + 0.012), 0.10, scale=(1.3, 1.0, 0.22), around=8), "under", "Seg", only='hi')
 
@@ -929,26 +946,28 @@ def roller(hi):
     hl = L["head"]
     hk = [(0.00, 0.385, 0.185, 0, 0.030), (0.05, 0.400, 0.205, 0, 0.030), (0.16, 0.385, 0.200, 0, 0.026), (0.24, 0.300, 0.165, 0, 0.012),
           (0.295, 0.170, 0.095, 0, -0.010), (0.31, 0.070, 0.040, 0, -0.020)]
-    g.add(g.skin("head", (0, -hl * 0.5, 0.0), (0, 1, 0), up, hk, around=14, step=0.07, power=2.4), "head", "Head")
-    brow = arch("brow", [(hl * 0.5 - 0.02, 0.30, 0.215, 0.02), (0.02, 0.395, 0.236, 0.05), (-hl * 0.5 - 0.03, 0.400, 0.238, 0.08)], 0.026, 40 if hi else 10, tuck=18.0)
-    g.add(brow, "head", "Head", second=("margin", lambda c, n: c.y < -hl * 0.5 + 0.015))
+    g.add(g.skin("head", (0, -hl * 0.5, 0.0), (0, 1, 0), up, hk, around=22, step=0.035, power=2.4), "head", "Head", smooth=80.0)
+    brow_rows = [(hl * 0.5 - 0.02, 0.30, 0.215, 0.02), (0.02, 0.395, 0.236, 0.05), (-hl * 0.5 - 0.03, 0.400, 0.238, 0.08)]
+    brow_rows = [(hl * 0.5 - 0.02 - (hl + 0.01) * i / 7,) + tuple(real.along([(hl * 0.5 - 0.02 - k[0],) + k[1:] for k in brow_rows], (hl + 0.01) * i / 7)) for i in range(8)]
+    brow = arch("brow", brow_rows, 0.026, 40 if hi else 20, tuck=18.0, smooth=72.0)
+    g.add(brow, "head", "Head", second=("margin", lambda c, n: c.y < -hl * 0.5 + 0.015), smooth=72.0)
     for side in (-1, 1):
-        g.add(g.ball("eye", (side * 0.275, 0.085, 0.095), 0.092, scale=(0.80, 1.45, 0.62), around=8), "eye", "Head")
+        g.add(g.ball("eye", (side * 0.275, 0.085, 0.095), 0.092, scale=(0.80, 1.45, 0.62), around=14), "eye", "Head", smooth=80.0)
         g.add(g.ball("eye rim", (side * 0.262, 0.080, 0.088), 0.098, scale=(0.80, 1.5, 0.60), around=8), "head", "Head", only='hi')
         # The long feeler and the short one, swept forward and out.
-        g.add(g.spine("feeler", (side * 0.135, 0.125, -0.020), (side * 0.75, 1.0, 0.10), 0.52, 0.020, around=5, bend=(side * 0.55, -0.25, -0.12)), "leg", "Head")
-        g.add(g.spine("short feeler", (side * 0.060, 0.140, -0.035), (side * 0.25, 1.0, -0.05), 0.20, 0.014, around=4, bend=(side * 0.2, 0, -0.2)), "leg", "Head")
+        g.add(whip("feeler", (side * 0.135, 0.125, -0.020), (side * 0.75, 1.0, 0.10), 0.52, 0.022, (side * 0.55, -0.25, -0.12), 6, 9), "leg", "Head", smooth=80.0)
+        g.add(whip("short feeler", (side * 0.060, 0.140, -0.035), (side * 0.25, 1.0, -0.05), 0.20, 0.015, (side * 0.2, 0, -0.2), 5, 5), "leg", "Head", smooth=80.0)
         # Jaw plates under the front.
-        g.add(g.ball("mouth", (side * 0.055, 0.085, -0.130), 0.062, scale=(0.9, 1.3, 0.7), around=6), "joint", "Head")
+        g.add(g.ball("mouth", (side * 0.055, 0.085, -0.130), 0.062, scale=(0.9, 1.3, 0.7), around=9), "joint", "Head", smooth=80.0)
 
     # ------------------------------------------------------------- Tail: a flat fan with a spined rear edge and a paddle each side
     tl = L["tail"]
     tk = [(0.00, 0.380, 0.165, 0, 0.025), (0.06, 0.405, 0.172, 0, 0.022), (0.20, 0.375, 0.130, 0, 0.010), (0.33, 0.275, 0.070, 0, 0.0),
           (0.40, 0.165, 0.034, 0, -0.006), (0.418, 0.070, 0.018, 0, -0.008)]
-    g.add(g.skin("tail", (0, tl * 0.5, 0.0), (0, -1, 0), up, tk, around=14, step=0.08, power=2.3), "tail", "Tail")
-    g.add(g.ball("tail ridge", (0, -0.02, 0.105), 0.07, scale=(0.6, 2.4, 0.5), around=7), "tail", "Tail")
+    g.add(g.skin("tail", (0, tl * 0.5, 0.0), (0, -1, 0), up, tk, around=22, step=0.04, power=2.3), "tail", "Tail", smooth=80.0)
+    g.add(g.ball("tail ridge", (0, -0.02, 0.105), 0.07, scale=(0.6, 2.4, 0.5), around=10), "tail", "Tail", smooth=80.0)
     for side in (-1, 1):
-        g.add(g.ball("paddle", (side * 0.335, -0.065, -0.012), 0.105, scale=(0.72, 1.55, 0.20), around=8), "tail", "Tail")
+        g.add(g.ball("paddle", (side * 0.335, -0.065, -0.012), 0.105, scale=(0.72, 1.55, 0.20), around=12), "tail", "Tail", smooth=80.0)
     for i in range(7):
         x = (i - 3) * 0.062
         y = tl * 0.5 - 0.405 + 0.012 * abs(i - 3) ** 1.6
@@ -959,8 +978,8 @@ def roller(hi):
     lk = [(0.00, 0.040, 0.044, 0, 0.0), (0.03, 0.052, 0.056, 0, 0.008), (0.11, 0.046, 0.050, 0, 0.034), (0.125, 0.036, 0.038, 0, 0.037),
           (0.14, 0.042, 0.044, 0, 0.038), (0.22, 0.033, 0.035, 0, 0.026), (0.235, 0.025, 0.026, 0, 0.020), (0.25, 0.028, 0.029, 0, 0.012),
           (0.31, 0.017, 0.018, 0, -0.028), (leg, 0.004, 0.004, 0, -0.070)]
-    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.05, power=2.1), "leg", "Leg")
-    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=6), "joint", "Leg")
+    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=9, step=0.028, power=2.1), "leg", "Leg", smooth=80.0)
+    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=8), "joint", "Leg", smooth=80.0)
     r = random.Random(31)
     for k in range(18):
         # Short thorns along the under side of the leg (three of them real, the rest in the pictures).
@@ -1261,7 +1280,7 @@ def wing(g, name, piece, length, outline, veins, crosses):
     thick = 0.012
     flat = [(s * length, c) for s, c in outline]
     # The outline is rounded: finely for the pictures, enough for the game that its edge is a curve.
-    rounded = real.smooth_path([Vector((0, y, z)) for y, z in flat] + [Vector((0, flat[0][0], flat[0][1]))], cuts=5 if g.hi else 2)
+    rounded = real.smooth_path([Vector((0, y, z)) for y, z in flat] + [Vector((0, flat[0][0], flat[0][1]))], cuts=5 if g.hi else 4)
     flat = [(p[1], p[2]) for p in rounded[:-1]]
     # Drawn standing on edge, then laid flat: across becomes +X, its thickness up and down.
     sheet = oa.slab(name, flat, thick, (0.5, 0.5, 0.5), bevel=0.004 if g.hi else 0.0, segments=2)
@@ -1292,7 +1311,7 @@ def wing(g, name, piece, length, outline, veins, crosses):
     inset.sort(key=lambda e: -math.atan2(e[1].x - middle[1], e[1].y - middle[0]))
     if g.hi and len(inset) > 3:
         g.add(real.sweep("edge vein", real.smooth_path([p for _, p in inset], 2), 0.0075, (0.5, 0.5, 0.5), n=8), "vein", piece, only='hi')
-    g.add(g.ball("wing root", (0.015, 0.0, 0), 0.042, scale=(1.3, 1.0, 0.75), around=6), "joint", piece)
+    g.add(g.ball("wing root", (0.015, 0.0, 0), 0.042, scale=(1.3, 1.0, 0.75), around=9), "joint", piece, smooth=80.0)
 
 
 def screamer(hi):
@@ -1304,7 +1323,7 @@ def screamer(hi):
     # ------------------------------------------------------------- Body: a domed thorax, a broad short head with eyes at its corners
     tk = [(0.00, half * 0.68, tall * 0.70, 0, 0.0), (0.06, half * 0.88, tall * 0.88, 0, 0.0), (0.24, half, tall, 0, 0.0), (0.44, half * 0.99, tall * 0.97, 0, 0.0),
           (0.58, half * 0.90, tall * 0.86, 0, -0.005), (0.68, half * 0.80, tall * 0.72, 0, -0.012)]
-    thorax = g.skin("thorax", (0, back, 0.0), (0, 1, 0), up, tk, around=18, step=0.085, power=2.3)
+    thorax = g.skin("thorax", (0, back, 0.0), (0, 1, 0), up, tk, around=26, step=0.04, power=2.3)
     if hi:
         # The W of grooves a cicada carries on its back, a cross ridge at the rear, and a slow unevenness.
         def back_marks(p):
@@ -1315,39 +1334,40 @@ def screamer(hi):
             ridge = 0.007 * math.exp(-((p.y + 0.25) / 0.016) ** 2) * math.exp(-(p.x / 0.12) ** 2)
             return groove + ridge + 0.003 * noise.noise(p * 10.0)
         real.displace(thorax, back_marks)
-    g.add(thorax, "shell", "Body", second=("under", lambda c, n: n.z < -0.55))
+    g.add(thorax, "shell", "Body", second=("under", lambda c, n: n.z < -0.55), smooth=80.0)
     # The collar behind the head.
     ck = [(0.00, half * 0.86, tall * 0.80, 0, 0.0), (0.03, half * 0.95, tall * 0.90, 0, 0.0), (0.10, half * 0.94, tall * 0.88, 0, -0.004), (0.14, half * 0.84, tall * 0.76, 0, -0.008)]
-    g.add(g.skin("collar", (0, 0.20, 0.0), (0, 1, 0), up, ck, around=14, step=0.05, power=2.3), "collar", "Body")
+    g.add(g.skin("collar", (0, 0.20, 0.0), (0, 1, 0), up, ck, around=24, step=0.025, power=2.3), "collar", "Body", smooth=80.0)
     # The head: short and very wide, sloping down to the front.
     hk = [(0.00, half * 0.80, tall * 0.66, 0, -0.012), (0.06, half * 0.88, tall * 0.66, 0, -0.016), (0.12, half * 0.80, tall * 0.58, 0, -0.024),
           (0.17, half * 0.56, tall * 0.44, 0, -0.034), (front - 0.30, half * 0.22, tall * 0.22, 0, -0.045)]
-    g.add(g.skin("head", (0, 0.30, 0.0), (0, 1, 0), up, hk, around=12, step=0.045, power=2.3), "shell", "Body")
+    g.add(g.skin("head", (0, 0.30, 0.0), (0, 1, 0), up, hk, around=22, step=0.028, power=2.3), "shell", "Body", smooth=80.0)
     # The swollen, ribbed front of the face, and the beak folded back between the legs.
-    face = g.ball("face", (0, 0.425, -0.075), 0.105, scale=(0.95, 0.85, 1.05), around=9)
+    face = g.ball("face", (0, 0.425, -0.075), 0.105, scale=(0.95, 0.85, 1.05), around=14)
     if hi:
         real.displace(face, lambda p: 0.004 * math.sin(p.z * 150.0) * (1.0 if p.y > 0.40 else 0.0))
-    g.add(face, "collar", "Body")
-    g.add(g.spine("beak", (0, 0.40, -0.15), (0, -1.0, -0.16), 0.40, 0.034, around=6), "under", "Body")
+    g.add(face, "collar", "Body", smooth=80.0)
+    g.add(g.spine("beak", (0, 0.40, -0.15), (0, -1.0, -0.16), 0.40, 0.034, around=8), "under", "Body", smooth=80.0)
     for side in (-1, 1):
         # Big wide-set eyes, three small ones between them, a bristle of a feeler under each.
-        g.add(g.ball("eye", (side * 0.222, 0.395, 0.035), 0.078, scale=(1.0, 1.05, 1.0), around=9), "eye", "Body")
-        g.add(g.ball("small eye", (side * 0.045, 0.385, 0.128), 0.020, around=5), "eye", "Body")
+        g.add(g.ball("eye", (side * 0.222, 0.395, 0.035), 0.078, scale=(1.0, 1.05, 1.0), around=16), "eye", "Body", smooth=80.0)
+        g.add(g.ball("small eye", (side * 0.045, 0.385, 0.128), 0.020, around=8), "eye", "Body", smooth=80.0)
         g.add(g.spine("feeler", (side * 0.10, 0.46, 0.01), (side * 0.45, 1.0, 0.25), 0.13, 0.011, around=4), "leg", "Body")
         for hinge in (L["fore_hinge"], L["hind_hinge"]):
-            g.add(g.ball("wing socket", (side * (hinge[0] - 0.03), hinge[1], hinge[2] - 0.02), 0.058, scale=(1.0, 1.25, 0.8), around=6), "joint", "Body")
+            g.add(g.ball("wing socket", (side * (hinge[0] - 0.03), hinge[1], hinge[2] - 0.02), 0.058, scale=(1.0, 1.25, 0.8), around=9), "joint", "Body", smooth=80.0)
         for hip in L["hips"]:
-            g.add(g.ball("hip", (side * (hip[0] - 0.02), hip[1], hip[2] + 0.03), 0.060, scale=(1.0, 1.1, 0.9), around=6), "joint", "Body")
-    g.add(g.ball("small eye", (0, 0.425, 0.108), 0.020, around=5), "eye", "Body")
+            g.add(g.ball("hip", (side * (hip[0] - 0.02), hip[1], hip[2] + 0.03), 0.060, scale=(1.0, 1.1, 0.9), around=9), "joint", "Body", smooth=80.0)
+    g.add(g.ball("small eye", (0, 0.425, 0.108), 0.020, around=8), "eye", "Body", smooth=80.0)
     # The paler plates underneath.
-    g.add(g.ball("breast", (0, 0.03, -tall + 0.062), 0.24, scale=(0.86, 1.40, 0.24), around=9), "under", "Body")
+    g.add(g.ball("breast", (0, 0.03, -tall + 0.062), 0.24, scale=(0.86, 1.40, 0.24), around=14), "under", "Body", smooth=80.0)
 
     # ------------------------------------------------------------- Abdomen: from its joint back along -Y, ringed, hollow sounding
     al, ah = L["abdomen"], L["abdomen_half"]
     ak = [(0.00, ah * 0.78, 0.17, 0, 0.0), (0.07, ah * 0.98, 0.205, 0, 0.0), (0.26, ah, 0.215, 0, 0.0), (0.46, ah * 0.90, 0.195, 0, -0.004),
           (0.64, ah * 0.66, 0.145, 0, -0.010), (0.78, ah * 0.34, 0.075, 0, -0.016), (al, 0.018, 0.016, 0, -0.020)]
     rings_at = [0.12 + 0.105 * i for i in range(7)]
-    if hi:
+    # (In the game's model too: the rings' overlapping edges are its outline from the side.)
+    if True:
         ringed = []
         for i in range(130):
             t = al * i / 129
@@ -1357,15 +1377,16 @@ def screamer(hi):
             step = 1.0 - 0.035 * (1.0 - lap)
             ringed.append((t, rs * step, rf * step, os_, of))
         ak = ringed
-    belly = g.skin("abdomen", (0, 0, 0), (0, -1, 0), up, ak, around=18, step=0.105, power=2.2)
+    belly = real.limb("abdomen", (0, 0, 0), (0, -1, 0), up, ak, (0.5, 0.5, 0.5), n=104 if hi else 26, step=0.0175 if hi else 0.05,
+                      fine=() if hi else [(r_, 0.02) for r_ in rings_at], fine_step=0.012, power=2.2)
     def banded(c, n):
         if n.z < -0.55:
             return False
         t = -c.y
         return any(-0.034 < t - r < 0.0 for r in rings_at)
-    g.add(belly, "abdomen", "Abdomen", second=("band", banded))
-    g.add(g.ball("waist", (0, 0, 0), 0.16, scale=(1.25, 1.0, 1.0), around=8), "joint", "Abdomen")
-    g.add(g.ball("belly plates", (0, -0.30, -0.15), 0.22, scale=(0.80, 1.5, 0.28), around=8), "under", "Abdomen")
+    g.add(belly, "abdomen", "Abdomen", second=("band", banded), smooth=80.0)
+    g.add(g.ball("waist", (0, 0, 0), 0.16, scale=(1.25, 1.0, 1.0), around=12), "joint", "Abdomen", smooth=80.0)
+    g.add(g.ball("belly plates", (0, -0.30, -0.15), 0.22, scale=(0.80, 1.5, 0.28), around=12), "under", "Abdomen", smooth=80.0)
     # The hollow each drum sits over.
     d = L["drum"]
     for side in (-1, 1):
@@ -1373,7 +1394,7 @@ def screamer(hi):
 
     # ------------------------------------------------------------- Drum (the right one): a pale ribbed dome in a dark rim
     dr = L["drum_radius"]
-    dome = g.ball("drum", (0.0, 0, 0), dr * 0.94, scale=(0.46, 1.0, 1.0), around=14)
+    dome = g.ball("drum", (0.0, 0, 0), dr * 0.94, scale=(0.46, 1.0, 1.0), around=18)
     if hi:
         real.displace(dome, lambda p: 0.0075 * math.sin(p.y * 190.0) * max(0.0, 1.0 - (p.y * p.y + p.z * p.z) / (dr * dr * 0.80)))
     g.add(dome, "drum", "Drum")
@@ -1403,19 +1424,26 @@ def screamer(hi):
 
     # ------------------------------------------------------------- Leg and Shin: the same either side, bending only upward
     leg, shin = L["leg"], L["shin"]
-    lk = [(0.00, 0.028, 0.032, 0, 0.0), (0.05, 0.036, 0.044, 0, 0.004), (0.20, 0.033, 0.040, 0, 0.006), (0.34, 0.027, 0.030, 0, 0.002), (leg, 0.023, 0.025, 0, 0.0)]
-    g.add(g.skin("thigh", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.10, power=2.1), "leg", "Leg")
-    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=6), "joint", "Leg")
-    for k, y in enumerate((0.10, 0.18, 0.26, 0.32)):
-        # The thorns under a cicada's thigh (two of them real shapes).
-        g.add(g.spine("thorn", (0, y, -0.040), (0, 0.35, -1.0), 0.045 - 0.006 * k, 0.011, around=4), "leg", "Leg", only=None if k % 2 == 0 else 'hi')
-    sk_ = [(0.00, 0.022, 0.024, 0, 0.0), (0.04, 0.025, 0.028, 0, 0.0), (0.26, 0.017, 0.019, 0, 0.0), (0.345, 0.013, 0.014, 0, 0.0),
-           (0.355, 0.010, 0.010, 0, 0.0), (0.37, 0.012, 0.012, 0, 0.0), (0.455, 0.008, 0.009, 0, -0.004), (shin, 0.003, 0.003, 0, -0.014)]
-    g.add(g.skin("shin", (0, 0, 0), (0, 1, 0), up, sk_, around=6, step=0.09, power=2.0), "leg", "Shin")
-    g.add(g.ball("knee", (0, 0, 0), 0.030, around=6), "joint", "Shin")
-    for k, y in enumerate((0.12, 0.20, 0.28)):
-        # Short spurs along the shin (only in the pictures).
-        g.add(g.spine("spur", (0, y, -0.018), (0, 0.6, -1.0), 0.03, 0.006, around=3), "leg", "Shin", only='hi')
+    # The thigh is a swollen club with thorns under it; the shin a thin bowed rod; the foot three small joints and a claw.
+    lk = [(0.00, 0.026, 0.030, 0, 0.0), (0.04, 0.040, 0.048, 0, 0.002), (0.14, 0.046, 0.058, 0, 0.008), (0.26, 0.038, 0.046, 0, 0.006), (0.35, 0.028, 0.031, 0, 0.002),
+          (0.385, 0.030, 0.033, 0, 0.0), (leg, 0.024, 0.026, 0, 0.0)]
+    thigh = g.skin("thigh", (0, 0, 0), (0, 1, 0), up, lk, around=9, step=0.035, power=2.1)
+    if hi:
+        real.displace(thigh, lambda p: -0.002 * math.exp(-(p.x / 0.008) ** 2) * (1.0 if p.z > 0 else 0.0) + 0.0015 * noise.noise(p * 30.0))
+    g.add(thigh, "leg", "Leg", smooth=80.0)
+    g.add(g.ball("leg joint", (0, 0, 0), 0.040, around=9), "joint", "Leg", smooth=80.0)
+    for k, y in enumerate((0.09, 0.15, 0.21, 0.27, 0.32)):
+        # The thorns under a cicada's thigh.
+        g.add(g.spine("thorn", (0, y, -0.046 + 0.004 * abs(k - 1.5)), (0, 0.45, -1.0), 0.050 - 0.006 * k, 0.012, around=4, bend=(0, 0.25, 0)), "leg", "Leg", only=None if k < 4 else 'hi')
+    sk_ = [(0.00, 0.024, 0.026, 0, 0.0), (0.03, 0.028, 0.031, 0, 0.0), (0.15, 0.021, 0.024, 0, 0.004), (0.28, 0.016, 0.018, 0, 0.004), (0.335, 0.013, 0.014, 0, 0.002),
+           (0.345, 0.0105, 0.0105, 0, 0.001), (0.36, 0.0135, 0.0135, 0, 0.0), (0.395, 0.012, 0.012, 0, -0.002), (0.405, 0.009, 0.009, 0, -0.003), (0.42, 0.0115, 0.0115, 0, -0.005),
+           (0.452, 0.009, 0.009, 0, -0.009), (0.468, 0.006, 0.006, 0, -0.013), (shin, 0.0025, 0.0025, 0, -0.020)]
+    lower = g.skin("shin", (0, 0, 0), (0, 1, 0), up, sk_, around=7, step=0.024, power=2.0)
+    g.add(lower, "leg", "Shin", smooth=80.0)
+    g.add(g.ball("knee", (0, 0, 0), 0.030, around=8), "joint", "Shin", smooth=80.0)
+    for k, y in enumerate((0.10, 0.17, 0.24, 0.30)):
+        # Short spurs along the shin (two of them real shapes).
+        g.add(g.spine("spur", (0, y, -0.020), (0, 0.6, -1.0), 0.032, 0.007, around=3), "leg", "Shin", only=None if k % 2 == 0 else 'hi')
 
     leftovers(g, L["stump"], "joint")
     return g
@@ -1959,13 +1987,16 @@ FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
 # rounded shapes that are thinned like the big ones). The Sprinter's head is many small shapes, which would all be
 # kept whole and leave its abdomen and legs sixteen triangles each.
-FAR_HOW = {"Stalker": (0.30, 8, ("filament", "toe", "girdle", "hip", "knee", "stalk")),
+FAR_HOW = {"Roller": (0.20, 16, ()),
+           "Stalker": (0.30, 8, ("filament", "toe", "girdle", "hip", "knee", "stalk")),
            "Sprinter": (0.40, 40, ("hip", "back plate", "eye knob", "beak", "joint", "jaw hinge", "head plate", "pad", "tooth", "eye"))}
 # Shapes too many and too thin to be given their own places on the pictures (each would take a patch and its margin,
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
 # Shapes whose far copy is the shape itself: a thinned arch crumples and opens.
-FAR_KEEP = {"Roller": ("plate", "brow"), "Hunter": ("plate",), "Ambusher": ("heap",)}
+FAR_KEEP = {"Hunter": ("plate",), "Ambusher": ("heap",)}
+# Regular nets too fine to keep whole in a far copy: every other row and column is taken out (oa._halved).
+FAR_HALVE = {"Roller": ("plate", "brow")}
 FINE = {"Sprinter": (("bristle",), "hair"), "Stalker": (("filament",), "gill")}
 FAR_SHARE = 0.30
 ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
@@ -1988,7 +2019,9 @@ def joined(objects, name):
     return whole
 
 
-def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
+def build(name, folder, previews=None, draft=False, poses=None, reuse=False, far_only=False):
+    """far_only (with reuse): the pictures and the full model are kept and only the far copy is written again (after changing how a
+    far copy is cut)."""
     maker, sockets_of, size = CREATURES[name]
     if draft:
         size //= 2
@@ -2060,8 +2093,8 @@ def build(name, folder, previews=None, draft=False, poses=None, reuse=False):
         share, least, thin_too = FAR_HOW.get(name, (FAR_SHARE, 16, ()))
         left_out = FAR_LEAVE_OUT.get(name, ())
         counted = sum(oa._triangle_count(o) for o in low_objects if o.name.split(".")[0] not in left_out)
-        far = oa.thin(low_parts, int(counted * share), drop_below=0.05, least=least, leave_out=left_out, thin_too=thin_too, keep=FAR_KEEP.get(name, ()))
-    if not reuse:
+        far = oa.thin(low_parts, int(counted * share), drop_below=0.05, least=least, leave_out=left_out, thin_too=thin_too, keep=FAR_KEEP.get(name, ()), halve=FAR_HALVE.get(name, ()))
+    if not reuse or far_only:
         oa.export(os.path.join(folder, name + oa.FAR + ".bytes"), far, sockets, textures=name)
         print("OA %s: written at %.0f s" % (name, time.time() - started))
     if previews:
@@ -2148,4 +2181,4 @@ if __name__ == "__main__":
     else:
         sys.exit("say where to write: --write-to <folder> for a trial, or --game for the game's own files")
     for creature in only:
-        build(creature, folder, previews, draft="--draft" in args, poses=poses, reuse="--reuse" in args)
+        build(creature, folder, previews, draft="--draft" in args, poses=poses, reuse="--reuse" in args or "--far-only" in args, far_only="--far-only" in args)
