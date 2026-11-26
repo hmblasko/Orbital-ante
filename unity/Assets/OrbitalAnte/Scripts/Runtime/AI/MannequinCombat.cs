@@ -441,7 +441,7 @@ namespace OrbitalAnte.AI
                 {
                     FirstSight(now, Squad != null && Squad.SawWithin(now, _cfg.chaseMemory) && !Squad.SawWithin(now, 1f));
                     // The visor's amber warning: this one has just picked the player out and fires after its beat.
-                    CombatWorld.RaisePlayerSpotted(head, ReactionTime, now - CombatWorld.PlayerLastSeenAt);
+                    CombatWorld.RaisePlayerSpotted(head, FirstShotBeat(), now - CombatWorld.PlayerLastSeenAt >= _cfg.chaseMemory);
                 }
                 _lastSaw = now;
                 CombatWorld.PlayerLastSeenAt = now;
@@ -602,7 +602,7 @@ namespace OrbitalAnte.AI
             // Nothing to shoot with: get out of the line of fire, looking back over its shoulder while it can see
             // the player. It never knows where the player is through a hill.
             bool seen = CombatWorld.PlayerPresent && SeesPlayer();
-            if (seen) _lastSaw = Time.time;
+            if (seen) { _lastSaw = Time.time; CombatWorld.PlayerLastSeenAt = _lastSaw; }
             bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
             _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
             if (CombatWorld.PlayerPresent && (CombatWorld.FindCover != null || threatened))

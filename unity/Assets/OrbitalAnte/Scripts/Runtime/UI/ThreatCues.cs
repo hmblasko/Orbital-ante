@@ -12,31 +12,29 @@ namespace OrbitalAnte.UI
     /// - an amber arc on a ring just outside the red damage ring, pointing at the enemy, held for the beat and
     ///   then fading, so "amber is about to be red" is learned in a fight or two;
     /// - the suit's threat sensor sound ("enemy.spotted"), panned toward the enemy, but only when a quiet stretch
-    ///   ends (nobody had the player in sight for <see cref="QuietBeforeSting"/> seconds) and never more often
-    ///   than <see cref="StingGap"/>. In a running fight new arcs still show, but the sound stays out of it: it
+    ///   ends (nobody had the player in sight for an enemy's chase memory, so nobody was hunting them) and never
+    ///   more often than <see cref="StingGap"/>. In a running fight new arcs still show, but the sound stays out of it: it
     ///   is news only when the player was hidden.
     /// </summary>
     public static class ThreatCues
     {
-        /// <summary>Seconds nobody may have had the player in sight before a sighting plays the sting.</summary>
-        public const float QuietBeforeSting = 6f;
         /// <summary>Least seconds between two stings.</summary>
         public const float StingGap = 4f;
         /// <summary>Most warning arcs on screen at once; a new sighting takes the oldest's place.</summary>
         public const int MaxMarkers = 3;
         /// <summary>The shortest and longest the arc is held at full strength, whatever the enemy's reaction time.</summary>
-        public const float LeastHold = 0.35f, MostHold = 1.6f;
+        public const float LeastHold = 0.2f, MostHold = 1.6f;
         /// <summary>Seconds the arc takes to fade after the hold.</summary>
         public const float FadeSeconds = 0.45f;
 
         /// <summary>
-        /// True when this sighting should play the sting: the player had gone unseen for long enough, and the last
-        /// sting was long enough ago. <paramref name="unseenFor"/> is seconds since any enemy last had the player
-        /// in sight, measured before this sighting.
+        /// True when this sighting should play the sting: the player was hidden (nobody had seen them for an
+        /// enemy's chase memory, so nobody was still hunting them: the same rule that decides "once spotted you
+        /// are hunted"), and the last sting was long enough ago.
         /// </summary>
-        public static bool Sting(float unseenFor, float sinceLastSting)
+        public static bool Sting(bool hidden, float sinceLastSting)
         {
-            return unseenFor >= QuietBeforeSting && sinceLastSting >= StingGap;
+            return hidden && sinceLastSting >= StingGap;
         }
 
         /// <summary>How long the arc is held at full strength for an enemy that fires after <paramref name="beat"/> seconds.</summary>

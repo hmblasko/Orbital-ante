@@ -515,6 +515,8 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | | Cost | Cap |
 |---|---|---|
 | Seen warning (`ThreatCues`, `DamageFeedback`) | One static event per fresh sighting (an enemy that had not seen the player for its chase memory); the listener does a dot product per arc slot and sets one rotation. Each frame 3 more `SetAlpha` calls on the damage canvas while an arc shows; nothing while none does | 3 arcs, 1 sting per 4 s |
-| Radio call | One event and one sound when a restless squad is sent | the lull's own pace (20 s or more) |
-| Clock cues (`ClockCues`) | Two ceilings and compares a frame, no allocation | 1 warn + 10 ticks an ante |
+| Radio call | One event, one sound and one note when an armed squad not already coming is sent; one sound per overtime hunt alarm | the lull's own pace (20 s or more); every 15 s in overtime |
+| Clock cues (`ClockCues`) | Two ceilings and compares a frame, no allocation | 1 warn + 5 ticks an ante |
+| Pulse (`PulseClock`) | A few float compares a frame; one short sound a beat while on the last plates | 80 beats a minute |
+| Notes (`NoteBoard`) | Two float subtractions a frame; the label is touched only when the text changes | 1 showing, 1 waiting |
 | Jump grace (`JumpGrace`) | Three float compares a physics step | none |

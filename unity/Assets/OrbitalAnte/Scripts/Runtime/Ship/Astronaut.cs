@@ -1103,7 +1103,9 @@ namespace OrbitalAnte.Ship
             if (GameInput.Jump.WasPressedThisFrame())
             {
                 // A jump from a crouch stands you up and goes; from prone you only come up to a crouch.
-                if (Stances.RiseToJump(_roomFor)) _jumpGrace.Press(Time.time);
+                // Kept only on foot (or a moment off the ground): in real flight Jump is the jets, and a tap just
+                // before touching down from a jet descent must not turn into a hop.
+                if (Stances.RiseToJump(_roomFor) && _airborneFor < 0.3f) _jumpGrace.Press(Time.time);
                 if (Stances.Current != before) FitBody();
             }
 

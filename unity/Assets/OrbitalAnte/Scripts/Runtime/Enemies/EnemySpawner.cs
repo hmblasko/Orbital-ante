@@ -474,16 +474,21 @@ namespace OrbitalAnte.Enemies
             if (side.sqrMagnitude > 1e-6f) at += side.normalized * (Mathf.Max(0f, rules.placeSpread) * (float)_lullRandom.NextDouble());
             float speed = 2f;
             float memory = Mathf.Sqrt(best) / speed + 15f;
+            bool fresh = false;
             for (int i = 0; i < _live.Count; i++)
             {
                 Live l = _live[i];
                 if (l.Who == null || l.Combat == null || !l.Who.Alive) continue;
                 bool same = callee.Combat.Squad != null ? l.Combat.Squad == callee.Combat.Squad
                                                         : (l.Who.transform.position - from).sqrMagnitude <= radius * radius;
-                if (same) l.Combat.SendToLook(at, memory, rules.walkInFrom);
+                if (!same) continue;
+                // Somebody armed who was not already coming: that is news worth a radio call.
+                if (l.Combat.Weapon != null && !l.Combat.OnItsWay) fresh = true;
+                l.Combat.SendToLook(at, memory, rules.walkInFrom);
             }
-            // A fair warning (critique loop round 1): the suit picks up their radio as they set off.
-            CombatWorld.RaiseSquadSent(from);
+            // A fair warning (critique loop round 1): the suit picks up their radio as they set off. Never for a
+            // squad already on its way, or one with no gun among it (nobody comes).
+            if (fresh) CombatWorld.RaiseSquadSent(from);
             return action;
         }
 

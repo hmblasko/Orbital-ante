@@ -58,7 +58,7 @@ namespace OrbitalAnte.Tasks
         float _shown;
         float _tickAt;
         int _shownSeconds = -1, _shownAnte = -1, _shownTarget = -1, _shownStreak = -1, _shownPoints = -1;
-        float _noteLeft;
+        readonly NoteBoard _notes = new NoteBoard();
         bool _counting;
 
         static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -120,7 +120,7 @@ namespace OrbitalAnte.Tasks
             _shown = 0f;
             _shownSeconds = _shownAnte = _shownTarget = _shownStreak = _shownPoints = -1;
             for (int i = 0; i < _pops.Length; i++) { _popLeft[i] = 0f; _pops[i].gameObject.SetActive(false); }
-            _noteLeft = 0f;
+            _notes.Clear();
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
             _shownPerkReady = false;
             _perkLine.gameObject.SetActive(false);
@@ -174,13 +174,35 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>A line on the readout with no points (a task found, a supply drop coming).</summary>
-        public static void Note(string text)
+        public static void Note(string text) => Note(text, false);
+
+        /// <summary>
+        /// A note; an <paramref name="important"/> one (the target met, overtime) cannot be written over for a few
+        /// seconds, and a plain note arriving meanwhile is shown after it (Ante/NoteBoard).
+        /// </summary>
+        public static void Note(string text, bool important)
         {
             AnteLoop loop = Current;
             if (loop == null || loop._noteLine == null) return;
-            loop._noteLine.text = text;
-            loop._noteLeft = 3.5f;
+            loop._notes.Offer(text, important);
+            loop.ShowNote();
         }
+
+        void ShowNote()
+        {
+            bool on = _notes.Text != null;
+            if (on) _noteLine.text = _notes.Text;
+            if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
+        }
+
+        // A restless squad was sent (Enemies/LullRules): the radio call's twin in words, for a muted Deck.
+        void OnSquadSent(Vector3 from)
+        {
+            if (Run != null && Run.Director.IsRunning && !Run.Director.InOvertime) Note("RADIO CHATTER: A SQUAD IS COMING TO LOOK");
+        }
+
+        void OnEnable() => AI.CombatWorld.SquadSent += OnSquadSent;
+        void OnDisable() => AI.CombatWorld.SquadSent -= OnSquadSent;
 
         public bool Running => Run != null && Run.Director.IsRunning;
 
@@ -215,12 +237,14 @@ namespace OrbitalAnte.Tasks
             if (Run.Director.IsRunning && Run.Director.TargetMet && !_toldTargetMet)
             {
                 _toldTargetMet = true;
-                Audio.AudioDirector.PlayLocal("reward.tier2");
+                // The ante's own moment: a sound heard nowhere else (it used to share the two-feat kill's), and a note
+                // nothing can write over until it has been read.
+                Audio.AudioDirector.PlayLocal("reward.target");
                 // In the seat Select is Floodlights, so the note says the pick waits for you on foot.
                 Note(Run.Director.PerkEarnedEarly
                     ? "TARGET MET: perk ready (" + GameInput.Describe(GameInput.Upgrades) + (OrbitalAnte.Ship.Astronaut.PlayerSeated ? " on foot" : "")
                       + "). Bank from the pause menu, or keep scoring"
-                    : "TARGET MET: bank it from the pause menu, or keep scoring");
+                    : "TARGET MET: bank it from the pause menu, or keep scoring", true);
             }
             // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
             // star chart once the target is met. In the seat Select is still Floodlights.
@@ -238,20 +262,20 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>
-        /// The clock by ear (Ante/ClockCues): a heads-up at 30 s and a tick each of the last 10, while the target is
+        /// The clock by ear (Ante/ClockCues): a heads-up at a minute and a tick each of the last 5, while the target is
         /// not met. The eyes are on the fight; the red clock is in a corner.
         /// </summary>
         void UpdateClockCues(float before, bool held)
         {
             AnteDirector d = Run.Director;
             float now = d.SecondsLeft;
-            switch (ClockCues.Step(before, now, d.IsRunning, d.TargetMet, held, d.InOvertime))
+            switch (ClockCues.Step(before, now, d.IsRunning, d.TargetMet, held, d.InOvertime, OrbitalAnte.Ship.Astronaut.PlayerSeated))
             {
                 case ClockCue.Warn:
                     Audio.AudioDirector.PlayLocal("ante.clock.warn");
                     break;
                 case ClockCue.Tick:
-                    Audio.AudioDirector.PlayLocal("ante.clock.tick", ClockCues.TickVolume(now));
+                    Audio.AudioDirector.PlayLocal("ante.clock.tick", ClockCues.TickVolume);
                     break;
             }
         }
@@ -271,10 +295,11 @@ namespace OrbitalAnte.Tasks
                 if (ot)
                 {
                     _huntIn = 1f;
-                    Audio.AudioDirector.PlayLocal("player.suit.alarm", 0.8f);
+                    // Its own sound, in the clock's family: the suit's air warning must never be taken for this.
+                    Audio.AudioDirector.PlayLocal("ante.overtime");
                     // A chosen hazard stops paying here (HazardRules.PaysNow), and the note says so.
                     Note("OVERTIME: REACH " + Run.Director.Target.ToString("N0", Inv) + ". THEY'RE HUNTING YOU"
-                         + (CurrentHazard != Hazard.None ? " · " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + " STILL ON, BONUS OVER" : ""));
+                         + (CurrentHazard != Hazard.None ? " · " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + " STILL ON, BONUS OVER" : ""), true);
                 }
             }
             if (!ot || paused) return;
@@ -286,6 +311,8 @@ namespace OrbitalAnte.Tasks
             float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
+            // Each time they are told where you are, you hear them being told: the hunt was a silent rule before.
+            if (!OrbitalAnte.Ship.Astronaut.PlayerInShip) Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.7f);
         }
 
         void OnPhase(AntePhase phase)
@@ -584,12 +611,7 @@ namespace OrbitalAnte.Tasks
                 }
             }
 
-            if (_noteLeft > 0f)
-            {
-                _noteLeft -= dt;
-                bool on = _noteLeft > 0f;
-                if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
-            }
+            if (_notes.Tick(dt)) ShowNote();
         }
     }
 }

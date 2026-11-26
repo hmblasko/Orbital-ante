@@ -35,12 +35,12 @@ namespace OrbitalAnte.AI
         public static void RaiseAlarm(Vector3 at, float radius, Vector3 playerAt, string faction) => Alarm?.Invoke(at, radius, playerAt, faction);
         /// <summary>
         /// An armed enemy has just picked the player out after not having them in sight (critique loop round 1): where
-        /// its head is, the beat in seconds before it may fire, and how long nobody had seen the player before it
-        /// (measured before this sighting). The visor shows it as an amber arc (UI/ThreatCues). Not cleared by
+        /// its head is, the beat in seconds before it may fire, and whether the player was hidden until now (nobody
+        /// had seen them for that enemy's chase memory, so nobody was hunting them). The visor shows it as an amber arc (UI/ThreatCues). Not cleared by
         /// <see cref="Reset"/>: its listener is the long-lived HUD, which unsubscribes itself.
         /// </summary>
-        public static event Action<Vector3, float, float> PlayerSpotted;
-        public static void RaisePlayerSpotted(Vector3 from, float beat, float unseenFor) => PlayerSpotted?.Invoke(from, beat, unseenFor);
+        public static event Action<Vector3, float, bool> PlayerSpotted;
+        public static void RaisePlayerSpotted(Vector3 from, float beat, bool hidden) => PlayerSpotted?.Invoke(from, beat, hidden);
         /// <summary>
         /// A squad was sent to look for the player after a long quiet (Enemies/LullRules): where it set off from.
         /// The suit picks up its radio call. Not cleared by <see cref="Reset"/>, as above.

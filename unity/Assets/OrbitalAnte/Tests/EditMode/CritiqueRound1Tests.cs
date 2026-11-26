@@ -5,15 +5,15 @@ using OrbitalAnte.UI;
 
 namespace OrbitalAnte.Tests
 {
-    /// <summary>Critique loop round 1 (26 Nov 2026): the "you have been seen" warning, the clock by ear, the jump's grace.</summary>
+    /// <summary>Critique loop round 1 (26 Nov 2026): the "you have been seen" warning, the clock by ear, the pulse on the last plates, notes that are not written over, the recap's last line, the jump's grace.</summary>
     public class CritiqueRound1Tests
     {
         [Test]
-        public void TheSting_PlaysOnlyWhenAQuietStretchEnds_AndNeverInQuickSuccession()
+        public void TheSting_PlaysOnlyWhenThePlayerWasHidden_AndNeverInQuickSuccession()
         {
-            Assert.IsTrue(ThreatCues.Sting(ThreatCues.QuietBeforeSting, 100f));
-            Assert.IsFalse(ThreatCues.Sting(1f, 100f), "in a running fight a new sighting is not news");
-            Assert.IsFalse(ThreatCues.Sting(60f, 1f), "two hidden stretches a second apart give one sting");
+            Assert.IsTrue(ThreatCues.Sting(true, 100f));
+            Assert.IsFalse(ThreatCues.Sting(false, 100f), "while anyone still hunts the player a new sighting is not news");
+            Assert.IsFalse(ThreatCues.Sting(true, 1f), "two sightings a second apart give one sting");
         }
 
         [Test]
@@ -28,7 +28,7 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TheWarningHold_StaysReadable_ForAnySharpness()
+        public void TheWarningHold_FollowsTheRealBeat_WithinReadableLimits()
         {
             Assert.AreEqual(ThreatCues.LeastHold, ThreatCues.Hold(0.05f), 1e-5);
             Assert.AreEqual(ThreatCues.MostHold, ThreatCues.Hold(5f), 1e-5);
@@ -36,47 +36,128 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(ThreatCues.LeastHold, ThreatCues.Hold(float.NaN), 1e-5);
         }
 
-        [Test]
-        public void TheClock_WarnsOnceAtHalfAMinute_ThenTicksEachOfTheLastTen()
+        static void CountClock(bool seated, out int warns, out int ticks)
         {
-            Assert.AreEqual(ClockCue.Warn, ClockCues.Step(30.02f, 29.99f, true, false, false, false));
-            Assert.AreEqual(ClockCue.None, ClockCues.Step(29.99f, 29.97f, true, false, false, false));
-            int ticks = 0, warns = 0;
-            for (float t = 40f; t > 0f; )
+            warns = ticks = 0;
+            for (float t = 90f; t > 0f; )
             {
                 float next = t - 1f / 60f;
-                ClockCue c = ClockCues.Step(t, next, true, false, false, false);
+                ClockCue c = ClockCues.Step(t, next, true, false, false, false, seated);
                 if (c == ClockCue.Tick) ticks++;
                 if (c == ClockCue.Warn) warns++;
                 t = next;
             }
+        }
+
+        [Test]
+        public void TheClock_WarnsOnceWithAMinuteLeft_ThenTicksEachOfTheLastFive()
+        {
+            Assert.AreEqual(ClockCue.Warn, ClockCues.Step(60.02f, 59.99f, true, false, false, false));
+            Assert.AreEqual(ClockCue.None, ClockCues.Step(59.99f, 59.97f, true, false, false, false));
+            CountClock(false, out int warns, out int ticks);
             Assert.AreEqual(1, warns);
-            Assert.AreEqual(10, ticks, "shown 10, 9, ... 1");
+            Assert.AreEqual(5, ticks, "shown 5, 4, 3, 2, 1");
+        }
+
+        [Test]
+        public void InTheSeat_TheClockStillWarns_ButNeverTicks()
+        {
+            CountClock(true, out int warns, out int ticks);
+            Assert.AreEqual(1, warns);
+            Assert.AreEqual(0, ticks);
         }
 
         [Test]
         public void TheClock_IsQuiet_OnceTheTargetIsMet_OnHold_InOvertime_OrBetweenAntes()
         {
-            Assert.AreEqual(ClockCue.None, ClockCues.Step(5.01f, 4.99f, true, true, false, false));
-            Assert.AreEqual(ClockCue.None, ClockCues.Step(5.01f, 4.99f, true, false, true, false));
-            Assert.AreEqual(ClockCue.None, ClockCues.Step(5.01f, 4.99f, true, false, false, true));
-            Assert.AreEqual(ClockCue.None, ClockCues.Step(5.01f, 4.99f, false, false, false, false));
+            Assert.AreEqual(ClockCue.None, ClockCues.Step(3.01f, 2.99f, true, true, false, false));
+            Assert.AreEqual(ClockCue.None, ClockCues.Step(3.01f, 2.99f, true, false, true, false));
+            Assert.AreEqual(ClockCue.None, ClockCues.Step(3.01f, 2.99f, true, false, false, true));
+            Assert.AreEqual(ClockCue.None, ClockCues.Step(3.01f, 2.99f, false, false, false, false));
             Assert.AreEqual(ClockCue.None, ClockCues.Step(0f, 300f, true, false, false, false), "a new ante's clock is no cue");
+            Assert.AreEqual(ClockCue.Tick, ClockCues.Step(3.01f, 2.99f, true, false, false, false));
         }
 
         [Test]
-        public void TheTick_GetsLouder_NeverOver1()
+        public void ThePulse_StartsOnTheLastPlates_StopsOnceMended_AndNeverFlutters()
         {
-            float last = 0f;
-            for (int s = 10; s >= 1; s--)
+            var p = new PulseClock();
+            Assert.IsFalse(p.Step(0.1f, 0.5f, true));
+            Assert.IsFalse(p.Step(0.1f, 0.25f, true), "between the two marks it does not start");
+            Assert.IsTrue(p.Step(0.1f, 0.2f, true), "the first beat comes at once");
+            Assert.IsTrue(p.On);
+            Assert.IsFalse(p.Step(0.1f, 0.25f, true), "mending a little does not stop it");
+            Assert.IsTrue(p.On);
+            Assert.IsFalse(p.Step(0.1f, 0.3f, true));
+            Assert.IsFalse(p.On, "mended: the sound going away is the answer to taking cover");
+            Assert.IsTrue(p.Step(0.1f, 0.1f, true));
+            Assert.IsFalse(p.Step(0.1f, 0.1f, false), "never for the dead");
+            Assert.IsFalse(p.On);
+        }
+
+        [Test]
+        public void ThePulse_IsAHeartNotAnAlarm_ItsRateStaysHuman()
+        {
+            var p = new PulseClock();
+            int beats = 0;
+            for (int i = 0; i < 600; i++) if (p.Step(0.1f, 0f, true)) beats++;
+            Assert.LessOrEqual(beats, 85, "a minute at the worst: no more than a brisk heart");
+            Assert.GreaterOrEqual(beats, 70);
+            Assert.AreEqual(PulseClock.SlowBeat, PulseClock.Interval(PulseClock.StartAt), 1e-5);
+            Assert.AreEqual(1f, PulseClock.Volume(0f), 1e-5);
+            Assert.AreEqual(0.6f, PulseClock.Volume(PulseClock.StartAt), 1e-5);
+        }
+
+        [Test]
+        public void AnImportantNote_IsNotWrittenOver_AndThePlainOneWaitsItsTurn()
+        {
+            var b = new NoteBoard();
+            b.Offer("TARGET MET", true);
+            b.Offer("SUPPLY DROP COMING", false);
+            b.Offer("MAST FOUND", false);
+            Assert.AreEqual("TARGET MET", b.Text);
+            Assert.IsFalse(b.Tick(NoteBoard.HoldSeconds - 0.5f));
+            Assert.AreEqual("TARGET MET", b.Text);
+            Assert.IsTrue(b.Tick(0.6f));
+            Assert.AreEqual("MAST FOUND", b.Text, "only the latest plain note waits");
+            Assert.IsTrue(b.Tick(NoteBoard.PlainSeconds + 0.1f));
+            Assert.IsNull(b.Text);
+        }
+
+        [Test]
+        public void PlainNotes_ReplaceEachOtherAtOnce_AndAnImportantOneAlwaysShows()
+        {
+            var b = new NoteBoard();
+            b.Offer("ONE", false);
+            b.Offer("TWO", false);
+            Assert.AreEqual("TWO", b.Text);
+            b.Offer("OVERTIME", true);
+            Assert.AreEqual("OVERTIME", b.Text);
+            b.Offer("TARGET MET", true);
+            Assert.AreEqual("TARGET MET", b.Text);
+            Assert.IsTrue(b.Tick(NoteBoard.ImportantSeconds + 0.1f));
+            Assert.IsNull(b.Text);
+            b.Offer(null, true);
+            Assert.IsNull(b.Text);
+            b.Clear();
+            Assert.IsFalse(b.Tick(1f));
+        }
+
+        [Test]
+        public void TheRecapsLastLine_LooksForward_AndNeverDressesUpANearMiss()
+        {
+            Assert.AreEqual("Next mark: clear ante 1.", RunRecap.NextLine(0, 9));
+            Assert.AreEqual("Next mark: clear ante 4.", RunRecap.NextLine(3, 9));
+            Assert.AreEqual("Next mark: a higher run score.", RunRecap.NextLine(9, 9));
+            Assert.AreEqual("Next mark: a higher run score.", RunRecap.NextLine(12, 9));
+            for (int c = -1; c < 12; c++)
             {
-                float v = ClockCues.TickVolume(s - 0.5f);
-                Assert.GreaterOrEqual(v, last);
-                Assert.LessOrEqual(v, 1f);
-                last = v;
+                string line = RunRecap.NextLine(c, 9).ToLowerInvariant();
+                Assert.IsNotEmpty(line);
+                StringAssert.DoesNotContain("close", line);
+                StringAssert.DoesNotContain("almost", line);
+                StringAssert.DoesNotContain("only", line);
             }
-            Assert.AreEqual(1f, ClockCues.TickVolume(0.5f), 1e-5);
-            Assert.AreEqual(0.55f, ClockCues.TickVolume(9.5f), 1e-5);
         }
 
         [Test]

@@ -99,3 +99,53 @@ def clock_tick(rng, v):
     body = (dsp.sine(980.0, n) + 0.5 * dsp.sine(1630.0, n)) * np.exp(-t / 0.018)
     knock = dsp.bandpass(dsp.white(n, rng), 1500, 6000) * np.exp(-t / 0.002) * 0.4
     return finish(body + knock, -6, 0.01)
+
+
+@sfx("ante.overtime", "alerts", volumeDb=-9, pitchVar=0.0, cooldownMs=8000, maxVoices=1, priority=15, **UI)
+def overtime(rng, v):
+    """The clock has run out short of the target and the hunt is on: the clock's own wood, struck hard once, over a
+    low drum that falls away, with a short dry rattle after it. It belongs to the clock family (the 30 s knocks and
+    the last-ten ticks lead into it), and it is nothing like the suit's two-note air warning, so "time is up" and
+    "air is low" can never be mistaken for each other."""
+    n = secs(1.3)
+    t = np.arange(n) / SR
+    drum = dsp.sine(62 + 70 * np.exp(-t / 0.035), n) * np.exp(-t / 0.38) * 0.95
+    skin = dsp.bandpass(dsp.white(n, rng), 120, 700) * np.exp(-t / 0.05) * 0.35
+    wood = (dsp.sine(560.0, n) + 0.5 * dsp.sine(560.0 * 1.66, n) + 0.25 * dsp.sine(560.0 * 2.7, n)) * np.exp(-t / 0.06) * 0.6
+    crack = dsp.bandpass(dsp.white(n, rng), 900, 5000) * np.exp(-t / 0.003) * 0.5
+    # The drum's weight is below what the Deck's speakers play, so it has a second voice an octave and a fifth up.
+    tom = dsp.sine(186 + 120 * np.exp(-t / 0.03), n) * np.exp(-t / 0.2) * 0.5
+    x = drum * 0.6 + tom * 1.3 + skin + wood * 1.6 + crack
+    # The rattle: five quick knocks slowing down, like a dropped stick settling.
+    at = 0.34
+    gap = 0.07
+    for i in range(5):
+        m = secs(0.09)
+        tt = np.arange(m) / SR
+        k = (dsp.sine(480.0, m) + 0.4 * dsp.sine(800.0, m)) * np.exp(-tt / 0.014)
+        dsp.place(x, k, secs(at), 0.6 * (0.82 ** i))
+        at += gap
+        gap *= 1.28
+    return finish(dsp.saturate(x, 1.3), -4, 0.08)
+
+
+@sfx("player.armour.low", "alerts", volumeDb=-13, pitchVar=0.0, cooldownMs=350, maxVoices=1, priority=30, **SUIT)
+def armour_low(rng, v):
+    """Your own pulse, heard inside the helmet while the suit is on its last plates: two soft low thumps, the second
+    a little quieter. The game plays one each beat and stops the moment the suit recovers, so getting behind cover
+    is answered by the sound going away. Low and felt more than heard; it must sit under gunfire and music without
+    masking either."""
+    n = secs(0.46)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for at, g, f in [(0.0, 1.0, 66.0), (0.17, 0.72, 60.0)]:
+        m = secs(0.26)
+        tt = np.arange(m) / SR
+        thump = dsp.sine(f + 26 * np.exp(-tt / 0.02), m) * np.exp(-tt / 0.07)
+        # The Deck's own speakers give almost nothing under about 200 Hz, so the pulse also has a knock two and
+        # four times up that small speakers can play; on headphones the low thump leads.
+        knock = (dsp.sine(f * 4.0, m) * 0.5 + dsp.sine(f * 6.0, m) * 0.3) * np.exp(-tt / 0.03)
+        body = dsp.bandpass(dsp.white(m, rng), 180, 520) * np.exp(-tt / 0.02) * 0.3
+        dsp.place(x, (thump * 0.45 + knock * 1.5 + body) * np.minimum(tt / 0.004, 1), secs(at), g)
+    x = dsp.lowpass(x, 900)
+    return finish(x, -5, 0.04)

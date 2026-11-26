@@ -39,6 +39,7 @@ namespace OrbitalAnte.UI
         readonly float[] _warnTime = new float[ThreatCues.MaxMarkers];
         readonly float[] _warnBeat = new float[ThreatCues.MaxMarkers];
         float _lastSting = -100f;
+        readonly PulseClock _pulse = new PulseClock();
         float _glowStrength, _glowTime = -100f, _lastSound = -100f;
         int _shownCracks = -1;
         Texture2D _edgeTexture, _crackTexture;
@@ -95,10 +96,11 @@ namespace OrbitalAnte.UI
             return DamageCues.MarkerAngle(Vector3.Dot(to, _view.right), Vector3.Dot(to, _view.up), Vector3.Dot(to, _view.forward));
         }
 
-        void OnSpotted(Vector3 from, float beat, float unseenFor)
+        void OnSpotted(Vector3 from, float beat, bool hidden)
         {
             if (!Showing) return;
-            float now = Time.unscaledTime;
+            // Game time, like the enemy's beat: in Focus or hitstop the arc lasts as long as the beat really does.
+            float now = Time.time;
             float angle = AngleToward(from);
             // A squad seen together shares one arc; otherwise the oldest arc makes way.
             int slot = -1, oldest = 0;
@@ -112,9 +114,10 @@ namespace OrbitalAnte.UI
             _warnTime[slot] = now;
             _warnBeat[slot] = beat;
             _warns[slot].rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - WarnSpan * 0.5f);
-            if (ThreatCues.Sting(unseenFor, now - _lastSting))
+            float real = Time.unscaledTime;
+            if (ThreatCues.Sting(hidden, real - _lastSting))
             {
-                _lastSting = now;
+                _lastSting = real;
                 Audio.AudioDirector.PlayLocal("enemy.spotted", 1f, 1f, DamageCues.SoundPan(angle));
             }
         }
@@ -122,7 +125,7 @@ namespace OrbitalAnte.UI
         void OnSquadSent(Vector3 from)
         {
             if (!Showing) return;
-            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(AngleToward(from)) * 0.6f);
+            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(AngleToward(from)));
         }
 
         void OnDestroy()
@@ -288,7 +291,7 @@ namespace OrbitalAnte.UI
 
             for (int i = 0; i < _warns.Length; i++)
             {
-                float a = show ? ThreatCues.Alpha(now - _warnTime[i], _warnBeat[i]) : 0f;
+                float a = show ? ThreatCues.Alpha(Time.time - _warnTime[i], _warnBeat[i]) : 0f;
                 bool on = a > 0.01f;
                 if (_warns[i].enabled != on) _warns[i].enabled = on;
                 if (on) _warns[i].canvasRenderer.SetAlpha(a);
@@ -302,6 +305,10 @@ namespace OrbitalAnte.UI
                 if (_edges[i].enabled != on) _edges[i].enabled = on;
                 if (on) _edges[i].canvasRenderer.SetAlpha(a);
             }
+
+            // The pulse on the last plates (UI/VitalsCues): game time, so it stops with a pause and slows with Focus.
+            if (_pulse.Step(Time.deltaTime, _health.Fraction, show && _health.Alive))
+                Audio.AudioDirector.PlayLocal("player.armour.low", PulseClock.Volume(_health.Fraction));
 
             int cracks = show && _health.Alive ? DamageCues.Cracks(_health.Fraction) : 0;
             if (cracks != _shownCracks)

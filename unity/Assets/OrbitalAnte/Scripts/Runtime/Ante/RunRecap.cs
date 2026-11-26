@@ -37,6 +37,21 @@ namespace OrbitalAnte.Ante
             }
         }
 
+        /// <summary>
+        /// The recap's last line (critique loop round 1): what to aim at next time, as a plain fact. The page a
+        /// run ends on is what is remembered of it (peak-end), so it ends looking forward, never on the shortfall.
+        /// It names the ante the run fell in, or a higher score once every ante is cleared; it never says "so
+        /// close", never counts runs, and promises nothing.
+        /// </summary>
+        public static string NextLine(int cleared, int lastAnte)
+        {
+            if (cleared < 0) cleared = 0;
+            if (lastAnte < 1) lastAnte = 1;
+            return cleared >= lastAnte
+                ? "Next mark: a higher run score."
+                : "Next mark: clear ante " + (cleared + 1).ToString(CultureInfo.InvariantCulture) + ".";
+        }
+
         static string Name(ScoreCategory c)
         {
             switch (c)
