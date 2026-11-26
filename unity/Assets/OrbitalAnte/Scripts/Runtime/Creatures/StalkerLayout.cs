@@ -75,6 +75,19 @@ namespace OrbitalAnte.Creatures
             return 1.0 - 0.17 * (seg - Trunk);
         }
 
+        /// <summary>How tall a length is drawn beside the pattern piece. The trunk is as tall as it is wide; the tail's fin rises from the trunk's height, is tallest a length or two back and falls to the tip.</summary>
+        public static double Tall(int seg)
+        {
+            if (seg < Trunk) return Scale(seg);
+            int k = seg - Trunk;
+            return k == 0 ? 0.70 : k == 1 ? 0.90 : k == 2 ? 0.82 : 0.60;
+        }
+
+        /// <summary>A length's ends are round and reach into its neighbours: a wound at a cut sits this far beyond the joint, so it covers the end.</summary>
+        public const double WoundOut = 0.062;
+        /// <summary>How big the wound at a cut through this length is.</summary>
+        public static double WoundSize(int seg) => IsTail(seg) ? TailHalfHeight * Tall(seg) * 0.72 : SegHalfWidth * Scale(seg) * 0.74;
+
         public static Vec3d HipOf(int leg)
         {
             double s = Scale(LegSeg[PairOf(leg)]);

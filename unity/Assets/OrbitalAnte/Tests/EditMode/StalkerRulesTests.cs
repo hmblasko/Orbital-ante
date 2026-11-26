@@ -632,6 +632,104 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.Less(StalkerLayout.Scale(StalkerLayout.Segs - 1), StalkerLayout.Scale(StalkerLayout.Trunk), "the tail thins to its tip");
         }
 
+        // ------------------------------------------------------------------ the model
+
+        [Test]
+        public void StalkerModelFile_MatchesTheLayout()
+        {
+            // tools/blender/build_creatures.py carries its own copy of StalkerLayout (STALKER). If either changes,
+            // this fails until the script is changed to match and run again.
+            ModelFile model = Load(StalkerLayout.Model);
+            AssertSocket(model, "SegEnd", 0, 0, StalkerLayout.Spacing * 0.5);
+            AssertSocket(model, "SegSide", StalkerLayout.SegHalfWidth, 0, 0);
+            AssertSocket(model, "SegTop", 0, StalkerLayout.SegHalfHeight, 0);
+            AssertSocket(model, "TailSide", StalkerLayout.TailHalfWidth, 0, 0);
+            AssertSocket(model, "TailTop", 0, StalkerLayout.TailHalfHeight, 0);
+            AssertSocket(model, "HeadEnd", 0, 0, StalkerLayout.HeadLength - StalkerLayout.Spacing * 0.5);
+            AssertSocket(model, "HeadSide", StalkerLayout.HeadHalfWidth, 0, 0);
+            AssertSocket(model, "HeadTop", 0, StalkerLayout.HeadHalfHeight, 0);
+            AssertSocket(model, "JawHinge", StalkerLayout.JawHinge.X, StalkerLayout.JawHinge.Y, StalkerLayout.JawHinge.Z);
+            AssertSocket(model, "JawEnd", 0, 0, StalkerLayout.JawLength);
+            AssertSocket(model, "Mouth", 0, 0, StalkerLayout.Mouth);
+            AssertSocket(model, "GillR", StalkerLayout.GillRoot.X, StalkerLayout.GillRoot.Y, StalkerLayout.GillRoot.Z);
+            AssertSocket(model, "GillEnd", 0, 0, StalkerLayout.GillLength);
+            AssertSocket(model, "GillSide", StalkerLayout.GillSpread, 0, 0);
+            AssertSocket(model, "HipR", StalkerLayout.Hip.X, StalkerLayout.Hip.Y, StalkerLayout.Hip.Z);
+            AssertSocket(model, "LegEnd", 0, 0, StalkerLayout.LegLength);
+            AssertSocket(model, "ShinEnd", 0, 0, StalkerLayout.ShinLength);
+            AssertSocket(model, "LegSide", StalkerLayout.LegRadius, 0, 0);
+            AssertSocket(model, "StumpRim", StalkerLayout.StumpRadius, 0, 0);
+            string[] pieces = { StalkerLayout.HeadPiece, StalkerLayout.JawPiece, StalkerLayout.SegPiece, StalkerLayout.TailPiece, StalkerLayout.LegPiece, StalkerLayout.ShinPiece,
+                                StalkerLayout.GillPiece, StalkerLayout.Stump, StalkerLayout.Meat[0], StalkerLayout.Meat[1] };
+            foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            Assert.IsTrue(model.Textured, "the Blind stalker is drawn with pictures");
+
+            // The shapes are the size the rules (and the hitboxes) think they are. Along is +Z.
+            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft)
+            {
+                ModelPart part = model.Part(piece);
+                right = float.MinValue; left = float.MaxValue; hi = float.MinValue; lo = float.MaxValue; fore = float.MinValue; aft = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    right = Math.Max(right, part.Positions[i * 3]);
+                    left = Math.Min(left, part.Positions[i * 3]);
+                    hi = Math.Max(hi, part.Positions[i * 3 + 1]);
+                    lo = Math.Min(lo, part.Positions[i * 3 + 1]);
+                    fore = Math.Max(fore, part.Positions[i * 3 + 2]);
+                    aft = Math.Min(aft, part.Positions[i * 3 + 2]);
+                }
+            }
+            Box(StalkerLayout.SegPiece, out float right, out float left, out float hi, out float lo, out float fore, out float aft);
+            Assert.AreEqual(StalkerLayout.SegHalfWidth, right, 0.012, "a length's width");
+            Assert.AreEqual(-right, left, 0.006, "and it is the same either side");
+            Assert.AreEqual(StalkerLayout.SegHalfHeight, hi, 0.012, "a length's upper side");
+            Assert.AreEqual(-StalkerLayout.SegHalfHeight, lo, 0.02, "and its underside");
+            Assert.Greater(fore, StalkerLayout.Spacing * 0.5 + 0.03, "a length reaches into the one in front of it");
+            Assert.Less(aft, -StalkerLayout.Spacing * 0.5 - 0.03, "and the one behind, so a bend opens no gap");
+            Assert.Less(fore - aft, StalkerLayout.Spacing + 0.20, "without running far into its neighbours");
+
+            Box(StalkerLayout.TailPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.TailHalfWidth, right, 0.012, "the tail is thin from side to side");
+            Assert.AreEqual(StalkerLayout.TailHalfHeight, hi, 0.015, "and tall: a fin above");
+            Assert.AreEqual(-StalkerLayout.TailHalfHeight, lo, 0.015, "and below");
+
+            Box(StalkerLayout.HeadPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.HeadLength - StalkerLayout.Spacing * 0.5, fore, 0.03, "the snout's tip");
+            Assert.AreEqual(StalkerLayout.HeadHalfWidth, right, 0.03, "the head's width");
+            Assert.AreEqual(-right, left, 0.008, "the head is the same either side");
+            Assert.Less(aft, -StalkerLayout.Spacing * 0.5, "the head reaches back into the neck");
+
+            Box(StalkerLayout.JawPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.JawLength, fore, 0.02, "the jaw's length from its hinge");
+            Assert.AreEqual(-right, left, 0.008, "the jaw is the same either side");
+            Assert.Less(hi, 0.02, "the jaw hangs under its hinge, so shut it lies under the snout");
+
+            Box(StalkerLayout.LegPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.LegLength, fore, 0.03, "the upper leg's length");
+            Assert.AreEqual(-right, left, 0.006, "a leg is the same either side: nothing is mirrored");
+            Assert.Less(right, StalkerLayout.LegRadius * 1.5);
+            Box(StalkerLayout.ShinPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.ShinLength, fore, 0.09, "the shin and its toes");
+            Assert.AreEqual(-right, left, 0.006, "a shin is the same either side");
+
+            Box(StalkerLayout.GillPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(StalkerLayout.GillLength, fore, 0.03, "a gill's length");
+            Assert.AreEqual(-right, left, 0.01, "a gill is the same either side");
+            Assert.AreEqual(StalkerLayout.GillSpread, right, 0.06, "and spreads this wide");
+
+            ModelFile far = Load(StalkerLayout.Model + "Far");
+            foreach (string piece in pieces) Assert.IsNotNull(far.Part(piece), "the far copy is missing " + piece);
+            Assert.AreEqual(model.TextureSet, far.TextureSet);
+        }
+
+        static void AssertSocket(ModelFile model, string name, double x, double y, double z)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing " + name);
+            Assert.AreEqual(x, s.X, 0.002, name + " x");
+            Assert.AreEqual(y, s.Y, 0.002, name + " y");
+            Assert.AreEqual(z, s.Z, 0.002, name + " z");
+        }
+
         static ModelFile Load(string id)
         {
             string folder = Environment.GetEnvironmentVariable("OA_MODELS");

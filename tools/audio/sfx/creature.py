@@ -126,3 +126,75 @@ def ambusher_rise(rng, v):
     grit = dsp.resonators(grains, (900.0, 1900.0, 3100.0), (0.004, 0.003, 0.002), (1.0, 0.7, 0.4))
     x = heave * 2.2 + crack * 0.8 + grit * 0.6
     return finish(x, -5, 0.08, hp=40)
+
+
+# ------------------------------------------------------------------ the Blind stalker (the olm)
+
+STALKER = dict(bus="CombatImpacts", spatial=1.0, minDist=3, maxDist=70, priority=55, vacuum="air", maxVoices=2)
+
+
+def _wet_click(rng, n, low=900.0, high=2400.0):
+    """One soft click from a wet throat: two short resonances and a breath of noise."""
+    hit = np.zeros(n)
+    hit[0] = 1.0
+    hit[min(n - 1, secs(0.011))] = rng.uniform(0.4, 0.7)
+    body = dsp.resonators(hit, (low, high), (0.010, 0.006), (1.0, 0.55))
+    return body + dsp.bandpass(dsp.white(n, rng), 1500, 5000) * dsp.env_exp(n, 0.004) * 0.25
+
+
+@sfx("creature.stalker.click", "creature", variants=3, pitchVar=0.12, volumeDb=-13, cooldownMs=250, **STALKER)
+def stalker_click(rng, v):
+    """Each time it takes a new place from what it hears: a quiet double click. It means: where you are now is known."""
+    n = secs(0.12)
+    x = _wet_click(rng, n, 1000.0 + 150.0 * v, 2500.0 + 200.0 * v)
+    return finish(x, -8, 0.01, hp=300)
+
+
+@sfx("creature.stalker.hear", "creature", variants=2, pitchVar=0.15, volumeDb=-8, cooldownMs=500, **STALKER)
+def stalker_hear(rng, v):
+    """It has heard something, 0.7 s: a slow string of clicks that quickens as its head comes round, under a thin
+    wet breath as its gills stand out."""
+    length = 0.7
+    n = secs(length)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    at, gap = 0.03, 0.15
+    while at < length - 0.08:
+        dsp.place(x, _wet_click(rng, secs(0.1), 900.0 + 500.0 * at, 2300.0 + 600.0 * at), secs(at), rng.uniform(0.6, 1.0))
+        at += gap
+        gap *= 0.78
+    breath = dsp.svf(dsp.pink(n, rng), 1400.0 + 900.0 * t / length, 2.0, "bp") * np.sin(np.pi * np.clip(t / length, 0, 1)) ** 2
+    x = x * 0.9 + breath * 0.22
+    return finish(x, -6, 0.03, hp=250)
+
+
+@sfx("creature.stalker.gape", "creature", variants=1, pitchVar=0.12, volumeDb=-5, cooldownMs=300, **STALKER)
+def stalker_gape(rng, v):
+    """The warning, 0.9 s: a long wet breath drawn in through its opening mouth, rising, and at 0.45 s (where it takes
+    aim) the pop of the jaw dropping wide and the gills snapping out. After the pop, stepping aside is a miss."""
+    length = 0.9
+    n = secs(length)
+    t = np.arange(n) / SR
+    ramp = np.clip(t / length, 0, 1)
+    breath = dsp.svf(dsp.pink(n, rng), 350.0 + 1900.0 * ramp ** 1.3, 2.2, "bp") * (0.2 + 0.8 * ramp) * (1.0 + 0.35 * dsp.smooth_noise(n, 22.0, rng))
+    gurgle = dsp.lowpass(dsp.brown(n, rng), 220) * (0.5 + 0.5 * np.sin(2 * np.pi * 17.0 * t)) * ramp
+    x = breath * 0.55 + gurgle * 0.8
+    pop_n = secs(0.16)
+    pop = dsp.sine(520.0 * np.exp(-np.arange(pop_n) / SR / 0.02) + 150.0, pop_n) * dsp.env_exp(pop_n, 0.03) + _wet_click(rng, pop_n, 700.0, 1900.0) * 0.8
+    dsp.place(x, pop, secs(0.445), 1.5)
+    x *= np.minimum((length - t) / 0.015, 1.0)
+    return finish(x, -4, 0.02, hp=90)
+
+
+@sfx("creature.stalker.lunge", "creature", variants=2, pitchVar=0.2, volumeDb=-3, cooldownMs=150, **STALKER)
+def stalker_lunge(rng, v):
+    """The lunge: its whole wet length thrown across the ground in a fifth of a second, and the jaws clapping shut."""
+    n = secs(0.45)
+    t = np.arange(n) / SR
+    rush = dsp.svf(dsp.white(n, rng), 500.0 + 2600.0 * np.clip(t / 0.15, 0, 1), 1.6, "bp") * np.exp(-((t - 0.08) / 0.055) ** 2)
+    slap = dsp.bandpass(dsp.white(n, rng), 250, 1800) * np.exp(-np.clip(t - 0.03, 0, None) / 0.05) * (t > 0.03) * 0.5
+    x = rush * 0.6 + slap
+    clap_n = secs(0.14)
+    clap = dsp.bandpass(dsp.white(clap_n, rng), 600, 4200) * dsp.env_exp(clap_n, 0.018) + dsp.sine(170.0 * np.exp(-np.arange(clap_n) / SR / 0.04) + 70.0, clap_n) * dsp.env_exp(clap_n, 0.04)
+    dsp.place(x, clap, secs(0.155), 1.6)
+    return finish(x, -3, 0.04, hp=70)

@@ -1625,102 +1625,105 @@ def stalker(hi):
     L = STALKER
     up = (0, 0, 1)
     sp, half, tall = L["spacing"], L["seg_half"], L["seg_tall"]
-    over = 0.03
+    # Each length is closed and round at both ends and reaches well into its neighbours, so a bend never opens a gap
+    # and there is no joint line to bake dirt into.
+    over = 0.075
 
     # ------------------------------------------------------------- Seg: a length of trunk, soft, furrowed round, a low ridge along its back
-    keys = [(0.00, half * 0.92, tall * 0.92, 0, 0.0), (0.04, half * 0.985, tall * 0.985, 0, 0.0), (sp * 0.5 + over, half, tall, 0, 0.0),
-            (sp + 2 * over - 0.04, half * 0.985, tall * 0.985, 0, 0.0), (sp + 2 * over, half * 0.92, tall * 0.92, 0, 0.0)]
-    body = g.skin("length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=2.1)
+    full = sp + 2 * over
+    keys = [(0.00, half * 0.26, tall * 0.26, 0, 0.0), (0.015, half * 0.52, tall * 0.52, 0, 0.0), (0.045, half * 0.82, tall * 0.82, 0, 0.0), (0.09, half * 0.97, tall * 0.97, 0, 0.0),
+            (full * 0.5, half, tall, 0, 0.0),
+            (full - 0.09, half * 0.97, tall * 0.97, 0, 0.0), (full - 0.045, half * 0.82, tall * 0.82, 0, 0.0), (full - 0.015, half * 0.52, tall * 0.52, 0, 0.0), (full, half * 0.26, tall * 0.26, 0, 0.0)]
+    body = g.skin("length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=12, step=0.045, power=2.1)
     if hi:
         # Two furrows a length, a soft fold low on each flank, and skin that is never quite even.
-        real.displace(body, lambda p: -0.006 * math.exp(-((abs(p.y) - 0.085) / 0.014) ** 2)
-                                      + 0.006 * math.exp(-((p.z + 0.07) / 0.03) ** 2) * (1.0 if abs(p.x) > 0.11 else 0.0)
-                                      + 0.004 * noise.noise(p * 8.0))
+        real.displace(body, lambda p: -0.0035 * math.exp(-((abs(p.y) - 0.085) / 0.020) ** 2) * (0.4 + 0.6 * min(1.0, abs(p.x) / 0.10))
+                                      + 0.005 * math.exp(-((p.z + 0.07) / 0.04) ** 2) * min(1.0, abs(p.x) / 0.12)
+                                      + 0.005 * noise.noise(p * 7.0) + 0.002 * noise.noise(p * 23.0))
     g.add(body, "skin", "Seg")
-    g.add(g.ball("link", (0, -sp * 0.5, 0.0), tall * 0.985, scale=(half / tall, 0.85, 1.0), around=12), "skin", "Seg")
-    for side in (-1, 1):
-        for y in (-0.10, 0.0, 0.10):
-            # The line of pores down each flank that it feels movement with.
-            g.add(g.ball("pore", (side * half * 0.985, y, 0.02), 0.008, around=5), "spot", "Seg", only='hi')
 
     # ------------------------------------------------------------- Tail: a length of tail, thin from side to side, a fin above and below
     th, tt = L["tail_half"], L["tail_tall"]
-    keys = [(0.00, th * 0.92, tt * 0.94, 0, 0.0), (0.04, th * 0.985, tt * 0.99, 0, 0.0), (sp * 0.5 + over, th, tt, 0, 0.0),
-            (sp + 2 * over - 0.04, th * 0.985, tt * 0.99, 0, 0.0), (sp + 2 * over, th * 0.92, tt * 0.94, 0, 0.0)]
-    fin = g.skin("tail length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=12, step=0.10, power=1.45)
+    keys = [(0.00, th * 0.30, tt * 0.40, 0, 0.0), (0.015, th * 0.55, tt * 0.70, 0, 0.0), (0.045, th * 0.84, tt * 0.90, 0, 0.0), (0.09, th * 0.97, tt * 0.98, 0, 0.0),
+            (full * 0.5, th, tt, 0, 0.0),
+            (full - 0.09, th * 0.97, tt * 0.98, 0, 0.0), (full - 0.045, th * 0.84, tt * 0.90, 0, 0.0), (full - 0.015, th * 0.55, tt * 0.70, 0, 0.0), (full, th * 0.30, tt * 0.40, 0, 0.0)]
+    fin = g.skin("tail length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, keys, around=10, step=0.045, power=1.45)
     if hi:
         # Fine rays in the fin, above and below the muscle.
         real.displace(fin, lambda p: 0.0018 * math.sin(p.y * 2 * math.pi / 0.03) * (1.0 if abs(p.z) > tt * 0.5 else 0.0) + 0.003 * noise.noise(p * 9.0))
     g.add(fin, "skin", "Tail")
-    g.add(g.ball("tail link", (0, -sp * 0.5, 0.0), tt * 0.985, scale=(th / tt, 0.30, 1.0), around=10), "skin", "Tail")
 
     # ------------------------------------------------------------- Head: flat and pear-shaped, no eyes; its lower jaw is a piece of its own
     hl, hh, ht = L["head"], L["head_half"], L["head_tall"]
     back = -sp * 0.5
     # Behind the hinge the head is whole; in front of it only the upper half (the jaw is the rest).
-    keys = [(0.00, half * 0.80, tall * 0.80, 0, 0.0), (0.06, hh * 0.86, ht * 1.0, 0, 0.0), (0.15, hh * 0.99, ht * 0.98, 0, 0.005), (0.22, hh, ht * 0.80, 0, 0.022),
-            (0.34, hh * 0.86, ht * 0.62, 0, 0.034), (0.48, hh * 0.66, ht * 0.52, 0, 0.030), (0.58, hh * 0.44, ht * 0.40, 0, 0.022), (hl, hh * 0.20, ht * 0.20, 0, 0.010)]
-    skull = g.skin("skull", (0, back, 0.0), (0, 1, 0), up, keys, around=14, step=0.06, power=2.2)
+    keys = [(-0.07, half * 0.12, tall * 0.12, 0, 0.0), (-0.05, half * 0.55, tall * 0.55, 0, 0.0), (0.00, half * 0.84, tall * 0.84, 0, 0.0), (0.06, hh * 0.88, ht * 1.06, 0, 0.0), (0.15, hh * 0.99, ht * 0.98, 0, 0.005), (0.22, hh, ht * 0.80, 0, 0.022),
+            (0.34, hh * 0.88, ht * 0.62, 0, 0.034), (0.48, hh * 0.76, ht * 0.52, 0, 0.030), (0.57, hh * 0.66, ht * 0.42, 0, 0.022), (0.605, hh * 0.52, ht * 0.30, 0, 0.014), (hl, hh * 0.26, ht * 0.14, 0, 0.008)]
+    keys = [(k[0] + 0.07,) + tuple(k[1:]) for k in keys]
+    skull = g.skin("skull", (0, back - 0.07, 0.0), (0, 1, 0), up, keys, around=14, step=0.06, power=2.2)
     if hi:
         # Jaw muscles bulging behind the cheeks, a shallow groove down the middle of the skull.
         real.displace(skull, lambda p: 0.010 * math.exp(-(((abs(p.x) - 0.11) / 0.05) ** 2 + ((p.y + 0.02) / 0.07) ** 2)) * (1.0 if p.z > 0 else 0.0)
                                        - 0.004 * math.exp(-(p.x / 0.012) ** 2) * (1.0 if p.z > 0.02 else 0.0) + 0.003 * noise.noise(p * 10.0))
     g.add(skull, "skin", "Head")
     # The roof of its mouth, seen when the jaw drops.
-    g.add(g.ball("palate", (0, 0.20, -0.026), 0.10, scale=(1.35, 2.3, 0.14), around=8), "mouth", "Head")
+    g.add(g.ball("palate", (0, 0.215, -0.012), 0.10, scale=(1.75, 2.42, 0.26), around=8), "mouth", "Head")
     for side in (-1, 1):
         # Where eyes would be: a dark smudge under the skin, nothing more.
         g.add(g.ball("eye smudge", (side * 0.105, 0.22, 0.060), 0.013, scale=(1.0, 1.3, 0.4), around=5), "spot", "Head", only='hi')
         g.add(g.ball("nostril", (side * 0.030, 0.435, 0.030), 0.007, around=5), "spot", "Head", only='hi')
         root = L["gill_root"]
         g.add(g.ball("gill socket", (side * (root[0] - 0.012), root[1], root[2]), 0.045, scale=(0.8, 1.2, 0.9), around=6), "skin", "Head")
-    teeth = 14 if hi else 0
-    for k in range(teeth):
-        for side in (-1, 1):
-            y = 0.06 + 0.33 * k / (teeth - 1)
-            rs, rf, os_, of = real.along(keys, y - back)
-            g.add(g.spine("tooth", (side * rs * 0.90, y, -0.024), (0, 0, -1), 0.016, 0.005, around=3), "tooth", "Head", only='hi')
 
     # ------------------------------------------------------------- Jaw: the lower jaw, from its hinge; it hangs under the snout and drops open
     jl = L["jaw"]
-    jk = [(0.00, hh * 0.90, 0.030, 0, -0.036), (0.10, hh * 0.92, 0.034, 0, -0.036), (0.22, hh * 0.72, 0.032, 0, -0.034), (0.32, hh * 0.50, 0.026, 0, -0.028),
-          (jl, hh * 0.20, 0.012, 0, -0.014)]
+    jk = [(0.00, hh * 0.90, 0.036, 0, -0.042), (0.10, hh * 0.93, 0.042, 0, -0.044), (0.22, hh * 0.82, 0.040, 0, -0.042), (0.32, hh * 0.70, 0.032, 0, -0.034),
+          (0.375, hh * 0.56, 0.022, 0, -0.024), (jl, hh * 0.26, 0.010, 0, -0.012)]
     g.add(g.skin("jaw", (0, 0, 0), (0, 1, 0), up, jk, around=10, step=0.07, power=2.2), "skin", "Jaw")
     # Its tongue and the floor of its mouth.
     g.add(g.ball("tongue", (0, 0.17, -0.010), 0.085, scale=(1.15, 2.1, 0.16), around=8), "mouth", "Jaw")
-    for k in range(teeth):
-        for side in (-1, 1):
-            y = 0.05 + 0.30 * k / (teeth - 1)
-            rs, rf, os_, of = real.along(jk, y)
-            g.add(g.spine("tooth", (side * rs * 0.88, y, -0.008), (0, 0, 1), 0.014, 0.005, around=3), "tooth", "Jaw", only='hi')
 
     # ------------------------------------------------------------- Gill: three feathered plumes from one root, the same either side, lifting
     gl, gs = L["gill"], L["gill_spread"]
     for k, (aside, lift, reach) in enumerate(((-1.0, 0.03, 0.88), (0.0, 0.10, 1.0), (1.0, 0.03, 0.88))):
         end = gl * reach
-        pk = [(0.00, 0.026, 0.026, 0.0, 0.0), (end * 0.3, 0.022, 0.022, -aside * gs * 0.30, lift * 0.25), (end * 0.65, 0.016, 0.016, -aside * gs * 0.68, lift * 0.65),
-              (end, 0.004, 0.004, -aside * gs * 0.94, lift)]
-        g.add(g.skin("plume", (0, 0, 0), (0, 1, 0), up, pk, around=5, step=0.10, power=2.0), "gill", "Gill")
-        barbs = 12 if hi else 4
-        for b in range(barbs):
-            y = end * (0.22 + 0.72 * b / (barbs - 1))
+        # A frond: flat, soft, its edge scalloped by the filaments (which are only in the baked model and the pictures).
+        pk, n = [], 12
+        for i in range(n + 1):
+            t = i / n
+            wide = (0.016 + 0.030 * math.sin(math.pi * min(1.0, t * 1.15)) ** 0.7) * (1.0 if i % 2 else 0.86) * (1.0 - 0.55 * t * t)
+            pk.append((end * t, max(0.004, wide * 0.62), 0.015 * (1.0 - 0.7 * t) + 0.003, -aside * gs * 0.94 * t ** 1.3, lift * t ** 1.4))
+        g.add(g.skin("frond", (0, 0, 0), (0, 1, 0), up, pk, around=6, step=end / n, power=2.0), "gill", "Gill")
+        if hi:
+            g.add(g.skin("frond stem", (0, 0, 0.004), (0, 1, 0), up, [(k_[0], 0.008 * (1.0 - 0.6 * k_[0] / end), 0.008 * (1.0 - 0.6 * k_[0] / end), k_[3], k_[4]) for k_ in pk],
+                         around=5, step=end / n, power=2.0), "gill", "Gill", only='hi')
+            barbs = 26
+            for b in range(barbs):
+                y = end * (0.10 + 0.86 * b / (barbs - 1))
+                rs, rf, os_, of = real.along(pk, y)
+                for way in (-1, 1):
+                    g.add(g.spine("barb", (-os_, y, of + 0.004), (way * 0.85, 0.5, 0.0), rs * 1.15, 0.0045, around=3), "gill", "Gill", only='hi')
+        # The fringe: soft filaments standing out either side of the frond and drooping at their tips.
+        fringe = 7
+        for b in range(fringe):
+            y = end * (0.16 + 0.74 * b / (fringe - 1))
             rs, rf, os_, of = real.along(pk, y)
             for way in (-1, 1):
-                # The filaments either side of each plume (a few real ones; the rest are in the pictures).
-                g.add(g.spine("barb", (-os_, y, of), (way * 0.8, 0.45, 0.35), 0.060 * (1.0 - 0.5 * b / barbs), 0.008 if hi else 0.012, around=3), "gill", "Gill")
+                long = 0.070 * (1.0 - 0.45 * b / fringe) * (1.0 if (b + (way > 0)) % 2 else 0.8)
+                g.add(g.spine("filament", (-os_ + way * rs * 0.5, y, of), (way * 0.80, 0.42, 0.42), long, 0.0075, around=3, bend=(0, 0.25, -0.9)), "gill", "Gill")
     g.add(g.ball("gill root", (0, 0.01, 0), 0.034, around=6), "gill", "Gill")
 
     # ------------------------------------------------------------- Leg and Shin: thin and soft, the shin ending in three blunt toes
     ll, sl, lr = L["leg"], L["shin"], L["leg_radius"]
-    lk = [(0.00, lr * 1.15, lr * 1.15, 0, 0), (ll * 0.5, lr, lr, 0, 0), (ll, lr * 0.92, lr * 0.92, 0, 0)]
+    lk = [(0.00, lr * 1.10, lr * 1.25, 0, 0), (ll * 0.30, lr * 1.0, lr * 1.12, 0, 0.004), (ll * 0.70, lr * 0.72, lr * 0.78, 0, 0.002), (ll, lr * 0.66, lr * 0.66, 0, 0)]
     g.add(g.skin("upper leg", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.12, power=2.0), "skin", "Leg")
-    g.add(g.ball("hip", (0, 0, 0), lr * 1.25, around=7), "skin", "Leg")
-    sk_ = [(0.00, lr * 0.95, lr * 0.95, 0, 0), (sl * 0.55, lr * 0.78, lr * 0.78, 0, 0), (sl * 0.90, lr * 0.70, lr * 0.62, 0, 0.004), (sl, lr * 0.95, lr * 0.45, 0, 0.012)]
+    g.add(g.ball("hip", (0, 0, 0), lr * 1.22, around=7), "skin", "Leg")
+    sk_ = [(0.00, lr * 0.68, lr * 0.68, 0, 0), (sl * 0.25, lr * 0.80, lr * 0.74, 0, 0), (sl * 0.65, lr * 0.56, lr * 0.54, 0, 0), (sl * 0.88, lr * 0.50, lr * 0.44, 0, 0.004), (sl, lr * 0.86, lr * 0.34, 0, 0.012)]
     g.add(g.skin("lower leg", (0, 0, 0), (0, 1, 0), up, sk_, around=7, step=0.12, power=2.0), "skin", "Shin")
-    g.add(g.ball("knee", (0, 0, 0), lr * 1.05, around=7), "skin", "Shin")
+    g.add(g.ball("knee", (0, 0, 0), lr * 0.72, around=7), "skin", "Shin")
     for k in (-1, 0, 1):
         # Toes: they turn up toward the leg's upper side, which is the way the ground lies when it stands.
-        tk = [(0.00, 0.016, 0.014, 0, 0), (0.05, 0.014, 0.012, 0, 0.004), (0.085 + (0.012 if k == 0 else 0.0), 0.010, 0.009, 0, 0.008)]
+        tk = [(0.00, 0.013, 0.011, 0, 0), (0.05, 0.011, 0.009, 0, 0.004), (0.085 + (0.014 if k == 0 else 0.0), 0.0085, 0.007, 0, 0.008)]
         g.add(g.skin("toe", (k * 0.024, sl - 0.012, 0.008), (k * 0.36, 0.62, 0.70), (0, -0.7, 0.62), tk, around=5, step=0.06, power=2.0), "skin", "Shin")
 
     leftovers(g, L["stump"], "skin")

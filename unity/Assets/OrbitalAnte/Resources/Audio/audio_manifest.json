@@ -224,6 +224,90 @@
    "note": "The Screamer's warning: single dry clicks of its drums that quicken into a rattle over one second, rising, with a hard double click at 0.6 s where it takes aim. The end of the climb is the moment the scream starts."
   },
   {
+   "id": "creature.stalker.click",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_click_01",
+    "Audio/Sfx/creature/creature_stalker_click_02",
+    "Audio/Sfx/creature/creature_stalker_click_03"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 250,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Each time it takes a new place from what it hears: a quiet double click. It means: where you are now is known."
+  },
+  {
+   "id": "creature.stalker.gape",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_gape"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The warning, 0.9 s: a long wet breath drawn in through its opening mouth, rising, and at 0.45 s (where it takes aim) the pop of the jaw dropping wide and the gills snapping out. After the pop, stepping aside is a miss."
+  },
+  {
+   "id": "creature.stalker.hear",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_hear_01",
+    "Audio/Sfx/creature/creature_stalker_hear_02"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 500,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It has heard something, 0.7 s: a slow string of clicks that quickens as its head comes round, under a thin wet breath as its gills stand out."
+  },
+  {
+   "id": "creature.stalker.lunge",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_lunge_01",
+    "Audio/Sfx/creature/creature_stalker_lunge_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 150,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The lunge: its whole wet length thrown across the ground in a fifth of a second, and the jaws clapping shut."
+  },
+  {
    "id": "enemy.flare.fire",
    "bus": "CombatImpacts",
    "clips": [

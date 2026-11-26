@@ -126,10 +126,11 @@ namespace OrbitalAnte.Creatures
                 else
                 {
                     float w = (float)StalkerLayout.Scale(i - 1);
-                    mesh.localScale = new Vector3(w, w, 1f);
+                    float h = (float)StalkerLayout.Tall(i - 1);
+                    mesh.localScale = new Vector3(w, h, 1f);
                     float halfWide = (float)(tail ? StalkerLayout.TailHalfWidth : StalkerLayout.SegHalfWidth), halfTall = (float)(tail ? StalkerLayout.TailHalfHeight : StalkerLayout.SegHalfHeight);
                     // A length of tail is thin: its box is a little wider than it is drawn, so it can be hit on purpose.
-                    box.size = new Vector3(Mathf.Max(0.12f, halfWide * 2f * w), halfTall * 2f * w, (float)StalkerLayout.Spacing);
+                    box.size = new Vector3(Mathf.Max(0.12f, halfWide * 2f * w), halfTall * 2f * h, (float)StalkerLayout.Spacing);
                     Tag(node, StalkerPiece.Seg, i - 1);
                 }
             }
@@ -462,8 +463,8 @@ namespace OrbitalAnte.Creatures
         {
             Vector3 up = transform.up;
             Transform kept = _node[from];
-            float cutWide = (float)(StalkerLayout.TailHalfWidth * StalkerLayout.Scale(from)) * 1.2f;
-            if (kept != null) Wound(kept, new Vector3(0f, 0f, -(float)StalkerLayout.Spacing * 0.5f), Quaternion.Euler(0f, 180f, 0f), Mathf.Max(0.05f, cutWide));
+            float cutWide = (float)StalkerLayout.WoundSize(from), cutAt = (float)(StalkerLayout.Spacing * 0.5 + StalkerLayout.WoundOut);
+            if (kept != null) Wound(kept, new Vector3(0f, 0f, -cutAt), Quaternion.Euler(0f, 180f, 0f), Mathf.Max(0.05f, from > 0 ? (float)StalkerLayout.WoundSize(from - 1) : cutWide));
             WalkerChunk chunk = null;
             for (int seg = from; seg < StalkerLayout.Segs; seg++)
             {
@@ -473,7 +474,7 @@ namespace OrbitalAnte.Creatures
                 if (chunk == null)
                 {
                     chunk = Throw(node, "Stalker tail", 4f, hit.Direction * 2f + node.right * Random.Range(-2.5f, 2.5f) + up * Random.Range(3f, 5f) - node.forward * Random.Range(1f, 2.5f));
-                    Wound(node, new Vector3(0f, 0f, (float)StalkerLayout.Spacing * 0.5f), Quaternion.identity, Mathf.Max(0.05f, cutWide));
+                    Wound(node, new Vector3(0f, 0f, cutAt), Quaternion.identity, Mathf.Max(0.05f, cutWide));
                 }
                 else Loosen(node, chunk.transform);
             }
@@ -547,6 +548,13 @@ namespace OrbitalAnte.Creatures
                 away = away.sqrMagnitude > 0.0001f ? away.normalized : up;
                 Vector3 velocity = away * Random.Range(2f, 5f) + node.right * Random.Range(-3f, 3f) + up * Random.Range(3f, 7f) + hit.Direction * 2f;
                 WalkerChunk chunk = Throw(node, i == 0 ? "Stalker head" : "Stalker body", i == 0 ? 8f : 6f, velocity);
+                if (i > 0)
+                {
+                    // Torn apart at every joint: a length has a wound at each end.
+                    float size = (float)StalkerLayout.WoundSize(i - 1), out_ = (float)(StalkerLayout.Spacing * 0.5 + StalkerLayout.WoundOut);
+                    Wound(node, new Vector3(0f, 0f, out_), Quaternion.identity, size);
+                    if (i < nodes - 1) Wound(node, new Vector3(0f, 0f, -out_), Quaternion.Euler(0f, 180f, 0f), size);
+                }
                 if (i == 0 && _jaw != null)
                 {
                     Loosen(_jaw, chunk.transform, false);
