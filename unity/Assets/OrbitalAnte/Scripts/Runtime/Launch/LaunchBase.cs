@@ -102,6 +102,8 @@ namespace OrbitalAnte.Launch
                 r.sharedMaterial = _material;
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
+                // The pad and its tower cast the Sun's shadow (the glowing pieces, made below, do not).
+                OrbitalAnte.Look.SunShadows.Cast(r, true);
                 if (arm)
                 {
                     _arm = go.transform;

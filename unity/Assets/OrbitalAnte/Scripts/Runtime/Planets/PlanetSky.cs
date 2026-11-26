@@ -165,8 +165,10 @@ namespace OrbitalAnte.Planets
                     nightLeast = (float)(insideDeck ? GroundLight.NightLeastUnderDeck : GroundLight.NightLeast);
                     spaceShare = (float)GroundLight.SpaceShareInAir;
                     skyOver = skyAmount;
-                    skyBright = light;
-                    dayFill = SkyGlobals.ToColor((SkyGlobals.ToRgb(skyNow) * 0.55f).Saturated(1.25f));
+                    // The shader compares skies by the Sun's height alone, so cloud, storm and deep water (which dim
+                    // "light") go into the fill itself: the sea bed is then as dark as the rocks standing on it.
+                    skyBright = Mathf.Lerp(nightLeast, 1f, day);
+                    dayFill = SkyGlobals.ToColor((SkyGlobals.ToRgb(skyNow) * 0.55f).Saturated(1.25f)) * (light / Mathf.Max(0.001f, skyBright));
                     // The painted sky: deeper overhead, pale at the horizon, warm at sunrise and sunset.
                     bool uniform = air.Underwater || insideDeck || air.Cloud > 0.5;
                     palette = SkyLook.InAir(SkyGlobals.ToRgb(skyNow), SkyGlobals.ToRgb(haze), Vector3.Dot(up, toSun), light, skyAmount,
@@ -231,6 +233,8 @@ namespace OrbitalAnte.Planets
             }
             SkyGlobals.SetAir(sunlight, ambient, background, veil);
             SkyGlobals.SetPlace(placeSoft, skyOver, skyBright, nightLeast, redden, sunPlain, dayFill, spaceShare, farNight);
+            // Deep in the night nothing within the shadows' reach is sunlit, so the shadow picture is not drawn.
+            OrbitalAnte.Look.SunShadows.Night(system.SunLight, s != null && Vector3.Dot(skyUp, (system.Bodies[0].transform.position - eye).normalized) < OrbitalAnte.Look.SunShadows.DeepNight);
             // Lightning lights the whole sky for an instant.
             Rgb flashRgb = SkyGlobals.ToRgb(flash);
             palette.Zenith += flashRgb * 0.45f;

@@ -196,12 +196,14 @@ Shader "OrbitalAnte/Terrain"
                 // A world's own ground says which way is up at every corner; rocks and the ship do not.
                 half grounded = dot(input.direction, input.direction) > 0.25 ? 1.0 : 0.0;
                 half shade = OA_SunShade(input.positionWS);
-                UNITY_BRANCH
+                // Worked out before the "if": how fast a value changes across the screen cannot be asked inside one.
+                float3 upOS = normalize(input.direction + float3(0.0, 1e-6, 0.0));
+                float upSpread = max(length(ddx(upOS)), length(ddy(upOS)));
                 if (_CloudShadow.x * grounded > 0.001)
                 {
                     // The shadows of the clouds seen from space, laid where the far ball lays them (OA_Body), so
                     // the ground agrees with it as it takes over. Faded out by the game as you come down.
-                    float3 d = normalize(input.direction);
+                    float3 d = upOS;
                     float3 east = float3(-d.z, 0.0, d.x);
                     east /= max(0.001, length(east));
                     float3 north = cross(east, d);
@@ -209,8 +211,7 @@ Shader "OrbitalAnte/Terrain"
                     float2 toward = float2(dot(sunOS, east) / (6.2832 * max(0.2, length(d.xz))), dot(sunOS, north) / 3.1416);
                     float2 cloudUv = float2(atan2(d.z, d.x + 0.00001) * 0.15915494, 1.0 - acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
                     cloudUv += float2(_Time.y * _CloudShadow.z, 0.0) + toward * 0.035;
-                    float spread = max(length(ddx(d)), length(ddy(d)));
-                    float cloudLod = max(0.0, log2(max(1e-6, spread * 2048.0 * 0.15915494)));
+                    float cloudLod = max(0.0, log2(max(1e-6, upSpread * 2048.0 * 0.15915494)));
                     shade *= 1.0 - _CloudShadow.x * saturate(SAMPLE_TEXTURE2D_LOD(_CloudMap, sampler_CloudMap, cloudUv, cloudLod).a * _CloudShadow.y);
                 }
                 half3 light = OA_LightAt(normal, input.positionWS, up, _SunAmount, OA_CaveLight(input.positionWS), shade, grounded);
@@ -245,7 +246,14 @@ Shader "OrbitalAnte/Terrain"
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 // Pushed a little way from the light and into the surface, so a face does not shadow itself.
                 float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
-                return ApplyShadowClamping(positionCS);
+                // Kept in front of the Sun's near plane, so a caster behind it still casts (done here, not with URP's
+                // helper, which not every URP 17 has).
+            #if UNITY_REVERSED_Z
+                positionCS.z = min(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+            #else
+                positionCS.z = max(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+            #endif
+                return positionCS;
             }
 
             half4 fragShadow() : SV_Target

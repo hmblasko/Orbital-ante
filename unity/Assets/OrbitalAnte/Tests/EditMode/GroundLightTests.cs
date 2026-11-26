@@ -138,6 +138,7 @@ namespace OrbitalAnte.Tests
                 Assert.IsNotNull(text, name + " is missing");
                 StringAssert.Contains("\"LightMode\" = \"ShadowCaster\"", text, name + " must draw into the Sun's shadow picture");
                 StringAssert.Contains("ApplyShadowBias", text, name + ": without the bias every face shadows itself");
+                StringAssert.DoesNotContain("ApplyShadowClamping", text, name + ": not every URP 17 has it; the clamp is written out");
                 // The switch must be a multi_compile: URP sets it for the whole game, and a shader_feature would be
                 // dropped from a build because no saved material turns it on.
                 StringAssert.Contains("#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE", text, name);
@@ -156,7 +157,7 @@ namespace OrbitalAnte.Tests
             Assert.IsNotNull(look);
             // If one of these lines changes, GroundLight must change with it (and the other way round).
             StringAssert.Contains("smoothstep(-_OA_Place.x, _OA_Place.x * 2.5, sunUp)", look);
-            StringAssert.Contains("exp(-_OA_Redden.rgb * min(1.0 / max(sunUp + 0.06, 0.03), 14.0))", look);
+            StringAssert.Contains("exp(-_OA_Redden.rgb * min(1.0 / max(sunUp + 0.06, 0.03), 14.0) * lerp(_OA_Place.y, 1.0, grounded))", look);
             StringAssert.Contains("saturate((facing + 0.04) / 1.04) * shade", look);
             StringAssert.Contains("lerp(_OA_Place.w, 1.0, smoothstep(-0.1, 0.25, sunUp))", look);
             StringAssert.Contains("fill * min(here / max(_OA_Place.z, 0.001), 1.0) + _OA_GroundFill.rgb * (max(here - _OA_Place.z, 0.0) * _OA_Place.y)", look);

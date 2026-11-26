@@ -37,6 +37,23 @@ namespace OrbitalAnte.Look
             renderer.receiveShadows = on || renderer.receiveShadows;
         }
 
+        /// <summary>The Sun this far below the horizon (as the sine of the angle: 35 degrees) is deep night.</summary>
+        public const float DeepNight = -0.57f;
+
+        static bool _on, _night;
+
+        /// <summary>
+        /// Stops the shadow picture being drawn while the viewer is deep in a world's night, where nothing within
+        /// the shadows' reach is sunlit (these worlds are small: 70 m is up to 27 degrees round the smallest), and
+        /// starts it again toward dawn. Called every frame; does nothing unless that changes.
+        /// </summary>
+        public static void Night(Light sun, bool deepNight)
+        {
+            if (sun == null || !_on || deepNight == _night) return;
+            _night = deepNight;
+            sun.shadows = deepNight ? LightShadows.None : LightShadows.Soft;
+        }
+
         /// <summary>True if a material has a pass that draws into the shadow picture.</summary>
         public static bool CanCast(Material material)
         {
@@ -48,6 +65,8 @@ namespace OrbitalAnte.Look
             if (sun == null) return;
             bool on = Wanted(look);
             sun.shadows = on ? LightShadows.Soft : LightShadows.None;
+            _on = on;
+            _night = false;
             if (!on)
             {
                 Status = "off (Look asset)";

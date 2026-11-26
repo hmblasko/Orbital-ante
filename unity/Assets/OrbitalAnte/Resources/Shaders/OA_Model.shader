@@ -185,7 +185,14 @@ Shader "OrbitalAnte/Model"
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 // Pushed a little way from the light and into the surface, so a face does not shadow itself.
                 float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
-                return ApplyShadowClamping(positionCS);
+                // Kept in front of the Sun's near plane, so a caster behind it still casts (done here, not with URP's
+                // helper, which not every URP 17 has).
+            #if UNITY_REVERSED_Z
+                positionCS.z = min(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+            #else
+                positionCS.z = max(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+            #endif
+                return positionCS;
             }
 
             half4 fragShadow() : SV_Target

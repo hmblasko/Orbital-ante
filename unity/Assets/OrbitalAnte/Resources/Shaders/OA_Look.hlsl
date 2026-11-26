@@ -242,7 +242,8 @@ half3 OA_LightAt(half3 normal, float3 positionWS, float3 up, half sunAmount, hal
     // Real light: sunlight falls only on what faces the Sun and is not in something's shadow, and it reddens
     // where it arrives low, having come a long way through the air (the same sum as a planet seen from space).
     half3 plainSun = _OA_SunPlain.rgb;
-    if (onWorld) plainSun *= exp(-_OA_Redden.rgb * min(1.0 / max(sunUp + 0.06, 0.03), 14.0));
+    // Only as much as there is air in the way: all of it for the ground, none for a ship above the air.
+    if (onWorld) plainSun *= exp(-_OA_Redden.rgb * min(1.0 / max(sunUp + 0.06, 0.03), 14.0) * lerp(_OA_Place.y, 1.0, grounded));
     sun = lerp(sun, plainSun * (saturate((facing + 0.04) / 1.04) * shade), plain);
 
     // More sky light on faces that look up than on faces that look down.
