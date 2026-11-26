@@ -81,7 +81,7 @@ A realistic suit in one pale colour is harder to read than teal against orange. 
 - The baked cabin light is untouched.
 
 ### 3. Sky and air
-Unchanged from look pass 1.
+The air is unchanged from look pass 1. Since 26 Nov 2026 deep space is the real night sky (Matthew: "more like real space", with "interesting galaxy structures"): the real stars at their true places, brightness and colour, a Milky Way with its dust lanes, the Magellanic Clouds, Andromeda and the bright nebulae, plus a handful of invented showpieces (galaxies and nebulae that are not in the real sky, placed away from the Milky Way). Space is black, not blue or purple; colour in it is rare and belongs to something. A planet is always the brightest point in the sky after the Sun: no star is drawn brighter or larger than a far planet. The showpieces are scenery, never places to fly to. See `tools/sky/README.md` and `docs/reports/realistic-space.md`.
 
 ### 4. Materials
 - **What it is made of decides how it looks**: matte cloth, satin paint, bright bare metal, dull rubber, mirror visor.

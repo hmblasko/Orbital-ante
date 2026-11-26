@@ -40,10 +40,12 @@ namespace OrbitalAnte.Planets
         static readonly int GroundId = Shader.PropertyToID("_Ground");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
+        static readonly int SunGlareId = Shader.PropertyToID("_SunGlare");
+        static readonly int BrightnessId = Shader.PropertyToID("_Brightness");
 
         static bool _looked;
         static bool _simple;
-        static Shader _terrain, _body, _atmosphere, _water, _sky, _model;
+        static Shader _terrain, _body, _atmosphere, _water, _sky, _model, _stars;
         static Material _vertexLit, _vertexUnlit;
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
         static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
@@ -67,7 +69,7 @@ namespace OrbitalAnte.Planets
         {
             _simple = false;
             _looked = false;
-            _terrain = _body = _atmosphere = _water = _sky = _model = null;
+            _terrain = _body = _atmosphere = _water = _sky = _model = _stars = null;
             _vertexLit = _vertexUnlit = null;
             ClearVertexCache();
         }
@@ -105,6 +107,8 @@ namespace OrbitalAnte.Planets
             _atmosphere = _simple ? null : Find("OA_Atmosphere", "OrbitalAnte/Atmosphere");
             _water = _simple ? null : Find("OA_Water", "OrbitalAnte/Water");
             _sky = _simple ? null : Find("OA_Sky", "OrbitalAnte/Sky");
+            // The real stars need the sky's own shader too: both fade behind a daytime sky by the same sums.
+            _stars = _simple || _sky == null ? null : Find("OA_Stars", "OrbitalAnte/Stars");
             // Models fall back to the ground's shader (no shine) if theirs cannot be used, and go back to it when
             // Shine is turned right down on the Look asset: the way out if the model shader misbehaves on a machine.
             bool shineOff = OrbitalAnte.Look.LookConfig.Load().shine <= 0f;
@@ -338,12 +342,27 @@ namespace OrbitalAnte.Planets
         }
 
         /// <summary>The sky ball's material, or null if the sky shader is not available (the camera's plain background stands in).</summary>
-        public static Material Sky(float backdropStrength)
+        public static Material Sky(float backdropStrength, float sunGlare = 0.75f)
         {
             Look();
             if (_sky == null) return null;
             var m = new Material(_sky) { name = "OA_Sky (runtime)" };
             m.SetFloat(BackdropStrengthId, backdropStrength);
+            m.SetFloat(SunGlareId, Mathf.Clamp01(sunGlare));
+            return m;
+        }
+
+        /// <summary>
+        /// The material for the real stars (round dots sized in screen dots, each with its own colour and
+        /// brightness), or null if its shader is not available: the earlier square stars stand in then.
+        /// </summary>
+        public static Material Stars(float brightness, float sunGlare)
+        {
+            Look();
+            if (_stars == null) return null;
+            var m = new Material(_stars) { name = "OA_Stars (runtime)" };
+            m.SetFloat(BrightnessId, Mathf.Clamp(brightness, 0f, 4f));
+            m.SetFloat(SunGlareId, Mathf.Clamp01(sunGlare));
             return m;
         }
 

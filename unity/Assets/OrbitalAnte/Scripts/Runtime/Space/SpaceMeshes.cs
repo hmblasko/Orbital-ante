@@ -171,7 +171,62 @@ namespace OrbitalAnte.Space
         }
 
         /// <summary>
-        /// Stars as small squares on the inside of a huge ball. The sky is the same every run: it is the one
+        /// The real stars as one mesh for the star shader (OA_Stars). Each star is a square whose four corners all
+        /// sit at the star's own point on a huge ball; the shader pushes them apart by a number of screen dots, so
+        /// a star is a crisp round dot on any screen. A corner carries the star's tint (colour), which corner it
+        /// is (first UV pair, -1 or 1 each way), and the star's half width in screen dots and its brightness
+        /// (second UV pair), both from its magnitude (<see cref="OrbitalAnte.Look.StarLook"/>).
+        /// </summary>
+        public static Mesh RealStars(OrbitalAnte.Look.StarCatalogue catalogue, float distance)
+        {
+            OrbitalAnte.Look.SkyStar[] stars = catalogue.Stars;
+            int count = stars.Length;
+            var vertices = new Vector3[count * 4];
+            var colors = new Color32[count * 4];
+            var corners = new Vector2[count * 4];
+            var looks = new Vector2[count * 4];
+            var triangles = new int[count * 6];
+            for (int i = 0; i < count; i++)
+            {
+                OrbitalAnte.Look.SkyStar star = stars[i];
+                Vector3 centre = new Vector3(star.X, star.Y, star.Z) * distance;
+                // The file's tints are already linear light, and a mesh's colours reach the shader untouched.
+                var tint = new Color32((byte)Mathf.RoundToInt(star.R * 255f), (byte)Mathf.RoundToInt(star.G * 255f), (byte)Mathf.RoundToInt(star.B * 255f), 255);
+                var look = new Vector2(OrbitalAnte.Look.StarLook.HalfSize(star.Magnitude), OrbitalAnte.Look.StarLook.Peak(star.Magnitude));
+                int v = i * 4;
+                for (int c = 0; c < 4; c++)
+                {
+                    vertices[v + c] = centre;
+                    colors[v + c] = tint;
+                    looks[v + c] = look;
+                }
+                corners[v] = new Vector2(-1f, -1f);
+                corners[v + 1] = new Vector2(-1f, 1f);
+                corners[v + 2] = new Vector2(1f, 1f);
+                corners[v + 3] = new Vector2(1f, -1f);
+                int t = i * 6;
+                triangles[t] = v;
+                triangles[t + 1] = v + 2;
+                triangles[t + 2] = v + 1;
+                triangles[t + 3] = v;
+                triangles[t + 4] = v + 3;
+                triangles[t + 5] = v + 2;
+            }
+            var mesh = new Mesh { name = "RealStars" };
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.vertices = vertices;
+            mesh.colors32 = colors;
+            mesh.uv = corners;
+            mesh.uv2 = looks;
+            mesh.triangles = triangles;
+            // Set by hand: every square is a single point until the shader spreads it, and the ball surrounds the viewer.
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * distance * 2.2f);
+            mesh.UploadMeshData(true);
+            return mesh;
+        }
+
+        /// <summary>
+        /// The earlier stars, kept as the stand-in: small squares on the inside of a huge ball. The sky is the same every run: it is the one
         /// thing in the game that never moves, which makes it the reference you judge all other motion against.
         /// </summary>
         public static Mesh StarField(int count, float distance, float minSize, float maxSize, int seed)

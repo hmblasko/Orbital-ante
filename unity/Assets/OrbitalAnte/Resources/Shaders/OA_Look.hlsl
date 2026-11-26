@@ -33,6 +33,15 @@ float3 OA_ToSunFromEye()
     return normalize(_OA_SunPosition.xyz - _WorldSpaceCameraPos.xyz);
 }
 
+// How much the Sun's glare hides the stars and the faint light of deep space in this direction: nothing a third
+// of the sky away from the Sun, all of it right beside the Sun. An eye or a camera set for sunlight sees no stars
+// near it. The stars and the sky ball both use this, so they fade together.
+half OA_SunGlare(float3 view)
+{
+    half toward = saturate(dot(view, OA_ToSunFromEye()));
+    return smoothstep(0.72, 0.995, toward);
+}
+
 // The sky without the Sun's tight core: what haze, water reflections and veiled bodies take their colour from.
 half3 OA_SkyBase(float3 view)
 {

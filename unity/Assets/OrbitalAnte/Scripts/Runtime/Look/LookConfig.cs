@@ -56,12 +56,17 @@ namespace OrbitalAnte.Look
         [Range(0f, 1f)] public float lightBand = 0.6f;
 
         [Header("Sky")]
-        [Tooltip("Brightness of the coloured clouds of deep space behind the stars. 0 is plain black.")]
+        [Tooltip("Brightness of the picture of deep space behind the stars: the Milky Way, its dust, the far galaxies and nebulae. 0 is plain black.")]
         [Range(0f, 1.5f)] public float spaceBackdrop = 1f;
+        [Tooltip("On: the sky is the real one. The stars are the real stars at their true places, brightness and colour, and the Milky Way lies where it really does. Off: the earlier sky, a faint painted band and evenly scattered stars.")]
+        public bool realSky = true;
+        [Tooltip("How much the Sun's glare hides the stars and deep space near it, as it does for any eye or camera. 0 leaves the sky as bright beside the Sun as anywhere.")]
+        [Range(0f, 1f)] public float sunHidesStars = 0.75f;
         [Tooltip("Size of the glow round the Sun.")]
         [Range(0f, 2f)] public float sunGlow = 1f;
         [Tooltip("How much brighter than white the Sun's disc is drawn, so that it blooms.")]
         [Range(1f, 12f)] public float sunBrightness = 5f;
+        [Tooltip("How bright the stars are. 1.5 shows them as baked; higher makes every star bolder.")]
         [Range(1f, 4f)] public float starBrightness = 1.5f;
 
         [Header("Far copies (enemies and guns a long way off)")]
