@@ -520,3 +520,10 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | Pulse (`PulseClock`) | A few float compares a frame; one short sound a beat while on the last plates | 80 beats a minute |
 | Notes (`NoteBoard`) | Two float subtractions a frame; the label is touched only when the text changes | 1 showing, 1 waiting |
 | Jump grace (`JumpGrace`) | Three float compares a physics step | none |
+
+## Critique loop round 2 (26 Nov 2026): estimates from reading the code, not measured in Unity
+
+| System | Cost | Cap |
+|---|---|---|
+| Readout focus (`ReadoutFocus`, `AnteLoop.InFight`) | A subtraction and compare per frame, no allocations | At most 3 `SetActive` calls (two "+points" rows, the task line) when a fight starts or ends, at most one flip per 6 s |
+| Selection hold (`SelectionHold` in `PauseMenu`) | Float arithmetic and one `IsPressed()` per frame, only while a menu page is open | One selection per page opening |

@@ -471,6 +471,9 @@ namespace OrbitalAnte.Tasks
             _canvas.gameObject.SetActive(false);
         }
 
+        /// <summary>True while an enemy has had the player in sight lately: the readout keeps to what a fight needs.</summary>
+        public static bool InFight => ReadoutFocus.InFight(Time.time - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt);
+
         void Pop(string text) => Pop(text, PopFeedback.LookFor(PopTier.Plain));
 
         void Pop(string text, PopLook look)
@@ -499,7 +502,7 @@ namespace OrbitalAnte.Tasks
                 _popColour[k] = _popColour[k - 1];
                 _pops[k].color = _popColour[k];
                 _popLeft[k] = _popLeft[k - 1];
-                _pops[k].gameObject.SetActive(_popLeft[k] > 0f);
+                _pops[k].gameObject.SetActive(_popLeft[k] > 0f && k < ReadoutFocus.Pops(InFight) && !OrbitalAnte.Ship.Astronaut.PlayerInShip);
             }
         }
 
@@ -597,10 +600,13 @@ namespace OrbitalAnte.Tasks
 
             // Aboard, the ship's damage list takes this corner: the lines wait (the score still counts up).
             bool popsShown = !OrbitalAnte.Ship.Astronaut.PlayerInShip;
+            // In a fight only the newest lines show (ReadoutFocus); older ones still on their time come back after it.
+            int popRows = ReadoutFocus.Pops(InFight);
             for (int i = 0; i < _pops.Length; i++)
             {
                 if (_popLeft[i] <= 0f) continue;
-                if (_pops[i].gameObject.activeSelf != popsShown) _pops[i].gameObject.SetActive(popsShown);
+                bool rowShown = popsShown && i < popRows;
+                if (_pops[i].gameObject.activeSelf != rowShown) _pops[i].gameObject.SetActive(rowShown);
                 _popLeft[i] -= dt;
                 if (_popLeft[i] <= 0f) _pops[i].gameObject.SetActive(false);
                 else
