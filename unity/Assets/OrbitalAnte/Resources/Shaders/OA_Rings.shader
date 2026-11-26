@@ -13,7 +13,8 @@ Shader "OrbitalAnte/Rings"
 
     SubShader
     {
-        // Before clouds and air, so a planet's air lies over rings that pass behind its edge.
+        // The game draws it after the clouds and the air (it sets the queue to 3020), so the air never dims rings
+        // that pass in front of the planet's edge.
         Tags { "RenderType" = "Transparent" "RenderPipeline" = "UniversalPipeline" "Queue" = "Transparent" }
 
         Pass

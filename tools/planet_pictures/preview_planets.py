@@ -204,7 +204,7 @@ def render(cfg, new):
         if "aurora" in cfg:
             lat = np.degrees(np.arcsin(np.clip(nb[..., 1], -1, 1)))
             lon = np.arctan2(nb[..., 2], nb[..., 0])
-            oval = np.exp(-((np.abs(lat) - 68 - 4 * np.sin(lon * 2 + 1)) / 2.2) ** 2)
+            oval = np.exp(-((np.abs(lat) - 68 - 4 * np.sin(lon * 2 + 1)) / 1.2) ** 2)
             cur = 0.35 + 0.65 * smooth(-0.2, 0.6, fbm(nb[..., 0] * 9, nb[..., 1] * 9, nb[..., 2] * 9, 77, 4))
             img += np.where(on[..., None], np.asarray(cfg["aurora"], F) * (oval * cur * smooth(0.05, -0.2, mu_s))[..., None], 0)
 
@@ -298,7 +298,7 @@ if __name__ == "__main__":
         _, ec = baked("EarthClouds")
         a = air("#6EB5FF", 0.93, 170 / 500)
         earth = dict(today_map=alb, map=alb, height=h * (187.7 / 500), relief=0.8, sea=sea, clouds=ec, cloud_amount=0.95, soft=a["soft"], air=a,
-                     shell=1.17, lights=lights(4, 28), lights_col=warm, aurora=(0.05, 0.5, 0.22), turn=(215, 18, 12), sun=(0.75, 0.3, 0.6))
+                     shell=1.17, lights=lights(4, 28), lights_col=warm, aurora=(0.025, 0.25, 0.11), turn=(215, 18, 12), sun=(0.75, 0.3, 0.6))
         if want("earth"): pair("planet_earth", earth, "Earth: clouds with shadows, relief, the Sun's glint on the sea, air that pales the limb")
         if want("earth_night"):
             earth.update(sun=(-0.82, 0.12, -0.55), turn=(215, 30, 12))

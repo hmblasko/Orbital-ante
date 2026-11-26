@@ -90,10 +90,10 @@ namespace OrbitalAnte.Planets
             switch (bodyId)
             {
                 case "Earth":
-                    clouds = new CloudLook { Picture = Folder + "EarthClouds", Amount = 0.95, Height = 0.12, Shadow = 0.55, DriftSeconds = 2400 };
+                    clouds = new CloudLook { Picture = Folder + "EarthClouds", Amount = 0.95, Height = 0.2, Shadow = 0.55, DriftSeconds = 2400 };
                     return true;
                 case "Mars":
-                    clouds = new CloudLook { Picture = Folder + "MarsClouds", Amount = 0.16, Height = 0.12, Shadow = 0.1, DriftSeconds = 3600 };
+                    clouds = new CloudLook { Picture = Folder + "MarsClouds", Amount = 0.16, Height = 0.25, Shadow = 0.1, DriftSeconds = 3600 };
                     return true;
                 case "Venus":
                     // An unbroken deck: the ground cannot be seen until you fly down through it.
@@ -158,14 +158,24 @@ namespace OrbitalAnte.Planets
 
         /// <summary>
         /// Red: slope toward the east, green: toward the north (128 is level, see <see cref="Decode"/>), blue: 255
-        /// over sea, alpha: 255. <paramref name="heights"/> are metres above the body's radius, bottom row (south)
-        /// first, <paramref name="width"/> across and half that high.
+        /// over sea, alpha: the height of the ground (the sea's top over sea) from <paramref name="low"/> (0) to
+        /// <paramref name="high"/> (255), which the cloud layer parts round. <paramref name="heights"/> are metres
+        /// above the body's radius, bottom row (south) first, <paramref name="width"/> across and half that high.
         /// </summary>
-        public static byte[] Paint(float[] heights, int width, double radius, bool hasSea, double seaLevel)
+        public static byte[] Paint(float[] heights, int width, double radius, bool hasSea, double seaLevel, out double low, out double high)
         {
             int height = width / 2;
             var pixels = new byte[width * height * 4];
             float sea = (float)seaLevel;
+            low = double.MaxValue;
+            high = double.MinValue;
+            for (int i = 0; i < width * height; i++)
+            {
+                double level = Level(heights[i], hasSea, sea);
+                if (level < low) low = level;
+                if (level > high) high = level;
+            }
+            double span = Math.Max(1e-6, high - low);
             for (int y = 0; y < height; y++)
             {
                 double polar = (1 - (y + 0.5) / height) * Math.PI;
@@ -184,7 +194,7 @@ namespace OrbitalAnte.Planets
                     pixels[o] = Encode(east);
                     pixels[o + 1] = Encode(north);
                     pixels[o + 2] = (byte)(wet ? 255 : 0);
-                    pixels[o + 3] = 255;
+                    pixels[o + 3] = (byte)Math.Round((Level(here, hasSea, sea) - low) / span * 255);
                 }
             }
             return pixels;

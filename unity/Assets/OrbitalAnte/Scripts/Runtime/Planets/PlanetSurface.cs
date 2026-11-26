@@ -277,8 +277,9 @@ namespace OrbitalAnte.Planets
             PlanetTerrain terrain = Terrain;
             // The realistic far look also wants the lie of the land: the heights are kept as the picture is painted
             // (no extra questions of the ground) and turned into slopes in the last slice.
-            float[] heights = PlanetMaterials.RealPlanets ? new float[width * height] : null;
+            float[] heights = _wantsRelief ? new float[width * height] : null;
             byte[] relief = null;
+            double reliefLow = 0, reliefHigh = 0;
             double radius = terrain.Radius;
             // Small slices: a slice cannot be interrupted, so each must be short enough not to hold up urgent work.
             const int slices = 32;
@@ -291,37 +292,28 @@ namespace OrbitalAnte.Planets
                 _pictureJob = PlanetJobs.Run(() =>
                 {
                     FarMap.Paint(terrain, width, pixels, first, end, heights);
-                    if (heights != null && end >= height) relief = FarRelief.Paint(heights, width, radius, terrain.HasSea, terrain.SeaLevel);
+                    if (heights != null && end >= height) relief = FarRelief.Paint(heights, width, radius, terrain.HasSea, terrain.SeaLevel, out reliefLow, out reliefHigh);
                     return pixels;
                 }, _ =>
                 {
                     slice++;
                     if (slice < slices) Next();
-                    else OnPicture(pixels, relief, width, height);
+                    else OnPicture(pixels, relief, reliefLow, reliefHigh, width, height);
                 }, () => priority() + 500f, true);
             }
             Next();
         }
 
-        void OnPicture(byte[] pixels, byte[] relief, int width, int height)
+        void OnPicture(byte[] pixels, byte[] relief, double reliefLow, double reliefHigh, int width, int height)
         {
             if (this == null) return;
             _pictureJob = null;
-            if (relief != null && Body.FarLook != null)
-            {
-                // Numbers, not colours: kept exactly as written (linear).
-                var lie = new Texture2D(width, height, TextureFormat.RGBA32, true, true)
-                {
-                    name = Body.Spec.id + " relief",
-                    wrapModeU = TextureWrapMode.Repeat,
-                    wrapModeV = TextureWrapMode.Clamp,
-                    filterMode = FilterMode.Trilinear,
-                };
-                lie.SetPixelData(relief, 0);
-                lie.Apply(true, true);
-                _owned.Add(lie);
-                PlanetMaterials.SetRelief(Body.FarLook.sharedMaterial, lie, FarReliefStrength);
-            }
+            // The lie of the land goes to the graphics card on a later frame (FarTick), so one frame never
+            // carries two pictures' worth of work.
+            _reliefWaiting = relief;
+            _reliefWidth = width;
+            _reliefLow = (float)reliefLow;
+            _reliefHigh = (float)reliefHigh;
             _picture = new Texture2D(width, height, TextureFormat.RGBA32, true)
             {
                 name = Body.Spec.id + " surface",
@@ -345,7 +337,7 @@ namespace OrbitalAnte.Planets
         /// <summary>Over what share of a cloud layer's radius it fades out as the viewer comes down to it.</summary>
         const double CloudFadeOver = 0.25;
         static readonly Color NightLightColor = new Color(1f, 0.85f, 0.62f);
-        static readonly Color AuroraColor = new Color(0.25f, 0.74f, 0.5f, 1f);
+        static readonly Color AuroraColor = new Color(0.25f, 0.74f, 0.5f, 0.5f);
 
         AirLook _air;
         GameObject _clouds;
@@ -364,7 +356,10 @@ namespace OrbitalAnte.Planets
             if (!PlanetMaterials.RealPlanets) return false;
             _air = OrbitLook.Air(Profile, BodyRadius, Interior);
             Material far = Body.FarLook != null ? Body.FarLook.sharedMaterial : null;
-            PlanetMaterials.SetRealBody(far, _air);
+            // A gas giant's ball is cloud tops, and a world under an unbroken deck never shows its ball: neither needs slopes.
+            bool underDeck = OrbitLook.TryClouds(Body.Spec.id, out CloudLook deck) && deck.Amount >= 1;
+            _wantsRelief = far != null && !Interior && !underDeck;
+            PlanetMaterials.SetRealBody(far, _air, _wantsRelief);
             if (OrbitLook.HasAurora(Body.Spec.id)) PlanetMaterials.SetAurora(far, AuroraColor);
             if (!Profile.hasAtmosphere) return true;
 
@@ -421,6 +416,7 @@ namespace OrbitalAnte.Planets
         /// </summary>
         public void FarTick(double viewerRadius, double nearHeight)
         {
+            if (_reliefWaiting != null) UploadRelief();
             if (_clouds == null) return;
             float shown = (float)OrbitLook.ShellShown(viewerRadius, _cloudShell, CloudFadeOver);
             if (Mathf.Abs(shown - _cloudShown) > 0.004f || (shown <= 0f) != (_cloudShown <= 0f))
@@ -434,6 +430,35 @@ namespace OrbitalAnte.Planets
             if (Mathf.Abs(shadow - _cloudShadowShown) < 0.004f) return;
             _cloudShadowShown = shadow;
             PlanetMaterials.SetCloudShadows(Body.FarLook.sharedMaterial, null, shadow, _cloudAmount, _cloudDrift);
+        }
+
+        bool _wantsRelief;
+        byte[] _reliefWaiting;
+        int _reliefWidth;
+        float _reliefLow, _reliefHigh;
+        /// <summary>Over how many metres of rising ground a cloud layer thins to nothing round it.</summary>
+        const float CloudPartsOver = 14f;
+
+        void UploadRelief()
+        {
+            byte[] relief = _reliefWaiting;
+            _reliefWaiting = null;
+            if (Body.FarLook == null) return;
+            // Numbers, not colours: kept exactly as written (linear).
+            var lie = new Texture2D(_reliefWidth, _reliefWidth / 2, TextureFormat.RGBA32, true, true)
+            {
+                name = Body.Spec.id + " relief",
+                wrapModeU = TextureWrapMode.Repeat,
+                wrapModeV = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Trilinear,
+            };
+            lie.SetPixelData(relief, 0);
+            lie.Apply(true, true);
+            _owned.Add(lie);
+            PlanetMaterials.SetRelief(Body.FarLook.sharedMaterial, lie, FarReliefStrength);
+            // Heights are measured from the ground's own radius; so is the layer.
+            if (_cloudMaterial != null && Terrain != null)
+                PlanetMaterials.SetCloudGround(_cloudMaterial, lie, _reliefLow, _reliefHigh, (float)(_cloudShell - Terrain.Radius), CloudPartsOver);
         }
 
         Texture2D _nightLights;

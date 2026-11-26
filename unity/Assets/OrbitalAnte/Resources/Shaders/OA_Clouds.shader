@@ -13,6 +13,8 @@ Shader "OrbitalAnte/Clouds"
         _Drift ("Turns round the planet a second", Float) = 0
         _Soft ("How soft the edge of the night is", Range(0.002, 0.2)) = 0.03
         _Redden ("How much low sunlight is reddened by the air (rgb)", Vector) = (0, 0, 0, 0)
+        [NoScaleOffset] _GroundMap ("The ground under the clouds: alpha is its height", 2D) = "black" {}
+        _Ground ("Ground heights in metres: x lowest, y highest, z the cloud layer's height, w band it parts over (0: not known yet)", Vector) = (0, 0, 0, 0)
     }
 
     SubShader
@@ -40,10 +42,13 @@ Shader "OrbitalAnte/Clouds"
                 float _Drift;
                 half _Soft;
                 half4 _Redden;
+                float4 _Ground;
             CBUFFER_END
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_GroundMap);
+            SAMPLER(sampler_GroundMap);
 
             #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
@@ -60,6 +65,7 @@ Shader "OrbitalAnte/Clouds"
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
                 float2 uv : TEXCOORD2;
+                float2 groundUv : TEXCOORD3;
             };
 
             Varyings vert(Attributes input)
@@ -70,6 +76,7 @@ Shader "OrbitalAnte/Clouds"
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.uv = input.uv + float2(_Time.y * _Drift, 0.0);
+                output.groundUv = input.uv;
                 return output;
             }
 
@@ -87,6 +94,13 @@ Shader "OrbitalAnte/Clouds"
                 float3 toEye = normalize(_WorldSpaceCameraPos.xyz - input.positionWS);
                 half slant = max(0.25, saturate(dot(normal, toEye)));
                 half amount = 1.0 - pow(1.0 - saturate(cloud.a * _Amount), 1.0 / slant);
+                // Cloud parts round ground that stands as high as the layer, so a mountain range rises out of a gap
+                // in the cloud and is never cut by it along a hard line.
+                if (_Ground.w > 0.0)
+                {
+                    half ground = lerp(_Ground.x, _Ground.y, SAMPLE_TEXTURE2D(_GroundMap, sampler_GroundMap, input.groundUv).a);
+                    amount *= 1.0 - smoothstep(_Ground.z - _Ground.w, _Ground.z, ground);
+                }
                 amount *= _Strength * (1.0 - _OA_Veil.a);
                 return half4(cloud.rgb * light * amount, amount);
             }

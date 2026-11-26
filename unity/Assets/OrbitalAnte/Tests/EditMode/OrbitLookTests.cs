@@ -96,7 +96,7 @@ namespace OrbitalAnte.Tests
             const int width = 64, height = 32;
             const double radius = 200;
             var flat = new float[width * height];
-            byte[] level = FarRelief.Paint(flat, width, radius, false, 0);
+            byte[] level = FarRelief.Paint(flat, width, radius, false, 0, out _, out _);
             for (int i = 0; i < width * height; i++)
             {
                 Assert.AreEqual(0, FarRelief.Decode(level[i * 4]), 0.01);
@@ -107,7 +107,11 @@ namespace OrbitalAnte.Tests
             // Higher toward the north pole (the last rows): a slope to the north everywhere, none to the east.
             var north = new float[width * height];
             for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) north[y * width + x] = y * 3f;
-            byte[] tilted = FarRelief.Paint(north, width, radius, false, 0);
+            byte[] tilted = FarRelief.Paint(north, width, radius, false, 0, out double lowest, out double highest);
+            Assert.AreEqual(0, lowest, 1e-6);
+            Assert.AreEqual((height - 1) * 3, highest, 1e-6);
+            Assert.AreEqual(0, tilted[3], "alpha is the height: lowest at the south");
+            Assert.AreEqual(255, tilted[((height - 1) * width) * 4 + 3], "and highest at the north");
             int mid = (height / 2 * width + 10) * 4;
             double step = radius * Math.PI / height;
             Assert.AreEqual(3 / step, FarRelief.Decode(tilted[mid + 1]), 0.02);
@@ -116,7 +120,7 @@ namespace OrbitalAnte.Tests
             // Higher toward the east (the way the picture's columns run) along the equator.
             var east = new float[width * height];
             for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) east[y * width + x] = x * 2f;
-            byte[] ramp = FarRelief.Paint(east, width, radius, false, 0);
+            byte[] ramp = FarRelief.Paint(east, width, radius, false, 0, out _, out _);
             double across = radius * Math.PI * 2 / width * Math.Sin((1 - (height / 2 + 0.5) / height) * Math.PI);
             Assert.AreEqual(2 / across, FarRelief.Decode(ramp[mid]), 0.02);
             Assert.AreEqual(0, FarRelief.Decode(ramp[mid + 1]), 0.01);
@@ -128,7 +132,8 @@ namespace OrbitalAnte.Tests
             const int width = 32, height = 16;
             var heights = new float[width * height];
             for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) heights[y * width + x] = x < 16 ? -20f - x * 5f : 30f;
-            byte[] lie = FarRelief.Paint(heights, width, 300, true, 0);
+            byte[] lie = FarRelief.Paint(heights, width, 300, true, 0, out double seaTop, out _);
+            Assert.AreEqual(0, seaTop, 1e-6, "over the sea the height is the water's top, not the sea bed");
             int deep = (8 * width + 6) * 4, land = (8 * width + 24) * 4;
             Assert.AreEqual(255, lie[deep + 2]);
             Assert.AreEqual(0, FarRelief.Decode(lie[deep]), 0.01, "the sea bed's slope must not tilt the light on the water");
@@ -154,7 +159,7 @@ namespace OrbitalAnte.Tests
             double low = double.MaxValue, high = double.MinValue;
             foreach (float h in heights) { low = Math.Min(low, h); high = Math.Max(high, h); }
             Assert.That(high - low, Is.GreaterThan(5), "the Moon is not a smooth ball");
-            byte[] lie = FarRelief.Paint(heights, width, terrain.Radius, terrain.HasSea, terrain.SeaLevel);
+            byte[] lie = FarRelief.Paint(heights, width, terrain.Radius, terrain.HasSea, terrain.SeaLevel, out _, out _);
             int tilted = 0;
             for (int i = 0; i < heights.Length; i++) if (lie[i * 4] != 128 || lie[i * 4 + 1] != 128) tilted++;
             Assert.That(tilted, Is.GreaterThan(heights.Length / 4), "its slopes must reach the far ball");
@@ -263,8 +268,9 @@ namespace OrbitalAnte.Tests
                 Assert.IsNotNull(path, name + ".shader is missing");
                 string text = System.IO.File.ReadAllText(path);
                 StringAssert.Contains("OA_Look.hlsl", text, name + " must take its light from the shared look");
-                foreach (string word in new[] { " smooth ", " smooth;", " smooth=", " lit ", " lit;", " point ", " sample " })
-                    StringAssert.DoesNotContain("half" + word, text, name + ": '" + word.Trim() + "' is not a safe name once the shader is translated for the Deck");
+                // "real" is a word URP defines (as half or float); the offline check's stand-in now defines it too.
+                foreach (string word in new[] { " smooth ", " smooth;", " smooth=", " lit ", " lit;", " point ", " sample ", " real ", " real;" })
+                    foreach (string kind in new[] { "half", "half3", "half4", "float", "float3" }) StringAssert.DoesNotContain(kind + word, text, name + ": '" + word.Trim() + "' is not a safe name once the shader is translated for the Deck");
             }
         }
     }

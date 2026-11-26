@@ -14,7 +14,8 @@ Shader "OrbitalAnte/Body"
         // The realistic far look (keyword _OA_REAL): a true night side and, with _OA_RELIEF, the lie of the land.
         _Soft ("How soft the edge of the night is (airless 0.008, thick air 0.08)", Range(0.002, 0.2)) = 0.03
         _Redden ("How much low sunlight is reddened by the air (rgb)", Vector) = (0, 0, 0, 0)
-        [NoScaleOffset] _ReliefMap ("Slopes east and north, sea, spare", 2D) = "gray" {}
+        _Night ("How much of space's faint fill light the night side keeps", Range(0, 1)) = 0.15
+        [NoScaleOffset] _ReliefMap ("Slopes east and north, sea, height", 2D) = "gray" {}
         _Relief ("How strongly the land's slopes tilt the light", Range(0, 2)) = 0.8
         [NoScaleOffset] _LightsMap ("Lights on the night side", 2D) = "black" {}
         _LightsColor ("Colour of those lights", Color) = (0, 0, 0, 0)
@@ -41,6 +42,7 @@ Shader "OrbitalAnte/Body"
             half _Boost;
             half _Soft;
             half4 _Redden;
+            half _Night;
             half _Relief;
             half4 _LightsColor;
             float4 _CloudShadow;
@@ -144,8 +146,8 @@ Shader "OrbitalAnte/Body"
                 {
                     // A ragged oval of light round each pole, only where it is night.
                     half latitude = degrees(asin(clamp(up.y, -1.0, 1.0)));
-                    half longitude = atan2(up.z, up.x);
-                    half band = (abs(latitude) - 68.0 - 4.0 * sin(longitude * 2.0 + 1.0)) / 2.2;
+                    half longitude = atan2(up.z, up.x + 0.00001);   // never atan2(0, 0), at the pole
+                    half band = (abs(latitude) - 68.0 - 4.0 * sin(longitude * 2.0 + 1.0)) / 1.2;
                     half curtain = 0.35 + 0.65 * OA_Noise(up * 9.0 + _Time.y * 0.02);
                     extra += _Aurora.rgb * (exp(-band * band) * curtain * dark * _Aurora.a);
                 }
@@ -164,7 +166,7 @@ Shader "OrbitalAnte/Body"
                     shadow *= (reach > 0.0 && where > 0.0 && where < 1.0) ? 1.0 - 0.85 * hidden : 1.0;
                 }
                 half shone = saturate(dot(lightNormal, toSun)) * edge * shadow;
-                return albedo * (sunlight * shone + _OA_SpaceAmbient.rgb * 0.08) + extra;
+                return albedo * (sunlight * shone + _OA_SpaceAmbient.rgb * _Night) + extra;
             }
             #endif
 
@@ -175,9 +177,9 @@ Shader "OrbitalAnte/Body"
                 half3 normal = input.normalWS / max(0.0001, length(input.normalWS));
                 float3 toSun = normalize(_OA_SunPosition.xyz - input.positionWS);
             #if defined(_OA_REAL)
-                half3 real = RealLook(input, albedo, normal, toSun);
+                half3 seen = RealLook(input, albedo, normal, toSun);   // never call a variable "real": URP defines that word
                 float3 lookAlong = normalize(input.positionWS - _WorldSpaceCameraPos.xyz);
-                return half4(lerp(real, OA_SkyColor(lookAlong), saturate(_OA_Veil.a * _Veil)), 1.0);
+                return half4(lerp(seen, OA_SkyColor(lookAlong), saturate(_OA_Veil.a * _Veil)), 1.0);
             #else
                 half facing = dot(normal, toSun);
                 facing = lerp(facing, abs(facing) * 0.8 + 0.2, _TwoSided);

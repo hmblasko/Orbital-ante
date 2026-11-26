@@ -51,11 +51,11 @@ namespace OrbitalAnte.EditorTools
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
             importer.alphaIsTransparency = false;
             importer.npotScale = TextureImporterNPOTScale.None;
-            importer.mipmapEnabled = !strip;
+            importer.mipmapEnabled = true;   // the rings too: a thousand ringlets squeezed into a hundred dots would shimmer
             importer.wrapModeU = strip ? TextureWrapMode.Clamp : TextureWrapMode.Repeat;
             importer.wrapModeV = TextureWrapMode.Clamp;
-            importer.filterMode = strip ? FilterMode.Bilinear : FilterMode.Trilinear;
-            importer.anisoLevel = strip ? 1 : 4;
+            importer.filterMode = FilterMode.Trilinear;
+            importer.anisoLevel = 1;   // the pictures are soft; sharper sampling at a slant would buy nothing
             importer.maxTextureSize = MaxSize;
             importer.textureCompression = strip ? TextureImporterCompression.Uncompressed : TextureImporterCompression.Compressed;
             importer.isReadable = false;

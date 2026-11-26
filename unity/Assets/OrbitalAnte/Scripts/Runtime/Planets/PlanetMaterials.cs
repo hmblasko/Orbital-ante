@@ -43,6 +43,9 @@ namespace OrbitalAnte.Planets
         static readonly int SunGlareId = Shader.PropertyToID("_SunGlare");
         static readonly int BrightnessId = Shader.PropertyToID("_Brightness");
         static readonly int SoftId = Shader.PropertyToID("_Soft");
+        static readonly int NightId = Shader.PropertyToID("_Night");
+        static readonly int GroundMapId = Shader.PropertyToID("_GroundMap");
+        static readonly int GroundVectorId = Shader.PropertyToID("_Ground");
         static readonly int ReddenId = Shader.PropertyToID("_Redden");
         static readonly int ReliefMapId = Shader.PropertyToID("_ReliefMap");
         static readonly int ReliefId = Shader.PropertyToID("_Relief");
@@ -407,12 +410,35 @@ namespace OrbitalAnte.Planets
         /// Switches a far body's material to the realistic look: a black night side with an edge as soft as its
         /// air makes it, and low sunlight reddened by that air.
         /// </summary>
-        public static void SetRealBody(Material material, AirLook air)
+        /// <param name="willHaveRelief">
+        /// True for a body whose slopes will arrive later (<see cref="SetRelief"/>): the shader is switched to the
+        /// relief version now, with level ground, so that version is made ready at the start of a run and not in
+        /// the middle of a flight.
+        /// </param>
+        public static void SetRealBody(Material material, AirLook air, bool willHaveRelief = false)
         {
             if (material == null || !RealPlanets || material.shader != _body) return;
             material.EnableKeyword(RealKeyword);
+            if (willHaveRelief)
+            {
+                material.EnableKeyword(ReliefKeyword);
+                material.SetTexture(ReliefMapId, LevelGround());
+            }
             material.SetFloat(SoftId, (float)air.Soft);
             material.SetVector(ReddenId, new Vector4((float)air.ReddenR, (float)air.ReddenG, (float)air.ReddenB, 0f));
+            material.SetFloat(NightId, Mathf.Clamp01(OrbitalAnte.Look.LookConfig.Load().planetNightSide));
+        }
+
+        static Texture2D _levelGround;
+
+        /// <summary>One dot of "no slope, no sea": what a far body is lit by until its own slopes are worked out.</summary>
+        static Texture2D LevelGround()
+        {
+            if (_levelGround != null) return _levelGround;
+            _levelGround = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { name = "Level ground", hideFlags = HideFlags.HideAndDontSave };
+            _levelGround.SetPixelData(new byte[] { FarRelief.Encode(0), FarRelief.Encode(0), 0, 255 }, 0);
+            _levelGround.Apply(false, true);
+            return _levelGround;
         }
 
         /// <summary>Gives a far body the lie of its land (slopes and sea, see FarRelief), so its relief catches the light.</summary>
@@ -482,6 +508,17 @@ namespace OrbitalAnte.Planets
             m.SetFloat(SoftId, (float)air.Soft);
             m.SetVector(ReddenId, new Vector4((float)air.ReddenR, (float)air.ReddenG, (float)air.ReddenB, 0f));
             return m;
+        }
+
+        /// <summary>
+        /// Tells a cloud layer the ground under it (the relief picture's alpha, <paramref name="low"/> to
+        /// <paramref name="high"/> metres), so it parts round ground as high as itself.
+        /// </summary>
+        public static void SetCloudGround(Material clouds, Texture relief, float low, float high, float layerHeight, float band)
+        {
+            if (clouds == null || relief == null || !clouds.HasProperty(GroundVectorId)) return;
+            clouds.SetTexture(GroundMapId, relief);
+            clouds.SetVector(GroundVectorId, new Vector4(low, high, layerHeight, Mathf.Max(0.01f, band)));
         }
 
         /// <summary>Rings as one see-through band, or null if they cannot be used (the earlier solid bands stand in).</summary>
