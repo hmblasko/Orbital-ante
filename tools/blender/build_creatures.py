@@ -1436,10 +1436,170 @@ def screamer_sockets():
     return out
 
 
+# ====================================================================== the Ambusher (bobbit worm)
+
+# A copy of AmbusherLayout (Blender axes: x, forward, up). The rule test AmbusherModelFile_MatchesTheLayout holds
+# the two together through the sockets.
+AMBUSHER = {
+    "spacing": 0.36,
+    "head": 0.50, "head_half": 0.20, "head_tall": 0.15,     # the head runs from spacing / 2 behind its node to the rest in front
+    "seg_half": 0.17, "seg_tall": 0.15, "bristle": 0.07,
+    "jaw_hinge": (0.15, 0.14, -0.02), "jaw": 0.70, "jaw_thick": 0.05,
+    "feeler_ring": 0.13, "feeler_ahead": 0.10, "feeler_arc": 1.25, "feelers": 5, "feeler": 0.80, "feeler_radius": 0.02,
+    "rim": 0.75, "hole": 0.26, "rim_height": 0.14,
+    "stump": 0.05,
+}
+AMBUSHER_FLAT = {"skin": ((0.22, 0.13, 0.20), 0.7), "head": ((0.14, 0.10, 0.16), 0.7), "jaw": ((0.10, 0.07, 0.06), 0.75),
+                 "tooth": ((0.70, 0.62, 0.48), 0.5), "bristle": ((0.72, 0.56, 0.30), 0.4), "lobe": ((0.46, 0.24, 0.24), 0.3),
+                 "feeler": ((0.50, 0.38, 0.26), 0.4), "gullet": ((0.50, 0.14, 0.12), 0.6), "eye": ((0.04, 0.04, 0.05), 0.85),
+                 "earth": ((0.36, 0.31, 0.25), 0.05), "pit": ((0.03, 0.03, 0.03), 0.05), "flesh": ((0.78, 0.50, 0.44), 0.6)}
+AMBUSHER_MATERIALS = {
+    "skin": lambda: mats.sheen("skin", seed=81.0),
+    "head": lambda: mats.sheen("head", base=(0.030, 0.020, 0.034), under=(0.20, 0.10, 0.10), seed=82.0, ring=0.05, gloss=0.8, strength=0.14),
+    "jaw": lambda: mats.chitin("jaw", (0.030, 0.016, 0.012), (0.20, 0.11, 0.05), (0.008, 0.006, 0.006), seed=83.0, bumps=0.05, growth=0.0, mottle=0.15, size=0.7,
+                               tip=(1, 0.50, 0.70, (0.006, 0.005, 0.005)), gloss=0.78),
+    "tooth": lambda: mats.chitin("tooth", (0.44, 0.36, 0.24), (0.60, 0.54, 0.42), (0.12, 0.07, 0.04), seed=84.0, bumps=0.0, growth=0.0, mottle=0.2, size=0.4, gloss=0.6),
+    "bristle": lambda: mats.chitin("bristle", (0.46, 0.30, 0.10), (0.62, 0.50, 0.26), (0.12, 0.06, 0.02), seed=85.0, bumps=0.0, growth=0.0, mottle=0.2, size=0.4, gloss=0.5),
+    "lobe": lambda: mats.membrane("lobe", (0.26, 0.10, 0.11), seed=86.0, size=3.0),
+    "feeler": lambda: mats.banded("feeler", seed=87.0),
+    "gullet": lambda: mats.flesh("gullet", pale=(0.50, 0.22, 0.20), red=(0.26, 0.03, 0.03), seed=88.0),
+    "eye": lambda: mats.eye("eye", colour=(0.008, 0.008, 0.012), glint=(0.06, 0.08, 0.12)),
+    "earth": lambda: mats.earth("earth", colour=(0.150, 0.112, 0.076), seed=89.0),
+    "pit": lambda: mats.earth("pit", colour=(0.012, 0.011, 0.010), seed=90.0),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.70, 0.52, 0.50), red=(0.40, 0.06, 0.06), seed=91.0),
+}
+
+
+def ambusher(hi):
+    g = Maker(hi, AMBUSHER_FLAT, AMBUSHER_MATERIALS)
+    L = AMBUSHER
+    up = (0, 0, 1)
+    sp, half, tall = L["spacing"], L["seg_half"], L["seg_tall"]
+
+    # ------------------------------------------------------------- Seg: a fat ringed length, a fleshy lobe and a fan of bristles each side
+    over = 0.03
+    sk_ = [(0.00, half * 0.90, tall * 0.90, 0, 0.0), (0.03, half * 0.975, tall * 0.975, 0, 0.0), (sp * 0.5 + over, half, tall, 0, 0.0),
+           (sp + 2 * over - 0.03, half * 0.975, tall * 0.975, 0, 0.0), (sp + 2 * over, half * 0.90, tall * 0.90, 0, 0.0)]
+    body = g.skin("length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, sk_, around=12, step=0.105, power=2.3)
+    if hi:
+        # Narrow rings all the way along, and a slow unevenness.
+        real.displace(body, lambda p: 0.0030 * math.sin(p.y * 2 * math.pi / 0.045) + 0.003 * noise.noise(p * 9.0))
+    g.add(body, "skin", "Seg")
+    # A ball over the joint to the length behind, so a bend never opens a gap.
+    g.add(g.ball("link", (0, -sp * 0.5, 0.0), tall * 0.985, scale=(half / tall, 0.85, 1.0), around=12), "skin", "Seg")
+    r = random.Random(81)
+    for side in (-1, 1):
+        for y in (-0.085, 0.085):
+            g.add(g.ball("lobe", (side * (half - 0.012), y, -0.045), 0.045, scale=(1.15, 1.35, 0.8), around=6), "lobe", "Seg")
+            # The bristles: one stout one in the game's model, a fan of fine ones in the pictures.
+            reach = half + L["bristle"]
+            g.add(g.spine("bristle", (side * (half + 0.01), y, -0.055), (side, 0.0, -0.30), reach - half - 0.01 + 0.004, 0.011, around=3), "bristle", "Seg")
+            for k in range(5):
+                way = (side, r.uniform(-0.5, 0.5), r.uniform(-0.75, -0.05))
+                g.add(g.spine("bristle", (side * (half + 0.012), y + r.uniform(-0.02, 0.02), -0.05), way, r.uniform(0.035, 0.060), 0.004, around=3), "bristle", "Seg", only='hi')
+
+    # ------------------------------------------------------------- Head: blunt and armoured, a ring of teeth round its gullet, small eyes
+    hl, hh, ht = L["head"], L["head_half"], L["head_tall"]
+    back = -sp * 0.5
+    hk = [(0.00, hh * 0.76, ht * 0.84, 0, 0.0), (0.05, hh * 0.88, ht * 0.97, 0, 0.0), (0.20, hh * 0.96, ht, 0, 0.0), (0.34, hh, ht * 0.97, 0, 0.0),
+          (0.43, hh * 0.92, ht * 0.86, 0, 0.0), (0.485, hh * 0.72, ht * 0.66, 0, 0.0), (hl, hh * 0.50, ht * 0.46, 0, 0.0)]
+    skull = g.skin("skull", (0, back, 0.0), (0, 1, 0), up, hk, around=14, step=0.07, power=2.4)
+    if hi:
+        # Two furrows over the crown, and a seam round the back of the head where the first ring joins.
+        real.displace(skull, lambda p: -0.005 * math.exp(-((abs(p.x) - 0.075) / 0.010) ** 2) * (1.0 if p.z > 0.03 else 0.0)
+                                       - 0.006 * math.exp(-((p.y - (back + 0.07)) / 0.010) ** 2) + 0.003 * noise.noise(p * 11.0))
+    g.add(skull, "head", "Head")
+    # The gullet: a dark red hollow in its blunt front, ringed with small pale teeth.
+    g.add(g.ball("gullet", (0, back + hl - 0.012, 0.0), hh * 0.50, scale=(1.0, 0.30, 0.86), around=8), "gullet", "Head")
+    teeth = 12 if hi else 6
+    for k in range(teeth):
+        a = 2 * math.pi * (k + 0.5) / teeth
+        at = (math.cos(a) * hh * 0.44, back + hl - 0.02, math.sin(a) * ht * 0.42)
+        g.add(g.spine("tooth", at, (-math.cos(a) * 0.35, 1.0, -math.sin(a) * 0.35), 0.055, 0.014, around=3), "tooth", "Head")
+    for side in (-1, 1):
+        g.add(g.ball("eye", (side * 0.085, 0.20, ht * 0.86), 0.022, around=6), "eye", "Head")
+        g.add(g.ball("eye", (side * 0.140, 0.13, ht * 0.66), 0.017, around=5), "eye", "Head")
+        hinge = L["jaw_hinge"]
+        g.add(g.ball("jaw hinge", (side * (hinge[0] + 0.012), hinge[1] - 0.02, hinge[2]), 0.066, scale=(0.9, 1.25, 0.85), around=7), "lobe", "Head")
+    for k in range(L["feelers"]):
+        a = L["feeler_arc"] * (k - (L["feelers"] - 1) * 0.5) / ((L["feelers"] - 1) * 0.5)
+        root = (math.sin(a) * L["feeler_ring"], L["feeler_ahead"], math.cos(a) * L["feeler_ring"])
+        g.add(g.ball("feeler socket", (root[0] * 0.93, root[1], root[2] * 0.93), 0.036, scale=(1.0, 1.0, 1.0), around=5), "lobe", "Head")
+
+    # ------------------------------------------------------------- Jaw (the right one): a sickle, bowed out and hooked in, toothed inside
+    jl, jt = L["jaw"], L["jaw_thick"]
+    jk = [(0.00, 0.058, jt, 0.000, 0), (0.06, 0.068, jt, -0.020, 0), (0.22, 0.058, jt * 0.84, -0.070, 0), (0.40, 0.046, jt * 0.68, -0.085, 0),
+          (0.55, 0.032, jt * 0.52, -0.040, 0), (0.64, 0.018, jt * 0.32, 0.030, 0), (jl, 0.004, 0.004, 0.110, 0)]
+    g.add(g.skin("jaw", (0, 0, 0), (0, 1, 0), up, jk, around=8, step=0.07, power=2.0), "jaw", "Jaw")
+    g.add(g.ball("jaw root", (0, 0, 0), 0.060, scale=(1.0, 1.0, jt / 0.060), around=6), "jaw", "Jaw")
+    for k, y in enumerate((0.20, 0.30, 0.40, 0.49, 0.57)):
+        rs, rf, os_, of = real.along(jk, y)
+        # Teeth along its inner edge (three of them real shapes, the rest in the pictures). The inner edge is toward -X.
+        g.add(g.spine("jaw tooth", (-os_ - rs * 0.8, y, 0), (-1.0, 0.45, 0.0), 0.075 - 0.008 * k, 0.016, around=3), "tooth", "Jaw", only=None if k % 2 == 0 else 'hi')
+
+    # ------------------------------------------------------------- Feeler: banded, tapering, lifting toward its tip
+    fl, fr = L["feeler"], L["feeler_radius"]
+    fk = [(0.00, fr * 1.3, fr * 1.3, 0, 0.0), (0.10, fr * 1.1, fr * 1.1, 0, 0.010), (0.40, fr * 0.75, fr * 0.75, 0, 0.050), (0.70, fr * 0.4, fr * 0.4, 0, 0.100),
+          (fl, 0.004, 0.004, 0, 0.130)]
+    g.add(g.skin("feeler", (0, 0, 0), (0, 1, 0), up, fk, around=5, step=0.16, power=2.0), "feeler", "Feeler")
+
+    # ------------------------------------------------------------- Rim: the ring of ground thrown up round the mouth of its burrow
+    rim, hole, rh = L["rim"], L["hole"], L["rim_height"]
+    profile = [(0.0, rim), (rh * 0.22, rim * 0.90), (rh * 0.62, rim * 0.72), (rh * 0.92, rim * 0.58), (rh, rim * 0.50), (rh * 0.86, rim * 0.43), (rh * 0.40, hole * 1.10), (0.004, hole), (0.004, 0.0)]
+    heap = oa.lathe("heap", (0, 0, 0), (0, 0, 1), profile, (0.5, 0.5, 0.5), segments=72 if hi else 24)
+    def lumpy(p):
+        # Uneven all round, never below the ground, and never higher than the layout says.
+        a = math.atan2(p.y, p.x)
+        if p.z < 0.01:
+            # Its outer edge wanders in and out, so the heap is never a neat disc (0 leaves the vertex where it is
+            # along its normal; the edge is moved below).
+            return 0.0
+        heaps = 0.5 + 0.25 * math.sin(a * 3.0 + 0.7) + 0.25 * math.sin(a * 5.0 + 2.1)
+        return -(0.012 + 0.055 * heaps + 0.02 * (0.5 + 0.5 * noise.noise(Vector((p.x * 4.0, p.y * 4.0, 7.0))))) * (p.z / rh)
+    if hi:
+        heap = heap
+    real.displace(heap, lumpy)
+    for v in heap.data.vertices:
+        d = math.hypot(v.co.x, v.co.y)
+        if d > hole * 1.3:
+            a = math.atan2(v.co.y, v.co.x)
+            k = 1.0 - (0.10 + 0.05 * math.sin(a * 4.0 + 1.3) + 0.04 * math.sin(a * 7.0 + 0.4)) * min(1.0, (d - hole * 1.3) / (rim * 0.3))
+            v.co.x *= k
+            v.co.y *= k
+    g.add(heap, "earth", "Rim", second=("pit", lambda c, n: math.hypot(c.x, c.y) < hole * 1.02))
+    r = random.Random(89)
+    for k in range(7):
+        # Clods lying on the heap.
+        a, d = r.uniform(0, 2 * math.pi), r.uniform(rim * 0.50, rim * 0.92)
+        size = r.uniform(0.035, 0.065)
+        g.add(g.ball("clod", (math.cos(a) * d, math.sin(a) * d, rh * max(0.1, 1.0 - abs(d - rim * 0.53) / (rim * 0.47)) * 0.7), size,
+                     scale=(1.0, r.uniform(0.7, 1.2), 0.7), around=5), "earth", "Rim")
+
+    leftovers(g, L["stump"], "skin")
+    return g
+
+
+def ambusher_sockets():
+    L = AMBUSHER
+    sp = L["spacing"]
+    out = [oa.socket("SegEnd", (0, sp * 0.5, 0)), oa.socket("SegSide", (L["seg_half"], 0, 0)), oa.socket("SegTop", (0, 0, L["seg_tall"])),
+           oa.socket("BristleEnd", (L["seg_half"] + L["bristle"], 0, 0)),
+           oa.socket("HeadEnd", (0, L["head"] - sp * 0.5, 0)), oa.socket("HeadSide", (L["head_half"], 0, 0)), oa.socket("HeadTop", (0, 0, L["head_tall"])),
+           oa.socket("JawHingeR", L["jaw_hinge"]), oa.socket("JawEnd", (0, L["jaw"], 0)), oa.socket("JawTop", (0, 0, L["jaw_thick"])),
+           oa.socket("FeelerEnd", (0, L["feeler"], 0)), oa.socket("FeelerSide", (L["feeler_radius"], 0, 0)),
+           oa.socket("RimEdge", (L["rim"], 0, 0)), oa.socket("RimHole", (L["hole"], 0, 0)), oa.socket("RimTop", (0, 0, L["rim_height"])),
+           oa.socket("StumpRim", (L["stump"], 0, 0))]
+    for k in range(L["feelers"]):
+        a = L["feeler_arc"] * (k - (L["feelers"] - 1) * 0.5) / ((L["feelers"] - 1) * 0.5)
+        out.append(oa.socket("Feeler%d" % k, (math.sin(a) * L["feeler_ring"], L["feeler_ahead"], math.cos(a) * L["feeler_ring"])))
+    return out
+
+
 # ---------------------------------------------------------------------- building
 
 CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
-             "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048)}
+             "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048),
+             "Ambusher": (ambusher, ambusher_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small
@@ -1450,7 +1610,7 @@ FAR_HOW = {"Sprinter": (0.40, 40, ("hip", "back plate", "eye knob", "beak", "joi
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
 # Shapes whose far copy is the shape itself: a thinned arch crumples and opens.
-FAR_KEEP = {"Roller": ("plate", "brow"), "Hunter": ("plate",)}
+FAR_KEEP = {"Roller": ("plate", "brow"), "Hunter": ("plate",), "Ambusher": ("heap",)}
 FINE = {"Sprinter": (("bristle",), "hair")}
 FAR_SHARE = 0.30
 ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
@@ -1576,6 +1736,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
                     o.data.materials.clear()
                     o.data.materials.append(look)
             eye, target = shot.get("eye", frames["eye"]), shot.get("target", frames["target"])
+            # A frame may say where the person stands in it (someone being dragged).
+            walker = person(shot["person"]) if "person" in shot else []
+            shown = shown + walker
             mats.render(os.path.join(previews, "%s_%s_%04d.png" % (tag, frames["name"], k)), shown + extra, None, eye, target,
                         lens=frames.get("lens", 30), size=tuple(frames.get("size", (960, 600))), samples=frames.get("samples", 16), floor=0.0, sun=(52, 12, 28))
             for o in shown:
@@ -1592,9 +1755,9 @@ def pictures(name, parts, far_parts, textures, previews, draft, poses):
             bpy.data.objects.remove(o)
     if name != "Strider":
         # The other creatures' stills are frames of the game's own animator (--poses with one frame and its own camera).
-        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 1.0 if name == "Screamer" else 0.45
+        apart = 1.25 if name == "Roller" else 0.7 if name == "Hunter" else 1.0 if name in ("Screamer", "Ambusher") else 0.45
         row = [(piece, Matrix.Translation(((k - 0.5 * (len(parts) - 1)) * apart + 0.2, 0, 0.30))) for k, piece in enumerate(parts)]
-        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter", "Screamer") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
+        shoot(tag + "_pieces.png", row, (0.2, 0.6, 4.6 * apart / 0.45 * 0.62 if name in ("Roller", "Hunter", "Screamer", "Ambusher") else 4.6), (0.2, 0.6, 0.3), 30, with_person=False)
         return
     stand = strider_stand()
     shoot(tag + "_whole.png", stand, (5.6, 6.6, 1.7), (0, 0, 1.6), 28)

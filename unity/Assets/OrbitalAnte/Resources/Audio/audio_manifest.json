@@ -122,6 +122,68 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "creature.ambusher.coil",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_coil"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Ambusher's warning, 0.9 s: a wet hiss that tightens as it rears, ticks of its jaws half closing, and at 0.5 s (where it takes aim) the scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+  },
+  {
+   "id": "creature.ambusher.rise",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_rise_01",
+    "Audio/Sfx/creature/creature_ambusher_rise_02"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.25,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 400,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It comes up: the ground heaving, then breaking, and grit falling back. The heave comes first on purpose, so there is time to look down."
+  },
+  {
+   "id": "creature.ambusher.strike",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_strike_01",
+    "Audio/Sfx/creature/creature_ambusher_strike_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 150,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The strike: its length thrown out through the air in under a fifth of a second, and the jaws snapping shut."
+  },
+  {
    "id": "creature.screamer.scream",
    "bus": "CombatImpacts",
    "clips": [

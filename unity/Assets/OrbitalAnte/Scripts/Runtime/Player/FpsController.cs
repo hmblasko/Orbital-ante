@@ -35,6 +35,7 @@ namespace OrbitalAnte.Player
 
         Vector3 _carried;
         bool _held;
+        bool _wasHeld;
         /// <summary>
         /// Something has hold of the player and is dragging them this fast (metres a second, level): they can look
         /// and shoot but not walk or jump. It must be said again every frame; the frame it is not, they are free.
@@ -46,7 +47,7 @@ namespace OrbitalAnte.Player
         }
 
         /// <summary>Something has hold of the player this frame.</summary>
-        public bool Held => _held;
+        public bool Held => _held || _wasHeld;
 
         public void Initialize(PlayerConfig config, Camera eye)
         {
@@ -65,6 +66,8 @@ namespace OrbitalAnte.Player
             if (Frozen)
             {
                 _horizontalVelocity = Vector3.zero;
+                _held = _wasHeld = false;
+                _carried = Vector3.zero;
                 return;
             }
 
@@ -119,6 +122,8 @@ namespace OrbitalAnte.Player
             _controller.enabled = false;
             transform.position = position;
             _controller.enabled = true;
+            _held = _wasHeld = false;
+            _carried = Vector3.zero;
             _yaw = yawDegrees;
             _pitch = 0f;
             _recoilReturnPitch = 0f;
@@ -168,6 +173,7 @@ namespace OrbitalAnte.Player
             Vector2 input = Vector2.ClampMagnitude(GameInput.Move.ReadValue<Vector2>(), 1f);
             // Held by something: their own legs do nothing, and they go where they are dragged.
             bool held = _held;
+            _wasHeld = held;
             Vector3 carried = _carried;
             _held = false;
             _carried = Vector3.zero;

@@ -447,8 +447,8 @@ def membrane(name, colour=(0.42, 0.25, 0.15), seed=0.0, along='Y', size=1.0):
     return m.finish(shade, m.lerp(0.22, 0.40, wrinkle), 0.0, height, occlusion=near)
 
 
-def sheen(name, base=(0.060, 0.030, 0.045), under=(0.30, 0.17, 0.15), lights=((0.05, 0.42, 0.30), (0.10, 0.22, 0.62), (0.42, 0.12, 0.50), (0.62, 0.34, 0.08)),
-          seed=0.0, ring=0.030, along='Y', gloss=0.74, strength=0.6):
+def sheen(name, base=(0.050, 0.026, 0.034), under=(0.26, 0.15, 0.13), lights=((0.03, 0.22, 0.17), (0.05, 0.11, 0.32), (0.20, 0.06, 0.26), (0.30, 0.15, 0.05)),
+          seed=0.0, ring=0.030, along='Y', gloss=0.74, strength=0.42):
     """The wet skin of a bristle worm: dark, ringed all the way along, and shot with colours like oil on water
     that change with the way the surface faces (green, blue, violet, copper). Paler underneath; dull dirt in the
     grooves where things crowd together."""
@@ -459,7 +459,8 @@ def sheen(name, base=(0.060, 0.030, 0.045), under=(0.30, 0.17, 0.15), lights=((0
     colour = m.mix(tuple(c * 0.6 for c in base), tuple(min(1.0, c * 1.5) for c in base), m.lerp(cloud, fine, 0.4))
     facing_up = m.up()
     # Where on the film's run of colours this spot is: it follows the facing, and wanders.
-    film = m.add(m.add(m.mul(facing_up, 0.45), m.mul(cloud, 0.9)), m.mul(m.noise(1.6, 3.0, 0.5, shift=(0, 0, seed)), 0.8))
+    # (mostly the facing, so the colours lie in streaks along its back and flanks, never in blotches)
+    film = m.add(m.add(m.mul(facing_up, 0.95), m.mul(cloud, 0.30)), m.add(m.mul(m.noise(11.0, 3.0, 0.5, shift=(0, 0, seed)), 0.40), m.mul(fine, 0.25)))
     for k, light in enumerate(lights):
         middle = 0.30 + 0.28 * k
         band = m.mul(m.step(film, middle - 0.16, middle - 0.02), m.sub(1.0, m.step(film, middle + 0.02, middle + 0.16)))
@@ -476,7 +477,7 @@ def sheen(name, base=(0.060, 0.030, 0.045), under=(0.30, 0.17, 0.15), lights=((0
     return m.finish(colour, smoothness, 0.0, height, occlusion=near)
 
 
-def banded(name, light=(0.62, 0.50, 0.32), dark=(0.10, 0.05, 0.04), period=0.09, along='Y', seed=0.0, gloss=0.45):
+def banded(name, light=(0.40, 0.30, 0.20), dark=(0.13, 0.065, 0.055), period=0.06, along='Y', seed=0.0, gloss=0.45):
     """A feeler in light and dark bands along its length, finely ringed."""
     m = Tree(name)
     stripe = m.step(m.bands(along, period), 0.42, 0.58)
@@ -500,7 +501,7 @@ def earth(name, colour=(0.21, 0.18, 0.15), seed=0.0):
     shade = m.mix(tuple(c * 0.6 for c in colour), tuple(min(1.0, c * 1.3) for c in colour), m.lerp(cloud, clod_rnd, 0.4))
     near = m.hollows(0.05)
     shade = m.mix(shade, tuple(c * 0.35 for c in colour), m.mul(m.sub(1.0, m.step(near, 0.35, 0.95)), 0.8))
-    height = m.add(m.mul(clod, 0.012), m.mul(grit, 0.0025))
+    height = m.add(m.add(m.mul(clod, 0.005), m.mul(grit, 0.0015)), m.mul(m.noise(22.0, 4.0, 0.7, shift=(seed, seed, 0)), 0.006))
     return m.finish(shade, 0.06, 0.0, height, occlusion=near)
 
 

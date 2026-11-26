@@ -242,9 +242,12 @@ namespace OrbitalAnte.Creatures
                 _nextLook = Time.time + 0.25f;
                 Vector3 mouth = transform.position + up * 0.5f;
                 _clearLine = hostile && !Physics.Linecast(mouth, feet + up * 1.1f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
-                // Under the ground: is the ground over it open, or is something standing on it?
-                if (Brain.Buried) _clearAbove = !Physics.CheckSphere(transform.position + up * 0.75f, 0.55f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
             }
+            // Under the ground (every frame, it travels fast): is there ground here to come up through, with nothing
+            // solid standing on it? People and creatures do not count; it comes up under them gladly.
+            if (Brain.Buried)
+                _clearAbove = !Physics.CheckSphere(transform.position + up * 0.75f, 0.55f, Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                    && Physics.Raycast(transform.position + up * 0.3f, -up, 0.6f, Layers.WorldMask, QueryTriggerInteraction.Ignore);
             senses.ClearLine = _clearLine;
 
             AmbusherOrders orders = Brain.Think(Body, senses, dt);
@@ -259,8 +262,8 @@ namespace OrbitalAnte.Creatures
             }
             Move(orders, dt);
             _felt = hostile && senses.Player.Magnitude < AmbusherBrain.FeelRange(_rules, Body, senses.Noise);
-            Pose(dt, orders, senses);
             Solid(!Brain.Buried);
+            Pose(dt, orders, senses);
             // Out of the ground it moves fast: its hitboxes must be where it is drawn when a shot is traced.
             if (_solid && (orders.Mode == AmbusherMode.Coil || orders.Mode == AmbusherMode.Strike || (_clearLine && orders.Mode != AmbusherMode.Lurk))) Physics.SyncTransforms();
             if (hostile && orders.Bite > 0.0) Bite(eye, (float)orders.Bite, orders.Landed);
@@ -493,7 +496,10 @@ namespace OrbitalAnte.Creatures
             go.transform.SetLocalPositionAndRotation(at, facing);
             go.transform.localScale = Vector3.one * (size / (float)AmbusherLayout.StumpRadius);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            Quiet(go.AddComponent<MeshRenderer>());
+            MeshRenderer renderer = go.AddComponent<MeshRenderer>();
+            Quiet(renderer);
+            // A wound on a piece still part of the animal goes under the ground with it.
+            if (on.IsChildOf(transform)) { _drawn.Add(renderer); renderer.enabled = _solid; }
         }
 
         /// <summary>

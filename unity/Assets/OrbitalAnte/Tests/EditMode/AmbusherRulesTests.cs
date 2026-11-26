@@ -652,6 +652,96 @@ namespace OrbitalAnte.Tests.EditMode
 
         // ------------------------------------------------------------------ the model
 
+        [Test]
+        public void AmbusherModelFile_MatchesTheLayout()
+        {
+            // tools/blender/build_creatures.py carries its own copy of AmbusherLayout (AMBUSHER). If either changes,
+            // this fails until the script is changed to match and run again.
+            ModelFile model = Load(AmbusherLayout.Model);
+            AssertSocket(model, "SegEnd", 0, 0, AmbusherLayout.Spacing * 0.5);
+            AssertSocket(model, "SegSide", AmbusherLayout.SegHalfWidth, 0, 0);
+            AssertSocket(model, "SegTop", 0, AmbusherLayout.SegHalfHeight, 0);
+            AssertSocket(model, "BristleEnd", AmbusherLayout.SegHalfWidth + AmbusherLayout.Bristle, 0, 0);
+            AssertSocket(model, "HeadEnd", 0, 0, AmbusherLayout.HeadLength - AmbusherLayout.Spacing * 0.5);
+            AssertSocket(model, "HeadSide", AmbusherLayout.HeadHalfWidth, 0, 0);
+            AssertSocket(model, "HeadTop", 0, AmbusherLayout.HeadHalfHeight, 0);
+            AssertSocket(model, "JawHingeR", AmbusherLayout.JawHinge.X, AmbusherLayout.JawHinge.Y, AmbusherLayout.JawHinge.Z);
+            AssertSocket(model, "JawEnd", 0, 0, AmbusherLayout.JawLength);
+            AssertSocket(model, "JawTop", 0, AmbusherLayout.JawThick, 0);
+            AssertSocket(model, "FeelerEnd", 0, 0, AmbusherLayout.FeelerLength);
+            AssertSocket(model, "FeelerSide", AmbusherLayout.FeelerRadius, 0, 0);
+            AssertSocket(model, "RimEdge", AmbusherLayout.RimRadius, 0, 0);
+            AssertSocket(model, "RimHole", AmbusherLayout.HoleRadius, 0, 0);
+            AssertSocket(model, "RimTop", 0, AmbusherLayout.RimHeight, 0);
+            AssertSocket(model, "StumpRim", AmbusherLayout.StumpRadius, 0, 0);
+            for (int k = 0; k < AmbusherLayout.Feelers; k++)
+            {
+                Vec3d root = AmbusherLayout.FeelerRoot(k);
+                AssertSocket(model, "Feeler" + k, root.X, root.Y, root.Z);
+            }
+            string[] pieces = { AmbusherLayout.HeadPiece, AmbusherLayout.JawPiece, AmbusherLayout.FeelerPiece, AmbusherLayout.SegPiece, AmbusherLayout.RimPiece,
+                                AmbusherLayout.Stump, AmbusherLayout.Meat[0], AmbusherLayout.Meat[1] };
+            foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            Assert.IsTrue(model.Textured, "the Ambusher is drawn with pictures");
+
+            // The shapes are the size the rules (and the hitboxes) think they are. Along is +Z.
+            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft)
+            {
+                ModelPart part = model.Part(piece);
+                right = float.MinValue; left = float.MaxValue; hi = float.MinValue; lo = float.MaxValue; fore = float.MinValue; aft = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    right = Math.Max(right, part.Positions[i * 3]);
+                    left = Math.Min(left, part.Positions[i * 3]);
+                    hi = Math.Max(hi, part.Positions[i * 3 + 1]);
+                    lo = Math.Min(lo, part.Positions[i * 3 + 1]);
+                    fore = Math.Max(fore, part.Positions[i * 3 + 2]);
+                    aft = Math.Min(aft, part.Positions[i * 3 + 2]);
+                }
+            }
+            Box(AmbusherLayout.SegPiece, out float right, out float left, out float hi, out float lo, out float fore, out float aft);
+            Assert.AreEqual(AmbusherLayout.SegHalfWidth + AmbusherLayout.Bristle, right, 0.02, "a length reaches its bristles' tips to the right");
+            Assert.AreEqual(-right, left, 0.01, "and is the same either side");
+            Assert.AreEqual(AmbusherLayout.SegHalfHeight, hi, 0.015, "a length's upper side");
+            Assert.AreEqual(-AmbusherLayout.SegHalfHeight, lo, 0.03, "and its underside");
+            Assert.GreaterOrEqual(fore, AmbusherLayout.Spacing * 0.5, "a length reaches the joint in front of it");
+            Assert.LessOrEqual(aft, -AmbusherLayout.Spacing * 0.5, "and the joint behind, so a bend opens no gap");
+            Assert.Less(fore - aft, AmbusherLayout.Spacing + 0.16, "without running far into its neighbours");
+
+            Box(AmbusherLayout.HeadPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(AmbusherLayout.HeadLength - AmbusherLayout.Spacing * 0.5, fore, 0.06, "the head's front");
+            Assert.AreEqual(-AmbusherLayout.Spacing * 0.5, aft, 0.03, "the head's back is the first joint");
+            Assert.AreEqual(AmbusherLayout.HeadHalfWidth, right, 0.035, "the head's width");
+            Assert.AreEqual(-right, left, 0.01, "the head is the same either side");
+            Assert.AreEqual(AmbusherLayout.HeadHalfHeight, hi, 0.03, "the head's height");
+
+            Box(AmbusherLayout.JawPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(AmbusherLayout.JawLength, fore, 0.02, "a jaw's length");
+            Assert.AreEqual(AmbusherLayout.JawThick, hi, 0.012, "a jaw's thickness");
+            Assert.AreEqual(-hi, lo, 0.004, "a jaw is the same above as below: the left one is the right one rolled half a turn");
+            Assert.Less(left, -0.08, "a jaw hooks inward (toward -X) at its tip");
+
+            Box(AmbusherLayout.FeelerPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(AmbusherLayout.FeelerLength, fore, 0.02, "a feeler's length");
+            Assert.AreEqual(-right, left, 0.008, "a feeler is the same either side (as near as a five-sided tube is): it bends only upward");
+            Assert.Greater(hi, 0.08, "and it does bend upward");
+
+            Box(AmbusherLayout.RimPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.LessOrEqual(Math.Max(Math.Max(right, -left), Math.Max(fore, -aft)), AmbusherLayout.RimRadius + 0.005, "the heap stays inside its radius");
+            Assert.Greater(Math.Min(Math.Min(right, -left), Math.Min(fore, -aft)), AmbusherLayout.RimRadius * 0.78, "and is about that wide all round");
+            Assert.LessOrEqual(hi, AmbusherLayout.RimHeight + 0.045, "the heap's height (a clod may stand a little over it)");
+            Assert.Greater(hi, AmbusherLayout.RimHeight * 0.6, "the heap stands up from the ground");
+            Assert.GreaterOrEqual(lo, -0.001, "nothing of the heap is under the ground");
+        }
+
+        static void AssertSocket(ModelFile model, string name, double x, double y, double z)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing " + name);
+            Assert.AreEqual(x, s.X, 0.002, name + " x");
+            Assert.AreEqual(y, s.Y, 0.002, name + " y");
+            Assert.AreEqual(z, s.Z, 0.002, name + " z");
+        }
+
         static ModelFile Load(string id)
         {
             string folder = Environment.GetEnvironmentVariable("OA_MODELS");
