@@ -38,6 +38,9 @@ namespace OrbitalAnte.Planets
         public Vec3d ViewerLocal { get; private set; }
         public GroundReading Ground { get; private set; }
 
+        PlanetSurface _placeOf;
+        AirLook _placeAir;
+
         public void Build(PlanetWorld world)
         {
             _live = this;
@@ -76,6 +79,10 @@ namespace OrbitalAnte.Planets
             var air = new AirSample { Visibility = AtmosphereModel.ClearVisibility };
             var weather = new WeatherSample();
             var ground = new GroundReading();
+            // Real light (GroundLight, OA_LightAt): open space unless a world is near.
+            float placeSoft = (float)OrbitLook.AirlessSoft, skyOver = 0f, skyBright = 1f, nightLeast = 1f, spaceShare = 1f, farNight = 1f;
+            Vector3 redden = Vector3.zero;
+            Color dayFill = Color.black, sunPlain = sunlight;
             // The glow round the Sun shrinks as the Sun gets further away (Earth's distance is the yardstick).
             float sunDistance = Vector3.Distance(eye, system.Bodies[0].transform.position);
             float glowScale = Mathf.Clamp(Mathf.Sqrt(22000f / Mathf.Max(1000f, sunDistance)), 0.4f, 1.5f);
@@ -99,6 +106,23 @@ namespace OrbitalAnte.Planets
                 nearGround = ground.AboveGround < 260;
 
                 PlanetProfile profile = s.Profile;
+                if (_placeOf != s)
+                {
+                    _placeOf = s;
+                    _placeAir = OrbitLook.Air(profile, s.BodyRadius, s.Interior);
+                }
+                LookConfig lookNow = LookConfig.Load();
+                placeSoft = (float)_placeAir.Soft;
+                redden = new Vector3((float)_placeAir.ReddenR, (float)_placeAir.ReddenG, (float)_placeAir.ReddenB);
+                if (lookNow.realPlanets) farNight = (float)GroundLight.FarNight(ground.Known ? ground.AboveGround : r - s.BodyRadius, s.BodyRadius, lookNow.planetNightSide);
+                if (profile.hasAtmosphere)
+                {
+                    // Seen from above its air, a world's ground is still filled by its own sky.
+                    nightLeast = (float)GroundLight.NightLeast;
+                    spaceShare = (float)GroundLight.SpaceShareInAir;
+                    skyBright = Mathf.Lerp(nightLeast, 1f, day);
+                    dayFill = SkyGlobals.ToColor((SkyGlobals.ToRgb(s.SkyColor) * 0.55f).Saturated(1.25f));
+                }
                 if (air.InAtmosphere)
                 {
                     Color sky = s.SkyColor;
@@ -137,6 +161,12 @@ namespace OrbitalAnte.Planets
 
                     sunFactor = (1f - (float)air.SunDimming) * (1f - 0.6f * storm);
                     sunlight *= sunFactor;
+                    sunPlain = sunlight;
+                    nightLeast = (float)(insideDeck ? GroundLight.NightLeastUnderDeck : GroundLight.NightLeast);
+                    spaceShare = (float)GroundLight.SpaceShareInAir;
+                    skyOver = skyAmount;
+                    skyBright = light;
+                    dayFill = SkyGlobals.ToColor((SkyGlobals.ToRgb(skyNow) * 0.55f).Saturated(1.25f));
                     // The painted sky: deeper overhead, pale at the horizon, warm at sunrise and sunset.
                     bool uniform = air.Underwater || insideDeck || air.Cloud > 0.5;
                     palette = SkyLook.InAir(SkyGlobals.ToRgb(skyNow), SkyGlobals.ToRgb(haze), Vector3.Dot(up, toSun), light, skyAmount,
@@ -200,6 +230,7 @@ namespace OrbitalAnte.Planets
                 system.SunLight.intensity = SkyGlobals.SunIntensity * sunFactor;
             }
             SkyGlobals.SetAir(sunlight, ambient, background, veil);
+            SkyGlobals.SetPlace(placeSoft, skyOver, skyBright, nightLeast, redden, sunPlain, dayFill, spaceShare, farNight);
             // Lightning lights the whole sky for an instant.
             Rgb flashRgb = SkyGlobals.ToRgb(flash);
             palette.Zenith += flashRgb * 0.45f;

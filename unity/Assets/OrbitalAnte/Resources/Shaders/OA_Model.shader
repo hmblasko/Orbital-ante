@@ -37,6 +37,7 @@ Shader "OrbitalAnte/Model"
             half _PaintScale;
         CBUFFER_END
 
+        #define OA_RECEIVES_SHADOWS
         #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
         TEXTURE2D(_ColorMap); SAMPLER(sampler_ColorMap);
@@ -100,6 +101,9 @@ Shader "OrbitalAnte/Model"
             // Every model material is made in code at run time, so the textured variant must be kept in the
             // build whether or not any saved material uses it (shader_feature would strip it).
             #pragma multi_compile_local _ _OA_TEXTURED
+            // URP's switches for the Sun's cast shadows (OA_SunShade in OA_Look.hlsl reads them).
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
 
             half4 frag(Varyings input) : SV_Target
             {
@@ -139,7 +143,8 @@ Shader "OrbitalAnte/Model"
                 half4 cave = OA_CaveLight(input.positionWS);
                 // The baked hollows darken a crease, but not all the way: the bake saw only the model itself, and
                 // the Sun can still shine straight into a hollow that faces it.
-                half3 light = OA_LightIn(normal, input.positionWS, up, _SunAmount, cave) * lerp(1.0, hollow, 0.6);
+                half shade = OA_SunShade(input.positionWS);
+                half3 light = OA_LightAt(normal, input.positionWS, up, _SunAmount, cave, shade, 0.0) * lerp(1.0, hollow, 0.6);
                 // Bare metal scatters almost no light: nearly all of what you see of it is reflection. It only
                 // gives that light up where there is a daylit sky to mirror in its place. Inside the ship, at
                 // night, in open space and with shine turned off it is lit like everything else, so it never
@@ -148,9 +153,44 @@ Shader "OrbitalAnte/Model"
                 half scattered = 1.0 - mirrored * OA_DaylitSkyIn(input.positionWS, up, cave.a);
                 half widen = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
                 half3 color = albedo * light * scattered + albedo * _Glow;
-                color += OA_ShineIn(normal, input.positionWS, up, _SunAmount, gloss, metal, albedo, widen, cave.a);
+                // A highlight from the Sun does not show in something's shadow (the sky's reflection goes with it, which is
+                // close enough: in shadow a glint would read as a light of its own).
+                color += OA_ShineIn(normal, input.positionWS, up, _SunAmount * lerp(1.0, shade, _OA_Shade.y), gloss, metal, albedo, widen, cave.a);
                 color = OA_ApplyHaze(color, input.positionWS);
                 return half4(color, 1.0);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // Draws the thing into the picture URP keeps of what the Sun can see, which is where cast shadows come
+            // from. Only drawn while the Sun's light is set to cast them (the Look asset's Sun Shadows).
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma vertex vertShadow
+            #pragma fragment fragShadow
+
+            float3 _LightDirection;
+
+            float4 vertShadow(Attributes input) : SV_POSITION
+            {
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                // Pushed a little way from the light and into the surface, so a face does not shadow itself.
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
+                return ApplyShadowClamping(positionCS);
+            }
+
+            half4 fragShadow() : SV_Target
+            {
+                return 0;
             }
             ENDHLSL
         }

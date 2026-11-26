@@ -16,6 +16,8 @@ Shader "OrbitalAnte/Terrain"
         _Paint ("Painted break-up of colour", Range(0, 1)) = 1
         _PaintScale ("Paint patch size: 1 for ground, larger for small things", Range(1, 63)) = 1
         _Ground ("Fine ground relief: grit, stones and hummocks (ground only)", Range(0, 1.5)) = 0
+        [NoScaleOffset] _CloudMap ("Clouds overhead (alpha), for their shadows on the ground", 2D) = "black" {}
+        _CloudShadow ("Cloud shadows: darkness, amount, drift (turns a second)", Vector) = (0, 1, 0, 0)
     }
 
     SubShader
@@ -36,11 +38,16 @@ Shader "OrbitalAnte/Terrain"
             half _Paint;
             half _PaintScale;
             half _Ground;
+            half4 _CloudShadow;
         CBUFFER_END
 
         TEXTURE2D(_FarMap);
         SAMPLER(sampler_FarMap);
 
+        TEXTURE2D(_CloudMap);
+        SAMPLER(sampler_CloudMap);
+
+        #define OA_RECEIVES_SHADOWS
         #include "Assets/OrbitalAnte/Resources/Shaders/OA_Look.hlsl"
 
         // Ground only. The mesh is made of squares 1.7 m across at its finest, far too coarse for the grit, stones
@@ -131,6 +138,9 @@ Shader "OrbitalAnte/Terrain"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // URP's switches for the Sun's cast shadows (OA_SunShade in OA_Look.hlsl reads them).
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
 
             half4 frag(Varyings input) : SV_Target
             {
@@ -183,11 +193,64 @@ Shader "OrbitalAnte/Terrain"
                 albedo = lerp(albedo, farColor, blend);
 
                 float3 up = input.upWS / max(0.0001, length(input.upWS));
-                half3 light = OA_Light(normal, input.positionWS, up, _SunAmount);
+                // A world's own ground says which way is up at every corner; rocks and the ship do not.
+                half grounded = dot(input.direction, input.direction) > 0.25 ? 1.0 : 0.0;
+                half shade = OA_SunShade(input.positionWS);
+                UNITY_BRANCH
+                if (_CloudShadow.x * grounded > 0.001)
+                {
+                    // The shadows of the clouds seen from space, laid where the far ball lays them (OA_Body), so
+                    // the ground agrees with it as it takes over. Faded out by the game as you come down.
+                    float3 d = normalize(input.direction);
+                    float3 east = float3(-d.z, 0.0, d.x);
+                    east /= max(0.001, length(east));
+                    float3 north = cross(east, d);
+                    float3 sunOS = normalize(TransformWorldToObjectDir(_OA_SunPosition.xyz - input.positionWS));
+                    float2 toward = float2(dot(sunOS, east) / (6.2832 * max(0.2, length(d.xz))), dot(sunOS, north) / 3.1416);
+                    float2 cloudUv = float2(atan2(d.z, d.x + 0.00001) * 0.15915494, 1.0 - acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
+                    cloudUv += float2(_Time.y * _CloudShadow.z, 0.0) + toward * 0.035;
+                    float spread = max(length(ddx(d)), length(ddy(d)));
+                    float cloudLod = max(0.0, log2(max(1e-6, spread * 2048.0 * 0.15915494)));
+                    shade *= 1.0 - _CloudShadow.x * saturate(SAMPLE_TEXTURE2D_LOD(_CloudMap, sampler_CloudMap, cloudUv, cloudLod).a * _CloudShadow.y);
+                }
+                half3 light = OA_LightAt(normal, input.positionWS, up, _SunAmount, OA_CaveLight(input.positionWS), shade, grounded);
                 // Lamps and lit windows on built things: the mesh marks them (in the colour's fourth number).
                 half3 color = albedo * light + albedo * (_Glow + _VertexGlow * (1.0 - input.color.a));
                 color = OA_ApplyHaze(color, input.positionWS);
                 return half4(color, 1.0);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // Draws the thing into the picture URP keeps of what the Sun can see, which is where cast shadows come
+            // from. Only drawn while the Sun's light is set to cast them (the Look asset's Sun Shadows).
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma vertex vertShadow
+            #pragma fragment fragShadow
+
+            float3 _LightDirection;
+
+            float4 vertShadow(Attributes input) : SV_POSITION
+            {
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                // Pushed a little way from the light and into the surface, so a face does not shadow itself.
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
+                return ApplyShadowClamping(positionCS);
+            }
+
+            half4 fragShadow() : SV_Target
+            {
+                return 0;
             }
             ENDHLSL
         }

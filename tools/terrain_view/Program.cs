@@ -637,7 +637,8 @@ static class TerrainView
             return;
         }
 
-        // The trial. Four looks toward slightly different parts of the Sun give the shadow a soft edge.
+        // Real light, by the game's own sums (GroundLight; OA_LightAt in OA_Look.hlsl is the same). Four looks toward
+        // slightly different parts of the Sun stand in for the soft edge the game's shadow picture gives.
         double open = 0;
         if (facing > -0.04 && here > -0.2)
         {
@@ -653,18 +654,37 @@ static class TerrainView
                 open += 0.25;
             }
         }
-        if (!air)
+        AirLook look = OrbitLook.Air(t.Profile, t.Radius, false);
+        ToLight(sunBase, 1.35, out double pr, out double pg, out double pb);
+        // A stand-in is lit for where the eye is, as the game lights everything but the ground itself.
+        double placeSun = prop ? Vec3d.Dot(eyeUp, sun) : here;
+        pr *= GroundLight.Reddened(placeSun, look.ReddenR); pg *= GroundLight.Reddened(placeSun, look.ReddenG); pb *= GroundLight.Reddened(placeSun, look.ReddenB);
+        double least = air ? GroundLight.NightLeast : 1, share = air ? GroundLight.SpaceShareInAir : 1;
+        double viewerSun = Vec3d.Dot(eyeUp, sun), viewerBright = GroundLight.SkyBrightness(viewerSun, least);
+        double fr = 0, fg = 0, fb = 0, vr, vg, vb;
+        ToLight(spaceAmbient, 1, out double spr, out double spg, out double spb);
+        if (air)
         {
-            // With no air the only fill is sunlight thrown back by the ground round about.
-            ar = ar * 0.6 + sr * 0.03 * dayHere; ag = ag * 0.6 + sg * 0.03 * dayHere; ab = ab * 0.6 + sb * 0.03 * dayHere;
+            var skyRgb = new Rgb(sky[0], sky[1], sky[2]);
+            ToLight((skyRgb * 0.55f).Saturated(1.25f), 1, out fr, out fg, out fb);
+            float lightV = (float)viewerBright;
+            SkyPalette palV = SkyLook.InAir(skyRgb, new Rgb(haze[0], haze[1], haze[2]), (float)viewerSun, lightV, 1f, false, 1f, 1f);
+            ToLight((skyRgb * (lightV * 0.55f)).Saturated(1.25f) + spaceAmbient * 0.5f + palV.Sunset * 0.3f, 1, out vr, out vg, out vb);
         }
-        double soft = air ? 0.1 : 0.012;
-        double up2 = Step01(-soft, soft * 0.5, here);
-        double direct = Math.Max(0, Math.Min(1, (facing + 0.04) / 1.04)) * open;
+        else { vr = spr; vg = spg; vb = spb; }
+        double skyOver = air ? 1 : 0;
+        double hereBright = GroundLight.SkyBrightness(placeSun, least);
         double f2 = 0.85 + 0.3 * upward;
-        r = ar * f2 + sr * (direct + bounce) * up2;
-        g = ag * f2 + sg * (direct + bounce * 0.8) * up2;
-        b = ab * f2 + sb * (direct + bounce * 0.6) * up2;
+        ar = prop ? vr : GroundLight.Fill(vr, viewerBright, skyOver, fr, spr, share, hereBright);
+        ag = prop ? vg : GroundLight.Fill(vg, viewerBright, skyOver, fg, spg, share, hereBright);
+        ab = prop ? vb : GroundLight.Fill(vb, viewerBright, skyOver, fb, spb, share, hereBright);
+        double up2 = GroundLight.Reached(placeSun, look.Soft);
+        double direct = GroundLight.Direct(facing, open);
+        double thrown = Math.Max(0, Math.Min(1, placeSun * 2 + 0.2)) * 0.03;
+        // (The warm bounce onto overhangs keeps the viewer's tinted sunlight in the game; near enough here.)
+        r = ar * f2 + (pr * (direct + thrown) + sr * bounce) * up2;
+        g = ag * f2 + (pg * (direct + thrown) + sg * bounce * 0.8) * up2;
+        b = ab * f2 + (pb * (direct + thrown) + sb * bounce * 0.6) * up2;
     }
 
     /// <summary>How strongly the ground shader's fine relief is drawn (the Ground Relief dial). 0 shows the bare mesh colours.</summary>

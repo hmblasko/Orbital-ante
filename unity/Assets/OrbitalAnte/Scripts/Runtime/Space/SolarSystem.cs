@@ -118,9 +118,9 @@ namespace OrbitalAnte.Space
             SunLight.type = LightType.Directional;
             SunLight.color = SkyGlobals.SunColor;
             SunLight.intensity = SkyGlobals.SunIntensity;
-            // No shadow maps yet: hills and night come from which way the ground faces the Sun. The ship
-            // milestone decides whether its interior needs real shadows.
-            SunLight.shadows = LightShadows.None;
+            // Cast shadows (the Look asset's Sun Shadows): URP draws what the Sun can see near the camera and the
+            // game's shaders read it. Night itself still comes from which way the ground faces the Sun.
+            OrbitalAnte.Look.SunShadows.Apply(SunLight, OrbitalAnte.Look.LookConfig.Load());
 
             _stars = new GameObject("Stars").transform;
             _stars.SetParent(transform, false);

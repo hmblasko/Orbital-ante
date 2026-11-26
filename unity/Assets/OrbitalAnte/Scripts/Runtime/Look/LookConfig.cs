@@ -55,6 +55,18 @@ namespace OrbitalAnte.Look
         [Tooltip("How firmly the edge of a shadow is drawn. 1 is a clear band between light and dark, like an illustration. 0 is a soft fall-off, like a photograph. 0.6 is how the game looked before this dial existed.")]
         [Range(0f, 1f)] public float lightBand = 0.6f;
 
+        [Header("Light and shadow")]
+        [Tooltip("On: sunlight falls only on what faces the Sun, shade is lit by the sky alone (nearly black on a world with no air), and the ground far off goes dark where it is night there. Off: the earlier soft light that wraps round into the shade.")]
+        public bool realLight = true;
+        [Tooltip("On: the Sun casts shadows: rocks, trees, enemies, the ship and the hills near you. Needs Real Light. Off: nothing casts a shadow (the cheapest).")]
+        public bool sunShadows = true;
+        [Tooltip("How dark a cast shadow is. 1 leaves only the sky's light in it; lower lets some sunlight through, which makes enemies in shade easier to see.")]
+        [Range(0f, 1f)] public float shadowDarkness = 1f;
+        [Tooltip("How far from you shadows are cast, in metres. Further costs more and makes the shadows at your feet less crisp.")]
+        [Range(30f, 250f)] public float shadowDistance = 120f;
+        [Tooltip("How much sunlight the ground round about throws into shadows. It is all the light there is in a shadow on a world with no air; 0 makes those black.")]
+        [Range(0f, 0.1f)] public float groundBounce = 0.03f;
+
         [Header("Sky")]
         [Tooltip("Brightness of the picture of deep space behind the stars: the Milky Way, its dust, the far galaxies and nebulae. 0 is plain black.")]
         [Range(0f, 1.5f)] public float spaceBackdrop = 1f;

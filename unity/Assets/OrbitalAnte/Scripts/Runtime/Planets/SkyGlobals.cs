@@ -34,6 +34,11 @@ namespace OrbitalAnte.Planets
         static readonly int SkyUpId = Shader.PropertyToID("_OA_SkyUp");
         static readonly int HazeId = Shader.PropertyToID("_OA_Haze");
         static readonly int FinishId = Shader.PropertyToID("_OA_Finish");
+        static readonly int ShadeId = Shader.PropertyToID("_OA_Shade");
+        static readonly int PlaceId = Shader.PropertyToID("_OA_Place");
+        static readonly int ReddenId = Shader.PropertyToID("_OA_Redden");
+        static readonly int SunPlainId = Shader.PropertyToID("_OA_SunPlain");
+        static readonly int GroundFillId = Shader.PropertyToID("_OA_GroundFill");
 
         /// <summary>Open space: full sunlight, a touch of fill light, no sky, no lamp.</summary>
         public static void Reset()
@@ -45,6 +50,34 @@ namespace OrbitalAnte.Planets
             SetLamp(Vector3.zero, 1f, Color.black);
             SetBeam(Vector3.zero, Vector3.forward, 1f, 20f, 40f, Color.black, 0f);
             SetSky(SkyLook.OpenSpace(1f), Vector3.zero, 0f);
+            SetPlaceOpenSpace();
+        }
+
+        /// <summary>Real light with no world near: plain sunlight, nothing reddened, no sky to fill a shadow.</summary>
+        public static void SetPlaceOpenSpace()
+        {
+            SetPlace((float)OrbitLook.AirlessSoft, 0f, 1f, 1f, Vector3.zero, SunColor * SunIntensity, Color.black, 1f, 1f);
+        }
+
+        /// <summary>
+        /// What real light needs to know about the world the viewer is at (see GroundLight and OA_LightAt):
+        /// how soft its edge of night is, how much sky is over the viewer and how bright it is, the least a sky
+        /// there falls to at night, how low sunlight reddens, the sunlight before any colouring, the fill a full
+        /// day's sky gives the ground, how much of space's faint light the ground also gets, and how much of its
+        /// fill night ground keeps from this height. The dials come from the Look asset.
+        /// </summary>
+        public static void SetPlace(float soft, float skyOver, float skyBright, float nightLeast, Vector3 redden, Color sunPlain,
+            Color dayFill, float spaceShare, float farNight)
+        {
+            LookConfig look = LookConfig.Load();
+            bool on = look.realLight;
+            Shader.SetGlobalVector(ShadeId, new Vector4(on && look.sunShadows ? look.shadowDarkness : 0f, on ? 1f : 0f, look.groundBounce, farNight));
+            Shader.SetGlobalVector(PlaceId, new Vector4(Mathf.Max(0.001f, soft), Mathf.Clamp01(skyOver), Mathf.Max(0.001f, skyBright), Mathf.Clamp01(nightLeast)));
+            Shader.SetGlobalVector(ReddenId, new Vector4(redden.x, redden.y, redden.z, 0f));
+            Shader.SetGlobalVector(SunPlainId, Linear(sunPlain, 1f));
+            Vector4 fill = Linear(dayFill, 1f);
+            fill.w = spaceShare;
+            Shader.SetGlobalVector(GroundFillId, fill);
         }
 
         public static Color ToColor(Rgb c) => new Color(c.R, c.G, c.B, 1f);

@@ -200,6 +200,7 @@ namespace OrbitalAnte.EditorTools
             Step("fog in builds", problems, SetUpFogInBuilds);
             Step("sky picture", problems, SkyTextureImportRules.Ensure);
             Step("planet pictures", problems, PlanetTextureImportRules.Ensure);
+            Step("sun shadows", problems, SetUpSunShadows);
             Step("test arena scene", problems, () => SetUpScene(interactive));
             Step("input system", problems, () => needsRestart = SetUpInputHandling());
 
@@ -625,6 +626,29 @@ namespace OrbitalAnte.EditorTools
         /// only keeps the fog parts of shaders in a build if it sees fog used in a scene, so without this a built
         /// game would have no haze at all while the editor looked fine. This tells it to always keep them.
         /// </summary>
+        static void SetUpSunShadows()
+        {
+            // The Sun's cast shadows (the Look asset's Sun Shadows). The game sets the same things while it runs
+            // (SunShadows.Apply), but a built game only keeps the shader versions that the saved pipeline asset
+            // says it uses, so they are saved here too.
+            RenderPipelineAsset pipeline = GraphicsSettings.defaultRenderPipeline;
+            if (pipeline == null) return;
+            var serialized = new SerializedObject(pipeline);
+            SetIfThere(serialized, "m_MainLightShadowsSupported", p => p.boolValue = true);
+            SetIfThere(serialized, "m_SoftShadowsSupported", p => p.boolValue = true);
+            SetIfThere(serialized, "m_ShadowDistance", p => p.floatValue = OrbitalAnte.Planets.SunShadowRules.Distance(OrbitalAnte.Look.LookConfig.Load().shadowDistance));
+            SetIfThere(serialized, "m_ShadowCascadeCount", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Cascades);
+            SetIfThere(serialized, "m_Cascade2Split", p => p.floatValue = OrbitalAnte.Planets.SunShadowRules.NearShare);
+            SetIfThere(serialized, "m_MainLightShadowmapResolution", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Resolution);
+            if (serialized.ApplyModifiedPropertiesWithoutUndo()) EditorUtility.SetDirty(pipeline);
+        }
+
+        static void SetIfThere(SerializedObject serialized, string name, Action<SerializedProperty> set)
+        {
+            SerializedProperty property = serialized.FindProperty(name);
+            if (property != null) set(property);
+        }
+
         static void SetUpFogInBuilds()
         {
             var settings = new SerializedObject(GraphicsSettings.GetGraphicsSettings());

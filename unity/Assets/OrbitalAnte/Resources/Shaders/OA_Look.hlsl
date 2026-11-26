@@ -25,6 +25,18 @@ half4 _OA_SunGlow;         // rgb colour of the glow round the Sun, a its streng
 float4 _OA_SkyUp;          // xyz is "up" where the viewer is (zero in open space)
 float4 _OA_Haze;           // x haze thickness (one over metres), y painted look 0..1, z rim light, w bounce light
 half4 _OA_Finish;          // x how strongly smooth surfaces shine, y how firmly the edge of a shadow is drawn (0 soft, 1 a band)
+// Real light (the Look asset's Real Light and Sun Shadows; Planets/GroundLight.cs holds the same sums for tests).
+half4 _OA_Shade;           // x how dark a cast shadow is (0 none), y real light on (0 or 1), z sunlight thrown back by the ground, w how much of its fill night ground keeps seen from far above
+float4 _OA_Place;          // x how soft the edge of night is on the world the viewer is at, y how much sky is over the viewer, z how bright the sky is where the viewer is, w the least a sky's brightness falls to at night
+half4 _OA_Redden;          // how much low sunlight loses of its red, green and blue there
+half4 _OA_SunPlain;        // sunlight reaching the ground where the viewer is, before any colouring by a low Sun
+half4 _OA_GroundFill;      // rgb the fill light a full day's sky gives that world's ground, a how much of space's own faint light its ground also gets
+
+// A shader that wants the Sun's cast shadows defines OA_RECEIVES_SHADOWS before including this file, and gives its
+// forward pass URP's shadow switches (_MAIN_LIGHT_SHADOWS and the rest). Everything else is untouched.
+#if defined(OA_RECEIVES_SHADOWS)
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+#endif
 
 // ---------------------------------------------------------------------------------------------- sky
 
@@ -162,6 +174,25 @@ half4 OA_CaveLight(float3 positionWS)
 
 // ---------------------------------------------------------------------------------------------- light
 
+// How much of the Sun's light gets here past whatever stands in the way: 1 in the open, 0 in full cast shadow.
+// Read from the shadow picture URP draws for the Sun's light; fades out at the far edge of that picture.
+half OA_SunShade(float3 positionWS)
+{
+#if defined(OA_RECEIVES_SHADOWS) && (defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE) || defined(_MAIN_LIGHT_SHADOWS_SCREEN))
+    half open = MainLightRealtimeShadow(TransformWorldToShadowCoord(positionWS));
+    open = lerp(open, 1.0, GetMainLightShadowFade(positionWS));
+    return lerp(1.0, open, _OA_Shade.x);
+#else
+    return 1.0;
+#endif
+}
+
+// How bright a world's sky is where the Sun stands this high: 1 by day, the night's least after dark.
+half OA_SkyBrightness(half sunUp)
+{
+    return lerp(_OA_Place.w, 1.0, smoothstep(-0.1, 0.25, sunUp));
+}
+
 // The ship's floodlights: a soft-edged cone that fades out with distance (Ship/ShipLights.Reaching is the same
 // sum, for tests). Skipped entirely while they are off, which is most of the time.
 half3 OA_Beam(half3 normal, float3 positionWS)
@@ -186,7 +217,10 @@ half3 OA_Beam(half3 normal, float3 positionWS)
 // the lamp, and a rim of sky colour where a surface turns away from the eye. Returns the light, to be
 // multiplied by the surface's colour.
 // cave is OA_CaveLight(positionWS): a shader that needs it more than once reads it once and hands it in.
-half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half4 cave)
+// shade is OA_SunShade(positionWS). grounded is 1 for a world's own ground, whose "up" is its own at every corner:
+// its sunlight and sky fill are then worked out for the place being lit, not for where the viewer is, so the
+// ground far off (and the whole ground seen from above) goes dark where it is night there.
+half3 OA_LightAt(half3 normal, float3 positionWS, float3 up, half sunAmount, half4 cave, half shade, half grounded)
 {
     // In a cave, only as much of the sky's light as reaches this spot, and the cave's own lamps.
     sunAmount *= cave.a;
@@ -202,9 +236,30 @@ half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, hal
     half edge = saturate(1.0 - abs(wrap - 0.15) * 6.0);
     half3 sun = _OA_SunColor.rgb * (lit + half3(1.0, 0.36, 0.14) * (edge * 0.2));
 
+    half sunUp = dot(up, toSun);
+    bool onWorld = dot(up, up) > 0.25;
+    half plain = _OA_Shade.y;
+    // Real light: sunlight falls only on what faces the Sun and is not in something's shadow, and it reddens
+    // where it arrives low, having come a long way through the air (the same sum as a planet seen from space).
+    half3 plainSun = _OA_SunPlain.rgb;
+    if (onWorld) plainSun *= exp(-_OA_Redden.rgb * min(1.0 / max(sunUp + 0.06, 0.03), 14.0));
+    sun = lerp(sun, plainSun * (saturate((facing + 0.04) / 1.04) * shade), plain);
+
     // More sky light on faces that look up than on faces that look down.
     half upward = dot(normal, up);
-    half3 light = _OA_Ambient.rgb * ((0.85 + 0.3 * upward) * (0.03 + 0.97 * cave.a));
+    half3 fill = _OA_Ambient.rgb;
+    if (grounded * plain > 0.5)
+    {
+        // The viewer's fill light is right for where the viewer is. Darker places take a share of it; brighter
+        // ones add what a day sky gives. From above the air, the ground's own sky is all there is to go by.
+        half here = OA_SkyBrightness(sunUp);
+        half3 scaled = fill * min(here / max(_OA_Place.z, 0.001), 1.0) + _OA_GroundFill.rgb * (max(here - _OA_Place.z, 0.0) * _OA_Place.y);
+        half3 own = _OA_GroundFill.rgb * here + _OA_SpaceAmbient.rgb * _OA_GroundFill.a;
+        fill = lerp(own, scaled, _OA_Place.y);
+        // Seen from far above, the eye is set for sunlight and the night ground is nearly black.
+        fill *= lerp(_OA_Shade.w, 1.0, smoothstep(-0.1, 0.25, sunUp));
+    }
+    half3 light = fill * ((0.85 + 0.3 * upward) * (0.03 + 0.97 * cave.a));
     light += cave.rgb * (0.8 + 0.2 * upward);
 
     // Sunlit ground throws warm light back up onto overhangs and shadowed walls.
@@ -218,10 +273,11 @@ half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, hal
 
     // On a planet's night side the planet itself is in the way: nothing down here is sunlit, whichever way it
     // faces (a ship's panels would otherwise catch the Sun through the ground). In open space "up" is zero.
-    half sunUp = dot(up, toSun);
-    half reached = dot(up, up) > 0.25 ? smoothstep(-0.14, 0.02, sunUp) : 1.0;
+    half reached = onWorld ? lerp(smoothstep(-0.14, 0.02, sunUp), smoothstep(-_OA_Place.x, _OA_Place.x * 2.5, sunUp), plain) : 1.0;
+    // Sunlit ground all round throws a little light into every shadow (all there is on a world with no air).
+    half3 thrown = onWorld ? plainSun * (dayHere * _OA_Shade.z * plain) : half3(0.0, 0.0, 0.0);
 
-    light += (sun + bounce + rim) * (sunAmount * reached);
+    light += (sun + bounce + rim + thrown) * (sunAmount * reached);
 
     float3 toLamp = _OA_LampPosition.xyz - positionWS;
     float lampDistance = max(0.001, length(toLamp));
@@ -230,6 +286,11 @@ half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, hal
     light += _OA_LampColor.rgb * lamp;
     light += OA_Beam(normal, positionWS);
     return light;
+}
+
+half3 OA_LightIn(half3 normal, float3 positionWS, float3 up, half sunAmount, half4 cave)
+{
+    return OA_LightAt(normal, positionWS, up, sunAmount, cave, OA_SunShade(positionWS), 0.0);
 }
 
 half3 OA_Light(half3 normal, float3 positionWS, float3 up, half sunAmount)

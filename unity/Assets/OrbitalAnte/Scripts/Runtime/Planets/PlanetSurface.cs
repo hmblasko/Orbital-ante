@@ -344,7 +344,7 @@ namespace OrbitalAnte.Planets
         Material _cloudMaterial;
         double _cloudShell;
         float _cloudShown = 1f, _cloudShadow, _cloudShadowShown = -1f, _cloudAmount, _cloudDrift;
-        bool _hasCloudShadow;
+        bool _hasCloudShadow, _groundCloudShadow;
 
         /// <summary>
         /// The realistic look from space (Look asset, "Real Planets"): a true night side on the far ball, a layer
@@ -381,6 +381,9 @@ namespace OrbitalAnte.Planets
                     _cloudDrift = look.DriftSeconds > 0 ? (float)(1.0 / look.DriftSeconds) : 0f;
                     _hasCloudShadow = _cloudShadow > 0f && far != null;
                     if (_hasCloudShadow) PlanetMaterials.SetCloudShadows(far, picture, _cloudShadow, _cloudAmount, _cloudDrift);
+                    // The real ground shows the same shadows while the clouds themselves are in view (FarTick).
+                    _groundCloudShadow = _cloudShadow > 0f && OrbitalAnte.Look.LookConfig.Load().realLight;
+                    if (_groundCloudShadow) PlanetMaterials.SetCloudShadows(_ground, picture, 0f, _cloudAmount, _cloudDrift);
                     _cloudShadowShown = _cloudShadow;
                 }
             }
@@ -424,6 +427,8 @@ namespace OrbitalAnte.Planets
                 _cloudShown = shown;
                 PlanetMaterials.SetStrength(_cloudMaterial, shown);
                 _clouds.SetActive(shown > 0.001f);
+                // The ground under them is shaded only while the clouds are drawn: on foot there are none overhead.
+                if (_groundCloudShadow) PlanetMaterials.SetCloudShadows(_ground, null, _cloudShadow * shown, _cloudAmount, _cloudDrift);
             }
             if (!_hasCloudShadow || Body.FarLook == null) return;
             float shadow = _cloudShadow * (float)OrbitLook.ShadowShown(viewerRadius - BodyRadius, nearHeight);

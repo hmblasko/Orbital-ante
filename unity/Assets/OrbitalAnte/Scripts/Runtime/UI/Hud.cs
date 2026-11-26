@@ -247,7 +247,7 @@ namespace OrbitalAnte.UI
         static string FinishReadout()
         {
             var finish = OrbitalAnte.Look.PostFx.Instance;
-            return finish != null ? "\nPicture finish: " + finish.Status : string.Empty;
+            return (finish != null ? "\nPicture finish: " + finish.Status : string.Empty) + "\nSun shadows: " + OrbitalAnte.Look.SunShadows.Status;
         }
 
         /// <summary>How many enemies and guns are being watched, and how many of them are drawn as their far copies.</summary>
