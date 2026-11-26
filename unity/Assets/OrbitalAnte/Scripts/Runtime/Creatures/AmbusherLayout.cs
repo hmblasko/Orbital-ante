@@ -58,8 +58,15 @@ namespace OrbitalAnte.Creatures
         public const int RightSide = 0, LeftSide = 1;
         public static double Sign(int side) => side == RightSide ? 1.0 : -1.0;
 
-        /// <summary>How wide a segment is drawn beside the widest: the first few behind the head are a little slimmer.</summary>
-        public static double Scale(int seg) => seg >= 3 ? 1.0 : 0.82 + 0.06 * seg;
+        /// <summary>How wide a segment is at its middle beside the widest: the first few behind the head are a little slimmer. (For hitboxes and wounds: the model's own outline passes through these.)</summary>
+        public static double Scale(int seg) => seg >= NeckSegs ? 1.0 : 0.82 + 0.06 * seg;
+        /// <summary>
+        /// The body is one skin cut at its joints, every piece ending exactly as wide as the next begins and drawn at
+        /// its modelled size. The lengths behind the head widen from the neck, so each has a piece of its own ("Seg0"
+        /// to "Seg2"); the rest are all alike and share "Seg".
+        /// </summary>
+        public const int NeckSegs = 3;
+        public static string PieceOf(int seg) => seg < NeckSegs ? SegPiece + seg : SegPiece;
 
         public static Vec3d HingeOf(int side) => new Vec3d(JawHinge.X * Sign(side), JawHinge.Y, JawHinge.Z);
 

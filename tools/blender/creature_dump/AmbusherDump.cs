@@ -184,8 +184,8 @@ static class AmbusherDump
                         for (int i = 0; i < AmbusherLayout.Nodes; i++)
                         {
                             if (pose.NodePosition[i].Y < 0.0) continue;
-                            double w = i == 0 ? 1.0 : AmbusherLayout.Scale(i - 1);
-                            Fly(i == 0 ? AmbusherLayout.HeadPiece : AmbusherLayout.SegPiece, pose.NodePosition[i], pose.NodeRotation[i],
+                            double w = 1.0;
+                            Fly(i == 0 ? AmbusherLayout.HeadPiece : AmbusherLayout.PieceOf(i - 1), pose.NodePosition[i], pose.NodeRotation[i],
                                 new Vec3d(rng.NextDouble() - 0.5, 0, rng.NextDouble() - 0.5) * 2.0, 0.15, 1.0, w);
                         }
                         for (int jaw = 0; jaw < AmbusherLayout.Jaws; jaw++) if (body.JawOn(jaw)) JawOff(jaw);
@@ -242,8 +242,8 @@ static class AmbusherDump
                 for (int i = 0; i < AmbusherLayout.Nodes; i++)
                 {
                     if (pose.NodePosition[i].Y <= -0.3) continue;
-                    double w = i == 0 ? 1.0 : AmbusherLayout.Scale(i - 1);
-                    Matrix(json, i == 0 ? AmbusherLayout.HeadPiece : AmbusherLayout.SegPiece, At(pose.NodePosition[i]), turnRoot * pose.NodeRotation[i], w, w);
+                    double w = 1.0;
+                    Matrix(json, i == 0 ? AmbusherLayout.HeadPiece : AmbusherLayout.PieceOf(i - 1), At(pose.NodePosition[i]), turnRoot * pose.NodeRotation[i], w, w);
                 }
                 if (pose.NodePosition[0].Y > -0.3)
                 {

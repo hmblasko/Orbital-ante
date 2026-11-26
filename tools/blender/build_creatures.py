@@ -1450,7 +1450,7 @@ AMBUSHER = {
     "stump": 0.05,
 }
 AMBUSHER_FLAT = {"skin": ((0.22, 0.13, 0.20), 0.7), "head": ((0.14, 0.10, 0.16), 0.7), "jaw": ((0.10, 0.07, 0.06), 0.75),
-                 "tooth": ((0.70, 0.62, 0.48), 0.5), "bristle": ((0.72, 0.56, 0.30), 0.4), "lobe": ((0.46, 0.24, 0.24), 0.3),
+                 "tooth": ((0.70, 0.62, 0.48), 0.5), "bristle": ((0.72, 0.56, 0.30), 0.4), "lobe": ((0.30, 0.17, 0.19), 0.3),
                  "feeler": ((0.50, 0.38, 0.26), 0.4), "gullet": ((0.50, 0.14, 0.12), 0.6), "eye": ((0.04, 0.04, 0.05), 0.85),
                  "earth": ((0.36, 0.31, 0.25), 0.05), "pit": ((0.03, 0.03, 0.03), 0.05), "flesh": ((0.78, 0.50, 0.44), 0.6)}
 AMBUSHER_MATERIALS = {
@@ -1460,7 +1460,7 @@ AMBUSHER_MATERIALS = {
                                tip=(1, 0.50, 0.70, (0.006, 0.005, 0.005)), gloss=0.78),
     "tooth": lambda: mats.chitin("tooth", (0.44, 0.36, 0.24), (0.60, 0.54, 0.42), (0.12, 0.07, 0.04), seed=84.0, bumps=0.0, growth=0.0, mottle=0.2, size=0.4, gloss=0.6),
     "bristle": lambda: mats.chitin("bristle", (0.46, 0.30, 0.10), (0.62, 0.50, 0.26), (0.12, 0.06, 0.02), seed=85.0, bumps=0.0, growth=0.0, mottle=0.2, size=0.4, gloss=0.5),
-    "lobe": lambda: mats.membrane("lobe", (0.26, 0.10, 0.11), seed=86.0, size=3.0),
+    "lobe": lambda: mats.membrane("lobe", (0.115, 0.050, 0.062), seed=86.0, size=3.0),
     "feeler": lambda: mats.banded("feeler", seed=87.0),
     "gullet": lambda: mats.flesh("gullet", pale=(0.50, 0.22, 0.20), red=(0.26, 0.03, 0.03), seed=88.0),
     "eye": lambda: mats.eye("eye", colour=(0.008, 0.008, 0.012), glint=(0.06, 0.08, 0.12)),
@@ -1476,55 +1476,138 @@ def ambusher(hi):
     up = (0, 0, 1)
     sp, half, tall = L["spacing"], L["seg_half"], L["seg_tall"]
 
-    # ------------------------------------------------------------- Seg: a fat ringed length, a fleshy lobe and a fan of bristles each side
-    over = 0.03
-    sk_ = [(0.00, half * 0.90, tall * 0.90, 0, 0.0), (0.03, half * 0.975, tall * 0.975, 0, 0.0), (sp * 0.5 + over, half, tall, 0, 0.0),
-           (sp + 2 * over - 0.03, half * 0.975, tall * 0.975, 0, 0.0), (sp + 2 * over, half * 0.90, tall * 0.90, 0, 0.0)]
-    body = g.skin("length", (0, -sp * 0.5 - over, 0.0), (0, 1, 0), up, sk_, around=12, step=0.105, power=2.3)
-    if hi:
-        # Narrow rings all the way along, and a slow unevenness.
-        real.displace(body, lambda p: 0.0030 * math.sin(p.y * 2 * math.pi / 0.045) + 0.003 * noise.noise(p * 9.0))
-    g.add(body, "skin", "Seg")
-    # A ball over the joint to the length behind, so a bend never opens a gap.
-    g.add(g.ball("link", (0, -sp * 0.5, 0.0), tall * 0.985, scale=(half / tall, 0.85, 1.0), around=12), "skin", "Seg")
-    r = random.Random(81)
-    for side in (-1, 1):
-        for y in (-0.085, 0.085):
-            g.add(g.ball("lobe", (side * (half - 0.012), y, -0.045), 0.045, scale=(1.15, 1.35, 0.8), around=6), "lobe", "Seg")
-            # The bristles: one stout one in the game's model, a fan of fine ones in the pictures.
-            reach = half + L["bristle"]
-            g.add(g.spine("bristle", (side * (half + 0.01), y, -0.055), (side, 0.0, -0.30), reach - half - 0.01 + 0.004, 0.011, around=3), "bristle", "Seg")
-            for k in range(5):
-                way = (side, r.uniform(-0.5, 0.5), r.uniform(-0.75, -0.05))
-                g.add(g.spine("bristle", (side * (half + 0.012), y + r.uniform(-0.02, 0.02), -0.05), way, r.uniform(0.035, 0.060), 0.004, around=3), "bristle", "Seg", only='hi')
+    # ------------------------------------------------------------- Seg, and Seg0..Seg2 behind the head: the body, one skin cut at its joints
+    # Every length ends exactly as wide as the next begins. Its back end is a ball about the joint (so a bend is a
+    # smooth elbow, never a gap or a collar); its front end tucks a little way into the piece ahead.
+    hh_, ht_ = L["head_half"], L["head_tall"]
+    neck = [(sp * 0.5, hh_ * 0.76, ht_ * 0.84), (sp * 1.0, half * 0.82, tall * 0.82), (sp * 2.0, half * 0.88, tall * 0.88), (sp * 3.0, half * 0.94, tall * 0.94),
+            (sp * 3.36, half * 0.99, tall * 0.99), (sp * 3.5, half, tall), (sp * 3.7, half, tall)]
 
-    # ------------------------------------------------------------- Head: blunt and armoured, a ring of teeth round its gullet, small eyes
+    def outline(s):
+        if s >= sp * 3.5:
+            return (half, tall)
+        return tuple(real.along(neck, max(s, sp * 0.5)))
+
+    pad, ball, tuck = 0.014, 0.110, 0.040
+    r = random.Random(81)
+
+    def length(piece, node, seed):
+        """One length of the body round its node (`node` behind the head's node along the whole animal)."""
+        front, back = node - sp * 0.5, node + sp * 0.5
+        around = 14 * (4 if hi else 1)
+        count = 54 if hi else 8
+        stations = []
+        wb, tb = outline(back)
+        for d in ([0.108, 0.102, 0.094, 0.084, 0.072, 0.060, 0.048, 0.036, 0.026] if hi else [0.104, 0.082, 0.050]):
+            share = math.sqrt(max(0.0, 1.0 - ((d - pad) / (ball - pad + 0.004)) ** 2))
+            stations.append((back + d, wb * share - 0.0015, tb * share - 0.0015))
+        stations.append((back + pad, wb - 0.0015, tb - 0.0015))
+        for i in range(count + 1):
+            s_ = back - sp * i / count
+            stations.append((s_,) + outline(s_))
+        wf, tf = outline(front)
+        stations.append((front - pad, wf - 0.002, tf - 0.002))
+        for d in ([0.022, 0.030, 0.036, 0.039] if hi else [0.030, 0.039]):
+            share = math.sqrt(max(0.0, 1.0 - ((d - pad) / (tuck - pad + 0.003)) ** 2))
+            stations.append((front - d, wf * share - 0.002, tf * share - 0.002))
+        rings = [real.ring(Vector((0, node - s_, 0)), Vector((-1, 0, 0)), Vector(up), max(w, 0.002), max(t, 0.002), around, 2.3) for s_, w, t in stations]
+        body = real.loft("length", rings, (0.5, 0.5, 0.5), smooth=80.0)
+        if hi:
+            # Narrow rings all the way along (eight to a length, so they run on unbroken from piece to piece), each
+            # a soft roll with a sharp groove between; a slow unevenness; the skin slack in fine creases along it.
+            def fold(p):
+                roll = abs(math.sin(p.y * math.pi / 0.045))
+                return 0.0046 * (roll ** 0.45 - 0.75) + 0.0035 * noise.noise(Vector((p.x, p.y, p.z)) * 8.0 + Vector((seed, 0, 0))) \
+                    + 0.0012 * math.sin(math.atan2(p.z, p.x) * 34.0 + 3.0 * noise.noise(p * 5.0))
+            real.displace(body, fold)
+        g.add(body, "skin", piece, smooth=80.0)
+        w, t = outline(node)
+        for side in (-1, 1):
+            for y in (-0.090, 0.090):
+                # A foot each side of every other ring: a soft lobe with a finger above it and a fan of bristles,
+                # no two quite alike.
+                ws, _ = outline(node - y)
+                jit = r.uniform(-0.012, 0.012)
+                foot = [(0.00, 0.050, 0.034, 0, 0), (0.030, 0.046, 0.030, 0, 0.002), (0.058, 0.032, 0.021, 0, 0.004), (0.074, 0.014, 0.010, 0, 0.005)]
+                out_ = Vector((side, 0.10 * jit / 0.012, -0.42)).normalized()
+                g.add(g.skin("lobe", (side * (ws - 0.030), y + jit, -0.040), tuple(out_), (0, 1, 0), foot, around=5, step=0.037, power=2.0), "lobe", piece, smooth=80.0)
+                g.add(g.spine("finger", (side * (ws - 0.020), y + jit + 0.012, 0.004), (side, 0.15, 0.55), 0.055, 0.012, around=3, bend=(0, 0, -0.35)), "lobe", piece)
+                # The bristles: one stout one that reaches the layout's width and two shorter beside it in the game's
+                # model, a fan of fine ones in the pictures.
+                reach = half + L["bristle"]
+                root = Vector((side * (ws + 0.012), y + jit, -0.058))
+                g.add(g.spine("bristle", root, (side, 0.0, -0.30), (reach - ws - 0.012) / math.hypot(1.0, 0.30) * 1.0 + 0.004, 0.0085, around=3), "bristle", piece)
+                for way_y in (-0.42, 0.42):
+                    g.add(g.spine("bristle", root + Vector((0, way_y * 0.02, 0)), (side, way_y, -0.48), r.uniform(0.045, 0.060), 0.0065, around=3), "bristle", piece,
+                          only=None if (way_y > 0) == (y > 0) else 'hi')
+                for k in range(6):
+                    way = (side, r.uniform(-0.6, 0.6), r.uniform(-0.80, -0.05))
+                    g.add(g.spine("bristle", root + Vector((0, r.uniform(-0.02, 0.02), 0.006)), way, r.uniform(0.035, 0.065), 0.0035, around=3), "bristle", piece, only='hi')
+
+    length("Seg", sp * 5.0, 0.0)
+    for k in range(3):
+        length("Seg%d" % k, sp * (k + 1), 3.0 + k)
+
+    # ------------------------------------------------------------- Head: blunt and armoured, a real mouth ringed with teeth, small eyes
     hl, hh, ht = L["head"], L["head_half"], L["head_tall"]
     back = -sp * 0.5
     hk = [(0.00, hh * 0.76, ht * 0.84, 0, 0.0), (0.05, hh * 0.88, ht * 0.97, 0, 0.0), (0.20, hh * 0.96, ht, 0, 0.0), (0.34, hh, ht * 0.97, 0, 0.0),
-          (0.43, hh * 0.92, ht * 0.86, 0, 0.0), (0.485, hh * 0.72, ht * 0.66, 0, 0.0), (hl, hh * 0.50, ht * 0.46, 0, 0.0)]
-    skull = g.skin("skull", (0, back, 0.0), (0, 1, 0), up, hk, around=14, step=0.07, power=2.4)
+          (0.42, hh * 0.93, ht * 0.89, 0, 0.0), (0.46, hh * 0.84, ht * 0.80, 0, 0.0)]
+    # Behind: a ball about the neck's joint. In front: the lip, and the mouth turned in like the end of a sock.
+    shape = []
+    for d in ([0.106, 0.098, 0.086, 0.070, 0.054, 0.038, 0.024] if hi else [0.102, 0.078, 0.046]):
+        share = math.sqrt(max(0.0, 1.0 - ((d - pad) / (ball - pad + 0.004)) ** 2))
+        shape.append((-d, hk[0][1] * share - 0.0015, hk[0][2] * share - 0.0015))
+    shape.append((-pad, hk[0][1] - 0.0015, hk[0][2] - 0.0015))
+    steps = 60 if hi else 9
+    for i in range(steps + 1):
+        t_ = 0.46 * i / steps
+        rs, rf, _, _ = real.along(hk, t_)
+        shape.append((t_, rs, rf))
+    lip = [(0.485, 0.74, 0.70), (0.498, 0.64, 0.60), (hl, 0.56, 0.52), (0.492, 0.47, 0.44), (0.470, 0.42, 0.39), (0.42, 0.34, 0.32), (0.34, 0.22, 0.21), (0.26, 0.10, 0.10)]
     if hi:
-        # Two furrows over the crown, and a seam round the back of the head where the first ring joins.
-        real.displace(skull, lambda p: -0.005 * math.exp(-((abs(p.x) - 0.075) / 0.010) ** 2) * (1.0 if p.z > 0.03 else 0.0)
-                                       - 0.006 * math.exp(-((p.y - (back + 0.07)) / 0.010) ** 2) + 0.003 * noise.noise(p * 11.0))
-    g.add(skull, "head", "Head")
-    # The gullet: a dark red hollow in its blunt front, ringed with small pale teeth.
-    g.add(g.ball("gullet", (0, back + hl - 0.012, 0.0), hh * 0.50, scale=(1.0, 0.30, 0.86), around=8), "gullet", "Head")
-    teeth = 12 if hi else 6
+        fine = []
+        for i in range(len(lip) - 1):
+            for j in range(6):
+                u = j / 6.0
+                fine.append(tuple(lip[i][c] + (lip[i + 1][c] - lip[i][c]) * (u * u * (3 - 2 * u) if c else u) for c in range(3)))
+        lip = fine + [lip[-1]]
+    shape += [(y, hh * a_, ht * b_) for y, a_, b_ in lip]
+    rings = [real.ring(Vector((0, back + y, 0)), Vector((-1, 0, 0)), Vector(up), max(w, 0.002), max(t, 0.002), 16 * (4 if hi else 1), 2.4) for y, w, t in shape]
+    skull = real.loft("skull", rings, (0.5, 0.5, 0.5), smooth=80.0)
+    if hi:
+        # Two furrows over the crown, a seam round the back of the head where the first ring joins, the lip puckered.
+        def head_fold(p):
+            outer = math.hypot(p.x / hh, p.z / ht) > 0.60 or p.y < back + 0.44
+            d = 0.003 * noise.noise(p * 11.0)
+            if outer:
+                d += -0.005 * math.exp(-((abs(p.x) - 0.075) / 0.010) ** 2) * (1.0 if p.z > 0.03 else 0.0) * (1.0 if p.y < back + 0.42 else 0.0)
+                d += -0.006 * math.exp(-((p.y - (back + 0.07)) / 0.010) ** 2)
+            if p.y > back + 0.44:
+                d += 0.0035 * math.sin(math.atan2(p.z, p.x) * 18.0)
+            return d
+        real.displace(skull, head_fold)
+    g.add(skull, "head", "Head", smooth=80.0,
+          second=("gullet", lambda c, n: c.y > back + 0.20 and math.hypot(c.x / hh, c.z / ht) < 0.50 and (n.x * c.x + n.z * c.z) < 0.0))
+    teeth = 10
     for k in range(teeth):
+        # Teeth standing in a ring inside the lip, hooked inward.
         a = 2 * math.pi * (k + 0.5) / teeth
-        at = (math.cos(a) * hh * 0.44, back + hl - 0.02, math.sin(a) * ht * 0.42)
-        g.add(g.spine("tooth", at, (-math.cos(a) * 0.35, 1.0, -math.sin(a) * 0.35), 0.055, 0.014, around=3), "tooth", "Head")
+        at = (math.cos(a) * hh * 0.44, back + hl - 0.030, math.sin(a) * ht * 0.41)
+        g.add(g.spine("tooth", at, (-math.cos(a) * 0.30, 1.0, -math.sin(a) * 0.30), 0.070 if k % 2 == 0 else 0.052, 0.017, around=4,
+                      bend=(-math.cos(a) * 0.45, 0.0, -math.sin(a) * 0.45)), "tooth", "Head")
     for side in (-1, 1):
-        g.add(g.ball("eye", (side * 0.085, 0.20, ht * 0.86), 0.022, around=6), "eye", "Head")
-        g.add(g.ball("eye", (side * 0.140, 0.13, ht * 0.66), 0.017, around=5), "eye", "Head")
+        g.add(g.ball("eye", (side * 0.085, 0.20, ht * 0.86), 0.022, around=8), "eye", "Head")
+        g.add(g.ball("eye", (side * 0.140, 0.13, ht * 0.66), 0.017, around=6), "eye", "Head")
+        # A fleshy palp under each corner of the mouth.
+        g.add(g.skin("palp", (side * 0.085, back + 0.42, -ht * 0.62), (side * 0.25, 1.0, -0.20), up,
+                     [(0.0, 0.034, 0.030, 0, 0), (0.05, 0.036, 0.031, 0, 0), (0.11, 0.026, 0.022, 0, 0.004), (0.14, 0.012, 0.010, 0, 0.006)], around=6, step=0.035, power=2.0), "lobe", "Head", smooth=80.0)
         hinge = L["jaw_hinge"]
-        g.add(g.ball("jaw hinge", (side * (hinge[0] + 0.012), hinge[1] - 0.02, hinge[2]), 0.066, scale=(0.9, 1.25, 0.85), around=7), "lobe", "Head")
+        g.add(g.ball("jaw hinge", (side * (hinge[0] + 0.012), hinge[1] - 0.02, hinge[2]), 0.066, scale=(0.9, 1.25, 0.85), around=10), "lobe", "Head", smooth=80.0)
     for k in range(L["feelers"]):
         a = L["feeler_arc"] * (k - (L["feelers"] - 1) * 0.5) / ((L["feelers"] - 1) * 0.5)
         root = (math.sin(a) * L["feeler_ring"], L["feeler_ahead"], math.cos(a) * L["feeler_ring"])
-        g.add(g.ball("feeler socket", (root[0] * 0.93, root[1], root[2] * 0.93), 0.036, scale=(1.0, 1.0, 1.0), around=5), "lobe", "Head")
+        g.add(g.ball("feeler socket", (root[0] * 0.93, root[1], root[2] * 0.93), 0.038, scale=(1.0, 1.0, 1.0), around=8), "lobe", "Head", smooth=80.0)
 
     # ------------------------------------------------------------- Jaw (the right one): a sickle, bowed out and hooked in, toothed inside
     jl, jt = L["jaw"], L["jaw_thick"]
@@ -1532,21 +1615,25 @@ def ambusher(hi):
           (0.55, 0.032, jt * 0.52, -0.040, 0), (0.64, 0.018, jt * 0.32, 0.030, 0), (jl, 0.004, 0.004, 0.110, 0)]
     g.add(g.skin("jaw", (0, 0, 0), (0, 1, 0), up, jk, around=8, step=0.07, power=2.0), "jaw", "Jaw")
     g.add(g.ball("jaw root", (0, 0, 0), 0.060, scale=(1.0, 1.0, jt / 0.060), around=6), "jaw", "Jaw")
-    for k, y in enumerate((0.20, 0.30, 0.40, 0.49, 0.57)):
+    for k, y in enumerate((0.17, 0.26, 0.35, 0.43, 0.50, 0.56)):
         rs, rf, os_, of = real.along(jk, y)
-        # Teeth along its inner edge (three of them real shapes, the rest in the pictures). The inner edge is toward -X.
-        g.add(g.spine("jaw tooth", (-os_ - rs * 0.8, y, 0), (-1.0, 0.45, 0.0), 0.075 - 0.008 * k, 0.016, around=3), "tooth", "Jaw", only=None if k % 2 == 0 else 'hi')
+        # Teeth along its inner edge, hooked back toward the mouth, smaller toward the point. The inner edge is toward -X.
+        g.add(g.spine("jaw tooth", (-os_ - rs * 0.75, y, 0), (-1.0, 0.25, 0.0), 0.085 - 0.010 * k, 0.020 - 0.0016 * k, around=4, bend=(0.0, -0.35, 0.0)), "tooth", "Jaw")
 
     # ------------------------------------------------------------- Feeler: banded, tapering, lifting toward its tip
     fl, fr = L["feeler"], L["feeler_radius"]
-    fk = [(0.00, fr * 1.3, fr * 1.3, 0, 0.0), (0.10, fr * 1.1, fr * 1.1, 0, 0.010), (0.40, fr * 0.75, fr * 0.75, 0, 0.050), (0.70, fr * 0.4, fr * 0.4, 0, 0.100),
-          (fl, 0.004, 0.004, 0, 0.130)]
-    g.add(g.skin("feeler", (0, 0, 0), (0, 1, 0), up, fk, around=5, step=0.16, power=2.0), "feeler", "Feeler")
+    # Thick and soft where it leaves the head, then a long whip that curls up at its tip; ringed all the way.
+    fk = [(0.00, fr * 1.9, fr * 1.9, 0, 0.0), (0.035, fr * 2.0, fr * 2.0, 0, 0.001), (0.08, fr * 1.45, fr * 1.45, 0, 0.004), (0.20, fr * 1.15, fr * 1.15, 0, 0.014),
+          (0.40, fr * 0.85, fr * 0.85, 0, 0.040), (0.58, fr * 0.60, fr * 0.60, 0, 0.074), (0.72, fr * 0.42, fr * 0.42, 0, 0.112), (fl - 0.012, fr * 0.26, fr * 0.26, 0, 0.142), (fl, fr * 0.12, fr * 0.12, 0, 0.146)]
+    feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, fk, around=6, step=0.06, power=2.0)
+    if hi:
+        real.displace(feeler, lambda p: 0.0016 * (abs(math.sin(p.y * math.pi / 0.022)) ** 0.5 - 0.6) * (1.0 - 0.5 * p.y / fl))
+    g.add(feeler, "feeler", "Feeler", smooth=80.0)
 
     # ------------------------------------------------------------- Rim: the ring of ground thrown up round the mouth of its burrow
     rim, hole, rh = L["rim"], L["hole"], L["rim_height"]
     profile = [(0.0, rim), (rh * 0.22, rim * 0.90), (rh * 0.62, rim * 0.72), (rh * 0.92, rim * 0.58), (rh, rim * 0.50), (rh * 0.86, rim * 0.43), (rh * 0.40, hole * 1.10), (0.004, hole), (0.004, 0.0)]
-    heap = oa.lathe("heap", (0, 0, 0), (0, 0, 1), profile, (0.5, 0.5, 0.5), segments=72 if hi else 24)
+    heap = oa.lathe("heap", (0, 0, 0), (0, 0, 1), profile, (0.5, 0.5, 0.5), segments=96 if hi else 40)
     def lumpy(p):
         # Uneven all round, never below the ground, and never higher than the layout says.
         a = math.atan2(p.y, p.x)

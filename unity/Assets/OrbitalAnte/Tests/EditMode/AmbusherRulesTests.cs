@@ -680,7 +680,8 @@ namespace OrbitalAnte.Tests.EditMode
                 AssertSocket(model, "Feeler" + k, root.X, root.Y, root.Z);
             }
             string[] pieces = { AmbusherLayout.HeadPiece, AmbusherLayout.JawPiece, AmbusherLayout.FeelerPiece, AmbusherLayout.SegPiece, AmbusherLayout.RimPiece,
-                                AmbusherLayout.Stump, AmbusherLayout.Meat[0], AmbusherLayout.Meat[1] };
+                                AmbusherLayout.Stump, AmbusherLayout.Meat[0], AmbusherLayout.Meat[1],
+                                AmbusherLayout.PieceOf(0), AmbusherLayout.PieceOf(1), AmbusherLayout.PieceOf(2) };
             foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
             Assert.IsTrue(model.Textured, "the Ambusher is drawn with pictures");
 
@@ -708,9 +709,42 @@ namespace OrbitalAnte.Tests.EditMode
             Assert.LessOrEqual(aft, -AmbusherLayout.Spacing * 0.5, "and the joint behind, so a bend opens no gap");
             Assert.Less(fore - aft, AmbusherLayout.Spacing + 0.16, "without running far into its neighbours");
 
+            // The body is one skin cut at its joints: at a joint the piece in front and the piece behind are the same
+            // size, from the back of the head through the widening neck to the lengths that are all alike.
+            void Joint(string piece, float z, out float wide, out float tall)
+            {
+                ModelPart part = model.Part(piece);
+                wide = 0f; tall = 0f;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    // (The feet and bristles stand out from the skin: only the ring of the skin itself is wanted.)
+                    if (Math.Abs(part.Positions[i * 3 + 2] - z) > 0.002f) continue;
+                    wide = Math.Max(wide, part.Positions[i * 3]);
+                    tall = Math.Max(tall, part.Positions[i * 3 + 1]);
+                }
+            }
+            float joint = (float)(AmbusherLayout.Spacing * 0.5);
+            string ahead = AmbusherLayout.HeadPiece;
+            for (int seg = 0; seg <= AmbusherLayout.NeckSegs + 1; seg++)
+            {
+                string piece = AmbusherLayout.PieceOf(seg);
+                Joint(ahead, -joint, out float backWide, out float backTall);
+                Joint(piece, joint, out float frontWide, out float frontTall);
+                Assert.Greater(frontWide, 0.05f, piece + " has a ring of corners at its front joint");
+                Assert.AreEqual(backWide, frontWide, 0.004, piece + " begins as wide as " + ahead + " ends");
+                Assert.AreEqual(backTall, frontTall, 0.004, piece + " and as tall");
+                ahead = piece;
+            }
+            for (int seg = 0; seg < AmbusherLayout.NeckSegs; seg++)
+            {
+                Joint(AmbusherLayout.PieceOf(seg), 0f, out float wide, out float tall);
+                Assert.AreEqual(AmbusherLayout.SegHalfWidth * AmbusherLayout.Scale(seg), wide, 0.012, "length " + seg + " is as wide at its middle as its hitbox");
+            }
+
             Box(AmbusherLayout.HeadPiece, out right, out left, out hi, out lo, out fore, out aft);
             Assert.AreEqual(AmbusherLayout.HeadLength - AmbusherLayout.Spacing * 0.5, fore, 0.06, "the head's front");
-            Assert.AreEqual(-AmbusherLayout.Spacing * 0.5, aft, 0.03, "the head's back is the first joint");
+            Assert.Less(aft, -AmbusherLayout.Spacing * 0.5, "the head's back is a ball about the first joint");
+            Assert.Greater(aft, -AmbusherLayout.Spacing * 0.5 - 0.13);
             Assert.AreEqual(AmbusherLayout.HeadHalfWidth, right, 0.035, "the head's width");
             Assert.AreEqual(-right, left, 0.01, "the head is the same either side");
             Assert.AreEqual(AmbusherLayout.HeadHalfHeight, hi, 0.03, "the head's height");

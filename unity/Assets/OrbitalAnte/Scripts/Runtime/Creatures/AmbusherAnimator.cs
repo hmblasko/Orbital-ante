@@ -216,26 +216,37 @@ namespace OrbitalAnte.Creatures
             pose.OutLength = Math.Max(0.0, outLength - Lip);
 
             // ---- every piece at its own distance back from the head along the line
-            for (int i = 0; i < AmbusherLayout.Nodes; i++)
+            // The body is one skin cut at its joints, so the joints are what is laid along the line: a length lies
+            // from the joint in front of it to the joint behind, and two lengths always meet at the same point,
+            // however sharply the line turns there. (Laid by their middles they met a little to one side of each
+            // other on a tight bend, which showed as a ledge.)
+            double quick = input.Mode == AmbusherMode.Hold ? 9.0 : 2.6;
+            Vec3d Place(double at)
             {
-                double at = outLength - i * AmbusherLayout.Spacing;
                 Vec3d p = At(at);
                 if (at > 0.0 && _wave > 0.0)
                 {
                     // It twists from side to side: not at the hole and not at the head, so its aim stays true.
                     double share = at / Math.Max(0.5, outLength);
-                    double quick = input.Mode == AmbusherMode.Hold ? 9.0 : 2.6;
                     p += new Vec3d(0.13 * _wave * Math.Sin(_time * quick - at * 1.7) * Math.Sin(Math.PI * share), 0, 0);
                 }
-                pose.NodePosition[i] = p;
+                return p;
             }
-            for (int i = 0; i < AmbusherLayout.Nodes; i++)
+            // The head is aimed by its lean alone, so a twist in the body never throws its jaws off.
+            var headWay = new Vec3d(0, Math.Cos(_lean), Math.Sin(_lean));
+            pose.NodePosition[0] = Place(outLength);
+            pose.NodeRotation[0] = Frame(headWay);
+            Vec3d joint = pose.NodePosition[0] - headWay * (AmbusherLayout.Spacing * 0.5);
+            for (int i = 1; i < AmbusherLayout.Nodes; i++)
             {
-                int a = Math.Max(0, i - 1), b = Math.Min(AmbusherLayout.Nodes - 1, i + 1);
-                Vec3d f = (pose.NodePosition[a] - pose.NodePosition[b]).Normalized;
-                // The head is aimed by its lean alone, so a twist in the body never throws its jaws off.
-                if (i == 0) f = new Vec3d(0, Math.Cos(_lean), Math.Sin(_lean));
+                Vec3d behind = Place(outLength - (i + 0.5) * AmbusherLayout.Spacing);
+                Vec3d f = behind - joint;
+                f = f.SqrMagnitude > 1e-9 ? (joint - behind).Normalized : headWay;
+                // (Its middle is half a length back from the joint in front, so that end always meets; where the
+                // line bends the far end runs a hair into the next length, under its skin.)
+                pose.NodePosition[i] = joint - f * (AmbusherLayout.Spacing * 0.5);
                 pose.NodeRotation[i] = Frame(f);
+                joint = behind;
             }
 
             // ---- jaws

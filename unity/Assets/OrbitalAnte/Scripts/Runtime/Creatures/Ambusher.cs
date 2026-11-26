@@ -121,7 +121,7 @@ namespace OrbitalAnte.Creatures
                 node.layer = Layers.Hitbox;
                 node.transform.SetParent(transform, false);
                 _node[i] = node.transform;
-                Transform mesh = Mesh(head ? AmbusherLayout.HeadPiece : AmbusherLayout.SegPiece, node.transform);
+                Transform mesh = Mesh(head ? AmbusherLayout.HeadPiece : AmbusherLayout.PieceOf(i - 1), node.transform);
                 _nodeDrawn[i] = mesh.GetComponent<MeshRenderer>();
                 var box = node.AddComponent<BoxCollider>();
                 if (head)
@@ -133,7 +133,6 @@ namespace OrbitalAnte.Creatures
                 else
                 {
                     float w = (float)AmbusherLayout.Scale(i - 1);
-                    mesh.localScale = new Vector3(w, w, 1f);
                     box.size = new Vector3((float)AmbusherLayout.SegHalfWidth * 2f * w, (float)AmbusherLayout.SegHalfHeight * 2f * w, (float)AmbusherLayout.Spacing);
                     Tag(node, AmbusherPiece.Seg, i - 1);
                 }
