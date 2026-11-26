@@ -509,3 +509,12 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 | Pace tick | `TargetPace.Read` every frame: a few divides, no allocation; its words are built only when the status, points a minute or the remainder change; the tick moves only on a whole-pixel change | 1 tick, 1 label |
 | `RunRecap` | Integer adds per award, no allocation; text built once at the end of a run | one per run |
 | Aim assist | Stick only, gun in hand: per present enemy two angle checks (head, chest; about 40 for 20 enemies), then one raycast to the best; no allocation (`Mannequin.Present` is a kept list). Nothing with a mouse or no gun | 1 ray a frame |
+
+## Critique loop round 1 (26 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Seen warning (`ThreatCues`, `DamageFeedback`) | One static event per fresh sighting (an enemy that had not seen the player for its chase memory); the listener does a dot product per arc slot and sets one rotation. Each frame 3 more `SetAlpha` calls on the damage canvas while an arc shows; nothing while none does | 3 arcs, 1 sting per 4 s |
+| Radio call | One event and one sound when a restless squad is sent | the lull's own pace (20 s or more) |
+| Clock cues (`ClockCues`) | Two ceilings and compares a frame, no allocation | 1 warn + 10 ticks an ante |
+| Jump grace (`JumpGrace`) | Three float compares a physics step | none |

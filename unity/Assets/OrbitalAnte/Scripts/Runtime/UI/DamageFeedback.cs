@@ -15,8 +15,13 @@ namespace OrbitalAnte.UI
     public sealed class DamageFeedback : MonoBehaviour
     {
         static readonly Color Red = new Color(0.95f, 0.16f, 0.12f);
+        // The "you have been seen" warning (UI/ThreatCues): amber, on a ring just outside the red one, so
+        // the eye learns that amber comes before red.
+        static readonly Color Amber = new Color(1f, 0.72f, 0.18f);
         const float MarkerRadius = 112f;
         const float MarkerSpan = 46f;
+        const float WarnRadius = 140f;
+        const float WarnSpan = 30f;
 
         Canvas _canvas;
         PlayerHealth _health;
@@ -29,6 +34,11 @@ namespace OrbitalAnte.UI
         readonly Image[] _edges = new Image[4];
         readonly float[] _edgeShare = new float[4];
         readonly Image[] _cracks = new Image[DamageCues.MaxCracks];
+        readonly Image[] _warns = new Image[ThreatCues.MaxMarkers];
+        readonly float[] _warnAngle = new float[ThreatCues.MaxMarkers];
+        readonly float[] _warnTime = new float[ThreatCues.MaxMarkers];
+        readonly float[] _warnBeat = new float[ThreatCues.MaxMarkers];
+        float _lastSting = -100f;
         float _glowStrength, _glowTime = -100f, _lastSound = -100f;
         int _shownCracks = -1;
         Texture2D _edgeTexture, _crackTexture;
@@ -56,9 +66,63 @@ namespace OrbitalAnte.UI
             _visible = visible;
             if (_health != null) _health.Damaged += OnDamaged;
             for (int i = 0; i < _markerTime.Length; i++) _markerTime[i] = -100f;
+            for (int i = 0; i < _warnTime.Length; i++) _warnTime[i] = -100f;
             _glowTime = -100f;
             _shownCracks = -1;
             if (_canvas != null) _canvas.gameObject.SetActive(_health != null);
+        }
+
+        void OnEnable()
+        {
+            AI.CombatWorld.PlayerSpotted += OnSpotted;
+            AI.CombatWorld.SquadSent += OnSquadSent;
+        }
+
+        void OnDisable()
+        {
+            AI.CombatWorld.PlayerSpotted -= OnSpotted;
+            AI.CombatWorld.SquadSent -= OnSquadSent;
+        }
+
+        bool Showing => _health != null && _health.Alive && _view != null && (_visible == null || _visible());
+
+        /// <summary>The screen angle toward a point in the world, as the damage markers measure it.</summary>
+        float AngleToward(Vector3 point)
+        {
+            Vector3 to = point - _view.position;
+            if (to.sqrMagnitude < 1e-6f) return 90f;
+            to.Normalize();
+            return DamageCues.MarkerAngle(Vector3.Dot(to, _view.right), Vector3.Dot(to, _view.up), Vector3.Dot(to, _view.forward));
+        }
+
+        void OnSpotted(Vector3 from, float beat, float unseenFor)
+        {
+            if (!Showing) return;
+            float now = Time.unscaledTime;
+            float angle = AngleToward(from);
+            // A squad seen together shares one arc; otherwise the oldest arc makes way.
+            int slot = -1, oldest = 0;
+            for (int i = 0; i < _warnTime.Length; i++)
+            {
+                if (now - _warnTime[i] < ThreatCues.Seconds(_warnBeat[i]) && Mathf.Abs(Mathf.DeltaAngle(_warnAngle[i], angle)) < ThreatCues.SameWayDegrees) { slot = i; break; }
+                if (_warnTime[i] < _warnTime[oldest]) oldest = i;
+            }
+            if (slot < 0) slot = oldest;
+            _warnAngle[slot] = angle;
+            _warnTime[slot] = now;
+            _warnBeat[slot] = beat;
+            _warns[slot].rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - WarnSpan * 0.5f);
+            if (ThreatCues.Sting(unseenFor, now - _lastSting))
+            {
+                _lastSting = now;
+                Audio.AudioDirector.PlayLocal("enemy.spotted", 1f, 1f, DamageCues.SoundPan(angle));
+            }
+        }
+
+        void OnSquadSent(Vector3 from)
+        {
+            if (!Showing) return;
+            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(AngleToward(from)) * 0.6f);
         }
 
         void OnDestroy()
@@ -139,6 +203,24 @@ namespace OrbitalAnte.UI
                 _markers[i] = img;
                 _markerTime[i] = -100f;
             }
+            // Warning arcs: shorter amber arcs on a ring outside the red one.
+            for (int i = 0; i < _warns.Length; i++)
+            {
+                RectTransform rt = UiKit.NewRect("SeenMarker" + i, _canvas.transform);
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = Vector2.zero;
+                float outer = WarnRadius + 10f;
+                rt.sizeDelta = new Vector2(2f * outer, 2f * outer);
+                Image img = UiKit.AddImage(rt, Amber, UiKit.Ring);
+                img.type = Image.Type.Filled;
+                img.fillMethod = Image.FillMethod.Radial360;
+                img.fillOrigin = (int)Image.Origin360.Right;
+                img.fillClockwise = false;
+                img.fillAmount = WarnSpan / 360f;
+                img.enabled = false;
+                _warns[i] = img;
+                _warnTime[i] = -100f;
+            }
             _canvas.gameObject.SetActive(false);
         }
 
@@ -202,6 +284,14 @@ namespace OrbitalAnte.UI
                 bool on = a > 0.01f;
                 if (_markers[i].enabled != on) _markers[i].enabled = on;
                 if (on) _markers[i].canvasRenderer.SetAlpha(a);
+            }
+
+            for (int i = 0; i < _warns.Length; i++)
+            {
+                float a = show ? ThreatCues.Alpha(now - _warnTime[i], _warnBeat[i]) : 0f;
+                bool on = a > 0.01f;
+                if (_warns[i].enabled != on) _warns[i].enabled = on;
+                if (on) _warns[i].canvasRenderer.SetAlpha(a);
             }
 
             float glow = show ? DamageCues.GlowFade(_glowStrength, now - _glowTime) * 0.75f : 0f;

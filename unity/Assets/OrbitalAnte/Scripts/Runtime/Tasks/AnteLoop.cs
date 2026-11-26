@@ -194,8 +194,10 @@ namespace OrbitalAnte.Tasks
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
             bool held = HoldClock != null && HoldClock();
+            float clockBefore = Run.Director.SecondsLeft;
             // While the player's burst plays before the death page the clock stops: the run is already lost.
             Run.Tick(dt, paused || held || OrbitalAnte.Ship.Astronaut.PlayerDown);
+            UpdateClockCues(clockBefore, held || paused);
             UpdateOvertime(dt, paused);
 
             AntePhase phase = Run.Director.Phase;
@@ -233,6 +235,25 @@ namespace OrbitalAnte.Tasks
             else if (upgradesPressed && _fieldPage && Menu != null && Menu.IsOpen && _fieldPageFrame != Time.frameCount)
                 Menu.Close();
             UpdateHud(dt, paused);
+        }
+
+        /// <summary>
+        /// The clock by ear (Ante/ClockCues): a heads-up at 30 s and a tick each of the last 10, while the target is
+        /// not met. The eyes are on the fight; the red clock is in a corner.
+        /// </summary>
+        void UpdateClockCues(float before, bool held)
+        {
+            AnteDirector d = Run.Director;
+            float now = d.SecondsLeft;
+            switch (ClockCues.Step(before, now, d.IsRunning, d.TargetMet, held, d.InOvertime))
+            {
+                case ClockCue.Warn:
+                    Audio.AudioDirector.PlayLocal("ante.clock.warn");
+                    break;
+                case ClockCue.Tick:
+                    Audio.AudioDirector.PlayLocal("ante.clock.tick", ClockCues.TickVolume(now));
+                    break;
+            }
         }
 
         /// <summary>

@@ -33,6 +33,22 @@ namespace OrbitalAnte.AI
         /// </summary>
         public static event Action<Vector3, float, Vector3, string> Alarm;
         public static void RaiseAlarm(Vector3 at, float radius, Vector3 playerAt, string faction) => Alarm?.Invoke(at, radius, playerAt, faction);
+        /// <summary>
+        /// An armed enemy has just picked the player out after not having them in sight (critique loop round 1): where
+        /// its head is, the beat in seconds before it may fire, and how long nobody had seen the player before it
+        /// (measured before this sighting). The visor shows it as an amber arc (UI/ThreatCues). Not cleared by
+        /// <see cref="Reset"/>: its listener is the long-lived HUD, which unsubscribes itself.
+        /// </summary>
+        public static event Action<Vector3, float, float> PlayerSpotted;
+        public static void RaisePlayerSpotted(Vector3 from, float beat, float unseenFor) => PlayerSpotted?.Invoke(from, beat, unseenFor);
+        /// <summary>
+        /// A squad was sent to look for the player after a long quiet (Enemies/LullRules): where it set off from.
+        /// The suit picks up its radio call. Not cleared by <see cref="Reset"/>, as above.
+        /// </summary>
+        public static event Action<Vector3> SquadSent;
+        public static void RaiseSquadSent(Vector3 from) => SquadSent?.Invoke(from);
+        /// <summary>Time.time when any enemy last had the player in sight.</summary>
+        public static float PlayerLastSeenAt = -1000f;
         /// <summary>When true, enemies keep their guns but do not shoot. A playtest switch.</summary>
         public static bool EnemiesHoldFire;
         /// <summary>Given where a character is and where the threat is, returns a spot out of sight, or null.</summary>
@@ -62,6 +78,7 @@ namespace OrbitalAnte.AI
             PlayerSeenFrom = 1f;
             PlayerHeardFrom = 1f;
             PlayerAimBelowEye = 0.3f;
+            PlayerLastSeenAt = -1000f;
         }
     }
 }

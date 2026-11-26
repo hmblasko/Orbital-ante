@@ -482,6 +482,8 @@ namespace OrbitalAnte.Enemies
                                                         : (l.Who.transform.position - from).sqrMagnitude <= radius * radius;
                 if (same) l.Combat.SendToLook(at, memory, rules.walkInFrom);
             }
+            // A fair warning (critique loop round 1): the suit picks up their radio as they set off.
+            CombatWorld.RaiseSquadSent(from);
             return action;
         }
 
