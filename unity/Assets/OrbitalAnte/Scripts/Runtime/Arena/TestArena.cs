@@ -427,6 +427,13 @@ namespace OrbitalAnte.Arena
                 var at = new Vector3((i % 2 == 0 ? -3f : 4f), 0f, HalfSize * (0.18f + 0.3f * i));
                 OrbitalAnte.Creatures.Ambusher.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Ambusher " + (i + 1));
             }
+            for (int i = 0; i < config.arenaStalkers; i++)
+            {
+                // The Blind stalkers lie still off to one side, half way down: they come to noise, so the first shots
+                // fired anywhere near bring them.
+                var at = new Vector3((i % 2 == 0 ? 0.62f : -0.62f) * HalfSize, 0f, HalfSize * (0.42f + 0.2f * i));
+                OrbitalAnte.Creatures.Stalker.Create(at, Quaternion.Euler(0f, i % 2 == 0 ? -110f : 110f, 0f), _mannequinRoot, config, "Stalker " + (i + 1));
+            }
         }
 
         /// <summary>

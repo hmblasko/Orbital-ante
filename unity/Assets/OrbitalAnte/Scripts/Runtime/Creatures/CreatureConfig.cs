@@ -28,6 +28,8 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("The Ambusher (the bobbit worm): how far it feels footsteps and reaches, the warning, the strike, how long it holds on and drags, tunnelling, hit points.")]
         public AmbusherRules ambusher = new AmbusherRules();
+        [Tooltip("The Blind stalker (from the olm): what it hears, how fast it comes, its warning and lunge.")]
+        public StalkerRules stalker = new StalkerRules();
 
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
@@ -46,6 +48,9 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("How many Ambushers the combat test arena starts with (0 for none).")]
         [Range(0, 2)] public int arenaAmbushers = 1;
+
+        [Tooltip("How many Blind stalkers the combat test arena starts with (0 for none).")]
+        [Range(0, 2)] public int arenaStalkers = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 
