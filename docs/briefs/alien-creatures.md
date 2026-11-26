@@ -14,11 +14,11 @@ Names here are placeholders. Each creature is original work that starts from a r
 | 4 | Giant centipede | Cave hunter | caves | Weaves in, rears and strikes down; shot through, the head end fights on shorter (hanging from the roof and dropping is not built yet) | 16 body segments (it is cut in two at any of 13), 32 legs |
 | 5 | Cicada | Screamer | trees, cliffs (perching on them is not built yet) | Flies in, lands, warns, then screams a cone that hurts whoever stays in it; shooting a drum off chokes it | 4 wings, 6 legs, 2 drums |
 | 6 | Bobbit worm | Ambusher | soft ground (knowing which ground is soft is not built yet) | Waits buried and feels footsteps, warns, strikes, holds and drags; a miss leaves it lying in the open; tunnels after you and comes up ahead | 2 jaws, 5 feelers, cut through at any body length |
-| 7 | Olm | Blind stalker | caves | Blind: finds you by movement and electronics | legs, tail, gills |
+| 7 | Olm | Blind stalker | caves (walking a cave's passages is not built yet) | Blind: hears you and goes where the sound was, clicking each time it places you; feels you through its snout up close; warns, lunges, lies where it lands; a shot brings it at a run | 2 gills (its ears), 4 legs, the tail at any of 4 lengths |
 | 8 | Goliath tigerfish | Pack biter | water | Hunts in packs | fins, jaw, tail |
 | 9 | Megamouth shark | Drifting maw | water | Slow, pulls you in | fins, jaw |
 
-Built so far (26 Nov 2026): 1, 2, 3, 4, 5 and 6, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
+Built so far (26 Nov 2026): 1 to 7, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
 
 The research behind the list is the report "Unusual animals for alien creatures" in the project's files.
 
