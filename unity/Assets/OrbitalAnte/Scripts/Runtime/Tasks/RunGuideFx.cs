@@ -35,6 +35,7 @@ namespace OrbitalAnte.Tasks
 
         Canvas _canvas;
         Text _tip, _line;
+        RectTransform _plate;
         string _lineText = string.Empty;
 
         /// <summary>Forgets which tips have been seen (title screen > Extras), so they and the goal card come back.</summary>
@@ -166,7 +167,7 @@ namespace OrbitalAnte.Tasks
             string objective = WorldTaskLine.Objective(_lineText, _tasks != null && _tasks.CarryingSalvage);
             if (_line.text != objective) _line.text = objective;
             bool lineOn = objective.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip;
-            if (_line.gameObject.activeSelf != lineOn) _line.gameObject.SetActive(lineOn);
+            if (_plate.gameObject.activeSelf != lineOn) _plate.gameObject.SetActive(lineOn);
         }
 
         void UpdateTips(float dt, Ante.AnteDirector d)
@@ -260,14 +261,19 @@ namespace OrbitalAnte.Tasks
             _canvas = UiKit.CreateCanvas("RunGuide", transform, 11);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
-            // Under the ante readout's bar and streak line, above the "+points" lines (AnteLoop.BuildHud).
-            _line = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_line.transform, new Vector2(1f, 1f), new Vector2(-22f, -98f), new Vector2(520f, 20f));
-            UiKit.Halo(_line);
-            _line.gameObject.SetActive(false);
+            // Top right: what is left to do on the world you are at, on its own plate (the ante plate is top left).
+            _plate = HullKit.Plate(_canvas.transform, "TaskPlate", new Vector2(1f, 1f), new Vector2(-HullKit.Margin, -20f), new Vector2(380f, 66f));
+            HullKit.At(HullKit.Mono(_plate, "TASK", 14, HullKit.Dim), 18f, 22f, 80f, 18f);
+            _line = HullKit.At(HullKit.Mono(_plate, string.Empty, 17, HullKit.Paint), 18f, 45f, 344f, 24f);
+            // A long line of counts is shrunk to fit the plate, never cut off.
+            _line.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _line.resizeTextForBestFit = true;
+            _line.resizeTextMinSize = 11;
+            _line.resizeTextMaxSize = 17;
+            _plate.gameObject.SetActive(false);
 
             // Low in the middle, between the two visor gauges and clear of the crosshair.
-            _tip = UiKit.Label(_canvas.transform, string.Empty, 19, UiKit.Cream, TextAnchor.MiddleCenter);
+            _tip = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 18, HullKit.Paint, TextAnchor.MiddleCenter));
             UiKit.Pin((RectTransform)_tip.transform, new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(760f, 56f));
             _tip.horizontalOverflow = HorizontalWrapMode.Wrap;
             UiKit.Halo(_tip, true);

@@ -49,7 +49,9 @@ namespace OrbitalAnte.Tasks
         StarChartView _chartView;
         RunRecap _recap;
         bool _shownPerkReady, _shownPerkPad;
-        Image _barFill, _paceTick;
+        Image _paceTick;
+        Image[] _blocks;
+        Text _clockMin, _clockTens, _clockOnes, _clockColon, _needLine, _streakName;
         Text _paceLine;
         PaceReading _shownPace = new PaceReading { status = (PaceStatus)(-1) };
         float _shownTickX = -1f;
@@ -358,64 +360,59 @@ namespace OrbitalAnte.Tasks
 
         // ------------------------------------------------------------------ readout
 
+        // The ante plate, top left ("Hull stencil", Matthew's pick of 26 Nov 2026): measured from its top left corner.
+        const float PlateWidth = 430f, PlateHeight = 118f;
+        const float BarLeft = 172f, BlockWidth = 9f, BlockGap = 3f;
+        const float BarWidth = HullReadout.PointBlocks * (BlockWidth + BlockGap) - BlockGap;
+
         void BuildHud()
         {
             _canvas = UiKit.CreateCanvas("AnteHUD", transform, 11);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
             Color gold = Config.scoreColour;
 
-            // Top right, the corner Part B section 13 keeps for notices. The ship's damage list starts at -110.
-            _anteLine = UiKit.Label(_canvas.transform, string.Empty, 16, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_anteLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -16f), new Vector2(460f, 22f));
-            UiKit.Halo(_anteLine);
+            // Top left: the ante's number, its clock on flip tiles, the points banked this ante over a bar of
+            // blocks with the target under it, and the streak. The top right corner is left to the task plate
+            // (RunGuideFx) and, aboard, the ship's damage list.
+            RectTransform plate = HullKit.Plate(_canvas.transform, "AntePlate", new Vector2(0f, 1f),
+                new Vector2(HullKit.Margin, -20f), new Vector2(PlateWidth, PlateHeight));
+            _anteLine = HullKit.At(HullKit.Mono(plate, string.Empty, 14, Color.white), 18f, 22f, 150f, 18f);
+            _clockMin = HullKit.FlipTile(plate, 18f, 40f);
+            _clockColon = HullKit.At(HullKit.Stencil(plate, ":", 34, Color.white, TextAnchor.MiddleCenter), 56f, 65f, 16f, 54f);
+            _clockTens = HullKit.FlipTile(plate, 72f, 40f);
+            _clockOnes = HullKit.FlipTile(plate, 113f, 40f);
 
-            _scoreLine = UiKit.Label(_canvas.transform, string.Empty, 26, gold, TextAnchor.MiddleRight);
-            UiKit.SetStyle(_scoreLine, FontStyle.Bold);
-            UiKit.Pin((RectTransform)_scoreLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -42f), new Vector2(320f, 32f));
-            UiKit.Halo(_scoreLine, true);
+            HullKit.At(HullKit.Mono(plate, "POINTS", 14, HullKit.Dim), BarLeft, 22f, 80f, 18f);
+            _scoreLine = HullKit.At(HullKit.Stencil(plate, string.Empty, 42, Color.white), BarLeft - 2f, 58f, 190f, 48f);
+            _blocks = HullKit.Blocks(plate, "Point", BarLeft, 82f, HullReadout.PointBlocks, BlockWidth, 10f, BlockGap);
+            // Where a steady pace would be by now (TargetPace): a pale tick across the bar; words only when behind.
+            _paceTick = HullKit.Box(plate, "Pace", BarLeft, 78f, 3f, 18f, HullKit.Paint);
+            _needLine = HullKit.At(HullKit.Mono(plate, string.Empty, 14, HullKit.Sub), BarLeft, 105f, 240f, 18f);
 
-            var back = UiKit.NewRect("Bar", _canvas.transform);
-            UiKit.Pin(back, new Vector2(1f, 1f), new Vector2(-22f, -62f), new Vector2(200f, 5f));
-            back.pivot = new Vector2(1f, 0.5f);
-            UiKit.AddImage(back, new Color(0f, 0f, 0f, 0.45f));
-            var fill = UiKit.NewRect("Fill", back);
-            fill.anchorMin = new Vector2(0f, 0f);
-            fill.anchorMax = new Vector2(0f, 1f);
-            fill.pivot = new Vector2(0f, 0.5f);
-            fill.anchoredPosition = Vector2.zero;
-            fill.sizeDelta = new Vector2(0f, 0f);
-            _barFill = UiKit.AddImage(fill, gold);
-            // Where a steady pace would be by now (TargetPace): a thin tick on the bar, and words only when behind.
-            var tick = UiKit.NewRect("Pace", back);
-            tick.anchorMin = tick.anchorMax = new Vector2(0f, 0.5f);
-            tick.pivot = new Vector2(0.5f, 0.5f);
-            tick.sizeDelta = new Vector2(2f, 11f);
-            _paceTick = UiKit.AddImage(tick, new Color(1f, 1f, 1f, 0.75f));
-            _paceLine = UiKit.Label(_canvas.transform, string.Empty, 13, UiKit.Muted, TextAnchor.MiddleRight);
-            // The same row as PERK READY: the two never show together (behind or over means the target is not met).
-            UiKit.Pin((RectTransform)_paceLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -118f), new Vector2(320f, 20f));
-            UiKit.Halo(_paceLine);
+            _streakName = HullKit.AtRight(HullKit.Mono(plate, string.Empty, 14, HullKit.Orange, TextAnchor.MiddleRight), BarLeft + BarWidth, 22f, 150f, 18f);
+            _streakLine = HullKit.AtRight(HullKit.Stencil(plate, string.Empty, 34, HullKit.Orange, TextAnchor.MiddleRight), BarLeft + BarWidth, 58f, 90f, 40f);
 
-            _streakLine = UiKit.Label(_canvas.transform, string.Empty, 15, Config.styleColour, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_streakLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -78f), new Vector2(320f, 20f));
-            UiKit.Halo(_streakLine);
-
-            // Under the world's task line (RunGuideFx, -98): a pick is waiting (21 Nov 2026), so the reward is never missed but never forced.
-            _perkLine = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_perkLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -118f), new Vector2(320f, 20f));
-            UiKit.Halo(_perkLine);
+            // Under the plate, one line: what pace beats the clock (only when behind), or that a perk is waiting.
+            // The two never show together (behind or over means the target is not met).
+            _paceLine = HullKit.Mono(_canvas.transform, string.Empty, 15, HullKit.Sub);
+            UiKit.Pin((RectTransform)_paceLine.transform, new Vector2(0f, 1f), new Vector2(HullKit.Margin + 2f, -144f), new Vector2(520f, 20f));
+            UiKit.Halo(_paceLine, true);
+            _perkLine = HullKit.Mono(_canvas.transform, string.Empty, 15, HullKit.Paint);
+            UiKit.Pin((RectTransform)_perkLine.transform, new Vector2(0f, 1f), new Vector2(HullKit.Margin + 2f, -144f), new Vector2(520f, 20f));
+            UiKit.Halo(_perkLine, true);
             _perkLine.gameObject.SetActive(false);
 
+            // The "+points" lines run down the left edge under that.
             for (int i = 0; i < _pops.Length; i++)
             {
-                _pops[i] = UiKit.Label(_canvas.transform, string.Empty, 17, gold, TextAnchor.MiddleRight);
-                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -142f - i * 24f), new Vector2(420f, 24f));
-                UiKit.Halo(_pops[i]);
+                _pops[i] = HullKit.Mono(_canvas.transform, string.Empty, 17, gold);
+                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(0f, 1f), new Vector2(HullKit.Margin + 2f, -170f - i * 24f), new Vector2(520f, 24f));
+                UiKit.Halo(_pops[i], true);
                 _pops[i].gameObject.SetActive(false);
             }
 
             // A note in the middle, under the flight readout: target met, a drop coming, a task found.
-            _noteLine = UiKit.Label(_canvas.transform, string.Empty, 18, gold, TextAnchor.MiddleCenter);
+            _noteLine = HullKit.Stencil(_canvas.transform, string.Empty, 20, gold, TextAnchor.MiddleCenter);
             UiKit.Pin((RectTransform)_noteLine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f), new Vector2(900f, 26f));
             UiKit.Halo(_noteLine, true);
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
@@ -473,12 +470,24 @@ namespace OrbitalAnte.Tasks
                 _shownSeconds = seconds;
                 _shownAnte = d.Ante;
                 _shownHeld = held;
-                _anteLine.text = over
-                    ? "ANTE " + d.Ante + "   OVERTIME +" + Clock(Mathf.Floor(d.OvertimeSeconds))
-                    : "ANTE " + d.Ante + "   " + Clock(d.SecondsLeft) + (held ? "  CLOCK ON HOLD" : string.Empty);
-                // The last half minute, and overtime, are in the warning colour.
-                _anteLine.color = d.IsRunning && (over || d.SecondsLeft <= 30f) && !d.TargetMet ? UiKit.Danger : UiKit.Cream;
+                _anteLine.text = over ? "ANTE " + HullReadout.TwoDigits(d.Ante) + " OVERTIME"
+                    : "ANTE " + HullReadout.TwoDigits(d.Ante) + (held ? " ON HOLD" : string.Empty);
+                ClockFace face = HullReadout.Clock(d.SecondsLeft, over, d.OvertimeSeconds);
+                // Ten minutes or more (a stopwatch can do it) fit the one tile in smaller digits.
+                _clockMin.fontSize = face.Minutes > 9 ? 26 : 40;
+                _clockMin.text = face.Minutes.ToString(Inv);
+                _clockTens.text = HullReadout.TwoDigits(face.Tens).Substring(1);
+                _clockOnes.text = HullReadout.TwoDigits(face.Ones).Substring(1);
             }
+            // The last half minute, and overtime, are in the warning colour; a held clock is dimmed. Colours go on
+            // the renderers (checked each frame, changed only when different), so they cost the canvas nothing.
+            bool warn = d.IsRunning && (over || d.SecondsLeft <= 30f) && !d.TargetMet;
+            Color digits = warn ? HullKit.Orange : held ? HullKit.Dim : HullKit.Paint;
+            HullKit.Tint(_clockMin, digits);
+            HullKit.Tint(_clockTens, digits);
+            HullKit.Tint(_clockOnes, digits);
+            HullKit.Tint(_clockColon, warn ? HullKit.Paint : HullKit.Orange);
+            HullKit.Tint(_anteLine, warn ? HullKit.Orange : HullKit.Dim);
 
             // The slot-machine count-up: the shown number runs to the real one, never taking more than 1.2 s.
             int earned = Run.Ledger.AnteEarned;
@@ -505,36 +514,42 @@ namespace OrbitalAnte.Tasks
             if (points != _shownPoints || target != _shownTarget)
             {
                 _shownPoints = points;
+                _scoreLine.text = points.ToString("N0", Inv);
+                if (target != _shownTarget) _needLine.text = "NEED " + target.ToString("N0", Inv);
                 _shownTarget = target;
-                _scoreLine.text = points.ToString("N0", Inv) + " / " + target.ToString("N0", Inv);
-                float share = target > 0 ? Mathf.Clamp01(points / (float)target) : 0f;
-                ((RectTransform)_barFill.transform).sizeDelta = new Vector2(200f * share, 0f);
-                _barFill.color = points >= target ? new Color(0.55f, 1f, 0.55f) : Config.scoreColour;
             }
+            // Green once the target is met: the same signal on the number and on the bar.
+            bool met = target > 0 && points >= target;
+            float share = target > 0 ? Mathf.Clamp01(points / (float)target) : 0f;
+            HullKit.Light(_blocks, HullReadout.Blocks(share, HullReadout.PointBlocks), met ? HullKit.Good : HullKit.Paint);
+            HullKit.Tint(_scoreLine, met ? HullKit.Good : HullKit.Paint);
 
             float anteClock = HazardRules.AnteSeconds(CurrentHazard, Run.Balance) + d.StopwatchSecondsAdded;
             PaceReading pace = TargetPace.Read(earned, target, d.SecondsLeft, anteClock, over, held || !d.IsRunning);
             bool tickOn = pace.status != PaceStatus.Met && pace.status != PaceStatus.Overtime && d.IsRunning && !held;
             if (_paceTick.gameObject.activeSelf != tickOn) _paceTick.gameObject.SetActive(tickOn);
             // Moved only a whole pixel at a time, so the readout is not re-batched every frame for nothing.
-            float tickX = Mathf.Round(200f * pace.expectedShare);
+            float tickX = Mathf.Round(BarWidth * Mathf.Clamp01(pace.expectedShare));
             if (tickOn && tickX != _shownTickX)
             {
                 _shownTickX = tickX;
-                ((RectTransform)_paceTick.transform).anchoredPosition = new Vector2(tickX, 0f);
+                var tick = (RectTransform)_paceTick.transform;
+                tick.anchoredPosition = new Vector2(BarLeft + tickX - 1f, tick.anchoredPosition.y);
             }
             if (!TargetPace.SameWords(pace, _shownPace))
             {
                 _shownPace = pace;
                 _paceLine.text = TargetPace.Words(pace);
-                _paceLine.color = pace.status == PaceStatus.Overtime ? UiKit.Danger : UiKit.Muted;
+                _paceLine.color = pace.status == PaceStatus.Overtime ? HullKit.Orange : HullKit.Sub;
             }
 
             int streak = Streak.CountAt(PlayTime);
             if (streak != _shownStreak)
             {
                 _shownStreak = streak;
-                _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
+                // At a long enough streak the next task pays a style bonus: the name above the number says so.
+                _streakLine.text = streak >= 2 ? "\u00d7" + streak.ToString(Inv) : string.Empty;
+                _streakName.text = streak < 2 ? string.Empty : streak >= Config.rules.streakForFeat ? "STREAK +STYLE" : "STREAK";
             }
 
             bool perkReady = d.PerkEarnedEarly && !OrbitalAnte.Ship.Astronaut.PlayerInShip;

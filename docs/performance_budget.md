@@ -370,6 +370,7 @@ Timed by the deck-performance agent on a desktop processor outside Unity, before
 | A swing's contact | the same hits as bullets (`Mannequin.ApplyHit`), once per swing | 3 things a swing (the mailbox) |
 | Knocked-down enemies | one ray a frame per sliding body | lasts about 1.2 s |
 | Melee HUD | its own canvas, 6 elements; text rebuilt only when the item or the lock changes; the heat bar is resized only when it moves a whole pixel | - |
+| Player screen plates (ante, task, suit, gun, warning strip) | four plates and a strip, about 120 images and 25 labels over four canvases; words and sizes written only when they change; colours set on the renderers (one colour compare per graphic per frame, no canvas rebuild); magazine blocks and kill pips are remade only when the gun or the step changes; plates are two flat quads each, about a fifth of the screen in all | 0 bytes of garbage per frame when nothing changes; not measured on the Deck yet |
 | Melee items in the world | one stand-in object (a few primitives) per item lying about; at most one per world at a base, five in the arena | 1 per world |
 
 ## Combat in the solar system (Milestone 12, 16 Nov 2026): estimates from reading the code, not measured in Unity
