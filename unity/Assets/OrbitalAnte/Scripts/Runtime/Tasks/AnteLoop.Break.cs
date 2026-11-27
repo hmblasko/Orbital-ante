@@ -54,6 +54,7 @@ namespace OrbitalAnte.Tasks
             _breakNote = null;
             _tacticalNextAnte = _tacticalThisAnte = _voucherNextAnte = false;
             _recorded = false;
+            ResetContracts();
         }
 
         /// <summary>Called by <see cref="Report"/>: the chosen risk, and time back from perks.</summary>
@@ -115,6 +116,7 @@ namespace OrbitalAnte.Tasks
                 if (breath != null && breath.Breath != null) breath.Breath.Earn(1f);
             }
             _breakNote = null;
+            BeginAnteContract();
             PublishBuild();
             if (CurrentHazard != Hazard.None)
                 Note("ANTE " + Run.Director.Ante + ": " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + ", POINTS x" + HazardRules.Multiplier(CurrentHazard, Run.Balance).ToString("0.00", Inv) + " UNTIL THE CLOCK RUNS OUT");
@@ -140,6 +142,7 @@ namespace OrbitalAnte.Tasks
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_breakNote)) body.Append(_breakNote).Append("\n");
             if (Run.Director.ClearedInOvertime) body.Append("Made it in overtime. Close one!\n");
+            if (!string.IsNullOrEmpty(_contractResult)) body.Append(_contractResult).Append("\n");
             body.Append("Ante ").Append(ante + 1).Append(" needs ").Append(N(next)).Append(" in ")
                 .Append(Clock(HazardRules.AnteSeconds(_nextHazard, b))).Append(". What you cleared stays cleared.\n");
             body.Append(PressureLine(ante + 1));
@@ -157,9 +160,13 @@ namespace OrbitalAnte.Tasks
                 : new PauseMenu.MenuChoice("Ticket scratched", null, false));
             choices.Add(new PauseMenu.MenuChoice("Raise the stakes: " + HazardRules.Name(_nextHazard)
                 + (_nextHazard == Hazard.None ? "" : "  (points x" + HazardRules.Multiplier(_nextHazard, b).ToString("0.00", Inv) + ")"), ShowStakes));
+            if (TryContractRow(out PauseMenu.MenuChoice contract)) choices.Add(contract);
             choices.Add(new PauseMenu.MenuChoice("Start ante " + (ante + 1), StartPressed));
             choices.Add(new PauseMenu.MenuChoice("Restart or quit", ShowLeave));
-            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, 190f, _keepSlot);
+            // Seven rows at full height no longer fit a 1280 x 800 screen (agent review, 25 Nov 2026): shorter rows then.
+            bool full = choices.Count >= 7;
+            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, full ? 176f : 190f, _keepSlot,
+                false, full ? 56f : PauseMenu.ChoiceButtonHeight);
             _keepSlot = -1;
         }
 
