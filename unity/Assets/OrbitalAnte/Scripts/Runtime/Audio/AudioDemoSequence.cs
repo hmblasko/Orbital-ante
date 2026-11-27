@@ -36,7 +36,7 @@ namespace OrbitalAnte.Audio
 
             var card = UiKit.Card(_canvas.transform, "ShowcaseCard", 760f);
             ((RectTransform)card).anchoredPosition = new Vector2(180f, -150f);
-            UiKit.LayoutLabel(card, "AUDIO SHOWCASE", 34, UiKit.PanelEdge, 46f);
+            UiKit.Heading(card, "AUDIO SHOWCASE", 34, 46f);
             _caption = UiKit.LayoutLabel(card, string.Empty, 22, UiKit.Cream, 64f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _clock = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 26f, TextAnchor.MiddleCenter, FontStyle.Normal);
             UiKit.LayoutLabel(card, "Five minutes of game events, scored live by the music director.", 16, UiKit.Muted, 24f, TextAnchor.MiddleCenter, FontStyle.Normal);

@@ -46,6 +46,7 @@ namespace OrbitalAnte.Combat
         Sprite _rimSprite, _whiteSprite;
         int _shownStep = -1;
         float _alpha;
+        bool _inPlate, _placed;
 
         void Awake()
         {
@@ -117,7 +118,8 @@ namespace OrbitalAnte.Combat
 
         void BuildHud()
         {
-            _canvas = UiKit.CreateCanvas("DeepBreathHUD", transform, 8);
+            // Over the gun plate (GunLadderFx, 10), where the meter sits; under the hit marker (13).
+            _canvas = UiKit.CreateCanvas("DeepBreathHUD", transform, 12);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
             // The rim: clear in the middle, cool colour toward the corners. One stretched picture, only drawn
@@ -147,7 +149,7 @@ namespace OrbitalAnte.Combat
             // The meter: a thin bar low in the middle, above the visor gauges' words and below the suit's notice.
             _panel = UiKit.NewRect("Breath", _canvas.transform);
             UiKit.Pin(_panel, new Vector2(0.5f, 0f), new Vector2(0f, 112f), new Vector2(BarWidth, 12f));
-            _back = UiKit.AddImage(_panel, new Color(0f, 0f, 0f, 0.55f), UiKit.Rounded);
+            _back = UiKit.AddImage(_panel, new Color(0f, 0f, 0f, 0.55f));
 
             RectTransform fill = UiKit.NewRect("Fill", _panel);
             UiKit.Stretch(fill);
@@ -167,14 +169,16 @@ namespace OrbitalAnte.Combat
 
             // A notch at the least you need to begin, so the rule can be seen and not only learnt.
             RectTransform mark = UiKit.NewRect("Least", _panel);
-            mark.anchorMin = new Vector2(0f, 0f);
-            mark.anchorMax = new Vector2(0f, 1f);
+            // Placed as a share of the bar, so it is right at either of the bar's two sizes.
+            float least = Mathf.Clamp01(_config.rules.leastToStart);
+            mark.anchorMin = new Vector2(least, 0f);
+            mark.anchorMax = new Vector2(least, 1f);
             mark.pivot = new Vector2(0.5f, 0.5f);
-            mark.anchoredPosition = new Vector2(2f + (BarWidth - 4f) * Mathf.Clamp01(_config.rules.leastToStart), 0f);
+            mark.anchoredPosition = Vector2.zero;
             mark.sizeDelta = new Vector2(2f, 0f);
             _mark = UiKit.AddImage(mark, UiKit.Ink);
 
-            _label = UiKit.Label(_panel, "FOCUS", 13, UiKit.Muted, TextAnchor.MiddleRight);
+            _label = HullKit.AsMono(UiKit.Label(_panel, "FOCUS", 13, UiKit.Muted, TextAnchor.MiddleRight));
             UiKit.Pin((RectTransform)_label.transform, new Vector2(0f, 0.5f), new Vector2(-70f, 0f), new Vector2(62f, 16f));
 
             _panel.gameObject.SetActive(false);
@@ -190,9 +194,28 @@ namespace OrbitalAnte.Combat
             if (_rim.enabled != rimOn) _rim.enabled = rimOn;
             if (rimOn) _rim.canvasRenderer.SetAlpha(rim);
 
-            // The meter only shows when there is something to say: not full, or in use.
-            bool want = allowed && (Breath.Meter < 0.999f || Breath.Active || Breath.Amount > 0f);
-            _alpha = Mathf.MoveTowards(_alpha, want ? 1f : 0f, Time.unscaledDeltaTime * 5f);
+            // With the gun plate up, the meter is a row of that plate and always shows (26 Nov 2026). With no
+            // plate (no hands for a gun), it is the old thin bar low in the middle, shown only when there is
+            // something to say: not full, or in use.
+            bool inPlate = allowed && GunLadderFx.PlateShown;
+            if (inPlate != _inPlate || !_placed)
+            {
+                _inPlate = inPlate;
+                _placed = true;
+                if (inPlate)
+                {
+                    UiKit.Pin(_panel, new Vector2(1f, 0f),
+                        new Vector2(-HullKit.Margin - GunLadderFx.PlateWidth + GunLadderFx.FocusLeft + GunLadderFx.FocusWidth,
+                            HullKit.Margin + GunLadderFx.PlateHeight - GunLadderFx.FocusMiddle - 5f),
+                        new Vector2(GunLadderFx.FocusWidth, 10f));
+                    _alpha = 1f;
+                }
+                else UiKit.Pin(_panel, new Vector2(0.5f, 0f), new Vector2(0f, 112f), new Vector2(BarWidth, 12f));
+                // The plate has the meter's name painted on it.
+                _label.gameObject.SetActive(!inPlate);
+            }
+            bool want = allowed && (inPlate || Breath.Meter < 0.999f || Breath.Active || Breath.Amount > 0f);
+            _alpha = inPlate ? 1f : Mathf.MoveTowards(_alpha, want ? 1f : 0f, Time.unscaledDeltaTime * 5f);
             bool show = _alpha > 0f;
             if (_panel.gameObject.activeSelf != show)
             {

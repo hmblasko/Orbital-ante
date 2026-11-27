@@ -35,6 +35,7 @@ namespace OrbitalAnte.Tasks
 
         Canvas _canvas;
         Text _tip, _line;
+        RectTransform _plate;
         string _lineText = string.Empty;
 
         /// <summary>Forgets which tips have been seen (title screen > Extras), so they and the goal card come back.</summary>
@@ -59,6 +60,7 @@ namespace OrbitalAnte.Tasks
 
         void OnDestroy()
         {
+            AnteLoop.MapOpen = false;
             if (AnteLoop.HoldClock != null) AnteLoop.HoldClock = null;
             if (_live == this) _live = null;
             SaveSeen();
@@ -105,6 +107,7 @@ namespace OrbitalAnte.Tasks
         {
             if (!_active || Loop == null || Loop.Run == null)
             {
+                AnteLoop.MapOpen = false;
                 if (_canvas.gameObject.activeSelf) _canvas.gameObject.SetActive(false);
                 return;
             }
@@ -116,6 +119,7 @@ namespace OrbitalAnte.Tasks
             var ship = _world != null ? _world.Ship : null;
 
             bool mapOpen = _world != null && _world.Map != null && _world.Map.IsOpen;
+            AnteLoop.MapOpen = mapOpen;
             bool show = GameSession.Mode == GameMode.Playing && !paused && !Cockpit.CockpitDash.WatchingScreen && !mapOpen;
 
             // The first run's goal card, once the run-start envelope has gone and nothing else is on screen.
@@ -167,7 +171,7 @@ namespace OrbitalAnte.Tasks
             if (_line.text != objective) _line.text = objective;
             bool lineOn = objective.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip
                           && ReadoutFocus.ShowsTaskLine(AnteLoop.InFight);
-            if (_line.gameObject.activeSelf != lineOn) _line.gameObject.SetActive(lineOn);
+            if (_plate.gameObject.activeSelf != lineOn) _plate.gameObject.SetActive(lineOn);
         }
 
         void UpdateTips(float dt, Ante.AnteDirector d)
@@ -175,9 +179,7 @@ namespace OrbitalAnte.Tasks
             if (_tipLeft > 0f)
             {
                 _tipLeft -= dt;
-                Color c = _tip.color;
-                c.a = Mathf.Clamp01(_tipLeft / 0.6f);
-                _tip.color = c;
+                _tip.canvasRenderer.SetAlpha(Mathf.Clamp01(_tipLeft / 0.6f));
                 if (_tipLeft <= 0f)
                 {
                     _tip.gameObject.SetActive(false);
@@ -213,9 +215,7 @@ namespace OrbitalAnte.Tasks
             if (!ReadoutFocus.TipMayStart(tip, AnteLoop.InFight)) return;
             Remember(tip);
             _tip.text = RunGuide.Text(tip, Keys(), d.Target);
-            Color col = _tip.color;
-            col.a = 1f;
-            _tip.color = col;
+            _tip.canvasRenderer.SetAlpha(1f);
             _tip.gameObject.SetActive(true);
             _tipLeft = RunGuide.TipSeconds;
             Audio.AudioDirector.PlayLocal("ui.select", 0.5f);
@@ -263,14 +263,20 @@ namespace OrbitalAnte.Tasks
             _canvas = UiKit.CreateCanvas("RunGuide", transform, 11);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
-            // Under the ante readout's bar and streak line, above the "+points" lines (AnteLoop.BuildHud).
-            _line = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_line.transform, new Vector2(1f, 1f), new Vector2(-22f, -98f), new Vector2(520f, 20f));
-            UiKit.Halo(_line);
-            _line.gameObject.SetActive(false);
+            // Top right: what is left to do on the world you are at, on its own plate (the ante plate is top left).
+            _plate = HullKit.Plate(_canvas.transform, "TaskPlate", new Vector2(1f, 1f), new Vector2(-HullKit.Margin, -20f), new Vector2(380f, 66f));
+            HullKit.At(HullKit.Mono(_plate, "TASK", 14, HullKit.Dim), 18f, 22f, 80f, 18f);
+            _line = HullKit.At(HullKit.Mono(_plate, string.Empty, 17, HullKit.Paint), 18f, 45f, 344f, 24f);
+            // A long line of counts is shrunk to fit the plate, never cut off.
+            _line.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _line.verticalOverflow = VerticalWrapMode.Truncate;   // best fit only shrinks when the words may not spill
+            _line.resizeTextForBestFit = true;
+            _line.resizeTextMinSize = 11;
+            _line.resizeTextMaxSize = 17;
+            _plate.gameObject.SetActive(false);
 
             // Low in the middle, between the two visor gauges and clear of the crosshair.
-            _tip = UiKit.Label(_canvas.transform, string.Empty, 19, UiKit.Cream, TextAnchor.MiddleCenter);
+            _tip = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 18, HullKit.Paint, TextAnchor.MiddleCenter));
             UiKit.Pin((RectTransform)_tip.transform, new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(760f, 56f));
             _tip.horizontalOverflow = HorizontalWrapMode.Wrap;
             UiKit.Halo(_tip, true);

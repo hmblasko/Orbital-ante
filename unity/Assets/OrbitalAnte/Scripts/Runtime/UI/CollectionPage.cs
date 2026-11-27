@@ -32,7 +32,7 @@ namespace OrbitalAnte.UI
         {
             _canvas = UiKit.CreateCanvas("Collection", uiRoot, 55);
             var card = UiKit.Card(_canvas.transform, "CollectionCard", 760f);
-            UiKit.LayoutLabel(card, "COLLECTION", 40, UiKit.PanelEdge, 52f);
+            UiKit.Heading(card, "COLLECTION", 40, 52f);
             _summary = UiKit.LayoutLabel(card, "", 20, UiKit.Cream, 28f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _list = UiKit.LayoutLabel(card, "", 18, UiKit.Cream, 300f, TextAnchor.UpperLeft, FontStyle.Normal);
             _list.supportRichText = true;

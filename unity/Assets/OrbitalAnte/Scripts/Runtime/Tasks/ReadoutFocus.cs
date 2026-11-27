@@ -1,7 +1,7 @@
 namespace OrbitalAnte.Tasks
 {
     /// <summary>
-    /// What the top-right readout leaves out while the player is in a fight (critique loop round 2, 26 Nov 2026).
+    /// What the readout leaves out while the player is in a fight (critique loop round 2, 26 Nov 2026).
     /// Plain C#, no Unity types.
     ///
     /// Problem: the corner could hold up to ten rows of words at once (ante and clock, score and bar, the world's

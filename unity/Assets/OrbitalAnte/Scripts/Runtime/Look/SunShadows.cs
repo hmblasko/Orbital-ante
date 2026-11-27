@@ -25,8 +25,8 @@ namespace OrbitalAnte.Look
         /// is on, and the material it wears can draw itself into the shadow picture (the game's own ground and
         /// model shaders can; a stand-in or glowing material may not). Everything on a world is made with casting
         /// off, so a thing casts only where the code that makes it calls this. What casts is listed in
-        /// docs/performance_budget.md ("Sun shadows"); small plants, glowing pieces, cave walls, the cabin and task
-        /// views never do.
+        /// docs/performance_budget.md ("Sun shadows"); small plants, glowing pieces, cave walls and lamps and the cabin
+        /// never do.
         /// </summary>
         public static void Cast(Renderer renderer, bool should)
         {
