@@ -617,6 +617,8 @@ namespace OrbitalAnte.Creatures
         readonly Transform[] _ring = new Transform[Count];
         readonly float[] _far = new float[Count];
         bool _on;
+        /// <summary>The rings start at the far end and race in to where they come from (something drawing water in), instead of out.</summary>
+        [System.NonSerialized] public bool Inward;
 
         public static void ResetStatics()
         {
@@ -711,8 +713,9 @@ namespace OrbitalAnte.Creatures
                     continue;
                 }
                 any = true;
-                float radius = Mathf.Max(0.5f, _far[i] * Mathf.Tan(halfAngle));
-                _ring[i].SetPositionAndRotation(from + forward * _far[i], Quaternion.LookRotation(forward, up));
+                float at = Inward ? Mathf.Max(0.4f, range - _far[i]) : _far[i];
+                float radius = Mathf.Max(0.5f, at * Mathf.Tan(halfAngle));
+                _ring[i].SetPositionAndRotation(from + forward * at, Quaternion.LookRotation(forward, up));
                 _ring[i].localScale = new Vector3(radius, radius, 1f);
             }
             _on = any || screaming;

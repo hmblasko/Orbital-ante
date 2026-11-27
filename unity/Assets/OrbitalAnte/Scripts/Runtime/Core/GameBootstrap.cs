@@ -92,6 +92,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Creatures.Screamer.ResetStatics();
             OrbitalAnte.Creatures.Stalker.ResetStatics();
             OrbitalAnte.Creatures.Ambusher.ResetStatics();
+            OrbitalAnte.Creatures.Maw.ResetStatics();
             OrbitalAnte.Creatures.ScreamRings.ResetStatics();
             OrbitalAnte.Creatures.WalkerChunk.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();

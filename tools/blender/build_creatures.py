@@ -2067,7 +2067,8 @@ def maw(hi):
         count = stations * 5 if hi else stations
         rings = []
         for i in range(count + 1):
-            t = i / count
+            # Stations crowd toward the tip, where the outline curves most.
+            t = 1.0 - (1.0 - i / count) ** 1.5
             s = -foot / length + (1.0 + foot / length) * t
             round_tip = math.sqrt(max(0.0, 1.0 - max(0.0, (s - 0.72) / 0.28) ** 2))
             c = chord * (1.0 - (1.0 - tip_share) * max(0.0, s) ** 1.25) * (0.06 + 0.94 * round_tip)
@@ -2171,7 +2172,12 @@ def maw(hi):
             (0.12, 0.765, 0.660, 0, 0.0), (0.28, hh, ht, 0, 0.005), (0.45, hh, 0.610, 0, 0.050), (0.62, 0.778, 0.500, 0, 0.150), (0.80, 0.770, 0.440, 0, 0.200),
             (1.15, 0.730, 0.395, 0, 0.215), (1.50, 0.630, 0.320, 0, 0.215), (1.72, 0.490, 0.230, 0, 0.200), (1.84, 0.340, 0.140, 0, 0.180), (1.885, 0.200, 0.070, 0, 0.165), (hl, 0.070, 0.022, 0, 0.158)]
     keys = [(k_[0] + c,) + tuple(k_[1:]) for k_ in keys]
-    skull = g.skin("skull", (0, back - c, 0.0), (0, 1, 0), up, keys, around=26, step=0.085, power=2.2)
+    def fine_skin(name, origin, table, around, step):
+        """Like g.skin, but the baked one is cut twice as finely round: the edge between lip and mouth lining follows
+        its faces, and must not show as steps."""
+        return real.limb(name, origin, (0, 1, 0), up, table, (0.5, 0.5, 0.5), n=around * 8 if hi else around, step=step / 6 if hi else step, power=2.2)
+
+    skull = fine_skin("skull", (0, back - c, 0.0), keys, 26, 0.085)
     if hi:
         # The swell of its brow, a soft crease above the lip, pores over its snout, and the loose skin of the head.
         def head_fold(p):
@@ -2217,7 +2223,7 @@ def maw(hi):
     jk = [(-0.16, jh * 0.50, 0.060, 0, -0.130), (-0.08, jh * 0.86, 0.150, 0, -0.160), (0.00, jh * 1.04, 0.215, 0, -0.195), (0.30, jh * 1.08, 0.240, 0, -0.215), (0.62, jh * 1.04, 0.225, 0, -0.200),
           (0.95, jh * 0.90, 0.185, 0, -0.165), (1.18, jh * 0.70, 0.135, 0, -0.118), (1.30, jh * 0.48, 0.085, 0, -0.074), (1.355, jh * 0.28, 0.045, 0, -0.040), (jl, jh * 0.10, 0.016, 0, -0.016)]
     jk = [(k_[0] + 0.16,) + tuple(k_[1:]) for k_ in jk]
-    jaw = g.skin("jaw", (0, -0.16, 0), (0, 1, 0), up, jk, around=22, step=0.09, power=2.2)
+    jaw = fine_skin("jaw", (0, -0.16, 0), jk, 22, 0.09)
     if hi:
         # The pleats of its throat, which let its mouth balloon, running fore and aft.
         real.displace(jaw, lambda p: (-0.008 * pulse(p.x / 0.11 + 0.3 * noise.noise(p * 1.2), 3) * (1.0 if p.z < -0.22 else 0.0) * (1.0 - smooth(p.y, 0.95, 1.25))

@@ -434,6 +434,13 @@ namespace OrbitalAnte.Arena
                 var at = new Vector3((i % 2 == 0 ? 0.62f : -0.62f) * HalfSize, 0f, HalfSize * (0.42f + 0.2f * i));
                 OrbitalAnte.Creatures.Stalker.Create(at, Quaternion.Euler(0f, i % 2 == 0 ? -110f : 110f, 0f), _mannequinRoot, config, "Stalker " + (i + 1));
             }
+            for (int i = 0; i < config.arenaMaws; i++)
+            {
+                // The Drifting maw has no sea here: it cruises a slow circle in the air just over the ground, off to
+                // one side, so its fins, jaw and pull can be tried.
+                var at = new Vector3(0.42f * HalfSize, 1.3f, 0.1f * HalfSize);
+                OrbitalAnte.Creatures.Maw.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Maw " + (i + 1));
+            }
         }
 
         /// <summary>

@@ -31,6 +31,11 @@ namespace OrbitalAnte.Creatures
         [Tooltip("The Blind stalker (from the olm): what it hears, how fast it comes, its warning and lunge.")]
         public StalkerRules stalker = new StalkerRules();
 
+        [Tooltip("The Drifting maw (the megamouth shark): how it cruises, the warning, how far and how hard it draws you in, the hold and the bites, hit points.")]
+        public MawRules maw = new MawRules();
+        [Tooltip("The big swimmers in the seas: how many haunts a world has, how deep the water must be, when one is woken, how many at once. Untick the first box to leave the seas empty.")]
+        public SeaFieldRules seas = new SeaFieldRules();
+
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;
 
@@ -51,6 +56,9 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("How many Blind stalkers the combat test arena starts with (0 for none).")]
         [Range(0, 2)] public int arenaStalkers = 1;
+
+        [Tooltip("How many Drifting maws the combat test arena starts with (0 for none). There is no water there: it swims in the air just over the ground.")]
+        [Range(0, 1)] public int arenaMaws = 1;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

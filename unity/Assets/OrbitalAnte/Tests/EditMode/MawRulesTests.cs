@@ -429,5 +429,139 @@ namespace OrbitalAnte.Tests.EditMode
             Vec3d nose = pose.NodeRotation[0].Rotate(Vec3d.Forward);
             Assert.Greater(nose.Y, 0.2, "and its nose points up");
         }
+
+        // ------------------------------------------------------------------ the model
+
+        [Test]
+        public void MawModelFile_MatchesTheLayout()
+        {
+            // tools/blender/build_creatures.py carries its own copy of MawLayout (MAW). If either changes, this
+            // fails until the script is changed to match and run again.
+            ModelFile model = Load(MawLayout.Model);
+            AssertSocket(model, "SegEnd", 0, 0, MawLayout.Spacing * 0.5);
+            AssertSocket(model, "HeadEnd", 0, 0, MawLayout.HeadLength - MawLayout.Spacing * 0.5);
+            AssertSocket(model, "HeadSide", MawLayout.HeadHalfWidth, 0, 0);
+            AssertSocket(model, "HeadTop", 0, MawLayout.HeadHalfHeight, 0);
+            AssertSocket(model, "JawHinge", MawLayout.JawHinge.X, MawLayout.JawHinge.Y, MawLayout.JawHinge.Z);
+            AssertSocket(model, "JawEnd", 0, 0, MawLayout.JawLength);
+            AssertSocket(model, "JawSide", MawLayout.JawHalfWidth, 0, 0);
+            AssertSocket(model, "Mouth", MawLayout.Mouth.X, MawLayout.Mouth.Y, MawLayout.Mouth.Z);
+            AssertSocket(model, "FinR", MawLayout.FinRoot.X, MawLayout.FinRoot.Y, MawLayout.FinRoot.Z);
+            AssertSocket(model, "FinEnd", 0, 0, MawLayout.FinLength);
+            AssertSocket(model, "FinChord", MawLayout.FinChord, 0, 0);
+            AssertSocket(model, "BackFin", MawLayout.BackFinRoot.X, MawLayout.BackFinRoot.Y, MawLayout.BackFinRoot.Z);
+            AssertSocket(model, "BackFinTop", 0, MawLayout.BackFinHeight, 0);
+            AssertSocket(model, "BackFinChord", 0, 0, MawLayout.BackFinChord);
+            AssertSocket(model, "TailFinUp", 0, MawLayout.TailFinUp, -MawLayout.TailFinBack);
+            AssertSocket(model, "TailFinDown", 0, -MawLayout.TailFinDown, 0);
+            AssertSocket(model, "StumpRim", MawLayout.StumpRadius, 0, 0);
+            for (int seg = 0; seg < MawLayout.Segs; seg++) AssertSocket(model, "Size" + seg, MawLayout.HalfWidth[seg], MawLayout.HalfHeight[seg], 0);
+            var pieces = new List<string> { MawLayout.HeadPiece, MawLayout.JawPiece, MawLayout.FinPiece, MawLayout.BackFinPiece, MawLayout.TailFinPiece,
+                                            MawLayout.Stump, MawLayout.Meat[0], MawLayout.Meat[1] };
+            for (int seg = 0; seg < MawLayout.Segs; seg++) pieces.Add(MawLayout.PieceOf(seg));
+            foreach (string piece in pieces) Assert.IsNotNull(model.Part(piece), "missing piece " + piece);
+            Assert.IsTrue(model.Textured, "the Drifting maw is drawn with pictures");
+
+            // `near` keeps only the corners within that distance (along) of the piece's own middle.
+            void Box(string piece, out float right, out float left, out float hi, out float lo, out float fore, out float aft, float near = float.MaxValue)
+            {
+                ModelPart part = model.Part(piece);
+                right = float.MinValue; left = float.MaxValue; hi = float.MinValue; lo = float.MaxValue; fore = float.MinValue; aft = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++)
+                {
+                    if (Math.Abs(part.Positions[i * 3 + 2]) > near) continue;
+                    right = Math.Max(right, part.Positions[i * 3]);
+                    left = Math.Min(left, part.Positions[i * 3]);
+                    hi = Math.Max(hi, part.Positions[i * 3 + 1]);
+                    lo = Math.Min(lo, part.Positions[i * 3 + 1]);
+                    fore = Math.Max(fore, part.Positions[i * 3 + 2]);
+                    aft = Math.Min(aft, part.Positions[i * 3 + 2]);
+                }
+            }
+            float right, left, hi, lo, fore, aft;
+            // The body is one outline cut at its joints: every length has its own piece, as wide and tall at its
+            // middle as the layout (and its hitbox) says, the same either side, reaching a little into its neighbours.
+            for (int seg = 0; seg < MawLayout.Segs; seg++)
+            {
+                string piece = MawLayout.PieceOf(seg);
+                // (Lengths that carry a fixed fin or the shoulders are measured where the body alone is.)
+                bool fitted = seg == MawLayout.FinSeg || seg == MawLayout.BackFinSeg || seg == 4 || seg == 6;
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft, 0.03f);
+                if (!fitted)
+                {
+                    Assert.AreEqual(MawLayout.HalfWidth[seg], right, 0.03, piece + ": its width at its middle");
+                    Assert.AreEqual(MawLayout.HalfHeight[seg], hi, 0.03, piece + ": its upper side");
+                    Assert.AreEqual(-MawLayout.HalfHeight[seg], lo, 0.03, piece + ": its underside");
+                }
+                Assert.AreEqual(-right, left, 0.01, piece + " is the same either side");
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft);
+                Assert.Greater(fore, MawLayout.Spacing * 0.5 + 0.03, piece + " reaches into the one in front of it, so a bend opens no gap");
+                Assert.Less(fore, MawLayout.Spacing * 0.5 + 0.20, piece + " without running far into it");
+                Assert.Less(aft, -MawLayout.Spacing * 0.5 - 0.03, piece + " reaches into the one behind");
+            }
+            Box(MawLayout.HeadPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(MawLayout.HeadLength - MawLayout.Spacing * 0.5, fore, 0.05, "the head is as long as the layout says");
+            Assert.AreEqual(MawLayout.HeadHalfWidth, right, 0.05, "and as wide");
+            Assert.AreEqual(-right, left, 0.01, "the head is the same either side");
+            Assert.AreEqual(MawLayout.HeadHalfHeight, hi, 0.05, "and as tall above its middle");
+            Box(MawLayout.JawPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(MawLayout.JawLength, fore, 0.05, "the jaw is as long as the layout says");
+            Assert.AreEqual(-right, left, 0.01, "the jaw is the same either side");
+            Assert.Less(hi, 0.06, "the jaw lies below its hinge, so shut it does not stand through the roof of its mouth");
+            // A fin is flat and the same above as below: the left one is this piece turned over.
+            Box(MawLayout.FinPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(MawLayout.FinLength, fore, 0.06, "a front fin is as long as the layout says");
+            Assert.AreEqual(hi, -lo, 0.004, "a front fin is the same above as below");
+            Assert.Less(hi, 0.08, "and flat");
+            Box(MawLayout.BackFinPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(MawLayout.BackFinHeight, hi, 0.06, "the back fin is as tall as the layout says");
+            Assert.AreEqual(-right, left, 0.004, "the back fin is the same either side");
+            Box(MawLayout.TailFinPiece, out right, out left, out hi, out lo, out fore, out aft);
+            Assert.AreEqual(MawLayout.TailFinUp, hi, 0.08, "the tail fin's upper blade");
+            Assert.AreEqual(-MawLayout.TailFinDown, lo, 0.08, "and its lower one");
+            Assert.AreEqual(-MawLayout.TailFinBack, aft, 0.10, "and how far back it sweeps");
+
+            // The far copy is the same model in a fraction of the triangles.
+            ModelFile farCopy = Load(MawLayout.Model + "Far");
+            int full = 0, far = 0;
+            foreach (string piece in pieces)
+            {
+                Assert.IsNotNull(farCopy.Part(piece), "the far copy is missing " + piece);
+                full += model.Part(piece).TriangleCount;
+                far += farCopy.Part(piece).TriangleCount;
+            }
+            Assert.LessOrEqual(full, 16000, "the full model's triangles");
+            Assert.LessOrEqual(far, 4500, "the far copy's triangles");
+        }
+
+        static void AssertSocket(ModelFile model, string name, double x, double y, double z)
+        {
+            Assert.IsTrue(model.TrySocket(name, out ModelSocket s), "missing " + name);
+            Assert.AreEqual(x, s.X, 0.002, name + " x");
+            Assert.AreEqual(y, s.Y, 0.002, name + " y");
+            Assert.AreEqual(z, s.Z, 0.002, name + " z");
+        }
+
+        static ModelFile Load(string id)
+        {
+            string folder = Environment.GetEnvironmentVariable("OA_MODELS");
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            {
+                folder = null;
+                string dir = TestContext.CurrentContext.TestDirectory;
+                for (int i = 0; i < 10 && dir != null && folder == null; i++)
+                {
+                    foreach (string candidate in new[] { Path.Combine(dir, "unity", "Assets", "OrbitalAnte", "Resources", "Models"), Path.Combine(dir, "Assets", "OrbitalAnte", "Resources", "Models") })
+                        if (Directory.Exists(candidate)) folder = candidate;
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+            if (folder == null) Assert.Ignore("Resources/Models not found");
+            string path = Path.Combine(folder, id + ".bytes");
+            if (!File.Exists(path)) Assert.Ignore("this model is not in the game yet: " + path);
+            ModelFile model = ModelFile.Parse(File.ReadAllBytes(path), out string problem);
+            Assert.IsNotNull(model, problem);
+            return model;
+        }
     }
 }
