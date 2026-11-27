@@ -233,7 +233,9 @@ namespace OrbitalAnte.Planets
                 case Technique.Curve:
                 {
                     double width = Math.Min(radius * 0.3, Noise3.Lerp(f.MinWidth, f.MaxWidth, r.NextDouble()) * Math.Max(0.5, terrain.Scale));
-                    double length = Math.Min(size, radius * 2.6);
+                    // No line runs more than about a quarter of the way round its world: longer ones read from space
+                    // as hoops drawn round the globe.
+                    double length = Math.Min(size, radius * MostCurveLength);
                     Vec3d side = Vec3d.Cross(where, heading).Normalized;
                     for (int lane = 0; lane < Math.Max(1, f.Parallel); lane++)
                     {
@@ -251,7 +253,9 @@ namespace OrbitalAnte.Planets
                         for (int b = 0; b < f.Branches; b++)
                         {
                             SeededRandom br = r.Fork(300 + lane * 16 + b);
-                            double along = br.Range(0.2f, 0.8f);
+                            // Each branch has its own stretch of the main line, so two never leave from the same spot
+                            // on opposite sides and draw a cross.
+                            double along = 0.15 + 0.7 * (b + br.Range(0.2f, 0.8f)) / f.Branches;
                             Vec3d from = PlanetTerrain.CurvePoint(main, along, radius);
                             double turn = br.Range(0.6f, 1.2f) * (br.Chance(0.5) ? 1 : -1);
                             Vec3d tangent = CurveTangent(main, along);
@@ -309,6 +313,9 @@ namespace OrbitalAnte.Planets
             return (s.Along * Math.Cos(angle) - s.Start * Math.Sin(angle)).Normalized;
         }
 
+        /// <summary>The longest any curved landform may be, in body radiuses.</summary>
+        public const double MostCurveLength = 1.7;
+
         static Stamp AddCurve(PlanetTerrain terrain, Formation f, Vec3d start, Vec3d heading, double length, double width, double height, SeededRandom r, bool bow)
         {
             double radius = terrain.Radius;
@@ -331,7 +338,7 @@ namespace OrbitalAnte.Planets
                 Seed = (uint)r.Next() + 29u, U = heading, V = normal,
             };
             // Lines that run in parallel families stay straight, or they would cross each other.
-            if (bow) s.Bow = Math.Min(s.Length * 0.06, width * 2.5);
+            if (bow) s.Bow = Math.Min(s.Length * 0.11, width * 4.0);
             s.Center = (start * Math.Cos(arc * 0.5) + along * Math.Sin(arc * 0.5)).Normalized;
             // Straight-line distance from the middle to an end, plus everything that can stick out sideways.
             s.BoundRadius = 2 * radius * Math.Sin(arc * 0.25) + reach * 1.3 + s.MeanderAmount * 1.7 + s.Bow * 1.9 + 2;

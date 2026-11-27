@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Look;
 using OrbitalAnte.Space;
 using UnityEngine;
 
@@ -55,7 +56,7 @@ namespace OrbitalAnte.Melee
             Data = data;
             Spec = data.ToSpec();
             Grip = Socket("Grip", Vector3.zero);
-            float tip = BuildStandIn(data.Id);
+            float tip = BuildFromModel(data.Id, out float fromModel) ? fromModel : BuildStandIn(data.Id);
             Tip = Socket("Tip", new Vector3(0f, tip, 0f));
             _renderers = GetComponentsInChildren<Renderer>(true);
 
@@ -174,7 +175,8 @@ namespace OrbitalAnte.Melee
         void SetShadows(bool on)
         {
             var mode = on ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
-            for (int i = 0; i < _renderers.Length; i++) if (_renderers[i] != null) _renderers[i].shadowCastingMode = mode;
+            // What shines by itself (the sword's blade) never casts a shadow.
+            for (int i = 0; i < _renderers.Length; i++) if (_renderers[i] != null && _renderers[i] != Glow) _renderers[i].shadowCastingMode = mode;
         }
 
         /// <summary>Dims the blade while the sword is locked by heat.</summary>
@@ -210,7 +212,40 @@ namespace OrbitalAnte.Melee
             return m;
         }
 
-        /// <summary>Builds the primitive stand-in for an id and returns how far up the tip is. Real models come from Blender.</summary>
+        /// <summary>The model the five weapons are drawn from (tools/blender/build_props.py): one piece per id, a Glow piece for what shines, a socket "idTip".</summary>
+        public const string ModelId = "Melee";
+
+        /// <summary>The weapon's real model, held at its origin and pointing up. False (and nothing added) if there is none.</summary>
+        bool BuildFromModel(string id, out float tip)
+        {
+            tip = 0f;
+            ModelFile file = ModelLibrary.Find(ModelId);
+            Mesh mesh = ModelLibrary.PartMesh(ModelId, id);
+            if (file == null || mesh == null || !file.TrySocket(id + "Tip", out ModelSocket socket)) return false;
+            tip = socket.Y;
+            ModelPiece(id, mesh);
+            string shining = id + "Glow";
+            Mesh lit = ModelLibrary.PartMesh(ModelId, shining);
+            if (lit != null) Glow = ModelPiece(shining, lit);
+            return true;
+        }
+
+        Renderer ModelPiece(string part, Mesh mesh)
+        {
+            var go = new GameObject(part);
+            go.layer = gameObject.layer;
+            go.transform.SetParent(transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = ModelLibrary.PieceMaterial(ModelId, part);
+            r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            // What shines by itself never casts a shadow (SetShadows leaves the Glow alone for the same reason).
+            if (ModelFile.Shines(part)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return r;
+        }
+
+        /// <summary>Builds the primitive stand-in for an id and returns how far up the tip is: the fallback when the model is missing.</summary>
         float BuildStandIn(string id)
         {
             Material dark = Paint("dark", new Color(0.14f, 0.14f, 0.16f), 0.4f);
@@ -222,7 +257,7 @@ namespace OrbitalAnte.Melee
                     Rod(dark, 0f, 0.24f, 0.034f);
                     Rod(steel, 0.22f, 0.04f, 0.05f);
                     Glow = Rod(Paint("blade", new Color(0.45f, 0.85f, 1f), 0f, glow: true), 0.26f, 0.95f, 0.03f);
-                    return 1.21f;
+                    return MeleeCatalog.TipHeight(id);
                 }
                 case MeleeCatalog.BaseballBatId:
                 {
@@ -231,7 +266,7 @@ namespace OrbitalAnte.Melee
                     Rod(wood, 0f, 0.36f, 0.034f);
                     Rod(wood, 0.34f, 0.18f, 0.05f);
                     Rod(wood, 0.5f, 0.36f, 0.066f);
-                    return 0.86f;
+                    return MeleeCatalog.TipHeight(id);
                 }
                 case MeleeCatalog.MailboxId:
                 {
@@ -242,7 +277,7 @@ namespace OrbitalAnte.Melee
                     Box(tin, new Vector3(0f, 0.99f, 0.04f), new Vector3(0.22f, 0.20f, 0.44f));
                     Rod(tin, 1.09f, 0.0f, 0.22f, new Vector3(0f, 0f, 0.04f), Quaternion.Euler(90f, 0f, 0f), 0.44f);
                     Box(flag, new Vector3(0.125f, 1.08f, -0.02f), new Vector3(0.02f, 0.16f, 0.05f));
-                    return 1.15f;
+                    return MeleeCatalog.TipHeight(id);
                 }
                 case MeleeCatalog.ButterflyKnifeId:
                 {
@@ -250,7 +285,7 @@ namespace OrbitalAnte.Melee
                     Box(dark, new Vector3(-0.009f, 0.06f, 0f), new Vector3(0.012f, 0.12f, 0.022f));
                     Box(dark, new Vector3(0.009f, 0.06f, 0f), new Vector3(0.012f, 0.12f, 0.022f));
                     Box(steel, new Vector3(0f, 0.175f, 0.003f), new Vector3(0.004f, 0.11f, 0.02f));
-                    return 0.23f;
+                    return MeleeCatalog.TipHeight(id);
                 }
                 default:   // the frying pan
                 {
@@ -258,7 +293,7 @@ namespace OrbitalAnte.Melee
                     Rod(dark, 0f, 0.24f, 0.026f);
                     // The pan's face points forward (+Z) when held, so a swing lands on its flat.
                     Rod(iron, 0.37f, 0f, 0.27f, Vector3.zero, Quaternion.Euler(90f, 0f, 0f), 0.035f);
-                    return 0.50f;
+                    return MeleeCatalog.TipHeight(id);
                 }
             }
         }
