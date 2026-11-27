@@ -145,6 +145,81 @@ def main() -> int:
         check(own > 0.05, f"{a}: its recordings are identical")
     lines.append("")
 
+    # ------------------------------------------------------------ creature warnings against the clock's wood
+    # A creature's warning must never be taken for the ante clock (game-designer review, Ralph loop pass 2): no mark
+    # rings within two semitones of the clock's tick (979 and 1629 Hz) and no wind-up knocks ring near its warning's
+    # 640 Hz. Each pair here is a creature's wind-up and its aim (keep in step with Creatures/Windups.cs; the rule test
+    # EveryCreature_HasItsOwnWarningAndAimSounds holds that list to the manifest).
+    windups = {"strider": "raise", "sprinter": "raise", "roller": "curl", "hunter": "rear", "maw": "gape",
+               "biter": "mark", "screamer": "windup", "ambusher": "coil", "stalker": "gape"}
+    by_id = {e["id"]: e for e in manifest["events"]}
+    hp200 = signal.butter(2, 200, "high", fs=SR, output="sos")
+
+    def mono(clip):
+        x = mixing.read(path_of(clip))
+        return x.mean(axis=1) if x.ndim == 2 else x
+
+    def loudest(x, count=1, apart=0.05):
+        """Starts of the loudest 5 ms windows, at least `apart` seconds from each other, and the loudest one's level."""
+        w = int(0.005 * SR)
+        p = np.convolve(x * x, np.ones(w) / w, "valid")
+        found, q = [], p.copy()
+        for _ in range(count):
+            i = int(np.argmax(q))
+            if q[i] <= 0:
+                break
+            found.append(i / SR)
+            q[max(0, i - int(apart * SR)):i + int(apart * SR)] = 0
+        return found, 10 * np.log10(np.max(p) + 1e-20)
+
+    def ring_over(x, at, f0):
+        """How far the band two semitones either side of f0 stands over the bands four to seven semitones off, in dB,
+        over 30 ms from `at`: something ringing at f0 stands 20 dB or more over them (the clock's own tick, 37 to 55);
+        noise and other pitches stand near 0."""
+        k = max(0, int(at * SR))
+        seg = x[k:k + int(0.03 * SR)]
+        if len(seg) < 64:
+            return -99.0
+        spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 1 << 15)) ** 2
+        fr = np.fft.rfftfreq(1 << 15, 1 / SR)
+
+        def band(lo, hi):
+            m = (fr >= f0 * 2 ** (lo / 12)) & (fr <= f0 * 2 ** (hi / 12))
+            return spec[m].mean() + 1e-20
+
+        side = (band(-7, -4) + band(4, 7)) / 2
+        return float(10 * np.log10(band(-2, 2) / side))
+
+    lines.append("## Creature warnings and the clock\n")
+    lines.append("Each creature warns with two sounds: its wind-up, then its aim (one hard mark, played when it takes aim). "
+                 "*Ring* is how far a sound stands, in dB, over its neighbouring pitches two semitones either side of the clock's "
+                 "tick (979 and 1629 Hz) or of its warning's knocks (640 Hz); the clock's own tick stands 37 to 55 dB over. "
+                 "Allowed: under 10. *Mark over wind-up* compares the loudest 5 ms of each above 200 Hz, as played (at least 5 dB). "
+                 "*Wind-up heard* is the wind-up's loudest 100 ms above 200 Hz, so a quiet one is not lost on the Deck's speakers "
+                 "(at least -35 dB).\n")
+    lines.append("| Creature | Aim's mark at | Mark rings at 979 / 1629 Hz | Wind-up rings at 979 / 1629 / 640 Hz | Mark over wind-up | Wind-up heard |")
+    lines.append("|---|---|---|---|---|---|")
+    for kind, warn in windups.items():
+        w, a = by_id.get(f"creature.{kind}.{warn}"), by_id.get(f"creature.{kind}.aim")
+        if w is None or a is None:
+            check(False, f"creature {kind}: no wind-up or no aim sound")
+            continue
+        aim, wind = signal.sosfilt(hp200, mono(a["clips"][0])), signal.sosfilt(hp200, mono(w["clips"][0]))
+        (mark,), mark_db = loudest(aim)
+        peaks, wind_db = loudest(wind, 3)
+        a979, a1629 = (ring_over(aim, mark - 0.004, f) for f in (979.0, 1629.0))
+        w_rings = [max(ring_over(wind, at - 0.002, f) for at in peaks) for f in (979.0, 1629.0, 640.0)]
+        over = (mark_db + a["volumeDb"]) - (wind_db + w["volumeDb"])
+        k = int(0.1 * SR)
+        heard = 10 * np.log10(np.max(np.convolve(wind ** 2, np.ones(k) / k, "valid")) + 1e-20)
+        check(mark <= 0.045, f"creature.{kind}.aim: its loudest moment is {mark * 1000:.0f} ms in, not its mark at the front")
+        check(max(a979, a1629) < 10, f"creature.{kind}.aim: its mark rings by the clock's tick ({a979:.0f} / {a1629:.0f} dB)")
+        check(max(w_rings) < 10, f"creature.{kind}.{warn}: its wind-up rings like the clock's wood ({' / '.join(f'{r:.0f}' for r in w_rings)} dB)")
+        check(over >= 5, f"creature.{kind}.aim: its mark stands only {over:.1f} dB over its wind-up")
+        check(heard >= -35, f"creature.{kind}.{warn}: its loudest 100 ms is {heard:.1f} dB, too quiet to be heard")
+        lines.append(f"| {kind} | {mark * 1000:.0f} ms | {a979:.0f} / {a1629:.0f} | {' / '.join(f'{r:.0f}' for r in w_rings)} | {over:.1f} dB | {heard:.1f} dB |")
+    lines.append("")
+
     # ------------------------------------------------------------ music
     lines.append("## Music\n")
     lines.append("| Piece | Tempo | Bars | Length | Stems | Full mix | True peak | Under 250 Hz | Above 2 kHz | Loop exactness |")

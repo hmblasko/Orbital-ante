@@ -151,7 +151,10 @@ namespace OrbitalAnte.Creatures
         public WalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of its body.</summary>
         public Vector3 WindupPoint => _bodyRoot != null ? _bodyRoot.position : transform.position;
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>Its warning ends as the claw lands, so it never shows a strike to step out of.</summary>
+        public bool Threatens => true;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Walker> Died;
         public WalkerLayout Kind => _l;
@@ -164,15 +167,15 @@ namespace OrbitalAnte.Creatures
         WalkerLayout _l;
         WalkerAnimator _animator;
         readonly Transform[] _jaw = new Transform[2];
-        string _raiseSound;
-        WindupStage _windup;
+        string _raiseSound, _aimSound;
+        readonly WindupTrack _windup = new WindupTrack();
         readonly WalkerPose _pose = new WalkerPose();
         readonly Transform[] _piece = new Transform[WalkerLayout.Limbs * WalkerLayout.Segments];
         readonly Transform[] _finger = new Transform[2];
         readonly int[] _shown = new int[WalkerLayout.Limbs];
         Transform _carapace, _belly, _bodyRoot;
         Vector3 _home;
-        bool _blocked, _sees, _striking;
+        bool _blocked, _sees;
         float _nextLook;
         Material _material;
 
@@ -204,6 +207,7 @@ namespace OrbitalAnte.Creatures
             _nextLook = Time.time + (seed & 0xff) / 1024f;
             _material = ModelLibrary.MaterialFor(kind.Model);
             _raiseSound = Windups.WalkerWarning(kind.Model);
+            _aimSound = Windups.WalkerAim(kind.Model);
 
             // Its hitboxes move with it every frame: a kinematic body tells the physics so.
             var rb = gameObject.AddComponent<Rigidbody>();
@@ -341,18 +345,10 @@ namespace OrbitalAnte.Creatures
             }
 
             WalkerOrders orders = Brain.Think(Body, senses, dt);
-            if (orders.StrikeSide >= 0 && !_striking)
-            {
-                // The warning is heard as well as seen: its own sound, played so its clack lands where it takes aim.
-                double share = Brain.LockShare(Body);
-                Audio.AudioDirector.Play(_raiseSound, _bodyRoot.position, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(_raiseSound), Windups.WalkerLock(_rules, share)));
-            }
-            _striking = orders.StrikeSide >= 0;
-            // The visor shows it too (UI/WindupCues), from the moment the claw starts up until it lands.
-            WindupStage stage = orders.StrikeSide >= 0 ? Windups.Walker(orders, Brain.LockShare(Body)) : WindupStage.None;
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) from the moment the claw starts up until it lands: its own
+            // wind-up as it starts, and its mark the very frame it takes aim.
+            WindupRead read = orders.StrikeSide >= 0 ? Windups.Walker(orders, Brain.LockShare(Body)) : WindupRead.None;
+            WindupTell.Tell(this, _windup.Step(read), _raiseSound, _aimSound, _bodyRoot.position);
             Walk(orders, dt);
             Pose(dt, orders);
             // A quick animal's hitboxes must be where it is drawn when the player's shot is traced this frame.

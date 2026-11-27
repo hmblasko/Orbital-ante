@@ -90,28 +90,63 @@ turning toward a danger left its arc pointing the old way; and a creature windin
 
 - One rule for every creature that strikes (`Creatures/Windups.cs`, plain C#): it winds up while it still follows the
   player (Winding), takes aim at its brain's own lock (Aimed: a step aside now is a miss), then strikes (Striking). The
-  stage is read from each brain's orders; nothing about any fight changed.
-- Nine new sounds made from code in `tools/audio/sfx/creature.py`: the Strider's and Sprinter's raise, the Roller's
-  curl, the Cave hunter's rear, the Drifting maw's gape, draw-in and choke, the Pack biter's mark and dart. Each warning
-  has one hard mark (a clack, a snick, a clunk, a fang click, a thoom, a tock) at the moment its creature takes aim,
-  written as the event's `lockAt`; the Screamer's, Ambusher's and Blind stalker's older warnings carry theirs too. A
-  dial that changes a warning's length plays the sound faster or slower (0.8 to 1.25 times) so the mark stays on the
-  lock. Every stand-in is gone: creatures play only their own sounds.
+  stage, and while it winds up how near the lock it is, are read from each brain's orders; nothing about any fight
+  changed.
+- Each warning is two sounds of the creature's own, made from code in `tools/audio/sfx/creature.py`: a wind-up, played
+  as the warning starts, and an aim, one hard mark at the very front of its file (a clack, a snick, a clunk, a fang
+  click, a thoom, a crack, a drum click, a jaw scrape, a pop), played by the game the frame the creature takes aim
+  (`WindupTrack`, `WindupTell`). So the mark is on the lock whatever a dial, Focus, a hitstop or a long frame does, and
+  a warning called off before it takes aim never gives its mark. 20 new clips (12.1 s, 1.1 MiB): six new wind-ups,
+  nine aims, the maw's draw-in and choke, the biter's dart. The Screamer's, Ambusher's and Blind stalker's older
+  warnings were cut in two the same way. Every stand-in is gone: creatures play only their own sounds.
 - Two older sounds were nearly all below what the Deck's speakers play (the Ambusher coming up, 95% of its weight under
   250 Hz, and the Blind stalker's lunge, 91%): the rise now crackles as the ground strains (47%), and the lunge's thump
   sits under its clap (59%).
 - The visor (`UI/DamageFeedback.cs`, rules `UI/WindupCues.cs`): every arc keeps its danger's direction in the world and
-  turns as the player turns, so turning toward an arc brings it to the top of the ring. A creature's wind-up is an
-  amber arc on the gunman's ring that follows the creature: 40 degrees and flickering while it follows, snapping to 18
-  degrees and steady at the same moment as the sound's mark, held through the strike, then fading. Each creature tells
-  the visor once as a warning starts (`IWindup`, `CombatWorld.CreatureWindup`).
+  turns as the player turns, so turning toward an arc brings it to the top of the ring, and it turns smoothly as a
+  danger passes overhead (`DamageCues.MarkerAngle`). A creature's warning is an amber arc on the gunman's ring that
+  follows the creature: steady and closing from 44 to 30 degrees as the lock comes nearer, snapping to 15 degrees at
+  full brightness the same frame as the sound's mark, dimmed once a strike can no longer reach the player (a scream
+  that missed, a pull that let go, a ball that rolled past: `IWindup.Threatens`), then fading. The nearest three show;
+  a gunman's arc beside a creature that has taken aim is dimmed so the snap is not lost; amber arcs hide while paused
+  or dead.
 
 **Checked:**
 
-- `dotnet test tools/rules-tests`: 3,073 run, 3,072 passed, 1 skipped (the cabin bake check, as before). Ten tests are
-  new (`WindupTests`), all passed on their first full run.
+- `dotnet test tools/rules-tests`: 3,081 run, 3,080 passed, 1 skipped (the cabin bake check, as before). `WindupTests`
+  is 18 tests, among them four real brains (a Strider and a Sprinter, a Sprinter with no arms, a Cave hunter, a Roller)
+  run through warnings frame by frame: one wind-up and one mark each, the mark within a frame and a half of the lock,
+  the brain following before it and not after.
 - Runtime compile check: clean apart from the two known `excludeLayers` lines.
 - `tools/audio/qa.py`: pass, 0 failed checks; 8 warnings, none of them a creature sound (there were 12, and the 4
-  removed were the Ambusher's rise and the Blind stalker's lunge).
-- Every warning's loudest moment was measured at its mark (and a rule test reads the WAV files to hold it there). The
-  sounds were measured, not listened to.
+  removed were the Ambusher's rise and the Blind stalker's lunge). New creature table: every mark in its first 8 ms and
+  8.0 to 19.0 dB over its wind-up above 200 Hz; every wind-up's loudest 100 ms -24.8 to -31.7 dB; no creature sound
+  stands 10 dB over its neighbours at the clock's tick or warning (the clock's own tick stands 37 to 55 dB over).
+- The sounds were measured, not listened to.
+
+**Specialist reviews** (each run on this pass's first build, each finding checked before it was applied):
+
+- unity-reviewer: the mark landed on the lock only when nothing went wrong (Focus slows sounds to 0.7 against the
+  game's 0.35, a hitstop stops the game but not a sound, a call-off still played the mark), and a second Strider or
+  Sprinter within the 250 to 400 ms cooldown warned in silence. This changed the design: the mark is now its own sound,
+  played on the stage change, with a 60 ms cooldown; `AudioEventDef.LockAt`, `AudioDirector.LockMark` and the
+  warnings' pitch stretch are gone. Also applied: a new warning could steal the arc of a creature still mid-strike; the
+  arena's arcs could use last frame's view (`DefaultExecutionOrder(100)`); arcs flipped top to bottom looking up
+  steeply; creature arcs froze under the pause and death pages; an armless Sprinter gave a false mark.
+- game-designer: the Roller's curl (even knocks at 615 to 668 Hz) and the biter's tock (879 and 1617 Hz, 20 ms) sounded
+  like the ante clock's wood: re-voiced as noise, and `qa.py` now fails any creature sound that rings by the clock. The
+  flicker looked most urgent exactly when moving is useless: replaced by the countdown and the snap. A full arc held
+  through a dodged strike read as "still coming": now it dims. A sighting arc could swallow the snap: now dimmed beside
+  it. Asked for, and added: every other mode of every brain reads None (so ambushes keep their surprise), the mark at
+  least 5 dB over its wind-up measured above 200 Hz, a false claim about 250 Hz taken out of `creature.py`, and the repo
+  notes brought up to date. Its Deck acceptance criteria and playtest protocol are in the report.
+- deck-performance: fits the budget (budget rows written for the split and the countdown). Each showing arc re-read
+  the eye's axes: now read once a frame.
+
+**Scores after:** see `scorecard.md`, pass 2. Understandable 6 to 7, the rest unchanged.
+
+**Left open:** nothing here has run in Unity, and no sound has been listened to. Known limits: in Focus a wind-up ends
+early, leaving a quiet gap before the mark; an aim's tail is cut to the default dials; on two half-lines overhead and
+underfoot an arc can swap sides of the ring; the Roller's "still in its way" is measured along its line. The Deck
+acceptance needs a per-strike log (kind, on screen, first sideways move against the lock, hit or miss), not built.
+Next pass: gap 3, creature kills pay toward the ante and the music hears the player being hurt and hunted.

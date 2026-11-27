@@ -165,8 +165,11 @@ namespace OrbitalAnte.Creatures
         public BiterBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
         public Vector3 WindupPoint => transform.position;
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>A dart is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Biter> Died;
         [System.NonSerialized] public System.Func<Vector3, MawWater> Water;
@@ -179,7 +182,7 @@ namespace OrbitalAnte.Creatures
             SeaCreatures.ResetStatics();
         }
 
-        const string MarkSound = Windups.BiterWarning, DartSound = "creature.biter.dart";
+        const string MarkSound = Windups.BiterWarning, AimSound = Windups.BiterAim, DartSound = "creature.biter.dart";
         /// <summary>In the arena it is told the floor is this much lower than it is, so its mouth comes down to someone's chest.</summary>
         const float ArenaSink = 0.6f;
 
@@ -385,17 +388,13 @@ namespace OrbitalAnte.Creatures
             BiterOrders orders = Brain.Think(dt, senses, Body);
             if (orders.Mode != _lastMode)
             {
-                Vector3 at = transform.position;
-                // The warning and the dart are each heard, in its own sounds (never another creature's or an enemy's).
-                if (orders.Mode == BiterMode.Mark) Audio.AudioDirector.Play(MarkSound, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(MarkSound), Windups.BiterLock(_rules)));
-                if (orders.Mode == BiterMode.Dart) Audio.AudioDirector.Play(DartSound, at);
+                // The dart is heard, in its own sound (never another creature's or an enemy's).
+                if (orders.Mode == BiterMode.Dart) Audio.AudioDirector.Play(DartSound, transform.position);
                 _lastMode = orders.Mode;
             }
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Biter(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the dart is over: its own wind-up as it marks the player,
+            // and its mark the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Biter(orders)), MarkSound, AimSound, transform.position);
             Vector3 moved = Move(orders, dt);
             Transform near = CombatWorld.PlayerEye;
             bool far = near == null || (near.position - transform.position).sqrMagnitude > 70f * 70f;

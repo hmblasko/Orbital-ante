@@ -53,8 +53,12 @@ namespace OrbitalAnte.Creatures
         public RollerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of the ball.</summary>
         public Vector3 WindupPoint => Middle();
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>While it rolls: still coming the player's way (<see cref="RollerBrain.RollReaches"/>), and it has not hit them already.</summary>
+        public bool Threatens => _threatens;
+        readonly WindupTrack _windup = new WindupTrack();
+        bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Roller> Died;
 
@@ -244,32 +248,31 @@ namespace OrbitalAnte.Creatures
             RollerOrders orders = Brain.Think(Body, senses, dt);
             if (orders.Mode != _lastMode)
             {
-                Vector3 at = Middle();
                 if (orders.Mode == RollerMode.Wind)
                 {
-                    // The warning is heard as well as seen: its own sound, played so its clunk lands where it takes aim.
                     _hitThisRoll = false;
-                    Audio.AudioDirector.Play(Windups.RollerWarning, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(Windups.RollerWarning), Windups.RollerLock(_rules)));
+                    _threatens = true;
                 }
                 else if (orders.Mode == RollerMode.Open && Brain.Crashed)
                 {
-                    Audio.AudioDirector.Play("impact.armor", at, 1f, 0.45f);
+                    Audio.AudioDirector.Play("impact.armor", Middle(), 1f, 0.45f);
                     _animator.Flinch(new Vec3d(0, 1.5, -2.5));
                 }
                 _lastMode = orders.Mode;
             }
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Roller(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the roll is over: its own wind-up as it starts to curl,
+            // and its mark the very frame it snaps shut and takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Roller(orders)), Windups.RollerWarning, Windups.RollerAim, Middle());
             Move(orders, dt);
             Pose(dt, orders);
             if (orders.Mode == RollerMode.Roll)
             {
                 // A fast ball's hitboxes must be where it is drawn when the player's shot is traced this frame.
                 Physics.SyncTransforms();
-                if (!_hitThisRoll && eye != null && !CombatWorld.EnemiesHoldFire && Brain.RollHits(D(transform.InverseTransformPoint(eye.position - up * 1.6f)))) Hurt(eye, _rules.rollDamage, true);
+                Vec3d feet = eye != null ? D(transform.InverseTransformPoint(eye.position - up * 1.6f)) : Vec3d.Zero;
+                if (!_hitThisRoll && eye != null && !CombatWorld.EnemiesHoldFire && Brain.RollHits(feet)) Hurt(eye, _rules.rollDamage, true);
+                // Once it has hit them, or they are out of its line, the arc on the visor dims: the dodge worked.
+                _threatens = !_hitThisRoll && eye != null && Brain.RollReaches(feet);
             }
             if (orders.Landed && eye != null && !CombatWorld.EnemiesHoldFire)
             {

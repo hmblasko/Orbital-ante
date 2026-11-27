@@ -182,6 +182,26 @@
    "note": "The clock has run out short of the target and the hunt is on: the clock's own wood, struck hard once, over a low drum that falls away, with a short dry rattle after it. It belongs to the clock family (the 30 s knocks and the last-ten ticks lead into it), and it is nothing like the suit's two-note air warning, so \"time is up\" and \"air is low\" can never be mistaken for each other."
   },
   {
+   "id": "creature.ambusher.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the ringing scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+  },
+  {
    "id": "creature.ambusher.coil",
    "bus": "CombatImpacts",
    "clips": [
@@ -194,13 +214,12 @@
    "minDist": 3,
    "maxDist": 90,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.495,
-   "note": "The Ambusher's warning, 0.9 s: a wet hiss that tightens as it rears, ticks of its jaws half closing, and at 0.5 s (where it takes aim) the scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+   "note": "The Ambusher's wind-up, 0.9 s: a wet hiss that tightens as it rears, and ticks of its jaws half closing."
   },
   {
    "id": "creature.ambusher.rise",
@@ -245,6 +264,26 @@
    "note": "The strike: its length thrown out through the air in under a fifth of a second, and the jaws snapping shut."
   },
   {
+   "id": "creature.biter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_biter_aim"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the hard crack of its jaws setting and its fins sweeping back, then a held breath before the dart. After the crack, turning back is the dodge."
+  },
+  {
    "id": "creature.biter.dart",
    "bus": "CombatImpacts",
    "clips": [
@@ -278,13 +317,32 @@
    "minDist": 4,
    "maxDist": 90,
    "priority": 55,
-   "cooldownMs": 250,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.54,
-   "note": "A Pack biter's warning, 0.9 s, heard through water: its teeth chattering as its jaws flare, a swish as it rolls its silver flank to the light, and at 0.54 s (where it takes aim) a hard tock of its jaws setting and its fins sweeping back. After the tock, turning back is the dodge."
+   "note": "A Pack biter's wind-up, heard through water: its teeth chattering as its jaws flare, and a swish as it rolls its silver flank to the light."
+  },
+  {
+   "id": "creature.hunter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_hunter_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the double click of its fangs flying wide, the hiss still tightening, then the whip of its head coming down, gone where it lands. After the click, stepping aside is a miss."
   },
   {
    "id": "creature.hunter.rear",
@@ -299,13 +357,32 @@
    "minDist": 4,
    "maxDist": 110,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.4875,
-   "note": "The Cave hunter's warning, 0.95 s: the skitter of its many legs as the front of its body lifts, under a dry hiss that tightens, and at 0.49 s (where it takes aim) the double click of its fangs flying wide. At 0.75 s the whip of its head coming down, gone where it lands. After the click, stepping aside is a miss."
+   "note": "The Cave hunter's wind-up: the skitter of its many legs as the front of its body lifts, under a dry hiss that tightens."
+  },
+  {
+   "id": "creature.maw.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_maw_aim"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.1,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a deep hollow thoom as its jaw drops fully open, and the water starting to move. After the thoom it hardly turns: swimming sideways is the way out."
   },
   {
    "id": "creature.maw.choke",
@@ -341,13 +418,12 @@
    "minDist": 4,
    "maxDist": 90,
    "priority": 55,
-   "cooldownMs": 400,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.84,
-   "note": "The Drifting maw's warning, 1.4 s, heard through water: the slow creak of its jaw as its mouth opens wider and wider, a few bubbles getting away, and at 0.84 s (where it takes aim) a deep hollow thoom as the jaw drops fully open and water starts to move. After the thoom it hardly turns: swimming sideways is the way out."
+   "note": "The Drifting maw's wind-up, heard through water: the slow creak of its jaw as its mouth opens wider and wider, and a few bubbles getting away."
   },
   {
    "id": "creature.maw.inhale",
@@ -370,6 +446,26 @@
    "note": "It draws in, 2.6 s: a roaring rush of water into its mouth that swells and climbs, so its rising tells how long it has left, and stops dead at the end."
   },
   {
+   "id": "creature.roller.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_roller_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the heavy clunk of the ball snapping shut, then a low grinding roll as it sets off. After the clunk it cannot turn: a step aside is a miss."
+  },
+  {
    "id": "creature.roller.curl",
    "bus": "CombatImpacts",
    "clips": [
@@ -382,13 +478,32 @@
    "minDist": 4,
    "maxDist": 110,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.54,
-   "note": "The Roller's warning, 0.9 s: its plates folding over one another as it curls, a run of hollow clacks that come quicker and quicker, and at 0.54 s (where it takes aim) the heavy clunk of the ball snapping shut. Then a low grinding roll as it sets off. After the clunk it cannot turn: a step aside is a miss."
+   "note": "The Roller's wind-up: its plates sliding over one another as it curls, rough scrapes coming quicker and quicker."
+  },
+  {
+   "id": "creature.screamer.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a hard double click of both drums as its wings and abdomen jerk to full height."
   },
   {
    "id": "creature.screamer.scream",
@@ -423,13 +538,32 @@
    "minDist": 5,
    "maxDist": 220,
    "priority": 50,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.6,
-   "note": "The Screamer's warning: single dry clicks of its drums that quicken into a rattle over one second, rising, with a hard double click at 0.6 s where it takes aim. The end of the climb is the moment the scream starts."
+   "note": "The Screamer's wind-up, 1 s: dry clicks of its drums quickening into a rattle as it lifts its abdomen and fans its wings, rising until the scream starts. Its aim is a separate mark."
+  },
+  {
+   "id": "creature.sprinter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_sprinter_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the sharp snick of its jaws cocking, then a hiss that ends as it lunges. After the snick, stepping aside is a miss."
   },
   {
    "id": "creature.sprinter.raise",
@@ -444,13 +578,32 @@
    "minDist": 4,
    "maxDist": 110,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.2625,
-   "note": "The Sprinter's warning, 0.68 s: a dry, fast chitter as it rubs its jaws together (a camel spider's sound), rising, and at 0.26 s (where it takes aim) the sharp snick of its jaws cocking; then a hiss that ends as it lunges. After the snick, stepping aside is a miss."
+   "note": "The Sprinter's wind-up: a dry, fast chitter as it rubs its jaws together (a camel spider's sound), rising."
+  },
+  {
+   "id": "creature.stalker.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the pop of its jaw dropping wide and its gills snapping out. After the pop, stepping aside is a miss."
   },
   {
    "id": "creature.stalker.click",
@@ -487,13 +640,12 @@
    "minDist": 3,
    "maxDist": 70,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.45,
-   "note": "The warning, 0.9 s: a long wet breath drawn in through its opening mouth, rising, and at 0.45 s (where it takes aim) the pop of the jaw dropping wide and the gills snapping out. After the pop, stepping aside is a miss."
+   "note": "The Blind stalker's wind-up, 0.9 s: a long wet breath drawn in through its opening mouth, rising."
   },
   {
    "id": "creature.stalker.hear",
@@ -538,6 +690,26 @@
    "note": "The lunge: its whole wet length thrown across the ground in a fifth of a second, and the jaws clapping shut."
   },
   {
+   "id": "creature.strider.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_strider_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a hard double clack as the claw sets open, then the heavy whoosh of the swing, gone where the claw comes down. After the clack, stepping aside is a miss."
+  },
+  {
    "id": "creature.strider.raise",
    "bus": "CombatImpacts",
    "clips": [
@@ -550,13 +722,12 @@
    "minDist": 4,
    "maxDist": 110,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "lockAt": 0.4,
-   "note": "The Strider's warning, 1 s: its claw arm creaking up joint by joint, heavy shell grinding on shell, and at 0.4 s (where it takes aim) a hard double clack as the claw sets open. Then the swing: a heavy whoosh that ends where the claw comes down. After the clack, stepping aside is a miss."
+   "note": "The Strider's wind-up: its claw arm creaking up joint by joint, heavy shell grinding on shell."
   },
   {
    "id": "enemy.flare.fire",

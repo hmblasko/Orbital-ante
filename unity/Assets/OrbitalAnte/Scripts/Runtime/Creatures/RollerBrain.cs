@@ -127,6 +127,22 @@ namespace OrbitalAnte.Creatures
         public bool RollHits(Vec3d playerFeet) =>
             Math.Sqrt(playerFeet.X * playerFeet.X + playerFeet.Z * playerFeet.Z) < _rules.hitRadius && playerFeet.Y < 1.3 && playerFeet.Y > -2.0;
 
+        /// <summary>How much further than its reach, to the side or up and down, someone still counts as in the roll's way.</summary>
+        public const double InTheWayMargin = 1.0;
+
+        /// <summary>
+        /// Is someone whose feet are here (creature space) still in the way of the roll under way? For the visor, which
+        /// dims a strike that can no longer reach the player (UI/WindupCues): ahead of the ball or level with it, short of
+        /// where the roll ends, and no further to the side than a step past its reach. False when it is not rolling.
+        /// </summary>
+        public bool RollReaches(Vec3d playerFeet)
+        {
+            if (Mode != RollerMode.Roll) return false;
+            double reach = _rules.hitRadius, side = reach + InTheWayMargin;
+            return playerFeet.Z > -reach && playerFeet.Z < _planned - _rolled + reach && Math.Abs(playerFeet.X) < side
+                   && playerFeet.Y < 1.3 + InTheWayMargin && playerFeet.Y > -2.0 - InTheWayMargin;
+        }
+
         void Enter(RollerMode mode)
         {
             Mode = mode;

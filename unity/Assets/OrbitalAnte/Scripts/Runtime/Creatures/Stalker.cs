@@ -54,8 +54,11 @@ namespace OrbitalAnte.Creatures
         public StalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
         public Vector3 WindupPoint => HeadPoint();
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>Its lunge is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Stalker> Died;
 
@@ -63,7 +66,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Stalker> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string HearSound = "creature.stalker.hear", GapeSound = Windups.StalkerWarning, LungeSound = "creature.stalker.lunge", ClickSound = "creature.stalker.click";
+        const string HearSound = "creature.stalker.hear", GapeSound = Windups.StalkerWarning, AimSound = Windups.StalkerAim, LungeSound = "creature.stalker.lunge", ClickSound = "creature.stalker.click";
 
         StalkerRules _rules;
         readonly StalkerAnimator _animator = new StalkerAnimator();
@@ -257,17 +260,14 @@ namespace OrbitalAnte.Creatures
                 Vector3 at = HeadPoint();
                 // Each change the player must notice is heard, in its own sounds (never another creature's or an enemy's).
                 if (orders.Mode == StalkerMode.Listen) Audio.AudioDirector.Play(HearSound, at);
-                if (orders.Mode == StalkerMode.Gape) Audio.AudioDirector.Play(GapeSound, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(GapeSound), Windups.StalkerLock(_rules)));
                 if (orders.Mode == StalkerMode.Lunge) Audio.AudioDirector.Play(LungeSound, at);
                 _lastMode = orders.Mode;
             }
             // Each time it takes a new place it clicks, quietly: where you are now is known.
             else if (orders.Took && orders.Mode != StalkerMode.Still) Audio.AudioDirector.Play(ClickSound, HeadPoint(), 0.5f, 1f);
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Stalker(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the lunge is over: its own wind-up as its jaw drops, and
+            // its mark the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Stalker(orders)), GapeSound, AimSound, HeadPoint());
             Vector3 moved = Move(orders, dt);
             // Lying still with nothing to hear (most of its life) it is posed five times a second, not every frame:
             // only the tip of its tail and its gills drift then.

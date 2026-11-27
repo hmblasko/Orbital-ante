@@ -67,8 +67,12 @@ namespace OrbitalAnte.Creatures
         public MawBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its mouth.</summary>
         public Vector3 WindupPoint => MouthPoint();
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>While it draws in: its pull still has the player. Out of the cone (the way out is sideways), it no longer threatens.</summary>
+        public bool Threatens => _threatens;
+        readonly WindupTrack _windup = new WindupTrack();
+        bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Maw> Died;
         /// <summary>What the water is like at a place in Unity's space. Null: the combat arena, where the air stands in for a sea.</summary>
@@ -78,7 +82,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Maw> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string GapeSound = Windups.MawWarning, InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
+        const string GapeSound = Windups.MawWarning, AimSound = Windups.MawAim, InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
         /// <summary>The draw-in sound's length: played faster or slower to last as long as the draw-in does.</summary>
         const double InhaleDesigned = 2.6;
         /// <summary>In the arena it is told the floor is this much lower than it is, so its mouth comes down to someone standing on it.</summary>
@@ -301,16 +305,14 @@ namespace OrbitalAnte.Creatures
             {
                 Vector3 at = MouthPoint();
                 // Each change the player must notice is heard, in its own sounds (never another creature's or an enemy's).
-                if (orders.Mode == MawMode.Gape) Audio.AudioDirector.Play(GapeSound, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(GapeSound), Windups.MawLock(_rules)));
                 if (orders.Mode == MawMode.Inhale) Audio.AudioDirector.Play(InhaleSound, at, 1f, Windups.PitchFor(InhaleDesigned, _rules.inhaleSeconds));
                 if (orders.Mode == MawMode.Reel) Audio.AudioDirector.Play(ChokeSound, at);
                 _lastMode = orders.Mode;
             }
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Maw(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the draw-in is over: its own wind-up as its mouth opens,
+            // and its mark the very frame it takes aim. While it draws in, the arc dims once the pull no longer has them.
+            WindupTell.Tell(this, _windup.Step(Windups.Maw(orders)), GapeSound, AimSound, MouthPoint());
+            _threatens = orders.Mode != MawMode.Inhale || orders.Pull.Magnitude > 1e-9;
             Vector3 moved = Move(orders, dt);
             // Cruising far from anyone it is posed five times a second, not every frame.
             Transform near = CombatWorld.PlayerEye;

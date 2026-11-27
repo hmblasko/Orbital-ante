@@ -50,14 +50,18 @@ namespace OrbitalAnte.Creatures
     /// </summary>
     public sealed class Screamer : MonoBehaviour, IWindup
     {
-        public const string WarnSound = Windups.ScreamerWarning, ScreamSound = "creature.screamer.scream";
+        public const string WarnSound = Windups.ScreamerWarning, AimSound = Windups.ScreamerAim, ScreamSound = "creature.screamer.scream";
 
         public ScreamerBody Body { get; private set; }
         public ScreamerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its body, in the air or on the ground.</summary>
         public Vector3 WindupPoint => Chest();
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>While it screams: its last beat reached the player. Out of its cone or behind cover, it no longer threatens.</summary>
+        public bool Threatens => _threatens;
+        readonly WindupTrack _windup = new WindupTrack();
+        bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Screamer> Died;
 
@@ -266,18 +270,17 @@ namespace OrbitalAnte.Creatures
             ScreamerOrders orders = Brain.Think(Body, senses, dt);
             if (orders.Mode != _lastMode)
             {
-                // The warning is heard as well as seen.
-                if (orders.Mode == ScreamerMode.WindUp)
-                    Audio.AudioDirector.Play(WarnSound, Chest(), 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(WarnSound), Windups.ScreamerLock(_rules)));
-                if (orders.Mode == ScreamerMode.Scream) Loud(true);
+                if (orders.Mode == ScreamerMode.Scream)
+                {
+                    Loud(true);
+                    _threatens = true;
+                }
                 else if (_lastMode == ScreamerMode.Scream) Loud(false);
                 _lastMode = orders.Mode;
             }
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Screamer(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the scream is over: its own wind-up as it lifts its
+            // abdomen, and its mark (both jerking to full height) the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Screamer(orders)), WarnSound, AimSound, Chest());
             if (orders.Crashed)
             {
                 Audio.AudioDirector.Play("impact.dirt", transform.position, 1f, 0.7f);
@@ -332,11 +335,14 @@ namespace OrbitalAnte.Creatures
             // Measured from its mouth to the player's chest, so the cone that hurts is the round one the rings draw.
             Vector3 mouth = RingsFrom(), chest = eye.position - transform.up * 0.4f;
             double rate = ScreamerBrain.DamageRate(_rules, Body, D(transform.InverseTransformDirection(chest - mouth)));
+            // Whether this beat reaches them is what the visor shows: out of the cone or behind cover, the arc dims.
+            _threatens = false;
             if (rate <= 0.0) return;
             // (From inside its body, so a wall its mouth has been pushed into still stops the scream.)
             Vector3 from = Chest(), head = eye.position;
             // Anything solid between them stops it: cover is the answer.
             if (Physics.Linecast(from, head, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
+            _threatens = true;
             PlayerHealth player = CombatWorld.Player;
             if (player != null) player.TakeDamage((float)(rate * _rules.pulseSeconds), (head - from).normalized);
         }

@@ -52,8 +52,11 @@ namespace OrbitalAnte.Creatures
         public HunterBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
         public Vector3 WindupPoint => HeadPoint();
-        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
-        WindupStage _windup;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>The whip of its head is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Hunter> Died;
 
@@ -70,7 +73,6 @@ namespace OrbitalAnte.Creatures
         Vector3 _home;
         bool _blocked, _sees;
         float _nextLook;
-        HunterMode _lastMode = HunterMode.Run;
         Material _material;
 
         /// <summary>Makes a Cave hunter with its head at a place. Null if its model is not in the game.</summary>
@@ -220,18 +222,9 @@ namespace OrbitalAnte.Creatures
             }
 
             HunterOrders orders = Brain.Think(Body, senses, dt);
-            if (orders.Mode != _lastMode)
-            {
-                // The warning is heard as well as seen: its own sound, played so its fangs click where it takes aim.
-                if (orders.Mode == HunterMode.Rear)
-                    Audio.AudioDirector.Play(Windups.HunterWarning, HeadPoint(), 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(Windups.HunterWarning), Windups.HunterLock(_rules)));
-                _lastMode = orders.Mode;
-            }
-            // The visor shows the warning too (UI/WindupCues), until the strike is over.
-            WindupStage stage = Windups.Hunter(orders);
-            bool began = stage != WindupStage.None && _windup == WindupStage.None;
-            _windup = stage;
-            if (began) CombatWorld.RaiseCreatureWindup(this);
+            // Its warning is heard and seen (UI/WindupCues) until the strike is over: its own wind-up as it rears, and its
+            // mark (the fangs flying wide) the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Hunter(orders)), Windups.HunterWarning, Windups.HunterAim, HeadPoint());
             Vector3 moved = Move(orders, dt);
             Pose(dt, orders, moved / dt);
             // While the player can see it, its hitboxes must be where it is drawn when their shot is traced: thin legs

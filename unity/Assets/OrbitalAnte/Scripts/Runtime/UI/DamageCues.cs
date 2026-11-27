@@ -30,6 +30,13 @@ namespace OrbitalAnte.UI
         public const float FullGlowDamage = 25f;
 
         /// <summary>
+        /// Below this share of a direction lying along the ground (seen from the eye), the marker points up or down
+        /// the screen; above <see cref="CompassShare"/> it points round the compass; between, it turns smoothly from one
+        /// to the other, so an arc that follows something passing overhead never jumps (Ralph loop pass 2).
+        /// </summary>
+        public const float PoleShare = 0.15f, CompassShare = 0.35f;
+
+        /// <summary>
         /// The screen angle of the marker, degrees anticlockwise from the right (0 right, 90 top = in front, 180
         /// left, 270 bottom = behind). Arguments are the direction toward the shooter, measured along the view's
         /// right, up and forward axes. A shot from straight above or below, where in front or behind means
@@ -40,9 +47,25 @@ namespace OrbitalAnte.UI
             float flat = (float)Math.Sqrt(right * right + forward * forward);
             float length = (float)Math.Sqrt(flat * flat + up * up);
             if (!(length > 1e-6f)) return 270f;
-            float a;
-            if (flat < 0.25f * length) a = (float)(Math.Atan2(up, right) * 180.0 / Math.PI);
-            else a = (float)(Math.Atan2(forward, right) * 180.0 / Math.PI);
+            float share = flat / length;
+            float compass = Degrees(Math.Atan2(forward, right));
+            if (share >= CompassShare) return compass;
+            float pole = Degrees(Math.Atan2(up, right));
+            if (share <= PoleShare) return pole;
+            float k = (share - PoleShare) / (CompassShare - PoleShare);
+            k = k * k * (3f - 2f * k);
+            // The shorter way round from one to the other.
+            float d = (compass - pole) % 360f;
+            if (d > 180f) d -= 360f;
+            else if (d <= -180f) d += 360f;
+            return Wrap(pole + d * k);
+        }
+
+        static float Degrees(double radians) => Wrap((float)(radians * 180.0 / Math.PI));
+
+        static float Wrap(float a)
+        {
+            a %= 360f;
             if (a < 0f) a += 360f;
             return a >= 360f ? a - 360f : a;
         }

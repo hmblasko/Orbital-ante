@@ -1,12 +1,10 @@
-using System;
-
 namespace OrbitalAnte.Creatures
 {
     /// <summary>
     /// How far a creature's warning has got (Ralph loop pass 2, 27 Nov 2026). Every creature that strikes warns the
     /// same way, whatever it looks like: it winds up while it still follows the player, takes aim at its brain's lock
-    /// (from then on a step aside is a miss), then strikes. The visor shows the stage as an amber arc (UI/WindupCues)
-    /// and the warning's sound has one hard mark at the lock.
+    /// (from then on a step aside is a miss), then strikes. The visor shows the stage as an amber arc (UI/WindupCues),
+    /// and the moment it takes aim has a sound of its own: one hard mark.
     /// </summary>
     public enum WindupStage
     {
@@ -20,31 +18,109 @@ namespace OrbitalAnte.Creatures
         Striking,
     }
 
+    /// <summary>A creature's warning as read from its brain this frame: the stage and, while it winds up, how near the lock it is.</summary>
+    public readonly struct WindupRead
+    {
+        public readonly WindupStage Stage;
+        /// <summary>0 as the warning begins, 1 at the lock (and from then on). The visor's countdown.</summary>
+        public readonly float Progress;
+
+        public WindupRead(WindupStage stage, double progress)
+        {
+            Stage = stage;
+            Progress = stage == WindupStage.Winding ? (float)(progress > 0.0 ? (progress < 1.0 ? progress : 1.0) : 0.0) : stage == WindupStage.None ? 0f : 1f;
+        }
+
+        public static readonly WindupRead None = new WindupRead(WindupStage.None, 0.0);
+    }
+
+    /// <summary>What a change of stage asks for, worked out by <see cref="Windups.Change"/>.</summary>
+    public readonly struct WindupChange
+    {
+        /// <summary>A warning has begun: tell the visor (<c>CombatWorld.RaiseCreatureWindup</c>), once.</summary>
+        public readonly bool Began;
+        /// <summary>Play the creature's wind-up sound.</summary>
+        public readonly bool Warn;
+        /// <summary>Play the creature's aim sound: it has taken aim this very frame.</summary>
+        public readonly bool Aim;
+
+        public WindupChange(bool began, bool warn, bool aim)
+        {
+            Began = began;
+            Warn = warn;
+            Aim = aim;
+        }
+    }
+
     /// <summary>
-    /// Each creature's warning read from its brain's own orders, the seconds into the warning at which it takes aim at
-    /// the dials it is given, and the speed to play its warning at so the sound's mark lands on that moment. Plain C#,
-    /// so the rule tests hold every stage to the brain that makes it.
+    /// One creature's warning from frame to frame: the stage and countdown it showed last, and what each new reading asks
+    /// for (<see cref="Windups.Change"/>). A class, so a creature holds it in a readonly field and nothing is copied.
+    /// </summary>
+    public sealed class WindupTrack
+    {
+        public WindupStage Stage { get; private set; }
+        public float Progress { get; private set; }
+
+        /// <summary>Takes this frame's reading and says what it asks for.</summary>
+        public WindupChange Step(in WindupRead now)
+        {
+            WindupChange change = Windups.Change(Stage, now.Stage);
+            Stage = now.Stage;
+            Progress = now.Progress;
+            return change;
+        }
+    }
+
+    /// <summary>
+    /// Each creature's warning read from its brain's own orders, and what each change of stage asks for. Plain C#, so
+    /// the rule tests hold every stage to the brain that makes it.
     ///
     /// The stages follow the brains' own tests for aiming: a walker's claw at <see cref="WalkerBrain.LockShare"/> of its
     /// strike, the Roller, Cave hunter, Screamer and Ambusher at their <c>LockAt</c> share of the warning, the Drifting
     /// maw and Pack biter by the <c>Locked</c> they report, and the Blind stalker at <see cref="StalkerBrain.LockAt"/>.
+    ///
+    /// The sounds follow the stages, not a clock of their own: the wind-up plays as the stage turns to Winding, and the
+    /// aim (a hard mark at the very front of its file) as it turns to Aimed. So the mark is on the lock whatever a dial,
+    /// Focus or a hitstop does, a warning called off before it takes aim never marks, and a creature aimed from the start
+    /// (a Sprinter with no arms) gives the mark at once with no wind-up before it.
     /// </summary>
     public static class Windups
     {
-        // The warning sounds, one per creature. Each one's mark is the manifest's "lockAt" for it, which must be the
-        // creature's default lock time (rule test EveryCreaturesWarning_HasItsOwnSound_WithItsMarkWhereItTakesAim).
-        public const string StriderWarning = "creature.strider.raise";
-        public const string SprinterWarning = "creature.sprinter.raise";
-        public const string RollerWarning = "creature.roller.curl";
-        public const string HunterWarning = "creature.hunter.rear";
-        public const string MawWarning = "creature.maw.gape";
-        public const string BiterWarning = "creature.biter.mark";
-        public const string ScreamerWarning = "creature.screamer.windup";
-        public const string AmbusherWarning = "creature.ambusher.coil";
-        public const string StalkerWarning = "creature.stalker.gape";
+        // The sounds, two per creature (tools/audio/sfx/creature.py): its wind-up and its aim.
+        public const string StriderWarning = "creature.strider.raise", StriderAim = "creature.strider.aim";
+        public const string SprinterWarning = "creature.sprinter.raise", SprinterAim = "creature.sprinter.aim";
+        public const string RollerWarning = "creature.roller.curl", RollerAim = "creature.roller.aim";
+        public const string HunterWarning = "creature.hunter.rear", HunterAim = "creature.hunter.aim";
+        public const string MawWarning = "creature.maw.gape", MawAim = "creature.maw.aim";
+        public const string BiterWarning = "creature.biter.mark", BiterAim = "creature.biter.aim";
+        public const string ScreamerWarning = "creature.screamer.windup", ScreamerAim = "creature.screamer.aim";
+        public const string AmbusherWarning = "creature.ambusher.coil", AmbusherAim = "creature.ambusher.aim";
+        public const string StalkerWarning = "creature.stalker.gape", StalkerAim = "creature.stalker.aim";
 
-        /// <summary>The warning sound of a walker kind, by its model's name ("Strider", "Sprinter").</summary>
-        public static string WalkerWarning(string model) => "creature." + (model ?? string.Empty).ToLowerInvariant() + ".raise";
+        /// <summary>The wind-up sound of a walker kind, by its model's name ("Strider", "Sprinter").</summary>
+        public static string WalkerWarning(string model) => "creature." + Kind(model) + ".raise";
+
+        /// <summary>The aim sound of a walker kind, by its model's name.</summary>
+        public static string WalkerAim(string model) => "creature." + Kind(model) + ".aim";
+
+        static string Kind(string model) => (model ?? string.Empty).ToLowerInvariant();
+
+        // ------------------------------------------------------------------ what a change asks for
+
+        /// <summary>
+        /// What going from one stage to the next asks for. The wind-up sounds as a warning starts winding; the aim as it
+        /// takes aim, from winding or straight from nothing (a creature aimed from the start). A frame long enough to pass
+        /// the whole aimed stretch still gives the mark, once, as the strike begins. Nothing sounds as a warning is called
+        /// off, and the strike has its own sound. The visor is told each time a warning begins.
+        /// </summary>
+        public static WindupChange Change(WindupStage was, WindupStage now)
+        {
+            if (now == was) return default;
+            bool warn = now == WindupStage.Winding;
+            bool aim = now == WindupStage.Aimed || (now == WindupStage.Striking && (was == WindupStage.Winding || was == WindupStage.None));
+            bool began = warn || (was == WindupStage.None && now != WindupStage.None);
+            return new WindupChange(began, warn, aim);
+        }
 
         // ------------------------------------------------------------------ stages
 
@@ -54,96 +130,89 @@ namespace OrbitalAnte.Creatures
         /// <see cref="WalkerBrain.LockShare"/> for its body now (0 for a lunging kind with both arms gone, which bites
         /// where the player stood when it began, so it is aimed from the start).
         /// </summary>
-        public static WindupStage Walker(in WalkerOrders o, double lockShare)
+        public static WindupRead Walker(in WalkerOrders o, double lockShare)
         {
-            if (o.StrikeSide < 0 || o.StrikeT >= WalkerAnimator.StrikeLands) return WindupStage.None;
-            return o.StrikeT < lockShare ? WindupStage.Winding : WindupStage.Aimed;
+            if (o.StrikeSide < 0 || o.StrikeT >= WalkerAnimator.StrikeLands) return WindupRead.None;
+            if (o.StrikeT < lockShare) return new WindupRead(WindupStage.Winding, o.StrikeT / lockShare);
+            return new WindupRead(WindupStage.Aimed, 1.0);
         }
 
         /// <summary>The Roller: the curl is the warning (it snaps shut at the lock); the roll is the strike.</summary>
-        public static WindupStage Roller(in RollerOrders o) => o.Mode switch
+        public static WindupRead Roller(in RollerOrders o) => o.Mode switch
         {
-            RollerMode.Wind => o.T < RollerBrain.LockAt ? WindupStage.Winding : WindupStage.Aimed,
-            RollerMode.Roll => WindupStage.Striking,
-            _ => WindupStage.None,
+            RollerMode.Wind => Warning(o.T, RollerBrain.LockAt),
+            RollerMode.Roll => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>The Cave hunter: rearing is the warning; the whip of its head is the strike.</summary>
-        public static WindupStage Hunter(in HunterOrders o) => o.Mode switch
+        public static WindupRead Hunter(in HunterOrders o) => o.Mode switch
         {
-            HunterMode.Rear => o.T < HunterBrain.LockAt ? WindupStage.Winding : WindupStage.Aimed,
-            HunterMode.Strike => WindupStage.Striking,
-            _ => WindupStage.None,
+            HunterMode.Rear => Warning(o.T, HunterBrain.LockAt),
+            HunterMode.Strike => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>The Drifting maw: the gape is the warning; drawing in is the strike (sideways is the way out).</summary>
-        public static WindupStage Maw(in MawOrders o) => o.Mode switch
+        public static WindupRead Maw(in MawOrders o) => o.Mode switch
         {
-            MawMode.Gape => o.Locked ? WindupStage.Aimed : WindupStage.Winding,
-            MawMode.Inhale => WindupStage.Striking,
-            _ => WindupStage.None,
+            MawMode.Gape => o.Locked ? new WindupRead(WindupStage.Aimed, 1.0) : new WindupRead(WindupStage.Winding, o.T / MawBrain.LockAt),
+            MawMode.Inhale => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>A Pack biter: the mark is the warning; the dart is the strike.</summary>
-        public static WindupStage Biter(in BiterOrders o) => o.Mode switch
+        public static WindupRead Biter(in BiterOrders o) => o.Mode switch
         {
-            BiterMode.Mark => o.Locked ? WindupStage.Aimed : WindupStage.Winding,
-            BiterMode.Dart => WindupStage.Striking,
-            _ => WindupStage.None,
+            BiterMode.Mark => o.Locked ? new WindupRead(WindupStage.Aimed, 1.0) : new WindupRead(WindupStage.Winding, o.T / BiterBrain.LockAt),
+            BiterMode.Dart => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>The Screamer: the wind-up is the warning; the scream is the strike.</summary>
-        public static WindupStage Screamer(in ScreamerOrders o) => o.Mode switch
+        public static WindupRead Screamer(in ScreamerOrders o) => o.Mode switch
         {
-            ScreamerMode.WindUp => o.T < ScreamerBrain.LockAt ? WindupStage.Winding : WindupStage.Aimed,
-            ScreamerMode.Scream => WindupStage.Striking,
-            _ => WindupStage.None,
+            ScreamerMode.WindUp => Warning(o.T, ScreamerBrain.LockAt),
+            ScreamerMode.Scream => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>The Ambusher: rearing (the coil) is the warning; the strike is the strike. Once it holds someone they know.</summary>
-        public static WindupStage Ambusher(in AmbusherOrders o) => o.Mode switch
+        public static WindupRead Ambusher(in AmbusherOrders o) => o.Mode switch
         {
-            AmbusherMode.Coil => o.T < AmbusherBrain.LockAt ? WindupStage.Winding : WindupStage.Aimed,
-            AmbusherMode.Strike => WindupStage.Striking,
-            _ => WindupStage.None,
+            AmbusherMode.Coil => Warning(o.T, AmbusherBrain.LockAt),
+            AmbusherMode.Strike => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
         /// <summary>The Blind stalker: the gape is the warning; the lunge is the strike.</summary>
-        public static WindupStage Stalker(in StalkerOrders o) => o.Mode switch
+        public static WindupRead Stalker(in StalkerOrders o) => o.Mode switch
         {
-            StalkerMode.Gape => o.T < StalkerBrain.LockAt ? WindupStage.Winding : WindupStage.Aimed,
-            StalkerMode.Lunge => WindupStage.Striking,
-            _ => WindupStage.None,
+            StalkerMode.Gape => Warning(o.T, StalkerBrain.LockAt),
+            StalkerMode.Lunge => new WindupRead(WindupStage.Striking, 1.0),
+            _ => WindupRead.None,
         };
 
-        // ------------------------------------------------------------------ when each takes aim, in seconds
+        /// <summary>A warning <paramref name="t"/> of the way through (0 to 1) that takes aim at <paramref name="lockAt"/> of it.</summary>
+        static WindupRead Warning(double t, double lockAt) =>
+            t < lockAt ? new WindupRead(WindupStage.Winding, t / lockAt) : new WindupRead(WindupStage.Aimed, 1.0);
 
-        // Each uses the same floor on its dial as the brain does, so a tiny dial gives the brain's real timing.
-        public static double WalkerLock(WalkerRules r, double lockShare) => lockShare * Math.Max(0.2, (r ?? new WalkerRules()).strikeSeconds);
-        public static double RollerLock(RollerRules r) => RollerBrain.LockAt * Math.Max(0.2, (r ?? new RollerRules()).windSeconds);
-        public static double HunterLock(HunterRules r) => HunterBrain.LockAt * Math.Max(0.2, (r ?? new HunterRules()).rearSeconds);
-        public static double MawLock(MawRules r) => MawBrain.LockAt * (r ?? new MawRules()).gapeSeconds;
-        public static double BiterLock(BiterRules r) => BiterBrain.LockAt * (r ?? new BiterRules()).markSeconds;
-        public static double ScreamerLock(ScreamerRules r) => ScreamerBrain.LockAt * Math.Max(0.2, (r ?? new ScreamerRules()).windUpSeconds);
-        public static double AmbusherLock(AmbusherRules r) => AmbusherBrain.LockAt * Math.Max(0.2, (r ?? new AmbusherRules()).coilSeconds);
-        public static double StalkerLock(StalkerRules r) => StalkerBrain.LockAt * (r ?? new StalkerRules()).gapeSeconds;
+        // ------------------------------------------------------------------ a sound's speed
 
-        // ------------------------------------------------------------------ the sound's speed
-
-        /// <summary>The slowest a warning is played to keep its mark on the lock: about four semitones down.</summary>
+        /// <summary>The slowest a sound is played to last as long as what it goes with: about four semitones down.</summary>
         public const float LeastPitch = 0.8f;
         /// <summary>The quickest: about four semitones up. Past these the sound would stop sounding like the animal.</summary>
         public const float MostPitch = 1.25f;
 
         /// <summary>
-        /// The speed to play a warning at so its mark, <paramref name="markSeconds"/> into the clip, lands
-        /// <paramref name="lockSeconds"/> after it starts: 1 at the default dials. A sound with no mark, or a warning
-        /// aimed from its very start (a Sprinter with no arms), plays as it is.
+        /// The speed to play a sound made <paramref name="madeSeconds"/> long at, so it lasts <paramref name="lastSeconds"/>
+        /// (the Drifting maw's draw-in, whose rising tells how long is left): 1 at the default dials, kept between
+        /// <see cref="LeastPitch"/> and <see cref="MostPitch"/>.
         /// </summary>
-        public static float PitchFor(double markSeconds, double lockSeconds)
+        public static float PitchFor(double madeSeconds, double lastSeconds)
         {
-            if (!(markSeconds > 0.0) || !(lockSeconds > 0.0)) return 1f;
-            double p = markSeconds / lockSeconds;
+            if (!(madeSeconds > 0.0) || !(lastSeconds > 0.0)) return 1f;
+            double p = madeSeconds / lastSeconds;
             return (float)(p < LeastPitch ? LeastPitch : p > MostPitch ? MostPitch : p);
         }
     }
