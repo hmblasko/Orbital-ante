@@ -47,8 +47,7 @@ namespace OrbitalAnte.UI
 
             RectTransform card = UiKit.Card(_canvas.transform, "TitleCard", 620f);
             _mainCard = (RectTransform)card.parent;
-            var title = UiKit.LayoutLabel(card, "ORBITAL ANTE", 64, UiKit.PanelEdge, 84f);
-            title.transform.localRotation = Quaternion.Euler(0f, 0f, 2f);
+            var title = UiKit.Heading(card, "ORBITAL ANTE", 64, 84f);
             _bestLine = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 24f, TextAnchor.MiddleCenter, FontStyle.Normal);
             // Nine rows must fit the Deck's 800 px: buttons 48 px under the 60 px New run.
             const float Row = 48f;
@@ -66,20 +65,20 @@ namespace OrbitalAnte.UI
 
             RectTransform how = UiKit.Card(_canvas.transform, "HowToPlayCard", 760f);
             _howCard = (RectTransform)how.parent;
-            UiKit.LayoutLabel(how, "HOW TO PLAY", 40, UiKit.PanelEdge, 56f);
+            UiKit.Heading(how, "HOW TO PLAY", 40, 56f);
             _howBody = UiKit.LayoutLabel(how, string.Empty, 17, UiKit.Cream, 360f, TextAnchor.UpperLeft, FontStyle.Normal);
             _howBody.horizontalOverflow = HorizontalWrapMode.Wrap;
             _howBack = UiKit.Button(how, "Back", () => Show(Page.Main)).gameObject;
 
             RectTransform rec = UiKit.Card(_canvas.transform, "RecordsCard", 560f);
             _recordsCard = (RectTransform)rec.parent;
-            UiKit.LayoutLabel(rec, "RECORDS", 40, UiKit.PanelEdge, 56f);
+            UiKit.Heading(rec, "RECORDS", 40, 56f);
             _recordsBody = UiKit.LayoutLabel(rec, string.Empty, 20, UiKit.Cream, 190f, TextAnchor.UpperLeft, FontStyle.Normal);
             _recordsBack = UiKit.Button(rec, "Back", () => Show(Page.Main)).gameObject;
 
             RectTransform ex = UiKit.Card(_canvas.transform, "ExtrasCard", 560f);
             _extrasCard = (RectTransform)ex.parent;
-            UiKit.LayoutLabel(ex, "EXTRAS", 40, UiKit.PanelEdge, 56f);
+            UiKit.Heading(ex, "EXTRAS", 40, 56f);
             _extrasFirst = UiKit.Button(ex, "Audio showcase (5 min)", () => AudioShowcaseRequested?.Invoke()).gameObject;
             UiKit.Button(ex, "Show the new-player tips again", () =>
             {

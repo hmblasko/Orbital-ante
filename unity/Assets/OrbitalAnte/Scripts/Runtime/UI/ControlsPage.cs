@@ -78,7 +78,7 @@ namespace OrbitalAnte.UI
             Root = page.gameObject;
 
             var card = UiKit.Card(page, "ControlsCard", 860f);
-            UiKit.LayoutLabel(card, "CONTROLS", 34, UiKit.PanelEdge, 44f);
+            UiKit.Heading(card, "CONTROLS", 34, 44f);
 
             var tabs = UiKit.NewRect("Tabs", card);
             UiKit.HStack(tabs, 12f).childForceExpandWidth = true;
@@ -127,7 +127,7 @@ namespace OrbitalAnte.UI
             UiKit.Stretch(dim);
             UiKit.AddImage(dim, new Color(0f, 0f, 0f, 0.75f), null, true);
             var card = UiKit.Card(dim, "PromptCard", 640f);
-            UiKit.LayoutLabel(card, "REBINDING", 30, UiKit.PanelEdge, 40f);
+            UiKit.Heading(card, "REBINDING", 30, 40f);
             _promptText = UiKit.LayoutLabel(card, string.Empty, 24, UiKit.Cream, 130f);
             _prompt = dim.gameObject;
             _prompt.SetActive(false);
@@ -139,7 +139,7 @@ namespace OrbitalAnte.UI
             UiKit.Stretch(dim);
             UiKit.AddImage(dim, new Color(0f, 0f, 0f, 0.75f), null, true);
             var card = UiKit.Card(dim, "ConflictCard", 640f);
-            UiKit.LayoutLabel(card, "ALREADY IN USE", 30, UiKit.PanelEdge, 40f);
+            UiKit.Heading(card, "ALREADY IN USE", 30, 40f);
             _conflictText = UiKit.LayoutLabel(card, string.Empty, 24, UiKit.Cream, 110f);
             _conflictSwap = UiKit.Button(card, "Swap them", () =>
             {
