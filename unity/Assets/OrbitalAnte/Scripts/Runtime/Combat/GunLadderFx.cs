@@ -203,7 +203,7 @@ namespace OrbitalAnte.Combat
 
             // The banner: high in the middle, clear of the crosshair, gone again in a couple of seconds.
             _banner = HullKit.Stencil(_canvas.transform, string.Empty, 36, _config.colour, TextAnchor.MiddleCenter);
-            UiKit.Pin((RectTransform)_banner.transform, new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(900f, 50f));
+            UiKit.Pin((RectTransform)_banner.transform, new Vector2(0.5f, 1f), new Vector2(0f, -178f), new Vector2(900f, 50f));   // under the ante's note line (-146)
             UiKit.Halo(_banner, true);
 
             // A warning line for a rare gun, above the ladder line: shown while looking at one or holding one.

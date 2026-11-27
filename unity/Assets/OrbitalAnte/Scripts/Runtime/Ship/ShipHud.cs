@@ -35,7 +35,7 @@ namespace OrbitalAnte.Ship
         /// Out on foot or driving, the ante readout and its "+points" lines fill the top right corner down to about
         /// -226 (since 25 Nov 2026 the bonus mission line pushes them to about -260), so the ship's list of hurt parts moves under them (24 Nov 2026 playtest pass: the two overlapped).
         /// </summary>
-        const float ListTopAboard = -110f, ListTopOutside = -272f;
+        const float ListTopAboard = -110f, ListTopOutside = -134f;
         /// <summary>Away from the ship the list is only clutter over a fight; it comes back within this many metres.</summary>
         const float ListNearShip = 45f;
         readonly StringBuilder _text = new StringBuilder(256);

@@ -45,6 +45,9 @@ namespace OrbitalAnte.Tasks
 
         // ------------------------------------------------------------------ what you see
         Canvas _canvas;
+        /// <summary>Set by <see cref="RunGuideFx"/> each frame: the map has the screen, and its title has the ante plate's corner.</summary>
+        public static bool MapOpen;
+        bool _shownPaceHeld;
         Text _anteLine, _scoreLine, _streakLine, _noteLine, _perkLine;
         StarChartView _chartView;
         RunRecap _recap;
@@ -441,8 +444,8 @@ namespace OrbitalAnte.Tasks
             _paceTick = HullKit.Box(plate, "Pace", BarLeft, 78f, 3f, 18f, HullKit.Paint);
             _needLine = HullKit.At(HullKit.Mono(plate, string.Empty, 14, HullKit.Sub), BarLeft, 105f, 240f, 18f);
 
-            _streakName = HullKit.AtRight(HullKit.Mono(plate, string.Empty, 14, HullKit.Orange, TextAnchor.MiddleRight), BarLeft + BarWidth, 22f, 150f, 18f);
-            _streakLine = HullKit.AtRight(HullKit.Stencil(plate, string.Empty, 34, HullKit.Orange, TextAnchor.MiddleRight), BarLeft + BarWidth, 58f, 90f, 40f);
+            _streakName = HullKit.AtRight(HullKit.Mono(plate, string.Empty, 14, gold, TextAnchor.MiddleRight), BarLeft + BarWidth, 22f, 150f, 18f);
+            _streakLine = HullKit.AtRight(HullKit.Stencil(plate, string.Empty, 34, gold, TextAnchor.MiddleRight), BarLeft + BarWidth, 58f, 90f, 40f);
 
             // Under the plate, one line: what pace beats the clock (only when behind), or that a perk is waiting.
             // The two never show together (behind or over means the target is not met).
@@ -467,7 +470,13 @@ namespace OrbitalAnte.Tasks
 
             // A note in the middle, under the flight readout: target met, a drop coming, a task found.
             _noteLine = HullKit.Stencil(_canvas.transform, string.Empty, 20, gold, TextAnchor.MiddleCenter);
-            UiKit.Pin((RectTransform)_noteLine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f), new Vector2(900f, 26f));
+            UiKit.Pin((RectTransform)_noteLine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -146f), new Vector2(640f, 26f));
+            // Below the ante plate (which ends at -138), so no note lies over it; a long one shrinks to its box.
+            _noteLine.verticalOverflow = VerticalWrapMode.Truncate;
+            _noteLine.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _noteLine.resizeTextForBestFit = true;
+            _noteLine.resizeTextMinSize = 13;
+            _noteLine.resizeTextMaxSize = 20;
             UiKit.Halo(_noteLine, true);
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
 
@@ -487,6 +496,7 @@ namespace OrbitalAnte.Tasks
             _pops[0].fontSize = look.fontSize;
             _popColour[0] = look.styleColour ? Config.styleColour : Config.scoreColour;
             _pops[0].color = _popColour[0];
+            _pops[0].canvasRenderer.SetAlpha(1f);
             _popLeft[0] = Mathf.Max(0.5f, Config.popSeconds * look.seconds / 2.4f);
             _pops[0].gameObject.SetActive(true);
             if (!string.IsNullOrEmpty(look.sound)) Audio.AudioDirector.PlayLocal(look.sound, look.volume);
@@ -504,6 +514,7 @@ namespace OrbitalAnte.Tasks
                 _pops[k].fontSize = _pops[k - 1].fontSize;
                 _popColour[k] = _popColour[k - 1];
                 _pops[k].color = _popColour[k];
+                _pops[k].canvasRenderer.SetAlpha(Mathf.Clamp01(_popLeft[k - 1] / 0.5f));
                 _popLeft[k] = _popLeft[k - 1];
                 _pops[k].gameObject.SetActive(_popLeft[k] > 0f && k < ReadoutFocus.Pops(InFight) && !OrbitalAnte.Ship.Astronaut.PlayerInShip);
             }
@@ -512,7 +523,7 @@ namespace OrbitalAnte.Tasks
         void UpdateHud(float dt, bool paused)
         {
             bool show = Run != null && GameSession.Mode == GameMode.Playing && !paused
-                        && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen;
+                        && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen && !MapOpen;
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
             if (!show) return;
 
@@ -543,7 +554,8 @@ namespace OrbitalAnte.Tasks
             HullKit.Tint(_clockMin, digits);
             HullKit.Tint(_clockTens, digits);
             HullKit.Tint(_clockOnes, digits);
-            HullKit.Tint(_clockColon, warn ? HullKit.Paint : HullKit.Orange);
+            // Orange is kept for "act on this": the colon goes with the digits, and the roll count is the score's gold.
+            HullKit.Tint(_clockColon, digits);
             HullKit.Tint(_anteLine, warn ? HullKit.Orange : HullKit.Dim);
 
             // The slot-machine count-up: the shown number runs to the real one, never taking more than 1.2 s.
@@ -593,10 +605,12 @@ namespace OrbitalAnte.Tasks
                 var tick = (RectTransform)_paceTick.transform;
                 tick.anchoredPosition = new Vector2(BarLeft + tickX - 1f, tick.anchoredPosition.y);
             }
-            if (!TargetPace.SameWords(pace, _shownPace))
+            if (!TargetPace.SameWords(pace, _shownPace) || held != _shownPaceHeld)
             {
                 _shownPace = pace;
-                _paceLine.text = TargetPace.Words(pace);
+                _shownPaceHeld = held;
+                // While ante 1's clock waits on the pad, say what starts it (RunStartHold), not just that it waits.
+                _paceLine.text = held ? "CLOCK STARTS AT LIFTOFF" : TargetPace.Words(pace);
                 _paceLine.color = pace.status == PaceStatus.Overtime ? HullKit.Orange : HullKit.Sub;
             }
 
@@ -632,9 +646,8 @@ namespace OrbitalAnte.Tasks
                 if (_popLeft[i] <= 0f) _pops[i].gameObject.SetActive(false);
                 else
                 {
-                    Color c = _popColour[i];
-                    c.a = Mathf.Clamp01(_popLeft[i] / 0.5f);
-                    _pops[i].color = c;
+                    // Faded on the renderer, which does not rebuild the outlined words each frame.
+                    _pops[i].canvasRenderer.SetAlpha(Mathf.Clamp01(_popLeft[i] / 0.5f));
                 }
             }
 

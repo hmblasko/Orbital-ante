@@ -60,6 +60,7 @@ namespace OrbitalAnte.Tasks
 
         void OnDestroy()
         {
+            AnteLoop.MapOpen = false;
             if (AnteLoop.HoldClock != null) AnteLoop.HoldClock = null;
             if (_live == this) _live = null;
             SaveSeen();
@@ -106,6 +107,7 @@ namespace OrbitalAnte.Tasks
         {
             if (!_active || Loop == null || Loop.Run == null)
             {
+                AnteLoop.MapOpen = false;
                 if (_canvas.gameObject.activeSelf) _canvas.gameObject.SetActive(false);
                 return;
             }
@@ -117,6 +119,7 @@ namespace OrbitalAnte.Tasks
             var ship = _world != null ? _world.Ship : null;
 
             bool mapOpen = _world != null && _world.Map != null && _world.Map.IsOpen;
+            AnteLoop.MapOpen = mapOpen;
             bool show = GameSession.Mode == GameMode.Playing && !paused && !Cockpit.CockpitDash.WatchingScreen && !mapOpen;
 
             // The first run's goal card, once the run-start envelope has gone and nothing else is on screen.
@@ -176,9 +179,7 @@ namespace OrbitalAnte.Tasks
             if (_tipLeft > 0f)
             {
                 _tipLeft -= dt;
-                Color c = _tip.color;
-                c.a = Mathf.Clamp01(_tipLeft / 0.6f);
-                _tip.color = c;
+                _tip.canvasRenderer.SetAlpha(Mathf.Clamp01(_tipLeft / 0.6f));
                 if (_tipLeft <= 0f)
                 {
                     _tip.gameObject.SetActive(false);
@@ -214,9 +215,7 @@ namespace OrbitalAnte.Tasks
             if (!ReadoutFocus.TipMayStart(tip, AnteLoop.InFight)) return;
             Remember(tip);
             _tip.text = RunGuide.Text(tip, Keys(), d.Target);
-            Color col = _tip.color;
-            col.a = 1f;
-            _tip.color = col;
+            _tip.canvasRenderer.SetAlpha(1f);
             _tip.gameObject.SetActive(true);
             _tipLeft = RunGuide.TipSeconds;
             Audio.AudioDirector.PlayLocal("ui.select", 0.5f);
@@ -270,6 +269,7 @@ namespace OrbitalAnte.Tasks
             _line = HullKit.At(HullKit.Mono(_plate, string.Empty, 17, HullKit.Paint), 18f, 45f, 344f, 24f);
             // A long line of counts is shrunk to fit the plate, never cut off.
             _line.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _line.verticalOverflow = VerticalWrapMode.Truncate;   // best fit only shrinks when the words may not spill
             _line.resizeTextForBestFit = true;
             _line.resizeTextMinSize = 11;
             _line.resizeTextMaxSize = 17;

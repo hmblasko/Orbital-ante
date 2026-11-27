@@ -286,7 +286,7 @@ namespace OrbitalAnte.UI
         static void Tint(Button tab, bool active)
         {
             var colors = tab.colors;
-            colors.normalColor = active ? new Color(0.62f, 0.38f, 0.16f) : UiKit.ButtonColor;
+            colors.normalColor = active ? new Color(0.60f, 0.29f, 0.06f) : UiKit.ButtonColor;
             tab.colors = colors;
         }
 

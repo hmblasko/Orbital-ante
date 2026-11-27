@@ -151,8 +151,9 @@ namespace OrbitalAnte.Tests
         public void NoticeStrip_FitsItsWords_WithinTheScreen()
         {
             Assert.AreEqual(300f, HullReadout.NoticeWidth(40f));
-            Assert.AreEqual(464f, HullReadout.NoticeWidth(400f));
-            Assert.AreEqual(940f, HullReadout.NoticeWidth(2000f));
+            Assert.AreEqual(364f, HullReadout.NoticeWidth(300f));
+            Assert.AreEqual(440f, HullReadout.NoticeWidth(400f));
+            Assert.AreEqual(440f, HullReadout.NoticeWidth(2000f));
         }
 
         [Test]

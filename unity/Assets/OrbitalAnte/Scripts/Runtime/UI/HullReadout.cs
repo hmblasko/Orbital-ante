@@ -109,11 +109,16 @@ namespace OrbitalAnte.UI
             return Blocks(kills / (float)killsNeeded, MaxPips);
         }
 
-        /// <summary>How wide the warning strip is for words this wide: room either side, never tiny, never off the screen.</summary>
+        /// <summary>
+        /// How wide the warning strip is for words this wide: room either side, never tiny, and never wider than
+        /// the gap between the two lower plates (456 px on the 1280 canvas), so it does not lie over their edges.
+        /// </summary>
+        public const float NoticeMost = 440f, NoticePadding = 64f;
+
         public static float NoticeWidth(float wordsWidth)
         {
-            float w = wordsWidth + 64f;
-            return w < 300f ? 300f : w > 940f ? 940f : w;
+            float w = wordsWidth + NoticePadding;
+            return w < 300f ? 300f : w > NoticeMost ? NoticeMost : w;
         }
     }
 }

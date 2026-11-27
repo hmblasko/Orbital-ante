@@ -141,7 +141,8 @@ namespace OrbitalAnte.Spacewalk
             // Speed, tether and stance: lines just above the plate.
             _panel = UiKit.NewRect("Suit", _canvas.transform);
             UiKit.Pin(_panel, new Vector2(0f, 0f), new Vector2(HullKit.Margin + 2f, 152f), new Vector2(520f, 72f));
-            _speed = UiKit.Halo(HullKit.Mono(_panel, string.Empty, 17, UiKit.Cream), true);
+            // Shadow only: this line is rewritten several times a second, and an outline draws it four more times.
+            _speed = UiKit.Halo(HullKit.Mono(_panel, string.Empty, 17, UiKit.Cream));
             UiKit.Pin((RectTransform)_speed.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(520f, 22f));
             _tether = UiKit.Halo(HullKit.Mono(_panel, string.Empty, 14, UiKit.Muted, TextAnchor.MiddleLeft, false), true);
             UiKit.Pin((RectTransform)_tether.transform, new Vector2(0f, 0f), new Vector2(0f, 24f), new Vector2(520f, 20f));
@@ -285,6 +286,9 @@ namespace OrbitalAnte.Spacewalk
                 if (any)
                 {
                     // As wide as its words need, and no wider.
+                    // Words too long for the gap between the lower plates drop a size rather than cover their edges.
+                    _notice.fontSize = 21;
+                    if (_notice.preferredWidth > HullReadout.NoticeMost - HullReadout.NoticePadding) _notice.fontSize = 18;
                     float width = HullReadout.NoticeWidth(_notice.preferredWidth);
                     if (!Mathf.Approximately(_noticePlate.sizeDelta.x, width)) _noticePlate.sizeDelta = new Vector2(width, _noticePlate.sizeDelta.y);
                     for (int i = 0; i < _noticeStripes.Length; i++)
