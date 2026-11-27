@@ -122,6 +122,66 @@
    "note": "Thin-air wind (Mars): a high, dry hiss with slow gusts and sand ticking against the visor."
   },
   {
+   "id": "ante.clock.tick",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/ante_clock_tick"
+   ],
+   "volumeDb": -17,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 60,
+   "cooldownMs": 600,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "The last ten seconds of an ante short of its target: a dry woodblock tick once a second. The game raises its volume a little each second, never its speed, so it builds without nagging."
+  },
+  {
+   "id": "ante.clock.warn",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/ante_clock_warn"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 35,
+   "cooldownMs": 5000,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "Half a minute left and the target not met: three quick, low woodblock knocks, a heads-up rather than an alarm. It is the same wooden family as the last-ten-seconds tick, so the ear files it under \"the clock\", and it is deliberately not two falling tones: that shape belongs to the suit (low air) and to overtime. Heard while the eyes are on the fight, where the red clock in the corner is not."
+  },
+  {
+   "id": "ante.overtime",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/ante_overtime"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 15,
+   "cooldownMs": 8000,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "The clock has run out short of the target and the hunt is on: the clock's own wood, struck hard once, over a low drum that falls away, with a short dry rattle after it. It belongs to the clock family (the 30 s knocks and the last-ten ticks lead into it), and it is nothing like the suit's two-note air warning, so \"time is up\" and \"air is low\" can never be mistaken for each other."
+  },
+  {
    "id": "enemy.flare.fire",
    "bus": "CombatImpacts",
    "clips": [
@@ -180,6 +240,46 @@
    "vacuum": "air",
    "pitchSteps": [],
    "note": "The Heavy's gun spinning up: a motor whine and a rattle of barrels, both rising over the 1.2 s spin, so the end of the climb is the moment it fires."
+  },
+  {
+   "id": "enemy.radio.call",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/enemy_radio_call"
+   ],
+   "volumeDb": -14,
+   "volVarDb": 0.0,
+   "pitchVar": 0.4,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 40,
+   "cooldownMs": 6000,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Enemy radio picked up by the suit: a squelch break, a few garbled syllables (never words), and the squelch closing. Plays when a restless squad is sent to look for you, so a long quiet ends with a fair warning instead of a squad simply arriving."
+  },
+  {
+   "id": "enemy.spotted",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/enemy_spotted"
+   ],
+   "volumeDb": -11,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 20,
+   "cooldownMs": 3500,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "The suit's threat sensor: you have just been seen. A low thrum under two quick rising pips, like a radar lock, about a third of a second. Played once when a quiet stretch ends (nobody had you in sight), panned toward whoever saw you, so the ear turns the head before the shot comes."
   },
   {
    "id": "fx.slowmo.in",
@@ -1043,6 +1143,26 @@
    "note": "Taking a melee weapon in hand: a grip creak and a soft knock."
   },
   {
+   "id": "player.armour.low",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/alerts/player_armour_low"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 30,
+   "cooldownMs": 350,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "suit",
+   "pitchSteps": [],
+   "note": "Your own pulse, heard inside the helmet while the suit is on its last plates: two soft low thumps, the second a little quieter. The game plays one each beat and stops the moment the suit recovers, so getting behind cover is answered by the sound going away. Low and felt more than heard; it must sit under gunfire and music without masking either."
+  },
+  {
    "id": "player.breath.loop",
    "bus": "PlayerEquipment",
    "clips": [
@@ -1414,6 +1534,26 @@
    "vacuum": "ui",
    "pitchSteps": [],
    "note": "The one repair sound, shared by ship and satellite repairs: a ratchet running up, a seal seating with a puff of air, and two notes (A up to D) that say 'fixed'."
+  },
+  {
+   "id": "reward.target",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_target"
+   ],
+   "volumeDb": -9,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 40,
+   "cooldownMs": 3000,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "The ante's target is met (critique loop round 1): the moment the whole ante was for, so it has a sound of its own, heard nowhere else. A D major chord thrown open from the bottom up (D, A, D, F sharp), then one bell on the high A left ringing: an arrival, where the kill chimes are flicks and the banked-ante sound is a phrase. It used to share the two-feat kill's sound, which made the goal read as one more kill."
   },
   {
    "id": "reward.tier1",

@@ -103,7 +103,9 @@ namespace OrbitalAnte.Ship
         Vector3 _lastBlow;
         PlayerBurstFx _burst;
         float _pendingYaw;
-        bool _jumpQueued;
+        // A press kept for a moment, and ground that counts for a moment after the feet leave it (Spacewalk/JumpGrace).
+        readonly JumpGrace _jumpGrace = new JumpGrace();
+        Vector3 _lastGroundVelocity;
         // On foot: standing, crouched or prone, and the quiet sneak (see Spacewalk/Stances.cs).
         public StanceState Stances { get; } = new StanceState();
         public bool Sneaking { get; private set; }
@@ -1101,7 +1103,9 @@ namespace OrbitalAnte.Ship
             if (GameInput.Jump.WasPressedThisFrame())
             {
                 // A jump from a crouch stands you up and goes; from prone you only come up to a crouch.
-                if (Stances.RiseToJump(_roomFor)) _jumpQueued = true;
+                // Kept only on foot (or a moment off the ground): in real flight Jump is the jets, and a tap just
+                // before touching down from a jet descent must not turn into a hop.
+                if (Stances.RiseToJump(_roomFor) && _airborneFor < 0.3f) _jumpGrace.Press(Time.time);
                 if (Stances.Current != before) FitBody();
             }
 
@@ -1371,18 +1375,24 @@ namespace OrbitalAnte.Ship
 
             Vector3 jets = Vector3.zero;
             float factor = SuitTanks.PushFactor;
+            // A jump goes on the first step with footing inside the grace (a press just before landing, or just after
+            // stepping off an edge). Upright on foot only; floating free, Jump is the jets as always.
+            bool upright = Posture == Posture.Upright;
+            bool jumpNow = _jumpGrace.Take(Time.time, _grounded && upright) && upright && live;
+            float jumpSpeed = Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
             if (_grounded)
             {
+                _lastGroundVelocity = groundVelocity;
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
                 float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f) * Mathf.Clamp(CarryPace, 0.2f, 1f);
                 Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace * Combat.RunEffects.Mods.Move);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);
-                if (_jumpQueued)
+                if (jumpNow)
                 {
                     // The same push off whatever the gravity, so low gravity means high, slow jumps.
-                    vertical = _up * Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
+                    vertical = _up * jumpSpeed;
                     _grounded = false;
                 }
                 Suit.linearVelocity = groundVelocity + level + vertical;
@@ -1390,6 +1400,12 @@ namespace OrbitalAnte.Ship
             }
             else
             {
+                if (jumpNow)
+                {
+                    // Just off an edge (coyote time): the same push off, measured against the ground just left.
+                    Vector3 rel = Suit.linearVelocity - _lastGroundVelocity;
+                    Suit.linearVelocity += _up * jumpSpeed - Vector3.Project(rel, _up);
+                }
                 if (matchHeld)
                 {
                     P3 push = Jetpack.Match(rules, new P3(relative.x, relative.y, relative.z), dt, factor);
@@ -1406,7 +1422,6 @@ namespace OrbitalAnte.Ship
                 }
                 if (jets.sqrMagnitude > 0f) Suit.AddForce(jets, ForceMode.Acceleration);
             }
-            _jumpQueued = false;
 
             // The nozzles that are lit, and what the push costs.
             float full = Mathf.Max(0.1f, rules.jetPush);

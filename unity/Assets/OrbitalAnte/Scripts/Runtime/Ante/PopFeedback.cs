@@ -30,6 +30,19 @@ namespace OrbitalAnte.Ante
     /// </summary>
     public static class PopFeedback
     {
+        /// <summary>
+        /// The words of one award's line: "+138  MOON LANDING", and when Change of Pace paid part of it, that part
+        /// on the end of the same line ("+138  MOON LANDING  (6 CHANGE OF PACE)"). One award is always one
+        /// line: the amount named is already inside the total, so it must never look like a second award.
+        /// </summary>
+        public static string Line(int points, string label, int chainPoints)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string line = "+" + points.ToString("N0", inv) + "  " + (label ?? string.Empty);
+            if (chainPoints > 0) line += "  (" + chainPoints.ToString("N0", inv) + " CHANGE OF PACE)";
+            return line;
+        }
+
         /// <summary>A single award worth this share of ante 1's target, in ante 1 points, counts as a big one.</summary>
         public const float BigShare = 0.2f;
 

@@ -123,6 +123,14 @@ namespace OrbitalAnte.Items
         /// <summary>Matthew, 16 Nov 2026: "The envelope cannot be opened unless they beat Ante 9."</summary>
         public const int UnlockAnte = 9;
 
+        /// <summary>
+        /// Whether the sealed envelope is shown as a run starts (critique loop round 4). Every run still gets its
+        /// envelope; but a run restarted straight from the death page or the pause menu skips the showing, because
+        /// the player has just seen one and each extra screen between failing and trying again makes another try
+        /// less likely. A run begun from the title screen shows it.
+        /// </summary>
+        public static bool ShowsAtStart(bool showAtRunStart, bool restartedFromARun) => showAtRunStart && !restartedFromARun;
+
         public int Serial { get; }
         public EnvelopeState State { get; private set; }
         /// <summary>The highest ante cleared this run, for the nine stars around the seal.</summary>

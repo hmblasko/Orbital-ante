@@ -54,7 +54,10 @@ namespace OrbitalAnte.UI
         static readonly Color Night = new Color(0.035f, 0.045f, 0.09f, 0.985f);
         static readonly Color CardFill = new Color(0.08f, 0.10f, 0.17f, 0.97f);
         static readonly Color Amber = new Color(1f, 0.74f, 0.32f);
-        static readonly Color CostRed = new Color(1f, 0.56f, 0.48f);
+        // A cost is one side of a fair trade, not a danger: red is kept for damage, the late clock and overtime
+        // (critique loop round 2). A cool tone as bright as the gains (a downside must never read as fine print), with its
+        // minus sign, sets it apart.
+        static readonly Color CostTone = new Color(0.80f, 0.86f, 1f);
 
         Canvas _canvas;
         RectTransform _board, _chart;
@@ -229,7 +232,7 @@ namespace OrbitalAnte.UI
                 var body = new StringBuilder();
                 for (int g = 0; g < card.gains.Count; g++) body.Append("+ ").Append(Capital(card.gains[g])).Append('\n');
                 for (int c = 0; c < card.costs.Count; c++)
-                    body.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(CostRed)).Append(">- ").Append(Capital(card.costs[c])).Append("</color>\n");
+                    body.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(CostTone)).Append(">- ").Append(Capital(card.costs[c])).Append("</color>\n");
                 _cardBody[i].text = body.ToString().TrimEnd('\n');
                 _cardGain[i].text = card.chartLine;
                 _cardGain[i].color = card.completesSet ? Amber : UiKit.Cream;
