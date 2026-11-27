@@ -461,7 +461,7 @@ namespace OrbitalAnte.Tasks
             for (int i = 0; i < _pops.Length; i++)
             {
                 _pops[i] = HullKit.Mono(_canvas.transform, string.Empty, 17, gold);
-                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(0f, 1f), new Vector2(HullKit.Margin + 2f, -170f - i * 24f), new Vector2(520f, 24f));
+                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(0f, 1f), new Vector2(HullKit.Margin + 2f, -170f - i * (float)PopFeedback.RowPitch), new Vector2(520f, PopFeedback.RowPitch));
                 UiKit.Halo(_pops[i], true);
                 _pops[i].gameObject.SetActive(false);
             }
@@ -623,7 +623,7 @@ namespace OrbitalAnte.Tasks
                 _streakName.text = streak < 2 ? string.Empty : streak >= Config.rules.streakForFeat ? RunWords.OnARoll + " +STYLE" : RunWords.OnARoll;
             }
 
-            bool perkReady = d.PerkEarnedEarly && !OrbitalAnte.Ship.Astronaut.PlayerInShip;
+            bool perkReady = ReadoutFocus.ShowsPerkReady(d.PerkEarnedEarly, OrbitalAnte.Ship.Astronaut.PlayerSeated);
             bool pad = GameInput.UsingGamepad;
             if (perkReady != _shownPerkReady || (perkReady && pad != _shownPerkPad))
             {
