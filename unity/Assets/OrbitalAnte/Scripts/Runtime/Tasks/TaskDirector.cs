@@ -83,6 +83,10 @@ namespace OrbitalAnte.Tasks
             /// <summary>With the Props model: each cell's canister (its mesh is swapped for the burnt one) and its lit window.</summary>
             public MeshFilter[] CellShapes;
             public Renderer[] CellGlows;
+            /// <summary>With the Props model: the model's pieces (two groups, one of them on the falling pivot), the plain shapes shown instead from far off, and which is showing.</summary>
+            public GameObject ModelStanding, ModelOnPivot;
+            public Renderer[] Plain;
+            public bool ModelShown;
             public bool InReach;
             public override bool Live => !Rule.Down;
         }
@@ -92,6 +96,8 @@ namespace OrbitalAnte.Tasks
             public int Index;
             public readonly SalvageCrate Rule = new SalvageCrate();
             public Collider Box;
+            /// <summary>The crate's model, when there is one (its shadow is switched off while it is carried).</summary>
+            public Renderer Drawn;
             public bool Driven;
             public override bool Live => Rule.State == CrateState.Lying;
         }
@@ -240,6 +246,9 @@ namespace OrbitalAnte.Tasks
 
         void OnEnable()
         {
+            // Read the two models now, while the world is being made, not when the first mast comes into range.
+            OrbitalAnte.Look.ModelLibrary.Find(PropsModel);
+            OrbitalAnte.Look.ModelLibrary.Find(Melee.MeleeItem.ModelId);
             Active = this;
             CombatEvents.PlayerHitSomething += OnPlayerHit;
             EnemySpawner.Down += OnEnemyDown;
@@ -562,7 +571,8 @@ namespace OrbitalAnte.Tasks
                 if (burnt != null) m.CellShapes[cell].sharedMesh = burnt;
                 if (m.CellGlows[cell] != null) m.CellGlows[cell].enabled = false;
             }
-            else if (m.Cells[cell] != null) m.Cells[cell].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
+            // The plain shape too: it is what shows from far off, and all there is without the model.
+            if (m.Cells[cell] != null) m.Cells[cell].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
             if (m.CellColliders[cell] != null) m.CellColliders[cell].enabled = false;
         }
 
@@ -626,6 +636,7 @@ namespace OrbitalAnte.Tasks
             c.View.transform.SetParent(a.Eye.transform, false);
             c.View.transform.localPosition = new Vector3(0.24f, -0.85f, 0.85f);
             c.View.transform.localRotation = Quaternion.identity;
+            CrateShadow(c, false);   // carried in front of the eye, it would throw a shadow from nowhere
             if (a.Armour != null && _watchedArmour != a.Armour)
             {
                 if (_watchedArmour != null) _watchedArmour.Damaged -= OnArmourDamaged;
@@ -652,6 +663,12 @@ namespace OrbitalAnte.Tasks
                 Stand(c);
             }
             if (c.Box != null) c.Box.enabled = true;
+            CrateShadow(c, true);
+        }
+
+        static void CrateShadow(CrateTask c, bool casts)
+        {
+            if (c.Drawn != null) OrbitalAnte.Look.SunShadows.Cast(c.Drawn, casts);
         }
 
         // ------------------------------------------------------------------ supply drops
@@ -999,11 +1016,31 @@ namespace OrbitalAnte.Tasks
             }
             bool on = d2 < hide2;
             if (p.View.activeSelf != on) p.View.SetActive(on);
+            if (on && p is MastTask mast && mast.Plain != null)
+            {
+                float within = mast.ModelShown ? ModelBeyond : ModelWithin;
+                ShowModel(mast, d2 < within * within);
+            }
             if (on && d2 < SnapWithin * SnapWithin && Time.time >= p.SnapAt)
             {
                 p.SnapAt = Time.time + 1f;
                 Stand(p);
             }
+        }
+
+        /// <summary>
+        /// A mast wears its real model only near the player (a world can have two dozen masts, all standing at once
+        /// and none hidden by the ground in front); from further off the plain shapes are the same size on screen.
+        /// </summary>
+        const float ModelWithin = 150f, ModelBeyond = 175f;
+
+        static void ShowModel(MastTask m, bool model)
+        {
+            if (m.ModelShown == model) return;
+            m.ModelShown = model;
+            if (m.ModelStanding != null) m.ModelStanding.SetActive(model);
+            if (m.ModelOnPivot != null) m.ModelOnPivot.SetActive(model);
+            for (int i = 0; i < m.Plain.Length; i++) if (m.Plain[i] != null) m.Plain[i].enabled = !model;
         }
 
         /// <summary>Stands a view on the ground that is really built under it, upright to its world.</summary>
@@ -1111,13 +1148,17 @@ namespace OrbitalAnte.Tasks
             dish.transform.localRotation = Quaternion.Euler(-35f, 0f, 0f);
             // The real model, where there is one: the plain shapes stay as what is solid and are no longer drawn.
             bool modelled = Prop("mast") != null && Prop("mastBase") != null && Prop("cell") != null;
+            Transform onPivot = null;
+            var plain = new List<Renderer> { footing, pole, dish };
             if (modelled)
             {
-                Drawn(root.transform, "mastBase", Vector3.zero, Quaternion.identity, true);
-                Drawn(pivot, "mast", Vector3.zero, Quaternion.identity, true);
-                footing.enabled = false;
-                pole.enabled = false;
-                dish.enabled = false;
+                m.ModelStanding = new GameObject("Model");
+                m.ModelStanding.transform.SetParent(root.transform, false);
+                m.ModelOnPivot = new GameObject("Model");
+                onPivot = m.ModelOnPivot.transform;
+                onPivot.SetParent(pivot, false);
+                Drawn(m.ModelStanding.transform, "mastBase", Vector3.zero, Quaternion.identity, true);
+                Drawn(onPivot, "mast", Vector3.zero, Quaternion.identity, true);
                 m.CellShapes = new MeshFilter[m.Rule.Cells];
                 m.CellGlows = new Renderer[m.Rule.Cells];
             }
@@ -1139,14 +1180,21 @@ namespace OrbitalAnte.Tasks
                 hit.Struck = (damage, point, normal) => HitCell(m, which, damage, point, normal);
                 m.Cells[i] = cell;
                 m.CellColliders[i] = cell.GetComponent<Collider>();
+                plain.Add(cell);
                 if (modelled)
                 {
-                    cell.enabled = false;
                     // Under the pivot, not the scaled box, so the canister keeps its own size and falls with the mast.
-                    Renderer can = Drawn(pivot, "cell", cell.transform.localPosition, cell.transform.localRotation, true);
+                    Renderer can = Drawn(onPivot, "cell", cell.transform.localPosition, cell.transform.localRotation, true);
                     m.CellShapes[i] = can.GetComponent<MeshFilter>();
-                    m.CellGlows[i] = Drawn(pivot, "cellGlow", cell.transform.localPosition, cell.transform.localRotation, false);
+                    m.CellGlows[i] = Drawn(onPivot, "cellGlow", cell.transform.localPosition, cell.transform.localRotation, false);
                 }
+            }
+            if (modelled)
+            {
+                m.Plain = plain.ToArray();
+                // Begins as the plain shapes; Visit swaps the model in on its next pass if the player is near.
+                m.ModelStanding.SetActive(false);
+                m.ModelOnPivot.SetActive(false);
             }
         }
 
@@ -1158,7 +1206,8 @@ namespace OrbitalAnte.Tasks
             Renderer box = Piece(root.transform, PrimitiveType.Cube, shell, new Vector3(0f, 0.3f, 0f), new Vector3(0.8f, 0.6f, 0.55f), true);
             c.Box = box.GetComponent<Collider>();
             Renderer strip = Piece(box.transform, PrimitiveType.Cube, band, new Vector3(0f, 0.15f, 0f), new Vector3(1.02f, 0.12f, 1.02f), false);
-            if (Drawn(root.transform, "crate", Vector3.zero, Quaternion.identity, true) != null)
+            c.Drawn = Drawn(root.transform, "crate", Vector3.zero, Quaternion.identity, true);
+            if (c.Drawn != null)
             {
                 Drawn(root.transform, "crateGlow", Vector3.zero, Quaternion.identity, false);
                 box.enabled = false;

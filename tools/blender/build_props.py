@@ -45,6 +45,8 @@ DISH_AT, DISH_RADIUS, DISH_TILT = (0.0, 0.3, 9.3), 0.9, 35.0     # x, forward, u
 CELL = (0.6, 0.6, 0.9)               # across, deep, tall, round the cell's own middle
 CRATE = (0.8, 0.55, 0.6)
 POD_RADIUS, POD_TALL, POD_BEACON = 0.5, 1.4, 1.5
+# Triangles each drawn piece may have (the rule test PropsModelTests holds the file to a little over these).
+BUDGET = {"mastBase": 1400, "mast": 2400, "cell": 700, "cellBurnt": 800, "crate": 2000, "pod": 2200, "lamp": 2200}
 TIPS = {"LaserSword": 1.21, "BaseballBat": 0.86, "Mailbox": 1.15, "ButterflyKnife": 0.23, "FryingPan": 0.50}
 
 # Colours as seen on screen: galvanised steel gone dull, weathered concrete, site-equipment grey and a worn
@@ -264,16 +266,16 @@ def cell(burnt=False):
         oa.paint(can, wear=0.75, dirt=0.8, mottle=0.6, seed=7, wear_colour=(0.42, 0.42, 0.40), grain=3.2)
         real.made_of(can, 0.3, 0.0)
     out.append(can)
-    for k in range(6):
+    for k in range(5 if not burnt else 6):
         z = -0.24 + k * 0.095
         fin = lathe("fin", (0, 0.02, z), (0, 0, 1), [(0, 0.22), (0.006, 0.262), (0.018, 0.262), (0.024, 0.22)], SOOT if burnt else CHARCOAL, 18)
         if burnt:
             oa.crumple(fin, 0.012, grain=6.0, seed=k)
         out.append(metal(fin, 113 + k, wear=0.6, smooth=0.1 if burnt else 0.35, bare=0.0 if burnt else 0.5))
     # The window: a recessed bezel on the front with the lit cell showing through.
-    out.append(metal(oa.box("bezel", (0, 0.245, 0.02), (0.24, 0.05, 0.50), SOOT if burnt else CHARCOAL, bevel=0.012), 120, smooth=0.1 if burnt else 0.3, bare=0.2))
+    out.append(metal(oa.box("bezel", (0, 0.245, 0.02), (0.31, 0.05, 0.58), SOOT if burnt else CHARCOAL, bevel=0.012), 120, smooth=0.1 if burnt else 0.3, bare=0.2))
     if burnt:
-        hole = oa.box("burst", (0, 0.262, 0.02), (0.17, 0.03, 0.42), (0.02, 0.02, 0.02), bevel=0.01)
+        hole = oa.box("burst", (0, 0.262, 0.02), (0.24, 0.03, 0.50), (0.02, 0.02, 0.02), bevel=0.01)
         oa.crumple(hole, 0.012, grain=9.0, seed=4)
         out.append(matte(hole, 121, smooth=0.02))
         # Petals of torn skin round the hole.
@@ -281,10 +283,12 @@ def cell(burnt=False):
             p = oa.box("petal", (x, 0.285, z + 0.02), (0.07, 0.008, 0.12), SOOT, bevel=0.002, segments=1, rot=(rx, rz * 0.5, rz))
             out.append(matte(p, 122 + i, smooth=0.05))
     else:
-        win = oa.box("window", (0, 0.266, 0.02), (0.17, 0.014, 0.42), CELL_LIT, bevel=0.006)
+        # The lit window is what says "shoot here": wide, with one guard bar, and a lit band right round the drum
+        # so a live cell shows from every side of the mast (the old stand-in glowed all round).
+        win = oa.box("window", (0, 0.266, 0.02), (0.24, 0.014, 0.50), CELL_LIT, bevel=0.006)
         glow.append(lit(win))
-        for k in range(3):
-            out.append(metal(oa.box("guard", (0, 0.276, -0.12 + k * 0.14), (0.20, 0.012, 0.016), CHARCOAL, bevel=0.003, segments=1), 126 + k, smooth=0.3, bare=0.4))
+        out.append(metal(oa.box("guard", (0, 0.276, 0.02), (0.27, 0.012, 0.016), CHARCOAL, bevel=0.003, segments=1), 126, smooth=0.3, bare=0.4))
+        glow.append(lit(lathe("band", (0, 0.02, 0.265), (0, 0, 1), [(0, 0.224), (0.0, 0.232), (0.12, 0.232), (0.12, 0.224)], CELL_LIT, 18)))
     out.append(tube("bail", [(-0.12, 0.02, 0.37), (-0.10, 0.02, 0.44), (0.10, 0.02, 0.44), (0.12, 0.02, 0.37)], 0.011, GALV_DARK, 130, cuts=2, n=6, up=(0, 1, 0)))
     # The lead out of the bottom, back to the pole.
     out.append(hose("lead", [(0.06, 0.05, -0.38), (0.07, 0.0, -0.44), (0.03, -0.16, -0.43), (0.0, -0.26, -0.36)], 0.016, 131))
@@ -329,11 +333,15 @@ def crate():
     strap = oa.box("strap", (0, 0, h / 2 + 0.002), (0.042, d + 0.004, h + 0.003), WEBBING, bevel=0.003, segments=1)
     out.append(matte(strap, 155, smooth=0.05, longest=0.1))
     out.append(metal(oa.box("buckle", (0, d / 2 + 0.008, lid_at + 0.06), (0.07, 0.012, 0.05), CASE_METAL, bevel=0.004), 156))
-    out.append(metal(oa.box("status bezel", (0.19, d / 2 - 0.004, lid_at + 0.085), (0.22, 0.014, 0.05), CHARCOAL, bevel=0.005), 157, smooth=0.3, bare=0.2))
-    out.append(metal(oa.box("status bezel", (-0.19, d / 2 - 0.004, lid_at + 0.085), (0.22, 0.014, 0.05), CHARCOAL, bevel=0.005), 158, smooth=0.3, bare=0.2))
+    out.append(metal(oa.box("status bezel", (0.19, d / 2 - 0.004, lid_at + 0.085), (0.22, 0.014, 0.075), CHARCOAL, bevel=0.005), 157, smooth=0.3, bare=0.2))
+    out.append(metal(oa.box("status bezel", (-0.19, d / 2 - 0.004, lid_at + 0.085), (0.22, 0.014, 0.075), CHARCOAL, bevel=0.005), 158, smooth=0.3, bare=0.2))
+    # The status strips: on all four sides and across the lid, so the crate can be found from anywhere.
     for x in (-0.19, 0.19):
-        glow.append(lit(oa.box("status", (x, d / 2 + 0.004, lid_at + 0.085), (0.19, 0.006, 0.026), HAUL_LIT, bevel=0.002, segments=1)))
-        glow.append(lit(oa.box("status back", (x, -d / 2 - 0.002, lid_at + 0.085), (0.19, 0.006, 0.026), HAUL_LIT, bevel=0.002, segments=1)))
+        glow.append(lit(oa.box("status", (x, d / 2 + 0.004, lid_at + 0.085), (0.19, 0.006, 0.05), HAUL_LIT, bevel=0.002, segments=1)))
+        glow.append(lit(oa.box("status back", (x, -d / 2 - 0.002, lid_at + 0.085), (0.19, 0.006, 0.05), HAUL_LIT, bevel=0.002, segments=1)))
+        glow.append(lit(oa.box("status lid", (x * 1.7, 0, h + 0.004), (0.022, d - 0.2, 0.006), HAUL_LIT, bevel=0.002, segments=1)))
+    for sx in (-1, 1):
+        glow.append(lit(oa.box("status end", (sx * (w / 2 - 0.012), 0, lid_at + 0.085), (0.006, 0.24, 0.05), HAUL_LIT, bevel=0.002, segments=1)))
     finish(out, 0.5, dust=0.6, on_top=0.3, reach=0.08, seed=2)
     return out, glow
 
@@ -653,7 +661,16 @@ if __name__ == "__main__":
     out_dir = args[args.index("--write-to") + 1] if "--write-to" in args else OUT
     os.makedirs(out_dir, exist_ok=True)
     oa.reset_scene()
-    prop_pieces = props()
+    # Every piece is thinned to its budget (docs/performance_budget.md, "Task views"): a world can have two dozen
+    # masts standing at once. Faces that can never be seen are dropped on the way.
+    prop_pieces = []
+    for name, objects in props():
+        if name in BUDGET:
+            prop_pieces += oa.thin([(name, objects)], BUDGET[name], drop_below=0.0, whole=48, least=16)
+            for o in objects:
+                bpy.data.objects.remove(o)
+        else:
+            prop_pieces.append((name, objects))
     count(prop_pieces)
     oa.export(os.path.join(out_dir, "Props.bytes"), prop_pieces, [])
     melee_pieces, melee_sockets = melee()

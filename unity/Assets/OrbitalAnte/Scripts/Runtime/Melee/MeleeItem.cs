@@ -240,6 +240,8 @@ namespace OrbitalAnte.Melee
             r.sharedMaterial = ModelLibrary.PieceMaterial(ModelId, part);
             r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            // What shines by itself never casts a shadow (SetShadows leaves the Glow alone for the same reason).
+            if (ModelFile.Shines(part)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return r;
         }
 

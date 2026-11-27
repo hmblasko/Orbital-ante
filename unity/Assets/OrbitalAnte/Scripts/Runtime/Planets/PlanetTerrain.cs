@@ -433,9 +433,13 @@ namespace OrbitalAnte.Planets
             double dist = Math.Sqrt(dx * dx + dy * dy);
             if (dist >= s.Extent) return;
             double rc = s.Size;
-            // A slight wobble, so no crater is a perfect circle.
-            double dn = dist / rc * (1.0 + 0.07 * Noise3.Perlin(p, rc * 0.9, s.Seed));
-            double depth = s.Height, rim = f.Rim * rc;
+            // No crater is a perfect circle: broad lobes and scallops in its outline, a rim that stands higher on
+            // one side and has slumped on another, and rings and terraces that come and go round the bowl
+            // (from far off, perfect rings were the first thing that looked machine made).
+            double dn = dist / rc * (1.0 + CraterLobes * Noise3.Perlin(p, rc * 1.1, s.Seed) + CraterScallops * Noise3.Perlin(p, rc * 0.34, s.Seed + 19));
+            double uneven = 1.0 + CraterRimUneven * Noise3.Perlin(p, rc * 1.25, s.Seed + 21);
+            double broken = 0.5 + 0.5 * Noise3.Perlin(p, rc * 0.8, s.Seed + 23);
+            double depth = s.Height, rim = f.Rim * rc * uneven;
             double h;
             if (dn < 1)
             {
@@ -447,7 +451,7 @@ namespace OrbitalAnte.Planets
                     if (f.Ring > 0)
                     {
                         double q = (dn - f.Ring) / 0.075;
-                        h += f.Peak * depth * Math.Exp(-q * q);
+                        h += f.Peak * depth * Math.Exp(-q * q) * (0.35 + 0.9 * broken);
                     }
                     else
                     {
@@ -456,7 +460,7 @@ namespace OrbitalAnte.Planets
                     }
                 }
                 // Stepped walls on the big flat-floored ones.
-                if (f.Floor > 0 && t > 0) h += Math.Sin(t * Math.PI * 3) * depth * 0.035 * (1 - t);
+                if (f.Floor > 0 && t > 0) h += Math.Sin(t * Math.PI * 3 + 2.2 * (broken - 0.5)) * depth * 0.035 * (1 - t);
                 double d4 = dn * dn * dn * dn;
                 point.Flatten = Math.Max(point.Flatten, Math.Max(0.9, f.Flatten) * (1 - d4));
             }
@@ -472,7 +476,7 @@ namespace OrbitalAnte.Planets
                 for (int k = 1; k <= f.OuterRings; k++)
                 {
                     double q = (dn - (1 + 0.45 * k)) / 0.07;
-                    if (q > -3 && q < 3) h += rim * 0.75 / k * Math.Exp(-q * q) * fade;
+                    if (q > -3 && q < 3) h += rim * 0.75 / k * Math.Exp(-q * q) * fade * (0.3 + 1.0 * broken);
                 }
                 if (f.Flatten > 0) point.Flatten = Math.Max(point.Flatten, f.Flatten * fade * 0.6);
             }
@@ -494,6 +498,9 @@ namespace OrbitalAnte.Planets
                 Tint(ref point, s, 1 - Noise3.Smooth(0.8, 1.5, dn));
             }
         }
+
+        /// <summary>How far a crater's outline strays from a circle (broad lobes, then scallops) and how uneven its rim's height is.</summary>
+        public const double CraterLobes = 0.10, CraterScallops = 0.045, CraterRimUneven = 0.42;
 
         void Cone(Stamp s, Vec3d d, Vec3d p, double minW, ref TerrainPoint point)
         {
@@ -545,12 +552,18 @@ namespace OrbitalAnte.Planets
             Tint(ref point, s, w);
         }
 
+        /// <summary>How faint a broken line (a ridge pair, a scarp) gets between its strong stretches.</summary>
+        public const double CurveLeast = 0.12;
+
         /// <summary>Where the wandering centre line of a curve is at a point along it, as a sideways offset in metres.</summary>
         static double MeanderAt(Stamp s, double along)
         {
             double offset = 0;
             // A slow bend over the whole length, so nothing natural is ruler-straight.
-            if (s.Bow > 0) offset += s.Bow * Noise3.Perlin(along * 2.3, 0.71, s.Seed * 1e-6, s.Seed + 8) * 1.8;
+            // Two bends, a long one and a shorter one across it: one alone drew every long line as the same arc
+            // round the globe. Together they never pass Bow x 1.8, which the bounds allow for.
+            if (s.Bow > 0)
+                offset += s.Bow * (1.25 * Noise3.Perlin(along * 2.3, 0.71, s.Seed * 1e-6, s.Seed + 8) + 0.55 * Noise3.Perlin(along * 6.1, 0.29, s.Seed * 1e-6, s.Seed + 14));
             if (s.MeanderAmount > 0)
                 offset += s.MeanderAmount * Noise3.Perlin(along * s.Length / (s.Size * 12.0), s.Seed * 1e-6, 0.37, s.Seed + 9) * 1.6;
             return offset;
@@ -617,7 +630,12 @@ namespace OrbitalAnte.Planets
                     w = 1 - Noise3.Smooth(0.75, 1, x);
                     break;
             }
-            double h = s.Height * w * taper;
+            // Ridges, scarps and troughs made by the crust breaking run in stretches: strong for a while, fading
+            // out, picking up again a little to one side. Water-cut valleys (anything with a floor to follow) do not.
+            double stretch = 1.0;
+            if (f.Profile == CurveProfile.DoubleRidge || f.Profile == CurveProfile.Scarp)
+                stretch = CurveLeast + (1 - CurveLeast) * Noise3.Smooth(-0.35, 0.2, Noise3.Perlin(along * s.Length / (s.Size * 26.0) + 3.7, 0.53, s.Seed * 1e-6, s.Seed + 15));
+            double h = s.Height * w * taper * stretch;
             if (h < 0) point.Cut = Math.Min(point.Cut, h);
             else point.Height += h;
             double flat = s.Height < 0 ? Math.Max(f.Flatten, 0.6) : f.Flatten;
@@ -746,7 +764,7 @@ namespace OrbitalAnte.Planets
                 switch (s.Kind)
                 {
                     case StampKind.Crater:
-                        up = Math.Max(up, g.Rim * s.Size + g.Pedestal * s.Height);
+                        up = Math.Max(up, g.Rim * s.Size * (1 + CraterRimUneven) * 1.3 + g.Pedestal * s.Height);
                         down = Math.Max(down, s.Height);
                         break;
                     case StampKind.Curve:
