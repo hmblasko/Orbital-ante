@@ -276,7 +276,7 @@ namespace OrbitalAnte.Tests
         {
             PerkDefinition chain = PerkCatalog.CreateDefaults().Find(p => p.id == PerkCatalog.ChainPerkId);
             string text = chain.Describe(new AnteBalance());
-            StringAssert.Contains("+10%", text);
+            StringAssert.Contains("Up to +10%", text);
             StringAssert.Contains("different category", text);
             StringAssert.Contains("within 30 seconds", text);
             StringAssert.Contains("2 times per ante", text);

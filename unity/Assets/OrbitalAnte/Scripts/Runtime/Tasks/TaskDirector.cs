@@ -179,8 +179,65 @@ namespace OrbitalAnte.Tasks
             }
         }
 
+        /// <summary>The task director of the running solar-system run (the break asks it for nearby worlds).</summary>
+        public static TaskDirector Active { get; private set; }
+
+        /// <summary>The player holds a melee weapon (a melee style contract is only offered then).</summary>
+        public bool HoldsMelee
+        {
+            get
+            {
+                Astronaut a = Player;
+                return a != null && a.Melee != null && a.Melee.Held != null;
+            }
+        }
+
+        /// <summary>
+        /// The worlds nearest the player for the break's bonus missions, nearest first: planets and moons only (not
+        /// the Sun, asteroids or the gas giants, whose ground is a long dive inside), at most eight.
+        /// </summary>
+        public void NearbyWorlds(List<ContractWorld> into)
+        {
+            into.Clear();
+            SolarSystem system = _world != null ? _world.System : null;
+            if (system == null || system.Model == null || system.States == null) return;
+            Transform from = Player != null ? Player.transform : _world.Ship != null ? _world.Ship.transform : null;
+            if (from == null) return;
+            Vec3d at = system.TruePosition(from.position);
+            int here = system.Focus != null ? system.Focus.Neighbourhood : -1;
+            _nearBodies.Clear();
+            _nearDistances.Clear();
+            for (int i = 0; i < system.Model.Count; i++)
+            {
+                BodySpec spec = system.Model.Spec(i);
+                if (spec.kind != BodyKind.Planet && spec.kind != BodyKind.Moon) continue;
+                double d = (system.States[i].Position - at).Magnitude - spec.radius;
+                int slot = 0;
+                while (slot < _nearDistances.Count && _nearDistances[slot] <= d) slot++;
+                _nearDistances.Insert(slot, d);
+                _nearBodies.Insert(slot, i);
+            }
+            for (int k = 0; k < _nearBodies.Count && into.Count < 8; k++)
+            {
+                BodySpec spec = system.Model.Spec(_nearBodies[k]);
+                into.Add(new ContractWorld
+                {
+                    body = _nearBodies[k],
+                    name = spec.displayName ?? spec.id,
+                    landedOn = _noFirstLanding.Contains(spec.id),
+                    here = _nearBodies[k] == here,
+                    enemiesLeft = _world.Enemies != null ? _world.Enemies.EnemiesLeftAtLeast(_nearBodies[k], spec.radius) : 0,
+                    enemiesCounted = _world.Enemies != null,
+                });
+            }
+        }
+
+        readonly List<int> _nearBodies = new List<int>(16);
+        readonly List<double> _nearDistances = new List<double>(16);
+
         void OnEnable()
         {
+            Active = this;
             CombatEvents.PlayerHitSomething += OnPlayerHit;
             EnemySpawner.Down += OnEnemyDown;
             EnemySpawner.Woke += OnEnemyWoke;
@@ -189,6 +246,7 @@ namespace OrbitalAnte.Tasks
 
         void OnDisable()
         {
+            if (Active == this) Active = null;
             CombatEvents.PlayerHitSomething -= OnPlayerHit;
             EnemySpawner.Down -= OnEnemyDown;
             EnemySpawner.Woke -= OnEnemyWoke;
@@ -316,6 +374,7 @@ namespace OrbitalAnte.Tasks
                 ScoreResult paid = Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
                 // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
                 if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
+                AnteLoop.ContractKill(e.Body, f);
             }
             if (who != null) _woke.Remove(who);
 
@@ -512,6 +571,7 @@ namespace OrbitalAnte.Tasks
             feats += StreakFeat(feats, ref label);
             Audio.AudioDirector.PlayLocal("reward.tier2");
             Score(ScoreEventKind.InstallationDestroyed, TaskIds.Mast(m.World.Id, m.Index), feats, Join(rammed ? "MAST RAMMED" : "MAST DOWN", label));
+            AnteLoop.ContractMastDown();
         }
 
         // ------------------------------------------------------------------ salvage
@@ -536,6 +596,7 @@ namespace OrbitalAnte.Tasks
                 feats += StreakFeat(feats, ref label);
                 Audio.AudioDirector.PlayLocal("reward.loot.rare");
                 Score(ScoreEventKind.SalvageDelivered, TaskIds.Salvage(c.World.Id, c.Index), feats, Join("SALVAGE DELIVERED", label));
+                AnteLoop.ContractCrateDelivered();
             }
         }
 
@@ -832,6 +893,7 @@ namespace OrbitalAnte.Tasks
                 Score(moon ? ScoreEventKind.NewMoon : ScoreEventKind.NewPlanet, TaskIds.FirstLanding(id), 0,
                     "FIRST LANDING: " + (surface.Body.Spec.displayName ?? id).ToUpperInvariant());
             }
+            AnteLoop.ContractLanded(body);
 
             // Rough ground: the ground under the legs stands well above or below the ground around them.
             Transform t = surface.Body.transform;
@@ -962,7 +1024,11 @@ namespace OrbitalAnte.Tasks
             return mesh;
         }
 
-        public static void ResetStatics() => Shapes.Clear();
+        public static void ResetStatics()
+        {
+            Shapes.Clear();
+            Active = null;
+        }
 
         /// <summary>
         /// One piece of a stand-in: a shared primitive shape, no shadow, and a collider only when it is solid, so

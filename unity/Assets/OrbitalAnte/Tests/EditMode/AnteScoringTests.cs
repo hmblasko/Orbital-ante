@@ -392,10 +392,64 @@ namespace OrbitalAnte.Tests
 
             Assert.AreEqual(45, run.Report(Kill("e1")).points, "nothing came before it");
             Assert.AreEqual(45, run.Report(Kill("e2")).points, "same kind of play: no bonus");
-            Assert.AreEqual(132, run.Report(new ScoreEvent { claimId = "lm1", kind = ScoreEventKind.Landmark }).points, "combat then exploration: +10%");
-            Assert.AreEqual(50, run.Report(Kill("e3")).points, "exploration then combat: second use (49.5 rounds to 50)");
-            Assert.AreEqual(120, run.Report(new ScoreEvent { claimId = "lm2", kind = ScoreEventKind.Landmark }).points, "used up for this ante");
+            var landmark = run.Report(new ScoreEvent { claimId = "lm1", kind = ScoreEventKind.Landmark });
+            Assert.AreEqual(132, landmark.points);
+            Assert.AreEqual(12, landmark.chainBonusPoints);
+            Assert.IsTrue(landmark.chainBonusUsed);
+            var enemy = run.Report(Kill("e3"));
+            Assert.AreEqual(50, enemy.points, "49.5 rounds to 50");
+            Assert.AreEqual(5, enemy.chainBonusPoints);
+            var outOfUses = run.Report(new ScoreEvent { claimId = "lm2", kind = ScoreEventKind.Landmark });
+            Assert.AreEqual(120, outOfUses.points);
+            Assert.AreEqual(0, outOfUses.chainBonusPoints);
             Assert.AreEqual(2, run.Score.ChainUsesThisAnte);
+            Assert.AreEqual(392, run.Ledger.SpendablePoints, "the receipt explains part of each award, paid once");
+        }
+
+        [Test]
+        public void ChangeOfPaceShowsOnlyItsShareWhenAnotherPerkNearlyFillsTheCap()
+        {
+            var run = new AnteRun(new AnteBalance(), 7, RoguelitePerks.Create());
+            run.Perks.Add(Find(run, PerkCatalog.ChainPerkId));
+            run.Perks.Add(Find(run, "perk.frequent_flyer"));
+            run.Report(Kill("e1"));
+            var moon = run.Report(new ScoreEvent { claimId = "moon", kind = ScoreEventKind.NewMoon });
+            Assert.AreEqual(138, moon.points, "110 x 1.25 rounds to 138");
+            Assert.AreEqual(6, moon.chainBonusPoints, "Frequent Flyer alone would already pay 132");
+            Assert.AreEqual(1, run.Score.ChainUsesThisAnte);
+        }
+
+        [TestCase(0.20f, 2.25f)]
+        [TestCase(0.25f, 1.20f)]
+        public void AFullyCappedAwardPreservesTheUseAcrossSaveAndLoad(float perkCap, float eventCap)
+        {
+            var balance = new AnteBalance { perkScoreBonusCap = perkCap, eventMultiplierCap = eventCap, chainUsesPerAnte = 1 };
+            var catalog = RoguelitePerks.Create();
+            var run = new AnteRun(balance, 7, catalog);
+            run.Perks.Add(Find(run, PerkCatalog.ChainPerkId));
+            run.Perks.Add(Find(run, "perk.frequent_flyer"));
+            run.Report(Kill("e1"));
+            var moon = run.Report(new ScoreEvent { claimId = "moon", kind = ScoreEventKind.NewMoon });
+            Assert.AreEqual(132, moon.points);
+            Assert.IsFalse(moon.chainBonusUsed);
+            Assert.AreEqual(0, run.Score.ChainUsesThisAnte);
+            var loaded = AnteRun.Import(balance, run.Export(), catalog);
+            Assert.AreEqual(5, loaded.Report(Kill("e2")).chainBonusPoints);
+            Assert.AreEqual(1, loaded.Score.ChainUsesThisAnte);
+        }
+
+        [Test]
+        public void AChangeTooSmallForOneWholePointLeavesTheUseForTheNextSwitch()
+        {
+            var run = new AnteRun(new AnteBalance { enemyTier1 = 1, chainUsesPerAnte = 1 }, 7);
+            run.Perks.Add(Find(run, PerkCatalog.ChainPerkId));
+            run.Report(new ScoreEvent { claimId = "lm1", kind = ScoreEventKind.Landmark });
+            var tiny = run.Report(Kill("e1"));
+            Assert.AreEqual(1, tiny.points);
+            Assert.AreEqual(0, tiny.chainBonusPoints);
+            Assert.IsFalse(tiny.chainBonusUsed);
+            Assert.AreEqual(0, run.Score.ChainUsesThisAnte);
+            Assert.AreEqual(12, run.Report(new ScoreEvent { claimId = "lm2", kind = ScoreEventKind.Landmark }).chainBonusPoints);
         }
 
         [Test]

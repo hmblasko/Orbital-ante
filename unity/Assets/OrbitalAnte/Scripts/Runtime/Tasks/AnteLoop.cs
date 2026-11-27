@@ -166,6 +166,8 @@ namespace OrbitalAnte.Tasks
             {
                 // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
                 PopLook look = PopFeedback.For(scoreEvent, result, PopFeedback.BigAt(loop.Run.Balance, loop.Run.Director.Ante));
+                if (result.chainBonusUsed)
+                    loop.Pop("Includes " + N(result.chainBonusPoints) + " from Change of Pace");
                 loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label, look);
             }
             loop.AfterReport(scoreEvent, result, label);
@@ -270,6 +272,8 @@ namespace OrbitalAnte.Tasks
         void OnPhase(AntePhase phase)
         {
             int ante = Run.Director.Ante;
+            // Whatever ended the ante ends its bonus mission too (it is said at the break).
+            if (phase != AntePhase.Running) EndAnteContract();
             switch (phase)
             {
                 case AntePhase.Intermission:
@@ -409,10 +413,12 @@ namespace OrbitalAnte.Tasks
             for (int i = 0; i < _pops.Length; i++)
             {
                 _pops[i] = UiKit.Label(_canvas.transform, string.Empty, 17, gold, TextAnchor.MiddleRight);
-                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -142f - i * 24f), new Vector2(420f, 24f));
+                UiKit.Pin((RectTransform)_pops[i].transform, new Vector2(1f, 1f), new Vector2(-22f, -164f - i * 24f), new Vector2(420f, 24f));
                 UiKit.Halo(_pops[i]);
                 _pops[i].gameObject.SetActive(false);
             }
+
+            BuildContractHud();
 
             // A note in the middle, under the flight readout: target met, a drop coming, a task found.
             _noteLine = UiKit.Label(_canvas.transform, string.Empty, 18, gold, TextAnchor.MiddleCenter);
@@ -562,6 +568,8 @@ namespace OrbitalAnte.Tasks
                     _pops[i].color = c;
                 }
             }
+
+            UpdateContractHud();
 
             if (_noteLeft > 0f)
             {
