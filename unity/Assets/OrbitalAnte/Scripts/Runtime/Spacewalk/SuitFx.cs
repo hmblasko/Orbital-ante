@@ -30,8 +30,9 @@ namespace OrbitalAnte.Spacewalk
         GameObject _tether;
         Vector3[] _tetherPoints;
         AudioSource _jet, _voice;
-        bool _wasTaut, _wasAlarm;
-        float _nextWarn, _nextTaut;
+        bool _wasTaut;
+        float _nextTaut;
+        readonly SuitAlarmClock _alarm = new SuitAlarmClock();
 
         // Where each nozzle sits, measured from the eyes (right, up, forward), and which way its flame points.
         // The second of each pair is the mirror image across the body.
@@ -196,14 +197,9 @@ namespace OrbitalAnte.Spacewalk
             }
             _wasTaut = taut;
 
-            // A new danger is heard once, then again every so often for as long as it lasts.
-            bool alarm = _astronaut.SuitAlarm && !_astronaut.Dead;
-            if (alarm && (!_wasAlarm || Time.unscaledTime > _nextWarn))
-            {
-                Play(Sounds.Warn, 0.8f);
-                _nextWarn = Time.unscaledTime + 12f;
-            }
-            _wasAlarm = alarm;
+            // Every step up in danger is heard at once; how often it comes back says how bad it is (SuitAlarmClock).
+            if (_alarm.Step(Time.deltaTime, SuitAlarmClock.LevelOf(_astronaut.SuitState), !_astronaut.Dead))
+                Play(Sounds.Warn, SuitAlarmClock.Volume(_alarm.Level));
 
             DrawTether(outside && _astronaut.Tethered);
         }
