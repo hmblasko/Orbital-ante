@@ -69,6 +69,8 @@ namespace OrbitalAnte.Ante
         public bool grantsGoodwill;
         public string goodwillFaction;
         public bool chainBonusUsed;
+        /// <summary>The whole points within this award earned by changing activity, after caps and rounding.</summary>
+        public int chainBonusPoints;
 
         public bool Awarded => outcome == ScoreOutcome.Awarded;
     }
@@ -149,20 +151,26 @@ namespace OrbitalAnte.Ante
 
             float perkBonus = _perks == null ? 0f : _perks.ScoreBonusFor(scoreEvent.kind, scoreEvent.tag);
             float chain = _perks == null ? 0f : _perks.ChainBonus();
-            bool useChain = chain > 0f && _hasLast && _lastCategory != result.category
-                            && runSeconds - _lastSeconds <= _balance.chainWindowSeconds
-                            && _chainUsesThisAnte < _balance.chainUsesPerAnte;
-            if (useChain) perkBonus += chain;
-
             int feats = Math.Max(scoreEvent.skillFeats, scoreEvent.verifiedSkill ? 1 : 0);
             float skill = feats >= 2 ? _balance.skillMax : feats == 1 ? _balance.skillVerified : 1f;
             float risk = !scoreEvent.acceptedRisk ? 1f
                 : scoreEvent.riskMultiplier > 0f ? Math.Max(1f, Math.Min(_balance.riskMax, scoreEvent.riskMultiplier)) : _balance.riskAccepted;
             int points = ScoreMath.Award(_balance, basePoints, ante, perkBonus, skill, risk);
+            if (chain > 0f && _hasLast && _lastCategory != result.category
+                && runSeconds - _lastSeconds <= _balance.chainWindowSeconds && _chainUsesThisAnte < _balance.chainUsesPerAnte)
+            {
+                int withChain = ScoreMath.Award(_balance, basePoints, ante, perkBonus + chain, skill, risk);
+                if (withChain > points)
+                {
+                    result.chainBonusPoints = withChain - points;
+                    result.chainBonusUsed = true;
+                    _chainUsesThisAnte++;
+                    points = withChain;
+                }
+            }
 
             _claims.TryClaim(scoreEvent.claimId);
             if (capKey != null) _claims.Increment(capKey);
-            if (useChain) _chainUsesThisAnte++;
             _hasLast = true;
             _lastCategory = result.category;
             _lastSeconds = runSeconds;
@@ -170,7 +178,6 @@ namespace OrbitalAnte.Ante
 
             result.outcome = ScoreOutcome.Awarded;
             result.points = points;
-            result.chainBonusUsed = useChain;
             if (scoreEvent.kind == ScoreEventKind.BountyAlive)
             {
                 result.grantsGoodwill = true;

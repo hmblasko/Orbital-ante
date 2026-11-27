@@ -182,9 +182,10 @@ namespace OrbitalAnte.Ante
                 case PerkStat.ScoreBonus:
                     return amount + " points for " + PointsFor(effect.kind, effect.tag);
                 case PerkStat.ChainScoreBonus:
-                    return amount + " score when you score in a different category (combat, exploration, bounty, objective, salvage, repair, landing) within "
+                    return "Up to " + amount + " score for a different category within "
                            + ScoreMath.Exact(balance.chainWindowSeconds).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
-                           + " seconds of your last score; works " + balance.chainUsesPerAnte + " times per ante";
+                           + " seconds of your last score. Pays up to " + balance.chainUsesPerAnte + " times per ante."
+                           + " Categories are combat, exploration, bounty, objective, salvage, repair and landing.";
                 case PerkStat.ShipFuelPerImpulse: return amount + " ship fuel per thrust";
                 case PerkStat.WeaponDamage: return amount + " weapon damage";
                 case PerkStat.MaxHp: return amount + " max HP";
