@@ -308,7 +308,7 @@ namespace OrbitalAnte.Tasks
             string sets = SetsLine();
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_fieldNote)) body.Append(_fieldNote).Append("\n");
-            body.Append("The clock is stopped while this is open. Prices rise when the next ante starts. The free ticket waits for the break.");
+            body.Append("The clock is stopped while this is open. The free ticket waits for the break.");
             _fieldNote = null;
 
             var choices = new List<PauseMenu.MenuChoice>();
@@ -408,17 +408,24 @@ namespace OrbitalAnte.Tasks
             for (int i = 0; i < Attributes.Length; i++)
             {
                 PlayerAttribute a = Attributes[i];
-                int level = Run.Attributes.Level(a), price = Run.Attributes.NextPrice(a);
-                string what = AttributeWords(a, b);
-                string label = price < 0
-                    ? AttributeName(a) + "   level " + level + " (top)\n" + what
-                    : AttributeName(a) + "   level " + level + " > " + (level + 1) + "   " + N(price) + "\n" + what;
-                bool can = price >= 0 && Run.Ledger.SpendablePoints >= price;
+                int level = Run.Attributes.Level(a);
+                var quote = Run.Attributes.Quote(a, Run.Ledger);
+                string heading = AttributeName(a) + "   level " + level;
+                string detail = AttributeWords(a, b);
+                if (quote.Price < 0) heading += " (top)";
+                else
+                {
+                    heading += " > " + (level + 1) + "   " + N(quote.Price) + " pts";
+                    if (!Run.Director.IsLastAnte && quote.PriceNextAnte >= 0 && quote.PriceNextAnte != quote.Price)
+                        heading += " (" + N(quote.PriceNextAnte) + " next ante)";
+                    detail += quote.CanBuy ? "   /   " + N(quote.WalletAfter) + " left after buying"
+                                          : "   /   " + N(quote.PointsNeeded) + " more needed";
+                }
                 int slot = i;
-                choices.Add(new PauseMenu.MenuChoice(label, () => Buy(a, slot, back), can));
+                choices.Add(new PauseMenu.MenuChoice(heading + "\n" + detail, () => Buy(a, slot, back), quote.CanBuy));
             }
             choices.Add(new PauseMenu.MenuChoice("Back", back));
-            Menu.ShowChoices("SHOP", "To spend: " + N(Run.Ledger.SpendablePoints) + ". These last for the whole run. Prices rise when the next ante starts.",
+            Menu.ShowChoices("SHOP", "To spend: " + N(Run.Ledger.SpendablePoints) + ". Upgrades last for the run. Spending keeps your score.",
                 choices, back, 40f, keepSlot);
             if (_fieldPage) OpenedFieldPage();
         }
