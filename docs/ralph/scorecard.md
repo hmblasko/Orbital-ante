@@ -25,11 +25,21 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 6 | +4 | Ten one-run goals, easiest first, the first ones within a new player's reach (clear ante 2, a crouched kill, a rover splat); one always in view (title screen, recap, Unlocks page); each changes later runs (six perks out of the drafts until earned, four kits that are sidegrades); getting one is a moment (banner, note, its own sound, the new perk shown once marked NEW); saved the frame after | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue; no ship parts (none exist yet); nothing seen in Unity |
 | 6 | All-round fun | 6 | +1 | A run now ends looking at the next unlock as well as the next mark | Moves with the other five, and with a playtest |
 
+## Pass 2 (27 Nov 2026): after creature tells
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 7 | = | Unchanged | Creature kills still score nothing, so a fight in the seas does not count toward the ante |
+| 2 | Easily understandable | 7 | +1 | Each of the nine creatures warns in a sound of its own with one hard mark at the moment it takes aim, the same moment its arc on the visor snaps narrow (`Creatures/Windups.cs`, held to each brain and to the sound files by `WindupTests`); one rule for every creature (move after the mark); every arc on the visor, damage, seen and creature, follows its danger as the player turns, so a warning behind them is found by turning toward it | Where to shoot a creature is taught only by knocks, blood and the hit marker; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | Nine more sounds made for the creatures (measured, not listened to); two older ones now carry on the Deck's speakers | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 6 | = | A creature fight can now be read and dodged on the mark | Unchanged: creature fights pay nothing, land creatures only in the practice range, the music never hears of the player being hurt or hunted |
+| 5 | Fun unlockables | 6 | = | Unchanged | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue |
+| 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
-2. **Understandable: creature tells.** Each creature's own warning sound with its aim click; the visor arcs follow
-   the danger as you turn; a creature's wind-up shows on the visor like a gunman's.
+2. ~~**Understandable: creature tells.**~~ Done in pass 2.
 3. **Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**
 4. **Unlockables: envelope prizes do something** (ship paint, gun skins, upgrades as sidegrades), and more unlocks.
 5. **Gameplay: land creatures on the real worlds** (walkers need ground following first).

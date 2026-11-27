@@ -108,23 +108,41 @@ namespace OrbitalAnte.UI
 
         bool Showing => _health != null && _health.Alive && _view != null && (_visible == null || _visible());
 
-        /// <summary>The screen angle toward a point in the world, as the damage markers measure it.</summary>
-        float AngleToward(Vector3 point)
+        /// <summary>
+        /// The eye's place and axes, read once: every read of a transform's axes or place walks up its parents, so a
+        /// frame that turns ten arcs reads them once, not thirty times.
+        /// </summary>
+        readonly struct Eye
         {
-            Vector3 to = point - _view.position;
-            if (to.sqrMagnitude < 1e-6f) return 90f;
-            return AngleOf(to.normalized);
-        }
+            readonly Vector3 _at, _right, _up, _forward;
 
-        /// <summary>The screen angle of a way in the world (a unit vector), seen from the eye as it is now.</summary>
-        float AngleOf(Vector3 way) =>
-            DamageCues.MarkerAngle(Vector3.Dot(way, _view.right), Vector3.Dot(way, _view.up), Vector3.Dot(way, _view.forward));
+            Eye(Transform view)
+            {
+                view.GetPositionAndRotation(out _at, out Quaternion turn);
+                _right = turn * Vector3.right;
+                _up = turn * Vector3.up;
+                _forward = turn * Vector3.forward;
+            }
 
-        /// <summary>The way from the eye to a point, or zero if the point is at the eye.</summary>
-        Vector3 WayTo(Vector3 point)
-        {
-            Vector3 to = point - _view.position;
-            return to.sqrMagnitude < 1e-6f ? Vector3.zero : to.normalized;
+            public static Eye Of(Transform view) => new Eye(view);
+
+            /// <summary>The screen angle of a way in the world (a unit vector), as the damage markers measure it.</summary>
+            public float AngleOf(Vector3 way) =>
+                DamageCues.MarkerAngle(Vector3.Dot(way, _right), Vector3.Dot(way, _up), Vector3.Dot(way, _forward));
+
+            /// <summary>The screen angle toward a point in the world.</summary>
+            public float AngleToward(Vector3 point)
+            {
+                Vector3 to = point - _at;
+                return to.sqrMagnitude < 1e-6f ? 90f : AngleOf(to.normalized);
+            }
+
+            /// <summary>The way from the eye to a point, or zero if the point is at the eye.</summary>
+            public Vector3 WayTo(Vector3 point)
+            {
+                Vector3 to = point - _at;
+                return to.sqrMagnitude < 1e-6f ? Vector3.zero : to.normalized;
+            }
         }
 
         void OnSpotted(Vector3 from, float beat, bool hidden)
@@ -132,7 +150,8 @@ namespace OrbitalAnte.UI
             if (!Showing) return;
             // Game time, like the enemy's beat: in Focus or hitstop the arc lasts as long as the beat really does.
             float now = Time.time;
-            float angle = AngleToward(from);
+            Eye eye = Eye.Of(_view);
+            float angle = eye.AngleToward(from);
             // A squad seen together shares one arc; otherwise the oldest arc makes way.
             int slot = -1, oldest = 0;
             for (int i = 0; i < _warnTime.Length; i++)
@@ -142,7 +161,7 @@ namespace OrbitalAnte.UI
             }
             if (slot < 0) slot = oldest;
             _warnAngle[slot] = angle;
-            _warnDir[slot] = WayTo(from);
+            _warnDir[slot] = eye.WayTo(from);
             _warnTime[slot] = now;
             _warnBeat[slot] = beat;
             _warns[slot].rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - WarnSpan * 0.5f);
@@ -176,7 +195,7 @@ namespace OrbitalAnte.UI
             if (fresh)
             {
                 // Turned straight to it on its first frame, never swung round from where another arc was.
-                _beastAngle[slot] = AngleToward(source.WindupPoint);
+                _beastAngle[slot] = Eye.Of(_view).AngleToward(source.WindupPoint);
                 _beastSpan[slot] = WindupCues.Span(_beastStage[slot], 0f);
                 SetArc(_beasts[slot], _beastAngle[slot], _beastSpan[slot]);
             }
@@ -192,7 +211,7 @@ namespace OrbitalAnte.UI
         void OnSquadSent(Vector3 from)
         {
             if (!Showing) return;
-            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(AngleToward(from)));
+            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(Eye.Of(_view).AngleToward(from)));
         }
 
         void OnDestroy()
@@ -328,7 +347,7 @@ namespace OrbitalAnte.UI
             if (_view != null && bulletDirection.sqrMagnitude > 1e-8f)
             {
                 toShooter = -bulletDirection.normalized;
-                angle = AngleOf(toShooter);
+                angle = Eye.Of(_view).AngleOf(toShooter);
             }
 
             // A hit from about the same way as one still showing refreshes it rather than taking a new slot.
@@ -368,6 +387,7 @@ namespace OrbitalAnte.UI
             float now = Time.unscaledTime;
 
             bool looking = _view != null;
+            Eye eye = looking ? Eye.Of(_view) : default;
             for (int i = 0; i < _markers.Length; i++)
             {
                 float a = show ? DamageCues.MarkerAlpha(now - _markerTime[i]) : 0f;
@@ -375,7 +395,7 @@ namespace OrbitalAnte.UI
                 if (_markers[i].enabled != on) _markers[i].enabled = on;
                 if (!on) continue;
                 _markers[i].canvasRenderer.SetAlpha(a);
-                if (looking && _markerDir[i] != Vector3.zero) Follow(_markers[i], ref _markerAngle[i], AngleOf(_markerDir[i]), MarkerSpan);
+                if (looking && _markerDir[i] != Vector3.zero) Follow(_markers[i], ref _markerAngle[i], eye.AngleOf(_markerDir[i]), MarkerSpan);
             }
 
             for (int i = 0; i < _warns.Length; i++)
@@ -385,10 +405,10 @@ namespace OrbitalAnte.UI
                 if (_warns[i].enabled != on) _warns[i].enabled = on;
                 if (!on) continue;
                 _warns[i].canvasRenderer.SetAlpha(a);
-                if (looking && _warnDir[i] != Vector3.zero) Follow(_warns[i], ref _warnAngle[i], AngleOf(_warnDir[i]), WarnSpan);
+                if (looking && _warnDir[i] != Vector3.zero) Follow(_warns[i], ref _warnAngle[i], eye.AngleOf(_warnDir[i]), WarnSpan);
             }
 
-            for (int i = 0; i < _beasts.Length; i++) StepWindup(i, show && looking);
+            for (int i = 0; i < _beasts.Length; i++) StepWindup(i, show && looking, in eye);
 
             float glow = show ? DamageCues.GlowFade(_glowStrength, now - _glowTime) * 0.75f : 0f;
             for (int i = 0; i < 4; i++)
@@ -428,7 +448,7 @@ namespace OrbitalAnte.UI
         /// <see cref="WindupCues"/>, turned toward it. When the warning is over (or the creature is gone) it fades
         /// where it last pointed, then lets the arc go.
         /// </summary>
-        void StepWindup(int i, bool show)
+        void StepWindup(int i, bool show, in Eye eye)
         {
             Creatures.IWindup source = _beastSource[i];
             Image arc = _beasts[i];
@@ -470,7 +490,7 @@ namespace OrbitalAnte.UI
             if (!on) return;
             arc.canvasRenderer.SetAlpha(a);
             float span = stage == Creatures.WindupStage.None ? _beastSpan[i] : WindupCues.Span(stage, now - _beastSince[i]);
-            float angle = gone ? _beastAngle[i] : AngleToward(source.WindupPoint);
+            float angle = gone ? _beastAngle[i] : eye.AngleToward(source.WindupPoint);
             bool widen = Mathf.Abs(span - _beastSpan[i]) > 0.05f;
             if (widen || WindupCues.Turned(_beastAngle[i], angle))
             {

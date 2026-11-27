@@ -79,3 +79,39 @@ result.
 
 **Left open:** nothing here has run in Unity. The kit page, the Unlocks page, the banner and the break with unlock lines
 need looking at on the Deck's screen. Next pass: creature tells (gap 2).
+
+## Pass 2 (27 Nov 2026): creature tells
+
+**Gap closed:** six of the nine creatures borrowed the Faction A Scout's flare as their warning (and the maw's draw-in
+the Heavy's spin-up), so one sound meant six dangers; the visor's arcs stayed at the screen angle they fired at, so
+turning toward a danger left its arc pointing the old way; and a creature winding up out of view showed nothing.
+
+**Built** (report `docs/reports/creature-tells.md`):
+
+- One rule for every creature that strikes (`Creatures/Windups.cs`, plain C#): it winds up while it still follows the
+  player (Winding), takes aim at its brain's own lock (Aimed: a step aside now is a miss), then strikes (Striking). The
+  stage is read from each brain's orders; nothing about any fight changed.
+- Nine new sounds made from code in `tools/audio/sfx/creature.py`: the Strider's and Sprinter's raise, the Roller's
+  curl, the Cave hunter's rear, the Drifting maw's gape, draw-in and choke, the Pack biter's mark and dart. Each warning
+  has one hard mark (a clack, a snick, a clunk, a fang click, a thoom, a tock) at the moment its creature takes aim,
+  written as the event's `lockAt`; the Screamer's, Ambusher's and Blind stalker's older warnings carry theirs too. A
+  dial that changes a warning's length plays the sound faster or slower (0.8 to 1.25 times) so the mark stays on the
+  lock. Every stand-in is gone: creatures play only their own sounds.
+- Two older sounds were nearly all below what the Deck's speakers play (the Ambusher coming up, 95% of its weight under
+  250 Hz, and the Blind stalker's lunge, 91%): the rise now crackles as the ground strains (47%), and the lunge's thump
+  sits under its clap (59%).
+- The visor (`UI/DamageFeedback.cs`, rules `UI/WindupCues.cs`): every arc keeps its danger's direction in the world and
+  turns as the player turns, so turning toward an arc brings it to the top of the ring. A creature's wind-up is an
+  amber arc on the gunman's ring that follows the creature: 40 degrees and flickering while it follows, snapping to 18
+  degrees and steady at the same moment as the sound's mark, held through the strike, then fading. Each creature tells
+  the visor once as a warning starts (`IWindup`, `CombatWorld.CreatureWindup`).
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`: 3,073 run, 3,072 passed, 1 skipped (the cabin bake check, as before). Ten tests are
+  new (`WindupTests`), all passed on their first full run.
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.
+- `tools/audio/qa.py`: pass, 0 failed checks; 8 warnings, none of them a creature sound (there were 12, and the 4
+  removed were the Ambusher's rise and the Blind stalker's lunge).
+- Every warning's loudest moment was measured at its mark (and a rule test reads the WAV files to hold it there). The
+  sounds were measured, not listened to.
