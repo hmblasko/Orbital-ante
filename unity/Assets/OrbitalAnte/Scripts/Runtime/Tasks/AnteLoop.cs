@@ -259,7 +259,7 @@ namespace OrbitalAnte.Tasks
                       + "). Bank from the pause menu, or keep scoring"
                     : "TARGET MET: bank it from the pause menu, or keep scoring", true);
             }
-            UpdateUnlocks();
+            UpdateUnlocks(dt, paused);
             // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
             // star chart once the target is met. In the seat Select is still Floodlights.
             // Never while dying: the burst's hold keeps the ante running for a moment, and nothing may be spent then.
@@ -490,6 +490,9 @@ namespace OrbitalAnte.Tasks
             _noteLine.resizeTextMaxSize = 20;
             UiKit.Halo(_noteLine, true);
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
+
+            // Under the note line, where the gun ladder's NEW GUN shows: the unlock moment's banner (the two never share it).
+            BuildUnlockHud();
 
             _canvas.gameObject.SetActive(false);
         }

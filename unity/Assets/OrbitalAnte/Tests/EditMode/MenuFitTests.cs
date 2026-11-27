@@ -40,6 +40,44 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void EveryPage_StaysOnTheScreen_EvenWhenItsWordsAreLong()
+        {
+            // Unity review, 27 Nov 2026: at the button floor a long body still pushed the card off a 16:9 screen.
+            foreach (float screen in new[] { Deck, Wide })
+            {
+                for (int rows = 0; rows <= 7; rows++)
+                {
+                    foreach (float body in new[] { 0f, 120f, 176f, 220f, 264f, 320f, 480f })
+                    {
+                        MenuFit.Fit(rows, body, 70f, screen, out float shown, out float button);
+                        string at = rows + " rows, body " + body + " on " + screen;
+                        Assert.GreaterOrEqual(button, MenuFit.LeastButton, at);
+                        Assert.LessOrEqual(button, 70f, at);
+                        Assert.LessOrEqual(shown, body, at);
+                        Assert.GreaterOrEqual(shown, 0f, at);
+                        Assert.LessOrEqual(MenuFit.CardHeight(rows, shown, button), screen - 2f * MenuFit.Margin + 0.01f, at);
+                        if (button > MenuFit.LeastButton) Assert.AreEqual(body, shown, at + ": the buttons give way before the words");
+                    }
+                }
+            }
+            // The full break of 25 Nov 2026 is untouched.
+            MenuFit.Fit(7, 176f, 56f, Deck, out float b, out float h);
+            Assert.AreEqual(176f, b);
+            Assert.AreEqual(56f, h);
+        }
+
+        [Test]
+        public void TheCanvasHeight_IsWorkedOutFromTheScreen()
+        {
+            Assert.AreEqual(800f, MenuFit.CanvasHeight(1280f, 800f), 0.01f, "the Deck");
+            Assert.AreEqual(800f, MenuFit.CanvasHeight(2560f, 1600f), 0.01f, "the same shape, bigger");
+            Assert.AreEqual(758.9f, MenuFit.CanvasHeight(1920f, 1080f), 0.1f, "16:9");
+            Assert.AreEqual(758.9f, MenuFit.CanvasHeight(3840f, 2160f), 0.1f);
+            Assert.AreEqual(800f, MenuFit.CanvasHeight(0f, 0f), "no screen yet: the reference height");
+            Assert.AreEqual(720f, MenuFit.CanvasHeight(1920f, 1080f, 1280f, 800f, 0f), 0.1f, "matched by width only: 1080 / 1.5");
+        }
+
+        [Test]
         public void ShortPages_KeepTheHeightTheyAskFor()
         {
             Assert.AreEqual(70f, MenuFit.ButtonHeight(2, 60f, 70f, Deck));

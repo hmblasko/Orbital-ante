@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using OrbitalAnte.Ante;
 using OrbitalAnte.Save;
@@ -7,8 +9,9 @@ namespace OrbitalAnte.Tests
 {
     /// <summary>
     /// Goal unlocks and starting kits (Ralph loop pass 1, 27 Nov 2026; Ante/Unlocks.cs): what each goal is, that it
-    /// is met by its own feat and nothing else, that locked perks never reach a draft, that a kit's perks stand in
-    /// for the first two picks, and that the save keeps all of it. Plain C#.
+    /// is met by its own feat and nothing else, that locked perks never reach a draft and a new one is shown in the
+    /// next, that a kit's perks stand in for the first picks and cost one more, the words the player reads, and that
+    /// the save keeps all of it. Plain C#.
     /// </summary>
     public class UnlockTests
     {
@@ -64,9 +67,16 @@ namespace OrbitalAnte.Tests
                 Assert.IsNotEmpty(words, d.id);
                 StringAssert.EndsWith(".", words, d.id);
                 Assert.AreNotEqual(d.goal.ToString(), words, d.goal + " has no words");
-                Assert.IsNotEmpty(UnlockCatalog.GiftWords(d), d.id);
-                Assert.IsNotEmpty(UnlockCatalog.KindWords(d), d.id);
-                Assert.IsNotEmpty(UnlockCatalog.EarnedNote(d), d.id);
+                foreach (string w in new[]
+                {
+                    UnlockCatalog.ShortGoal(d.goal), UnlockCatalog.FeatWords(d.goal), UnlockCatalog.GiftWords(d), UnlockCatalog.KindWords(d),
+                    UnlockCatalog.EarnedNote(d, 3), UnlockCatalog.BannerWords(d), UnlockCatalog.BreakLine(d, 3), UnlockCatalog.NextWords(d),
+                })
+                {
+                    Assert.IsNotEmpty(w, d.id);
+                    StringAssert.DoesNotContain(d.goal.ToString(), w, d.id + ": the code's name leaked into the words");
+                }
+                Assert.AreEqual(UnlockCatalog.FeatWords(d.goal).ToUpperInvariant(), UnlockCatalog.FeatWords(d.goal), "the feat is said in capitals");
             }
             foreach (UnlockGoal g in System.Enum.GetValues(typeof(UnlockGoal))) Assert.IsTrue(goals.Contains(g), g + " unlocks nothing");
         }
@@ -100,6 +110,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(StartingKits.StandardId, StartingKits.Standard.id);
             Assert.AreEqual(0, StartingKits.Standard.perkIds.Length);
             Assert.IsNull(UnlockCatalog.ForTarget(StartingKits.StandardId), "Standard is never locked");
+            Assert.AreEqual(string.Empty, StartingKits.Cost(StartingKits.Standard), "Standard costs nothing");
             var ids = new HashSet<string>();
             foreach (StartingKit kit in StartingKits.All)
             {
@@ -115,7 +126,10 @@ namespace OrbitalAnte.Tests
                     Assert.AreEqual(kit.family, p.family, kit.id + ": " + id);
                     Assert.IsFalse(locked.Contains(id), kit.id + " starts with a perk that is still locked: " + id);
                 }
-                StringAssert.Contains(StartingKits.CostWords, StartingKits.Details(kit, perks, new AnteBalance()), kit.id + " must say what it costs");
+                string details = StartingKits.Details(kit, perks, new AnteBalance());
+                StringAssert.Contains(StartingKits.Cost(kit), details, kit.id + " must say what it costs");
+                StringAssert.Contains("ante 4", StartingKits.Cost(kit), kit.id);
+                Assert.AreEqual(4, StartingKits.FirstPickAnte(kit), kit.id);
             }
         }
 
@@ -138,11 +152,34 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TheLongShotGoal_SaysTheTaskRulesDistance()
+        public void TheGoalWords_SayTheGamesOwnNumbers_AndThePlayersKeys()
         {
-            StringAssert.Contains("60 m", UnlockCatalog.GoalWords(UnlockGoal.LongShotKill, 60f));
-            StringAssert.Contains("45 m", UnlockCatalog.GoalWords(UnlockGoal.LongShotKill, 45f));
-            StringAssert.Contains("1:00", UnlockCatalog.GoalWords(UnlockGoal.BankEarly));
+            StringAssert.Contains("60 m", UnlockCatalog.GoalWords(UnlockGoal.LongShotKill, new UnlockHints { longShotMetres = 60f }));
+            StringAssert.Contains("45 m", UnlockCatalog.GoalWords(UnlockGoal.LongShotKill, new UnlockHints { longShotMetres = 45f }));
+
+            string armour = UnlockCatalog.GoalWords(UnlockGoal.LowArmourKill, new UnlockHints { lowArmourLine = 0.30f });
+            StringAssert.Contains("under 30%", armour);
+            StringAssert.Contains("3 chevrons or fewer", armour, "the suit shows ten; one goes dark only when used up");
+            StringAssert.Contains("under 25%", UnlockCatalog.GoalWords(UnlockGoal.LowArmourKill, new UnlockHints { lowArmourLine = 0.25f }));
+            StringAssert.Contains("under 30%", UnlockCatalog.ShortGoal(UnlockGoal.LowArmourKill));
+
+            StringAssert.Contains("tap C to crouch, hold it to lie prone",
+                UnlockCatalog.GoalWords(UnlockGoal.LowStanceKill, new UnlockHints { crouchKey = "C" }));
+            StringAssert.Contains("press E under it", UnlockCatalog.GoalWords(UnlockGoal.RoverSplat, new UnlockHints { interactKey = "E" }));
+            StringAssert.Contains("moons count", UnlockCatalog.GoalWords(UnlockGoal.ThreeWorldsInOneAnte));
+            StringAssert.Contains("before its clock runs out", UnlockCatalog.GoalWords(UnlockGoal.HazardBeatsTheClock));
+
+            string ways = UnlockCatalog.GoalWords(UnlockGoal.FourWaysInOneAnte);
+            StringAssert.Contains("4 of these " + ScoreWays.Paid.Length + " ways", ways);
+            StringAssert.Contains(ScoreWays.List(), ways);
+        }
+
+        [Test]
+        public void TheMeleeGoal_OpensAMeleePerk_AndRiskOpensTheDaredevilKit()
+        {
+            Assert.AreEqual("perk.heavy_swing", UnlockCatalog.ForGoal(UnlockGoal.MeleeKill).target, "only worth holding with a melee weapon");
+            Assert.AreEqual("kit.daredevil", UnlockCatalog.ForGoal(UnlockGoal.LowArmourKill).target);
+            Assert.IsTrue(UnlockBook.IsOpen(new SaveData(), "perk.in_your_face"), "close-range defence is open from the start");
         }
 
         // ---- the goals in one run ----
@@ -153,7 +190,7 @@ namespace OrbitalAnte.Tests
         public void APlainKill_MeetsNothing_AndEachStyleMeetsItsOwnGoal()
         {
             var t = new UnlockTracker();
-            t.Kill(false, false, false, false);
+            t.Kill(false, false, false, false, false);
             Assert.IsEmpty(Met(t));
             t.Kill(true, false, false, false);
             CollectionAssert.AreEqual(new[] { UnlockGoal.MeleeKill }, Met(t));
@@ -163,6 +200,8 @@ namespace OrbitalAnte.Tests
             CollectionAssert.AreEqual(new[] { UnlockGoal.LongShotKill }, Met(t));
             t.Kill(false, false, false, true);
             CollectionAssert.AreEqual(new[] { UnlockGoal.LowStanceKill }, Met(t));
+            t.Kill(false, false, false, false, true);
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LowArmourKill }, Met(t));
         }
 
         [Test]
@@ -189,33 +228,21 @@ namespace OrbitalAnte.Tests
         public void ClearingAnte2_IsAGoal_ButClearingAnte1IsNot()
         {
             var t = new UnlockTracker();
-            t.AnteCleared(1, 0f, false, false);
+            t.AnteCleared(1, false, false);
             Assert.IsEmpty(Met(t));
-            t.AnteCleared(2, 0f, false, false);
+            t.AnteCleared(2, false, false);
             CollectionAssert.AreEqual(new[] { UnlockGoal.ClearAnte2 }, Met(t));
-        }
-
-        [Test]
-        public void BankingEarly_NeedsAMinuteOnTheClock_AndNeverCountsInOvertime()
-        {
-            var t = new UnlockTracker();
-            t.AnteCleared(1, UnlockTracker.BankEarlySeconds - 0.5f, false, false);
-            Assert.IsEmpty(Met(t));
-            t.AnteCleared(1, 200f, false, true);
-            Assert.IsEmpty(Met(t), "overtime is past the clock");
-            t.AnteCleared(1, UnlockTracker.BankEarlySeconds, false, false);
-            CollectionAssert.AreEqual(new[] { UnlockGoal.BankEarly }, Met(t));
         }
 
         [Test]
         public void AHazard_MustBeatTheClock()
         {
             var t = new UnlockTracker();
-            t.AnteCleared(1, 0f, true, true);
+            t.AnteCleared(1, true, true);
             Assert.IsEmpty(Met(t), "cleared in overtime: the bet was lost");
-            t.AnteCleared(1, 0f, false, false);
+            t.AnteCleared(1, false, false);
             Assert.IsEmpty(Met(t));
-            t.AnteCleared(1, 0f, true, false);
+            t.AnteCleared(1, true, false);
             CollectionAssert.AreEqual(new[] { UnlockGoal.HazardBeatsTheClock }, Met(t));
         }
 
@@ -264,6 +291,125 @@ namespace OrbitalAnte.Tests
             CollectionAssert.AreEqual(new[] { UnlockGoal.LadderTop }, Met(t));
         }
 
+        // ---- the kinds of score, in the player's words ----
+
+        static string RuntimeFolder()
+        {
+            string dir = TestContext.CurrentContext.TestDirectory;
+            for (int i = 0; i < 10 && dir != null; i++)
+            {
+                foreach (string candidate in new[] { Path.Combine(dir, "Assets", "OrbitalAnte", "Scripts", "Runtime"), Path.Combine(dir, "unity", "Assets", "OrbitalAnte", "Scripts", "Runtime") })
+                    if (Directory.Exists(candidate)) return candidate;
+                dir = Path.GetDirectoryName(dir);
+            }
+            return Path.Combine(Directory.GetCurrentDirectory(), "Assets", "OrbitalAnte", "Scripts", "Runtime");
+        }
+
+        /// <summary>
+        /// Every score kind the game itself names outside the rules (what the task director, the spawner and the
+        /// bonus missions report) is one of the kinds the goal and the Change of Pace card list, and every kind they
+        /// list is paid by something. When something new starts to pay, ScoreWays' words must say it.
+        /// </summary>
+        [Test]
+        public void ScoreWays_NameWhatReallyPaysEachKind()
+        {
+            string folder = RuntimeFolder();
+            Assume.That(Directory.Exists(folder), "runtime folder not found: " + folder);
+            var reported = new HashSet<ScoreEventKind>();
+            foreach (string file in Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories))
+            {
+                if (file.Replace('\\', '/').Contains("/Ante/")) continue;
+                foreach (Match m in Regex.Matches(File.ReadAllText(file), @"ScoreEventKind\.(\w+)"))
+                    if (System.Enum.TryParse(m.Groups[1].Value, out ScoreEventKind kind)) reported.Add(kind);
+            }
+            Assert.IsNotEmpty(reported);
+            var listed = new HashSet<ScoreCategory>(ScoreWays.Paid);
+            var paid = new HashSet<ScoreCategory>();
+            foreach (ScoreEventKind kind in reported)
+            {
+                ScoreCategory c = AnteBalance.CategoryOf(kind);
+                Assert.IsTrue(listed.Contains(c), kind + " pays " + c + ", which the goal and the card do not list");
+                paid.Add(c);
+            }
+            foreach (ScoreCategory c in ScoreWays.Paid) Assert.IsTrue(paid.Contains(c), c + " is listed, but nothing in the game pays it");
+            StringAssert.Contains("mast", ScoreWays.Things(AnteBalance.CategoryOf(ScoreEventKind.InstallationDestroyed)), "a mast scores as a fight");
+            StringAssert.Contains("first landing", ScoreWays.Things(AnteBalance.CategoryOf(ScoreEventKind.NewMoon)));
+            StringAssert.Contains("HARD LANDING", ScoreWays.Things(AnteBalance.CategoryOf(ScoreEventKind.DifficultLanding)));
+            StringAssert.Contains("crate", ScoreWays.Things(AnteBalance.CategoryOf(ScoreEventKind.SalvageDelivered)));
+            StringAssert.Contains("bonus mission", ScoreWays.Things(AnteBalance.CategoryOf(ScoreEventKind.OptionalMission)));
+        }
+
+        [Test]
+        public void TheGoal_AndTheChangeOfPaceCard_ListTheSameKinds()
+        {
+            PerkDefinition chain = Perks.Find(p => p.id == PerkCatalog.ChainPerkId);
+            string card = chain.Describe(new AnteBalance());
+            StringAssert.Contains(ScoreWays.ShortList(), card);
+            StringAssert.DoesNotContain("bounty", card, "nothing pays a bounty yet");
+            StringAssert.DoesNotContain("repair", card, "nothing pays a repair yet");
+            for (int i = 0; i < ScoreWays.Paid.Length; i++)
+            {
+                StringAssert.Contains(ScoreWays.Things(ScoreWays.Paid[i]), ScoreWays.List());
+                StringAssert.Contains(ScoreWays.Plural(ScoreWays.Paid[i]), card);
+            }
+        }
+
+        // ---- the moment ----
+
+        [Test]
+        public void TheUnlockMoment_WaitsOutAFight_ButNotForever()
+        {
+            Assert.IsTrue(UnlockMoment.MayShow(true, false, false, false, 0f));
+            Assert.IsFalse(UnlockMoment.MayShow(true, false, false, true, 0f), "not in the middle of a fight");
+            Assert.IsFalse(UnlockMoment.MayShow(true, false, false, true, UnlockMoment.FightWaitMost - 0.1f));
+            Assert.IsTrue(UnlockMoment.MayShow(true, false, false, true, UnlockMoment.FightWaitMost), "a long fight does not swallow it");
+            Assert.IsFalse(UnlockMoment.MayShow(false, false, false, false, 100f), "never while the readout is hidden");
+            Assert.IsFalse(UnlockMoment.MayShow(true, true, false, false, 100f), "never over TARGET MET in its hold");
+            Assert.IsFalse(UnlockMoment.MayShow(true, false, true, false, 100f), "never over the NEW GUN banner");
+        }
+
+        [Test]
+        public void TheUnlockMoment_SaysTheFeat_AndWhereTheUnlockTurnsUp()
+        {
+            UnlockDefinition hunter = UnlockCatalog.ForGoal(UnlockGoal.LowStanceKill);
+            Assert.AreEqual("UNLOCKED: PATIENT HUNTER", UnlockCatalog.BannerWords(hunter));
+            Assert.AreEqual("CROUCHED OR PRONE KILL · A GHOST PERK, IN YOUR DRAFTS FROM ANTE 3", UnlockCatalog.EarnedNote(hunter, 3));
+            Assert.AreEqual("CROUCHED OR PRONE KILL · A GHOST PERK, IN YOUR NEXT RUN'S DRAFTS", UnlockCatalog.EarnedNote(hunter, 0),
+                "unlocked in the last ante: there is no draft left this run");
+            Assert.AreEqual("UNLOCKED: Patient Hunter, for a crouched or prone kill. A Ghost perk, in your drafts from ante 3.",
+                UnlockCatalog.BreakLine(hunter, 3));
+
+            UnlockDefinition gunner = UnlockCatalog.ForGoal(UnlockGoal.ClearAnte2);
+            Assert.AreEqual("ANTE 2 CLEARED · A STARTING KIT, CHOOSE IT AT NEW RUN", UnlockCatalog.EarnedNote(gunner, 3));
+            Assert.AreEqual("A wild-card perk", "A" + UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.FourWaysInOneAnte)).Substring(1));
+        }
+
+        [Test]
+        public void TheRecap_NamesTheNextTwo_AndFoldsClearingAnte2IntoTheNextMark()
+        {
+            var save = new SaveData();
+            Assert.AreEqual("Next unlocks: Patient Hunter, for a crouched or prone kill · Road Rage, for a rover splat\n"
+                            + "Next mark: clear ante 2, which unlocks the Gunner kit.", UnlockRecap.Lines(save, null, 1, 8));
+            Assert.AreEqual("Next unlocks: Gunner kit, for clearing ante 2 · Patient Hunter, for a crouched or prone kill\n"
+                            + "Next mark: clear ante 1.", UnlockRecap.Lines(save, null, 0, 8), "ante 1 is not a goal: nothing to fold");
+
+            SaveData some = SaveWith(UnlockGoal.RoverSplat);
+            string lines = UnlockRecap.Lines(some, new List<UnlockDefinition> { UnlockCatalog.ForGoal(UnlockGoal.RoverSplat) }, 1, 8);
+            StringAssert.StartsWith("Unlocked this run: Road Rage. See Unlocks on the title screen.\n", lines);
+            StringAssert.Contains("Next unlocks: Patient Hunter, for a crouched or prone kill · Ghost kit, for a LONG SHOT kill\n", lines);
+
+            Assert.AreEqual("Next mark: a higher run score.", UnlockRecap.Lines(SaveWithEverything(), null, 8, 8), "nothing left to unlock");
+            Assert.AreEqual("Next unlock: All In, for beating the clock with the stakes raised\nNext mark: clear ante 4.",
+                UnlockRecap.Lines(EverythingBut(UnlockGoal.HazardBeatsTheClock), null, 3, 8));
+        }
+
+        static SaveData EverythingBut(UnlockGoal left)
+        {
+            var save = new SaveData();
+            foreach (UnlockDefinition d in UnlockCatalog.All) if (d.goal != left) UnlockBook.Grant(save, d.goal);
+            return save;
+        }
+
         // ---- the book in the save ----
 
         [Test]
@@ -275,10 +421,34 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("unlock.perk.road_rage", d.id);
             Assert.IsNull(UnlockBook.Grant(save, UnlockGoal.RoverSplat), "earned before");
             CollectionAssert.AreEqual(new[] { "unlock.perk.road_rage" }, save.unlocks);
+            CollectionAssert.AreEqual(new[] { "perk.road_rage" }, save.perksToShow, "owed one showing in a draft");
             Assert.IsTrue(UnlockBook.IsOpen(save, "perk.road_rage"));
             Assert.IsFalse(UnlockBook.IsOpen(save, "perk.all_in"));
             Assert.IsTrue(UnlockBook.IsOpen(save, "perk.quick_mend"), "a perk nothing guards is open from the start");
             Assert.IsNull(UnlockBook.Grant(null, UnlockGoal.RoverSplat));
+        }
+
+        [Test]
+        public void ANewPerk_IsOwedOneShowing_AndAKitIsOwedNone()
+        {
+            var save = new SaveData();
+            Assert.IsNull(UnlockBook.PerkToShow(save));
+            UnlockBook.Grant(save, UnlockGoal.ClearAnte2);
+            Assert.IsNull(UnlockBook.PerkToShow(save), "a kit is chosen at New run, not drafted");
+            UnlockBook.Grant(save, UnlockGoal.LowStanceKill);
+            UnlockBook.Grant(save, UnlockGoal.MeleeKill);
+            Assert.AreEqual("perk.patient_hunter", UnlockBook.PerkToShow(save), "the first earned is shown first");
+            Assert.IsTrue(UnlockBook.MarkShown(save, "perk.patient_hunter"));
+            Assert.IsFalse(UnlockBook.MarkShown(save, "perk.patient_hunter"), "shown once");
+            Assert.AreEqual("perk.heavy_swing", UnlockBook.PerkToShow(save));
+            UnlockBook.MarkShown(save, "perk.heavy_swing");
+            Assert.IsNull(UnlockBook.PerkToShow(save));
+
+            var odd = new SaveData { perksToShow = new List<string> { "perk.not_a_perk", "perk.all_in", "perk.road_rage" } };
+            UnlockBook.Grant(odd, UnlockGoal.RoverSplat);
+            Assert.AreEqual("perk.road_rage", UnlockBook.PerkToShow(odd), "an id it does not know, or a perk not earned, is passed over");
+            Assert.IsNull(UnlockBook.PerkToShow(new SaveData { perksToShow = null }));
+            Assert.IsFalse(UnlockBook.MarkShown(null, "perk.road_rage"));
         }
 
         [Test]
@@ -287,7 +457,7 @@ namespace OrbitalAnte.Tests
             HashSet<string> locked = UnlockBook.LockedPerkIds(new SaveData());
             CollectionAssert.AreEquivalent(new[]
             {
-                "perk.patient_hunter", "perk.road_rage", PerkCatalog.ChainPerkId, "perk.trigger_discipline", "perk.in_your_face", "perk.all_in",
+                "perk.patient_hunter", "perk.road_rage", PerkCatalog.ChainPerkId, "perk.trigger_discipline", "perk.heavy_swing", "perk.all_in",
             }, locked);
             HashSet<string> after = UnlockBook.LockedPerkIds(SaveWith(UnlockGoal.LowStanceKill, UnlockGoal.ClearAnte2));
             Assert.AreEqual(5, after.Count);
@@ -320,7 +490,7 @@ namespace OrbitalAnte.Tests
         {
             var save = new SaveData();
             CollectionAssert.AreEqual(new[] { StartingKits.StandardId }, UnlockBook.OpenKits(save).ConvertAll(k => k.id));
-            UnlockBook.Grant(save, UnlockGoal.BankEarly);
+            UnlockBook.Grant(save, UnlockGoal.LowArmourKill);
             UnlockBook.Grant(save, UnlockGoal.ClearAnte2);
             CollectionAssert.AreEqual(new[] { StartingKits.StandardId, "kit.gunner", "kit.daredevil" }, UnlockBook.OpenKits(save).ConvertAll(k => k.id));
         }
@@ -334,7 +504,12 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(UnlockGoal.LowStanceKill, UnlockBook.Next(save).goal);
             UnlockBook.Grant(save, UnlockGoal.RoverSplat);
             Assert.AreEqual(UnlockGoal.LowStanceKill, UnlockBook.Next(save).goal, "a later one earned first does not move the next mark");
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LowStanceKill, UnlockGoal.LongShotKill },
+                UnlockBook.Next(save, 2, null).ConvertAll(d => d.goal));
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LongShotKill, UnlockGoal.ThreeWorldsInOneAnte },
+                UnlockBook.Next(save, 2, UnlockGoal.LowStanceKill).ConvertAll(d => d.goal));
             Assert.IsNull(UnlockBook.Next(SaveWithEverything()));
+            Assert.IsEmpty(UnlockBook.Next(SaveWithEverything(), 3, null));
         }
 
         [Test]
@@ -355,13 +530,15 @@ namespace OrbitalAnte.Tests
         [Test]
         public void AVersion4Save_IsBroughtUpTo5_WithNothingUnlocked_AndStandardChosen()
         {
-            var data = new SaveData { version = 4, runsEnded = 3, bestAnte = 3, unlocks = null, unlocksSeen = null, kit = null };
+            var data = new SaveData { version = 4, runsEnded = 3, bestAnte = 3, unlocks = null, unlocksSeen = null, kit = null, perksToShow = null };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
             Assert.AreEqual(5, data.version);
             Assert.AreEqual(SaveData.CurrentVersion, data.version);
             Assert.IsNotNull(data.unlocks);
             Assert.IsEmpty(data.unlocks);
             Assert.IsNotNull(data.unlocksSeen);
+            Assert.IsNotNull(data.perksToShow);
+            Assert.IsEmpty(data.perksToShow);
             Assert.AreEqual(StartingKits.StandardId, data.kit);
             Assert.AreEqual(3, data.runsEnded, "records are kept");
             Assert.AreEqual(3, data.bestAnte);
@@ -370,14 +547,15 @@ namespace OrbitalAnte.Tests
         [Test]
         public void ACurrentSave_WithMissingLists_IsMendedNotThrownAway()
         {
-            var data = new SaveData { unlocks = null, unlocksSeen = null, kit = "" };
+            var data = new SaveData { unlocks = null, unlocksSeen = null, kit = "", perksToShow = null };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
             Assert.IsNotNull(data.unlocks);
             Assert.IsNotNull(data.unlocksSeen);
+            Assert.IsNotNull(data.perksToShow);
             Assert.AreEqual(StartingKits.StandardId, data.kit);
         }
 
-        // ---- locked perks in the drafts ----
+        // ---- locked perks in the drafts, and the new one shown ----
 
         [Test]
         public void ALockedPerk_IsNeverOffered()
@@ -386,7 +564,9 @@ namespace OrbitalAnte.Tests
             for (int seed = 1; seed <= 60; seed++)
             {
                 AnteRun run = NewRun(seed);
-                run.SetLocked(locked);
+                // A featured perk that is still locked is ignored, never shown.
+                run.SetLocked(locked, "perk.all_in");
+                Assert.IsNull(run.FeaturedPerkId);
                 for (int ante = 1; ante <= 4; ante++)
                 {
                     MeetTarget(run, seed + "." + ante);
@@ -420,10 +600,66 @@ namespace OrbitalAnte.Tests
             CollectionAssert.AreEqual(a, empty.PerkOffers().ConvertAll(p => p.id));
         }
 
+        [Test]
+        public void ANewPerk_IsInTheNextDraft_InItsLastPlace_AndTheOtherOffersKeepTheirs()
+        {
+            SaveData save = SaveWith(UnlockGoal.LowStanceKill);
+            HashSet<string> locked = UnlockBook.LockedPerkIds(save);
+            string fresh = UnlockBook.PerkToShow(save);
+            Assert.AreEqual("perk.patient_hunter", fresh);
+            int replaced = 0;
+            for (int seed = 1; seed <= 50; seed++)
+            {
+                AnteRun plain = NewRun(seed), shown = NewRun(seed);
+                plain.SetLocked(locked);
+                shown.SetLocked(locked, fresh);
+                Assert.AreEqual(fresh, shown.FeaturedPerkId);
+                MeetTarget(plain, "p" + seed);
+                MeetTarget(shown, "p" + seed);
+                List<string> before = plain.PerkOffers().ConvertAll(p => p.id);
+                List<string> after = shown.PerkOffers().ConvertAll(p => p.id);
+                Assert.AreEqual(before.Count, after.Count, "seed " + seed);
+                Assert.Contains(fresh, after, "seed " + seed);
+                CollectionAssert.AreEqual(after, shown.PerkOffers().ConvertAll(p => p.id), "asking twice gives the same three");
+                if (before.Contains(fresh)) CollectionAssert.AreEqual(before, after, "seed " + seed + ": already offered, so nothing moves");
+                else
+                {
+                    replaced++;
+                    Assert.AreEqual(fresh, after[after.Count - 1], "seed " + seed);
+                    CollectionAssert.AreEqual(before.GetRange(0, before.Count - 1), after.GetRange(0, after.Count - 1), "seed " + seed);
+                }
+
+                // A reroll is a fresh three, the same as with no new perk.
+                plain.Ledger.AddBankOnly(100000);
+                shown.Ledger.AddBankOnly(100000);
+                Assert.IsTrue(plain.RerollPerks());
+                Assert.IsTrue(shown.RerollPerks());
+                CollectionAssert.AreEqual(plain.PerkOffers().ConvertAll(p => p.id), shown.PerkOffers().ConvertAll(p => p.id), "seed " + seed);
+            }
+            Assert.Greater(replaced, 0, "some draft must have needed the new perk put in");
+        }
+
+        [Test]
+        public void ANewPerk_AlreadyHeld_OrUnknown_IsNotForcedIn()
+        {
+            SaveData save = SaveWith(UnlockGoal.LowStanceKill);
+            AnteRun run = NewRun(5);
+            PerkDefinition hunter = run.Catalog[0];
+            foreach (PerkDefinition p in run.Catalog) if (p.id == "perk.patient_hunter") hunter = p;
+            Assert.IsTrue(run.Perks.Add(hunter));
+            run.SetLocked(UnlockBook.LockedPerkIds(save), "perk.patient_hunter");
+            MeetTarget(run, "h");
+            foreach (PerkDefinition p in run.PerkOffers()) Assert.AreNotEqual("perk.patient_hunter", p.id, "held, so never offered again");
+
+            AnteRun other = NewRun(5);
+            other.SetLocked(UnlockBook.LockedPerkIds(save), "perk.not_a_perk");
+            Assert.IsNull(other.FeaturedPerkId);
+        }
+
         // ---- starting kits ----
 
         [Test]
-        public void AKit_GivesItsPerks_AndTheFirstTwoAntesHaveNoPickOfTheirOwn()
+        public void AKit_GivesItsPerks_AndTheFirstThreeAntesHaveNoPickOfTheirOwn()
         {
             AnteRun run = NewRun(3);
             StartingKit ghost = StartingKits.Find("kit.ghost");
@@ -431,9 +667,9 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("kit.ghost", run.KitId);
             Assert.IsTrue(run.Perks.Has("perk.eagle_eye"));
             Assert.IsTrue(run.Perks.Has("perk.cold_blood"));
-            Assert.AreEqual(2, run.Director.PicksGivenAhead);
+            Assert.AreEqual(2 + StartingKits.ExtraPicks, run.Director.PicksGivenAhead);
 
-            for (int ante = 1; ante <= 2; ante++)
+            for (int ante = 1; ante <= 3; ante++)
             {
                 MeetTarget(run, "k" + ante);
                 Assert.IsTrue(run.Director.PickGivenAhead, "ante " + ante);
@@ -446,23 +682,23 @@ namespace OrbitalAnte.Tests
                 Assert.IsTrue(run.BeginNextAnte());
             }
 
-            MeetTarget(run, "k3");
+            MeetTarget(run, "k4");
             Assert.IsFalse(run.Director.PickGivenAhead);
-            Assert.IsTrue(run.Director.PerkEarnedEarly, "ante 3 picks as usual");
+            Assert.IsTrue(run.Director.PerkEarnedEarly, "ante 4 picks as usual");
             List<PerkDefinition> offers = run.PerkOffers();
             Assert.IsNotEmpty(offers);
             foreach (PerkDefinition p in offers)
                 Assert.IsTrue(p.id != "perk.eagle_eye" && p.id != "perk.cold_blood", "a kit perk is held, so never offered again");
             Assert.IsTrue(run.Director.ConfirmAdvance());
-            Assert.IsTrue(run.Director.PerkDraftPending, "ante 3's pick waits at the break if not taken in the field");
+            Assert.IsTrue(run.Director.PerkDraftPending, "ante 4's pick waits at the break if not taken in the field");
         }
 
         [Test]
-        public void OverARun_AKitHoldsAsManyPerksAsPickingDoes()
+        public void OverARun_AKitIsAheadEarly_AndOnePerkBehindLater()
         {
             AnteRun kit = NewRun(9), picks = NewRun(9);
             Assert.IsTrue(kit.StartWithKit(StartingKits.Find("kit.gunner")));
-            for (int ante = 1; ante <= 4; ante++)
+            for (int ante = 1; ante <= 5; ante++)
             {
                 foreach (AnteRun run in new[] { kit, picks })
                 {
@@ -472,8 +708,11 @@ namespace OrbitalAnte.Tests
                     if (run.Director.PerkDraftPending && offers.Count > 0) Assert.IsTrue(run.TakePerk(offers[0]));
                     run.BeginNextAnte();
                 }
+                if (ante == 1) Assert.Greater(kit.Perks.Owned.Count, picks.Perks.Owned.Count, "a kit starts ahead");
+                if (ante >= 3)
+                    Assert.AreEqual(picks.Perks.Owned.Count - StartingKits.ExtraPicks, kit.Perks.Owned.Count,
+                        "after ante " + ante + ": a kit costs one perk, so it is a sidegrade, never an upgrade");
             }
-            Assert.AreEqual(picks.Perks.Owned.Count, kit.Perks.Owned.Count, "a kit moves two picks to the start; it never adds one");
         }
 
         [Test]
@@ -515,29 +754,41 @@ namespace OrbitalAnte.Tests
             ClearAnte(run);
             AnteRunState state = run.Export();
             Assert.AreEqual("kit.daredevil", state.kit);
-            Assert.AreEqual(2, state.picksGivenAhead);
+            Assert.AreEqual(3, state.picksGivenAhead);
             AnteRun back = AnteRun.Import(new AnteBalance(), state, RoguelitePerks.Create());
             Assert.AreEqual("kit.daredevil", back.KitId);
-            Assert.AreEqual(2, back.Director.PicksGivenAhead);
+            Assert.AreEqual(3, back.Director.PicksGivenAhead);
             Assert.IsTrue(back.Perks.Has("perk.glass_cannon"));
             Assert.IsFalse(back.Director.PerkDraftPending);
             Assert.IsTrue(back.BeginNextAnte());
             MeetTarget(back, "i2");
             Assert.IsFalse(back.Director.PerkEarnedEarly, "ante 2's pick is still the kit's after a load");
+            Assert.IsTrue(back.Director.ConfirmAdvance());
+            Assert.IsTrue(back.BeginNextAnte());
+            MeetTarget(back, "i3");
+            Assert.IsFalse(back.Director.PerkEarnedEarly, "ante 3 has no pick: the kit's price");
         }
 
         [Test]
-        public void KitWords_SayThePerksAndTheCost()
+        public void KitWords_SayThePerks_TheSet_AndThePrice()
         {
             List<PerkDefinition> perks = Perks;
+            var balance = new AnteBalance();
             StartingKit gunner = StartingKits.Find("kit.gunner");
             Assert.AreEqual("Start with Quick Study and Steady Hands.", StartingKits.Summary(gunner, perks));
-            string details = StartingKits.Details(gunner, perks, new AnteBalance());
+            Assert.AreEqual("Two perks now, one fewer this run: your first perk pick is ante 4's.", StartingKits.Cost(gunner));
+            string details = StartingKits.Details(gunner, perks, balance);
             StringAssert.StartsWith("Quick Study: ", details);
             StringAssert.Contains("\nSteady Hands: ", details);
-            StringAssert.EndsWith(StartingKits.CostWords, details);
+            StringAssert.Contains("\nGunner 2 of 3: one more Gunner perk turns on its set (" + PerkFamilies.Describe(PerkFamily.Gunner, balance) + ").", details);
+            StringAssert.EndsWith(StartingKits.Cost(gunner), details);
             StringAssert.Contains("every pick is yours", StartingKits.Summary(StartingKits.Standard, perks));
-            Assert.AreEqual(string.Empty, StartingKits.Details(StartingKits.Standard, perks, new AnteBalance()));
+            Assert.AreEqual(string.Empty, StartingKits.Details(StartingKits.Standard, perks, balance));
+            Assert.AreEqual("this ante's came with your Gunner kit", StartingKits.NoPickWords(gunner, 1));
+            Assert.AreEqual("this ante's came with your Gunner kit", StartingKits.NoPickWords(gunner, 2));
+            Assert.AreEqual("none this ante, the price of your Gunner kit", StartingKits.NoPickWords(gunner, 3));
+            StringAssert.Contains(StartingKits.Cost(gunner), UnlockCatalog.GiftWords(UnlockCatalog.ForTarget("kit.gunner"), balance),
+                "the Unlocks page says the price too");
         }
     }
 }

@@ -9,9 +9,10 @@ dotnet build -c Release
 dotnet bin/Release/net8.0/OrbitalAnte.RunSim.dll 1000 > report.md
 ```
 
-1000 runs a row takes about 20 seconds. The report has: each player model under both missed-target rules, what each
-perk is worth when forced at the first break, draft habits, the upgrade screen habits (break, field, rerolls),
-hazards, and ante by ante.
+1000 runs a row takes about 20 seconds. The report has: the starting kits against Standard for each player model,
+each player model under both missed-target rules, what each perk is worth when forced at the first break, draft
+habits, the upgrade screen habits (break, field, rerolls), hazards, and ante by ante. `1000 kits` prints only the
+kits table (about 10 seconds).
 
 **The player is a guess.** `Profile` in `Sim.cs` (First-time, Average, Skilled) says how often it kills, gets hit,
 lands somewhere new. Those numbers were made up, then the danger scale is calibrated so half of first-time players

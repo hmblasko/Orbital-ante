@@ -314,6 +314,7 @@ namespace OrbitalAnte.Tasks
                 rover = outcome.Source == HitSource.Rover,
                 melee = outcome.Source == HitSource.Melee,
                 lowStance = player != null && player.Mode == AstronautMode.Outside && player.Stances.Current != Spacewalk.Stance.Stand,
+                lowArmour = _loop != null && _loop.Run != null && Combat.RunEffects.HealthShare < _loop.Run.Balance.lowHealthLine,
             };
             if (outcome.Killed)
             {

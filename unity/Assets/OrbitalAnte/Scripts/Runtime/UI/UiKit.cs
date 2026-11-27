@@ -466,6 +466,9 @@ namespace OrbitalAnte.UI
     {
         public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData)
         {
+            // Only a mouse that moved: a page appearing under a resting cursor (left in the middle of the screen by
+            // the cursor lock) must not move a controller player's choice (Unity review, 27 Nov 2026).
+            if (eventData == null || eventData.delta.sqrMagnitude < 0.01f) return;
             var events = UnityEngine.EventSystems.EventSystem.current;
             var selectable = GetComponent<Selectable>();
             if (events != null && selectable != null && selectable.IsInteractable() && events.currentSelectedGameObject != gameObject)

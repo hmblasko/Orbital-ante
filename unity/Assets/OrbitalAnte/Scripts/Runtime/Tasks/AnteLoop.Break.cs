@@ -165,10 +165,10 @@ namespace OrbitalAnte.Tasks
             choices.Add(new PauseMenu.MenuChoice("Start ante " + (ante + 1), StartPressed));
             choices.Add(new PauseMenu.MenuChoice("Restart or quit", ShowLeave));
             // Seven rows at full height no longer fit a 1280 x 800 screen (agent review, 25 Nov 2026): shorter rows then.
-            // The body grows with its lines (a goal unlocked at the clear adds one); the menu shrinks the rows to fit.
+            // The body grows to its words (a goal unlocked at the clear adds a line); the menu shrinks the rows to fit.
             bool full = choices.Count >= 7;
-            string words = body.ToString();
-            Menu.ShowChoices("ANTE " + ante + " CLEARED", words, choices, null, MenuFit.BodyHeight(words.TrimEnd('\n'), full ? 176f : 190f, 22f, 64),
+            string words = body.ToString().TrimEnd('\n');
+            Menu.ShowChoices("ANTE " + ante + " CLEARED", words, choices, null, full ? 176f : 190f,
                 _keepSlot, false, full ? 56f : PauseMenu.ChoiceButtonHeight);
             _keepSlot = -1;
         }
@@ -215,7 +215,7 @@ namespace OrbitalAnte.Tasks
         string LastPerkName()
         {
             IReadOnlyList<PerkDefinition> owned = Run.Perks.Owned;
-            // Antes 1 and 2 of a kit run have no pick: the kit's perks were those picks.
+            // The first antes of a kit run have no pick: the kit's perks were those picks, and one more is its price.
             if (Run.Director.PickGivenAhead && !_skippedPerk && !Run.Director.PerkTakenEarly) return KitPickWords();
             return _skippedPerk ? "skipped" : owned.Count > 0 ? owned[owned.Count - 1].displayName : "none";
         }
@@ -323,7 +323,7 @@ namespace OrbitalAnte.Tasks
                 choices.Add(new PauseMenu.MenuChoice("Pick a perk  (" + offers + " on offer)", () => ShowFieldPerks(0), offers > 0));
             }
             else if (d.PerkTakenEarly) choices.Add(new PauseMenu.MenuChoice("Perk: " + LastPerkName(), null, false));
-            else if (d.PickGivenAhead) choices.Add(new PauseMenu.MenuChoice("Perk: this ante's came " + KitPickWords(), null, false));
+            else if (d.PickGivenAhead) choices.Add(new PauseMenu.MenuChoice("Perk: " + KitPickWords(), null, false));
             else if (d.IsLastAnte) choices.Add(new PauseMenu.MenuChoice("Perk: none on the last ante", null, false));
             else choices.Add(new PauseMenu.MenuChoice("Perk: yours when you meet the target  (" + N(Mathf.Max(0, d.Target - Run.Ledger.AnteEarned)) + " to go)", null, false));
             choices.Add(new PauseMenu.MenuChoice("Shop  (" + N(Run.Ledger.SpendablePoints) + " to spend)", () => ShowShop(-1, () => ShowFieldUpgrades(1))));
@@ -357,10 +357,13 @@ namespace OrbitalAnte.Tasks
         StarChartPage ChartPage(int selected)
         {
             int price = Run.RerollPrice;
+            List<PerkDefinition> offers = Run.PerkOffers();
             return new StarChartPage
             {
                 loadout = Run.Perks,
-                offers = Run.PerkOffers(),
+                offers = offers,
+                // A perk unlocked since the last draft is on a card: it says NEW (AnteLoop.Unlocks.cs).
+                newPerkId = ShowingNewPerk(offers),
                 balance = Run.Balance,
                 wallet = Run.Ledger.SpendablePoints,
                 rerollPrice = price,
@@ -579,14 +582,18 @@ namespace OrbitalAnte.Tasks
             {
                 var names = new List<string>();
                 for (int i = 0; i < Run.Perks.Owned.Count; i++) names.Add(Run.Perks.Owned[i].displayName);
-                s.Append("Build: ").Append(string.Join(", ", names)).Append("\n");
+                // A kit run says so: Try again starts with the same kit (it is changed at New run).
+                StartingKit kit = StartingKits.Find(Run.KitId);
+                s.Append("Build: ").Append(string.Join(", ", names));
+                if (kit != null && kit.perkIds.Length > 0) s.Append(" (started with the ").Append(kit.displayName).Append(')');
+                s.Append("\n");
             }
             string story = _recap != null ? _recap.Lines() : string.Empty;
             if (story.Length > 0) s.Append(story).Append("\n");
             if (newAnte) s.Append("NEW RECORD: your highest ante!\n");
             else if (newScore) s.Append("NEW RECORD: your best run score!\n");
-            s.Append(UnlockRecapLines());
-            s.Append(RunRecap.NextLine(cleared, Run.Balance.AnteCount));
+            // This run's unlocks, the next two to earn, then the next mark (Ante/Unlocks.cs, UnlockRecap).
+            s.Append(UnlockRecapLines(cleared));
             return s.ToString();
         }
     }

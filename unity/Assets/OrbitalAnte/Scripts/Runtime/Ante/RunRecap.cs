@@ -59,10 +59,11 @@ namespace OrbitalAnte.Ante
                 case ScoreCategory.Combat: return "fighting";
                 case ScoreCategory.Exploration: return "exploring";
                 case ScoreCategory.Bounty: return "bounties";
-                case ScoreCategory.Objective: return "tasks";
+                // What pays these two today (ScoreWays): a mast is fighting, a first landing is exploring.
+                case ScoreCategory.Objective: return "drops and missions";
                 case ScoreCategory.Salvage: return "salvage";
                 case ScoreCategory.Repair: return "repairs";
-                case ScoreCategory.Landing: return "landings";
+                case ScoreCategory.Landing: return "hard landings";
                 default: return c.ToString().ToLowerInvariant();
             }
         }

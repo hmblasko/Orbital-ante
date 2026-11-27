@@ -61,7 +61,8 @@ namespace OrbitalAnte.UI
             RectTransform card = UiKit.Card(_canvas.transform, "TitleCard", 620f);
             _mainCard = (RectTransform)card.parent;
             var title = UiKit.Heading(card, "ORBITAL ANTE", 64, 84f);
-            _bestLine = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 24f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // Two lines: the records (or what a run is), then the next unlock to aim at.
+            _bestLine = UiKit.LayoutLabel(card, string.Empty, 16, UiKit.Muted, 40f, TextAnchor.MiddleCenter, FontStyle.Normal);
             // Nine buttons must fit a 16:9 screen (759 units of the 800 the Deck gives): 48 px under the 60 px New run.
             const float Row = 48f;
             _playButton = UiKit.Button(card, "New run", NewRunPressed, 60f, 30).gameObject;
@@ -117,23 +118,29 @@ namespace OrbitalAnte.UI
             RectTransform kit = UiKit.Card(_canvas.transform, "KitCard", 760f);
             _kitCard = (RectTransform)kit.parent;
             UiKit.Heading(kit, "CHOOSE A KIT", 40, 56f);
-            Text intro = UiKit.LayoutLabel(kit, "A kit starts the run with two perks of one family. They are the perk picks of antes 1 "
-                + "and 2, so those antes have no pick of their own.", 16, UiKit.Muted, 44f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // A sidegrade (design review, 27 Nov 2026): two perks at once, chosen for you, and one fewer over the run.
+            Text intro = UiKit.LayoutLabel(kit, "A kit starts the run with two perks of one family, chosen for you. The price is one "
+                + "perk: your first pick is ante " + StartingKits.FirstPickAnte(StartingKits.Find("kit.gunner")) + "'s, so you hold one fewer all run.",
+                16, UiKit.Muted, 44f, TextAnchor.MiddleCenter, FontStyle.Normal);
             intro.horizontalOverflow = HorizontalWrapMode.Wrap;
+            // Six rows, the details and the kits still to earn must fit a 16:9 screen's 759 units.
+            VerticalLayoutGroup stack = kit.GetComponent<VerticalLayoutGroup>();
+            if (stack != null) stack.spacing = 8f;
             _perks = RoguelitePerks.Create();
             IReadOnlyList<StartingKit> kits = StartingKits.All;
             for (int i = 0; i < kits.Count; i++)
             {
                 StartingKit k = kits[i];
-                Button b = UiKit.Button(kit, KitLabel(k, _perks), () => StartWithKit(k), 50f, 21);
+                Button b = UiKit.Button(kit, KitLabel(k, _perks), () => StartWithKit(k), 46f, 21);
                 b.gameObject.AddComponent<SelectOnHover>();
                 _kitButtons.Add(b);
             }
-            _kitDetails = UiKit.LayoutLabel(kit, string.Empty, 16, UiKit.Cream, 92f, TextAnchor.UpperLeft, FontStyle.Normal);
+            // Its two perks, what they do for the family's set, and the price: up to six lines.
+            _kitDetails = UiKit.LayoutLabel(kit, string.Empty, 15, UiKit.Cream, 120f, TextAnchor.UpperLeft, FontStyle.Normal);
             _kitDetails.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _kitLocked = UiKit.LayoutLabel(kit, string.Empty, 15, UiKit.Muted, 66f, TextAnchor.UpperLeft, FontStyle.Normal);
+            _kitLocked = UiKit.LayoutLabel(kit, string.Empty, 15, UiKit.Muted, 84f, TextAnchor.UpperLeft, FontStyle.Normal);
             _kitLocked.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _kitBack = UiKit.Button(kit, "Back", () => Show(Page.Main), 48f, 22).gameObject;
+            _kitBack = UiKit.Button(kit, "Back", () => Show(Page.Main), 44f, 22).gameObject;
         }
 
         void BuildUnlocksPage()
@@ -142,9 +149,11 @@ namespace OrbitalAnte.UI
             _unlocksCard = (RectTransform)un.parent;
             UiKit.Heading(un, "UNLOCKS", 40, 56f);
             Text intro = UiKit.LayoutLabel(un, "Each is one goal to meet in a single run. Meet it and it is yours for every run after: "
-                + "perks join your drafts, kits are chosen at New run.", 16, UiKit.Muted, 44f, TextAnchor.MiddleCenter, FontStyle.Normal);
+                + "a perk joins your drafts (marked NEW the first time), a kit is chosen at New run. The practice range does not count.",
+                16, UiKit.Muted, 62f, TextAnchor.MiddleCenter, FontStyle.Normal);
             intro.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _unlocksBody = UiKit.LayoutLabel(un, string.Empty, 15, UiKit.Cream, 440f, TextAnchor.UpperLeft, FontStyle.Normal);
+            // Ten names and their goals, which now say how (some wrap to two or three lines).
+            _unlocksBody = UiKit.LayoutLabel(un, string.Empty, 14, UiKit.Cream, 470f, TextAnchor.UpperLeft, FontStyle.Normal);
             _unlocksBody.horizontalOverflow = HorizontalWrapMode.Wrap;
             _unlocksBody.supportRichText = true;
             _unlocksBack = UiKit.Button(un, "Back", () => Show(Page.Main), 48f, 22).gameObject;
@@ -181,15 +190,14 @@ namespace OrbitalAnte.UI
             SaveData save = SaveSystem.Data;
             IReadOnlyList<StartingKit> kits = StartingKits.All;
             var locked = new StringBuilder();
-            float longShot = Tasks.TaskConfig.Load().rules.longShot;
+            UnlockHints hints = Hints();
             for (int i = 0; i < kits.Count && i < _kitButtons.Count; i++)
             {
                 bool open = UnlockBook.IsOpen(save, kits[i].id);
                 _kitButtons[i].gameObject.SetActive(open);
                 UnlockDefinition d = UnlockCatalog.ForTarget(kits[i].id);
                 if (!open && d != null)
-                    locked.Append(locked.Length == 0 ? "Still to earn:\n" : "\n").Append(kits[i].displayName).Append(": ")
-                          .Append(UnlockCatalog.GoalWords(d.goal, longShot));
+                    locked.Append(locked.Length == 0 ? "Still to earn (the Unlocks page says how):\n" : "\n").Append(UnlockCatalog.NextWords(d, hints));
             }
             _kitLocked.text = locked.ToString();
             _shownKitFor = null;
@@ -214,11 +222,27 @@ namespace OrbitalAnte.UI
 
         static string Hex(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);
 
+        /// <summary>The goal words' numbers and the player's own keys (the same as the ante loop gives them).</summary>
+        static UnlockHints Hints()
+        {
+            var hints = new UnlockHints
+            {
+                longShotMetres = Tasks.TaskConfig.Load().rules.longShot,
+                lowArmourLine = AnteBalanceData.Load().balance.lowHealthLine,
+            };
+            if (GameInput.Asset != null)
+            {
+                hints.crouchKey = GameInput.Describe(GameInput.JetDown);
+                hints.interactKey = GameInput.Describe(GameInput.Interact);
+            }
+            return hints;
+        }
+
         /// <summary>Every unlock, easiest goal first: its goal while it is still to earn, what it gives once it is earned.</summary>
         static string UnlocksText(SaveData save)
         {
             string dim = Hex(HullKit.Dim), good = Hex(HullKit.Good), act = Hex(HullKit.Orange);
-            float longShot = Tasks.TaskConfig.Load().rules.longShot;
+            UnlockHints hints = Hints();
             AnteBalance balance = AnteBalanceData.Load().balance;
             var s = new StringBuilder();
             IReadOnlyList<UnlockDefinition> all = UnlockCatalog.All;
@@ -235,7 +259,7 @@ namespace OrbitalAnte.UI
                     if (UnlockBook.IsNew(save, d.id)) s.Append("  <color=").Append(act).Append(">NEW</color>");
                     s.Append("\n<color=").Append(dim).Append('>').Append(UnlockCatalog.GiftWords(d, balance)).Append("</color>");
                 }
-                else s.Append("\n<color=").Append(dim).Append(">Goal:</color> ").Append(UnlockCatalog.GoalWords(d.goal, longShot));
+                else s.Append("\n<color=").Append(dim).Append(">Goal:</color> ").Append(UnlockCatalog.GoalWords(d.goal, hints));
             }
             return s.ToString();
         }
@@ -250,8 +274,11 @@ namespace OrbitalAnte.UI
                 _replayButton.gameObject.SetActive(has);
                 if (has)
                 {
+                    // A solar-system run starts with the kit chosen at New run: the button says so.
+                    StartingKit kit = UnlockBook.ChosenKit(SaveSystem.Data);
+                    bool solar = LastScenario() == Scenario.SolarSystem;
                     UiKit.ButtonText(_replayButton).text = "Seed " + SaveSystem.Data.lastSeed + " again (" +
-                        (LastScenario() == Scenario.SolarSystem ? "solar system" : "practice range") + ")";
+                        (solar ? "solar system" + (kit.perkIds.Length > 0 ? ", " + kit.displayName : string.Empty) : "practice range") + ")";
                 }
                 int waiting = SaveSystem.Data.unopenedEnvelopes != null ? SaveSystem.Data.unopenedEnvelopes.Count : 0;
                 UiKit.ButtonText(_collectionButton).text = waiting > 0
@@ -260,9 +287,11 @@ namespace OrbitalAnte.UI
                 SaveData save = SaveSystem.Data;
                 int fresh = UnlockBook.NewCount(save);
                 UiKit.ButtonText(_unlocksButton).text = fresh > 0 ? "Unlocks (" + fresh + " new)" : "Unlocks";
-                _bestLine.text = save.runsEnded > 0
+                UnlockDefinition next = UnlockBook.Next(save);
+                _bestLine.text = (save.runsEnded > 0
                     ? "Best ante " + save.bestAnte + "   Best score " + save.bestRunScore.ToString("N0", Inv)
-                    : "A run is " + Ante.AnteBalanceData.Load().balance.AnteCount + " antes. How far can you get?";
+                    : "A run is " + Ante.AnteBalanceData.Load().balance.AnteCount + " antes. How far can you get?")
+                    + (next != null ? "\nNext unlock: " + UnlockCatalog.NextWords(next, Hints()) : string.Empty);
                 Show(Page.Main);
             }
         }
@@ -341,7 +370,7 @@ namespace OrbitalAnte.UI
             return goal + "\n\nFlying: " + map + " opens the map (worlds you have visited show the tasks left there). Point the nose at a world, "
                    + lockKey + " locks it and " + auto + " flies you there.\nOn foot: limbs come off, so shoot the gun or the arm to disarm, a leg to drop them. "
                    + "Only a destroyed head kills, yours too.\nUnlocks: one goal met in a run opens a new perk or starting kit for every run after. "
-                   + "The Unlocks page lists each goal.";
+                   + "The Unlocks page lists each goal and how to meet it.";
         }
 
         static string Records(SaveData save)

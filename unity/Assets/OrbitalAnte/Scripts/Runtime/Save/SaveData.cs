@@ -58,6 +58,8 @@ namespace OrbitalAnte.Save
         public List<string> unlocksSeen = new List<string>();
         /// <summary>The starting kit chosen for the next run ("kit.standard" for none).</summary>
         public string kit = OrbitalAnte.Ante.StartingKits.StandardId;
+        /// <summary>Perk ids unlocked and not yet offered in a draft: the next draft shows the first, marked NEW.</summary>
+        public List<string> perksToShow = new List<string>();
     }
 
     /// <summary>Brings a save written by an older build up to the current layout, one version at a time.</summary>
@@ -101,6 +103,7 @@ namespace OrbitalAnte.Save
                 data.unlocks = new List<string>();
                 data.unlocksSeen = new List<string>();
                 data.kit = OrbitalAnte.Ante.StartingKits.StandardId;
+                data.perksToShow = new List<string>();
                 data.version = 5;
             }
             // JsonUtility leaves a missing list as null on some paths; never hand one out.
@@ -109,6 +112,7 @@ namespace OrbitalAnte.Save
             if (data.unlocks == null) data.unlocks = new List<string>();
             if (data.unlocksSeen == null) data.unlocksSeen = new List<string>();
             if (string.IsNullOrEmpty(data.kit)) data.kit = OrbitalAnte.Ante.StartingKits.StandardId;
+            if (data.perksToShow == null) data.perksToShow = new List<string>();
 
             return data.version == SaveData.CurrentVersion;
         }

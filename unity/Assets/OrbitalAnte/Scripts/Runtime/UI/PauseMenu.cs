@@ -188,10 +188,26 @@ namespace OrbitalAnte.UI
         void BuildRestart()
         {
             var card = NewPage(Page.Restart, "RESTART?", 560f);
-            UiKit.LayoutLabel(card, "This ends the current run and starts a fresh one.", 20, UiKit.Cream, 34f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _restartNote = UiKit.LayoutLabel(card, RestartWords, 20, UiKit.Cream, 34f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _sameSeedButton = UiKit.Button(card, "Restart with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
             UiKit.Button(card, "Restart with a new seed", () => { Close(); RestartRequested?.Invoke(false); });
             _defaults[Page.Restart] = UiKit.Button(card, "Cancel", () => Show(Page.Main)).gameObject;
+        }
+
+        Text _restartNote;
+        const string RestartWords = "This ends the current run and starts a fresh one.";
+
+        /// <summary>
+        /// The restart page says when a starting kit comes along again (goal unlocks, 27 Nov 2026): a restart starts
+        /// with the kit chosen at New run, which is changed only there.
+        /// </summary>
+        void SetRestartWords()
+        {
+            if (_restartNote == null) return;
+            Ante.StartingKit kit = GameSession.Scenario == Scenario.SolarSystem ? Ante.UnlockBook.ChosenKit(Save.SaveSystem.Data) : null;
+            bool withKit = kit != null && kit.perkIds.Length > 0;
+            _restartNote.text = withKit ? RestartWords + " It starts with the " + kit.displayName + " again (change it at New run)." : RestartWords;
+            UiKit.SetLayout(_restartNote.gameObject, withKit ? 58f : 34f);
         }
 
         Text _diedCause;
@@ -245,12 +261,16 @@ namespace OrbitalAnte.UI
             var card = NewPage(Page.Choices, "CHOOSE", 760f);
             _choiceTitle = _lastHeading;
             _choiceBody = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Cream, 120f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // A body cut to the room left on a small screen (MenuFit.Fit) shrinks its words rather than spilling.
+            ShrinkToFit(_choiceBody, 14, 18);
             for (int i = 0; i < ChoiceSlots; i++)
             {
                 int slot = i;
                 Button b = UiKit.Button(card, string.Empty, () => _choiceActions[slot]?.Invoke(), ChoiceButtonHeight, 19);
                 Text t = UiKit.ButtonText(b);
                 t.horizontalOverflow = HorizontalWrapMode.Wrap;
+                // Two-line rows (the scratch ticket and its odds) need 54 units at 19 px; shorter buttons shrink the words.
+                ShrinkToFit(t, 13, 19);
                 ((RectTransform)t.transform).offsetMin = new Vector2(16f, 4f);
                 ((RectTransform)t.transform).offsetMax = new Vector2(-16f, -4f);
                 _choiceButtons[i] = b;
@@ -277,11 +297,12 @@ namespace OrbitalAnte.UI
             }
             if (_choiceTitle != null) _choiceTitle.text = title;
             _choiceBody.text = body ?? string.Empty;
-            float shownBody = string.IsNullOrEmpty(body) ? 0f : bodyHeight;
-            UiKit.SetLayout(_choiceBody.gameObject, shownBody);
-            // The buttons give up height before the card runs off the screen (UI/MenuFit).
+            // The body grows to its words, measured by the label's own text generator; the buttons give up height
+            // before the card runs off the screen, then the body is cut and its words shrink (UI/MenuFit).
+            float wanted = string.IsNullOrEmpty(body) ? 0f : Mathf.Max(bodyHeight, WordsHeight(_choiceBody, body, ChoiceBodyWidth, MenuFit.CharsPerLine));
             int rows = choices == null ? 0 : Math.Min(choices.Count, ChoiceSlots);
-            buttonHeight = MenuFit.ButtonHeight(rows, shownBody, buttonHeight, CanvasHeight);
+            MenuFit.Fit(rows, wanted, buttonHeight, CanvasHeight, out float shownBody, out buttonHeight);
+            UiKit.SetLayout(_choiceBody.gameObject, shownBody);
             _choiceBack = onBack;
             GameObject first = null;
             for (int i = 0; i < ChoiceSlots; i++)
@@ -315,14 +336,44 @@ namespace OrbitalAnte.UI
             }
         }
 
-        /// <summary>The menu canvas's height in layout units (800 on the Deck; less on a wider screen).</summary>
-        float CanvasHeight
+        /// <summary>
+        /// The menu canvas's height in layout units (800 on the Deck; about 759 on a 16:9 screen), from the screen and
+        /// the scaler's settings (UiKit.CreateCanvas), since the canvas's rect may still be unscaled the frame it is
+        /// first switched on.
+        /// </summary>
+        static float CanvasHeight => MenuFit.CanvasHeight(Screen.width, Screen.height, UiKit.ReferenceResolution.x, UiKit.ReferenceResolution.y, 0.5f);
+
+        /// <summary>The choices page's body width (its 760 card less the padding) and the death page's recap width (620 less it).</summary>
+        const float ChoiceBodyWidth = 704f, RecapWidth = 564f;
+
+        /// <summary>
+        /// How tall a label's words come out at this width, from the label's own text generator at its full size
+        /// (Unity review, 27 Nov 2026: counting characters over-counted lines and shrank the break's buttons). The
+        /// character-count estimate when the generator gives nothing usable.
+        /// </summary>
+        static float WordsHeight(Text label, string text, float width, int charsPerLine)
         {
-            get
+            if (string.IsNullOrEmpty(text)) return 0f;
+            float measured = 0f;
+            if (label != null && label.font != null)
             {
-                float h = _canvas != null ? ((RectTransform)_canvas.transform).rect.height : 0f;
-                return h > 100f ? h : UiKit.ReferenceResolution.y;
+                TextGenerationSettings settings = label.GetGenerationSettings(new Vector2(width, 0f));
+                // Measured at the label's own size: best fit would shrink it to nothing in a box of no height.
+                settings.resizeTextForBestFit = false;
+                settings.verticalOverflow = VerticalWrapMode.Overflow;
+                float perUnit = label.pixelsPerUnit;
+                measured = label.cachedTextGeneratorForLayout.GetPreferredHeight(text, settings) / (perUnit > 0f ? perUnit : 1f);
             }
+            return measured > 1f && measured < 4000f ? Mathf.Ceil(measured) + 4f : MenuFit.BodyHeight(text, 0f, 22f, charsPerLine);
+        }
+
+        /// <summary>Best fit between two sizes: the words keep their size unless the box is too small for them.</summary>
+        static void ShrinkToFit(Text label, int least, int most)
+        {
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = least;
+            label.resizeTextMaxSize = most;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
         }
 
         /// <summary>Restarts the run (true keeps the seed), from a page outside the menu's own (the ante break).</summary>
@@ -349,6 +400,7 @@ namespace OrbitalAnte.UI
             _diedTitle = _lastHeading;
             _diedCause = UiKit.LayoutLabel(card, string.Empty, 21, UiKit.Cream, 84f, TextAnchor.MiddleCenter, FontStyle.Normal);
             _diedRecap = UiKit.LayoutLabel(card, string.Empty, 18, UiKit.Muted, 0f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            ShrinkToFit(_diedRecap, 14, 18);
             _diedRecap.gameObject.SetActive(false);
             _diedSameSeed = UiKit.Button(card, "Try again with the same seed", () => { Close(); RestartRequested?.Invoke(true); });
             _defaults[Page.Died] = _diedSameSeed.gameObject;
@@ -368,8 +420,12 @@ namespace OrbitalAnte.UI
             bool hasRecap = !string.IsNullOrEmpty(recap);
             _diedRecap.gameObject.SetActive(hasRecap);
             _diedRecap.text = hasRecap ? recap : string.Empty;
-            // The recap grows with its lines (unlocks add some), up to what the page has room for.
-            UiKit.SetLayout(_diedRecap.gameObject, hasRecap ? Mathf.Min(300f, MenuFit.BodyHeight(recap, 150f, 22f, 52)) : 0f);
+            // The recap grows with its lines (unlocks add some), up to what the page has room for: the heading, the
+            // cause, three 56-unit buttons and the gaps take 422 of the screen; past that its words shrink.
+            float recapRoom = Mathf.Min(300f, CanvasHeight - 2f * MenuFit.Margin - 422f);
+            UiKit.SetLayout(_diedRecap.gameObject, hasRecap
+                ? Mathf.Min(recapRoom, Mathf.Max(150f, WordsHeight(_diedRecap, recap, RecapWidth, MenuFit.RecapCharsPerLine)))
+                : 0f);
             if (!IsOpen)
             {
                 GameSession.SetPaused(true);
@@ -433,6 +489,7 @@ namespace OrbitalAnte.UI
             _canvas.gameObject.SetActive(true);
             _seedLabel.text = "Seed " + GameSession.Seed + "   |   " + GameSession.BuildLabel;
             UiKit.ButtonText(_sameSeedButton).text = "Restart with the same seed (" + GameSession.Seed + ")";
+            SetRestartWords();
             Show(Page.Main);
         }
 

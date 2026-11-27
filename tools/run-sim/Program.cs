@@ -28,6 +28,13 @@ namespace OrbitalAnte.RunSim
             report.AppendLine($"Danger scale {danger:0.000}: set so half of first-time players (overtime rule, staying in a family) reach ante 4, as Part B section 5 asks. Every other number is read against that.");
             report.AppendLine();
 
+            Kits(report, runs);
+            if (args.Length > 1 && args[1] == "kits")
+            {
+                Console.WriteLine(report.ToString());
+                return 0;
+            }
+
             foreach (bool overtime in new[] { false, true })
             {
                 report.AppendLine(overtime ? "## Missed target goes to overtime (Matthew, 21 Nov 2026)" : "## Missed target ends the run (rule on PR 75)");
@@ -112,6 +119,35 @@ namespace OrbitalAnte.RunSim
 
             Console.WriteLine(report.ToString());
             return 0;
+        }
+
+        /// <summary>
+        /// Each starting kit against Standard (design review, 27 Nov 2026: a kit must be a sidegrade, ahead early and
+        /// behind late, never ahead all run). Acceptance: no kit beats Standard on reaching ante 4 by more than a few
+        /// points, or on the Skilled player's mean antes cleared. The Ghost kit's perks (Eagle Eye, Cold Blood) are a
+        /// blind spot of the model, so its row reads only the price. The model's Standard player takes its first perk
+        /// at random and values seven perks at nothing, while a kit's two perks are chosen ones, so the model leans
+        /// toward kits early. Run only this table with a second argument: <c>1000 kits</c>.
+        /// </summary>
+        static void Kits(StringBuilder report, int runs)
+        {
+            report.AppendLine("## Starting kits against Standard (overtime rule, stays in a family)");
+            report.AppendLine();
+            report.AppendLine("| Player | Start | Reach ante 4 | Mean antes cleared | Mean run score | Sets completed |");
+            report.AppendLine("|---|---|---|---|---|---|");
+            foreach (Profile p in Profile.All)
+            {
+                var standard = Sim.Many(p, runs, new Policy { Overtime = true });
+                report.AppendLine($"| {p.Name} | Standard | {standard.Pct(standard.Reach4)} | {standard.MeanCleared:0.00} | {standard.MeanScore:0} | {standard.Pct(standard.SetsDone)} |");
+                foreach (StartingKit kit in StartingKits.All)
+                {
+                    if (kit.perkIds.Length == 0) continue;
+                    var s = Sim.Many(p, runs, new Policy { Overtime = true, Kit = kit.id });
+                    string blind = kit.id == "kit.ghost" ? " (perks not valued)" : string.Empty;
+                    report.AppendLine($"| {p.Name} | {kit.displayName}{blind} | {s.Pct(s.Reach4)} | {s.MeanCleared:0.00} ({s.MeanCleared - standard.MeanCleared:+0.00;-0.00}) | {s.MeanScore:0} ({(s.MeanScore / Math.Max(1f, standard.MeanScore) - 1f) * 100f:+0;-0}%) | {s.Pct(s.SetsDone)} |");
+                }
+            }
+            report.AppendLine();
         }
     }
 }

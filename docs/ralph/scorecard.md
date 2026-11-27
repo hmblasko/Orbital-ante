@@ -14,13 +14,23 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 2 | Prize envelopes exist, but open only after ante 9 (`RunEnvelope.UnlockAnte`) while a first-time player is meant to die around ante 3 or 4 (Part B section 5); the paints, skins, upgrades and artworks inside are stored and never used by the game; there are no goal unlocks at all (Part B section 5 asks for Balatro-style ones); records are the only lasting progress | No goal unlocks; nothing to unlock in view; envelope prizes do nothing |
 | 6 | All-round fun | 5 | On paper the loop holds: an ante to clear, tasks and fights to score from, build choices at the break, overtime instead of a hard fail, endless antes after the last | Moves with the other five, and with a playtest |
 
+## Pass 1 (27 Nov 2026): after goal unlocks
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 7 | = | Now also a goal beyond the run: the title screen names the next unlock, the recap names the next two, and every goal says how to meet it with the player's own keys (`Ante/Unlocks.cs`) | Creature kills still score nothing, so a fight in the seas does not count toward the ante |
+| 2 | Easily understandable | 6 | = | The five ways to score are named by what really pays them (`Ante/ScoreWays.cs`, held to the code by a rule test); a kit's price is written wherever it applies | Unchanged: six creatures share one warning sound, the visor arcs do not follow the danger as you turn, an unseen creature's wind-up shows nothing |
+| 3 | Strong aesthetics | 6 | = | One new sound made for the unlock, a stencil banner | Unchanged |
+| 4 | Enjoyable gameplay | 6 | = | Kits give a run a different opening | Unchanged: land creatures only in the practice range, the music never hears of being hurt or hunted |
+| 5 | Fun unlockables | 6 | +4 | Ten one-run goals, easiest first, the first ones within a new player's reach (clear ante 2, a crouched kill, a rover splat); one always in view (title screen, recap, Unlocks page); each changes later runs (six perks out of the drafts until earned, four kits that are sidegrades); getting one is a moment (banner, note, its own sound, the new perk shown once marked NEW); saved the frame after | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue; no ship parts (none exist yet); nothing seen in Unity |
+| 6 | All-round fun | 6 | +1 | A run now ends looking at the next unlock as well as the next mark | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
-1. **Unlockables: goal unlocks.** Perks and starting kits locked behind clear, one-run goals; the unlock as a moment;
-   an unlocks page; saved. (Pass 1)
+1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
 2. **Understandable: creature tells.** Each creature's own warning sound with its aim click; the visor arcs follow
    the danger as you turn; a creature's wind-up shows on the visor like a gunman's.
 3. **Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**
-4. **Unlockables: envelope prizes do something** (ship paint, gun skins, upgrades as sidegrades).
+4. **Unlockables: envelope prizes do something** (ship paint, gun skins, upgrades as sidegrades), and more unlocks.
 5. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
 6. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).

@@ -92,7 +92,11 @@ namespace OrbitalAnte.Combat
             if (_instance == this) _instance = null;
         }
 
-        public static void ResetStatics() => _instance = null;
+        public static void ResetStatics()
+        {
+            _instance = null;
+            ReachedTop = null;
+        }
 
         /// <summary>A new run: back to the first gun. Call before the new world hands the player a gun.</summary>
         public void ResetForNewRun()
@@ -149,6 +153,9 @@ namespace OrbitalAnte.Combat
         }
 
         public static GunLadderFx Instance => _instance;
+
+        /// <summary>NEW GUN or LAST GUN is up (or fading): the unlock moment, which shares its place, waits for it.</summary>
+        public bool BannerShowing => _bannerLeft > 0f;
 
         /// <summary>Gives the player the gun of the step they are on. False if there was no player to give it to.</summary>
         bool HandOverNextGun()

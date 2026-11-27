@@ -132,29 +132,66 @@ namespace OrbitalAnte.Ante
             if (!Director.CanPickPerk) return new List<PerkDefinition>();
             SeededRandom rng = PerkDraft.StreamFor(Seed, Director.Ante);
             if (Rerolls > 0) rng = rng.Fork(1000 + Rerolls);
-            return PerkDraft.Roll(rng, _offerable, Perks, Balance, unavailable);
+            List<PerkDefinition> offers = PerkDraft.Roll(rng, _offerable, Perks, Balance, unavailable);
+            // A reroll is a fresh three: the new perk had its showing in the draft that was rerolled.
+            if (Rerolls == 0) Feature(offers, unavailable);
+            return offers;
         }
 
         IReadOnlyList<PerkDefinition> _offerable;
 
         /// <summary>
+        /// The perk this ante's draft shows in its last place (Ante/Unlocks.cs: unlocked and not shown in a draft yet),
+        /// or null. Set with the locks, at the start of each ante.
+        /// </summary>
+        public string FeaturedPerkId { get; private set; }
+
+        /// <summary>
         /// Perks still locked on this profile (Ante/Unlocks.cs, 27 Nov 2026): never offered. Set at the start of each
         /// ante, so a perk unlocked during an ante joins the drafts from the next one and the offers of an ante
-        /// never change under the player. Null or empty locks nothing.
+        /// never change under the player. Null or empty locks nothing. <paramref name="featuredPerkId"/> is a newly
+        /// unlocked perk this ante's draft must show (design review, 27 Nov 2026: drafts roll rarity first, so a rare
+        /// one might otherwise not be met for runs); ignored when it is locked or not in the catalogue.
         /// </summary>
-        public void SetLocked(ICollection<string> perkIds)
+        public void SetLocked(ICollection<string> perkIds, string featuredPerkId = null)
         {
-            if (perkIds == null || perkIds.Count == 0) { _offerable = Catalog; return; }
-            var open = new List<PerkDefinition>(Catalog.Count);
-            for (int i = 0; i < Catalog.Count; i++)
-                if (Catalog[i] != null && !perkIds.Contains(Catalog[i].id)) open.Add(Catalog[i]);
-            _offerable = open;
+            if (perkIds == null || perkIds.Count == 0) _offerable = Catalog;
+            else
+            {
+                var open = new List<PerkDefinition>(Catalog.Count);
+                for (int i = 0; i < Catalog.Count; i++)
+                    if (Catalog[i] != null && !perkIds.Contains(Catalog[i].id)) open.Add(Catalog[i]);
+                _offerable = open;
+            }
+            FeaturedPerkId = Offerable(featuredPerkId) != null ? featuredPerkId : null;
+        }
+
+        PerkDefinition Offerable(string perkId)
+        {
+            if (string.IsNullOrEmpty(perkId)) return null;
+            for (int i = 0; i < _offerable.Count; i++) if (_offerable[i] != null && _offerable[i].id == perkId) return _offerable[i];
+            return null;
         }
 
         /// <summary>
-        /// Starts the run with a kit's perks, in place of the picks of the first antes (one ante's pick for each perk
-        /// it gives). Only before anything is held, while ante 1 runs. False for Standard (no perks) or a kit whose
-        /// perks are not in the catalogue.
+        /// Puts the featured perk in the draft's last place, unless it is already offered, already held, or of no use
+        /// to this run (it needs something the run does not have). The other offers keep their places.
+        /// </summary>
+        void Feature(List<PerkDefinition> offers, ICollection<string> unavailable)
+        {
+            PerkDefinition perk = Offerable(FeaturedPerkId);
+            if (perk == null || offers.Contains(perk)) return;
+            if (perk.unique && Perks.Has(perk.id)) return;
+            if (!PerkDraft.IsUseful(perk, unavailable)) return;
+            if (offers.Count >= Math.Max(1, Balance.perkChoices)) offers[offers.Count - 1] = perk;
+            else offers.Add(perk);
+        }
+
+        /// <summary>
+        /// Starts the run with a kit's perks, in place of the picks of the first antes: one ante's pick for each perk
+        /// it gives, and <see cref="StartingKits.ExtraPicks"/> more, which is the kit's price (design review,
+        /// 27 Nov 2026: a kit that cost nothing was a straight upgrade). Only before anything is held, while ante 1
+        /// runs. False for Standard (no perks) or a kit whose perks are not in the catalogue.
         /// </summary>
         public bool StartWithKit(StartingKit kit)
         {
@@ -168,7 +205,7 @@ namespace OrbitalAnte.Ante
             }
             if (given == 0) return false;
             KitId = kit.id;
-            Director.GivePicksAhead(given);
+            Director.GivePicksAhead(StartingKits.PicksTaken(given));
             return true;
         }
 

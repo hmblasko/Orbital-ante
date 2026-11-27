@@ -141,6 +141,8 @@ namespace OrbitalAnte.Tasks
         public bool takenApart;
         /// <summary>The player was crouched or lying prone (not a feat: it counts toward a goal unlock, Ante/Unlocks.cs).</summary>
         public bool lowStance;
+        /// <summary>The player's armour was under the low-health line, as Last Stand reads it (not a feat: a goal unlock).</summary>
+        public bool lowArmour;
     }
 
     /// <summary>

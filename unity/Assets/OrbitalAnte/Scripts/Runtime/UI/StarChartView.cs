@@ -24,6 +24,8 @@ namespace OrbitalAnte.UI
         public bool canReroll;
         /// <summary>The card the cursor starts on.</summary>
         public int selected;
+        /// <summary>A perk unlocked since the last draft: its card says NEW. Null for none.</summary>
+        public string newPerkId;
         public Action<PerkDefinition> take;
         public Action skip, reroll, back;
     }
@@ -104,7 +106,7 @@ namespace OrbitalAnte.UI
             if (page == null) return;
             bool fresh = !Showing;
             _page = page;
-            _cardModels = StarChart.Cards(page.loadout, page.offers, page.balance);
+            _cardModels = StarChart.Cards(page.loadout, page.offers, page.balance, page.newPerkId);
             if (fresh)
             {
                 if (!GameSession.Paused) { GameSession.SetPaused(true); _pausedByMe = true; }
@@ -227,7 +229,8 @@ namespace OrbitalAnte.UI
                 if (!used) continue;
                 ChartCard card = _cardModels[i];
                 Color fc = FamilyColour(card.family);
-                _cardTop[i].text = "<color=#" + ColorUtility.ToHtmlStringRGB(fc) + ">" + card.familyName + "</color>   <color=#a89c8c>" + card.rarity + "</color>";
+                _cardTop[i].text = "<color=#" + ColorUtility.ToHtmlStringRGB(fc) + ">" + card.familyName + "</color>   <color=#a89c8c>" + card.rarity + "</color>"
+                                   + (card.isNew ? "   <color=#" + ColorUtility.ToHtmlStringRGB(Amber) + ">NEW · UNLOCKED</color>" : string.Empty);
                 _cardName[i].text = card.name.ToUpperInvariant();
                 var body = new StringBuilder();
                 for (int g = 0; g < card.gains.Count; g++) body.Append("+ ").Append(Capital(card.gains[g])).Append('\n');
@@ -448,6 +451,12 @@ namespace OrbitalAnte.UI
             _cardBody[i] = UiKit.Label(fill, string.Empty, 14, UiKit.Cream, TextAnchor.UpperLeft, FontStyle.Normal);
             _cardBody[i].supportRichText = true;
             _cardBody[i].lineSpacing = 1.1f;
+            // A long card (Change of Pace names its five categories) steps down a size or two rather than running
+            // into the set box under it. Worked out when the cards are filled, never per frame.
+            _cardBody[i].verticalOverflow = VerticalWrapMode.Truncate;   // best fit only shrinks text that would not fit
+            _cardBody[i].resizeTextForBestFit = true;
+            _cardBody[i].resizeTextMinSize = 12;
+            _cardBody[i].resizeTextMaxSize = 14;
             PlaceTopLeft((RectTransform)_cardBody[i].transform, 16f, 68f, CardW - 32f, 100f);
 
             RectTransform box = UiKit.NewRect("Gain", fill);

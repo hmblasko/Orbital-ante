@@ -13,9 +13,9 @@ namespace OrbitalAnte.Tests
             var r = new RunRecap();
             r.Add(new ScoreEvent(), Paid(600, ScoreCategory.Combat), 1, "kill");
             r.Add(new ScoreEvent(), Paid(250, ScoreCategory.Exploration), 1, "new world");
-            r.Add(new ScoreEvent(), Paid(100, ScoreCategory.Objective), 2, "mast");
-            r.Add(new ScoreEvent(), Paid(50, ScoreCategory.Landing), 2, "landing");
-            Assert.AreEqual("Points from fighting 60% · exploring 25% · tasks 10%", r.SourcesLine());
+            r.Add(new ScoreEvent(), Paid(100, ScoreCategory.Objective), 2, "supply drop");
+            r.Add(new ScoreEvent(), Paid(50, ScoreCategory.Landing), 2, "HARD LANDING");
+            Assert.AreEqual("Points from fighting 60% · exploring 25% · drops and missions 10%", r.SourcesLine());
         }
 
         [Test]

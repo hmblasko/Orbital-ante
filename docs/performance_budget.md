@@ -548,10 +548,10 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 
 | | Cost | Cap |
 |---|---|---|
-| `AnteLoop.UpdateUnlocks` (every frame) | A few compares, no allocation. A note's text is set once per unlock, the kit note once a run | 1 note at a time |
+| `AnteLoop.UpdateUnlocks` (every frame) | A few compares, no allocation. A note's and the banner's text are set once per unlock, the kit note once a run; while the banner shows (3.5 s) one `canvasRenderer.SetAlpha` a frame, no canvas rebuild | 1 banner and 1 note at a time |
 | Counting goals (per award, kill and touchdown; the ladder's top once a run) | One set add, one bit or a few bool tests; no loop over enemies | none needed |
-| Drafts | Locked perks are taken out once per ante (one small set and list) | once per ante |
+| Drafts | Locked perks are taken out once per ante (one small set and list); a newly unlocked perk is put in the first draft that can use it (one list look-up and replace per draft rolled); its star chart card gets one more coloured word | once per ante |
 | Saving an unlock mid-run | `SaveSystem.Save` on the main thread: three reads, three parses, one pretty write, a temporary file flushed to disk (`Flush(true)`) and renamed over the save. A few KB of file, about 25 to 60 KB of garbage. The flush is the cost: not measured (guessed 1 to 20 ms on the Deck's own storage, longer while Steam writes). All goals met in one frame share one write, made the frame after (`AnteLoop.WriteOwedUnlockSave`), never on the kill's own frame. If the Deck shows it long, write it at the next pause instead | only a goal not earned before: at most 10 writes per profile |
-| Break, victory and death pages | One or two more lines in a body set once per page; `MenuFit` arithmetic per page shown | paused only |
+| Break, victory and death pages | One or two more lines in a body set once per page. Each page shown measures its body once with the label's own text generator (`PauseMenu.WordsHeight`: one layout pass of a few hundred characters) and runs `MenuFit` arithmetic; bodies and buttons use best fit, which Unity works out only when the text or size changes | paused only |
 | Title screen Kit and Unlocks pages | Two cards built at boot, inactive until shown. Kit details written when the cursor moves to another kit; one rich-text label per visit; a save if anything was new | title screen only |
 | `reward.unlock` | 2.9 s stereo, unpacked on load in the title screen's warm-up: 0.53 MiB. One voice, 1.5 s cooldown | one per unlock |
