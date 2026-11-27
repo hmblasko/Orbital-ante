@@ -13,7 +13,7 @@ here has been run in Unity.**
 | Hypothesis | Clear one-run goals that each open a new way to play give every run a second thing to aim for, change what later runs can be, and come early enough that a player who dies at ante 3 still earns one. |
 | Principle | Discovery that matters (4), meaningful replayability (6), legible risk/reward (5). Unlocks are sidegrades (section 4). Rule 9: no grind, no counting across runs, no timers outside a run. |
 | Smallest test | Rule tests on the catalogue, the goal counting, the save and the drafts (`UnlockTests`). |
-| Acceptance | Every goal is one feat inside one run. A locked perk is never offered. A kit run holds as many perks as a picking run. Every family can still complete its set with everything locked. An unlock is saved the moment it is earned. |
+| Acceptance | Every goal is one feat inside one run. A locked perk is never offered. A kit run holds as many perks as a picking run. Every family can still complete its set with everything locked. An unlock is written to the save by the frame after it is earned. |
 | Playtest protocol | On a fresh profile, play three runs on the Deck. Note which unlocks came and in which run. Note whether each unlock note was read in the moment, and whether the kit page made sense the first time. Then check on the Deck that the Unlocks page and a break with two unlock lines fit the screen. |
 
 ### The ten unlocks (`Ante/Unlocks.cs`, plain C#)
@@ -45,7 +45,10 @@ Listed easiest first. That is also the order the recap suggests the next one in.
   Banking early and beating the clock with raised stakes do not count in overtime. Only solar-system runs count,
   because the practice range has no ante loop.
 - **Saving** (`UnlockBook` on `SaveData`, save layout 5). The book is the save's `unlocks`, `unlocksSeen` and `kit`.
-  An unlock is saved the moment it is earned, because a run can end a second later.
+  Every way a run ends already saves. On top of that, an unlock is written the frame after it is earned, so a crash
+  or a flat battery later in the run cannot lose it. Every goal met in one frame shares that one write, and it never
+  lands on the kill's own frame (`AnteLoop.WriteOwedUnlockSave`). `SaveSystem.Save` now carries a profiler marker,
+  `OA.SaveSystem.Save`, so the write can be timed on the Deck.
 
 ### The moment
 

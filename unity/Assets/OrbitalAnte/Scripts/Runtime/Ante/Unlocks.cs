@@ -257,7 +257,8 @@ namespace OrbitalAnte.Ante
         public const float BankEarlySeconds = 60f;
 
         readonly HashSet<string> _worlds = new HashSet<string>();
-        readonly HashSet<ScoreCategory> _ways = new HashSet<ScoreCategory>();
+        /// <summary>One bit per <see cref="ScoreCategory"/> scored this ante.</summary>
+        int _ways;
         readonly HashSet<UnlockGoal> _metThisRun = new HashSet<UnlockGoal>();
         readonly List<UnlockGoal> _waiting = new List<UnlockGoal>();
 
@@ -265,13 +266,23 @@ namespace OrbitalAnte.Ante
         public void AnteBegan()
         {
             _worlds.Clear();
-            _ways.Clear();
+            _ways = 0;
         }
 
         /// <summary>Points were awarded in a running ante, of this kind.</summary>
         public void Scored(ScoreCategory category)
         {
-            if (_ways.Add(category) && _ways.Count >= WaysInOneAnte) Met(UnlockGoal.FourWaysInOneAnte);
+            int bit = 1 << Math.Max(0, Math.Min(30, (int)category));
+            if ((_ways & bit) != 0) return;
+            _ways |= bit;
+            if (Ways(_ways) >= WaysInOneAnte) Met(UnlockGoal.FourWaysInOneAnte);
+        }
+
+        static int Ways(int bits)
+        {
+            int n = 0;
+            for (; bits != 0; bits &= bits - 1) n++;
+            return n;
         }
 
         /// <summary>The ship touched down on a world (by its id) in a running ante.</summary>

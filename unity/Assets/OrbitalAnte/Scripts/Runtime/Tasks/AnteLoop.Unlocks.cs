@@ -22,6 +22,13 @@ namespace OrbitalAnte.Tasks
         string _unlockBreakLines;
         float _unlockSoundAt = -1f;
         string _kitNote;
+        /// <summary>
+        /// An unlock waits to be written to the save: once, the frame after the goal, so a kill that meets three
+        /// goals writes one save and not on the kill's own frame (deck-performance review, 27 Nov 2026). Every
+        /// way a run ends saves anyway (<see cref="RecapAndRecord"/>), so only a crash in that one frame loses it.
+        /// </summary>
+        bool _unlockSaveOwed;
+        int _unlockSaveFrame;
 
         /// <summary>
         /// After the ante clear's own fanfare (reward.tier3 is about this long), so the two never land together.
@@ -113,8 +120,9 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>
-        /// Saves whatever the goals just met unlock, at once (a run can end a second later). In the field each gets
-        /// a note in turn; at a cleared ante the break page says it instead, since the readout is hidden there.
+        /// Grants whatever the goals just met unlock and owes the save a write, made next frame (a crash or a pulled
+        /// plug a minute later must not lose it). In the field each gets a note in turn; at a cleared ante the
+        /// break page says it instead, since the readout is hidden there.
         /// </summary>
         void TakeUnlocks(bool atTheBreak)
         {
@@ -132,7 +140,8 @@ namespace OrbitalAnte.Tasks
                 else _unlockNotes.Add(d);
             }
             if (!any) return;
-            Save.SaveSystem.Save();
+            _unlockSaveOwed = true;
+            _unlockSaveFrame = Time.frameCount;
             if (atTheBreak) _unlockSoundAt = Time.unscaledTime + UnlockAfterFanfare;
         }
 
@@ -140,6 +149,14 @@ namespace OrbitalAnte.Tasks
         /// Once a frame, after the target-met note: the next unlock note shows when nothing important holds the
         /// line, with its sound, so TARGET MET and an unlock both get read.
         /// </summary>
+        /// <summary>First thing every frame, run or no run: the owed write, the frame after the goal.</summary>
+        void WriteOwedUnlockSave()
+        {
+            if (!_unlockSaveOwed || Time.frameCount <= _unlockSaveFrame) return;
+            _unlockSaveOwed = false;
+            Save.SaveSystem.Save();
+        }
+
         void UpdateUnlocks()
         {
             if (_unlockSoundAt >= 0f && Time.unscaledTime >= _unlockSoundAt)

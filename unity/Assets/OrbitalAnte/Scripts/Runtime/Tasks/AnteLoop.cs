@@ -222,6 +222,7 @@ namespace OrbitalAnte.Tasks
 
         void Update()
         {
+            WriteOwedUnlockSave();
             if (Run == null) return;
             // The run-start envelope holds the world without pausing it: the clock waits too.
             bool paused = GameSession.Paused || TimeFlow.Held;

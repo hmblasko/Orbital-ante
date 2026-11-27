@@ -422,7 +422,7 @@ Matthew asked for lighting to be baked in. How that is read, until he says other
 | Looping beds | One source each, created when first asked for, stopped (not destroyed) when faded out. In flight: cabin, main engine and up to three manoeuvring thrusters at once (two directions plus turning), so about 5; opposite thrusters never sound together except for a fifth of a second while one fades. |
 | Low-pass filters | One per one-shot voice, switched on only where there is thin air or vacuum. In normal air none are running. |
 | Reverb | One reverb zone for the whole game, following the listener. |
-| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 12.5 MB. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
+| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 21.8 MiB for the 207 effect clips the manifest loads, going by the WAV files (27 Nov 2026; `reward.unlock` is 0.53 MiB of it). Read the real figure as Total Audio Memory in the Profiler's Audio module. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
 | Per-frame work | A fixed loop over the playing stems and beds to set volumes, and the music director's update (a few comparisons). No allocations in play; the debug panel builds a string ten times a second and lays its text out on every screen event, only while it is open (F9). |
 | Loading | Music (24 stems and 5 cues) is read in one go as the game starts, before the first frame: a guess of 0.1 s from internal storage and up to 0.5 s from a microSD card. Sound effects are loaded a few per frame during the first seconds on the main menu, so the first gunshot does not hitch. The audio device is also restarted once at start-up to raise the voice limit to 48; moving that into project settings (`ProjectSetup.cs`) would remove the restart. |
 
@@ -462,7 +462,7 @@ Note: in the Unity editor the numbers are worse than a real build, because the e
 
 ## Save reliability refinement: source review only
 
-Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. This is one save slot at run start, menu return and quit, with no added per-frame work. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
+Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. Writes happen at run start, every run end (records), menu return, quit, an envelope won or opened, the title screen's Unlocks page when something is new, and mid-run when a goal unlocks something new (at most 10 per profile, one write the frame after the goal). None per frame. `SaveSystem.Save` carries the profiler marker `OA.SaveSystem.Save`. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
 
 Current save data is small. File size, allocations, storage latency and checkpoint-frame time have not been measured in Unity or on Deck; there is no promised maximum file-size cost. Profile `SaveSystem.Save`, `SaveFileStore.Write` and `FileStream.Flush` on internal storage and microSD. See `docs/reviews/save-recovery-and-version-protection.md` for the regression evidence and target-runtime checks.
 
@@ -543,3 +543,15 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 |---|---|---|
 | Readout focus (`ReadoutFocus`, `AnteLoop.InFight`) | A subtraction and compare per frame, no allocations | At most 3 `SetActive` calls (two "+points" rows, the task line) when a fight starts or ends, at most one flip per 6 s |
 | Selection hold (`SelectionHold` in `PauseMenu`) | Float arithmetic and one `IsPressed()` per frame, only while a menu page is open | One selection per page opening |
+
+## Goal unlocks and starting kits (Ralph loop pass 1, 27 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `AnteLoop.UpdateUnlocks` (every frame) | A few compares, no allocation. A note's text is set once per unlock, the kit note once a run | 1 note at a time |
+| Counting goals (per award, kill and touchdown; the ladder's top once a run) | One set add, one bit or a few bool tests; no loop over enemies | none needed |
+| Drafts | Locked perks are taken out once per ante (one small set and list) | once per ante |
+| Saving an unlock mid-run | `SaveSystem.Save` on the main thread: three reads, three parses, one pretty write, a temporary file flushed to disk (`Flush(true)`) and renamed over the save. A few KB of file, about 25 to 60 KB of garbage. The flush is the cost: not measured (guessed 1 to 20 ms on the Deck's own storage, longer while Steam writes). All goals met in one frame share one write, made the frame after (`AnteLoop.WriteOwedUnlockSave`), never on the kill's own frame. If the Deck shows it long, write it at the next pause instead | only a goal not earned before: at most 10 writes per profile |
+| Break, victory and death pages | One or two more lines in a body set once per page; `MenuFit` arithmetic per page shown | paused only |
+| Title screen Kit and Unlocks pages | Two cards built at boot, inactive until shown. Kit details written when the cursor moves to another kit; one rich-text label per visit; a save if anything was new | title screen only |
+| `reward.unlock` | 2.9 s stereo, unpacked on load in the title screen's warm-up: 0.53 MiB. One voice, 1.5 s cooldown | one per unlock |

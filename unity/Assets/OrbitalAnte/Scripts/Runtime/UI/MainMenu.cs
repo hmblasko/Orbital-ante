@@ -39,6 +39,8 @@ namespace OrbitalAnte.UI
         Text _bestLine, _howBody, _recordsBody, _extrasNote;
         Text _kitDetails, _kitLocked, _unlocksBody;
         readonly List<Button> _kitButtons = new List<Button>();
+        /// <summary>The perk list, built once with the kit page (the details are written from it as the cursor moves).</summary>
+        List<PerkDefinition> _perks;
         RectTransform _kitCard, _unlocksCard;
         GameObject _kitBack, _unlocksBack, _shownKitFor;
 
@@ -118,12 +120,12 @@ namespace OrbitalAnte.UI
             Text intro = UiKit.LayoutLabel(kit, "A kit starts the run with two perks of one family. They are the perk picks of antes 1 "
                 + "and 2, so those antes have no pick of their own.", 16, UiKit.Muted, 44f, TextAnchor.MiddleCenter, FontStyle.Normal);
             intro.horizontalOverflow = HorizontalWrapMode.Wrap;
-            List<PerkDefinition> perks = RoguelitePerks.Create();
+            _perks = RoguelitePerks.Create();
             IReadOnlyList<StartingKit> kits = StartingKits.All;
             for (int i = 0; i < kits.Count; i++)
             {
                 StartingKit k = kits[i];
-                Button b = UiKit.Button(kit, KitLabel(k, perks), () => StartWithKit(k), 50f, 21);
+                Button b = UiKit.Button(kit, KitLabel(k, _perks), () => StartWithKit(k), 50f, 21);
                 b.gameObject.AddComponent<SelectOnHover>();
                 _kitButtons.Add(b);
             }
@@ -205,7 +207,7 @@ namespace OrbitalAnte.UI
                 StartingKit k = kits[i];
                 _kitDetails.text = k.perkIds.Length == 0
                     ? "No perks to start: every pick is yours to choose, from three offers each ante."
-                    : StartingKits.Details(k, RoguelitePerks.Create(), AnteBalanceData.Load().balance);
+                    : StartingKits.Details(k, _perks, AnteBalanceData.Load().balance);
                 return;
             }
         }
@@ -225,7 +227,8 @@ namespace OrbitalAnte.UI
                 UnlockDefinition d = all[i];
                 bool earned = UnlockBook.Has(save, d.id);
                 if (i > 0) s.Append('\n');
-                s.Append("<b>").Append(d.name).Append("</b>  <color=").Append(dim).Append(">· ").Append(UnlockCatalog.KindWords(d)).Append("</color>");
+                // The name in the label's own cream, the rest dimmed: no <b>, which would fake a bold B612 (UiKit.SetStyle).
+                s.Append(d.name).Append("  <color=").Append(dim).Append(">· ").Append(UnlockCatalog.KindWords(d)).Append("</color>");
                 if (earned)
                 {
                     s.Append("  <color=").Append(good).Append(">UNLOCKED</color>");

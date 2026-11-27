@@ -23,7 +23,7 @@ result.
   - Four starting kits (Gunner, Ghost, Pilot, Daredevil) are earned. A kit's two perks stand in for the picks of
     antes 1 and 2 (`AnteDirector.PicksGivenAhead`), so a kit run holds as many perks as any other run (a sidegrade:
     an early start for less choice). The cost is written on the kit.
-- Unlocks are saved the moment the goal is met (save layout 5).
+- Unlocks are written to the save the frame after the goal is met (save layout 5).
 - A perk unlocked mid-run joins the drafts from the next ante, so the offers already on screen never change.
 - The moment: a note nothing can write over, and a new sound, `reward.unlock` (lock pins, a latch, a rising harp
   run, in D like every reward).
