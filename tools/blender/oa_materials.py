@@ -23,15 +23,36 @@ import oa_blender as oa
 
 # ------------------------------------------------------------------ a small language for node trees
 
+REST = "rest"
+
+
+def rest_place(obj, offset=(0.0, 0.0, 0.0)):
+    """Writes where each corner of a shape is in its animal (its own place plus `offset`) for materials made with
+    rest=True. Pieces of one body that are modelled round their own joints give the offset that puts them back."""
+    mesh = obj.data
+    layer = mesh.attributes.get(REST) or mesh.attributes.new(REST, 'FLOAT_VECTOR', 'POINT')
+    flat = []
+    for v in mesh.vertices:
+        flat.extend((v.co.x + offset[0], v.co.y + offset[1], v.co.z + offset[2]))
+    layer.data.foreach_set("vector", flat)
+
+
 class Tree:
     """Builds a material's node tree from Python expressions. Values are node sockets or plain numbers/colours."""
 
-    def __init__(self, name):
+    def __init__(self, name, rest=False):
+        """rest: patterns are laid out by each corner's "rest" attribute (see `rest_place`) and not by where the
+        shape stands, so a pattern runs unbroken across pieces that are modelled and baked apart."""
         self.mat = bpy.data.materials.new(name)
         self.mat.use_nodes = True
         self.t = self.mat.node_tree
         self.t.nodes.clear()
-        self.coord = self.t.nodes.new("ShaderNodeTexCoord").outputs["Object"]
+        if rest:
+            place = self.t.nodes.new("ShaderNodeAttribute")
+            place.attribute_name = REST
+            self.coord = place.outputs["Vector"]
+        else:
+            self.coord = self.t.nodes.new("ShaderNodeTexCoord").outputs["Object"]
         geo = self.t.nodes.new("ShaderNodeNewGeometry")
         self.pointiness, self.normal = geo.outputs["Pointiness"], geo.outputs["Normal"]
 
@@ -110,6 +131,26 @@ class Tree:
         n = self.t.nodes.new("ShaderNodeSeparateXYZ")
         self.t.links.new(self.coord, n.inputs[0])
         return n.outputs[which]
+
+    def cells(self, scale, shift=(0, 0, 0), stretch=(1, 1, 1), soft=0.0):
+        """Scattered cells `1 / scale` metres apart: (distance from the nearest cell's middle, in cells: 0 at the
+        middle to about 0.7; a random number 0 to 1 that is the same all over one cell). soft > 0 rounds the
+        valleys between cells."""
+        n = self.t.nodes.new("ShaderNodeTexVoronoi")
+        n.feature = 'SMOOTH_F1' if soft > 0 else 'F1'
+        self.t.links.new(self.stretched(stretch, shift), n.inputs["Vector"])
+        n.inputs["Scale"].default_value = scale
+        if soft > 0:
+            n.inputs["Smoothness"].default_value = soft
+        split = self.t.nodes.new("ShaderNodeSeparateColor")
+        self.t.links.new(n.outputs["Color"], split.inputs[0])
+        return n.outputs["Distance"], split.outputs[0]
+
+    def up(self):
+        """How far the surface faces up: 1 straight up, -1 straight down (in the shape's own space)."""
+        n = self.t.nodes.new("ShaderNodeSeparateXYZ")
+        self.t.links.new(self.normal, n.inputs[0])
+        return n.outputs["Z"]
 
     def facing(self, which):
         n = self.t.nodes.new("ShaderNodeSeparateXYZ")
@@ -315,6 +356,366 @@ def hollow(name):
     return m.finish(m.mix((0.006, 0.006, 0.006), (0.020, 0.018, 0.016), m.noise(200.0)), 0.06, 0.0, None, occlusion=0.25)
 
 
+# ------------------------------------------------------------------ living things (alien creatures)
+#
+# Sizes here are for animals metres across seen from a few metres, so bumps are millimetres, not the hundredths of
+# a millimetre a gun's surface has. `size` scales every pattern (1 = a creature about a metre across the body).
+
+SILT = (0.085, 0.080, 0.050)     # what settles on a sea animal's back: grey-green, dull
+
+
+def chitin(name, base=(0.50, 0.115, 0.035), pale=(0.66, 0.52, 0.38), dark=(0.13, 0.028, 0.014), under=None, seed=0.0,
+           size=1.0, bumps=1.0, mottle=0.8, growth=0.5, gloss=0.42, tip=None):
+    """The shell of a crab, an isopod, a centipede: a hard coloured crust over paler layers. Blotches of the pale
+    colour with ragged edges, pale freckles, rounded tubercles that are rubbed pale on top with dirt round their
+    feet, a fine grainy skin, pits; pale `under` colour on surfaces that face down; silt and weed on surfaces that
+    face up (`growth`); dark old dirt where shapes crowd together; edges and ridges rubbed through to the pale
+    layer. tip: (axis index, from, to, colour) darkens toward a claw's point along that axis, in metres."""
+    m = Tree(name)
+    big = m.noise(2.4 / size, 4.0, 0.6, shift=(seed, 0, 0))
+    mid = m.noise(11.0 / size, 5.0, 0.65, shift=(0, seed, 0))
+    fine = m.noise(190.0, 3.0, 0.7, shift=(0, 0, seed))
+    colour = m.mix(tuple(c * 0.62 for c in base), tuple(min(1.0, c * 1.32) for c in base), m.lerp(big, mid, 0.5))
+    # The dark mineral staining old shells have, in slow patches.
+    colour = m.mix(colour, dark, m.mul(m.step(m.noise(5.0 / size, 5.0, 0.6, shift=(seed, 4.0, 0)), 0.56, 0.78), 0.55))
+    # Pale blotches: ragged islands, more of them where the big pattern says so.
+    blotch = m.step(m.add(m.mul(big, 0.55), m.mul(mid, 0.45)), 0.535, 0.575)
+    colour = m.mix(colour, pale, m.mul(blotch, mottle))
+    freckle_at, freckle_rnd = m.cells(46.0 / size, shift=(seed, seed, 0))
+    freckle = m.mul(m.step(m.sub(0.30, freckle_at), 0.0, 0.10), m.step(freckle_rnd, 0.62, 0.66))
+    colour = m.mix(colour, pale, m.mul(freckle, 0.85 * mottle))
+    # Tubercles: only some cells grow one, and they are of different sizes.
+    at, rnd = m.cells(30.0 / size, shift=(0, seed, seed), soft=0.25)
+    grown = m.step(rnd, 0.38, 0.52)
+    knob = m.mul(m.step(m.sub(0.46, at), 0.0, 0.34), grown)
+    foot = m.mul(m.mul(m.step(m.sub(0.52, at), 0.0, 0.14), m.sub(1.0, m.step(m.sub(0.40, at), 0.0, 0.1))), grown)
+    small_at, small_rnd = m.cells(120.0 / size, shift=(seed, 0, seed), soft=0.3)
+    grain = m.mul(m.step(m.sub(0.5, small_at), 0.0, 0.4), m.step(small_rnd, 0.2, 0.5))
+    pits = m.step(m.noise(330.0 / size, 2.0, 0.5, shift=(seed, seed, seed)), 0.66, 0.74)
+    scratch = m.step(m.noise(30.0 / size, 2.0, 0.5, stretch=(1.0, 14.0, 5.0), shift=(0, 0, seed)), 0.72, 0.77)
+    colour = m.mix(colour, pale, m.mul(knob, 0.55 * bumps))
+    colour = m.mix(colour, dark, m.mul(foot, 0.6 * bumps))
+    colour = m.mix(colour, dark, m.mul(pits, 0.35))
+    colour = m.mix(colour, pale, m.mul(scratch, 0.30))
+    facing_up = m.up()
+    if under is not None:
+        below = m.step(m.mul(facing_up, -1.0), -0.15, 0.75)
+        colour = m.mix(colour, m.mix(tuple(c * 0.8 for c in under), under, mid), m.mul(below, 0.92))
+    # Rubbed ridges and edges: the pale layer under the colour.
+    rubbed = m.sat(m.mul(m.edges(lo=0.02, hi=0.25, radius=0.006 * size), m.add(0.3, mid)))
+    colour = m.mix(colour, pale, m.mul(rubbed, 0.6))
+    if tip is not None:
+        which, start, end, tip_colour = tip
+        toward = m.step(m.axis(which), start, end)
+        colour = m.mix(colour, tip_colour, toward)
+    # What grows and settles on top, and what packs into hollows.
+    settled = m.mul(m.mul(m.step(facing_up, 0.25, 0.9), m.step(m.noise(7.0 / size, 5.0, 0.7, shift=(9.0, seed, 0)), 0.42, 0.70)), growth)
+    weed = m.mul(settled, m.step(m.noise(60.0 / size, 3.0, 0.6, shift=(0, 9.0, seed)), 0.35, 0.65))
+    colour = m.mix(colour, SILT, m.mul(settled, 0.75))
+    colour = m.mix(colour, (0.035, 0.060, 0.022), m.mul(weed, 0.45))
+    near = m.hollows(0.035 * size)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.92))
+    colour = m.mix(colour, tuple(c * 0.45 for c in dark), m.mul(grime, 0.85))
+    smoothness = m.lerp(m.lerp(gloss - 0.12, gloss + 0.08, big), gloss + 0.14, m.mul(knob, bumps))
+    smoothness = m.lerp(smoothness, 0.10, m.sat(m.add(settled, grime)))
+    smoothness = m.lerp(smoothness, 0.14, m.mul(pits, 0.7))
+    height = m.add(m.mul(knob, 0.0042 * size * bumps), m.mul(grain, 0.0009 * size))
+    height = m.add(height, m.add(m.mul(pits, -0.0006 * size), m.mul(scratch, -0.0004 * size)))
+    height = m.add(height, m.add(m.mul(fine, 0.00025), m.mul(weed, 0.0012 * size)))
+    occlusion = m.mul(near, m.sub(1.0, m.mul(foot, 0.5 * bumps)))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=occlusion)
+
+
+def bristly(name, base=(0.42, 0.27, 0.13), pale=(0.62, 0.50, 0.34), dark=(0.10, 0.045, 0.02), under=None, seed=0.0, size=1.0,
+            hair=1.0, plates=None, stripe=None, tip=None, gloss=0.24):
+    """The skin of a hairy desert arthropod (a camel spider, a tarantula's legs): a dull sandy cuticle under a coat of
+    fine hairs lying along the limb (+Y), paler where the hair is thick and darker in the sockets of the big
+    bristles; faint darker clouds; dust in the hollows. plates: (period, strength) lays darker hard plates across
+    the body every `period` metres with pale soft skin between them (an abdomen's segments). stripe: (half width,
+    colour) is a darker band down the middle of the back. tip: (axis index, from, to, colour) darkens toward a
+    point along that axis, in metres, and takes the hair off it (jaws are bare and polished)."""
+    m = Tree(name)
+    big = m.noise(3.0 / size, 4.0, 0.6, shift=(seed, 0, 0))
+    mid = m.noise(14.0 / size, 5.0, 0.65, shift=(0, seed, 0))
+    colour = m.mix(tuple(c * 0.70 for c in base), tuple(min(1.0, c * 1.25) for c in base), m.lerp(big, mid, 0.5))
+    colour = m.mix(colour, dark, m.mul(m.step(m.noise(7.0 / size, 4.0, 0.6, shift=(seed, 5.0, 0)), 0.58, 0.80), 0.35))
+    facing_up = m.up()
+    height = m.mul(mid, 0.0006 * size)
+    smoothness = m.lerp(gloss - 0.06, gloss + 0.06, big)
+    bare = 0.0
+    if plates is not None:
+        period, strength = plates
+        plate = m.step(m.bands('Y', period, distortion=0.6, detail=2.0), 0.10, 0.26)
+        on_top = m.step(facing_up, -0.25, 0.35)
+        hard = m.mul(plate, on_top)
+        colour = m.mix(m.mix(colour, pale, 0.30), m.mix(colour, dark, 0.22 * strength), hard)
+        height = m.add(height, m.mul(hard, 0.004 * size))
+        smoothness = m.lerp(smoothness, gloss + 0.10, hard)
+    if stripe is not None:
+        half, stripe_colour, middle = stripe
+        centre = m.sub(1.0, m.step(m.math('ABSOLUTE', m.sub(m.axis(0), middle)), half * 0.5, half))
+        colour = m.mix(colour, stripe_colour, m.mul(m.mul(centre, m.step(facing_up, 0.1, 0.7)), 0.7))
+    if under is not None:
+        below = m.step(m.mul(facing_up, -1.0), -0.10, 0.70)
+        colour = m.mix(colour, m.mix(tuple(c * 0.8 for c in under), under, mid), m.mul(below, 0.9))
+    if tip is not None:
+        which, start, end, tip_colour = tip
+        bare = m.step(m.axis(which), start, end)
+        colour = m.mix(colour, m.mix(tuple(c * 0.6 for c in tip_colour), tip_colour, mid), bare)
+        smoothness = m.lerp(smoothness, 0.62, bare)
+    # The coat: fine hairs in long streaks along the limb, each a pale line with a dark gap beside it.
+    coat = m.sub(1.0, bare) if tip is not None else 1.0
+    strand = m.noise(520.0 / size, 2.0, 0.5, stretch=(1.0, 0.045, 1.0), shift=(seed, 0, seed))
+    lock = m.noise(90.0 / size, 3.0, 0.6, stretch=(1.0, 0.12, 1.0), shift=(0, seed, 3.0))
+    thick = m.mul(m.mul(m.step(m.noise(9.0 / size, 4.0, 0.6, shift=(4.0, 0, seed)), 0.30, 0.62), hair), coat)
+    colour = m.mix(colour, pale, m.mul(m.mul(m.step(strand, 0.52, 0.68), thick), 0.55))
+    colour = m.mix(colour, tuple(c * 0.5 for c in dark), m.mul(m.mul(m.step(m.sub(1.0, strand), 0.56, 0.70), thick), 0.40))
+    colour = m.mix(colour, pale, m.mul(m.mul(m.step(lock, 0.55, 0.75), thick), 0.25))
+    # The sockets of the big bristles: dark dots, each on a small pale bump.
+    at, rnd = m.cells(70.0 / size, shift=(seed, 0, seed), soft=0.2)
+    grown = m.mul(m.step(rnd, 0.45, 0.55), coat)
+    bump = m.mul(m.step(m.sub(0.40, at), 0.0, 0.30), grown)
+    dot = m.mul(m.step(m.sub(0.16, at), 0.0, 0.08), grown)
+    colour = m.mix(colour, pale, m.mul(bump, 0.30))
+    colour = m.mix(colour, tuple(c * 0.6 for c in dark), m.mul(dot, 0.40))
+    near = m.hollows(0.035 * size)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.92))
+    colour = m.mix(colour, tuple(c * 0.5 for c in dark), m.mul(grime, 0.8))
+    smoothness = m.lerp(smoothness, 0.10, m.sat(m.add(m.mul(thick, 0.7), grime)))
+    height = m.add(height, m.add(m.mul(m.mul(strand, thick), 0.0011 * size), m.mul(bump, 0.0016 * size)))
+    height = m.add(height, m.mul(m.mul(lock, thick), 0.0010 * size))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def membrane(name, colour=(0.42, 0.25, 0.15), seed=0.0, along='Y', size=1.0):
+    """The soft skin in an arthropod's joints, a gill, an eyestalk: leathery, in fine wrinkles that run round the
+    joint (across `along`), darker down in the folds, a little wet."""
+    m = Tree(name)
+    wrinkle = m.bands(along, 0.011 * size, distortion=1.6, detail=3.0)
+    cloud = m.noise(40.0 / size, 4.0, 0.6, shift=(seed, 0, 0))
+    shade = m.mix(tuple(c * 0.55 for c in colour), tuple(min(1.0, c * 1.25) for c in colour), m.lerp(wrinkle, cloud, 0.4))
+    near = m.hollows(0.03 * size)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.9))
+    shade = m.mix(shade, tuple(c * 0.25 for c in colour), m.mul(grime, 0.8))
+    height = m.add(m.mul(wrinkle, 0.0016 * size), m.mul(cloud, 0.0006 * size))
+    return m.finish(shade, m.lerp(0.22, 0.40, wrinkle), 0.0, height, occlusion=near)
+
+
+def sheen(name, base=(0.050, 0.026, 0.034), under=(0.26, 0.15, 0.13), lights=((0.03, 0.22, 0.17), (0.05, 0.11, 0.32), (0.20, 0.06, 0.26), (0.30, 0.15, 0.05)),
+          seed=0.0, ring=0.030, along='Y', gloss=0.74, strength=0.42):
+    """The wet skin of a bristle worm: dark, ringed all the way along, and shot with colours like oil on water
+    that change with the way the surface faces (green, blue, violet, copper). Paler underneath; dull dirt in the
+    grooves where things crowd together."""
+    m = Tree(name)
+    rings = m.bands(along, ring, distortion=0.5, detail=2.0)
+    cloud = m.noise(5.0, 4.0, 0.6, shift=(seed, 0, 0))
+    fine = m.noise(60.0, 3.0, 0.6, shift=(0, seed, 0))
+    colour = m.mix(tuple(c * 0.6 for c in base), tuple(min(1.0, c * 1.5) for c in base), m.lerp(cloud, fine, 0.4))
+    facing_up = m.up()
+    # Where on the film's run of colours this spot is: it follows the facing, and wanders.
+    # (mostly the facing, so the colours lie in streaks along its back and flanks, never in blotches)
+    film = m.add(m.add(m.mul(facing_up, 0.95), m.mul(cloud, 0.30)), m.add(m.mul(m.noise(11.0, 3.0, 0.5, shift=(0, 0, seed)), 0.40), m.mul(fine, 0.25)))
+    for k, light in enumerate(lights):
+        middle = 0.30 + 0.28 * k
+        band = m.mul(m.step(film, middle - 0.16, middle - 0.02), m.sub(1.0, m.step(film, middle + 0.02, middle + 0.16)))
+        colour = m.mix(colour, light, m.mul(band, m.mul(strength, m.lerp(0.55, 1.0, fine))))
+    below = m.step(m.mul(facing_up, -1.0), 0.05, 0.8)
+    colour = m.mix(colour, m.mix(tuple(c * 0.75 for c in under), under, cloud), m.mul(below, 0.85))
+    # The grooves between the rings are darker.
+    colour = m.mix(colour, tuple(c * 0.35 for c in base), m.mul(m.sub(1.0, m.step(rings, 0.0, 0.35)), 0.7))
+    near = m.hollows(0.03)
+    grime = m.sub(1.0, m.step(near, 0.35, 0.92))
+    colour = m.mix(colour, DUST, m.mul(grime, 0.8))
+    smoothness = m.lerp(m.lerp(gloss - 0.1, gloss + 0.08, cloud), 0.15, grime)
+    height = m.add(m.mul(rings, 0.0022), m.mul(fine, 0.0004))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def banded(name, light=(0.40, 0.30, 0.20), dark=(0.13, 0.065, 0.055), period=0.06, along='Y', seed=0.0, gloss=0.45):
+    """A feeler in light and dark bands along its length, finely ringed."""
+    m = Tree(name)
+    stripe = m.step(m.bands(along, period), 0.42, 0.58)
+    fine = m.bands(along, period / 7.0)
+    cloud = m.noise(30.0, 3.0, 0.6, shift=(seed, 0, 0))
+    colour = m.mix(dark, light, stripe)
+    colour = m.mix(colour, tuple(c * 0.6 for c in dark), m.mul(m.sub(1.0, m.step(fine, 0.0, 0.4)), 0.4))
+    colour = m.mix(colour, tuple(c * 0.8 for c in light), m.mul(cloud, 0.2))
+    near = m.hollows(0.02)
+    return m.finish(colour, m.lerp(gloss - 0.1, gloss + 0.1, cloud), 0.0, m.mul(fine, 0.0008), occlusion=near)
+
+
+def earth(name, colour=(0.21, 0.18, 0.15), seed=0.0):
+    """Ground thrown up out of a hole: clods and grit, dull, darker and damp toward the bottom of the heap's folds."""
+    m = Tree(name)
+    clod_at, clod_rnd = m.cells(16.0, shift=(seed, 0, 0), soft=0.4)
+    clod = m.mul(m.step(m.sub(0.5, clod_at), 0.0, 0.4), m.step(clod_rnd, 0.3, 0.6))
+    grit_at, grit_rnd = m.cells(70.0, shift=(0, seed, 0), soft=0.3)
+    grit = m.mul(m.step(m.sub(0.5, grit_at), 0.0, 0.35), m.step(grit_rnd, 0.4, 0.6))
+    cloud = m.noise(4.0, 4.0, 0.6, shift=(0, 0, seed))
+    shade = m.mix(tuple(c * 0.6 for c in colour), tuple(min(1.0, c * 1.3) for c in colour), m.lerp(cloud, clod_rnd, 0.4))
+    near = m.hollows(0.05)
+    shade = m.mix(shade, tuple(c * 0.35 for c in colour), m.mul(m.sub(1.0, m.step(near, 0.35, 0.95)), 0.8))
+    height = m.add(m.add(m.mul(clod, 0.005), m.mul(grit, 0.0015)), m.mul(m.noise(22.0, 4.0, 0.7, shift=(seed, seed, 0)), 0.006))
+    return m.finish(shade, 0.06, 0.0, height, occlusion=near)
+
+
+def pallid(name, base=(0.40, 0.31, 0.29), flush=(0.42, 0.19, 0.18), vein=(0.17, 0.13, 0.24), seed=0.0, furrow=0.17, along='Y', gloss=0.70,
+           rest=False, groove_shade=0.22, groove_depth=0.0012, vein_show=1.0, wrinkles=1.0, tips=None):
+    """The skin of an animal that has never seen light: pale and a little see-through, pink where blood shows
+    through (underneath, in soft patches, in the shallow furrows round its body), thin violet veins branching under
+    it, a paler back, fine wrinkles, wet."""
+    m = Tree(name, rest=rest)
+    cloud = m.noise(5.0, 4.0, 0.6, shift=(seed, 0, 0))
+    blotch = m.noise(14.0, 3.0, 0.55, shift=(seed, 3.0, 0), distortion=0.8)
+    fine = m.noise(110.0, 3.0, 0.6, shift=(0, seed, 0))
+    wrinkle = m.bands(along, 0.011, distortion=1.6, detail=3.0)
+    colour = m.mix(tuple(c * 0.84 for c in base), tuple(min(1.0, c * 1.10) for c in base), m.lerp(cloud, blotch, 0.5))
+    # Blood shows through underneath and in soft uneven patches; its back is the palest of it.
+    below = m.step(m.mul(m.up(), -1.0), -0.35, 0.9)
+    patch = m.step(m.lerp(m.noise(2.6, 3.0, 0.5, shift=(0, 0, seed)), blotch, 0.3), 0.50, 0.72)
+    colour = m.mix(colour, flush, m.add(m.mul(below, 0.50), m.mul(patch, 0.34)))
+    colour = m.mix(colour, tuple(min(1.0, c * 1.18) for c in base), m.mul(m.step(m.up(), 0.45, 0.95), 0.35))
+    # Veins: thin wandering lines at two sizes, faint, clearest where the skin is thin underneath.
+    lines = m.noise(7.0, 2.0, 0.4, shift=(seed, seed, 0), distortion=2.8)
+    twigs = m.noise(19.0, 2.0, 0.4, shift=(0, seed, seed), distortion=2.2)
+    veins = m.add(m.mul(m.step(lines, 0.468, 0.495), m.sub(1.0, m.step(lines, 0.505, 0.532))),
+                  m.mul(m.mul(m.step(twigs, 0.478, 0.495), m.sub(1.0, m.step(twigs, 0.505, 0.522))), 0.6))
+    colour = m.mix(colour, vein, m.mul(veins, m.lerp(0.30 * vein_show, 0.55 * vein_show, below)))
+    # The furrows round its body: soft, uneven, only a little pinker.
+    groove = m.sub(1.0, m.step(m.bands(along, furrow, distortion=0.9, detail=2.0), 0.0, 0.30))
+    colour = m.mix(colour, tuple(c * 0.80 for c in flush), m.mul(groove, groove_shade))
+    near = m.hollows(0.04)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.45 for c in flush), m.mul(grime, 0.55))
+    smoothness = m.lerp(m.lerp(gloss - 0.10, gloss + 0.08, cloud), 0.35, grime)
+    height = m.add(m.add(m.mul(groove, -groove_depth), m.mul(wrinkle, 0.00035 * wrinkles)), m.add(m.mul(fine, 0.0004), m.mul(veins, 0.0006 * vein_show)))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def sharkskin(name, back=(0.060, 0.058, 0.062), belly=(0.46, 0.44, 0.42), blotch=(0.020, 0.020, 0.024), seed=0.0, gloss=0.46, rest=False, shade_line=0.0):
+    """The skin of a big soft shark: dark slate on its back shading to a pale belly along a ragged line, slow darker
+    clouds and pale flecks, old pale scars raked across it, and the fine sandpaper grain of its scales. Wet.
+    shade_line moves the line between back and belly up (+) or down (-)."""
+    m = Tree(name, rest=rest)
+    cloud = m.noise(1.1, 4.0, 0.6, shift=(seed, 0, 0))
+    mid = m.noise(4.5, 4.0, 0.6, shift=(0, seed, 0), distortion=0.6)
+    grain = m.noise(260.0, 2.0, 0.6, shift=(0, 0, seed))
+    cells_at, cells_rnd = m.cells(170.0, shift=(seed, seed, 0), soft=0.2)
+    colour = m.mix(tuple(c * 0.70 for c in back), tuple(min(1.0, c * 1.45) for c in back), m.lerp(cloud, mid, 0.45))
+    colour = m.mix(colour, blotch, m.mul(m.step(m.noise(2.2, 4.0, 0.6, shift=(seed, 6.0, 0), distortion=1.0), 0.55, 0.72), 0.6))
+    # Pale flecks, few and small.
+    fleck_at, fleck_rnd = m.cells(18.0, shift=(0, seed, seed))
+    fleck = m.mul(m.step(m.sub(0.22, fleck_at), 0.0, 0.10), m.step(fleck_rnd, 0.80, 0.84))
+    colour = m.mix(colour, tuple(c * 0.55 for c in belly), m.mul(fleck, 0.7))
+    # Its belly: pale where the skin faces down, along a ragged line.
+    below = m.step(m.add(m.mul(m.up(), -1.0), m.add(m.mul(m.sub(mid, 0.5), 0.9), -shade_line)), -0.10, 0.42)
+    colour = m.mix(colour, m.mix(tuple(c * 0.82 for c in belly), belly, cloud), below)
+    # Old scars: thin pale rakes.
+    scar = m.step(m.noise(3.0, 2.0, 0.5, stretch=(1.0, 9.0, 1.0), shift=(0, 2.0, seed), distortion=0.4), 0.735, 0.76)
+    colour = m.mix(colour, tuple(min(1.0, c * 3.2 + 0.04) for c in back), m.mul(m.mul(scar, m.sub(1.0, below)), 0.55))
+    near = m.hollows(0.10)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.4 for c in back), m.mul(grime, 0.6))
+    smoothness = m.lerp(m.lerp(gloss - 0.10, gloss + 0.10, cloud), 0.30, grime)
+    scale = m.mul(m.step(m.sub(0.5, cells_at), 0.0, 0.4), 0.0005)
+    height = m.add(m.add(scale, m.mul(grain, 0.0004)), m.add(m.mul(scar, -0.0012), m.mul(mid, 0.004)))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
+def fishscale(name, back=(0.085, 0.10, 0.10), flank=(0.60, 0.61, 0.60), belly=(0.74, 0.72, 0.68), stripe=(0.025, 0.027, 0.030),
+              stripes=6, height=0.48, head_at=-0.06, seed=0.0, rest=True):
+    """The skin of a hard-bodied river fish (the Pack biter, from the Goliath tigerfish): a dark olive back, bright
+    silver flanks that are half mirror, a pale belly, and dark stripes running nose to tail along the flank, broken
+    and a little wavy, ending at the gill cover (`head_at`, forward in the animal); under it all, rows of small
+    overlapping scales, each edged a little darker. `stripes` dark lines over a body `height` metres deep. Laid out by
+    the animal's rest place, so the stripes run across the joints unbroken."""
+    m = Tree(name, rest=rest)
+    up_ = m.axis("Z")
+    ahead = m.axis("Y")
+    cloud = m.noise(2.0, 4.0, 0.6, shift=(seed, 0, 0))
+    wobble = m.noise(3.0, 2.0, 0.5, shift=(0, seed, 0))
+    # Back to belly by height in the animal, with a soft ragged edge.
+    shade = m.add(m.mul(up_, 1.0 / max(0.05, height)), m.mul(m.sub(wobble, 0.5), 0.25))
+    colour = m.mix(belly, flank, m.step(shade, -0.55, -0.15))
+    colour = m.mix(colour, back, m.step(shade, 0.18, 0.42))
+    # Stripes along the flank: bands across height, a little wavy, fading out on the belly, the back and the head.
+    lines = m.bands("Z", height / max(1, stripes), distortion=1.2, stretch=(1.0, 0.25, 1.0))
+    line = m.mul(m.step(lines, 0.74, 0.86), m.mul(m.step(shade, -0.60, -0.40), m.sub(1.0, m.step(shade, 0.25, 0.40))))
+    line = m.mul(line, m.sub(1.0, m.step(ahead, head_at - 0.05, head_at)))
+    broken = m.step(m.noise(5.0, 2.0, 0.5, stretch=(1.0, 0.3, 1.0), shift=(seed, 3.0, 0)), 0.28, 0.40)
+    colour = m.mix(colour, stripe, m.mul(m.mul(line, broken), 0.92))
+    # Scales: small cells in rows, longer than tall, each with a faint dark rim at its back.
+    cells_at, cells_rnd = m.cells(140.0, shift=(seed, 0, seed), stretch=(1.0, 0.75, 1.0))
+    rim = m.step(cells_at, 0.42, 0.62)
+    colour = m.mix(colour, tuple(c * 0.70 for c in flank), m.mul(rim, 0.18))
+    colour = m.mix(colour, tuple(min(1.0, c * 1.06) for c in flank), m.mul(m.step(cells_rnd, 0.85, 1.0), m.mul(m.step(shade, -0.5, 0.2), 0.10)))
+    near = m.hollows(0.04)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.4 for c in back), m.mul(grime, 0.5))
+    silver = m.mul(m.step(shade, -0.6, -0.2), m.sub(1.0, m.step(shade, 0.15, 0.40)))
+    smoothness = m.lerp(0.55, 0.78, m.lerp(cloud, silver, 0.6))
+    metal = m.mul(silver, 0.55)
+    relief = m.add(m.mul(rim, -0.0004), m.mul(cloud, 0.002))
+    return m.finish(colour, smoothness, metal, relief, occlusion=near)
+
+def plume(name, colour=(0.36, 0.04, 0.05), tip=(0.20, 0.02, 0.04), seed=0.0, along='Y', reach=0.36):
+    """A gill: wet, blood red, feathery (the filaments are modelled; this is the wet red they are made of), darker
+    at the stem and between filaments."""
+    m = Tree(name)
+    fine = m.noise(120.0, 3.0, 0.6, shift=(seed, 0, 0))
+    cloud = m.noise(18.0, 3.0, 0.6, shift=(0, seed, 0))
+    out = m.step(m.axis(along), reach * 0.25, reach)
+    shade = m.mix(colour, tip, out)
+    shade = m.mix(shade, tuple(min(1.0, c * 1.35) for c in colour), m.mul(cloud, 0.35))
+    near = m.hollows(0.012)
+    shade = m.mix(shade, tuple(c * 0.35 for c in colour), m.mul(m.sub(1.0, m.step(near, 0.35, 0.9)), 0.75))
+    return m.finish(shade, m.lerp(0.55, 0.78, fine), 0.0, m.mul(fine, 0.0003), occlusion=near)
+
+
+def flesh(name, pale=(0.72, 0.58, 0.50), red=(0.42, 0.045, 0.035), seed=0.0, size=1.0, along='Y'):
+    """Torn meat at a wound, the inside of a broken shell: pale wet muscle in bundles running along the limb,
+    red where it is torn deepest, dark clots, shiny."""
+    m = Tree(name)
+    fibre = m.bands('X' if along == 'Y' else 'Y', 0.006 * size, distortion=2.2, detail=3.0)
+    lump = m.noise(26.0 / size, 4.0, 0.6, shift=(seed, 0, 0), distortion=1.2)
+    colour = m.mix(pale, red, m.step(m.lerp(lump, fibre, 0.35), 0.38, 0.72))
+    clot = m.step(m.noise(60.0 / size, 3.0, 0.6, shift=(0, seed, 2.0)), 0.62, 0.72)
+    colour = m.mix(colour, (0.10, 0.008, 0.008), m.mul(clot, 0.85))
+    near = m.hollows(0.02 * size)
+    colour = m.mix(colour, (0.07, 0.008, 0.008), m.mul(m.sub(1.0, m.step(near, 0.3, 0.9)), 0.8))
+    height = m.add(m.mul(lump, 0.006 * size), m.mul(fibre, 0.0012 * size))
+    return m.finish(colour, m.lerp(0.55, 0.78, lump), 0.0, height, occlusion=near)
+
+
+def shell_inside(name, colour=(0.62, 0.50, 0.43), seed=0.0, size=1.0):
+    """The inside of a shell plate: smooth, pale, faintly pink, stained where meat was attached."""
+    m = Tree(name)
+    cloud = m.noise(9.0 / size, 4.0, 0.6, shift=(seed, 0, 0))
+    shade = m.mix(tuple(c * 0.7 for c in colour), colour, cloud)
+    stain = m.step(m.noise(16.0 / size, 4.0, 0.6, shift=(0, seed, 0)), 0.55, 0.72)
+    shade = m.mix(shade, (0.36, 0.07, 0.05), m.mul(stain, 0.6))
+    near = m.hollows(0.03 * size)
+    return m.finish(shade, m.lerp(0.45, 0.62, cloud), 0.0, m.mul(cloud, 0.0008 * size), occlusion=near)
+
+
+def chalk(name, colour=(0.60, 0.57, 0.50), seed=0.0):
+    """Barnacles, worm tubes, old coral: rough limy white, ribbed, grey-green in the pits."""
+    m = Tree(name)
+    rough = m.noise(140.0, 4.0, 0.7, shift=(seed, 0, 0))
+    near = m.hollows(0.012)
+    shade = m.mix(tuple(c * 0.6 for c in colour), colour, rough)
+    shade = m.mix(shade, SILT, m.mul(m.sub(1.0, m.step(near, 0.4, 0.95)), 0.8))
+    return m.finish(shade, 0.08, 0.0, m.mul(rough, 0.0012), occlusion=near)
+
+
+def eye(name, colour=(0.012, 0.010, 0.009), glint=(0.10, 0.045, 0.02)):
+    """A hard dark eye: nearly black, deep brown where the light gets in, as glossy as wet glass."""
+    m = Tree(name)
+    facet_at, _ = m.cells(900.0)
+    shade = m.mix(colour, glint, m.step(m.noise(30.0), 0.45, 0.75))
+    return m.finish(shade, 0.86, 0.0, m.mul(facet_at, -0.00015))
+
+
 # ------------------------------------------------------------------ materials for painted bodies
 #
 # A body (an enemy, a creature) is already painted corner by corner: which cloth is which colour, where the dust
@@ -428,7 +829,7 @@ def mirror_coat(name, smoothness=0.88, metal=1.0):
     return m.finish(painted(m), m.lerp(smoothness, smoothness - 0.16, smear), metal, None, occlusion=1.0)
 
 
-def flesh(name):
+def painted_flesh(name):
     """What shows where a limb came off: wet, lumpy, in its painted colours."""
     m = Tree(name)
     lumps = m.noise(60.0, 4.0, 0.7)

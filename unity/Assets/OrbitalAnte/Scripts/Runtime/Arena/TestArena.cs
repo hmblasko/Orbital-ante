@@ -322,6 +322,7 @@ namespace OrbitalAnte.Arena
         {
             // Loose chunks live in the pool, not under the mannequins, so clear them and the mess first.
             if (_gibs != null) _gibs.ReleaseAll();
+            OrbitalAnte.Creatures.WalkerChunk.ClearAll();
             if (_gore != null) _gore.Clear();
             if (_weaponFx != null) _weaponFx.Clear();
 
@@ -346,6 +347,7 @@ namespace OrbitalAnte.Arena
 
             _mannequinRoot = new GameObject("Mannequins").transform;
             _mannequinRoot.SetParent(transform, false);
+            SpawnCreatures();
 
             MannequinConfig config = MannequinConfig.Load();
             // Its own named stream: other seeded systems can come and go without moving these mannequins.
@@ -379,6 +381,75 @@ namespace OrbitalAnte.Arena
                 combat.TryPickUp(weapon);
 
                 _mannequins.Add(mannequin);
+            }
+        }
+
+        /// <summary>
+        /// The alien creatures under trial: a Strider at the far end of the arena, Sprinters in its far corners, a Roller part way down and a Cave hunter beyond it, children of the mannequins' folder
+        /// so a respawn clears it with them. Until the fight is started it only wanders.
+        /// </summary>
+        void SpawnCreatures()
+        {
+            var config = OrbitalAnte.Creatures.CreatureConfig.Load();
+            SeededRandom rng = SeededRandom.ForStream(_seed, "arena.creatures");
+            for (int i = 0; i < config.arenaStriders; i++)
+            {
+                var at = new Vector3(Mathf.Lerp(-12f, 12f, (float)rng.NextDouble()) + i * 9f, 0f, HalfSize - 9f - i * 7f);
+                OrbitalAnte.Creatures.Walker.Create(OrbitalAnte.Creatures.WalkerLayout.Strider, at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Strider " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaSprinters; i++)
+            {
+                // The Sprinters start in the far corners, apart, so they come in from two sides.
+                var at = new Vector3((i % 2 == 0 ? -1f : 1f) * (HalfSize - 6f - 3f * (i / 2)), 0f, HalfSize - 5f - 4f * (i / 2));
+                OrbitalAnte.Creatures.Walker.Create(OrbitalAnte.Creatures.WalkerLayout.Sprinter, at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Sprinter " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaRollers; i++)
+            {
+                // The Rollers start part way down the arena, to one side and then the other, with a clear run at the start.
+                var at = new Vector3((i % 2 == 0 ? 1f : -1f) * (6f + 5f * (i / 2)), 0f, HalfSize * 0.45f + 4f * (i / 2));
+                OrbitalAnte.Creatures.Roller.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Roller " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaHunters; i++)
+            {
+                // The Cave hunters start two thirds of the way down, on the side the first Roller is not, with their
+                // six metres of body laid out behind them.
+                var at = new Vector3((i % 2 == 0 ? -1f : 1f) * (8f + 4f * (i / 2)), 0f, HalfSize * 0.62f - 5f * (i / 2));
+                OrbitalAnte.Creatures.Hunter.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Cave hunter " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaScreamers; i++)
+            {
+                // The Screamers start perched near the far end, to one side; once they have seen the player they fly
+                // to wherever they mean to scream from.
+                var at = new Vector3((i % 2 == 0 ? 1f : -1f) * 13f, 0f, HalfSize * 0.75f - 6f * (i / 2));
+                OrbitalAnte.Creatures.Screamer.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, rng.Next(), "Screamer " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaAmbushers; i++)
+            {
+                // The Ambushers wait in the open middle of the arena, on the way to everything else; once they feel
+                // someone they cannot reach they tunnel after them.
+                var at = new Vector3((i % 2 == 0 ? -3f : 4f), 0f, HalfSize * (0.18f + 0.3f * i));
+                OrbitalAnte.Creatures.Ambusher.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Ambusher " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaStalkers; i++)
+            {
+                // The Blind stalkers lie still off to one side, half way down: they come to noise, so the first shots
+                // fired anywhere near bring them.
+                var at = new Vector3((i % 2 == 0 ? 0.62f : -0.62f) * HalfSize, 0f, HalfSize * (0.42f + 0.2f * i));
+                OrbitalAnte.Creatures.Stalker.Create(at, Quaternion.Euler(0f, i % 2 == 0 ? -110f : 110f, 0f), _mannequinRoot, config, "Stalker " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaMaws; i++)
+            {
+                // The Drifting maw has no sea here: it cruises a slow circle in the air just over the ground, off to
+                // one side, so its fins, jaw and pull can be tried.
+                var at = new Vector3(0.42f * HalfSize, 1.3f, 0.1f * HalfSize);
+                OrbitalAnte.Creatures.Maw.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Maw " + (i + 1));
+            }
+            for (int i = 0; i < config.arenaBiterPacks; i++)
+            {
+                // A pack of Pack biters circles in the air just over the ground on the far side, as if in a sea: they
+                // ring whoever comes near and take turns to dart.
+                var at = new Vector3((i % 2 == 0 ? -0.4f : 0.4f) * HalfSize, 1.4f, 0.6f * HalfSize);
+                OrbitalAnte.Creatures.BiterShoal.Create(at, Quaternion.identity, _mannequinRoot, config, config.arenaPackSize, "Biter pack " + (i + 1));
             }
         }
 

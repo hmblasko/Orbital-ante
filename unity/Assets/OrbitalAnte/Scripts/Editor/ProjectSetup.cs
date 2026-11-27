@@ -374,6 +374,7 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Ante.AnteBalanceData>(ConfigFolder + "/AnteBalance.asset");
             CreateAssetIfMissing<OrbitalAnte.Tasks.TaskConfig>(ConfigFolder + "/TaskConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
+            CreateAssetIfMissing<OrbitalAnte.Creatures.CreatureConfig>(ConfigFolder + "/CreatureConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset");
             // The solar system's numbers: every body's size, gravity, orbit and spin.
