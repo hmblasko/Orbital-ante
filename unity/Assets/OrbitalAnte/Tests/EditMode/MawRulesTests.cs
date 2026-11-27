@@ -478,6 +478,14 @@ namespace OrbitalAnte.Tests.EditMode
                     aft = Math.Min(aft, part.Positions[i * 3 + 2]);
                 }
             }
+            // The ring of corners nearest a piece's middle (its cross-sections need not fall exactly there).
+            float MiddleRing(string piece)
+            {
+                ModelPart part = model.Part(piece);
+                float least = float.MaxValue;
+                for (int i = 0; i < part.VertexCount; i++) least = Math.Min(least, Math.Abs(part.Positions[i * 3 + 2]));
+                return least + 0.01f;
+            }
             float right, left, hi, lo, fore, aft;
             // The body is one outline cut at its joints: every length has its own piece, as wide and tall at its
             // middle as the layout (and its hitbox) says, the same either side, reaching a little into its neighbours.
@@ -486,7 +494,7 @@ namespace OrbitalAnte.Tests.EditMode
                 string piece = MawLayout.PieceOf(seg);
                 // (Lengths that carry a fixed fin or the shoulders are measured where the body alone is.)
                 bool fitted = seg == MawLayout.FinSeg || seg == MawLayout.BackFinSeg || seg == 4 || seg == 6;
-                Box(piece, out right, out left, out hi, out lo, out fore, out aft, 0.03f);
+                Box(piece, out right, out left, out hi, out lo, out fore, out aft, MiddleRing(piece));
                 if (!fitted)
                 {
                     Assert.AreEqual(MawLayout.HalfWidth[seg], right, 0.03, piece + ": its width at its middle");

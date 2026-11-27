@@ -27,8 +27,29 @@ namespace OrbitalAnte.Creatures
 
         sealed class Live
         {
-            public Maw Who;
+            /// <summary>A Drifting maw, or a pack of Pack biters (its <see cref="BiterShoal"/>).</summary>
+            public Component Who;
             public int Body, Haunt;
+        }
+
+        static OrbitalAnte.Ship.Astronaut s_crew;
+        static float s_lookForCrewAt = -1f;
+
+        /// <summary>The player's suit, found at most once every two seconds for every swimmer together (never a search per animal).</summary>
+        public static OrbitalAnte.Ship.Astronaut FindCrew()
+        {
+            if (s_crew == null && Time.unscaledTime >= s_lookForCrewAt)
+            {
+                s_lookForCrewAt = Time.unscaledTime + 2f;
+                s_crew = FindAnyObjectByType<OrbitalAnte.Ship.Astronaut>();
+            }
+            return s_crew;
+        }
+
+        public static void ResetStatics()
+        {
+            s_crew = null;
+            s_lookForCrewAt = -1f;
         }
 
         SolarSystemWorld _world;
@@ -48,7 +69,11 @@ namespace OrbitalAnte.Creatures
             seas._world = world;
             seas._config = config;
             // Read the model while the run is being got ready, not on the frame the first one comes into range.
-            if (config != null && config.seas.creaturesInTheSeas) OrbitalAnte.Look.ModelLibrary.MaterialFor(MawLayout.Model);
+            if (config != null && config.seas.creaturesInTheSeas)
+            {
+                OrbitalAnte.Look.ModelLibrary.MaterialFor(MawLayout.Model);
+                OrbitalAnte.Look.ModelLibrary.MaterialFor(BiterLayout.Model);
+            }
             return seas;
         }
 
@@ -103,7 +128,9 @@ namespace OrbitalAnte.Creatures
                     _live.RemoveAt(i);
                     continue;
                 }
-                bool stay = w != null && l.Body == body && (l.Who.transform.localPosition - at).sqrMagnitude < rules.sleepRange * rules.sleepRange;
+                // A pack is where its fish are, not where it was made.
+                Vector3 where = l.Who is BiterShoal shoal && w != null ? surface.Body.transform.InverseTransformPoint(shoal.Middle) : l.Who.transform.localPosition;
+                bool stay = w != null && l.Body == body && (where - at).sqrMagnitude < rules.sleepRange * rules.sleepRange;
                 if (stay) continue;
                 if (_worlds.TryGetValue(l.Body, out World was) && was != null) was.Awake[l.Haunt] = false;
                 Destroy(l.Who.gameObject);
@@ -111,12 +138,16 @@ namespace OrbitalAnte.Creatures
             }
             if (w == null || _live.Count >= Mathf.Max(0, rules.liveCap)) return;
 
-            // Wake the nearest sleeping haunt in range, one a think.
+            // Wake the nearest sleeping haunt in range, one a think. Only one pack is awake at a time: a pack's turns
+            // keep its danger to one fish at once, and two packs would break that.
+            bool packAwake = false;
+            for (int i = 0; i < _live.Count; i++) if (_live[i].Who is BiterShoal) packAwake = true;
             int best = -1;
             float nearest = rules.wakeRange * rules.wakeRange;
             for (int h = 0; h < w.Haunts.Count; h++)
             {
                 if (w.Awake[h] || w.Gone[h]) continue;
+                if (packAwake && SeaField.IsPack(rules, w.Haunts[h])) continue;
                 float d = (Place(surface, w.Haunts[h]) - at).sqrMagnitude;
                 if (d < nearest) { nearest = d; best = h; }
             }
@@ -126,22 +157,33 @@ namespace OrbitalAnte.Creatures
             Transform world = surface.Body.transform;
             Vector3 up = world.TransformDirection(SpaceConvert.ToVector3(haunt.Direction)).normalized;
             // Facing some seeded way along the water.
-            var random = new System.Random(haunt.Seed);
-            Vector3 along = Vector3.ProjectOnPlane(new Vector3((float)random.NextDouble() - 0.5f, (float)random.NextDouble() - 0.5f, (float)random.NextDouble() - 0.5f), up);
+            // Drawn in the world's own space, so it does not depend on how far the world has turned.
+            var random = new SeededRandom(haunt.Seed);
+            Vector3 localWay = new Vector3((float)random.NextDouble() - 0.5f, (float)random.NextDouble() - 0.5f, (float)random.NextDouble() - 0.5f);
+            Vector3 along = Vector3.ProjectOnPlane(world.TransformDirection(localWay), up);
             if (along.sqrMagnitude < 1e-4f) along = Vector3.ProjectOnPlane(world.right, up);
             int bodyIndex = body;
-            Maw maw = Maw.Create(world.TransformPoint(Place(surface, haunt)), Quaternion.LookRotation(along.normalized, up), w.Root, _config, "Maw " + best,
-                                 place => WaterAt(bodyIndex, place));
-            if (maw == null)
+            Vector3 home = world.TransformPoint(Place(surface, haunt));
+            Quaternion facing = Quaternion.LookRotation(along.normalized, up);
+            System.Func<Vector3, MawWater> water = place => WaterAt(bodyIndex, place);
+            Component who;
+            if (SeaField.IsPack(rules, haunt))
+            {
+                BiterShoal shoal = BiterShoal.Create(home, facing, w.Root, _config, SeaField.PackSize(rules, haunt), "Biter pack " + best, water);
+                who = shoal;
+            }
+            else who = Maw.Create(home, facing, w.Root, _config, "Maw " + best, water);
+            if (who == null)
             {
                 // No model in this build: do not ask again.
                 w.Gone[best] = true;
                 return;
             }
             w.Awake[best] = true;
-            var live = new Live { Who = maw, Body = body, Haunt = best };
-            World home = w;
-            maw.Died += _ => home.Gone[live.Haunt] = true;
+            var live = new Live { Who = who, Body = body, Haunt = best };
+            World there = w;
+            if (who is Maw maw) maw.Died += _ => there.Gone[live.Haunt] = true;
+            else if (who is BiterShoal pack) pack.Gone += _ => there.Gone[live.Haunt] = true;
             _live.Add(live);
         }
 
@@ -154,7 +196,8 @@ namespace OrbitalAnte.Creatures
 
         MawWater WaterAt(int body, Vector3 place)
         {
-            var water = new MawWater { Up = Vector3.up };
+            // No up until the world is ready: a zero up leaves an animal as it is, where +Y would tip it over.
+            var water = new MawWater { Up = Vector3.zero };
             PlanetWorld planets = _world != null ? _world.Planets : null;
             PlanetSurface surface = planets != null ? planets.SurfaceOf(body) : null;
             if (surface == null || !surface.Ready) return water;

@@ -441,6 +441,13 @@ namespace OrbitalAnte.Arena
                 var at = new Vector3(0.42f * HalfSize, 1.3f, 0.1f * HalfSize);
                 OrbitalAnte.Creatures.Maw.Create(at, Quaternion.Euler(0f, 180f, 0f), _mannequinRoot, config, "Maw " + (i + 1));
             }
+            for (int i = 0; i < config.arenaBiterPacks; i++)
+            {
+                // A pack of Pack biters circles in the air just over the ground on the far side, as if in a sea: they
+                // ring whoever comes near and take turns to dart.
+                var at = new Vector3((i % 2 == 0 ? -0.4f : 0.4f) * HalfSize, 1.4f, 0.6f * HalfSize);
+                OrbitalAnte.Creatures.BiterShoal.Create(at, Quaternion.identity, _mannequinRoot, config, config.arenaPackSize, "Biter pack " + (i + 1));
+            }
         }
 
         /// <summary>

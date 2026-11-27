@@ -33,6 +33,8 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("The Drifting maw (the megamouth shark): how it cruises, the warning, how far and how hard it draws you in, the hold and the bites, hit points.")]
         public MawRules maw = new MawRules();
+        [Tooltip("The Pack biter (the Goliath tigerfish): how a pack rings you, the warning, the dart and its bite, the gap between turns, hit points.")]
+        public BiterRules biter = new BiterRules();
         [Tooltip("The big swimmers in the seas: how many haunts a world has, how deep the water must be, when one is woken, how many at once. Untick the first box to leave the seas empty.")]
         public SeaFieldRules seas = new SeaFieldRules();
 
@@ -59,6 +61,12 @@ namespace OrbitalAnte.Creatures
 
         [Tooltip("How many Drifting maws the combat test arena starts with (0 for none). There is no water there: it swims in the air just over the ground.")]
         [Range(0, 1)] public int arenaMaws = 1;
+
+        [Tooltip("How many packs of Pack biters the combat test arena starts with (0 for none). They swim in the air just over the ground.")]
+        [Range(0, 2)] public int arenaBiterPacks = 1;
+
+        [Tooltip("How many fish in each of the arena's packs.")]
+        [Range(1, 6)] public int arenaPackSize = 3;
 
         public WalkerRules RulesFor(WalkerLayout kind) => kind == WalkerLayout.Sprinter ? sprinter : strider;
 

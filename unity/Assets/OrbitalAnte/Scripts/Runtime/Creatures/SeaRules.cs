@@ -20,6 +20,10 @@ namespace OrbitalAnte.Creatures
         public float wakeRange = 170f, sleepRange = 260f;
         /// <summary>The most big swimmers present at once. The Steam Deck's limit, not the design's.</summary>
         public int liveCap = 2;
+        /// <summary>The share of haunts that hold a pack of Pack biters instead of a Drifting maw.</summary>
+        public float packShare = 0.6f;
+        /// <summary>How many fish a pack has, fewest and most.</summary>
+        public int packLeast = 3, packMost = 5;
     }
 
     public struct SeaHaunt
@@ -71,6 +75,16 @@ namespace OrbitalAnte.Creatures
                 haunts.Add(new SeaHaunt { Direction = dir, Depth = depth, Under = UnderFor(depth), Seed = seed });
             }
             return haunts;
+        }
+
+        /// <summary>Whether a haunt holds a pack of Pack biters (otherwise a Drifting maw). From its own seed, so it draws nothing more from the stream.</summary>
+        public static bool IsPack(SeaFieldRules rules, in SeaHaunt haunt) => rules != null && ((uint)haunt.Seed % 1000u) < (uint)Math.Round(Math.Max(0f, Math.Min(1f, rules.packShare)) * 1000f);
+
+        /// <summary>How many fish a pack haunt has.</summary>
+        public static int PackSize(SeaFieldRules rules, in SeaHaunt haunt)
+        {
+            int least = Math.Max(1, rules.packLeast), most = Math.Max(least, rules.packMost);
+            return least + (int)(((uint)haunt.Seed / 1000u) % (uint)(most - least + 1));
         }
 
         static double Angle(Vec3d a, Vec3d b) => Math.Acos(Math.Max(-1, Math.Min(1, Vec3d.Dot(a, b))));

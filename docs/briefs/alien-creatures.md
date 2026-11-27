@@ -15,10 +15,10 @@ Names here are placeholders. Each creature is original work that starts from a r
 | 5 | Cicada | Screamer | trees, cliffs (perching on them is not built yet) | Flies in, lands, warns, then screams a cone that hurts whoever stays in it; shooting a drum off chokes it | 4 wings, 6 legs, 2 drums |
 | 6 | Bobbit worm | Ambusher | soft ground (knowing which ground is soft is not built yet) | Waits buried and feels footsteps, warns, strikes, holds and drags; a miss leaves it lying in the open; tunnels after you and comes up ahead | 2 jaws, 5 feelers, cut through at any body length |
 | 7 | Olm | Blind stalker | caves (walking a cave's passages is not built yet) | Blind: hears you and goes where the sound was, clicking each time it places you; feels you through its snout up close; warns, lunges, lies where it lands; a shot brings it at a run | 2 gills (its ears), 4 legs, the tail at any of 4 lengths |
-| 8 | Goliath tigerfish | Pack biter | water | Hunts in packs | fins, jaw, tail |
-| 9 | Megamouth shark | Drifting maw | water | Slow, pulls you in | fins, jaw |
+| 8 | Goliath tigerfish | Pack biter | seas (and the arena's stand-in water) | Hunts in packs of 3 to 5: rings you, then one fish at a time warns (jaws flare, silver flank flashes) and darts straight through where you were; the last of a pack makes off | 2 front fins, the back fin, the tail fin, the jaw; the body or head kills |
+| 9 | Megamouth shark | Drifting maw | seas (and the arena's stand-in water) | Slow; stops and opens its mouth (the warning), then draws in a cone of water and whoever is in it, bites in beats and spits them out; the way out is sideways; shots down its open throat do 2.5 times and make it choke | 2 front fins, the back fin, the tail fin, the jaw |
 
-Built so far (26 Nov 2026): 1 to 7, in the combat arena only. 8 and 9 wait for water you can swim in. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
+Built so far (27 Nov 2026): all nine. 1 to 7 in the combat arena only; 8 and 9 live in the seas of the solar system (`SeaField`, `SeaCreatures`) and have a stand-in pool of water in the arena. Eight more animals from the research (whip spider, velvet worm, mantis shrimp, goblin shark, anglerfish, giant sea spider, ribbed newt or hairy frog, harvestman swarm) wait until these nine are done.
 
 The research behind the list is the report "Unusual animals for alien creatures" in the project's files.
 

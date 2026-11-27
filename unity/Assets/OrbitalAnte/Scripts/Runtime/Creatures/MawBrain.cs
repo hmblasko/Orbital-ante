@@ -64,7 +64,7 @@ namespace OrbitalAnte.Creatures
         public float recoverSeconds = 2.4f;
         public float circleSeconds = 5f;
         /// <summary>This much damage down its throat in one warning, pull or hold makes it choke.</summary>
-        public float chokeDamage = 70f;
+        public float chokeDamage = 150f;
         public float reelSeconds = 1.3f;
         /// <summary>After choking it cannot be made to choke again for this long.</summary>
         public float steadySeconds = 4f;
@@ -283,7 +283,6 @@ namespace OrbitalAnte.Creatures
                     // It drifts onto what it is drawing in, and can only swing round slowly.
                     if (there) Steer(toPlayer, 0.6, InhaleTurn, body, ref orders);
                     else orders.Speed = 0.6 * body.PaceShare;
-                    orders.Speed = 0.6 * body.PaceShare;
                     if (there)
                     {
                         orders.Pull = PullAt(senses.Player, _rules, body.PullShare);

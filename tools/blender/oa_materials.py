@@ -589,6 +589,42 @@ def sharkskin(name, back=(0.060, 0.058, 0.062), belly=(0.46, 0.44, 0.42), blotch
     return m.finish(colour, smoothness, 0.0, height, occlusion=near)
 
 
+def fishscale(name, back=(0.085, 0.10, 0.10), flank=(0.60, 0.61, 0.60), belly=(0.74, 0.72, 0.68), stripe=(0.025, 0.027, 0.030),
+              stripes=6, height=0.48, head_at=-0.06, seed=0.0, rest=True):
+    """The skin of a hard-bodied river fish (the Pack biter, from the Goliath tigerfish): a dark olive back, bright
+    silver flanks that are half mirror, a pale belly, and dark stripes running nose to tail along the flank, broken
+    and a little wavy, ending at the gill cover (`head_at`, forward in the animal); under it all, rows of small
+    overlapping scales, each edged a little darker. `stripes` dark lines over a body `height` metres deep. Laid out by
+    the animal's rest place, so the stripes run across the joints unbroken."""
+    m = Tree(name, rest=rest)
+    up_ = m.axis("Z")
+    ahead = m.axis("Y")
+    cloud = m.noise(2.0, 4.0, 0.6, shift=(seed, 0, 0))
+    wobble = m.noise(3.0, 2.0, 0.5, shift=(0, seed, 0))
+    # Back to belly by height in the animal, with a soft ragged edge.
+    shade = m.add(m.mul(up_, 1.0 / max(0.05, height)), m.mul(m.sub(wobble, 0.5), 0.25))
+    colour = m.mix(belly, flank, m.step(shade, -0.55, -0.15))
+    colour = m.mix(colour, back, m.step(shade, 0.18, 0.42))
+    # Stripes along the flank: bands across height, a little wavy, fading out on the belly, the back and the head.
+    lines = m.bands("Z", height / max(1, stripes), distortion=1.2, stretch=(1.0, 0.25, 1.0))
+    line = m.mul(m.step(lines, 0.74, 0.86), m.mul(m.step(shade, -0.60, -0.40), m.sub(1.0, m.step(shade, 0.25, 0.40))))
+    line = m.mul(line, m.sub(1.0, m.step(ahead, head_at - 0.05, head_at)))
+    broken = m.step(m.noise(5.0, 2.0, 0.5, stretch=(1.0, 0.3, 1.0), shift=(seed, 3.0, 0)), 0.28, 0.40)
+    colour = m.mix(colour, stripe, m.mul(m.mul(line, broken), 0.92))
+    # Scales: small cells in rows, longer than tall, each with a faint dark rim at its back.
+    cells_at, cells_rnd = m.cells(140.0, shift=(seed, 0, seed), stretch=(1.0, 0.75, 1.0))
+    rim = m.step(cells_at, 0.42, 0.62)
+    colour = m.mix(colour, tuple(c * 0.70 for c in flank), m.mul(rim, 0.18))
+    colour = m.mix(colour, tuple(min(1.0, c * 1.06) for c in flank), m.mul(m.step(cells_rnd, 0.85, 1.0), m.mul(m.step(shade, -0.5, 0.2), 0.10)))
+    near = m.hollows(0.04)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.4 for c in back), m.mul(grime, 0.5))
+    silver = m.mul(m.step(shade, -0.6, -0.2), m.sub(1.0, m.step(shade, 0.15, 0.40)))
+    smoothness = m.lerp(0.55, 0.78, m.lerp(cloud, silver, 0.6))
+    metal = m.mul(silver, 0.55)
+    relief = m.add(m.mul(rim, -0.0004), m.mul(cloud, 0.002))
+    return m.finish(colour, smoothness, metal, relief, occlusion=near)
+
 def plume(name, colour=(0.36, 0.04, 0.05), tip=(0.20, 0.02, 0.04), seed=0.0, along='Y', reach=0.36):
     """A gill: wet, blood red, feathery (the filaments are modelled; this is the wet red they are made of), darker
     at the stem and between filaments."""

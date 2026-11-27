@@ -252,7 +252,7 @@ namespace OrbitalAnte.Creatures
             _lookedForPlayer = true;
             _walker = eye.GetComponentInParent<FpsController>();
             if (_walker != null) _walkerBody = _walker.GetComponent<CharacterController>();
-            else _crew = FindAnyObjectByType<OrbitalAnte.Ship.Astronaut>();
+            else _crew = SeaCreatures.FindCrew();
         }
 
         /// <summary>The suit, when the player is floating free in it (not aboard, not driving).</summary>
