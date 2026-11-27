@@ -16,7 +16,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Look;
 using OrbitalAnte.Planets;
 using OrbitalAnte.Space;
 
@@ -35,6 +37,10 @@ static class TerrainView
     {
         string dial = Environment.GetEnvironmentVariable("OA_RELIEF");
         if (!string.IsNullOrEmpty(dial)) Relief = double.Parse(dial);
+        string lightDial = Environment.GetEnvironmentVariable("OA_LIGHT");
+        if (lightDial == "game") LightMode = 1; else if (lightDial == "new") LightMode = 2;
+        string ssDial = Environment.GetEnvironmentVariable("OA_SS");
+        if (!string.IsNullOrEmpty(ssDial)) SS = Math.Max(1, int.Parse(ssDial));
         if (args.Length == 0) { Console.WriteLine("shot | globe | bench | stats"); return 1; }
         switch (args[0])
         {
@@ -55,6 +61,7 @@ static class TerrainView
                 Vec3d forward = (flat * Math.Cos(pitch) + up * Math.Sin(pitch)).Normalized;
                 double sb = sunBearing * Math.PI / 180, su = sunUp * Math.PI / 180;
                 Vec3d sun = ((north * Math.Cos(sb) + east * Math.Sin(sb)) * Math.Cos(su) + up * Math.Sin(su)).Normalized;
+                if (Environment.GetEnvironmentVariable("OA_PROPS") == "1") AddProps(t, args[1], up, flat, Vec3d.Cross(up, flat).Normalized);
                 Render(t, eye, forward, up, sun, 62, args[7]);
                 return 0;
             }
@@ -67,6 +74,83 @@ static class TerrainView
                 Vec3d north = CubeSphere.North(up), east = Vec3d.Cross(north, up).Normalized;
                 Vec3d sun = (up * 0.55 + east * 0.75 + north * 0.35).Normalized;
                 Render(t, eye, -up, north, sun, 40, args[4], false);
+                return 0;
+            }
+            case "map":
+            {
+                // The picture a body wears from far off (FarMap, the game's own), as a flat map: map <body> <width> <out.ppm> [seed]
+                int width = int.Parse(args[2]);
+                PlanetTerrain t = Make(args[1], args.Length > 4 ? int.Parse(args[4]) : 1);
+                byte[] rgba = FarMap.Paint(t, width);
+                int height = width / 2;
+                using var file = System.IO.File.Create(args[3]);
+                byte[] head = System.Text.Encoding.ASCII.GetBytes($"P6\n{width} {height}\n255\n");
+                file.Write(head, 0, head.Length);
+                var row = new byte[width * 3];
+                for (int y = height - 1; y >= 0; y--)     // the picture's first row is the south pole
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        row[x * 3] = rgba[(y * width + x) * 4];
+                        row[x * 3 + 1] = rgba[(y * width + x) * 4 + 1];
+                        row[x * 3 + 2] = rgba[(y * width + x) * 4 + 2];
+                    }
+                    file.Write(row, 0, row.Length);
+                }
+                if (args.Length > 5)
+                {
+                    // And the heights behind it: map <body> <width> <out.ppm> <seed> <heights.ppm>. Red is the
+                    // height from lowest (0) to highest (255), green is 255 where there is sea.
+                    var heights = new double[width * height];
+                    double low = 1e9, high = -1e9;
+                    double dot = t.Radius * Math.PI * 2 / width;
+                    System.Threading.Tasks.Parallel.For(0, height, y =>
+                    {
+                        for (int x = 0; x < width; x++)
+                            heights[y * width + x] = t.Sample(FarMap.Direction((x + 0.5) / width, (y + 0.5) / height), dot * 1.6).Height;
+                    });
+                    foreach (double h in heights) { low = Math.Min(low, h); high = Math.Max(high, h); }
+                    using var second = System.IO.File.Create(args[5]);
+                    second.Write(head, 0, head.Length);
+                    for (int y = height - 1; y >= 0; y--)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            double h = heights[y * width + x];
+                            row[x * 3] = (byte)Math.Round((h - low) / Math.Max(1e-6, high - low) * 255);
+                            row[x * 3 + 1] = (byte)(t.HasSea && h < t.SeaLevel ? 255 : 0);
+                            row[x * 3 + 2] = 0;
+                        }
+                        second.Write(row, 0, row.Length);
+                    }
+                    Console.WriteLine($"{args[1]} radius {t.Radius} lowest {low:F1} highest {high:F1} sea {(t.HasSea ? t.SeaLevel.ToString("F1") : "none")}");
+                }
+                return 0;
+            }
+            case "flat":
+            {
+                // Open, fairly level places with hills in view: somewhere to stand for a picture.
+                PlanetTerrain t = Make(args[1], args.Length > 2 ? int.Parse(args[2]) : 1);
+                var found = new List<(double score, double lat, double lon)>();
+                for (double lat = -60; lat <= 60; lat += 4)
+                    for (double lon = -180; lon < 180; lon += 4)
+                    {
+                        Vec3d u = CubeSphere.FromLatLon(lat, lon);
+                        double h = t.Height(u);
+                        if (t.HasSea && h < t.SeaLevel + 2) continue;
+                        Vec3d e = u.AnyPerpendicular(), n = Vec3d.Cross(u, e);
+                        double near = 0, far = 0;
+                        for (int i = 0; i < 12; i++)
+                        {
+                            double a = i * Math.PI / 6;
+                            Vec3d d = e * Math.Cos(a) + n * Math.Sin(a);
+                            near = Math.Max(near, Math.Abs(t.Height((u + d * (30 / t.Radius)).Normalized) - h));
+                            far = Math.Max(far, t.Height((u + d * (0.5)).Normalized) - h);
+                        }
+                        if (near < 4) found.Add((far - near * 4, lat, lon));
+                    }
+                foreach (var f in found.OrderByDescending(f => f.score).Take(8)) Console.WriteLine($"{f.lat} {f.lon}  relief in view {f.score:F0}");
+                Console.WriteLine($"radius {t.Radius:F0}");
                 return 0;
             }
             case "land":
@@ -250,6 +334,7 @@ static class TerrainView
     static void Render(PlanetTerrain t, Vec3d eye, Vec3d forward, Vec3d upHint, Vec3d sun, double fovDegrees, string path, bool inTheAir = true)
     {
         PlanetProfile f = t.Profile;
+        int W = TerrainView.W * SS, H = TerrainView.H * SS;
         Vec3d right = Vec3d.Cross(upHint, forward).Normalized;
         Vec3d up = Vec3d.Cross(forward, right).Normalized;
         double tan = Math.Tan(fovDegrees * Math.PI / 360);
@@ -281,7 +366,10 @@ static class TerrainView
                     r = g = b = 0.012;
                 }
 
-                if (March(t, eye, dir, top, out double dist, out bool water))
+                bool ground = March(t, eye, dir, top, out double dist, out bool water);
+                bool prop = PropHit(eye, dir, ground ? dist : 1e9, out double propAt, out Vec3d propNormal, out float[] propColor);
+                if (prop) { dist = propAt; water = false; }
+                if (ground || prop)
                 {
                     Vec3d p = eye + dir * dist;
                     Vec3d n = p.Normalized;
@@ -289,7 +377,14 @@ static class TerrainView
                     double step = Math.Max(1.7, dist * 0.006);
                     Vec3d normal;
                     float cr, cg, cb;
-                    if (water)
+                    if (prop)
+                    {
+                        normal = propNormal;
+                        // A little break-up so a stand-in is not one flat colour.
+                        float mottle = (float)(0.9 + 0.2 * ShaderNoise(p.X * 3.1, p.Y * 3.1, p.Z * 3.1));
+                        cr = propColor[0] * mottle; cg = propColor[1] * mottle; cb = propColor[2] * mottle;
+                    }
+                    else if (water)
                     {
                         double bed = t.SeaLevel - t.Height(n, minW);
                         double murk = Noise3.Smooth(0, 14, bed);
@@ -314,7 +409,7 @@ static class TerrainView
                         double hollow = Math.Max(-1, Math.Min(1, (around - here.Height) / (step * step) * TerrainMesher.HollowGain));
                         t.ColorAt(n, here, slope, out cr, out cg, out cb, hollow);
                     }
-                    if (!water && Relief > 0)
+                    if (!prop && !water && Relief > 0)
                     {
                         // The ground shader's fine relief and break-up of colour, copied sum for sum (OA_Ground in
                         // OA_Terrain.shader), so the picture shows what it adds. Its slope is taken by stepping
@@ -333,13 +428,22 @@ static class TerrainView
                         double amount = Math.Min(1, Relief);
                         cr = (float)(cr + (sr * (1 + value) - cr) * amount); cg = (float)(cg + (sg * (1 + value) - cg) * amount); cb = (float)(cb + (sb * (1 + value) - cb) * amount);
                     }
-                    double lit = Math.Max(0, Vec3d.Dot(normal, sun));
-                    if (lit > 0 && Shadowed(t, p + n * 0.6, sun, top)) lit *= 0.12;
                     double day = Noise3.Smooth(-0.1, 0.25, Vec3d.Dot(n, sun));
-                    double skyLight = (air ? 0.34 : 0.06) * (0.6 + 0.4 * Vec3d.Dot(normal, n)) * day;
-                    double lr = Lin(cr) * (lit * 1.0 * 1.02 + skyLight * (air ? Lin(sky[0]) * 1.2 + 0.25 : 1));
-                    double lg = Lin(cg) * (lit * 0.97 + skyLight * (air ? Lin(sky[1]) * 1.2 + 0.25 : 1));
-                    double lb = Lin(cb) * (lit * 0.90 + skyLight * (air ? Lin(sky[2]) * 1.2 + 0.25 : 1));
+                    double lr, lg, lb;
+                    if (LightMode == 0)
+                    {
+                        double lit = Math.Max(0, Vec3d.Dot(normal, sun));
+                        if (lit > 0 && Shadowed(t, p + n * 0.6, sun, top)) lit *= 0.12;
+                        double skyLight = (air ? 0.34 : 0.06) * (0.6 + 0.4 * Vec3d.Dot(normal, n)) * day;
+                        lr = Lin(cr) * (lit * 1.0 * 1.02 + skyLight * (air ? Lin(sky[0]) * 1.2 + 0.25 : 1));
+                        lg = Lin(cg) * (lit * 0.97 + skyLight * (air ? Lin(sky[1]) * 1.2 + 0.25 : 1));
+                        lb = Lin(cb) * (lit * 0.90 + skyLight * (air ? Lin(sky[2]) * 1.2 + 0.25 : 1));
+                    }
+                    else
+                    {
+                        LightAt(t, air, sky, haze, p, n, normal, sun, eyeUp, top, x, y, prop, out double ar, out double ag, out double ab);
+                        lr = Lin(cr) * ar; lg = Lin(cg) * ag; lb = Lin(cb) * ab;
+                    }
                     if (water)
                     {
                         Vec3d half = (sun - dir).Normalized;
@@ -356,6 +460,20 @@ static class TerrainView
                 bytes[o] = (byte)(Math.Min(1, Math.Max(0, r)) * 255); bytes[o + 1] = (byte)(Math.Min(1, Math.Max(0, g)) * 255); bytes[o + 2] = (byte)(Math.Min(1, Math.Max(0, b)) * 255);
             }
         });
+        if (SS > 1)
+        {
+            int w = TerrainView.W, h = TerrainView.H;
+            var small = new byte[w * h * 3];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    for (int c = 0; c < 3; c++)
+                    {
+                        int sum = 0;
+                        for (int j = 0; j < SS; j++) for (int i = 0; i < SS; i++) sum += bytes[((y * SS + j) * W + x * SS + i) * 3 + c];
+                        small[(y * w + x) * 3 + c] = (byte)(sum / (SS * SS));
+                    }
+            bytes = small; W = w; H = h;
+        }
         using (var file = File.Create(path))
         {
             byte[] head = System.Text.Encoding.ASCII.GetBytes($"P6\n{W} {H}\n255\n");
@@ -363,6 +481,210 @@ static class TerrainView
             file.Write(bytes, 0, bytes.Length);
         }
         Console.WriteLine($"wrote {path} in {clock.Elapsed.TotalSeconds:F0} s");
+    }
+
+    // ------------------------------------------------------------------ light and shadow trials (stage 3)
+    // OA_LIGHT=game lights the ground with a copy of the game's own sum (OA_LightIn in OA_Look.hlsl, with the
+    // sunlight and fill PlanetSky works out for where the eye is): nothing casts a shadow. OA_LIGHT=new is the
+    // trial: cast shadows with a soft edge, plain sunlight with no wrap-round, and sunlight and sky fill worked out
+    // for the place being lit, not for where the eye is. OA_PROPS=1 stands a few stand-in shapes in front of the
+    // eye (boulders, a figure, a lander) so there is something to cast a shadow. OA_SS=2 smooths the picture.
+    static int LightMode, SS = 1;
+
+    struct Prim
+    {
+        public bool Capsule;
+        public Vec3d A, B, E, U, N;
+        public double Rx, Ry, Rz;
+        public float[] Color;
+    }
+
+    static readonly List<Prim> Props = new List<Prim>();
+
+    static void AddProps(PlanetTerrain t, string body, Vec3d up, Vec3d flat, Vec3d side)
+    {
+        Vec3d At(double forward, double across, double above, out Vec3d u)
+        {
+            u = (up + (flat * forward + side * across) / t.Radius).Normalized;
+            return u * (t.Radius + t.Height(u) + above);
+        }
+        void Ball(double forward, double across, double above, double rx, double ry, double rz, float[] c, double turn = 0)
+        {
+            Vec3d a = At(forward, across, above, out Vec3d u);
+            Vec3d e = (side * Math.Cos(turn) + flat * Math.Sin(turn)).Normalized;
+            e = (e - u * Vec3d.Dot(e, u)).Normalized;
+            Props.Add(new Prim { A = a, E = e, U = u, N = Vec3d.Cross(e, u).Normalized, Rx = rx, Ry = ry, Rz = rz, Color = c });
+        }
+        void Rod(Vec3d a, Vec3d b, double r, float[] c) => Props.Add(new Prim { Capsule = true, A = a, B = b, Rx = r, Color = c });
+
+        float[] rock = body == "Mars" ? new[] { 0.40f, 0.29f, 0.23f } : body == "Moon" ? new[] { 0.36f, 0.36f, 0.37f } : new[] { 0.37f, 0.35f, 0.32f };
+        float[] suit = { 0.44f, 0.45f, 0.40f }, hull = { 0.74f, 0.72f, 0.68f }, foil = { 0.62f, 0.50f, 0.27f }, strut = { 0.5f, 0.5f, 0.52f };
+        // Boulders, a third sunk in the ground.
+        double[,] stones = { { 4.6, 1.9, 0.55, 0.42, 0.6, 0.3 }, { 9, 3.6, 1.3, 0.9, 1.1, 1.1 }, { 12, -4.2, 1.6, 1.15, 1.4, 2.0 }, { 6, -3.1, 0.36, 0.26, 0.4, 0.7 },
+            { 15, 0.8, 0.8, 0.55, 0.7, 2.6 }, { 21, -8, 2.3, 1.6, 1.9, 0.4 }, { 3.4, -0.9, 0.2, 0.14, 0.22, 1.9 }, { 5.2, 0.5, 0.15, 0.1, 0.17, 0.2 },
+            { 7.6, 1.2, 0.24, 0.17, 0.2, 1.3 }, { 10.5, -1.6, 0.3, 0.2, 0.33, 2.4 }, { 17, 5.5, 1.0, 0.75, 1.2, 0.9 }, { 30, -3, 1.4, 1.0, 1.3, 1.6 } };
+        for (int i = 0; i < stones.GetLength(0); i++)
+            Ball(stones[i, 0], stones[i, 1], stones[i, 3] * 0.3, stones[i, 2], stones[i, 3], stones[i, 4], rock, stones[i, 5]);
+        // A figure the height of a trooper.
+        Vec3d feet = At(7.5, -1.1, 0.25, out Vec3d fu);
+        Rod(feet, feet + fu * 1.2, 0.25, suit);
+        Props.Add(new Prim { A = feet + fu * 1.47, E = side, U = fu, N = flat, Rx = 0.17, Ry = 0.18, Rz = 0.18, Color = suit });
+        // The lander: a cabin on a base on four long legs.
+        Vec3d foot0 = At(27, 6, 0, out Vec3d lu);
+        Vec3d baseAt = foot0 + lu * 5.6;
+        Props.Add(new Prim { A = baseAt + lu * 2.1, E = side, U = lu, N = flat, Rx = 2.4, Ry = 1.9, Rz = 2.4, Color = hull });
+        Props.Add(new Prim { A = baseAt + lu * 0.3, E = side, U = lu, N = flat, Rx = 2.7, Ry = 0.55, Rz = 2.7, Color = foil });
+        for (int i = 0; i < 4; i++)
+        {
+            double sx = (i & 1) == 0 ? -1 : 1, sz = (i & 2) == 0 ? -1 : 1;
+            Vec3d pad = At(27 + sz * 3.5, 6 + sx * 3.5, 0.08, out Vec3d pu);
+            Rod(baseAt + side * (sx * 1.8) + flat * (sz * 1.8), pad, 0.1, strut);
+            Props.Add(new Prim { A = pad, E = side, U = pu, N = flat, Rx = 0.45, Ry = 0.09, Rz = 0.45, Color = strut });
+        }
+    }
+
+    static double PrimHit(in Prim q, Vec3d ro, Vec3d rd, out Vec3d normal)
+    {
+        normal = default;
+        if (q.Capsule)
+        {
+            Vec3d ba = q.B - q.A, oa = ro - q.A;
+            double baba = Vec3d.Dot(ba, ba), bard = Vec3d.Dot(ba, rd), baoa = Vec3d.Dot(ba, oa), rdoa = Vec3d.Dot(rd, oa), oaoa = Vec3d.Dot(oa, oa);
+            double a = baba - bard * bard, b = baba * rdoa - baoa * bard, c = baba * oaoa - baoa * baoa - q.Rx * q.Rx * baba, h = b * b - a * c;
+            if (h < 0) return -1;
+            double at = (-b - Math.Sqrt(h)) / a, y = baoa + at * bard;
+            if (!(y > 0 && y < baba))
+            {
+                Vec3d oc = y <= 0 ? oa : ro - q.B;
+                b = Vec3d.Dot(rd, oc); c = Vec3d.Dot(oc, oc) - q.Rx * q.Rx; h = b * b - c;
+                if (h <= 0) return -1;
+                at = -b - Math.Sqrt(h);
+            }
+            if (at <= 0) return -1;
+            Vec3d pa = ro + rd * at - q.A;
+            double along = Math.Max(0, Math.Min(1, Vec3d.Dot(pa, ba) / baba));
+            normal = (pa - ba * along).Normalized;
+            return at;
+        }
+        Vec3d o = ro - q.A;
+        double ox = Vec3d.Dot(o, q.E) / q.Rx, oy = Vec3d.Dot(o, q.U) / q.Ry, oz = Vec3d.Dot(o, q.N) / q.Rz;
+        double dx = Vec3d.Dot(rd, q.E) / q.Rx, dy = Vec3d.Dot(rd, q.U) / q.Ry, dz = Vec3d.Dot(rd, q.N) / q.Rz;
+        double qa = dx * dx + dy * dy + dz * dz, qb = ox * dx + oy * dy + oz * dz, qc = ox * ox + oy * oy + oz * oz - 1, disc = qb * qb - qa * qc;
+        if (disc < 0) return -1;
+        double hit = (-qb - Math.Sqrt(disc)) / qa;
+        if (hit <= 0) return -1;
+        double lx = ox + dx * hit, ly = oy + dy * hit, lz = oz + dz * hit;
+        normal = (q.E * (lx / q.Rx) + q.U * (ly / q.Ry) + q.N * (lz / q.Rz)).Normalized;
+        return hit;
+    }
+
+    static bool PropHit(Vec3d ro, Vec3d rd, double nearest, out double at, out Vec3d normal, out float[] color)
+    {
+        at = nearest; normal = default; color = null;
+        for (int i = 0; i < Props.Count; i++)
+        {
+            double d = PrimHit(Props[i], ro, rd, out Vec3d n);
+            if (d > 0 && d < at) { at = d; normal = n; color = Props[i].Color; }
+        }
+        return color != null;
+    }
+
+    static double LinPeak(double c, double peak) => Math.Pow(Math.Max(0, c / peak), 2.2) * peak;
+
+    static void ToLight(Rgb c, double scale, out double r, out double g, out double b)
+    {
+        // SkyGlobals.Linear: above 1 the curve is not defined, so convert the colour and scale afterwards.
+        double peak = Math.Max(1, Math.Max(c.R * scale, Math.Max(c.G * scale, c.B * scale)));
+        r = LinPeak(c.R * scale, peak); g = LinPeak(c.G * scale, peak); b = LinPeak(c.B * scale, peak);
+    }
+
+    static double Step01(double from, double to, double x) => Noise3.Smooth(from, to, x);
+
+    /// <summary>The light on a place (to multiply by its colour), by the game's sum today (LightMode 1) or the trial (2).</summary>
+    static void LightAt(PlanetTerrain t, bool air, float[] sky, float[] haze, Vec3d p, Vec3d n, Vec3d normal, Vec3d sun, Vec3d eyeUp,
+        double top, int px, int py, bool prop, out double r, out double g, out double b)
+    {
+        var sunBase = new Rgb(1f, 0.96f, 0.88f);
+        var spaceAmbient = new Rgb(0.055f, 0.062f, 0.105f);
+        double here = Vec3d.Dot(n, sun);
+        // The game works sunlight and fill out once, for where the eye is. The trial works them out for the place lit.
+        double sunHeight = LightMode == 1 ? Vec3d.Dot(eyeUp, sun) : here;
+        double day = Step01(-0.1, 0.25, sunHeight);
+        Rgb sunColor = sunBase, ambient = spaceAmbient;
+        if (air)
+        {
+            float light = (float)(0.035 + 0.965 * day);
+            var skyRgb = new Rgb(sky[0], sky[1], sky[2]);
+            SkyPalette pal = SkyLook.InAir(skyRgb, new Rgb(haze[0], haze[1], haze[2]), (float)sunHeight, light, 1f, false, 1f, 1f);
+            sunColor = sunBase * pal.SunTint;
+            ambient = (skyRgb * (light * 0.55f)).Saturated(1.25f) + spaceAmbient * 0.5f + pal.Sunset * 0.3f;
+        }
+        ToLight(sunColor, 1.35, out double sr, out double sg, out double sb);
+        ToLight(ambient, 1, out double ar, out double ag, out double ab);
+        double facing = Vec3d.Dot(normal, sun), upward = Vec3d.Dot(normal, n);
+        double dayHere = Math.Max(0, Math.Min(1, here * 2 + 0.2));
+        double bounce = dayHere * Math.Max(0, Math.Min(1, 0.6 - 0.6 * upward)) * 0.14;
+        if (LightMode == 1)
+        {
+            double wrap = Math.Max(0, Math.Min(1, (facing + 0.2) / 1.2));
+            double lit = wrap + (Step01(0.05, 0.6, wrap) - wrap) * 0.6;
+            double edge = Math.Max(0, Math.Min(1, 1 - Math.Abs(wrap - 0.15) * 6)) * 0.2;
+            double reached = Step01(-0.14, 0.02, here);
+            double fill = 0.85 + 0.3 * upward;
+            r = ar * fill + sr * (lit + edge + bounce) * reached;
+            g = ag * fill + sg * (lit + edge * 0.36 + bounce * 0.8) * reached;
+            b = ab * fill + sb * (lit + edge * 0.14 + bounce * 0.6) * reached;
+            return;
+        }
+
+        // Real light, by the game's own sums (GroundLight; OA_LightAt in OA_Look.hlsl is the same). Four looks toward
+        // slightly different parts of the Sun stand in for the soft edge the game's shadow picture gives.
+        double open = 0;
+        if (facing > -0.04 && here > -0.2)
+        {
+            Vec3d su = sun.AnyPerpendicular(), sv = Vec3d.Cross(sun, su);
+            for (int i = 0; i < 4; i++)
+            {
+                double turn = (ShaderHash(px * 0.37 + i * 7.1, py * 0.53, i * 3.3) + i * 0.25) * Math.PI * 2;
+                double far = 0.011 * Math.Sqrt((i + 0.5) / 4);
+                Vec3d to = (sun + su * (Math.Cos(turn) * far) + sv * (Math.Sin(turn) * far)).Normalized;
+                Vec3d from = p + normal * 0.03 + n * 0.02;
+                if (PropHit(from, to, 1e9, out _, out _, out _)) continue;
+                if (Shadowed(t, p + n * 0.6, to, top)) continue;
+                open += 0.25;
+            }
+        }
+        AirLook look = OrbitLook.Air(t.Profile, t.Radius, false);
+        ToLight(sunBase, 1.35, out double pr, out double pg, out double pb);
+        // A stand-in is lit for where the eye is, as the game lights everything but the ground itself.
+        double placeSun = prop ? Vec3d.Dot(eyeUp, sun) : here;
+        pr *= GroundLight.Reddened(placeSun, look.ReddenR); pg *= GroundLight.Reddened(placeSun, look.ReddenG); pb *= GroundLight.Reddened(placeSun, look.ReddenB);
+        double least = air ? GroundLight.NightLeast : 1, share = air ? GroundLight.SpaceShareInAir : 1;
+        double viewerSun = Vec3d.Dot(eyeUp, sun), viewerBright = GroundLight.SkyBrightness(viewerSun, least);
+        double fr = 0, fg = 0, fb = 0, vr, vg, vb;
+        ToLight(spaceAmbient, 1, out double spr, out double spg, out double spb);
+        if (air)
+        {
+            var skyRgb = new Rgb(sky[0], sky[1], sky[2]);
+            ToLight((skyRgb * 0.55f).Saturated(1.25f), 1, out fr, out fg, out fb);
+            float lightV = (float)viewerBright;
+            SkyPalette palV = SkyLook.InAir(skyRgb, new Rgb(haze[0], haze[1], haze[2]), (float)viewerSun, lightV, 1f, false, 1f, 1f);
+            ToLight((skyRgb * (lightV * 0.55f)).Saturated(1.25f) + spaceAmbient * 0.5f + palV.Sunset * 0.3f, 1, out vr, out vg, out vb);
+        }
+        else { vr = spr; vg = spg; vb = spb; }
+        double skyOver = air ? 1 : 0;
+        double hereBright = GroundLight.SkyBrightness(placeSun, least);
+        double f2 = 0.85 + 0.3 * upward;
+        ar = prop ? vr : GroundLight.Fill(vr, viewerBright, skyOver, fr, spr, share, hereBright);
+        ag = prop ? vg : GroundLight.Fill(vg, viewerBright, skyOver, fg, spg, share, hereBright);
+        ab = prop ? vb : GroundLight.Fill(vb, viewerBright, skyOver, fb, spb, share, hereBright);
+        double up2 = GroundLight.Reached(placeSun, look.Soft);
+        double direct = GroundLight.Direct(facing, open);
+        double thrown = (0.5 + 0.5 * Math.Max(0, Math.Min(1, placeSun * 2 + 0.2))) * 0.06;
+        // (The warm bounce onto overhangs keeps the viewer's tinted sunlight in the game; near enough here.)
+        r = ar * f2 + (pr * (direct + thrown) + sr * bounce) * up2;
+        g = ag * f2 + (pg * (direct + thrown) + sg * bounce * 0.8) * up2;
+        b = ab * f2 + (pb * (direct + thrown) + sb * bounce * 0.6) * up2;
     }
 
     /// <summary>How strongly the ground shader's fine relief is drawn (the Ground Relief dial). 0 shows the bare mesh colours.</summary>

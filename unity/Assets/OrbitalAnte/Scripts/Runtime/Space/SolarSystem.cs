@@ -55,6 +55,9 @@ namespace OrbitalAnte.Space
         readonly List<GravityBody> _movers = new List<GravityBody>();
         readonly List<Snapshot> _snapshots = new List<Snapshot>();
         Transform _stars;
+        Material _starMaterial;
+        /// <summary>The real stars' mesh, shared by every solar system of the session and never destroyed.</summary>
+        static Mesh _realStars;
 
         public static void ResetStatics() => Instance = null;
 
@@ -115,17 +118,66 @@ namespace OrbitalAnte.Space
             SunLight.type = LightType.Directional;
             SunLight.color = SkyGlobals.SunColor;
             SunLight.intensity = SkyGlobals.SunIntensity;
-            // No shadow maps yet: hills and night come from which way the ground faces the Sun. The ship
-            // milestone decides whether its interior needs real shadows.
-            SunLight.shadows = LightShadows.None;
+            // Cast shadows (the Look asset's Sun Shadows): URP draws what the Sun can see near the camera and the
+            // game's shaders read it. Night itself still comes from which way the ground faces the Sun.
+            OrbitalAnte.Look.SunShadows.Apply(SunLight, OrbitalAnte.Look.LookConfig.Load());
 
             _stars = new GameObject("Stars").transform;
             _stars.SetParent(transform, false);
-            AddStarLayer("WhiteStars", 1100, new Color(0.92f, 0.94f, 1f), 4101);
-            AddStarLayer("WarmStars", 320, new Color(1f, 0.82f, 0.62f), 4102);
-            AddStarLayer("BlueStars", 260, new Color(0.65f, 0.78f, 1f), 4103);
+            if (!AddRealStars())
+            {
+                // The earlier sky: evenly scattered square stars in three colours. Kept for machines where the
+                // star shader cannot be used, and for Real Sky switched off on the Look asset.
+                AddStarLayer("WhiteStars", 1100, new Color(0.92f, 0.94f, 1f), 4101);
+                AddStarLayer("WarmStars", 320, new Color(1f, 0.82f, 0.62f), 4102);
+                AddStarLayer("BlueStars", 260, new Color(0.65f, 0.78f, 1f), 4103);
+            }
             // The sky itself, behind the stars. It turns with them, so the galaxy stays fixed in the sky.
             OrbitalAnte.Look.SkyDome.Build(_stars, 20000f, true);
+        }
+
+        /// <summary>
+        /// The real stars (Resources/Sky/Stars, see <see cref="OrbitalAnte.Look.StarCatalogue"/>) as one mesh and
+        /// one draw call. False if they cannot be shown here, and the earlier scattered stars must stand in.
+        /// </summary>
+        bool AddRealStars()
+        {
+            OrbitalAnte.Look.LookConfig look = OrbitalAnte.Look.LookConfig.Load();
+            if (!look.realSky) return false;
+            // The dial's 1.5 is the brightness the sky was baked for.
+            _starMaterial = PlanetMaterials.Stars(look.starBrightness / 1.5f, look.sunHidesStars);
+            if (_starMaterial == null) return false;
+            // The stars never change, so their mesh is built once and kept for the session: a restart then
+            // costs nothing and makes no garbage (about 5 MB of arrays the first time).
+            if (_realStars == null)
+            {
+                var file = Resources.Load<TextAsset>(OrbitalAnte.Look.StarCatalogue.ResourcePath);
+                string problem = null;
+                OrbitalAnte.Look.StarCatalogue catalogue = file != null ? OrbitalAnte.Look.StarCatalogue.Parse(file.bytes, out problem) : null;
+                if (file != null && catalogue == null)
+                {
+                    Debug.LogWarning("Orbital Ante: the star file could not be read (" + problem + "), so the earlier scattered stars are shown.");
+                }
+                if (file != null) Resources.UnloadAsset(file);
+                if (catalogue == null)
+                {
+                    Destroy(_starMaterial);
+                    _starMaterial = null;
+                    return false;
+                }
+                _realStars = SpaceMeshes.RealStars(catalogue, StarDistance);
+            }
+
+            var go = new GameObject("RealStars");
+            go.transform.SetParent(_stars, false);
+            go.AddComponent<MeshFilter>().sharedMesh = _realStars;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = _starMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            return true;
         }
 
         void AddStarLayer(string layerName, int count, Color color, int seed)
@@ -170,6 +222,7 @@ namespace OrbitalAnte.Space
                 _oldSkybox = null;
             }
             if (Instance == this) Instance = null;
+            if (_starMaterial != null) Destroy(_starMaterial);
         }
 
         // ------------------------------------------------------------------ loose objects

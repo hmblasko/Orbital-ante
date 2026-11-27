@@ -59,9 +59,9 @@ namespace OrbitalAnte.Bases
             root.transform.localRotation = Quaternion.Euler(0f, 90f * BaseKinds.QuarterTurns(site.Seed), 0f);
 
             Material paint = ModelLibrary.SharedMaterial();
-            for (int i = 0; i < BaseKinds.Drawn.Length; i++) Add(root.transform, kind.Model, BaseKinds.Drawn[i], paint);
+            for (int i = 0; i < BaseKinds.Drawn.Length; i++) Add(root.transform, kind.Model, BaseKinds.Drawn[i], paint, true);
             Material shine = PlanetMaterials.VertexColour(Color.white, 0f, Glow, false);
-            for (int i = 0; i < BaseKinds.Lit.Length; i++) Add(root.transform, kind.Model, BaseKinds.Lit[i], shine);
+            for (int i = 0; i < BaseKinds.Lit.Length; i++) Add(root.transform, kind.Model, BaseKinds.Lit[i], shine, false);
 
             Mesh solid = Solid(kind.Model);
             if (solid != null)
@@ -74,7 +74,7 @@ namespace OrbitalAnte.Bases
             return true;
         }
 
-        static void Add(Transform parent, string model, string piece, Material material)
+        static void Add(Transform parent, string model, string piece, Material material, bool castsShadow)
         {
             Mesh mesh = ModelLibrary.PartMesh(model, piece);
             if (mesh == null) return;
@@ -86,9 +86,10 @@ namespace OrbitalAnte.Bases
             renderer.sharedMaterial = material;
             renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-            // Like everything else on a world: lit from the sky globals, no Unity shadows.
+            // Lit from the sky globals. Buildings cast the Sun's shadow; their lit windows and lamps do not.
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            SunShadows.Cast(renderer, castsShadow);
         }
 
         /// <summary>The model's solid piece as a mesh physics can read (the drawn meshes are not kept readable).</summary>

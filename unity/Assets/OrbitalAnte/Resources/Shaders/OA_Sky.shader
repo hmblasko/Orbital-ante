@@ -1,5 +1,6 @@
-// The sky itself: a big ball drawn round the viewer before anything else. In open space it shows the soft
-// coloured clouds of the galaxy behind the stars and the glow round the Sun. Inside an atmosphere it shows the
+// The sky itself: a big ball drawn round the viewer before anything else. In open space it shows the picture of
+// deep space behind the stars (the Milky Way, its dust, the far galaxies and nebulae: Resources/Sky/DeepSpace,
+// baked by tools/sky) and the glow round the Sun. Inside an atmosphere it shows the
 // body's sky as a gradient from the horizon colour up to the deeper colour overhead, with a warm band at
 // sunrise and sunset. Every other shader takes its haze from the same sums (OA_Look.hlsl), so far-off hills
 // melt into exactly the sky that is behind them.
@@ -9,6 +10,7 @@ Shader "OrbitalAnte/Sky"
     {
         _Backdrop ("Picture of deep space (wrapped round the sky)", 2D) = "black" {}
         _BackdropStrength ("How bright deep space is", Range(0, 3)) = 1
+        _SunGlare ("How much the Sun's glare hides deep space near it", Range(0, 1)) = 0.75
     }
 
     SubShader
@@ -30,6 +32,7 @@ Shader "OrbitalAnte/Sky"
             CBUFFER_START(UnityPerMaterial)
                 float4 _Backdrop_ST;
                 half _BackdropStrength;
+                half _SunGlare;
             CBUFFER_END
 
             TEXTURE2D(_Backdrop);
@@ -71,7 +74,7 @@ Shader "OrbitalAnte/Sky"
                 // Always the sharpest copy: the picture is soft already, and this keeps the join where u wraps
                 // round from 1 back to 0 from showing as a line.
                 half3 space = SAMPLE_TEXTURE2D_LOD(_Backdrop, sampler_Backdrop, float2(u, v), 0).rgb;
-                color += space * (_BackdropStrength * (1.0 - _OA_Veil.a));
+                color += space * (_BackdropStrength * (1.0 - _OA_Veil.a) * (1.0 - OA_SunGlare(view) * _SunGlare));
                 return half4(color, 1.0);
             }
             ENDHLSL

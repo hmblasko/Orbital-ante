@@ -34,3 +34,7 @@ unity/Assets/OrbitalAnte/Resources/Audio/**/*.ogg -filter -diff -merge -text
 # The models' texture pictures are ordinary files too, for the same reason (about 7 MB a 2048 set as PNG):
 # the Steam Deck gets them with a plain `git pull`, and cloud sessions cannot reach the LFS server.
 unity/Assets/OrbitalAnte/Resources/Models/Textures/*.png -filter -diff -merge -text
+
+# The baked picture of the sky is an ordinary file as well (about 5 MB), for the same reason.
+unity/Assets/OrbitalAnte/Resources/Sky/*.png -filter -diff -merge -text
+unity/Assets/OrbitalAnte/Resources/Planets/*.png -filter -diff -merge -text

@@ -305,6 +305,9 @@ namespace OrbitalAnte.Planets
             // What is solid is not always what is drawn. A Blender-made tree is only its trunk (one capsule: the
             // ship lands on these), a Blender-made rock is a simpler closed shape, small plants are nothing at all.
             bool solid = scale >= _surface.Settings.solidFeatureHeight;
+            // Trees and rocks big enough to be solid cast a shadow; small plants and anything inside a cave do not.
+            // Decided at every placing, because the object is reused.
+            OrbitalAnte.Look.SunShadows.Cast(item.Renderer, solid && !p.Absolute);
             Mesh shape = null;
             bool hasTrunk = false;
             SceneryModels.Trunk trunk = default;

@@ -8,7 +8,8 @@ namespace OrbitalAnte.Look
     /// <summary>
     /// The sky: a big ball round the viewer, drawn before everything else. It shows the gradient sky of whatever
     /// air you are in, the glow round the Sun, and the picture of deep space behind the stars. The picture is
-    /// painted on a background thread when a run starts, so the sky is plain black for a moment and then fills in.
+    /// the baked real sky when it is there; otherwise the earlier one is painted on a background thread when a
+    /// run starts, so the sky is plain black for a moment and then fills in.
     /// </summary>
     public sealed class SkyDome : MonoBehaviour
     {
@@ -16,6 +17,12 @@ namespace OrbitalAnte.Look
         const int PictureHeight = 256;
         /// <summary>The same picture every run, like the stars: the sky is the one thing that never moves.</summary>
         const uint PictureSeed = 4104;
+        /// <summary>
+        /// The baked picture of the real sky (Resources/Sky/DeepSpace.png, written by tools/sky/bake_sky.py): the
+        /// Milky Way, its dust, the Magellanic Clouds, far galaxies and nebulae, wrapped round the sky the same
+        /// way as the painted one. It is a shared asset: never destroyed here.
+        /// </summary>
+        public const string BakedPicture = "Sky/DeepSpace";
 
         Material _material;
         Texture2D _picture;
@@ -29,7 +36,7 @@ namespace OrbitalAnte.Look
         public static SkyDome Build(Transform parent, float radius, bool deepSpace)
         {
             LookConfig config = LookConfig.Load();
-            Material material = PlanetMaterials.Sky(config.spaceBackdrop);
+            Material material = PlanetMaterials.Sky(config.spaceBackdrop, config.sunHidesStars);
             if (material == null) return null;
 
             var go = new GameObject("SkyDome");
@@ -45,7 +52,16 @@ namespace OrbitalAnte.Look
             dome._material = material;
             if (deepSpace && config.spaceBackdrop > 0.001f)
             {
-                dome._painting = Task.Run(() => SpaceBackdrop.Paint(PictureWidth, PictureHeight, PictureSeed));
+                // The real sky is a picture baked ahead of time (tools/sky): nothing to paint, it is there at once.
+                Texture2D baked = config.realSky ? Resources.Load<Texture2D>(BakedPicture) : null;
+                if (baked != null)
+                {
+                    PlanetMaterials.SetBackdrop(material, baked);
+                }
+                else
+                {
+                    dome._painting = Task.Run(() => SpaceBackdrop.Paint(PictureWidth, PictureHeight, PictureSeed));
+                }
             }
             return dome;
         }
