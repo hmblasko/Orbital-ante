@@ -50,16 +50,16 @@ namespace OrbitalAnte.Melee
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
             var mark = UiKit.NewRect("InRange", _canvas.transform);
-            UiKit.Pin(mark, new Vector2(0.5f, 0.5f), new Vector2(0f, -22f), new Vector2(10f, 10f));
+            UiKit.Pin(mark, new Vector2(0.5f, 0.5f), new Vector2(0f, -32f), new Vector2(10f, 10f));
             mark.localRotation = Quaternion.Euler(0f, 0f, 45f);
             _mark = UiKit.AddImage(mark, Mark);
 
-            _takedown = UiKit.Label(_canvas.transform, "TAKEDOWN", 18, Mark, TextAnchor.MiddleCenter);
-            UiKit.Pin((RectTransform)_takedown.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -44f), new Vector2(240f, 26f));
+            _takedown = HullKit.AsStencil(UiKit.Label(_canvas.transform, "TAKEDOWN", 20, Mark, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_takedown.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -52f), new Vector2(240f, 26f));
             UiKit.Halo(_takedown, true);
 
             // The item and its key, above the gun ladder's line (136) and below its rare-gun note (222).
-            _line = UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleCenter);
+            _line = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleCenter));
             UiKit.Pin((RectTransform)_line.transform, new Vector2(0.5f, 0f), new Vector2(0f, 166f), new Vector2(560f, 22f));
             UiKit.Halo(_line);
 
@@ -76,7 +76,7 @@ namespace OrbitalAnte.Melee
             _heatImage = UiKit.AddImage(_heatFill, Color.white);
             _heatImage.canvasRenderer.SetColor(Cool);
 
-            _note = UiKit.Label(_canvas.transform, string.Empty, 15, Mark, TextAnchor.MiddleCenter);
+            _note = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 15, Mark, TextAnchor.MiddleCenter));
             UiKit.Pin((RectTransform)_note.transform, new Vector2(0.5f, 0f), new Vector2(0f, 250f), new Vector2(760f, 22f));
             UiKit.Halo(_note);
             Hide();

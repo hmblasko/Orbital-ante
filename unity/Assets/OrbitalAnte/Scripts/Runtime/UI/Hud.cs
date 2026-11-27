@@ -32,8 +32,6 @@ namespace OrbitalAnte.UI
         public PlayerWeapons Weapons;
         public PlayerHealth Health;
 
-        Text _ammoText;
-        Text _weaponText;
         Text _promptText;
         Text _bannerText;
         VisorGauge _health;
@@ -65,13 +63,10 @@ namespace OrbitalAnte.UI
             _arenaOnly = UiKit.NewRect("ArenaOnly", _canvas.transform);
             UiKit.Stretch(_arenaOnly);
 
-            // Crosshair: a small dot with a dark outline so it reads against any background.
-            var outline = UiKit.NewRect("CrosshairOutline", _arenaOnly);
-            UiKit.Pin(outline, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 10f));
-            UiKit.AddImage(outline, new Color(0f, 0f, 0f, 0.7f), UiKit.Circle);
-            var dot = UiKit.NewRect("CrosshairDot", _arenaOnly);
-            UiKit.Pin(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
-            UiKit.AddImage(dot, UiKit.Cream, UiKit.Circle);
+            // Crosshair: the same corner brackets and orange square as in the rest of the game (HullKit.Reticle).
+            var mark = UiKit.NewRect("Crosshair", _arenaOnly);
+            UiKit.Pin(mark, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(48f, 48f));
+            UiKit.AddImage(mark, new Color(1f, 1f, 1f, 0.9f), HullKit.Reticle);
 
             _aimText = UiKit.Label(_arenaOnly, string.Empty, 20, UiKit.Cream);
             UiKit.Pin((RectTransform)_aimText.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(500f, 30f));
@@ -92,16 +87,10 @@ namespace OrbitalAnte.UI
             flash.SetAsFirstSibling();
             _hurtFlash = UiKit.AddImage(flash, new Color(0.8f, 0.05f, 0.05f, 0f));
 
-            // Ammo, bottom right: a big number for the magazine, the gun's name above it.
-            _ammoText = UiKit.Label(_arenaOnly, string.Empty, 54, UiKit.Cream, TextAnchor.LowerRight);
-            UiKit.Pin((RectTransform)_ammoText.transform, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(420f, 70f));
-            AddShadow(_ammoText);
-            _weaponText = UiKit.Label(_arenaOnly, string.Empty, 20, UiKit.PanelEdge, TextAnchor.LowerRight);
-            UiKit.Pin((RectTransform)_weaponText.transform, new Vector2(1f, 0f), new Vector2(-26f, 84f), new Vector2(420f, 28f));
-            AddShadow(_weaponText);
-
             // Health, lower right: the same arc of suit plates as outside the ship (see VisorGauge).
-            _health = VisorGauge.Build(_arenaOnly, false, "SUIT", UiKit.Cream, 380f, 110f);
+            // It stands to the left of the gun plate (GunLadderFx), which has the lower right corner and shows the
+            // gun and its rounds here as it does everywhere else.
+            _health = VisorGauge.Build(_arenaOnly, false, "SUIT", UiKit.Cream, 510f, 110f);
 
             // "Pick up" prompt under the crosshair, and a banner at the top for arena state.
             _promptText = UiKit.Label(_arenaOnly, string.Empty, 22, UiKit.Cream);
@@ -158,29 +147,14 @@ namespace OrbitalAnte.UI
 
         void UpdateCombatReadouts()
         {
-            Weapon weapon = Weapons != null ? Weapons.Current : null;
-            if (weapon != null)
-            {
-                FirearmState state = weapon.State;
-                _weaponText.text = weapon.Data.displayName;
-                // Short enough to stay clear of the suit plates at the same size (a size change would grow the
-                // font's glyph sheet mid-fight).
-                _ammoText.text = state.Reloading ? "RELOAD" : state.Ammo + " / " + state.Spec.MagazineSize;
-                _ammoText.color = state.Reloading || state.Ammo == 0 ? UiKit.PanelEdge : UiKit.Cream;
-            }
-            else
-            {
-                _weaponText.text = Weapons != null ? "Empty hands" : string.Empty;
-                _ammoText.text = string.Empty;
-            }
-
+            // The gun and its rounds are on the gun plate (GunLadderFx), here as in the rest of the game.
             Weapon pickup = Weapons != null ? Weapons.NearbyPickup : null;
             if (pickup != null && GameInput.Asset != null)
             {
                 string key = GameInput.Interact.GetBindingDisplayString(0);
                 string button = GameInput.Interact.GetBindingDisplayString(1);
                 _promptText.text = key + " / " + button + ":  " +
-                                   (weapon != null ? "swap for " : "pick up ") + pickup.Data.displayName;
+                                   (Weapons.Current != null ? "swap for " : "pick up ") + pickup.Data.displayName;
             }
             else
             {

@@ -106,10 +106,8 @@ namespace OrbitalAnte.UI
             var root = UiKit.NewRect(page + "Page", _canvas.transform);
             UiKit.Stretch(root);
             var card = UiKit.Card(root, page + "Card", width);
-            var heading = UiKit.LayoutLabel(card, title, 40, UiKit.PanelEdge, 54f);
+            var heading = UiKit.Heading(card, title, 40, 54f);
             _lastHeading = heading;
-            // A slight tilt keeps it from feeling like a spreadsheet.
-            heading.transform.localRotation = Quaternion.Euler(0f, 0f, 1.5f);
             _pages[page] = root.gameObject;
             root.gameObject.SetActive(false);
             return card;

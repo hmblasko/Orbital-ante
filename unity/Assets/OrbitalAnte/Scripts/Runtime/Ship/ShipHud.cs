@@ -35,7 +35,7 @@ namespace OrbitalAnte.Ship
         /// Out on foot or driving, the ante readout and its "+points" lines fill the top right corner down to about
         /// -226 (since 25 Nov 2026 the bonus mission line pushes them to about -260), so the ship's list of hurt parts moves under them (24 Nov 2026 playtest pass: the two overlapped).
         /// </summary>
-        const float ListTopAboard = -110f, ListTopOutside = -272f;
+        const float ListTopAboard = -110f, ListTopOutside = -134f;
         /// <summary>Away from the ship the list is only clutter over a fight; it comes back within this many metres.</summary>
         const float ListNearShip = 45f;
         readonly StringBuilder _text = new StringBuilder(256);
@@ -50,10 +50,12 @@ namespace OrbitalAnte.Ship
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
             _dot = UiKit.NewRect("AimDot", _canvas.transform);
-            UiKit.Pin(_dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
-            UiKit.AddImage(_dot, new Color(0.96f, 0.91f, 0.80f, 0.75f), UiKit.Circle);
+            // The aiming mark: corner brackets round a small orange square (the "Hull stencil" screen, 26 Nov 2026).
+            UiKit.Pin(_dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(48f, 48f));
+            UiKit.AddImage(_dot, new Color(1f, 1f, 1f, 0.9f), HullKit.Reticle);
 
-            _prompt = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 26, UiKit.Cream));
+            _prompt = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 22, HullKit.Paint));
+            UiKit.Halo(_prompt, true);
             UiKit.Pin((RectTransform)_prompt.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -96f), new Vector2(1000f, 34f));
 
             _barBack = UiKit.NewRect("MendBar", _canvas.transform);
@@ -67,7 +69,7 @@ namespace OrbitalAnte.Ship
             _barFill.offsetMax = new Vector2(2f, -2f);
             UiKit.AddImage(_barFill, UiKit.PanelEdge);
 
-            _notice = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 28, UiKit.PanelEdge));
+            _notice = Shadowed(HullKit.AsStencil(UiKit.Label(_canvas.transform, string.Empty, 26, UiKit.PanelEdge)));
             UiKit.Pin((RectTransform)_notice.transform, new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(1000f, 36f));
 
             _damage = Shadowed(UiKit.Label(_canvas.transform, string.Empty, 18, UiKit.Cream, TextAnchor.UpperRight));
