@@ -25,7 +25,7 @@ Preview pictures and videos: `/mnt/project-files/orbital-ante/envelope/` (run st
 - The collection persists across runs. The save moves from version 2 to 3 by itself; nothing in an old save is lost.
 
 **The screens**
-- Run start: the sealed envelope rises in, a sheen passes over the foil, glints twinkle, and under it "Sealed until you clear Ante 9." with the odds in each rarity's colour. Any of A, Enter, Space, E or a click closes it. The run's controls are off while it shows.
+- Run start: the sealed envelope rises in, a sheen passes over the foil, glints twinkle, and under it "Opens when you clear Ante 9. A run that ends sooner leaves it sealed." (gain framed, rule kept whole, since 21 Nov 2026) with the odds in each rarity's colour. Any of A, Enter, Space, E or a click closes it. The run's controls are off while it shows.
 - Reveal: the nine stars on the seal light one by one, the envelope rattles (longer and harder for rarer prizes), the seal cracks with light in the prize's rarity colour, splits and falls away, the flap folds open, the card slides out, the envelope drops away, light rays and sparks burst, and the result is written beside the card. About 7 to 9 seconds; a press skips to the result.
 - Title screen: a new **Collection** button lists what you own (rarest first), opens waiting envelopes, and in the editor and development builds offers test envelopes.
 

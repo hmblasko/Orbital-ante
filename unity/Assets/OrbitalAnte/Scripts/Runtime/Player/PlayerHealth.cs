@@ -28,8 +28,34 @@ namespace OrbitalAnte.Player
         public void Initialize(PlayerConfig config)
         {
             _config = config;
-            Max = Mathf.Max(1f, config.maxHealth);
+            Max = Mathf.Max(1f, config.maxHealth * _maxScale);
             Current = Max;
+        }
+
+        float _maxScale = 1f, _regenScale = 1f;
+        bool _noRegen;
+
+        /// <summary>
+        /// The run's build (perks, attributes, the chosen hazard; 20 Nov 2026): how much health there is and how it
+        /// comes back. The share of health left is kept when the most changes.
+        /// </summary>
+        public void SetBuild(float maxScale, float regenScale, bool noRegen)
+        {
+            _regenScale = Mathf.Max(0f, regenScale);
+            _noRegen = noRegen;
+            maxScale = Mathf.Max(0.1f, maxScale);
+            if (Mathf.Approximately(maxScale, _maxScale) || _config == null) { _maxScale = maxScale; return; }
+            float share = Fraction;
+            _maxScale = maxScale;
+            Max = Mathf.Max(1f, _config.maxHealth * _maxScale);
+            if (Alive) Current = Mathf.Max(1f, share * Max);
+        }
+
+        /// <summary>Gives health back (a perk's heal on a kill). Never past the most, never to the dead.</summary>
+        public void Heal(float amount)
+        {
+            if (!Alive || amount <= 0f) return;
+            Current = Mathf.Min(Max, Current + amount);
         }
 
         public void TakeDamage(float amount, Vector3 bulletDirection)
@@ -56,9 +82,9 @@ namespace OrbitalAnte.Player
         /// </summary>
         public void Regenerate()
         {
-            if (_config == null || !Alive || Current >= Max) return;
+            if (_config == null || !Alive || Current >= Max || _noRegen) return;
             if (Time.time - _lastHitTime < _config.regenDelay) return;
-            Current = Mathf.Min(Max, Current + _config.regenPerSecond * Time.deltaTime);
+            Current = Mathf.Min(Max, Current + _config.regenPerSecond * _regenScale * Time.deltaTime);
         }
     }
 }

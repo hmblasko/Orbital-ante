@@ -415,8 +415,10 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(BodyAnimator.ProneHeight, trooper, 0.03, "the trooper lies where it always did");
             Assert.AreEqual(trooper * 1.25, Rest(BodyStyle.Bruiser), 0.03);
             Assert.Less(Rest(BodyStyle.Runner), trooper);
-            // The style's chest is the same number the hitboxes are fitted with.
-            foreach (string model in new[] { "Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman" })
+            // The style's chest is the same number the hitboxes are fitted with. Not the trooper's since it became
+            // the Tripo soldier (20 Nov 2026): its hitbox is 1.2 for the chest rig's width, but it keeps the plain
+            // style, whose chest is the measure of the others (its rig rests a few centimetres into the ground lying down).
+            foreach (string model in new[] { "EnemyRunner", "EnemyBruiser", "EnemyMarksman" })
                 Assert.AreEqual(BodyFit.Thickness(model, BodyPartId.Torso), BodyStyle.For(model).Girth, 1e-6, model);
         }
 

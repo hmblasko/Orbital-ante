@@ -2541,10 +2541,12 @@ def biter_sockets():
 
 # ---------------------------------------------------------------------- building
 
-CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
-             "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048),
+# Picture size per creature. The three smallest (under 2.5 m) take 1024 so every model picture together stays
+# inside the Deck budget (rule test ModelPictures_StayInsideTheDecksBudget, about 140 MB).
+CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 1024), "Roller": (roller, roller_sockets, 2048),
+             "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 1024),
              "Ambusher": (ambusher, ambusher_sockets, 2048), "Stalker": (stalker, stalker_sockets, 2048), "Maw": (maw, maw_sockets, 2048),
-             "Biter": (biter, biter_sockets, 2048)}
+             "Biter": (biter, biter_sockets, 1024)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small

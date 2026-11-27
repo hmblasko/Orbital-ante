@@ -27,3 +27,20 @@ Constitution 1 (fun core first: the gun fills a third of the screen all game) an
 
 ## To put it in the game (after Matthew's yes)
 `blender -b -P tools/blender/build_guns_realistic.py -- --game --only Rifle`, then the rule tests, then the Deck check.
+
+## In the game (19 Nov 2026, later the same day)
+Matthew chose "Yes, put it in and carry on" on the decision card. The trial files are now the game's `Rifle.bytes`, `RifleFar.bytes` and `Resources/Models/Textures/Rifle_*.png`. `dotnet test tools/rules-tests` with them in place: 2,550 passed, 0 failed, 1 skipped (the cabin bake check, as before). Still not run in Unity. On the Deck, look at: the held rifle in the arena and outdoors (is it textured, is anything black, pink or inside out), a trooper's rifle at 5 m and 20 m, a dropped rifle, and the reload (the magazine piece leaving). If it looks wrong, `Shine` 0 on the Look asset shows corner colours instead; say so and it will be fixed or reverted.
+
+## The other four guns, and the rifle's trigger (19 Nov 2026, evening)
+
+Matthew chose "Yes, put it in and carry on", so the pistol, SMG, shotgun and sniper were rebuilt the same way and are in the game's files. Matthew also pointed out that the rifle had two triggers: the magazine catch was a hooked lever inside the guard. It is now a short flat tab against the front of the guard, and the rifle was rebuilt.
+
+- Pistol: a large gas-operated pistol, brushed steel barrel and slide over a black frame, checkered rubber grip. 1,200 triangles, far copy 479, pictures at 1024.
+- SMG: a stamped-steel box with pressed ribs, the magazine up through the grip, grip panels, a folded steel stock. 1,132 triangles, far copy 479, pictures at 1024.
+- Shotgun: side-by-side barrels with brass mouths and copper windings, cooling fins, a steel breech with brass-framed windows on the charge, walnut furniture, a power cell. It keeps two triggers on purpose (one a barrel, as on a real side-by-side). 4,772 triangles with `CellGlow`, far copy 1,832, pictures at 2048.
+- Sniper: bolt action, fluted barrel, slotted brake, green thumb-hole stock, large scope with `LensGlow`, folded bipod. 3,158 triangles, far copy 1,231, pictures at 2048.
+
+Sockets, piece names, glow pieces and lengths are those of the old guns, so nothing in the game's code changed. Each far copy is seen from inside 0.00% of the time. Constitution: principle 1 (the thing in your hands and in theirs should look worth fighting with) and 3 (each kind's gun still reads at a glance: same silhouettes, same glows).
+
+Tested: the gun rule tests (`dotnet test tools/rules-tests`). Not verified: nothing here has been seen in Unity. The pictures in `docs/art/previews/` are Blender pictures, not screenshots. My own judgement of them: the SMG and shotgun are the strongest; the pistol is clean but plain along the frame; the sniper's stock is flat-sided polymer and would gain from moulded texture. Far-copy sizes on screen, the texture memory figures and how the glow pieces sit against the textured bodies in the game are all unmeasured.
+

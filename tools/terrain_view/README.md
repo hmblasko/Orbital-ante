@@ -33,3 +33,20 @@ game works it out at every corner of its ground tiles, and trees, rocks, water w
 drawn. Use them to compare one version of the ground with another, not to promise how the game looks.
 
 If `OA_Ground` in the shader changes, change `Ground` in `Program.cs` to match.
+
+## Light and shadow trials
+
+    OA_LIGHT=game OA_PROPS=1 OA_SS=2 dotnet run -c Release -- shot Earth -4 -156 1.9 90 5 before.ppm 1 11 205
+    OA_LIGHT=new  OA_PROPS=1 OA_SS=2 dotnet run -c Release -- shot Earth -4 -156 1.9 90 5 after.ppm 1 11 205
+    dotnet run -c Release -- flat Moon
+
+- `OA_LIGHT=game` lights the ground with a copy of the game's earlier sum (nothing casts a shadow, light wraps
+  round); `OA_LIGHT=new` uses the game's real light (`GroundLight`, the same sums as `OA_LightAt`) with cast
+  shadows. With neither set the tool's own older, simpler light is used.
+- `OA_PROPS=1` stands stand-in shapes in front of the eye (boulders, a figure, a lander) so something casts.
+  They are balls and rods, not the game's models.
+- `OA_SS=2` works the picture out at twice the size and shrinks it, which smooths it.
+- `flat <body>` lists open, level places with hills in view: somewhere to stand.
+
+The shadow's soft edge here comes from four looks toward the Sun; the game's comes from URP's shadow picture, so
+edges, reach (70 m in the game) and crispness will differ.

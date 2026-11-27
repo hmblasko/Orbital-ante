@@ -15,6 +15,58 @@ namespace OrbitalAnte.Ante
         WeaponDamage = 3,
         MaxHp = 4,
         EvaLateralThrust = 5,
+        // ---- Added 20 Nov 2026 (roguelite fun pass). Fractions unless the line says otherwise. ----
+        /// <summary>Damage the player takes, as a fraction (-0.10 is 10% less).</summary>
+        IncomingDamage = 6,
+        /// <summary>Health given back by any kill (absolute points of health, not a fraction).</summary>
+        HealOnKill = 7,
+        /// <summary>Health given back by a melee kill (absolute).</summary>
+        HealOnMeleeKill = 8,
+        MeleeDamage = 9,
+        /// <summary>Extra Focus from kills and limbs, as a fraction of what they give.</summary>
+        FocusGain = 10,
+        /// <summary>Every Nth kill counts twice on the gun ladder (absolute N; the smallest held wins).</summary>
+        LadderDoubleEvery = 11,
+        /// <summary>Extra damage while the player's health is under the low-health line.</summary>
+        LowHealthDamage = 12,
+        /// <summary>Damage taken from shooters within the close range, as a fraction.</summary>
+        CloseRangeDefence = 13,
+        /// <summary>Metres taken off the LONG SHOT distance (absolute).</summary>
+        LongShotCloser = 14,
+        /// <summary>Health given back by a rover splat (absolute).</summary>
+        HealOnSplat = 15,
+        /// <summary>Seconds put back on the ante clock by a landing that scores (absolute).</summary>
+        LandingTimeBack = 16,
+        /// <summary>How fast health comes back after a quiet spell, as a fraction.</summary>
+        RegenRate = 17,
+        /// <summary>Walking and running speed on foot, as a fraction.</summary>
+        MoveSpeed = 18,
+        /// <summary>Rounds put back in the magazine by a kill (absolute).</summary>
+        RoundsOnKill = 19,
+        /// <summary>Gun damage only (not melee or the rover).</summary>
+        GunDamage = 20,
+        /// <summary>Gun damage while crouched or prone.</summary>
+        LowStanceDamage = 21,
+        /// <summary>Share of a full Focus meter given by a melee kill (absolute, 0.25 is a quarter).</summary>
+        FocusOnMeleeKill = 22,
+        /// <summary>Seconds put back on the ante clock by a LONG SHOT kill (absolute).</summary>
+        TimeOnLongShot = 23,
+        /// <summary>Health given back by a kill made under the low-health line (absolute).</summary>
+        HealOnLowHealthKill = 24,
+    }
+
+    /// <summary>
+    /// The five families a perk can belong to (20 Nov 2026). Holding <see cref="PerkFamilies.SetSize"/> of one
+    /// family turns on that family's bonus. Saved by name; add new ones at the end.
+    /// </summary>
+    public enum PerkFamily
+    {
+        None = 0,
+        Gunner = 1,
+        Brawler = 2,
+        Ghost = 3,
+        Pilot = 4,
+        Daredevil = 5,
     }
 
     [Serializable]
@@ -55,6 +107,8 @@ namespace OrbitalAnte.Ante
         public PerkRarity rarity;
         /// <summary>Synergy tags shown on the card ("Explorer", "Pilot", "Gunner"...).</summary>
         public string[] tags = new string[0];
+        /// <summary>The family whose set bonus this perk counts toward (None for wild cards).</summary>
+        public PerkFamily family;
         /// <summary>A unique perk can be held once and is never offered again.</summary>
         public bool unique = true;
         /// <summary>Something the run must still have for this perk to do anything ("tieup" = tie-up shots left). Empty = always useful.</summary>
@@ -70,6 +124,55 @@ namespace OrbitalAnte.Ante
             return string.Join(", ", parts);
         }
 
+        /// <summary>One effect in words, for a card that shows gains and costs on separate lines (21 Nov 2026).</summary>
+        public static string DescribeEffect(PerkEffect effect, AnteBalance balance = null) => Describe(effect, balance ?? new AnteBalance());
+
+        /// <summary>True for an effect that makes the player worse off (shown as the card's cost).</summary>
+        public static bool IsCost(PerkEffect effect)
+        {
+            if (effect == null) return false;
+            switch (effect.stat)
+            {
+                case PerkStat.IncomingDamage:
+                case PerkStat.CloseRangeDefence:
+                    return effect.value > 0f;
+                case PerkStat.LadderDoubleEvery:
+                case PerkStat.LongShotCloser:
+                    return false;
+                default:
+                    return effect.value < 0f;
+            }
+        }
+
+        /// <summary>Plain words for what a score bonus pays on.</summary>
+        static string PointsFor(ScoreEventKind kind, string tag)
+        {
+            if (tag == "kill") return "kills";
+            switch (kind)
+            {
+                case ScoreEventKind.EnemyTier1: return "light enemies";
+                case ScoreEventKind.EnemyTier2: return "mid enemies";
+                case ScoreEventKind.EnemyTier3: return "heavy enemies";
+                case ScoreEventKind.EnemyElite: return "marked targets";
+                case ScoreEventKind.NewMoon: return "first landings on moons";
+                case ScoreEventKind.NewPlanet: return "first landings on planets";
+                case ScoreEventKind.DifficultLanding: return "hard landings";
+                case ScoreEventKind.SalvageDelivered: return "salvage";
+                case ScoreEventKind.InstallationDestroyed: return "signal masts";
+                case ScoreEventKind.BountyAlive: return "bounties brought in alive";
+                default: return string.IsNullOrEmpty(tag) ? kind.ToString() : tag + " " + kind;
+            }
+        }
+
+        static int Whole(float v) => (int)Math.Round(Math.Abs(v), MidpointRounding.AwayFromZero);
+        static string Pct(float v) => (int)Math.Round(v * 100.0, MidpointRounding.AwayFromZero) + "%";
+
+        static string Ordinal(int n)
+        {
+            if (n % 100 >= 11 && n % 100 <= 13) return n + "th";
+            switch (n % 10) { case 1: return n + "st"; case 2: return n + "nd"; case 3: return n + "rd"; default: return n + "th"; }
+        }
+
         static string Describe(PerkEffect effect, AnteBalance balance)
         {
             int percent = (int)Math.Round(Math.Abs(effect.value) * 100.0, MidpointRounding.AwayFromZero);
@@ -77,15 +180,35 @@ namespace OrbitalAnte.Ante
             switch (effect.stat)
             {
                 case PerkStat.ScoreBonus:
-                    return amount + " score: " + (string.IsNullOrEmpty(effect.tag) ? effect.kind.ToString() : effect.tag + " " + effect.kind);
+                    return amount + " points for " + PointsFor(effect.kind, effect.tag);
                 case PerkStat.ChainScoreBonus:
-                    return amount + " score when you score in a different category (combat, exploration, bounty, objective, salvage, repair, landing) within "
+                    return "Up to " + amount + " score for a different category within "
                            + ScoreMath.Exact(balance.chainWindowSeconds).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
-                           + " seconds of your last score; works " + balance.chainUsesPerAnte + " times per ante";
+                           + " seconds of your last score. Pays up to " + balance.chainUsesPerAnte + " times per ante."
+                           + " Categories are combat, exploration, bounty, objective, salvage, repair and landing.";
                 case PerkStat.ShipFuelPerImpulse: return amount + " ship fuel per thrust";
                 case PerkStat.WeaponDamage: return amount + " weapon damage";
                 case PerkStat.MaxHp: return amount + " max HP";
                 case PerkStat.EvaLateralThrust: return amount + " EVA sideways thrust";
+                case PerkStat.IncomingDamage: return amount + " damage taken";
+                case PerkStat.HealOnKill: return "kills heal " + Whole(effect.value);
+                case PerkStat.HealOnMeleeKill: return "melee kills heal " + Whole(effect.value);
+                case PerkStat.MeleeDamage: return amount + " melee damage";
+                case PerkStat.FocusGain: return amount + " Focus from kills and limbs";
+                case PerkStat.LadderDoubleEvery: return "every " + Ordinal(Whole(effect.value)) + " kill counts twice on the gun ladder";
+                case PerkStat.LowHealthDamage: return amount + " damage while under " + Pct(balance.lowHealthLine) + " health";
+                case PerkStat.CloseRangeDefence: return amount + " damage taken from shooters within " + Whole(balance.closeRange) + " m";
+                case PerkStat.LongShotCloser: return "LONG SHOT counts from " + Whole(balance.longShotMetres - effect.value) + " m instead of " + Whole(balance.longShotMetres);
+                case PerkStat.HealOnSplat: return "rover splats heal " + Whole(effect.value);
+                case PerkStat.LandingTimeBack: return "landings that score put " + Whole(effect.value) + " s back on the clock";
+                case PerkStat.RegenRate: return amount + " health regeneration";
+                case PerkStat.MoveSpeed: return amount + " walking speed";
+                case PerkStat.RoundsOnKill: return "kills put " + Whole(effect.value) + " rounds back in the magazine";
+                case PerkStat.GunDamage: return amount + " gun damage";
+                case PerkStat.LowStanceDamage: return amount + " gun damage while crouched or prone";
+                case PerkStat.FocusOnMeleeKill: return "melee kills fill " + Pct(effect.value) + " of Focus";
+                case PerkStat.TimeOnLongShot: return "LONG SHOT kills put " + Whole(effect.value) + " s back on the clock";
+                case PerkStat.HealOnLowHealthKill: return "kills under " + Pct(balance.lowHealthLine) + " health heal " + Whole(effect.value);
                 default: return amount + " " + effect.stat;
             }
         }
@@ -185,6 +308,40 @@ namespace OrbitalAnte.Ante
             return Math.Max(-cap, Math.Min(cap, total));
         }
 
+        /// <summary>The plain total of a stat over every held perk, with no cap (for amounts such as health or seconds).</summary>
+        public float Sum(PerkStat stat)
+        {
+            float total = 0f;
+            for (int i = 0; i < _owned.Count; i++)
+            {
+                PerkEffect[] effects = _owned[i].effects;
+                for (int e = 0; e < effects.Length; e++) if (effects[e].stat == stat) total += effects[e].value;
+            }
+            return total;
+        }
+
+        /// <summary>The smallest value of a stat among held perks that have it, or 0 if none has it.</summary>
+        public float Smallest(PerkStat stat)
+        {
+            float best = 0f;
+            for (int i = 0; i < _owned.Count; i++)
+            {
+                PerkEffect[] effects = _owned[i].effects;
+                for (int e = 0; e < effects.Length; e++)
+                    if (effects[e].stat == stat && effects[e].value > 0f && (best <= 0f || effects[e].value < best)) best = effects[e].value;
+            }
+            return best;
+        }
+
+        /// <summary>How many held perks belong to a family.</summary>
+        public int FamilyCount(PerkFamily family)
+        {
+            if (family == PerkFamily.None) return 0;
+            int n = 0;
+            for (int i = 0; i < _owned.Count; i++) if (_owned[i].family == family) n++;
+            return n;
+        }
+
         /// <summary>Score bonus from held perks for one event, before the chain bonus and before the overall perk cap.</summary>
         public float ScoreBonusFor(ScoreEventKind kind, string tag)
         {
@@ -195,8 +352,17 @@ namespace OrbitalAnte.Ante
                 for (int e = 0; e < effects.Length; e++)
                 {
                     PerkEffect effect = effects[e];
-                    if (effect.stat != PerkStat.ScoreBonus || effect.kind != kind) continue;
-                    if (!string.IsNullOrEmpty(effect.tag) && effect.tag != tag) continue;
+                    if (effect.stat != PerkStat.ScoreBonus) continue;
+                    if (effect.tag == "kill")
+                    {
+                        // Any enemy kill, whatever its tier (20 Nov 2026).
+                        if (kind > ScoreEventKind.EnemyElite) continue;
+                    }
+                    else
+                    {
+                        if (effect.kind != kind) continue;
+                        if (!string.IsNullOrEmpty(effect.tag) && effect.tag != tag) continue;
+                    }
                     total += effect.value;
                 }
             }
@@ -237,7 +403,7 @@ namespace OrbitalAnte.Ante
             for (int slot = 0; slot < balance.perkChoices; slot++)
             {
                 PerkRarity wanted = RollRarity(rng, balance);
-                PerkDefinition pick = PickOfRarity(rng, catalog, loadout, offers, wanted, null);
+                PerkDefinition pick = PickOfRarity(rng, catalog, loadout, offers, wanted, null, balance.heldFamilyWeight);
                 if (pick == null) break;      // nothing left to offer
                 offers.Add(pick);
             }
@@ -247,7 +413,7 @@ namespace OrbitalAnte.Ante
                 // Swap the last offer for a useful one, cheapest rarity first, if there is one.
                 var withoutLast = new List<PerkDefinition>(offers);
                 withoutLast.RemoveAt(withoutLast.Count - 1);
-                PerkDefinition useful = PickOfRarity(rng, catalog, loadout, withoutLast, PerkRarity.Common, unavailable);
+                PerkDefinition useful = PickOfRarity(rng, catalog, loadout, withoutLast, PerkRarity.Common, unavailable, balance.heldFamilyWeight);
                 if (useful != null) offers[offers.Count - 1] = useful;
             }
             return offers;
@@ -283,7 +449,7 @@ namespace OrbitalAnte.Ante
         };
 
         static PerkDefinition PickOfRarity(SeededRandom rng, IReadOnlyList<PerkDefinition> catalog, PerkLoadout loadout,
-            List<PerkDefinition> alreadyOffered, PerkRarity wanted, ICollection<string> mustBeUsefulGiven)
+            List<PerkDefinition> alreadyOffered, PerkRarity wanted, ICollection<string> mustBeUsefulGiven, float heldFamilyWeight = 1f)
         {
             var candidates = new List<PerkDefinition>();
             PerkRarity[] order = Fallback[(int)wanted];
@@ -298,6 +464,10 @@ namespace OrbitalAnte.Ante
                     if (perk.unique && loadout != null && loadout.Has(perk.id)) continue;
                     if (mustBeUsefulGiven != null && !IsUseful(perk, mustBeUsefulGiven)) continue;
                     candidates.Add(perk);
+                    // A family the player has started is more likely to come up, so a set is reachable in a short
+                    // run (design review, 20 Nov 2026). Perks with no family are never weighted.
+                    if (perk.family != PerkFamily.None && loadout != null && loadout.FamilyCount(perk.family) > 0)
+                        for (int extra = 1; extra < Math.Max(1, (int)Math.Round(heldFamilyWeight)); extra++) candidates.Add(perk);
                 }
                 if (candidates.Count > 0) return rng.Pick(candidates);
             }

@@ -67,6 +67,13 @@ namespace OrbitalAnte.AI
         static readonly Collider[] Nearby = new Collider[48];
         static readonly List<Vector3> Places = new List<Vector3>(64);
         static readonly List<KeyValuePair<float, Vector3>> Ranked = new List<KeyValuePair<float, Vector3>>(64);
+        // One comparer for every search: sorting with a lambda wraps it in a new comparer object each time.
+        static readonly IComparer<KeyValuePair<float, Vector3>> ByScore = new ScoreOrder();
+
+        sealed class ScoreOrder : IComparer<KeyValuePair<float, Vector3>>
+        {
+            public int Compare(KeyValuePair<float, Vector3> x, KeyValuePair<float, Vector3> y) => x.Key.CompareTo(y.Key);
+        }
 
         /// <summary>True if a search may run this frame (and counts it).</summary>
         public static bool TakeSearch()
@@ -144,7 +151,7 @@ namespace OrbitalAnte.AI
                 if (float.IsInfinity(s)) continue;
                 Ranked.Add(new KeyValuePair<float, Vector3>(s, Places[i]));
             }
-            Ranked.Sort((x, y) => x.Key.CompareTo(y.Key));
+            Ranked.Sort(ByScore);
             int grounded = 0;
             for (int i = 0; i < Ranked.Count && grounded < MostGrounded; i++)
             {
@@ -172,7 +179,7 @@ namespace OrbitalAnte.AI
                 c.ChestHidden = c.HeadHidden = c.CanPeek = true;
                 Ranked.Add(new KeyValuePair<float, Vector3>(CoverScore.Of(c, q.NeedsPeek, q.KeepNear, q.KeepFar), g));
             }
-            Ranked.Sort((x, y) => x.Key.CompareTo(y.Key));
+            Ranked.Sort(ByScore);
 
             float bestScore = CoverScore.Rejected;
             int tried = 0, found = 0;

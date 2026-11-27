@@ -24,33 +24,57 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "OrbitalAnte", "Resources", "Models"))
 
 
+# name -> (how it is made for the bake, corner colour as seen on screen, smoothness, bare metal). The last three
+# are what the game shows without the pictures.
+MATERIALS = {
+    "steel": (lambda: mats.steel("steel", seed=1.0), (0.20, 0.21, 0.23), 0.40, 0.2),
+    "cover": (lambda: mats.steel("cover", seed=5.0, wear=1.25, patina=0.5), (0.20, 0.21, 0.23), 0.40, 0.2),
+    "magazine": (lambda: mats.steel("magazine", coat=(0.026, 0.028, 0.027), coat_smooth=0.34, wear=1.5, patina=0.6, seed=9.0), (0.24, 0.25, 0.25), 0.34, 0.2),
+    "black": (lambda: mats.steel("black", coat=(0.011, 0.011, 0.012), coat_smooth=0.40, wear=0.9, patina=0.15, seed=3.0), (0.14, 0.14, 0.15), 0.40, 0.2),
+    "anodised": (lambda: mats.steel("anodised", coat=(0.009, 0.009, 0.011), bare=(0.55, 0.56, 0.58), coat_smooth=0.52, wear=0.7, patina=0.0, seed=6.0), (0.12, 0.12, 0.13), 0.5, 0.2),
+    "satin": (lambda: mats.steel("satin", coat=(0.36, 0.36, 0.35), bare=(0.62, 0.62, 0.60), coat_smooth=0.58, wear=0.8, patina=0.2, seed=7.0, coat_metal=1.0), (0.60, 0.60, 0.59), 0.58, 1.0),
+    "brass": (lambda: mats.steel("brass", coat=(0.42, 0.25, 0.075), bare=(0.72, 0.55, 0.24), coat_smooth=0.55, wear=0.9, patina=0.9, seed=8.0, coat_metal=1.0), (0.66, 0.52, 0.26), 0.55, 1.0),
+    "copper": (lambda: mats.steel("copper", coat=(0.40, 0.15, 0.075), bare=(0.75, 0.42, 0.30), coat_smooth=0.50, wear=0.7, patina=1.0, seed=11.0, coat_metal=1.0), (0.64, 0.40, 0.30), 0.5, 1.0),
+    "bright": (lambda: mats.bright_steel("bright"), (0.55, 0.55, 0.53), 0.62, 1.0),
+    "wood": (lambda: mats.laminate("wood", seed=2.0), (0.47, 0.25, 0.13), 0.42, 0.0),
+    "walnut": (lambda: mats.laminate("walnut", seed=12.0, plies=0.0, dark=(0.030, 0.014, 0.007), light=(0.150, 0.068, 0.030)), (0.40, 0.25, 0.15), 0.40, 0.0),
+    "grip": (lambda: mats.bakelite("grip", seed=4.0, checker=0.00045), (0.27, 0.12, 0.08), 0.5, 0.0),
+    "rubber": (lambda: mats.polymer("rubber", (0.012, 0.012, 0.012), smoothness=0.10, seed=2.0, checker=0.0004), (0.11, 0.11, 0.11), 0.06, 0.0),
+    "pad": (lambda: mats.polymer("pad", (0.014, 0.013, 0.012), smoothness=0.09, seed=5.0), (0.12, 0.12, 0.11), 0.06, 0.0),
+    "olive": (lambda: mats.polymer("olive", (0.060, 0.075, 0.035), smoothness=0.24, seed=1.0), (0.29, 0.32, 0.21), 0.22, 0.0),
+    "olive dark": (lambda: mats.polymer("olive dark", (0.036, 0.046, 0.024), smoothness=0.22, seed=4.0), (0.22, 0.25, 0.17), 0.2, 0.0),
+    "cell paint": (lambda: mats.polymer("cell paint", (0.040, 0.150, 0.065), smoothness=0.35, seed=7.0), (0.22, 0.44, 0.28), 0.3, 0.0),
+    "glass": (lambda: mats.glass("glass"), (0.08, 0.12, 0.15), 0.9, 0.0),
+    "hollow": (lambda: mats.hollow("hollow"), (0.05, 0.05, 0.05), 0.05, 0.0),
+}
+
+
 class Gun:
     """Collects one build of a gun: `hi` is False for the game's low model, True for the high one that is baked."""
-
-    # material name -> (corner colour as seen on screen, smoothness, bare metal): what shows without the pictures.
-    FLAT = {"steel": ((0.20, 0.21, 0.23), 0.40, 0.2), "cover": ((0.20, 0.21, 0.23), 0.40, 0.2),
-            "magazine": ((0.24, 0.25, 0.25), 0.34, 0.2), "bright": ((0.55, 0.55, 0.53), 0.62, 1.0),
-            "wood": ((0.47, 0.25, 0.13), 0.42, 0.0), "grip": ((0.27, 0.12, 0.08), 0.5, 0.0),
-            "hollow": ((0.05, 0.05, 0.05), 0.05, 0.0)}
 
     def __init__(self, hi):
         self.hi = hi
         self.parts = {}         # piece name -> [objects]
+        self.glows = {}         # piece name -> [objects]: things that shine, in the low build only
         self.materials = {}
         self.count = 0
 
     def material(self, name):
         if name not in self.materials:
-            self.materials[name] = {
-                "steel": lambda: mats.steel("steel", seed=1.0),
-                "cover": lambda: mats.steel("cover", seed=5.0, wear=1.25, patina=0.5),
-                "magazine": lambda: mats.steel("magazine", coat=(0.026, 0.028, 0.027), coat_smooth=0.34, wear=1.5, patina=0.6, seed=9.0),
-                "bright": lambda: mats.bright_steel("bright"),
-                "wood": lambda: mats.laminate("wood", seed=2.0),
-                "grip": lambda: mats.bakelite("grip", seed=4.0, checker=0.00045),
-                "hollow": lambda: mats.hollow("hollow"),
-            }[name]()
+            self.materials[name] = MATERIALS[name][0]()
         return self.materials[name]
+
+    def glow(self, obj, piece, colour):
+        """A shape that shines by itself (its piece's name ends in Glow): flat colour, no place on the pictures."""
+        if self.hi:
+            mesh = obj.data
+            bpy.data.objects.remove(obj)
+            bpy.data.meshes.remove(mesh)
+            return None
+        obj["oa_colour"] = list(colour)
+        oa.paint(obj, wear=0, dirt=0, mottle=0, gradient=0)
+        self.glows.setdefault(piece, []).append(obj)
+        return obj
 
     def add(self, obj, material, piece="Body", only=None):
         """only: 'hi' for a shape that exists only to be baked (a rivet, a rib), 'lo' for one only in the game."""
@@ -64,7 +88,7 @@ class Gun:
             obj.data.materials.append(self.material(material))
             oa.auto_smooth(obj.data, 32.0)
         else:
-            colour, smooth, metal = self.FLAT[material]
+            _, colour, smooth, metal = MATERIALS[material]
             obj["oa_colour"] = list(colour)
             oa.paint(obj, wear=0.25, dirt=0.4, mottle=0.4, seed=self.count, grain=20.0)
             real.made_of(obj, smooth, metal)
@@ -281,7 +305,8 @@ def rifle(hi):
     # ---- trigger, its guard and the magazine catch.
     g.add(g.prism("guard", [(0.1205, 0.0145), (0.1165, -0.0225), (0.1060, -0.0315), (-0.0080, -0.0315),
                             (-0.0080, -0.0292), (0.1050, -0.0292), (0.1142, -0.0215), (0.1182, 0.0145)], 0.0165, edge=0.0007), "steel")
-    g.add(g.prism("catch", [(0.1075, 0.012), (0.1160, 0.012), (0.1125, -0.011), (0.1030, -0.0225), (0.0975, -0.0200), (0.1050, -0.0095)], 0.0115, edge=0.0009), "steel")
+    # The catch is a short flat tab lying against the front of the guard: hooked like the trigger it read as a second one.
+    g.add(g.prism("catch", [(0.1090, 0.012), (0.1170, 0.012), (0.1152, -0.0150), (0.1100, -0.0185)], 0.0115, edge=0.0009), "steel")
     g.add(g.prism("trigger", [(0.046, 0.015), (0.0545, 0.015), (0.0510, 0.000), (0.0450, -0.0115), (0.0370, -0.0180), (0.0345, -0.0150), (0.0405, -0.0090), (0.0435, 0.000)],
                   0.0068, edge=0.0011), "steel")
 
@@ -300,15 +325,277 @@ def rifle(hi):
     return g
 
 
+def strip(points, thickness):
+    """Outline of a bent strip of sheet metal: the given line (forward, up) made `thickness` thick on its inside
+    (the left of the way it runs)."""
+    inner = []
+    n = len(points)
+    for i, (y, z) in enumerate(points):
+        ay, az = points[max(0, i - 1)]
+        by, bz = points[min(n - 1, i + 1)]
+        dy, dz = by - ay, bz - az
+        length = math.hypot(dy, dz) or 1.0
+        inner.append((y - dz / length * thickness, z + dy / length * thickness))
+    return list(points) + list(reversed(inner))
+
+
+def bow(y0, y1, top, bottom, corner, steps=4):
+    """The line of a trigger guard from its front root (y1, top) down, round two corners and back to (y0, top)."""
+    line = [(y1, top)]
+    for cy, a0 in ((y1 - corner, 0.0), (y0 + corner, 90.0)):
+        for i in range(steps + 1):
+            a = math.radians(a0 + 90.0 * i / steps)
+            line.append((cy + math.cos(a) * corner, bottom + corner - math.sin(a) * corner))
+    line.append((y0, top))
+    return line
+
+
+def pistol(hi):
+    """A very large gas-operated pistol: a long fixed barrel with a ribbed top and a deep gas block under its
+    mouth, a short slide behind it, brushed steel over a black frame, rubber grip."""
+    g = Gun(hi)
+    BORE = 0.062
+    g.add(g.prism("frame", [(-0.046, 0.0462), (0.112, 0.0462), (0.112, 0.0330), (0.098, 0.0190), (-0.020, 0.0190), (-0.046, 0.0300)], 0.0300, edge=0.0016, chamfer=0.0012), "black")
+    g.add(g.prism("tang", [(-0.046, 0.0462), (-0.046, 0.0330), (-0.0570, 0.0350), (-0.0640, 0.0405), (-0.0625, 0.0445)], 0.0200, edge=0.0030, chamfer=0.0016), "black")
+    # The barrel: a wedge-topped bar the whole way, deeper at the front where the gas is tapped.
+    top = [(-0.0168, 0.0462), (-0.0168, 0.0660), (-0.0092, 0.0838), (0.0092, 0.0838), (0.0168, 0.0660), (0.0168, 0.0462)]
+    g.add(g.prism("barrel", top, 0.1200, x=0.0320, across='y', edge=0.0011), "satin")
+    g.add(g.prism("gas block", [(0.1120, 0.0470), (0.1500, 0.0470), (0.1500, 0.0400), (0.1420, 0.0330), (0.1120, 0.0330)], 0.0336, edge=0.0014, chamfer=0.0010), "satin")
+    g.add(g.tube("gas plug", (0, 0.1490, 0.0405), (0, 0.1512, 0.0405), 0.0048, around=8, edge=0.0005), "black")
+    slide = [(-0.0176, 0.0462), (-0.0176, 0.0668), (-0.0098, 0.0850), (0.0098, 0.0850), (0.0176, 0.0668), (0.0176, 0.0462)]
+    g.add(g.prism("slide", slide, 0.0790, x=-0.0480, across='y', edge=0.0011), "satin")
+    for k in range(8):
+        g.add(g.box("rail cut", (0, 0.050 + 0.0118 * k, 0.0839), (0.0150, 0.0040, 0.0007), edge=0.0), "hollow", only='hi')
+    g.add(g.box("port", (0.0030, 0.0060, 0.0851), (0.0130, 0.0270, 0.0006), edge=0.0), "hollow")
+    for side in (-1, 1):
+        for k in range(7):
+            g.add(g.box("serration", (side * 0.01765, -0.0420 + 0.0050 * k, 0.0570), (0.0005, 0.0020, 0.0180), edge=0.0, rot=(-14, 0, 0)), "hollow", only='hi')
+        g.add(g.box("flute", (side * 0.01685, 0.0900, 0.0575), (0.0005, 0.0900, 0.0034), edge=0.0), "hollow", only='hi')
+        g.add(g.prism("safety", [(-0.0360, 0.0660), (-0.0180, 0.0650), (-0.0150, 0.0690), (-0.0180, 0.0725), (-0.0360, 0.0720)], 0.0026, x=side * 0.0186, edge=0.0008), "black")
+        g.add(g.dome("frame pin", (side * 0.0150, 0.0700, 0.0370), (side, 0, 0), 0.0024, 0.0004), "bright", only='hi')
+        g.add(g.dome("frame pin", (side * 0.0150, -0.0300, 0.0390), (side, 0, 0), 0.0022, 0.0004), "bright", only='hi')
+        g.add(g.dome("gas pin", (side * 0.0168, 0.1300, 0.0400), (side, 0, 0), 0.0028, 0.0005), "black", only='hi')
+        g.add(g.dome("grip screw", (side * 0.0162, -0.0240, -0.0300), (side, 0, 0), 0.0030, 0.0005), "bright", only='hi')
+    g.add(g.prism("slide stop", [(0.0180, 0.0440), (0.0560, 0.0440), (0.0590, 0.0405), (0.0560, 0.0372), (0.0180, 0.0384)], 0.0024, x=-0.0158, edge=0.0008), "black")
+    g.add(g.tube("crown", (0, 0.1500, BORE), (0, 0.1548, BORE), 0.0104, around=12, edge=0.0010), "satin")
+    g.add(g.tube("bore", (0, 0.1400, BORE), (0, 0.1552, BORE), 0.0062, around=10, edge=0.0), "hollow")
+    g.add(g.prism("front sight", [(0.1300, 0.0836), (0.1480, 0.0836), (0.1440, 0.0915), (0.1370, 0.0915)], 0.0038, edge=0.0005), "black")
+    g.add(g.prism("rear sight", [(-0.0470, 0.0848), (-0.0300, 0.0848), (-0.0330, 0.0915), (-0.0470, 0.0915)], 0.0200, edge=0.0008), "black")
+    g.add(g.box("rear notch", (0, -0.0473, 0.0895), (0.0034, 0.0008, 0.0042), edge=0.0), "hollow")
+    g.add(g.prism("hammer", [(-0.0478, 0.0500), (-0.0570, 0.0560), (-0.0625, 0.0700), (-0.0575, 0.0760), (-0.0510, 0.0740), (-0.0478, 0.0680)], 0.0088, edge=0.0010), "black")
+    g.add(g.prism("guard", strip(bow(0.0060, 0.1010, 0.0200, -0.0190, 0.0110, 4 if hi else 3), 0.0028), 0.0136, edge=0.0008), "black")
+    g.add(g.prism("trigger", [(0.0440, 0.0200), (0.0525, 0.0200), (0.0505, 0.0080), (0.0455, -0.0030), (0.0400, -0.0080), (0.0380, -0.0055), (0.0420, 0.0000), (0.0440, 0.0080)], 0.0064, edge=0.0010), "black")
+    axis = Vector((0, -0.026, -0.106)).normalized()
+    front = Vector((0, 0.106, -0.026)).normalized()
+    g.add(g.skin("grip", (0, -0.0130, 0.0270), axis, front,
+                 [(0.0, 0.0150, 0.0290), (0.020, 0.0160, 0.0268), (0.050, 0.0166, 0.0282), (0.085, 0.0164, 0.0286), (0.103, 0.0162, 0.0300), (0.107, 0.0140, 0.0276)],
+                 around=14, step=0.020, power=3.2), "rubber")
+    foot = Vector((0, -0.0130, 0.0270)) + axis * 0.1100
+    # The magazine itself, up inside the grip: seen when it is out for a reload.
+    g.add(g.box("magazine", foot - axis * 0.0480, (0.0210, 0.0400, 0.0900), edge=0.0016, chamfer=0.0010, rot=(-13.8, 0, 0)), "magazine", "Magazine")
+    g.add(g.box("magazine floor", foot, (0.0300, 0.0620, 0.0076), edge=0.0014, chamfer=0.0010, rot=(-13.8, 0, 0)), "black", "Magazine")
+    return g
+
+
+def smg(hi):
+    """A compact stamped-steel submachine gun: a boxy receiver with long pressed ribs, the magazine up through
+    the grip, a folded steel stock."""
+    g = Gun(hi)
+    arc = 12 if hi else 7
+    BORE = 0.046
+    g.add(g.prism("receiver", [(-0.105, 0.018), (0.135, 0.018), (0.135, 0.074), (-0.105, 0.074)], 0.0420, edge=0.0020, chamfer=0.0014), "steel")
+    g.add(g.prism("cover", arch(0.0202, 0.0735, 0.0790, 0.0868, arc), 0.232, x=-0.101, across='y', edge=0.0009, smooth=50.0), "cover")
+    for side in (-1, 1):
+        for z in (0.0370, 0.0560):
+            g.add(g.box("rib", (side * 0.0210, 0.018, z), (0.0018, 0.200, 0.0068), edge=0.0030), "steel", only='hi')
+        for y, z in ((-0.094, 0.026), (-0.094, 0.066), (0.124, 0.026), (0.124, 0.066), (0.050, 0.0465)):
+            g.add(g.dome("rivet", (side * 0.0210, y, z), (side, 0, 0), 0.0028, 0.0008), "steel", only='hi')
+        g.add(g.prism("grip panel", [(0.0130, 0.0060), (-0.0310, 0.0060), (-0.0375, -0.0880), (0.0070, -0.0880)], 0.0046, x=side * 0.0183, edge=0.0014), "grip")
+        g.add(g.dome("grip screw", (side * 0.0206, -0.0120, -0.0400), (side, 0, 0), 0.0030, 0.0005), "bright", only='hi')
+        g.add(g.box("stock arm", (side * 0.0238, 0.000, 0.0200), (0.0042, 0.200, 0.0100), edge=0.0012), "steel")
+        for y in (0.112, -0.086):
+            g.add(g.prism("sight ear", [(y - 0.0085, 0.0850), (y + 0.0085, 0.0850), (y + 0.0060, 0.1060), (y - 0.0060, 0.1060)], 0.0030, x=side * 0.0110, edge=0.0007), "steel")
+    g.add(g.box("cocking slot", (0, 0.020, 0.0869), (0.0050, 0.110, 0.0006), edge=0.0), "hollow", only='hi')
+    g.add(g.tube("knob stem", (0, 0.034, 0.0850), (0, 0.034, 0.0935), 0.0060, around=8, edge=0.0), "steel")
+    g.add(g.tube("knob", (0, 0.034, 0.0925), (0, 0.034, 0.1020), 0.0118, around=16, edge=0.0020), "black")
+    g.add(g.lathe("barrel nut", (0, 0.1340, BORE), (0, 1, 0), [(0.0, 0.0160), (0.003, 0.0212), (0.022, 0.0212), (0.0255, 0.0170), (0.0255, 0.0110)], around=20), "steel")
+    for k in range(18):
+        a = 2 * math.pi * k / 18
+        g.add(g.box("nut cut", (math.cos(a) * 0.0213, 0.1465, BORE + math.sin(a) * 0.0213), (0.0007, 0.0170, 0.0026), edge=0.0, rot=(0, -math.degrees(a), 0)), "hollow", only='hi')
+    g.add(g.tube("barrel", (0, 0.1550, BORE), (0, 0.2195, BORE), 0.0098, around=16, edge=0.0008), "steel")
+    g.add(g.tube("bore", (0, 0.2000, BORE), (0, 0.2200, BORE), 0.0052, around=10, edge=0.0), "hollow")
+    g.add(g.tube("front post", (0, 0.112, 0.0860), (0, 0.112, 0.1020), 0.0020, around=8, edge=0.0003), "steel")
+    g.add(g.box("rear leaf", (0, -0.086, 0.0935), (0.0190, 0.0030, 0.0150), edge=0.0006), "steel")
+    g.add(g.box("rear peep", (0, -0.0877, 0.0975), (0.0036, 0.0008, 0.0036), edge=0.0), "hollow")
+    g.add(g.prism("grip frame", [(0.0200, 0.0200), (-0.0380, 0.0200), (-0.0450, -0.0980), (0.0130, -0.0980)], 0.0340, edge=0.0022, chamfer=0.0016), "steel")
+    g.add(g.box("grip safety", (0, -0.0440, -0.0300), (0.0125, 0.0060, 0.0520), edge=0.0016, rot=(3.4, 0, 0)), "black")
+    g.add(g.box("selector", (-0.0178, -0.0040, 0.0125), (0.0034, 0.0230, 0.0070), edge=0.0010), "black")
+    g.add(g.prism("guard", strip(bow(0.0150, 0.0860, 0.0190, -0.0262, 0.0090, 4 if hi else 3), 0.0024), 0.0140, edge=0.0007), "steel")
+    g.add(g.prism("trigger", [(0.0440, 0.0190), (0.0520, 0.0190), (0.0490, 0.0040), (0.0430, -0.0080), (0.0350, -0.0140), (0.0330, -0.0110), (0.0385, -0.0050), (0.0415, 0.0040)], 0.0066, edge=0.0011), "black")
+    g.add(g.tube("stock hinge", (-0.0270, -0.0980, 0.0255), (0.0270, -0.0980, 0.0255), 0.0068, around=10, edge=0.0010), "steel")
+    g.add(g.box("stock plate", (0, 0.0960, 0.0040), (0.0520, 0.0056, 0.0440), edge=0.0014, chamfer=0.0012), "steel")
+    loop = [(-0.0210, -0.070, 0.0660), (-0.0290, -0.070, 0.0690), (-0.0290, -0.092, 0.0690), (-0.0210, -0.092, 0.0660)]
+    g.add(real.sweep("sling loop", loop, 0.0016, (0.5, 0.5, 0.5), n=24 if hi else 6, cuts=4 if hi else 1), "steel")
+    # The magazine: a long straight box with pressed ribs and witness holes.
+    g.add(g.box("magazine", (0, -0.0110, -0.1680), (0.0240, 0.0385, 0.1540), edge=0.0022, chamfer=0.0016), "magazine", "Magazine")
+    g.add(g.box("magazine floor", (0, -0.0110, -0.2475), (0.0280, 0.0440, 0.0075), edge=0.0012, chamfer=0.001), "magazine", "Magazine")
+    for side in (-1, 1):
+        g.add(g.box("magazine rib", (side * 0.0120, -0.0110, -0.170), (0.0014, 0.0090, 0.118), edge=0.0026), "magazine", "Magazine", only='hi')
+        for k in range(4):
+            g.add(g.box("witness hole", (side * 0.01205, 0.0020, -0.130 - 0.026 * k), (0.0004, 0.0034, 0.0034), edge=0.0), "hollow", "Magazine", only='hi')
+    return g
+
+
+CELL = (0.45, 1.0, 0.55)
+LENS = (1.0, 0.25, 0.28)
+
+
+def shotgun(hi):
+    """A side-by-side break-action gun rebuilt to fire light: blued barrels wound with copper near brass mouths,
+    a steel breech with brass-framed windows on the charge, a walnut stock, a power cell where the shells went."""
+    g = Gun(hi)
+    BORE = 0.052
+    g.add(g.prism("breech", [(-0.070, 0.008), (0.215, 0.008), (0.215, 0.084), (0.192, 0.094), (-0.040, 0.094), (-0.070, 0.068)], 0.1040, edge=0.0040, chamfer=0.0035), "steel")
+    g.add(g.prism("top lever", [(-0.052, 0.0940), (0.022, 0.0940), (0.022, 0.0985), (-0.040, 0.1040), (-0.056, 0.1010)], 0.0130, edge=0.0016), "bright")
+    g.add(g.dome("lever pivot", (0, 0.016, 0.0982), (0, 0, 1), 0.0062, 0.0012), "bright", only='hi')
+    g.add(g.box("hinge block", (0, 0.2260, 0.0500), (0.1200, 0.0300, 0.0700), edge=0.0035, chamfer=0.003), "steel")
+    g.add(g.tube("hinge pin", (-0.0605, 0.2260, 0.0240), (0.0605, 0.2260, 0.0240), 0.0058, around=10, edge=0.0008), "bright", only='hi')
+    for side in (-1, 1):
+        x = side * 0.0300
+        g.add(g.tube("barrel", (x, 0.212, BORE), (x, 0.596, BORE), 0.0262, around=12, edge=0.0), "steel")
+        g.add(g.lathe("mouth", (x, 0.5780, BORE), (0, 1, 0), [(0.0, 0.0266), (0.006, 0.0312), (0.029, 0.0328), (0.034, 0.0300), (0.034, 0.0218), (0.012, 0.0206)], around=14), "brass")
+        g.add(g.lathe("band", (x, 0.2620, BORE), (0, 1, 0), [(-0.009, 0.0262), (-0.007, 0.0296), (0.007, 0.0296), (0.009, 0.0262)], around=12), "brass")
+        for i in range(6):
+            g.add(g.lathe("coil", (x, 0.440 + 0.0205 * i, BORE), (0, 1, 0), [(-0.0085, 0.0262), (-0.0060, 0.0312), (0.0, 0.0326), (0.0060, 0.0312), (0.0085, 0.0262)], around=12), "copper")
+        g.glow(oa.cylinder("emitter", (x, 0.5985, BORE), (x, 0.6040, BORE), 0.0204, CELL, segments=12), "CellGlow", CELL)
+        g.add(g.box("window frame", (side * 0.0516, 0.0900, 0.0520), (0.0030, 0.0840, 0.0350), edge=0.0014), "brass")
+        g.glow(oa.box("charge window", (side * 0.0524, 0.0900, 0.0520), (0.0030, 0.0680, 0.0200), CELL, bevel=0.0012, segments=1), "CellGlow", CELL)
+        for y, z in ((0.044, 0.0380), (0.044, 0.0660), (0.136, 0.0380), (0.136, 0.0660)):
+            g.add(g.dome("frame screw", (side * 0.0531, y, z), (side, 0, 0), 0.0020, 0.0005), "brass", only='hi')
+        for y, z in ((-0.036, 0.050), (0.186, 0.026), (0.186, 0.074)):
+            g.add(g.dome("rivet", (side * 0.0520, y, z), (side, 0, 0), 0.0036, 0.0010), "steel", only='hi')
+    for k in range(6):
+        g.add(g.box("fin", (0, 0.2840 + 0.0105 * k, BORE), (0.1260, 0.0036, 0.0680), edge=0.0010), "steel")
+    for side in (-1, 1):
+        g.add(g.box("side plate", (side * 0.0515, 0.0660, 0.0500), (0.0016, 0.2240, 0.0700), edge=0.0050), "steel", only='hi')
+    g.add(g.prism("rib", [(0.215, 0.0715), (0.572, 0.0715), (0.572, 0.0790), (0.215, 0.0790)], 0.0100, edge=0.0008), "steel")
+    for k in range(40):
+        g.add(g.box("rib cut", (0, 0.224 + 0.0085 * k, 0.0791), (0.0096, 0.0016, 0.0005), edge=0.0), "hollow", only='hi')
+    g.add(g.dome("bead", (0, 0.5620, 0.0788), (0, 0, 1), 0.0034, 0.0050, around=10), "brass")
+    g.add(g.box("barrel tie", (0, 0.4180, BORE), (0.0200, 0.0160, 0.0260), edge=0.0016), "steel")
+    g.add(g.skin("fore-end", (0, 0.2480, 0), (0, 1, 0), (0, 0, 1),
+                 [(0.0, 0.0540, 0.0200, 0, 0.0130), (0.080, 0.0575, 0.0245, 0, 0.0090), (0.150, 0.0550, 0.0215, 0, 0.0120), (0.192, 0.0500, 0.0170, 0, 0.0165)],
+                 around=18, step=0.05, power=3.0), "walnut")
+    axis = Vector((0, -0.052, -0.112)).normalized()
+    front = Vector((0, 0.112, -0.052)).normalized()
+    g.add(g.skin("grip", (0, -0.0120, 0.0200), axis, front,
+                 [(0.0, 0.0180, 0.0290), (0.030, 0.0176, 0.0262), (0.090, 0.0184, 0.0250), (0.122, 0.0196, 0.0270), (0.131, 0.0180, 0.0250), (0.134, 0.0130, 0.0200)],
+                 around=14, step=0.027, power=2.9), "walnut")
+    g.add(g.skin("stock", (0, -0.0580, 0), (0, -1, 0), (0, 0, 1),
+                 [(0.0, 0.0200, 0.0280, 0, 0.0490), (0.050, 0.0212, 0.0320, 0, 0.0420), (0.170, 0.0225, 0.0470, 0, 0.0200), (0.286, 0.0235, 0.0610, 0, 0.0010)],
+                 around=18, step=0.07, power=3.2), "walnut")
+    g.add(g.skin("butt pad", (0, -0.3438, 0), (0, -1, 0), (0, 0, 1),
+                 [(0.0, 0.0238, 0.0615, 0, 0.0010), (0.0180, 0.0234, 0.0605, 0, 0.0010), (0.0222, 0.0200, 0.0570, 0, 0.0010)], around=18, step=0.011, power=3.2), "pad")
+    g.add(g.prism("guard", strip(bow(0.0040, 0.1220, 0.0100, -0.0370, 0.0130, 4 if hi else 3), 0.0026), 0.0150, edge=0.0008), "steel")
+    for y, lean in ((0.046, 0.0), (0.076, 0.004)):
+        g.add(g.prism("trigger", [(y, 0.0100), (y + 0.0080, 0.0100), (y + 0.0050 + lean, -0.0050), (y - 0.0010 + lean, -0.0165), (y - 0.0085, -0.0225), (y - 0.0105, -0.0195), (y - 0.0050, -0.0140), (y - 0.0020 + lean, -0.0050)],
+                      0.0066, edge=0.0011), "bright")
+    # The power cell: a painted can with a brass cap and a pull.
+    g.add(g.tube("cell", (0, 0.1680, 0.0100), (0, 0.1680, -0.0680), 0.0340, around=12, edge=0.0030), "magazine", "Magazine")
+    g.add(g.lathe("cell band", (0, 0.1680, -0.0240), (0, 0, -1), [(-0.012, 0.0340), (-0.010, 0.0356), (0.010, 0.0356), (0.012, 0.0340)], around=18), "cell paint", "Magazine")
+    g.add(g.tube("cell cap", (0, 0.1680, -0.0660), (0, 0.1680, -0.0790), 0.0290, around=12, edge=0.0025), "brass", "Magazine")
+    g.add(g.box("cell pull", (0, 0.1680, -0.0840), (0.0090, 0.0300, 0.0090), edge=0.0020), "black", "Magazine")
+    return g
+
+
+def sniper(hi):
+    """A long bolt-action rifle in a green thumb-hole stock: fluted heavy barrel, slotted brake, a very large
+    scope, a bipod folded under."""
+    g = Gun(hi)
+    BORE = 0.050
+    g.add(g.tube("action", (0, -0.060, BORE), (0, 0.252, BORE), 0.0222, around=16, edge=0.0020), "black")
+    a = math.radians(24)
+    g.add(g.box("port", (math.cos(a) * 0.0221, 0.0900, BORE + math.sin(a) * 0.0221), (0.0008, 0.0800, 0.0150), edge=0.0, rot=(0, -24, 0)), "hollow")
+    g.add(g.box("bolt body", (math.cos(a) * 0.0223, 0.0840, BORE + math.sin(a) * 0.0223), (0.0008, 0.0560, 0.0104), edge=0.0, rot=(0, -24, 0)), "bright")
+    g.add(g.tube("bolt arm", (0.0200, -0.0200, BORE), (0.0500, -0.0300, 0.0320), 0.0052, around=8, edge=0.0), "bright")
+    ball = oa.sphere("bolt ball", (0.0520, -0.0310, 0.0300), 0.0122, (0.5, 0.5, 0.5), segments=32 if hi else 12)
+    g.add(ball, "pad")
+    g.add(g.tube("bolt shroud", (0, -0.0900, BORE), (0, -0.0580, BORE), 0.0180, around=10, edge=0.0025), "black")
+    g.add(g.tube("barrel", (0, 0.250, BORE), (0, 0.840, BORE), 0.0152, radius_end=0.0126, around=16, edge=0.0), "black")
+    for i in range(6):
+        a = math.radians(60 * i + 30)
+        g.add(g.box("flute", (math.cos(a) * 0.0143, 0.4800, BORE + math.sin(a) * 0.0143), (0.0012, 0.2900, 0.0056), edge=0.0, rot=(0, -math.degrees(a), 0)), "hollow", only='hi')
+    g.add(g.lathe("brake", (0, 0.8260, BORE), (0, 1, 0), [(0.0, 0.0128), (0.005, 0.0205), (0.058, 0.0205), (0.072, 0.0170), (0.072, 0.0085), (0.030, 0.0085), (0.030, 0.0005)], around=20), "black")
+    for y in (0.8460, 0.8640, 0.8820):
+        g.add(g.box("brake slot", (0, y, BORE), (0.0420, 0.0075, 0.0120), edge=0.0), "hollow")
+    R, C = 0.0100, 0.0060
+    g.add(g.prism("fore-end", [(0.060, 0.040), (0.070, -0.004), (0.440, 0.008), (0.470, 0.028), (0.470, 0.040)], 0.0540, edge=R, chamfer=C), "olive")
+    g.add(g.prism("trigger housing", [(-0.046, 0.042), (0.066, 0.042), (0.066, 0.006), (0.020, 0.010), (-0.046, 0.012)], 0.0500, edge=R, chamfer=C), "olive")
+    g.add(g.prism("stock top", [(-0.040, 0.044), (-0.110, 0.050), (-0.360, 0.050), (-0.360, 0.022), (-0.120, 0.018), (-0.050, 0.010)], 0.0480, edge=R, chamfer=C), "olive")
+    g.add(g.prism("stock bottom", [(-0.170, 0.000), (-0.360, -0.014), (-0.360, -0.090), (-0.200, -0.062)], 0.0450, edge=R, chamfer=C), "olive")
+    g.add(g.prism("stock back", [(-0.300, 0.040), (-0.366, 0.040), (-0.366, -0.080), (-0.300, -0.070)], 0.0510, edge=R, chamfer=C), "olive")
+    g.add(g.prism("grip bridge", [(-0.066, -0.070), (-0.200, -0.040), (-0.200, -0.066), (-0.070, -0.100)], 0.0380, edge=0.0090, chamfer=0.005), "olive")
+    axis = Vector((0, -0.054, -0.112)).normalized()
+    front = Vector((0, 0.112, -0.054)).normalized()
+    g.add(g.skin("grip", (0, -0.0110, 0.0160), axis, front,
+                 [(0.0, 0.0200, 0.0290), (0.030, 0.0196, 0.0262), (0.090, 0.0200, 0.0250), (0.122, 0.0206, 0.0262), (0.130, 0.0170, 0.0220)], around=14, step=0.027, power=3.0), "olive dark")
+    g.add(g.prism("cheek piece", [(-0.130, 0.052), (-0.290, 0.052), (-0.282, 0.084), (-0.150, 0.088)], 0.0390, edge=0.0085, chamfer=0.005), "olive dark")
+    for y in (-0.170, -0.250):
+        g.add(g.tube("cheek post", (0, y, 0.040), (0, y, 0.058), 0.0050, around=8, edge=0.0), "bright")
+    g.add(g.prism("butt pad", [(-0.364, -0.084), (-0.388, -0.076), (-0.388, 0.036), (-0.364, 0.044)], 0.0520, edge=0.0050, chamfer=0.004), "pad")
+    g.add(g.prism("guard", strip(bow(0.0000, 0.0960, 0.0130, -0.0330, 0.0120, 4 if hi else 3), 0.0026), 0.0140, edge=0.0008), "black")
+    g.add(g.prism("trigger", [(0.0400, 0.0100), (0.0480, 0.0100), (0.0450, -0.0040), (0.0390, -0.0150), (0.0310, -0.0210), (0.0290, -0.0180), (0.0345, -0.0125), (0.0375, -0.0040)], 0.0066, edge=0.0011), "bright")
+    sz = 0.122
+    scope = [(-0.150, 0.0005), (-0.150, 0.0250), (-0.142, 0.0290), (-0.085, 0.0290), (-0.070, 0.0200), (0.130, 0.0200), (0.170, 0.0380), (0.262, 0.0400), (0.270, 0.0372), (0.270, 0.0005)]
+    g.add(g.lathe("scope", (0, 0.020, sz), (0, 1, 0), scope, around=24), "anodised")
+    g.add(g.tube("eyepiece glass", (0, -0.1310, sz), (0, -0.1302, sz), 0.0225, around=12, edge=0.0), "glass")
+    g.add(g.lathe("zoom ring", (0, -0.0700, sz), (0, 1, 0), [(-0.012, 0.0290), (-0.010, 0.0310), (0.010, 0.0310), (0.012, 0.0290)], around=16), "pad")
+    for k in range(28):
+        a = 2 * math.pi * k / 28
+        g.add(g.box("ring cut", (math.cos(a) * 0.0311, -0.0700, sz + math.sin(a) * 0.0311), (0.0007, 0.0190, 0.0030), edge=0.0, rot=(0, -math.degrees(a), 0)), "hollow", only='hi')
+    g.add(g.tube("turret top", (0, 0.060, sz + 0.0180), (0, 0.060, sz + 0.0420), 0.0128, around=10, edge=0.0018), "anodised")
+    g.add(g.tube("turret side", (-0.0180, 0.060, sz), (-0.0420, 0.060, sz), 0.0128, around=10, edge=0.0018), "anodised")
+    for y in (0.005, 0.110):
+        g.add(g.lathe("scope ring", (0, y, sz), (0, 1, 0), [(-0.008, 0.0200), (-0.0065, 0.0252), (0.0065, 0.0252), (0.008, 0.0200)], around=14), "black")
+        g.add(g.box("ring foot", (0, y, 0.0880), (0.0210, 0.0150, 0.0300), edge=0.0016), "black")
+        for side in (-1, 1):
+            g.add(g.dome("ring screw", (side * 0.0105, y, 0.0900), (side, 0, 0), 0.0030, 0.0008), "bright", only='hi')
+    g.add(g.box("rail", (0, 0.058, 0.0750), (0.0200, 0.1700, 0.0080), edge=0.0008), "black")
+    for k in range(13):
+        g.add(g.box("rail slot", (0, -0.014 + 0.012 * k, 0.0786), (0.0204, 0.0050, 0.0016), edge=0.0), "hollow", only='hi')
+    g.glow(oa.cylinder("front glass", (0, 0.2905, sz), (0, 0.2925, sz), 0.0340, LENS, segments=18), "LensGlow", LENS)
+    g.add(g.box("bipod block", (0, 0.4400, 0.0000), (0.0380, 0.0240, 0.0200), edge=0.0020), "black")
+    for side in (-1, 1):
+        g.add(g.tube("bipod leg", (side * 0.0200, 0.4360, -0.0060), (side * 0.0300, 0.2260, -0.0140), 0.0058, around=8, edge=0.0), "black")
+        g.add(g.tube("bipod foot", (side * 0.0300, 0.2320, -0.0140), (side * 0.0300, 0.2120, -0.0140), 0.0092, around=8, edge=0.0015), "pad")
+    g.add(g.prism("magazine", [(0.118, 0.010), (0.200, 0.010), (0.206, -0.058), (0.126, -0.066)], 0.0300, edge=0.0022, chamfer=0.0016), "magazine", "Magazine")
+    g.add(g.prism("magazine floor", [(0.120, -0.058), (0.212, -0.050), (0.212, -0.0600), (0.122, -0.0720)], 0.0350, edge=0.0014, chamfer=0.001), "magazine", "Magazine")
+    return g
+
+
 def sockets_of(name):
-    places = {"Rifle": (("Muzzle", (0, 0.69, 0.045)), ("SupportHand", (0, 0.37, 0.01)), ("Magazine", (0, 0.15, 0.01)))}[name]
+    places = {"Rifle": (("Muzzle", (0, 0.69, 0.045)), ("SupportHand", (0, 0.37, 0.01)), ("Magazine", (0, 0.15, 0.01))),
+              "Pistol": (("Muzzle", (0, 0.155, 0.062)), ("SupportHand", (0, 0.0, -0.03)), ("Magazine", (0, -0.022, -0.07))),
+              "Smg": (("Muzzle", (0, 0.220, 0.046)), ("SupportHand", (0, 0.100, 0.006)), ("Magazine", (0, -0.011, -0.098))),
+              "Shotgun": (("Muzzle", (0, 0.612, 0.052)), ("SupportHand", (0, 0.335, 0.000)), ("Magazine", (0, 0.168, 0.000))),
+              "Sniper": (("Muzzle", (0, 0.900, 0.050)), ("SupportHand", (0, 0.330, 0.000)), ("Magazine", (0, 0.160, 0.005)))}[name]
     return [oa.socket(n, p) for n, p in places]
 
 
-GUNS = {"Rifle": (rifle, 2048)}
+# The pictures' size: 2048 for the long guns the player holds, 1024 for the small ones (a 1024 picture on a
+# pistol is finer per centimetre than 2048 on a rifle).
+GUNS = {"Rifle": (rifle, 2048), "Pistol": (pistol, 1024), "Smg": (smg, 1024), "Shotgun": (shotgun, 2048), "Sniper": (sniper, 2048)}
 FAR_TRIANGLES, FAR_SHARE = 2000, 0.40
+# What a small gun's far copy does without: at 9 m and beyond these are a pixel or less.
+FAR_LEAVE_OUT = {"Smg": ("knob stem", "sling loop", "selector", "grip safety", "rear peep", "front post", "stock hinge", "sight ear", "grip screw"),
+                 "Pistol": ("safety", "slide stop", "rear notch", "gas plug", "tang"),
+                 "Shotgun": ("fin", "frame screw", "lever pivot"),
+                 "Sniper": ("brake slot", "port", "bolt body", "eyepiece glass", "cheek post", "bipod foot", "zoom ring", "ring foot", "turret side", "bolt arm")}
+# Thin strips that crumple when thinned.
+FAR_KEEP = {"Sniper": ("guard",)}
 # How long each gun is and where its middle is, for framing pictures (the same as build_weapons.py).
-SHOTS = {"Rifle": (0.75, (0, 0.16, 0.0))}
+SHOTS = {"Rifle": (0.75, (0, 0.16, 0.0)), "Pistol": (0.36, (0, 0.045, 0.0)), "Smg": (0.60, (0, 0.05, -0.07)),
+         "Shotgun": (1.12, (0, 0.12, 0.0)), "Sniper": (1.45, (0, 0.26, 0.02))}
 
 
 def build(name, folder, previews=None, draft=False):
@@ -320,6 +607,11 @@ def build(name, folder, previews=None, draft=False):
     low, high = maker(False), maker(True)
     low_parts = [(piece, objects) for piece, objects in low.parts.items()]
     low_objects = [o for _, objects in low_parts for o in objects]
+    glow_parts = [(piece, objects) for piece, objects in low.glows.items()]
+    glow_objects = [o for _, objects in glow_parts for o in objects]
+    for o in glow_objects:          # they shine in the game, but must not light or shade the bake
+        o.hide_render = True
+        o["oa_glow"] = True
     high_objects = [o for objects in high.parts.values() for o in objects]
     triangles = sum(oa._triangle_count(o) for o in low_objects)
     print("OA %s: %d shapes and %d triangles in the game's model; %d shapes and %d triangles in the baked one"
@@ -330,19 +622,29 @@ def build(name, folder, previews=None, draft=False):
     for o in high_objects:
         o.hide_render = True
     sockets = sockets_of(name)
+    low_parts = low_parts + glow_parts
     oa.export(os.path.join(folder, name + ".bytes"), low_parts, sockets, textures=name)
-    far = oa.thin(low_parts, min(FAR_TRIANGLES, int(triangles * FAR_SHARE)), drop_below=0.012)
+    far = oa.thin(low_parts, min(FAR_TRIANGLES, int(triangles * FAR_SHARE)), drop_below=0.012, leave_out=FAR_LEAVE_OUT.get(name, ()), keep=FAR_KEEP.get(name, ()))
     oa.export(os.path.join(folder, name + oa.FAR + ".bytes"), far, sockets, textures=name)
     if previews:
         os.makedirs(previews, exist_ok=True)
         look = mats.textured_material(name, textures)
         length, mid = SHOTS[name]
-        far_objects = [o for _, objects in far for o in objects]
-        for tag, shown in (("", low_objects), ("_far", far_objects)):
+        far_objects = [o for piece, objects in far for o in objects if not piece.endswith("Glow")]
+        if glow_objects:
+            shine = bpy.data.materials.new("oa_glow")
+            shine.use_nodes = True
+            emit = shine.node_tree.nodes.new("ShaderNodeEmission")
+            emit.inputs[0].default_value = (*[oa._srgb_to_linear(c) for c in glow_objects[0]["oa_colour"][:3]], 1.0)
+            emit.inputs[1].default_value = 4.0
+            shine.node_tree.links.new(emit.outputs[0], shine.node_tree.nodes["Material Output"].inputs["Surface"])
+            for o in glow_objects:
+                o.data.materials.append(shine)
+        for tag, shown in (("", low_objects + glow_objects), ("_far", far_objects + glow_objects)):
             mats.render(os.path.join(previews, name.lower() + tag + "_side.png"), shown, look, samples=40 if draft else 128, eye=(2.4 * length, mid[1], 0.25 * length), target=mid, lens=85, floor=-0.5 * length)
             if tag:
                 continue
-            mats.render(os.path.join(previews, name.lower() + "_close.png"), shown, look, (0.42, 0.02, 0.16), (0, 0.11, 0.02), lens=70, size=(1400, 900), samples=40 if draft else 128, floor=-0.5 * length)
+            mats.render(os.path.join(previews, name.lower() + "_close.png"), shown, look, (0.56 * length, mid[1] - 0.19 * length, 0.21 * length), (0, mid[1] - 0.07 * length, 0.03 * length), lens=70, size=(1400, 900), samples=40 if draft else 128, floor=-0.5 * length)
             if draft:
                 continue
             mats.render(os.path.join(previews, name.lower() + "_front.png"), shown, look, (1.2 * length, mid[1] + 1.9 * length, 0.8 * length), mid, lens=70, floor=-0.5 * length)

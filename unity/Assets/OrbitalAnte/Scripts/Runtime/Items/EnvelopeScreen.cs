@@ -64,10 +64,14 @@ namespace OrbitalAnte.Items
             // A press only counts once the envelope has had a moment to arrive, so a held button cannot skip it unseen.
             _readyAt = show.mode == EnvelopeMode.RunStart ? 0.8f : 0.6f;
             _canvas.gameObject.SetActive(true);
-            _playWasOn = GameInput.Play != null && GameInput.Play.enabled;
-            if (_playWasOn) GameInput.Play.Disable();
+            // A run-start envelope is shown while the run is still being set up (its controls not on yet), so it
+            // always hands the controls back and holds the world, wherever the run was started from (21 Nov 2026:
+            // from the title screen the ante clock and the enemies used to run on behind it).
+            bool runStart = show.mode == EnvelopeMode.RunStart;
+            _playWasOn = runStart || (GameInput.Play != null && GameInput.Play.enabled);
+            if (GameInput.Play != null && GameInput.Play.enabled) GameInput.Play.Disable();
             // The world waits while the envelope is on screen (enemies must not act while the controls are off).
-            TimeFlow.Held = GameSession.Mode == GameMode.Playing;
+            TimeFlow.Held = runStart || GameSession.Mode == GameMode.Playing;
             Apply();
         }
 

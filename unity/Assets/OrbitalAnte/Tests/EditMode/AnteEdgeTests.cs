@@ -38,7 +38,7 @@ namespace OrbitalAnte.Tests
         [Test]
         public void JustBeforeTheEndTheAnteIsStillOpen()
         {
-            var run = new AnteRun(new AnteBalance(), 3);
+            var run = new AnteRun(new AnteBalance { missedTarget = MissedTarget.EndRun }, 3);
             run.Tick(299.5f, false);
             Assert.AreEqual(AntePhase.Running, run.Director.Phase);
             Assert.AreEqual(0.5f, run.Director.SecondsLeft, 0.001f);
@@ -61,7 +61,7 @@ namespace OrbitalAnte.Tests
         [Test]
         public void AHugeTickEndsTheAnteOnceAndNeverGoesBelowZero()
         {
-            var run = new AnteRun(new AnteBalance(), 3);
+            var run = new AnteRun(new AnteBalance { missedTarget = MissedTarget.EndRun }, 3);
             run.Tick(1e9f, false);
             Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
             Assert.AreEqual(0f, run.Director.SecondsLeft);
@@ -133,7 +133,19 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1m, ScoreMath.ValueScale(balance, 0));
             Assert.AreEqual(1m, ScoreMath.ValueScale(balance, -3));
             Assert.AreEqual(850, balance.TargetFor(0));
-            Assert.AreEqual(5500, balance.TargetFor(99));
+            Assert.AreEqual(9350, balance.TargetFor(99));
+        }
+
+        [Test]
+        public void TargetsAskForMoreRealEffort_AboutOnePointSixTimesByAnteFour()
+        {
+            // Matthew, 20 Nov 2026: the targets rise faster than the points' own ante multiplier.
+            var balance = new AnteBalance();
+            decimal Effort(int ante) => balance.TargetFor(ante) / ScoreMath.ValueScale(balance, ante);
+            decimal ratio = Effort(4) / Effort(1);
+            Assert.That((double)ratio, Is.InRange(1.5, 1.7));
+            for (int ante = 2; ante <= balance.AnteCount; ante++)
+                Assert.That(Effort(ante), Is.GreaterThan(Effort(ante - 1)), "ante " + ante);
         }
 
         [Test]

@@ -31,6 +31,9 @@ namespace OrbitalAnte.Core
         TimeFx _timeFx;
         Combat.DeepBreathFx _deepBreath;
         Combat.GunLadderFx _gunLadder;
+        Tasks.AnteLoop _anteLoop;
+        Combat.RunPerksFx _runPerks;
+        Tasks.RunGuideFx _guide;
         Perf.PerfMonitor _perf;
         double _unsavedSeconds;
         Audio.AudioDemoSequence _audioShowcase;
@@ -98,6 +101,13 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Creatures.WalkerChunk.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
             OrbitalAnte.Items.EnvelopeDirector.ResetStatics();
+            OrbitalAnte.Enemies.EnemySpawner.ResetStatics();
+            WorldOffers.ResetStatics();
+            OrbitalAnte.Tasks.TaskConfig.ResetStatics();
+            OrbitalAnte.Tasks.AnteLoop.ResetStatics();
+            Combat.RunEffects.ResetStatics();
+            Combat.RunPerksFx.ResetStatics();
+            OrbitalAnte.Tasks.TaskDirector.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -137,6 +147,20 @@ namespace OrbitalAnte.Core
             _deepBreath = gameObject.AddComponent<Combat.DeepBreathFx>();
             // The gun ladder lives here too, so kills count wherever you fight and the ladder ends with the run.
             _gunLadder = gameObject.AddComponent<Combat.GunLadderFx>();
+            // The ante loop too: its timer, score and the card between antes outlive any one world.
+            _anteLoop = gameObject.AddComponent<Tasks.AnteLoop>();
+            // The perks that answer kills (heals, rounds back, double ladder kills), next to the ladder they feed.
+            _runPerks = gameObject.AddComponent<Combat.RunPerksFx>();
+            _anteLoop.Menu = _pauseMenu;
+            _anteLoop.Envelopes = _envelopes;
+            _pauseMenu.CanEndAnte = _anteLoop.CanEndAnte;
+            _pauseMenu.EndAnte = _anteLoop.EndAnteNow;
+            _pauseMenu.StartNextAnte = _anteLoop.StartNextAnte;
+            // The goal card, the clock waiting for liftoff, first-run tips and the "left to score here" line.
+            _guide = gameObject.AddComponent<Tasks.RunGuideFx>();
+            _guide.Loop = _anteLoop;
+            _guide.Menu = _pauseMenu;
+            _guide.Envelopes = _envelopes;
             // Bloom, tone mapping, colour grade and smoothed edges, for every camera the game makes.
             OrbitalAnte.Look.PostFx.Ensure(gameObject, OrbitalAnte.Look.LookConfig.Load());
 
@@ -237,10 +261,15 @@ namespace OrbitalAnte.Core
             pauseGo.transform.SetParent(_uiRoot, false);
             _pauseMenu = pauseGo.AddComponent<PauseMenu>();
             _pauseMenu.Build(_uiRoot);
-            _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
+            _pauseMenu.RestartRequested = sameSeed => { _restarting = true; StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed()); };
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
-            OrbitalAnte.Ship.Astronaut.OnDeath = cause => _pauseMenu.ShowDeath(cause);
+            OrbitalAnte.Ship.Astronaut.OnDeath = cause =>
+            {
+                // A death ends the ante run too; the death page says what happened.
+                if (_anteLoop != null) _anteLoop.PlayerDied();
+                _pauseMenu.ShowDeath(cause, _anteLoop != null ? _anteLoop.RecapAndRecord() : null);
+            };
         }
 
         // ------------------------------------------------------------------ state changes
@@ -267,6 +296,9 @@ namespace OrbitalAnte.Core
         }
 
         /// <summary>Restarts in the same test world.</summary>
+        /// <summary>Set for the one run a restart from the death page or pause menu starts (the envelope is not shown again).</summary>
+        bool _restarting;
+
         public void StartRun(int seed) => StartRun(seed, GameSession.Scenario);
 
         /// <summary>Tears down whatever is running and starts a fresh run from a seed.</summary>
@@ -286,7 +318,8 @@ namespace OrbitalAnte.Core
             save.lastScenario = (int)scenario;
             save.runsStarted++;
             // Number this run's envelope before the save is written, so a number is never handed out twice.
-            if (_envelopes != null) _envelopes.RunStarted();
+            if (_envelopes != null) _envelopes.RunStarted(_restarting);
+            _restarting = false;
             BankPlayTime();
             Save.SaveSystem.Save();
 
@@ -301,11 +334,24 @@ namespace OrbitalAnte.Core
             {
                 _space = _world.AddComponent<Space.SolarSystemWorld>();
                 _space.Build(seed);
+                // The ante loop and its tasks: points toward each ante's target, and the things in the world that pay them.
+                if (_anteLoop != null) _anteLoop.BeginRun(seed);
+                if (_anteLoop != null && _anteLoop.Run != null)
+                {
+                    var tasks = _world.AddComponent<Tasks.TaskDirector>();
+                    tasks.Init(_space, _anteLoop);
+                    if (_space.Map != null) _space.Map.TasksLeft = tasks.TasksLeftOn;
+                    if (_space.Map != null) _space.Map.ContractBody = () => Tasks.AnteLoop.ContractBody;
+                    if (_guide != null) _guide.BeginRun(_space, tasks);
+                }
                 _hud.SetArenaMode(false);
                 _hud.ExtraDebug = _space.DescribeForDebug;
                 Ship.Astronaut astronaut = _space.Astronaut;
                 if (astronaut != null)
                 {
+                    // The run's build (perks, attributes, hazard) acts on this player only.
+                    Combat.RunEffects.Attach(astronaut.Armour, () => astronaut.Stances.Current != Spacewalk.Stance.Stand, astronaut.SuitTanks);
+                    if (_runPerks != null) _runPerks.Weapons = astronaut.Weapons;
                     // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
                     _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,
                         () => astronaut.InTheOpen && !Cockpit.CockpitDash.WatchingScreen);
@@ -323,7 +369,8 @@ namespace OrbitalAnte.Core
             _hud.SetVisible(true);
 
             GameSession.SetMode(GameMode.Playing);
-            GameInput.Play.Enable();
+            // The run-start envelope turns the controls on when it is closed.
+            if (_envelopes == null || !_envelopes.Showing) GameInput.Play.Enable();
             SetCursorLocked(true);
         }
 
@@ -336,6 +383,10 @@ namespace OrbitalAnte.Core
             if (_gunLadder != null) _gunLadder.ResetForNewRun();
             // A run ending before Ante 9 loses its sealed envelope.
             if (_envelopes != null) _envelopes.RunEnded();
+            if (_anteLoop != null) _anteLoop.EndRun();
+            if (_guide != null) _guide.EndRun();
+            Combat.RunEffects.Clear();
+            if (_runPerks != null) { _runPerks.ResetForNewRun(); _runPerks.Weapons = null; }
             if (_world == null) return;
             if (_perf != null) _perf.LogAndReset("seed " + GameSession.Seed);
             // Destroy is delayed to the end of the frame, so switch the old world off right now as well.
@@ -374,6 +425,8 @@ namespace OrbitalAnte.Core
 
         void OnPauseChanged(bool paused)
         {
+            // Full drawing rate again whenever play goes on (the pause menu halves it on its plain pages).
+            if (!paused) Perf.PerformanceBudget.Load().ApplyPaused(false);
             if (GameSession.Mode != GameMode.Playing) return;
             if (paused) GameInput.Play.Disable();
             else GameInput.Play.Enable();
@@ -394,6 +447,8 @@ namespace OrbitalAnte.Core
 
         public void QuitToDesktop()
         {
+            // The run's records are saved on the way out.
+            if (_anteLoop != null) _anteLoop.EndRun();
             GameSession.SetPaused(false);
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

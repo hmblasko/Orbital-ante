@@ -188,6 +188,7 @@ namespace OrbitalAnte.Planets
                 // Looking away must not retire the ground beneath the suit or a ship left behind.
                 if (!s.Near && s.Ready && (height < near || groundCount > 0)) s.SetNear(true);
                 else if (s.Near && height > near * 1.25f && groundCount == 0) s.SetNear(false);
+                s.FarTick(height + s.BodyRadius, near);
                 if (s.Near) TickSurface(s, eye, groundCount, speed);
             }
         }
@@ -343,17 +344,15 @@ namespace OrbitalAnte.Planets
             // Cheap first test: nowhere near the highest ground this body has.
             float putBack = Mathf.Max(mover.PutBackAt, mover.SunkBelow + 0.5f);
             if (r > s.SurfaceRadius + s.Terrain.MaxHeight + 5 + putBack) return;
+            // The ground as it is really built here: the triangles of the tile showing, which are its collider
+            // too. Measured against anything else (the ideal height has fine bumps no tile draws, and is not cut
+            // across by triangles), someone standing honestly on rough ground was "rescued" over and over (a
+            // bounce) and someone pushed under it was left sunk, half in the ground, because the ideal ground
+            // there happened to be lower. Against the real ground, below it is below it, on every world.
             double ground = s.GroundRadius(dir);
-            // How low is too low depends on what it is standing on. The true height is only what the ground is
-            // really like where it is solid and in its finest shape; coarser ground can lie metres under it, and
-            // something resting there honestly must be left alone. There, only well under the ground counts.
-            double floor = -2.5;
-            if (mover.SunkBelow > floor && s.FineSolidAt(p))
-            {
-                floor = mover.SunkBelow;
-            }
-            // An intermediate refinement can also put a one-sided collider above someone's feet. Consume
-            // the change only after protecting every mover; finest-detail readiness is not required for this.
+            double floor = mover.SunkBelow;
+            // The tile under someone was just swapped for a finer shape, with different heights. A foot left under
+            // the new surface would drop through it (a collider only holds from above), so it is put on top now.
             if (mover.NeedsGround && reshaped && s.ReshapedUnder(p) && s.SolidAt(p)) floor = global::System.Math.Max(floor, putBack - 0.4);
             if (r >= ground + floor || s.InCave(p, 4)) return;
 

@@ -97,7 +97,7 @@ def switch(rng, v):
     return finish(x, -5, 0.02)
 
 
-@sfx("ship.confirm", "ship", spatial=0.0, volumeDb=-14, bus="Engines", priority=100, vacuum="suit")
+@sfx("ship.confirm", "ship", spatial=0.0, volumeDb=-14, pitchVar=0.3, volVarDb=0.8, bus="Engines", priority=100, vacuum="suit")
 def confirm(rng, v):
     """Flight computer acknowledgement (autopilot or velocity match engaged): two soft tones, A then D."""
     n = secs(0.5)

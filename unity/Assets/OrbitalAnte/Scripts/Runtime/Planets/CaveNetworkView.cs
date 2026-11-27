@@ -174,11 +174,16 @@ namespace OrbitalAnte.Planets
                 if (ahead.sqrMagnitude < 1e-6f) ahead = Vector3.ProjectOnPlane(Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.forward, up);
                 go.transform.localRotation = Quaternion.LookRotation(ahead.normalized, up);
                 go.AddComponent<MeshFilter>().sharedMesh = _lampBody;
-                go.AddComponent<MeshRenderer>().sharedMaterial = body;
+                var lampRenderer = go.AddComponent<MeshRenderer>();
+                lampRenderer.sharedMaterial = body;
+                // Cave darkness comes from the cave's own light box, never from cast shadows.
+                lampRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 var head = new GameObject("Glow");
                 head.transform.SetParent(go.transform, false);
                 head.AddComponent<MeshFilter>().sharedMesh = _lampGlow;
-                head.AddComponent<MeshRenderer>().sharedMaterial = glowing;
+                var glowRenderer = head.AddComponent<MeshRenderer>();
+                glowRenderer.sharedMaterial = glowing;
+                glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
         }
 

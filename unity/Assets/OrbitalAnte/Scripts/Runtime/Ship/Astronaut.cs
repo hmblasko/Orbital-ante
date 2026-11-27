@@ -84,17 +84,36 @@ namespace OrbitalAnte.Ship
         public bool Dazed => _dazed > 0f;
         /// <summary>Called once, a moment after the pilot dies, with the cause in plain words. Set by whoever shows the screen.</summary>
         public static Action<string> OnDeath;
-        public static void ResetStatics() => OnDeath = null;
+        /// <summary>Walking pace outside as a share of normal, for carrying a crate of salvage (the ante tasks set it).</summary>
+        public static float CarryPace = 1f;
+        public static void ResetStatics() { OnDeath = null; CarryPace = 1f; Current = null; }
+        /// <summary>The player of the run going now, or null (the arena, the title screen).</summary>
+        public static Astronaut Current { get; private set; }
+        /// <summary>The player is dead or dying (the burst plays before the death page): nothing may be banked or picked.</summary>
+        public static bool PlayerDown => Current != null && Current.Dead;
+        /// <summary>Strapped into the seat, where Select is the floodlights and the Gameplay map is off.</summary>
+        public static bool PlayerSeated => Current != null && Current.Mode == AstronautMode.Seated;
+        /// <summary>Inside the ship (seat, cabin or lift), where the ship's damage list fills the top right.</summary>
+        public static bool PlayerInShip => Current != null && (Current.Mode == AstronautMode.Seated || Current.Mode == AstronautMode.Aboard || Current.Mode == AstronautMode.Lift);
+        /// <summary>Outside and off the ground: on the jets, jumping, floating. (For the style kills.)</summary>
+        public bool Airborne => Mode == AstronautMode.Outside && !_grounded;
         float _dazed, _deadFor;
         bool _posed, _deathTold;
         // The way the last blow pushed (world), and the burst of the body when you die (null if it could not be made).
         Vector3 _lastBlow;
         PlayerBurstFx _burst;
         float _pendingYaw;
-        bool _jumpQueued;
+        // A press kept for a moment, and ground that counts for a moment after the feet leave it (Spacewalk/JumpGrace).
+        readonly JumpGrace _jumpGrace = new JumpGrace();
+        Vector3 _lastGroundVelocity;
         // On foot: standing, crouched or prone, and the quiet sneak (see Spacewalk/Stances.cs).
         public StanceState Stances { get; } = new StanceState();
         public bool Sneaking { get; private set; }
+        /// <summary>
+        /// Out on foot and keeping hidden: crouched, prone, sneaking, or in a cave dark enough to halve how far you
+        /// are seen. A long quiet never sends a squad to a hiding player (Enemies/LullRules).
+        /// </summary>
+        public bool Hiding { get; private set; }
         CapsuleCollider _body;
         float _walkingAt, _airborneFor;
         Func<Stance, bool> _roomFor;
@@ -124,9 +143,15 @@ namespace OrbitalAnte.Ship
         public bool TakeJetPuff() { bool puff = _jetPuff; _jetPuff = false; return puff; }
         bool _jetPuff, _matchWasHeld;
         MatchTarget _matchTarget;
+        /// <summary>The speed Match Velocity would match, kept from the last physics step (a shot's drift cap reads it).</summary>
+        Vector3 _matchReference;
         SuitFx _fx;
         float _airDrawn, _jetPush, _rollEase;
         Quaternion _viewLocal = Quaternion.identity;
+        // The gun's kick on the view (PlayerWeapons kicks it; ReadLookRaw turns the head by it).
+        readonly OrbitalAnte.Player.ViewRecoil _recoil = new OrbitalAnte.Player.ViewRecoil();
+        // Controller aim assist (Player/AimAssist): only ever slows the sticks over an enemy.
+        readonly AimAssist _aimAssist = new AimAssist();
         bool _mendingNow;
         Vector3 _jetLocal;
         static readonly Vector3 EyeLocal = new Vector3(0f, ShipLayout.EyeHeight, 0f);
@@ -149,6 +174,7 @@ namespace OrbitalAnte.Ship
             var go = new GameObject("Astronaut");
             go.layer = Layers.Player;
             var a = go.AddComponent<Astronaut>();
+            Current = a;
             a._config = config;
             a._look = PlayerConfig.Load();
             a._system = system;
@@ -194,10 +220,14 @@ namespace OrbitalAnte.Ship
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
             a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
-            // Measured from the boots: knee deep in the ground is sunk, and you are put back standing on it.
+            // Measured from the boots. The boots are the lowest point of the suit's capsule and never honestly
+            // below the ground (on a slope they stand a little above it), and the ground checked is the real,
+            // built one, so a quarter of a metre deep is already sunk (about where the check for ground under the
+            // feet stops finding it). You are put back standing just on it, not dropped from a height. (It was
+            // knee deep when the check used the ideal ground, which could be a metre off.)
             a._suitGravity.NeedsGround = true;
-            a._suitGravity.SunkBelow = -0.7f;
-            a._suitGravity.PutBackAt = 0.25f;
+            a._suitGravity.SunkBelow = -0.25f;
+            a._suitGravity.PutBackAt = 0.2f;
             suitGo.SetActive(false);
             a.SuitDials = SuitConfig.Load();
             a.SuitTanks = new SuitSupplies(a.SuitDials.rules);
@@ -248,6 +278,8 @@ namespace OrbitalAnte.Ship
             // The small kick of the view when a limb pops (Milestone 2), as in the arena; Pause > Feel switches it off.
             _hitShake = Eye.gameObject.AddComponent<CameraShake>();
             Weapons.Initialize(_look, Eye, null, Armour, _world);
+            // The real game has no arena controller, so the gun's kick goes to the astronaut's own head.
+            Weapons.Recoil = _recoil;
             // The gun ladder's first gun (the rifle when the ladder is switched off). Kills climb it.
             Weapons.EquipIssued(Weapon.Create(OrbitalAnte.Combat.GunLadderFx.StartingGun(), _world, true));
             // A rare gun that blows up ends the run, like any other death, with the cause on the death page.
@@ -257,6 +289,10 @@ namespace OrbitalAnte.Ship
             Weapons.UpNow = () => Mode == AstronautMode.Outside ? Suit.rotation * Vector3.up
                 : Ship != null ? Ship.transform.up : Vector3.up;
             Weapons.InShip = () => Mode != AstronautMode.Outside;
+            // Floating free, a shot pushes you back like a melee hit does (Player/ZeroGKick). Only the suit's speed.
+            Weapons.FloatingFree = () => Mode == AstronautMode.Outside && Posture == Posture.Free;
+            Weapons.ShooterVelocity = () => Suit != null ? Suit.linearVelocity - _matchReference : Vector3.zero;
+            Weapons.PushBack = push => { if (Mode == AstronautMode.Outside && Suit != null) Suit.linearVelocity += push; };
 
             // The melee slot: empty until an item is found. Floating free, a hit pushes you back (by the struck
             // mass against yours, capped; only ever the suit's speed, never a turn of the view).
@@ -275,6 +311,8 @@ namespace OrbitalAnte.Ship
         void SetMode(AstronautMode mode)
         {
             Mode = mode;
+            // Sitting down or taking the wheel ends any kick still settling (no gun in those hands).
+            if (mode == AstronautMode.Seated || mode == AstronautMode.Driving) { _recoil.Clear(); _aimAssist.Clear(); }
             bool outside = mode == AstronautMode.Outside;
             Ship.CrewAboard = mode == AstronautMode.Aboard;
             if (!outside && Suit.gameObject.activeSelf) Suit.gameObject.SetActive(false);
@@ -304,7 +342,7 @@ namespace OrbitalAnte.Ship
 
             }
             GameInput.SetFlying(mode == AstronautMode.Seated && Ship.Belt.Buckled);
-            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; }
+            if (!outside && SuitDials != null) { Stances.Reset(); FitBody(); Sneaking = false; Hiding = false; }
         }
 
         void EnterSeat(bool instant)
@@ -551,6 +589,8 @@ namespace OrbitalAnte.Ship
                 if (Mode == AstronautMode.Aboard)
                 {
                     // Thrown about the cabin: for a moment you can do nothing but watch.
+                    // A gun's kick from this moment is lost in the tumble, not saved up for when you get up.
+                    _recoil.Clear();
                     PoseOnly();
                     _posed = true;
                     PoseBelt();
@@ -693,16 +733,19 @@ namespace OrbitalAnte.Ship
         /// <summary>How far the player turned their head this frame, in degrees (pitch positive is downward).</summary>
         void ReadLookRaw(float dt, out float yawDelta, out float pitchDelta)
         {
-            yawDelta = 0f;
-            pitchDelta = 0f;
+            // A gun's kick turns the head first (the rifle climbs while the trigger is held; Part B Milestone 3).
+            _recoil.Step(dt, out float kickUp, out float kickRight);
+            yawDelta = kickRight;
+            pitchDelta = -kickUp;
             Vector2 look = GameInput.Look.ReadValue<Vector2>();
-            if (look.sqrMagnitude <= 0f) return;
+            // A stick let go starts its next push with no slowdown left over.
+            if (look.sqrMagnitude <= 0f) { _aimAssist.Clear(); return; }
             InputControl control = GameInput.Look.activeControl;
             if (control != null && control.device is Pointer)
             {
                 // Mouse movement is already "distance moved this frame".
-                yawDelta = look.x * _look.mouseSensitivity;
-                pitchDelta = -look.y * _look.mouseSensitivity;
+                yawDelta += look.x * _look.mouseSensitivity;
+                pitchDelta += -look.y * _look.mouseSensitivity;
             }
             else
             {
@@ -711,9 +754,21 @@ namespace OrbitalAnte.Ship
                 Vector2 shaped = magnitude > 0.0001f ? look / magnitude * curved : Vector2.zero;
                 // Your own head does not slow when the world does (hitstop, Deep Breath).
                 float own = TimeFlow.PlayerDelta(dt);
-                yawDelta = shaped.x * _look.stickYawSpeed * own;
-                pitchDelta = -shaped.y * _look.stickPitchSpeed * own;
+                // Over an enemy the sticks turn a little slower, so a thumb can stop on it (never a pull).
+                float assist = AimAssistScale(own);
+                yawDelta += shaped.x * _look.stickYawSpeed * own * assist;
+                pitchDelta += -shaped.y * _look.stickPitchSpeed * own * assist;
             }
+        }
+
+        /// <summary>What the sticks' turning is multiplied by this frame: below 1 only over an enemy, with a gun out.</summary>
+        float AimAssistScale(float dt)
+        {
+            AimAssistRules rules = _look.aimAssist.Safe();
+            bool armed = Weapons != null && Weapons.enabled && Weapons.Current != null;
+            bool on = rules.enabled && FeelSettings.AimAssist && armed && (Mode == AstronautMode.Aboard || Mode == AstronautMode.Outside);
+            float closeness = on ? AimAssistProbe.BestCloseness(Eye.transform, Weapons.Current.Data.range, rules) : 0f;
+            return _aimAssist.Step(dt, closeness, rules);
         }
 
         void UpdateAboard(float dt)
@@ -856,6 +911,12 @@ namespace OrbitalAnte.Ship
             {
                 Prompt = Ship.Hatch.WantOpen ? Words(2, null, GameInput.Interact, ": close the hatch") : Words(3, null, GameInput.Interact, ": open the hatch");
                 if (GameInput.Interact.WasPressedThisFrame()) ToggleHatch();
+            }
+            else if (WorldOffers.Ask(eye, forward, dt, out string offered, out float held))
+            {
+                // Something of the world's (a crate, a supply pod) took the prompt and the press.
+                Prompt = offered;
+                if (held >= 0f) PromptProgress = held;
             }
             else if (!flying && RoverOffered(eye, forward, dt))
             {
@@ -1042,7 +1103,9 @@ namespace OrbitalAnte.Ship
             if (GameInput.Jump.WasPressedThisFrame())
             {
                 // A jump from a crouch stands you up and goes; from prone you only come up to a crouch.
-                if (Stances.RiseToJump(_roomFor)) _jumpQueued = true;
+                // Kept only on foot (or a moment off the ground): in real flight Jump is the jets, and a tap just
+                // before touching down from a jet descent must not turn into a hop.
+                if (Stances.RiseToJump(_roomFor) && _airborneFor < 0.3f) _jumpGrace.Press(Time.time);
                 if (Stances.Current != before) FitBody();
             }
 
@@ -1056,8 +1119,9 @@ namespace OrbitalAnte.Ship
             bool moving = onFoot && _walkingAt > 0.15f;
             bool shot = Weapons != null && Time.time - Weapons.LastShotTime < rules.shotLoudFor;
             // In the dark of a cave network you are picked out only from closer.
-            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules)
-                                         * OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            float dark = OrbitalAnte.Planets.CaveLight.VisibilityAt(transform.position + transform.up);
+            CombatWorld.PlayerSeenFrom = StanceState.SeenFrom(Stances.Current, moving || !onFoot, rules) * dark;
+            Hiding = onFoot && (Stances.Current != Stance.Stand || Sneaking || dark < 0.7f);
             CombatWorld.PlayerHeardFrom = StanceState.HeardFrom(Stances.Current, moving, Sneaking, _jetPush > 0.05f, shot, rules);
             // The laser sword's hum carries whatever stance you are in: no sneaking with it.
             if (Melee != null && Melee.isActiveAndEnabled) CombatWorld.PlayerHeardFrom = Mathf.Max(CombatWorld.PlayerHeardFrom, Melee.Noise);
@@ -1307,21 +1371,28 @@ namespace OrbitalAnte.Ship
                 : !hasBody ? Vector3.zero
                 : againstGround ? _system.GroundVelocityAt(body, Suit.position) : _system.VelocityOfSeenFrom(body, Suit.position);
             Vector3 relative = Suit.linearVelocity - reference;
+            _matchReference = reference;
 
             Vector3 jets = Vector3.zero;
             float factor = SuitTanks.PushFactor;
+            // A jump goes on the first step with footing inside the grace (a press just before landing, or just after
+            // stepping off an edge). Upright on foot only; floating free, Jump is the jets as always.
+            bool upright = Posture == Posture.Upright;
+            bool jumpNow = _jumpGrace.Take(Time.time, _grounded && upright) && upright && live;
+            float jumpSpeed = Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
             if (_grounded)
             {
+                _lastGroundVelocity = groundVelocity;
                 // On your feet: walking, and the push off for a jump. No jets, no fuel.
-                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f);
-                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace);
+                float pace = StanceState.SpeedOf(Stances.Current, Sneaking, SuitDials.stances) * (Melee != null ? Melee.WalkSlow : 1f) * Mathf.Clamp(CarryPace, 0.2f, 1f);
+                Vector3 wish = (frame * Vector3.right * move.x + frame * Vector3.forward * move.y) * (_config.outsideWalkSpeed * pace * Combat.RunEffects.Mods.Move);
                 Vector3 onGround = Suit.linearVelocity - groundVelocity;
                 Vector3 vertical = Vector3.Project(onGround, _up);
                 Vector3 level = Vector3.MoveTowards(onGround - vertical, wish, 40f * dt);
-                if (_jumpQueued)
+                if (jumpNow)
                 {
                     // The same push off whatever the gravity, so low gravity means high, slow jumps.
-                    vertical = _up * Mathf.Sqrt(2f * 9.81f * _config.outsideJumpHeight);
+                    vertical = _up * jumpSpeed;
                     _grounded = false;
                 }
                 Suit.linearVelocity = groundVelocity + level + vertical;
@@ -1329,6 +1400,12 @@ namespace OrbitalAnte.Ship
             }
             else
             {
+                if (jumpNow)
+                {
+                    // Just off an edge (coyote time): the same push off, measured against the ground just left.
+                    Vector3 rel = Suit.linearVelocity - _lastGroundVelocity;
+                    Suit.linearVelocity += _up * jumpSpeed - Vector3.Project(rel, _up);
+                }
                 if (matchHeld)
                 {
                     P3 push = Jetpack.Match(rules, new P3(relative.x, relative.y, relative.z), dt, factor);
@@ -1345,7 +1422,6 @@ namespace OrbitalAnte.Ship
                 }
                 if (jets.sqrMagnitude > 0f) Suit.AddForce(jets, ForceMode.Acceleration);
             }
-            _jumpQueued = false;
 
             // The nozzles that are lit, and what the push costs.
             float full = Mathf.Max(0.1f, rules.jetPush);
@@ -1512,6 +1588,7 @@ namespace OrbitalAnte.Ship
 
         void OnDestroy()
         {
+            if (Current == this) Current = null;
             if (Suit != null)
             {
                 var capsule = Suit.GetComponent<CapsuleCollider>();

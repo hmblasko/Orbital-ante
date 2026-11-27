@@ -51,6 +51,7 @@ namespace OrbitalAnte.Weapons
                 result.End = wallPoint;
                 var wallHit = new HitInfo { Damage = data.torsoDamage, Point = wallPoint, Direction = direction, Normal = wallNormal };
                 result.Outcome = boarded.HitPart(boarded.CabinPart, wallHit);
+                result.Outcome.SourceId = data.Id;
                 if (fx != null) fx.Impact(wallPoint, wallNormal, boarded.transform);
                 if (result.Outcome.Hit) CombatEvents.RaisePlayerHit(result.Outcome);
                 return result;
@@ -72,13 +73,14 @@ namespace OrbitalAnte.Weapons
             var part = target as BodyPart;
             var info = new HitInfo
             {
-                Damage = part != null ? data.DamageFor(part.Id) : data.torsoDamage,
+                Damage = (part != null ? data.DamageFor(part.Id) : data.torsoDamage) * Combat.RunEffects.GunShot(),
                 Point = hit.point,
                 Direction = direction,
                 Normal = hit.normal,
                 Lethal = data.oneHitKill,
             };
             result.Outcome = target.Hit(info);
+            result.Outcome.SourceId = data.Id;
 
             if (target is Weapon)
             {
@@ -122,7 +124,7 @@ namespace OrbitalAnte.Weapons
             if (health != null)
             {
                 result.HitPlayer = true;
-                health.TakeDamage(data.playerDamage, direction);
+                health.TakeDamage(Combat.RunEffects.Taken(health, data.playerDamage, hit.distance), direction);
             }
             else
             {

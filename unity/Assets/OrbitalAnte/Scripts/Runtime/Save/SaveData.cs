@@ -15,7 +15,7 @@ namespace OrbitalAnte.Save
     [Serializable]
     public sealed class SaveData
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         /// <summary>Which layout of this file was written. 0 means "not a save".</summary>
         public int version = CurrentVersion;
@@ -40,6 +40,16 @@ namespace OrbitalAnte.Save
         public List<EnvelopeTicket> unopenedEnvelopes = new List<EnvelopeTicket>();
         /// <summary>The player's collection, kept across runs.</summary>
         public List<OwnedItem> items = new List<OwnedItem>();
+
+        // ---- Run records (added in version 4, 20 Nov 2026: the run recap shows them) ----
+        /// <summary>The highest ante reached in any solar-system run (1 once one has been played).</summary>
+        public int bestAnte;
+        /// <summary>The best run score (points banked over a whole run).</summary>
+        public int bestRunScore;
+        /// <summary>Antes cleared over every run.</summary>
+        public int antesCleared;
+        /// <summary>Solar-system runs that have ended (by death, the clock or victory).</summary>
+        public int runsEnded;
     }
 
     /// <summary>Brings a save written by an older build up to the current layout, one version at a time.</summary>
@@ -67,6 +77,15 @@ namespace OrbitalAnte.Save
                 data.unopenedEnvelopes = new List<EnvelopeTicket>();
                 data.items = new List<OwnedItem>();
                 data.version = 3;
+            }
+            if (data.version == 3)
+            {
+                // Version 4 added run records; an older save has none yet.
+                data.bestAnte = 0;
+                data.bestRunScore = 0;
+                data.antesCleared = 0;
+                data.runsEnded = 0;
+                data.version = 4;
             }
             // JsonUtility leaves a missing list as null on some paths; never hand one out.
             if (data.unopenedEnvelopes == null) data.unopenedEnvelopes = new List<EnvelopeTicket>();

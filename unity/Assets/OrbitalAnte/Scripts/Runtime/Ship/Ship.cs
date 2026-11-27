@@ -404,6 +404,8 @@ namespace OrbitalAnte.Ship
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            // The hull and its outside fittings cast; the cabin inside them never does (its light is baked).
+            OrbitalAnte.Look.SunShadows.Cast(renderer, true);
 
             var part = parent.GetComponent<ShipPart>();
             if (part != null)

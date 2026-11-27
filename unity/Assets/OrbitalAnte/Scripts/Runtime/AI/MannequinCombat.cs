@@ -24,6 +24,12 @@ namespace OrbitalAnte.AI
         MannequinLocomotion _loco;
         MannequinRig _rig;
         MannequinConfig _cfg;
+
+        /// <summary>How much sooner this enemy reacts and how much truer it aims than its kind's settings (1 = as set;
+        /// set by the spawner from the ante's pressure, and changed on enemies already awake when an ante starts).</summary>
+        [System.NonSerialized] public float Sharpness = 1f;
+        float ReactionTime => _cfg.reactionTime * Sharpness;
+        float AimError => _cfg.aimError * Sharpness;
         SeededRandom _rng = new SeededRandom(7);
 
         int _gunSide = MannequinRig.Right;
@@ -113,6 +119,7 @@ namespace OrbitalAnte.AI
         public void Noticed()
         {
             _lastSaw = Time.time;
+            CombatWorld.PlayerLastSeenAt = _lastSaw;
             if (Squad != null) Squad.Saw(_lastSaw);
         }
 
@@ -390,7 +397,7 @@ namespace OrbitalAnte.AI
             _loco.Hold = false;
             _grabbing = null;
             _seesPlayer = false;
-            _heardAt = null;
+            _heardAt = null; _sentUntil = -1000f;
             _heardHolding = false;
         }
 
@@ -431,8 +438,13 @@ namespace OrbitalAnte.AI
                 // "Already" means the squad had the player before this moment, not a squadmate who looked a
                 // fraction of a second earlier in the same sighting.
                 if (now - _lastSaw > _cfg.chaseMemory)
+                {
                     FirstSight(now, Squad != null && Squad.SawWithin(now, _cfg.chaseMemory) && !Squad.SawWithin(now, 1f));
+                    // The visor's amber warning: this one has just picked the player out and fires after its beat.
+                    CombatWorld.RaisePlayerSpotted(head, FirstShotBeat(), now - CombatWorld.PlayerLastSeenAt >= _cfg.chaseMemory);
+                }
                 _lastSaw = now;
+                CombatWorld.PlayerLastSeenAt = now;
                 if (Squad != null) Squad.Saw(now);
             }
             if (_flare.Raising && CombatWorld.PlayerEye != null)
@@ -459,10 +471,10 @@ namespace OrbitalAnte.AI
                 if (hears && (_heardAt == null || now - _heardTime >= HeardEvery))
                 {
                     if (_heardAt == null && !chasing) _heardPauseUntil = now + HeardPause;
-                    _heardAt = CombatWorld.PlayerEye.position;
+                    _heardAt = CombatWorld.PlayerEye.position; _sentUntil = -1000f;
                     _heardTime = now;
                 }
-                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) _heardAt = null;
+                if (_heardAt != null && now - _heardTime > Mathf.Max(_cfg.chaseMemory, _alarmMemoryUntil - _heardTime)) { _heardAt = null; _sentUntil = -1000f; }
 
                 bool pausing = !chasing && _heardAt != null && now < _heardPauseUntil;
                 SetHeardBeat(pausing, _heardAt);
@@ -470,12 +482,16 @@ namespace OrbitalAnte.AI
                 else if (_heardAt != null && !pausing) _loco.Destination = _heardAt;
                 else _loco.Destination = null;
                 bool hunting = chasing || _heardAt != null;
-                _loco.Hurry = chasing && _cfg.rushes;
+                // Sent by a long quiet (SendToLook): it runs until it is near, then comes on low and careful.
+                _loco.Hurry = (chasing && _cfg.rushes)
+                              || (!chasing && _heardAt != null && !pausing && now < _sentUntil
+                                  && (transform.position - _heardAt.Value).sqrMagnitude > _sentWalkIn * _sentWalkIn);
                 // Coming to look for the player: low and careful, gun up.
                 _loco.Tactical = hunting ? _cfg.tacticalHunch : 0f;
                 return;
             }
             _heardAt = null;
+            _sentUntil = -1000f;
             SetHeardBeat(false, null);
             _loco.Tactical = _cfg.tacticalHunch;
             _lastSaw = now;
@@ -484,7 +500,7 @@ namespace OrbitalAnte.AI
             {
                 // Never an instant shot: there is always a beat between spotting the player and firing.
                 _seesPlayer = true;
-                _reactAt = now + _cfg.reactionTime;
+                _reactAt = now + ReactionTime;
                 _shootPhase = true;
                 _phaseEnd = now + Rand(1.5f, 2.6f);
             }
@@ -586,7 +602,7 @@ namespace OrbitalAnte.AI
             // Nothing to shoot with: get out of the line of fire, looking back over its shoulder while it can see
             // the player. It never knows where the player is through a hill.
             bool seen = CombatWorld.PlayerPresent && SeesPlayer();
-            if (seen) _lastSaw = Time.time;
+            if (seen) { _lastSaw = Time.time; CombatWorld.PlayerLastSeenAt = _lastSaw; }
             bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
             _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
             if (CombatWorld.PlayerPresent && (CombatWorld.FindCover != null || threatened))
@@ -844,7 +860,7 @@ namespace OrbitalAnte.AI
             Vector3 muzzle = Weapon.Muzzle.position;
             Vector3 toTarget = PlayerAimPoint - muzzle;
             if (toTarget.sqrMagnitude < 0.01f) toTarget = Weapon.Muzzle.forward;
-            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + _cfg.aimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
+            Vector3 direction = Ballistics.SpreadDirection(toTarget, (shot.SpreadDegrees + AimError) * (covering ? Dials.suppress.spreadScale : 1f), _rng);
 
             ShotResult result = Ballistics.FireFromEnemy(Weapon.Data, muzzle, direction);
             WeaponFx.GetOrCreate().Shot(Weapon.Data, muzzle, result.End);

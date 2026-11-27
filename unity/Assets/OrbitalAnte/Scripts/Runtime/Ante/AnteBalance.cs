@@ -14,6 +14,18 @@ namespace OrbitalAnte.Ante
         Hybrid = 2,
     }
 
+    /// <summary>
+    /// What a timer run-out short of the target does. Matthew chose Overtime on 21 Nov 2026 (the game ends only
+    /// when the player dies): the ante stays open and enemies hunt harder until the target is met; the break after
+    /// it is the usual one, perk pick included (Matthew, 21 Nov 2026).
+    /// EndRun is the old rule (TIME'S UP ends the run), kept for playtests.
+    /// </summary>
+    public enum MissedTarget
+    {
+        Overtime = 0,
+        EndRun = 1,
+    }
+
     /// <summary>Whether clearing the last ante also gives a scratch-off. Matthew chose between antes only on 14 Nov 2026.</summary>
     public enum FinalScratchTiming
     {
@@ -57,6 +69,8 @@ namespace OrbitalAnte.Ante
         BaseRetakeMission = 17,
         /// <summary>One piece of salvage brought back to the base. Pays once per piece.</summary>
         SalvageDelivered = 18,
+        /// <summary>An enemy installation brought down (a signal mast, 20 Nov 2026). Pays once per installation.</summary>
+        InstallationDestroyed = 19,
     }
 
     public enum PlayerAttribute
@@ -95,8 +109,13 @@ namespace OrbitalAnte.Ante
     public sealed class AnteBalance
     {
         // ---- Run structure ----
-        /// <summary>Score needed to clear each ante. The number of entries is the number of antes.</summary>
-        public int[] anteTargets = { 850, 1100, 1450, 1850, 2350, 3000, 3700, 4550, 5500 };
+        /// <summary>
+        /// Score needed to clear each ante. The number of entries is the number of antes. Matthew (20 Nov 2026) chose
+        /// targets that ask for more real effort as the ante rises: divided by the value scale K(ante), ante 4 asks
+        /// about 1.6 times the effort of ante 1 (effort 850, 1100, 1250, 1360, 1500, 1600, 1700, 1800, 1900), so
+        /// first-time players tend to run out of time around ante 3 to 4 until enemies get tougher with the ante.
+        /// </summary>
+        public int[] anteTargets = { 850, 1370, 1950, 2650, 3600, 4680, 5980, 7530, 9350 };
         /// <summary>How much more every action is worth each ante: K(a) = 1 + linear*(a-1) + quadratic*(a-1)^2.</summary>
         public float valueScaleLinear = 0.21f;
         public float valueScaleQuadratic = 0.035f;
@@ -107,6 +126,14 @@ namespace OrbitalAnte.Ante
         public float stopwatchMaxPerAnte = 90f;
         public AnteEndCondition endCondition = AnteEndCondition.Hybrid;
         public FinalScratchTiming finalScratch = FinalScratchTiming.BetweenAntesOnly;
+        /// <summary>A timer run-out short of the target (Matthew, 21 Nov 2026: Overtime).</summary>
+        public MissedTarget missedTarget = MissedTarget.Overtime;
+        /// <summary>In overtime, how often the enemies near you are told where you are (seconds).</summary>
+        public float overtimeHuntEvery = 15f;
+        /// <summary>In overtime, how far that call carries (metres). Only enemies already awake near you hear it.</summary>
+        public float overtimeHuntRadius = 140f;
+        /// <summary>After the last ante, "Keep going" antes each ask this much more than the one before (21 Nov 2026).</summary>
+        public float endlessTargetGrowth = 1.25f;
 
         // ---- Award multipliers ----
         public float perkScoreBonusCap = 0.25f;
@@ -143,13 +170,21 @@ namespace OrbitalAnte.Ante
         /// See docs/design/ante-point-system.md.
         /// </summary>
         public int salvageDelivered = 240;
+        /// <summary>A signal mast brought down (20 Nov 2026, first guess): the size of a satellite repair, a short job done under fire.</summary>
+        public int installationDestroyed = 180;
 
         // ---- Anti-farm caps (my provisional numbers; the handoff says "with caps" without giving them) ----
         public int underThreatRecoveriesPerAnte = 3;
         public int retakeMissionsPerBasePerRun = 2;
+        /// <summary>Hard landings that pay in one ante (20 Nov 2026, mine): hopping from spot to spot must not beat fighting.</summary>
+        public int difficultLandingsPerAnte = 3;
 
         // ---- Attributes ----
         public int maxAttributeLevel = 4;
+        /// <summary>Shop prices are multiplied by the ante's value scale, like every award (21 Nov 2026).</summary>
+        public bool shopPricesFollowValue = true;
+        /// <summary>First perk reroll's price at ante 1 (times the ante's value, doubling each time; 0 turns rerolls off).</summary>
+        public int perkRerollPrice = 150;
         public int[] damagePrices = { 250, 450, 700, 1000 };
         public int[] movementPrices = { 250, 450, 700, 1000 };
         public int[] oxygenPrices = { 200, 350, 550, 800 };
@@ -181,6 +216,41 @@ namespace OrbitalAnte.Ante
         public int scratchSmallCash = 150;
         public int scratchBigCash = 300;
 
+        // ---- The ante break, families, hazards and tougher antes (20 Nov 2026, roguelite fun pass; my numbers, not playtested) ----
+        /// <summary>Points to spend for passing on all three perks.</summary>
+        public int perkSkipCash = 250;
+        /// <summary>How many perks of one family turn on its bonus.</summary>
+        public int familySetSize = 3;
+        /// <summary>Health share under which "low health" perks work (0.3 is under 30%).</summary>
+        public float lowHealthLine = 0.30f;
+        /// <summary>What "close" means for close-range perks, in metres.</summary>
+        public float closeRange = 8f;
+        /// <summary>The LONG SHOT distance the perk text quotes; the task rules hold the real one.</summary>
+        public float longShotMetres = 60f;
+        /// <summary>Hunted: enemies react and aim this much sharper (their reaction time and aim error are multiplied by it).</summary>
+        public float huntedSharpness = 0.75f;
+        /// <summary>Hunted: extra share of plain enemies that wake as the heavy kind.</summary>
+        public float huntedHeavyShare = 0.20f;
+        /// <summary>Each hazard's own points multiplier (design review, 20 Nov 2026: the costs differ), held to riskMax.</summary>
+        public float huntedRisk = 1.25f;
+        public float thinAirRisk = 1.10f;
+        public float shortFuseRisk = 1.20f;
+        /// <summary>Thin Air: health comes back at this share of its usual speed (21 Nov 2026: none at all was a trap in the run simulator).</summary>
+        public float thinAirRegen = 0.5f;
+        /// <summary>How much more likely a perk of a family the player already holds is to be offered (2 is twice as likely).</summary>
+        public float heldFamilyWeight = 2f;
+        /// <summary>Short fuse: seconds taken off the ante.</summary>
+        public float shortFuseSeconds = 60f;
+        /// <summary>Tougher antes: each ante after the first multiplies enemy reaction time and aim error by this.</summary>
+        public float sharpnessPerAnte = 0.95f;
+        /// <summary>Tougher antes: they never get sharper than this.</summary>
+        public float sharpnessFloor = 0.65f;
+        /// <summary>Tougher antes: from this ante on, some plain enemies wake as the heavy kind.</summary>
+        public int heavyFromAnte = 4;
+        /// <summary>Share of plain enemies that wake as the heavy kind for each ante from <see cref="heavyFromAnte"/>.</summary>
+        public float heavySharePerAnte = 0.08f;
+        public float heavyShareMax = 0.40f;
+
         // ---- Starting resources (prototype values only; nothing reads these yet) ----
         public float playerHp = 100f;
         public float shipHull = 160f;
@@ -200,6 +270,17 @@ namespace OrbitalAnte.Ante
             if (AnteCount == 0) return 0;
             int index = Math.Max(0, Math.Min(AnteCount - 1, ante - 1));
             return anteTargets[index];
+        }
+
+        /// <summary>
+        /// The target for any ante, past the last one too: after the listed antes each asks
+        /// <see cref="endlessTargetGrowth"/> times the one before, rounded to 10 (for "Keep going" runs).
+        /// </summary>
+        public int EndlessTargetFor(int ante)
+        {
+            if (AnteCount == 0 || ante <= AnteCount) return TargetFor(ante);
+            double t = anteTargets[AnteCount - 1] * Math.Pow(Math.Max(1.0, endlessTargetGrowth), ante - AnteCount);
+            return (int)Math.Min(int.MaxValue - 10, Math.Round(t / 10.0, MidpointRounding.AwayFromZero) * 10.0);
         }
 
         public int BasePoints(ScoreEventKind kind)
@@ -223,6 +304,7 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.DifficultLanding: return difficultLanding;
                 case ScoreEventKind.UnderThreatRecovery: return underThreatRecovery;
                 case ScoreEventKind.SalvageDelivered: return salvageDelivered;
+                case ScoreEventKind.InstallationDestroyed: return installationDestroyed;
                 // Missions carry their own value, kept inside the allowed range by the score service.
                 case ScoreEventKind.OptionalMission:
                 case ScoreEventKind.BaseRetakeMission: return optionalMissionMin;
@@ -239,7 +321,8 @@ namespace OrbitalAnte.Ante
                 case ScoreEventKind.EnemyTier3:
                 case ScoreEventKind.EnemyElite:
                 case ScoreEventKind.ShipDestroyed:
-                case ScoreEventKind.ShipHijacked: return ScoreCategory.Combat;
+                case ScoreEventKind.ShipHijacked:
+                case ScoreEventKind.InstallationDestroyed: return ScoreCategory.Combat;
                 case ScoreEventKind.BountyDead:
                 case ScoreEventKind.BountyAlive: return ScoreCategory.Bounty;
                 case ScoreEventKind.NewMoon:

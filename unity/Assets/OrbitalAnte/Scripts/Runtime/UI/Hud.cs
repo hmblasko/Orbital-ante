@@ -18,7 +18,10 @@ namespace OrbitalAnte.UI
         Text _frameText;
         Text _aimText;
         Text _helpText;
-        bool _debugVisible = true;
+        // The debug readout (frame times, seed, gore counts, the solar system's numbers) is a tool for building the
+        // game, not part of it (Matthew, 21 Nov 2026: the white statistics on screen "completely gone"). It starts
+        // hidden, and F3 shows it only in the editor and development builds.
+        bool _debugVisible;
 
         float _frameAccumulator;
         int _frameCount;
@@ -81,7 +84,7 @@ namespace OrbitalAnte.UI
             _helpText = UiKit.Label(_arenaOnly, string.Empty, 17, UiKit.Cream, TextAnchor.LowerLeft, FontStyle.Normal);
             UiKit.Pin((RectTransform)_helpText.transform, new Vector2(0f, 0f), new Vector2(14f, 10f), new Vector2(700f, 54f));
             AddShadow(_helpText);
-            _helpText.text = "Respawn dummies: T     Switch gun: 1 or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start     Debug readout: F3";
+            _helpText.text = "Respawn dummies: T     Switch gun: 1 or D-Pad Up     Enemies hold fire: H or D-Pad Down     Pause: Esc or Start";
 
             // Full-screen red flash when the player is hit. Drawn first so everything else sits on top of it.
             var flash = UiKit.NewRect("HurtFlash", _arenaOnly);
@@ -130,10 +133,12 @@ namespace OrbitalAnte.UI
         {
             if (_canvas == null || !_canvas.gameObject.activeSelf) return;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (GameInput.Asset != null && GameInput.ToggleDebug.WasPressedThisFrame())
             {
                 _debugVisible = !_debugVisible;
             }
+#endif
 
             _frameText.enabled = _debugVisible;
             _aimText.enabled = _debugVisible;
@@ -242,7 +247,7 @@ namespace OrbitalAnte.UI
         static string FinishReadout()
         {
             var finish = OrbitalAnte.Look.PostFx.Instance;
-            return finish != null ? "\nPicture finish: " + finish.Status : string.Empty;
+            return (finish != null ? "\nPicture finish: " + finish.Status : string.Empty) + "\nSun shadows: " + OrbitalAnte.Look.SunShadows.Status;
         }
 
         /// <summary>How many enemies and guns are being watched, and how many of them are drawn as their far copies.</summary>

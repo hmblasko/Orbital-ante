@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrbitalAnte.Core;
+using OrbitalAnte.Melee;
 using OrbitalAnte.Weapons;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -37,17 +38,30 @@ namespace OrbitalAnte.Player
         public Weapon Current { get; private set; }
         /// <summary>When the player last fired (Time.time), for how far off a shot is heard.</summary>
         public float LastShotTime { get; private set; } = -100f;
-        /// <summary>What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable.</summary>
-        public IHittable AimedAt { get; private set; }
+        /// <summary>
+        /// What the crosshair is resting on, for the debug readout. Null when aiming at nothing hittable. Only the F3
+        /// debug line reads it, so the ray is cast when it is asked for (at most once a frame), not every frame.
+        /// </summary>
+        public IHittable AimedAt
+        {
+            get
+            {
+                if (_aimedFrame != Time.frameCount)
+                {
+                    _aimedFrame = Time.frameCount;
+                    _aimedAt = FindAimed();
+                }
+                return _aimedAt;
+            }
+        }
+        IHittable _aimedAt;
+        int _aimedFrame = -1;
         /// <summary>A dropped gun close enough to pick up, or null.</summary>
         public Weapon NearbyPickup { get; private set; }
         /// <summary>How good a pick-up <see cref="NearbyPickup"/> is (lower is better: degrees off the view plus ten a metre).</summary>
         public float NearbyPickupScore { get; private set; } = float.MaxValue;
-        /// <summary>
-        /// Asked before Interact takes the gun on the ground, with its score: true when something else the player
-        /// could take is better (a melee item lying closer to the crosshair), so one press takes only one thing.
-        /// </summary>
-        public System.Func<float, bool> YieldPickup;
+        // Paired by PlayerMelee.Initialize on the player's eye.
+        internal PlayerMelee MeleeSlot { get; set; }
         /// <summary>Guns carried but not in hand (the ladder's earlier guns), next out first.</summary>
         public IReadOnlyList<Weapon> Carried => _carried;
         /// <summary>
@@ -75,6 +89,22 @@ namespace OrbitalAnte.Player
         /// astronaut; a gun handed over later follows it.
         /// </summary>
         public bool Indoors { get; set; }
+
+        /// <summary>
+        /// Where the view's kick goes when there is no arena <see cref="FpsController"/> (the astronaut in the real
+        /// game). Null means no kick.
+        /// </summary>
+        public ViewRecoil Recoil { get; set; }
+
+        /// <summary>
+        /// True while the shooter floats free with no pull to stand against (the astronaut outside, Posture.Free).
+        /// Null or false: shots never push (the arena, the ground, aboard).
+        /// </summary>
+        public Func<bool> FloatingFree;
+        /// <summary>The shooter's speed now, for the drift cap of <see cref="ZeroGKick"/>.</summary>
+        public Func<Vector3> ShooterVelocity;
+        /// <summary>Adds a push to the shooter's speed (metres per second, world space).</summary>
+        public Action<Vector3> PushBack;
 
         /// <summary>
         /// The gun the run itself gave the player (the starting gun, or the gun ladder's latest), as the object.
@@ -229,12 +259,17 @@ namespace OrbitalAnte.Player
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            UpdateAim();
             UpdatePickup();
 
             bool canAct = _health == null || _health.Alive;
-            if (canAct && NearbyPickup != null && GameInput.Interact.WasPressedThisFrame()
-                && (YieldPickup == null || !YieldPickup(NearbyPickupScore)))
+            bool take = canAct && GameInput.Interact != null && GameInput.Interact.WasPressedThisFrame();
+            // Compare both slots from this view before equipping anything changes the set of dropped items.
+            if (MeleeSlot != null && MeleeSlot.isActiveAndEnabled && MeleeSlot.UpdatePickup(NearbyPickupScore, take))
+            {
+                NearbyPickup = null;
+                NearbyPickupScore = float.MaxValue;
+            }
+            else if (take && NearbyPickup != null)
             {
                 Equip(NearbyPickup);
             }
@@ -252,15 +287,16 @@ namespace OrbitalAnte.Player
             }
         }
 
-        void UpdateAim()
+        IHittable FindAimed()
         {
-            AimedAt = null;
+            if (_eye == null) return null;
             float range = Current != null ? Current.Data.range : 100f;
             var ray = new Ray(_eye.transform.position, _eye.transform.forward);
             if (Physics.Raycast(ray, out RaycastHit hit, range, Layers.ShootMask, QueryTriggerInteraction.Ignore))
             {
-                AimedAt = hit.collider.GetComponentInParent<IHittable>();
+                return hit.collider.GetComponentInParent<IHittable>();
             }
+            return null;
         }
 
         void UpdatePickup()
@@ -344,8 +380,25 @@ namespace OrbitalAnte.Player
                 {
                     _controller.AddRecoil(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
                 }
+                else if (Recoil != null)
+                {
+                    Recoil.Kick(data.recoilPitch * shot.RecoilScale, yaw, data.recoilReturn, data.recoilRecovery);
+                }
+                PushShooter(data.recoilPitch, shot.RecoilScale);
                 _kick = 1f;
             }
+        }
+
+        /// <summary>Floating free, the shot pushes the shooter back along the line of fire (<see cref="ZeroGKick"/>).</summary>
+        void PushShooter(float recoilPitch, float recoilScale)
+        {
+            if (PushBack == null || FloatingFree == null || _config == null || !FloatingFree()) return;
+            float push = ZeroGKick.ShotPush(_config.zeroGKick, recoilPitch, recoilScale);
+            if (push <= 0f) return;
+            Vector3 back = -_eye.transform.forward;
+            float along = ShooterVelocity != null ? Vector3.Dot(ShooterVelocity(), back) : 0f;
+            float given = ZeroGKick.Applied(_config.zeroGKick, push, along);
+            if (given > 0f) PushBack(back * given);
         }
 
         static SeededRandom FreshBackfireRolls() => new SeededRandom(unchecked((int)DateTime.UtcNow.Ticks ^ (int)(DateTime.UtcNow.Ticks >> 32)));

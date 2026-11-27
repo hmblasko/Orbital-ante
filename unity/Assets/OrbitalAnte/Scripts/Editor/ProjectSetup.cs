@@ -8,6 +8,7 @@ using OrbitalAnte.Gore;
 using OrbitalAnte.Player;
 using OrbitalAnte.Weapons;
 using UnityEditor;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -76,6 +77,8 @@ namespace OrbitalAnte.EditorTools
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Tasks.TaskConfig>(ConfigFolder + "/TaskConfig.asset") == null
+                   || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Ante.AnteBalanceData>(ConfigFolder + "/AnteBalance.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Look.LookConfig>(ConfigFolder + "/LookConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<OrbitalAnte.Items.EnvelopeConfig>(ConfigFolder + "/EnvelopeConfig.asset") == null
                    || AssetDatabase.LoadAssetAtPath<WeaponData>(WeaponsFolder + "/" + WeaponData.RifleId + ".asset") == null
@@ -106,6 +109,40 @@ namespace OrbitalAnte.EditorTools
             catch (Exception e)
             {
                 Debug.LogError("Orbital Ante: setup failed: " + e);
+            }
+            EditorApplication.Exit(code);
+        }
+
+        /// <summary>Builds the native Linux playtest player after setup has finished in a previous editor process.</summary>
+        public static void BuildDeckPlaytest()
+        {
+            int code = 1;
+            try
+            {
+                const BuildTarget target = BuildTarget.StandaloneLinux64;
+                if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, target))
+                    throw new InvalidOperationException("Install Linux Build Support for this editor in Unity Hub.");
+                string output = Environment.GetEnvironmentVariable("OA_DECK_EXECUTABLE");
+                if (string.IsNullOrEmpty(output) || !Path.IsPathRooted(output))
+                    throw new InvalidOperationException("Run tools/build_deck.py to set the player output path.");
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+                    throw new InvalidOperationException("The startup scene is missing after setup: " + ScenePath);
+
+                BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = output,
+                    target = target,
+                    subtarget = (int)StandaloneBuildSubtarget.Player,
+                    options = BuildOptions.Development | BuildOptions.StrictMode
+                });
+                if (report == null || report.summary.result != BuildResult.Succeeded)
+                    throw new InvalidOperationException("Linux player build failed. See the build log for details.");
+                code = 0;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Orbital Ante: " + e);
             }
             EditorApplication.Exit(code);
         }
@@ -161,6 +198,9 @@ namespace OrbitalAnte.EditorTools
             Step("layer names", problems, SetUpLayerNames);
             Step("player settings", problems, SetUpPlayerSettings);
             Step("fog in builds", problems, SetUpFogInBuilds);
+            Step("sky picture", problems, SkyTextureImportRules.Ensure);
+            Step("planet pictures", problems, PlanetTextureImportRules.Ensure);
+            Step("sun shadows", problems, SetUpSunShadows);
             Step("test arena scene", problems, () => SetUpScene(interactive));
             Step("input system", problems, () => needsRestart = SetUpInputHandling());
 
@@ -330,6 +370,9 @@ namespace OrbitalAnte.EditorTools
             CreateAssetIfMissing<OrbitalAnte.Enemies.EnemyConfig>(ConfigFolder + "/EnemyConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Combat.DeepBreathConfig>(ConfigFolder + "/DeepBreathConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Combat.GunLadderConfig>(ConfigFolder + "/GunLadderConfig.asset");
+            // The ante loop and its tasks (20 Nov 2026): points, targets and timer, then the tasks' own dials.
+            CreateAssetIfMissing<OrbitalAnte.Ante.AnteBalanceData>(ConfigFolder + "/AnteBalance.asset");
+            CreateAssetIfMissing<OrbitalAnte.Tasks.TaskConfig>(ConfigFolder + "/TaskConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Rover.RoverConfig>(ConfigFolder + "/RoverConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Creatures.CreatureConfig>(ConfigFolder + "/CreatureConfig.asset");
             CreateAssetIfMissing<OrbitalAnte.Melee.MeleeConfig>(ConfigFolder + "/MeleeConfig.asset");
@@ -584,6 +627,30 @@ namespace OrbitalAnte.EditorTools
         /// only keeps the fog parts of shaders in a build if it sees fog used in a scene, so without this a built
         /// game would have no haze at all while the editor looked fine. This tells it to always keep them.
         /// </summary>
+        static void SetUpSunShadows()
+        {
+            // The Sun's cast shadows (the Look asset's Sun Shadows). The game sets the same things while it runs
+            // (SunShadows.Apply), but a built game only keeps the shader versions that the saved pipeline asset
+            // says it uses, so they are saved here too.
+            RenderPipelineAsset pipeline = GraphicsSettings.defaultRenderPipeline;
+            if (pipeline == null) return;
+            var serialized = new SerializedObject(pipeline);
+            SetIfThere(serialized, "m_MainLightShadowsSupported", p => p.boolValue = true);
+            SetIfThere(serialized, "m_SoftShadowsSupported", p => p.boolValue = true);
+            SetIfThere(serialized, "m_ShadowDistance", p => p.floatValue = OrbitalAnte.Planets.SunShadowRules.Distance(OrbitalAnte.Look.LookConfig.Load().shadowDistance));
+            SetIfThere(serialized, "m_ShadowCascadeCount", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Cascades);
+            SetIfThere(serialized, "m_Cascade2Split", p => p.floatValue = OrbitalAnte.Planets.SunShadowRules.NearShare);
+            SetIfThere(serialized, "m_MainLightShadowmapResolution", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.Resolution);
+            SetIfThere(serialized, "m_SoftShadowQuality", p => p.intValue = OrbitalAnte.Planets.SunShadowRules.SoftQuality);
+            if (serialized.ApplyModifiedPropertiesWithoutUndo()) EditorUtility.SetDirty(pipeline);
+        }
+
+        static void SetIfThere(SerializedObject serialized, string name, Action<SerializedProperty> set)
+        {
+            SerializedProperty property = serialized.FindProperty(name);
+            if (property != null) set(property);
+        }
+
         static void SetUpFogInBuilds()
         {
             var settings = new SerializedObject(GraphicsSettings.GetGraphicsSettings());

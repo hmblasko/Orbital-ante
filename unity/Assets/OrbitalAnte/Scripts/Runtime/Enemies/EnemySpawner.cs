@@ -34,14 +34,44 @@ namespace OrbitalAnte.Enemies
             public bool[][] Gone;
             public bool[] Awake;
             public Transform Root;
+            /// <summary>For each camp, the base it guards (its index in PlanetBases.SitesOn), or -1.</summary>
+            public int[] BaseOf;
+            /// <summary>For each camp that guards a base, the base's size (0 small, 1 medium, 2 large).</summary>
+            public int[] BaseSize;
         }
+
+        /// <summary>
+        /// One enemy out of the fight for good (killed, or beaten down to a rolling head), with its seeded place in
+        /// the world, so the ante tasks can score it once under an id that survives a reload.
+        /// </summary>
+        public struct EnemyDown
+        {
+            public Mannequin Who;
+            public int Body, Camp, Member;
+            public string BodyId, TypeId, Faction;
+            public float Scale;
+            /// <summary>The base its camp guards, or -1.</summary>
+            public int BaseIndex;
+            public int BaseSize;
+            /// <summary>How many of its camp are still to be fought after this one.</summary>
+            public int CampLeft;
+        }
+
+        /// <summary>Raised once per enemy, the first time it is counted out of the fight.</summary>
+        public static event System.Action<EnemyDown> Down;
+        /// <summary>Raised when a member of a camp stands up near the player: body, camp, member, and the character.</summary>
+        public static event System.Action<int, int, int, Mannequin> Woke;
+        public static void ResetStatics() { Down = null; Woke = null; Pressure = new Ante.EnemyPressure { Sharpness = 1f }; PressureAnte = 1; PressureSeed = 0; }
 
         sealed class Live
         {
             public Mannequin Who;
             public int Body, Camp, Member;
+            /// <summary>The kind it woke as (a plain enemy can wake as a heavy in a later ante, 20 Nov 2026).</summary>
+            public int Type = -1;
             public bool Counted;
             public Weapon Gun;
+            public MannequinCombat Combat;
         }
 
         SolarSystemWorld _world;
@@ -52,6 +82,13 @@ namespace OrbitalAnte.Enemies
         Vector3 _gravityBefore;
         bool _gravityTaken;
         float _nextThink;
+        readonly LullClock _lull = new LullClock();
+        float _lullTickedAt = -1f;
+        SeededRandom _lullRandom;
+        /// <summary>The camp last woken for a lull (-1 none): it is called once it stands, and nothing else wakes for the lull meanwhile.</summary>
+        World _lullWorld;
+        int _lullCamp = -1;
+        float _lullCampUntil;
         GibManager _gibs;
 
         void OnWorldShifted(Vector3 by)
@@ -141,18 +178,28 @@ namespace OrbitalAnte.Enemies
                 w = new World { Camps = EnemyField.Build(_config.field, _config.roster, random, radius, dry, pad, _config.factions, surface.Body.Spec.id) };
                 // Every base has its guards, standing on its floor.
                 IReadOnlyList<BaseSite> sites = _world.Bases != null ? _world.Bases.SitesOn(body) : null;
+                var baseOf = new List<int>();
+                var baseSize = new List<int>();
+                for (int i = 0; i < w.Camps.Count; i++) { baseOf.Add(-1); baseSize.Add(0); }
                 if (sites != null)
                 {
                     BaseFieldRules baseRules = _world.Bases.Rules;
                     for (int i = 0; i < sites.Count; i++)
+                    {
                         EnemyField.AddGarrison(w.Camps, _config.field, _config.roster, random, radius, sites[i].Up, sites[i].FloorRadius, baseRules.Guards(sites[i].Size), (int)sites[i].Size,
                             _config.factions, surface.Body.Spec.id);
+                        // Whatever camps the garrison added guard this base.
+                        while (baseOf.Count < w.Camps.Count) { baseOf.Add(i); baseSize.Add((int)sites[i].Size); }
+                    }
                 }
                 // The rooms of cave networks where enemies live, from a stream of their own so the camps above
                 // the ground stay where they were before there were networks.
                 var caveRandom = GameSession.Stream("enemies.caves." + surface.Body.Spec.id);
                 for (int c = 0; c < terrain.Caves.Count; c++)
                     if (terrain.Caves[c].Network != null) EnemyField.AddCaveCamps(w.Camps, _config.roster, caveRandom, terrain.Caves[c].Network, _config.factions, surface.Body.Spec.id);
+                while (baseOf.Count < w.Camps.Count) { baseOf.Add(-1); baseSize.Add(0); }
+                w.BaseOf = baseOf.ToArray();
+                w.BaseSize = baseSize.ToArray();
                 w.Left = new int[w.Camps.Count];
                 w.Awake = new bool[w.Camps.Count];
                 w.Gone = new bool[w.Camps.Count][];
@@ -183,6 +230,7 @@ namespace OrbitalAnte.Enemies
             CombatWorld.Player = crew.Armour;
 
             Tally();
+            ApplySharpness();
             WakeNext();
             if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.4f;
@@ -212,6 +260,7 @@ namespace OrbitalAnte.Enemies
                     {
                         w.Gone[l.Camp][l.Member] = true;
                         w.Left[l.Camp]--;
+                        RaiseDown(w, l);
                     }
                     // The body lies where it fell for a while, then is cleared away, and its gun with it
                     // unless somebody has picked the gun up.
@@ -282,13 +331,18 @@ namespace OrbitalAnte.Enemies
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
+            LullAction lull = Restless(w);
             if (w == null || height > _config.field.wakeRange) return;
 
             // Wake the nearest sleeping camp that still has anyone in it, one a think, so the cost is spread.
             // A base's guards come first, and room is kept for the guards of a base the player is heading for:
             // nobody should reach an empty base and have its guards appear round them.
             int best = -1, bestGuards = -1, held = 0;
-            double nearest = _config.field.wakeRange, nearestGuards = _config.field.wakeRange, nearestHeld = _config.field.sleepRange;
+            // After a long quiet with nobody standing near, a camp further off may wake (Restless, below).
+            double nearest = lull == LullAction.WakeFurther
+                    ? System.Math.Max(_config.field.wakeRange, System.Math.Min(_config.lull.wakeReach, _config.field.sleepRange * 0.95))
+                    : _config.field.wakeRange,
+                nearestGuards = _config.field.wakeRange, nearestHeld = _config.field.sleepRange;
             for (int c = 0; c < w.Camps.Count; c++)
             {
                 if (w.Awake[c] || w.Left[c] == 0) continue;
@@ -309,9 +363,12 @@ namespace OrbitalAnte.Enemies
                 held = 0;
             }
             if (best < 0) return;
+            // A lull's wake is remembered, so its squad is the one called once it stands, however far it measures.
+            bool forLull = lull == LullAction.WakeFurther && bestGuards < 0 && w.Camps[best].HomeRadius <= 0;
             // The fallen still lying about count too: they cost as much to draw as the living.
             if (PresentCount + w.Left[best] + held > _config.field.liveCap) return;
             w.Awake[best] = true;
+            if (forLull) { _lullWorld = w; _lullCamp = best; _lullCampUntil = Time.time + 10f; }
             _wakingWorld = w;
             _wakingSurface = surface;
             _wakingBody = body;
@@ -349,6 +406,92 @@ namespace OrbitalAnte.Enemies
             }
         }
 
+        /// <summary>
+        /// Restless camps (<see cref="LullRules"/>): keeps the quiet clock, and when it runs out sends the nearest
+        /// standing squad to look where the player is. Answers WakeFurther when nobody is standing near enough.
+        /// </summary>
+        LullAction Restless(World w)
+        {
+            float now = Time.time;
+            float dt = _lullTickedAt < 0f ? 0f : now - _lullTickedAt;
+            _lullTickedAt = now;
+            Transform eye = CombatWorld.PlayerEye;
+            if (w == null || eye == null)
+            {
+                _lull.Reset();
+                return LullAction.Wait;
+            }
+            LullRules rules = _config.lull;
+            float reach = rules != null ? rules.callReach : 0f;
+            float best = reach * reach;
+            Live callee = null, woken = null;
+            bool fighting = false;
+            Vector3 at = eye.position;
+            if (_lullWorld != null && (_lullWorld != w || _lullCamp < 0 || !_lullWorld.Awake[_lullCamp] || _lullWorld.Left[_lullCamp] == 0))
+            { _lullWorld = null; _lullCamp = -1; }
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive || l.Who.State == MovementState.HeadOnly) continue;
+                if (l.Combat.AwareOfPlayer) { fighting = true; break; }
+                // The camp woken for this lull answers it whatever the straight-line distance (it was woken over the ground).
+                if (_lullWorld != null && _worlds.TryGetValue(l.Body, out World ww) && ww == _lullWorld && l.Camp == _lullCamp)
+                {
+                    float dw = (l.Who.transform.position - at).sqrMagnitude;
+                    if (woken == null || dw < (woken.Who.transform.position - at).sqrMagnitude) woken = l;
+                    continue;
+                }
+                // A base's or a cave's guards keep their posts: only camps out in the open answer a lull.
+                if (_worlds.TryGetValue(l.Body, out World lw) && lw.Camps[l.Camp].HomeRadius > 0) continue;
+                float d = (l.Who.transform.position - at).sqrMagnitude;
+                if (d < best) { best = d; callee = l; }
+            }
+            // Driving, the clock stands still: a squad sent to a place long driven past, or a camp woken far off and
+            // put back to sleep a moment later, is wasted. Hiding stands it still too.
+            Astronaut crew = _world.Astronaut;
+            bool hiding = crew != null && (crew.Hiding || crew.Mode == AstronautMode.Driving);
+            // While the lull's camp is still standing up (a few seconds at most), the clock waits: no second camp wakes.
+            if (_lullWorld != null && woken == null && !fighting)
+            {
+                if (now < _lullCampUntil) return LullAction.Wait;
+                _lullWorld = null;
+                _lullCamp = -1;
+            }
+            if (woken != null && !fighting) { callee = woken; best = (woken.Who.transform.position - at).sqrMagnitude; }
+            LullAction action = _lull.Tick(rules, PressureAnte, dt, true, fighting, hiding, callee != null);
+            if (action != LullAction.Call || callee == null) return action;
+            _lullWorld = null;
+            _lullCamp = -1;
+            // The callee's whole squad comes (or, with no squad, those right beside it), each remembering the
+            // place for long enough to get there. The place is near the player, not on them: a patrol drifting
+            // their way, not a squad that knows.
+            Vector3 from = callee.Who.transform.position;
+            float radius = Mathf.Max(1f, rules.callRadius);
+            if (_lullRandom == null) _lullRandom = SeededRandom.ForStream(PressureSeed, "enemies.lull");
+            Vector3 up = callee.Who.transform.up;
+            Vector3 side = Vector3.ProjectOnPlane(new Vector3((float)_lullRandom.NextDouble() - 0.5f, (float)_lullRandom.NextDouble() - 0.5f,
+                                                              (float)_lullRandom.NextDouble() - 0.5f), up);
+            if (side.sqrMagnitude > 1e-6f) at += side.normalized * (Mathf.Max(0f, rules.placeSpread) * (float)_lullRandom.NextDouble());
+            float speed = 2f;
+            float memory = Mathf.Sqrt(best) / speed + 15f;
+            bool fresh = false;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive) continue;
+                bool same = callee.Combat.Squad != null ? l.Combat.Squad == callee.Combat.Squad
+                                                        : (l.Who.transform.position - from).sqrMagnitude <= radius * radius;
+                if (!same) continue;
+                // Somebody armed who was not already coming: that is news worth a radio call.
+                if (l.Combat.Weapon != null && !l.Combat.OnItsWay) fresh = true;
+                l.Combat.SendToLook(at, memory, rules.walkInFrom);
+            }
+            // A fair warning (critique loop round 1): the suit picks up their radio as they set off. Never for a
+            // squad already on its way, or one with no gun among it (nobody comes).
+            if (fresh) CombatWorld.RaiseSquadSent(from);
+            return action;
+        }
+
         static double HomeRadius(EnemyCamp camp, PlanetSurface surface)
         {
             return camp.HomeRadius > 0 ? camp.HomeRadius : surface.GroundRadius(camp.Direction);
@@ -384,6 +527,9 @@ namespace OrbitalAnte.Enemies
                 if (w.Gone[camp][m] || MemberPresent(body, camp, m)) continue;
                 made = true;
                 int type = Mathf.Clamp(c.Members[m], 0, _config.roster.Count - 1);
+                // Tougher antes (20 Nov 2026): some plain enemies wake as their side's heavy kind, and everyone
+                // reacts and aims a little sharper. Never more health: that would break constitution rule 3.
+                type = HeavierKind(type, body, camp, m);
                 EnemyTypeSpec spec = _config.roster[type];
                 MannequinConfig config = ConfigFor(type);
                 // Spread round the camp's middle, a couple of metres apart.
@@ -432,6 +578,7 @@ namespace OrbitalAnte.Enemies
                 if (combat != null)
                 {
                     combat.SetSeed(combatSeed);
+                    combat.Sharpness = SharpnessNow;
                     combat.Squad = _wakingSquad;
                     combat.Ability = spec.ability;
                     combat.Faction = c.Faction;
@@ -442,11 +589,94 @@ namespace OrbitalAnte.Enemies
                     _guns.Add(weapon);
                     gun = weapon;
                 }
-                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun });
+                _live.Add(new Live { Who = who, Body = body, Camp = camp, Member = m, Gun = gun, Type = type, Combat = combat });
+                Woke?.Invoke(body, camp, m, who);
                 LiveCount++;
                 PresentCount++;
             }
             if (_wakingMember >= size) _wakingCamp = -1;
+        }
+
+        void RaiseDown(World w, Live l)
+        {
+            if (Down == null) return;
+            EnemyCamp c = w.Camps[l.Camp];
+            int type = l.Type >= 0 ? l.Type : Mathf.Clamp(c.Members[l.Member], 0, _config.roster.Count - 1);
+            EnemyTypeSpec spec = _config.roster[type];
+            string bodyId = _world.System != null && l.Body >= 0 && l.Body < _world.System.Bodies.Length ? _world.System.Bodies[l.Body].Spec.id : l.Body.ToString();
+            Down(new EnemyDown
+            {
+                Who = l.Who, Body = l.Body, Camp = l.Camp, Member = l.Member, BodyId = bodyId,
+                TypeId = spec.id, Faction = c.Faction, Scale = spec.scale,
+                BaseIndex = w.BaseOf != null && l.Camp < w.BaseOf.Length ? w.BaseOf[l.Camp] : -1,
+                BaseSize = w.BaseSize != null && l.Camp < w.BaseSize.Length ? w.BaseSize[l.Camp] : 0,
+                CampLeft = w.Left[l.Camp],
+            });
+        }
+
+        /// <summary>
+        /// The guards of one base: how many there were and how many are still to be fought. False until the
+        /// world's camps are known.
+        /// </summary>
+        public bool BaseGuards(int body, int baseIndex, out int guards, out int left)
+        {
+            guards = 0;
+            left = 0;
+            World w = _worlds.TryGetValue(body, out World found) ? found : null;
+            if (w == null || w.BaseOf == null) return false;
+            for (int i = 0; i < w.BaseOf.Length; i++)
+            {
+                if (w.BaseOf[i] != baseIndex) continue;
+                guards += w.Camps[i].Members.Length;
+                left += w.Left[i];
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Enemies still to be fought on a world: the real count once its camps are known, otherwise the fewest its
+        /// open-ground camps could hold (bases add more), so a bonus mission never asks for more than are there.
+        /// </summary>
+        public int EnemiesLeftAtLeast(int body, double radius)
+        {
+            if (_worlds.TryGetValue(body, out World w) && w != null && w.Left != null)
+            {
+                int left = 0;
+                for (int i = 0; i < w.Left.Length; i++) left += w.Left[i];
+                return left;
+            }
+            return EnemyField.CampCount(_config.field, radius) * Mathf.Max(1, _config.field.squadLeast);
+        }
+
+        /// <summary>The base a camp guards (its index in PlanetBases.SitesOn), or -1.</summary>
+        public int BaseOfCamp(int body, int camp)
+        {
+            World w = _worlds.TryGetValue(body, out World found) ? found : null;
+            return w != null && w.BaseOf != null && camp >= 0 && camp < w.BaseOf.Length ? w.BaseOf[camp] : -1;
+        }
+
+        /// <summary>The camps of a world as the spawner keeps them (null until known): for the marked targets.</summary>
+        public IReadOnlyList<EnemyCamp> KnownCamps(int body) => _worlds.TryGetValue(body, out World w) && w != null ? w.Camps : null;
+
+        /// <summary>The type of one camp member (null if unknown).</summary>
+        public EnemyTypeSpec TypeOf(int body, int camp, int member)
+        {
+            IReadOnlyList<EnemyCamp> camps = KnownCamps(body);
+            if (camps == null || camp < 0 || camp >= camps.Count || member < 0 || member >= camps[camp].Members.Length) return null;
+            if (_wokeAs.TryGetValue(MemberKey(body, camp, member), out int woke) && woke >= 0 && woke < _config.roster.Count) return _config.roster[woke];
+            return _config.roster[Mathf.Clamp(camps[camp].Members[member], 0, _config.roster.Count - 1)];
+        }
+
+        /// <summary>True if a living enemy stands within this distance of a point (world space).</summary>
+        public bool LivingWithin(Vector3 at, float distance)
+        {
+            float d2 = distance * distance;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Mannequin who = _live[i].Who;
+                if (who != null && who.Alive && (who.transform.position - at).sqrMagnitude <= d2) return true;
+            }
+            return false;
         }
 
         bool MemberPresent(int body, int camp, int member)
@@ -454,6 +684,64 @@ namespace OrbitalAnte.Enemies
             for (int i = 0; i < _live.Count; i++)
                 if (_live[i].Who != null && _live[i].Body == body && _live[i].Camp == camp && _live[i].Member == member) return true;
             return false;
+        }
+
+        // ------------------------------------------------------------------ tougher antes (20 Nov 2026)
+
+        /// <summary>
+        /// The ante's pressure, set by the ante loop. Sharpness multiplies reaction time and aim error; a share of
+        /// plain enemies wakes as the heavy kind of their side.
+        /// </summary>
+        public static Ante.EnemyPressure Pressure = new Ante.EnemyPressure { Sharpness = 1f };
+        public static int PressureAnte = 1;
+        public static int PressureSeed;
+
+        static float SharpnessNow => Mathf.Clamp(Pressure.Sharpness, 0.4f, 1f);
+        float _sharpApplied = 1f;
+
+        /// <summary>A new ante's pressure reaches enemies already awake too (Codex review, PR 75): their kind stays.</summary>
+        void ApplySharpness()
+        {
+            float sharp = SharpnessNow;
+            if (Mathf.Approximately(sharp, _sharpApplied)) return;
+            _sharpApplied = sharp;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Mannequin who = _live[i].Who;
+                if (who == null) continue;
+                var combat = who.GetComponent<MannequinCombat>();
+                if (combat != null) combat.Sharpness = sharp;
+            }
+        }
+
+        /// <summary>The kind each enemy first woke as this run, so one that comes back later is still the same kind.</summary>
+        readonly Dictionary<long, int> _wokeAs = new Dictionary<long, int>();
+
+        static long MemberKey(int body, int camp, int member) => ((long)body << 40) ^ ((long)camp << 16) ^ (uint)member;
+
+        int HeavierKind(int type, int body, int camp, int member)
+        {
+            long key = MemberKey(body, camp, member);
+            if (_wokeAs.TryGetValue(key, out int known)) return known;
+            int chosen = ChooseKind(type, body, camp, member);
+            _wokeAs[key] = chosen;
+            return chosen;
+        }
+
+        int ChooseKind(int type, int body, int camp, int member)
+        {
+            if (Pressure.HeavyShare <= 0f) return type;
+            EnemyTypeSpec spec = _config.roster[type];
+            if (Tasks.EnemyTiers.KindFor(spec.id, spec.scale) != Ante.ScoreEventKind.EnemyTier1) return type;
+            if (!Ante.EnemyPressure.WakesHeavy(Pressure, PressureSeed, body, camp, member, PressureAnte)) return type;
+            string side = spec.faction ?? string.Empty;
+            for (int i = 0; i < _config.roster.Count; i++)
+            {
+                EnemyTypeSpec other = _config.roster[i];
+                if ((other.faction ?? string.Empty) != side) continue;
+                if (Tasks.EnemyTiers.KindFor(other.id, other.scale) == Ante.ScoreEventKind.EnemyTier3) return i;
+            }
+            return type;
         }
 
         /// <summary>The ordinary enemy's settings, bent to one type. Made once per type and shared by all of that type.</summary>

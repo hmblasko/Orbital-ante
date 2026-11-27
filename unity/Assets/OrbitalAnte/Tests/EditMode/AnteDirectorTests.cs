@@ -43,11 +43,12 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TimerOutShortOfTheTargetEndsTheRunInEveryMode()
+        public void TimerOutShortOfTheTargetEndsTheRunInEveryMode_UnderTheOldRule()
         {
             foreach (AnteEndCondition end in new[] { AnteEndCondition.OnTimer, AnteEndCondition.OnPlayerAdvance, AnteEndCondition.Hybrid })
             {
                 AnteRun run = Run(end, 300, 300);
+                run.Balance.missedTarget = MissedTarget.EndRun;
                 Earn(run, 299);
                 run.Tick(300f, false);
                 Assert.AreEqual(AntePhase.Failed, run.Director.Phase, end.ToString());
@@ -185,7 +186,7 @@ namespace OrbitalAnte.Tests
             run.Director.ConfirmAdvance();
             run.BeginNextAnte();
             Assert.AreEqual(2, run.Director.Ante);
-            Assert.AreEqual(1100, run.Director.Target);
+            Assert.AreEqual(1370, run.Director.Target);
             Assert.AreEqual(0, run.Ledger.AnteEarned, "the 250 over the first target does not help with the second");
             Assert.IsFalse(run.Director.TargetMet);
             Assert.AreEqual(1100, run.Ledger.SpendablePoints);
@@ -227,6 +228,139 @@ namespace OrbitalAnte.Tests
                 if (ante < 9) Assert.IsTrue(run.BeginNextAnte());
             }
             Assert.AreEqual(AntePhase.Victory, run.Director.Phase);
+        }
+
+        // ---- Overtime (Matthew, 21 Nov 2026: the game ends only when the player dies) ----
+
+        [Test]
+        public void TimerOutShortOfTheTarget_GoesIntoOvertime_InEveryMode()
+        {
+            foreach (AnteEndCondition end in new[] { AnteEndCondition.OnTimer, AnteEndCondition.OnPlayerAdvance, AnteEndCondition.Hybrid })
+            {
+                AnteRun run = Run(end, 300, 300);
+                Earn(run, 299);
+                run.Tick(310f, false);
+                Assert.AreEqual(AntePhase.Running, run.Director.Phase, end.ToString());
+                Assert.IsTrue(run.Director.InOvertime, end.ToString());
+                Assert.AreEqual(10f, run.Director.OvertimeSeconds, 0.001f, "the rest of the tick is overtime");
+                Assert.AreEqual(0f, run.Director.SecondsLeft);
+            }
+        }
+
+        [Test]
+        public void Overtime_EndsTheMomentTheTargetIsMet_AndTheBreakStillHasItsPerk()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300, 300);
+            run.Tick(300f, false);
+            Assert.IsTrue(run.Director.InOvertime);
+            run.Tick(40f, false);
+            Assert.AreEqual(40f, run.Director.OvertimeSeconds, 0.001f);
+            Earn(run, 300);
+            run.Tick(0.1f, false);
+            Assert.AreEqual(AntePhase.Intermission, run.Director.Phase);
+            Assert.IsFalse(run.Director.InOvertime);
+            Assert.IsTrue(run.Director.ClearedInOvertime);
+            Assert.IsTrue(run.Director.PerkDraftPending, "Matthew: perks continue even in overtime");
+            Assert.IsTrue(run.Director.ScratchPending);
+        }
+
+        [Test]
+        public void Overtime_DoesNotCarryIntoTheNextAnte()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300, 300);
+            run.Tick(300f, false);
+            Earn(run, 300);
+            run.Tick(1f, false);
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.IsFalse(run.Director.InOvertime);
+            Assert.IsFalse(run.Director.ClearedInOvertime);
+            Assert.AreEqual(0f, run.Director.OvertimeSeconds);
+            Assert.AreEqual(300f, run.Director.SecondsLeft);
+        }
+
+        [Test]
+        public void Overtime_PausedTicksAndTimeBackDoNothing_AndDyingStillEndsTheRun()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300, 300);
+            run.Tick(300f, false);
+            run.Tick(50f, true);
+            Assert.AreEqual(0f, run.Director.OvertimeSeconds);
+            run.Director.AdjustSeconds(30f);
+            Assert.AreEqual(0f, run.Director.SecondsLeft, "no time back once the clock has run out");
+            Assert.IsFalse(run.Director.UseStopwatch());
+            Assert.IsFalse(run.Director.ConfirmAdvance(), "can't end an ante whose target isn't met");
+            Assert.IsTrue(run.Director.InOvertime);
+            run.Director.PlayerDied();
+            Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
+            Assert.IsFalse(run.Director.InOvertime, "a death ends overtime too");
+        }
+
+        [Test]
+        public void TheLastAnte_ClearedInOvertime_IsStillAVictory()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300);
+            run.Tick(300f, false);
+            Earn(run, 300);
+            run.Tick(1f, false);
+            Assert.AreEqual(AntePhase.Victory, run.Director.Phase);
+        }
+
+        [Test]
+        public void KeepGoing_AfterTheLastAnte_GivesABreakThenBiggerTargets_UntilDeath()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300, 400);
+            Earn(run, 300);
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            Assert.IsTrue(run.BeginNextAnte());
+            Earn(run, 400);
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            Assert.AreEqual(AntePhase.Victory, run.Director.Phase);
+
+            Assert.IsTrue(run.Director.ContinueEndless());
+            Assert.IsFalse(run.Director.ContinueEndless(), "only from the victory page");
+            Assert.AreEqual(AntePhase.Intermission, run.Director.Phase);
+            Assert.IsTrue(run.Director.PerkDraftPending);
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.AreEqual(3, run.Director.Ante);
+            Assert.AreEqual(500, run.Director.Target, "400 x 1.25");
+            Assert.IsFalse(run.Director.IsLastAnte);
+            Earn(run, 500);
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            Assert.AreEqual(AntePhase.Intermission, run.Director.Phase, "endless antes never end in victory");
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.AreEqual(630, run.Director.Target, "625 rounded to 10");
+            run.Director.PlayerDied();
+            Assert.AreEqual(AntePhase.Failed, run.Director.Phase);
+        }
+
+        [Test]
+        public void KeepGoingAndOvertime_SurviveASaveRoundTrip()
+        {
+            AnteRun run = Run(AnteEndCondition.Hybrid, 300);
+            Earn(run, 300);
+            Assert.IsTrue(run.Director.ConfirmAdvance());
+            Assert.IsTrue(run.Director.ContinueEndless());
+            Assert.IsTrue(run.BeginNextAnte());
+            Assert.IsTrue(run.BeginNextAnte() == false);
+            run.Tick(300f, false);
+            run.Tick(12f, false);
+            Assert.IsTrue(run.Director.InOvertime);
+
+            AnteRun back = AnteRun.Import(run.Balance, run.Export());
+            Assert.AreEqual(2, back.Director.Ante, "an endless ante is not clamped to the last listed one");
+            Assert.IsTrue(back.Director.Endless);
+            Assert.IsTrue(back.Director.InOvertime);
+            Assert.AreEqual(12f, back.Director.OvertimeSeconds, 0.001f);
+            Assert.AreEqual(run.Director.Target, back.Director.Target);
+        }
+
+        [Test]
+        public void EndlessTargets_KeepTheListedOnes_AndNeverOverflow()
+        {
+            var b = new AnteBalance();
+            for (int a = 1; a <= b.AnteCount; a++) Assert.AreEqual(b.TargetFor(a), b.EndlessTargetFor(a));
+            Assert.Greater(b.EndlessTargetFor(10), b.TargetFor(9));
+            Assert.Greater(b.EndlessTargetFor(500), 0);
         }
 
         [Test]

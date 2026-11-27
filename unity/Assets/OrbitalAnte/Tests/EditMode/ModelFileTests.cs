@@ -771,6 +771,34 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void TrooperModelFile_ItsTorsoHitboxCoversItsMiddle([Values("Enemy", "EnemyFar")] string file)
+        {
+            // The torso's hitbox is an upright capsule round the spine (MannequinFactory: radius 0.215 times
+            // BodyFit's torso number). Measured in bands up the chest: the middle half of every band must be
+            // inside it (what looks hit is hit), and it must not stand out past nearly all of the widest band.
+            ModelPart torso = LoadReal(file).Part("Torso");
+            float radius = 0.215f * BodyFit.Thickness("Enemy", BodyPartId.Torso);
+            float worstMiddle = 0f, widest = 0f;
+            for (float y0 = -0.15f; y0 < 0.45f; y0 += 0.06f)
+            {
+                var round = new System.Collections.Generic.List<float>();
+                for (int v = 0; v < torso.VertexCount; v++)
+                {
+                    float y = torso.Positions[v * 3 + 1];
+                    if (y <= y0 || y >= y0 + 0.06f) continue;
+                    float x = torso.Positions[v * 3], z = torso.Positions[v * 3 + 2];
+                    round.Add((float)System.Math.Sqrt(x * x + z * z));
+                }
+                if (round.Count < 10) continue;
+                round.Sort();
+                worstMiddle = System.Math.Max(worstMiddle, round[round.Count / 2]);
+                widest = System.Math.Max(widest, round[(int)(round.Count * 0.95f)]);
+            }
+            Assert.Greater(radius, worstMiddle * 0.97f, file + ": shots into the middle of the chest would miss");
+            Assert.Less(radius, widest, file + ": the hitbox stands out past the body");
+        }
+
+        [Test]
         public void EnemyModelFile_ItsHitboxesFitIt([Values("Enemy", "EnemyRunner", "EnemyBruiser", "EnemyMarksman",
                                                             "EnemyFar", "EnemyRunnerFar", "EnemyBruiserFar", "EnemyMarksmanFar")] string file)
         {
@@ -822,9 +850,20 @@ namespace OrbitalAnte.Tests
             float helmetHalfWidth = across[(int)(across.Count * 0.9f)];
             Assert.Less(ball, helmetHalfWidth * 1.25f, file + ": the head's hitbox is wider than the helmet");
             Assert.Greater(ball, helmetHalfWidth * 0.8f, file + ": the head's hitbox is much narrower than the helmet");
-            Assert.AreEqual(0f, BodyFit.HeadRise("Enemy"));
+            // The ball sits on the helmet front to back too: it may not reach more than 4 cm behind the back of
+            // the helmet, measured where the helmet is (the head piece also carries the collar below it). The front
+            // is not measured, because a lens or a visor can stand well proud of the helmet.
+            float helmetBack = float.MaxValue;
+            float centreY = 0.015f + BodyFit.HeadRise(name);
+            for (int v = 0; v < head.VertexCount; v++)
+            {
+                if (System.Math.Abs(head.Positions[v * 3 + 1] - centreY) > 0.04f) continue;
+                helmetBack = System.Math.Min(helmetBack, head.Positions[v * 3 + 2]);
+            }
+            Assert.Greater(BodyFit.HeadForward(name) - ball, helmetBack - 0.04f, file + ": the head's hitbox stands out behind the helmet");
+            Assert.Less(centreY + ball, top + 0.06f, file + ": the head's hitbox stands well above the helmet");
             Assert.Less(BodyFit.HeadRise("EnemyBruiser"), -0.03f, "the bruiser's helmet is sunk into its collar");
-            Assert.AreEqual(1f, BodyFit.Thickness("Enemy", BodyPartId.Torso));
+            Assert.AreEqual(1.2f, BodyFit.Thickness("Enemy", BodyPartId.Torso), 1e-6f, "the Tripo soldier's chest rig");
             Assert.AreEqual(1f, BodyFit.Thickness("something nobody made", BodyPartId.Head));
             Assert.Greater(BodyFit.Thickness("EnemyBruiser", BodyPartId.Torso), 1.1f);
             Assert.Less(BodyFit.Thickness("EnemyRunner", BodyPartId.Torso), 0.95f);

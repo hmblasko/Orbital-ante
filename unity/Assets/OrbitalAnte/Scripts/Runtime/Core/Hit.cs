@@ -43,7 +43,22 @@ namespace OrbitalAnte.Core
         /// <see cref="Juice"/>. Melee swings set it (capped, and shorter when one swing hits several).
         /// </summary>
         public float HitstopSeconds;
+        /// <summary>
+        /// What was hit (the Mannequin for a body part), for systems that need to know who: the ante tasks credit
+        /// kills to the enemy's seeded id. Null for things that do not say.
+        /// </summary>
+        public Component Target;
+        /// <summary>What the player hit it with. Set where the hit is raised.</summary>
+        public HitSource Source;
+        /// <summary>
+        /// The gun that fired, for a gun hit (its <c>WeaponData.Id</c>), set when the shot is made. Read this, not the
+        /// player's current gun: a kill can hand over the next ladder gun before other listeners hear the hit (Codex, PR 77).
+        /// </summary>
+        public string SourceId;
     }
+
+    /// <summary>What a player's hit came from: a gun (the default), a melee swing, or the rover running someone over.</summary>
+    public enum HitSource : byte { Gun = 0, Melee = 1, Rover = 2 }
 
     public interface IHittable
     {

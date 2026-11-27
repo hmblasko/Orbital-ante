@@ -44,8 +44,8 @@ namespace OrbitalAnte.Dismemberment
         static bool _shadowCopies;
 
         /// <summary>
-        /// True if a sun in the scene casts real shadows (the combat arena). Planets and space are lit by the
-        /// game's own shaders with Unity's shadows off, so shadow copies there would be drawn for nothing.
+        /// True if a sun in the scene casts real shadows (the combat arena, and the solar system with the Look
+        /// asset's Sun Shadows on). A body in the game's own model shader then casts its own (AddModelMesh).
         /// </summary>
         static bool SceneCastsShadows()
         {
@@ -278,7 +278,7 @@ namespace OrbitalAnte.Dismemberment
                 if (AddModel(go, BodyPartId.Head, modelled))
                 {
                     col.radius = ModelHeadRadius;
-                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), 0f);
+                    col.center = new Vector3(0f, 0.015f + (_fitted ? BodyFit.HeadRise(_model) : 0f), _fitted ? BodyFit.HeadForward(_model) : 0f);
                     neck = 0.165f;
                 }
                 else
@@ -424,9 +424,13 @@ namespace OrbitalAnte.Dismemberment
             renderer.sharedMaterial = ModelLibrary.MaterialFor(_model);
             renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-            // The game's own shader draws no shadow, so a second, unseen copy casts it where a scene has real lights.
+            // The game's model shader draws its own shadow. Only a stand-in material that cannot (Unity's standard
+            // one has its own way) needs a second, unseen copy to cast it where a scene has real lights.
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            if (castsShadow && _shadowCopies)
+            bool castsItself = castsShadow && OrbitalAnte.Look.SunShadows.CanCast(renderer.sharedMaterial)
+                               && (_shadowCopies || OrbitalAnte.Look.SunShadows.Wanted(OrbitalAnte.Look.LookConfig.Load()));
+            if (castsItself) renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            else if (castsShadow && _shadowCopies)
             {
                 var shadow = new GameObject("Shadow");
                 shadow.layer = parent.layer;

@@ -100,6 +100,29 @@ namespace OrbitalAnte.Combat
             _owed = !HandOverNextGun();
         }
 
+        /// <summary>The ladder is on and not at the top yet, so kills still count toward a new gun.</summary>
+        public bool CanClimb => Ladder != null && !Ladder.AtTop;
+
+        /// <summary>
+        /// Counts kills that were not made in a fight (a supply drop's, 20 Nov 2026), as if they had been. Hands
+        /// over the new gun if they fill the step; any left over after a climb are not carried on. False when the
+        /// ladder is off or at the top.
+        /// </summary>
+        public bool CreditKills(int kills)
+        {
+            if (!CanClimb || kills <= 0) return false;
+            for (int i = 0; i < kills; i++)
+            {
+                if (!Ladder.AddKill()) continue;
+                _nextSearch = 0f;
+                _owed = !HandOverNextGun();
+                break;
+            }
+            return true;
+        }
+
+        public static GunLadderFx Instance => _instance;
+
         /// <summary>Gives the player the gun of the step they are on. False if there was no player to give it to.</summary>
         bool HandOverNextGun()
         {

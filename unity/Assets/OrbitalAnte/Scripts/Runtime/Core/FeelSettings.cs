@@ -10,6 +10,15 @@ namespace OrbitalAnte.Core
         const string HitstopKey = "oa.feel.hitstop";
         const string ShakeKey = "oa.feel.shake";
         const string SlowMoKey = "oa.feel.headshotSlowMo";
+        const string TipsKey = "oa.feel.guideTips";
+        const string AimAssistKey = "oa.feel.aimAssist";
+
+        /// <summary>Controller aim assist (the sticks slow a little over an enemy). On until the player turns it off.</summary>
+        public static bool AimAssist
+        {
+            get => PlayerPrefs.GetInt(AimAssistKey, 1) != 0;
+            set => Set(AimAssistKey, value);
+        }
 
         public static bool Hitstop
         {
@@ -27,6 +36,13 @@ namespace OrbitalAnte.Core
         {
             get => PlayerPrefs.GetInt(SlowMoKey, 1) != 0;
             set => Set(SlowMoKey, value);
+        }
+
+        /// <summary>The one-time tips and first-run goal card (Tasks/RunGuideFx). On until the player turns them off.</summary>
+        public static bool GuideTips
+        {
+            get => PlayerPrefs.GetInt(TipsKey, 1) != 0;
+            set => Set(TipsKey, value);
         }
 
         static void Set(string key, bool value)

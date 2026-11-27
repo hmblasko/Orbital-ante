@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Simulated runs over the real ante, score and perk rules (see README.md). Compiles every Unity-free runtime file, like tools/rules-tests. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>OrbitalAnte.RunSim</AssemblyName>
+    <RootNamespace>OrbitalAnte</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0162;CS0414;CS0649;CS0169</NoWarn>
+    <OARoot>$(MSBuildThisFileDirectory)../../unity/Assets/OrbitalAnte/</OARoot>
+    <OAUnityPattern>(?m)^(?!\s*(//|\*|/\*)).*\b(using\s+Unity|UnityEngine\.|UnityEditor\.|MonoBehaviour|ScriptableObject)</OAUnityPattern>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <OACandidate Include="$(OARoot)Scripts/Runtime/**/*.cs" />
+    <!-- Pure-looking files that still need a Unity-side type go here, one Remove per file. -->
+    <OACandidate Remove="@(OAExclude)" />
+  </ItemGroup>
+
+  <Target Name="OASelectRuleSources" BeforeTargets="BeforeBuild;CoreCompile">
+    <ItemGroup>
+      <OAUnitySide Include="@(OACandidate)"
+                   Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(OACandidate.FullPath)')), '$(OAUnityPattern)'))" />
+      <OARuleSource Include="@(OACandidate)" Exclude="@(OAUnitySide)" />
+      <Compile Include="@(OARuleSource)" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+      <Compile Include="$(MSBuildThisFileDirectory)*.cs" />
+    </ItemGroup>
+    <Message Importance="high" Text="run-sim: compiling @(OARuleSource->Count()) Unity-free files, skipping @(OAUnitySide->Count()) Unity-side files" />
+  </Target>
+</Project>

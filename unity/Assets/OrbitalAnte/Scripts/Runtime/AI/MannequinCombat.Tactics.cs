@@ -134,7 +134,7 @@ namespace OrbitalAnte.AI
             }
 
             Vector3 eye = CombatWorld.PlayerEye.position;
-            _heardAt = null;
+            _heardAt = null; _sentUntil = -1000f;
             SetHeardBeat(false, null);
 
             // Sent round the side?
@@ -169,13 +169,26 @@ namespace OrbitalAnte.AI
             if (sees && !_seesPlayer)
             {
                 _seesPlayer = true;
-                _reactAt = now + (_flankFirstLook ? _cfg.reactionTime + t.flankFirstShotDelay : _cfg.reactionTime * 0.7f);
+                _reactAt = now + (_flankFirstLook ? ReactionTime + t.flankFirstShotDelay : ReactionTime * 0.7f);
                 _flankFirstLook = false;
             }
             else if (!sees) _seesPlayer = false;
             FightFromCover(eye, sees, prone, now);
             return true;
         }
+
+        /// <summary>
+        /// Seconds from a fresh sighting to the earliest this one may fire, for the visor's warning arc: the beat
+        /// it will really be given below (shorter from cover, longer for a flanker's first look).
+        /// </summary>
+        float FirstShotBeat()
+        {
+            if (_flankFirstLook) return ReactionTime + Tactics.flankFirstShotDelay;
+            return _hasCover ? ReactionTime * 0.7f : ReactionTime;
+        }
+
+        /// <summary>True while it is on its way to a place it was sent to look (a lull's call, an alarm).</summary>
+        public bool OnItsWay => Time.time < _sentUntil;
 
         CoverQuery BaseQuery(Vector3 eye, Vector3 centre, float radius, bool prone)
         {
@@ -260,7 +273,7 @@ namespace OrbitalAnte.AI
                 _wantPeek = !_wantPeek;
                 // A heavy shot is lined up for a second first: it stays out long enough to finish it, or the
                 // tell would glow and nothing come (which would teach the player the tell lies).
-                float leastOut = _cfg.aimTell > 0f ? _cfg.reactionTime * 0.7f + _cfg.aimTell + 0.5f : 0f;
+                float leastOut = _cfg.aimTell > 0f ? ReactionTime * 0.7f + _cfg.aimTell + 0.5f : 0f;
                 _coverPhaseEnd = now + (_wantPeek ? Mathf.Max(leastOut, Rand(t.peekMin, t.peekMax)) : Rand(t.hideMin, t.hideMax));
             }
             bool reloading = Weapon == null || Weapon.State.Reloading || Weapon.State.Ammo == 0;

@@ -34,9 +34,10 @@ namespace OrbitalAnte.Planets
         /// <summary>
         /// The picture as red, green, blue, alpha bytes, bottom row first, <paramref name="width"/> across and
         /// half that high. Rows <paramref name="firstRow"/> up to (not including) <paramref name="endRow"/> are
-        /// filled, so several threads can share the work or one can do it in slices.
+        /// filled, so several threads can share the work or one can do it in slices. If <paramref name="heights"/>
+        /// is given (one number a dot) the ground's height at every dot is kept too, for <see cref="FarRelief"/>.
         /// </summary>
-        public static void Paint(PlanetTerrain terrain, int width, byte[] pixels, int firstRow, int endRow)
+        public static void Paint(PlanetTerrain terrain, int width, byte[] pixels, int firstRow, int endRow, float[] heights = null)
         {
             int height = width / 2;
             PlanetProfile profile = terrain.Profile;
@@ -53,6 +54,7 @@ namespace OrbitalAnte.Planets
                 {
                     Vec3d dir = Direction((x + 0.5) / width, v);
                     TerrainPoint point = terrain.Sample(dir, dot * 1.6);
+                    if (heights != null) heights[y * width + x] = (float)point.Height;
                     // Bumps too small for one dot of the picture cannot show in it, so they are not paid for.
                     double slope = terrain.SlopeAt(dir, step, step);
                     float r, g, b;

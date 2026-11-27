@@ -10,11 +10,23 @@ namespace OrbitalAnte.Ante
     {
         readonly AnteBalance _balance;
         readonly int[] _levels = new int[4];
+        readonly Func<int> _ante;
 
-        public AttributeShop(AnteBalance balance)
+        /// <param name="ante">The ante now, so prices follow what points are worth (21 Nov 2026). Null keeps the listed prices.</param>
+        public AttributeShop(AnteBalance balance, Func<int> ante = null)
         {
             _balance = balance;
+            _ante = ante;
         }
+
+        /// <summary>
+        /// What prices are multiplied by: the ante's value scale K, so a level costs the same effort in every ante
+        /// (21 Nov 2026: the run simulator found points piling up far past anything the shop sold by ante 6).
+        /// </summary>
+        public float PriceScale => PriceScaleAt(CurrentAnte);
+
+        int CurrentAnte => Math.Max(1, _ante?.Invoke() ?? 1);
+        float PriceScaleAt(int ante) => _ante == null || !_balance.shopPricesFollowValue ? 1f : (float)ScoreMath.ValueScale(_balance, ante);
 
         public int Level(PlayerAttribute attribute) => _levels[(int)attribute];
 
@@ -27,9 +39,43 @@ namespace OrbitalAnte.Ante
         }
 
         /// <summary>Price of the next level, or -1 if there is none.</summary>
-        public int NextPrice(PlayerAttribute attribute)
+        public int NextPrice(PlayerAttribute attribute) => PriceAt(attribute, CurrentAnte);
+
+        int PriceAt(PlayerAttribute attribute, int ante)
         {
-            return IsMaxed(attribute) ? -1 : _balance.PricesFor(attribute)[Level(attribute)];
+            if (IsMaxed(attribute)) return -1;
+            int listed = _balance.PricesFor(attribute)[Level(attribute)];
+            float scale = PriceScaleAt(ante);
+            if (scale <= 1f) return listed;
+            double scaledPrice = Math.Round(listed * scale / 10.0, MidpointRounding.AwayFromZero) * 10;
+            return (int)Math.Min(int.MaxValue, scaledPrice);
+        }
+
+        public readonly struct PurchaseQuote
+        {
+            public readonly int Price;
+            public readonly int PriceNextAnte;
+            public readonly bool CanBuy;
+            public readonly int WalletAfter;
+            public readonly int PointsNeeded;
+
+            internal PurchaseQuote(int price, int priceNextAnte, RunLedger ledger)
+            {
+                Price = price;
+                PriceNextAnte = priceNextAnte;
+                CanBuy = ledger.CanAfford(price);
+                WalletAfter = CanBuy ? ledger.SpendablePoints - price : ledger.SpendablePoints;
+                PointsNeeded = price > ledger.SpendablePoints ? price - ledger.SpendablePoints : 0;
+            }
+        }
+
+        /// <summary>What buying this level would leave in the wallet, and what waiting would cost for the same level.</summary>
+        public PurchaseQuote Quote(PlayerAttribute attribute, RunLedger ledger)
+        {
+            int ante = CurrentAnte;
+            int price = PriceAt(attribute, ante);
+            int later = price < 0 || ante == int.MaxValue ? price : PriceAt(attribute, ante + 1);
+            return new PurchaseQuote(price, later, ledger);
         }
 
         /// <summary>Buys one level from the wallet. The ante score and the leaderboard score are not touched.</summary>

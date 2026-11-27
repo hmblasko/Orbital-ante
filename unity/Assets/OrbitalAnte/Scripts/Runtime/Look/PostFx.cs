@@ -246,6 +246,16 @@ namespace OrbitalAnte.Look
             state.Finish = on;
             state.ControlShadows = true;
             if (_active) ApplyCamera(state);
+            else if (_cameraDataType != null)
+            {
+                // With the picture finish off, the little camera screen must still not draw the Sun's shadows again.
+                try
+                {
+                    state.Prepare(_cameraDataType);
+                    state.Shadows.Set(on);
+                }
+                catch (Exception) { }
+            }
         }
 
         void ReleaseSettings()

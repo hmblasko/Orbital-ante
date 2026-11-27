@@ -90,6 +90,29 @@ namespace OrbitalAnte.AI
             _alarmMemoryUntil = now + Dials.flare.memory;
         }
 
+        /// <summary>
+        /// Restless camps (Enemies/LullRules): after a long quiet the spawner sends this enemy's squad to the place
+        /// the player was. It turns to it first, then runs until it is near, then comes on carefully; it remembers the place for long enough to get
+        /// there (<paramref name="memory"/> seconds). A place, never a live track: a player who moves on is lost.
+        /// </summary>
+        public void SendToLook(Vector3 place, float memory, float walkInFrom = 50f)
+        {
+            if (_owner == null || !_owner.Alive || _seesPlayer) return;
+            float now = Time.time;
+            _heardAt = place;
+            _heardTime = now;
+            _heardPauseUntil = now + HeardPause;
+            _alarmMemoryUntil = now + Mathf.Max(0f, memory);
+            _sentUntil = _alarmMemoryUntil;
+            _sentWalkIn = Mathf.Max(0f, walkInFrom);
+        }
+
+        /// <summary>Within this distance of the place it was sent, it stops running and comes on carefully.</summary>
+        float _sentWalkIn;
+
+        /// <summary>Until when it is on its way to a place it was sent to look (it goes at a run).</summary>
+        float _sentUntil = -1000f;
+
         /// <summary>The glowing hand while the flare is raised (and the arm up, in <see cref="PoseFlareArm"/>).</summary>
         void ShowFlareGlow(float amount)
         {

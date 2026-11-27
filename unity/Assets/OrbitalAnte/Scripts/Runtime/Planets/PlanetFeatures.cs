@@ -285,19 +285,29 @@ namespace OrbitalAnte.Planets
 
             Mesh mesh = FeatureMeshes.Get(p.Kind, p.Variant);
             item.Filter.sharedMesh = mesh;
-            item.Renderer.sharedMaterial = PlanetMaterials.VertexColour(new Color(p.R, p.G, p.B, 1f), p.Absolute ? 0f : 1f, GlowOf(p.Kind));
+            // Bedded, tipped and shaded one by one, so the scatter does not look stamped out (NaturalPose).
+            NaturalPose.Pose pose = NaturalPose.Of(p.Kind, p.Variant, p.Yaw, p.Floats);
+            NaturalPose.Tint(pose, p.R, p.G, p.B, out float tr, out float tg, out float tb);
+            item.Renderer.sharedMaterial = PlanetMaterials.VertexColour(new Color(tr, tg, tb, 1f), p.Absolute ? 0f : 1f, GlowOf(p.Kind));
 
             float scale = (float)p.Scale;
             Vector3 up = SpaceConvert.ToVector3(position.Normalized);
             // Stalagmites and crystals placed inside caves stand on the cave floor, which is not always "down".
             Transform t = item.Go.transform;
-            t.localPosition = SpaceConvert.ToVector3(position);
-            t.localRotation = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, (float)(p.Yaw * Mathf.Rad2Deg), 0f);
-            t.localScale = Vector3.one * scale;
+            // Pushed into the ground by a share of its height, so no base shows where the ground dips under it.
+            // Not inside caves, where the floor is not along "up".
+            float sink = p.Absolute ? 0f : pose.Sink * scale * pose.StretchY;
+            t.localPosition = SpaceConvert.ToVector3(position) - up * sink;
+            t.localRotation = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, (float)(p.Yaw * Mathf.Rad2Deg), 0f)
+                              * Quaternion.AngleAxis(pose.TiltDegrees, Quaternion.Euler(0f, pose.TiltHeading, 0f) * Vector3.right);
+            t.localScale = new Vector3(pose.StretchX, pose.StretchY, pose.StretchZ) * scale;
 
             // What is solid is not always what is drawn. A Blender-made tree is only its trunk (one capsule: the
             // ship lands on these), a Blender-made rock is a simpler closed shape, small plants are nothing at all.
             bool solid = scale >= _surface.Settings.solidFeatureHeight;
+            // Trees and rocks big enough to be solid cast a shadow; small plants and anything inside a cave do not.
+            // Decided at every placing, because the object is reused.
+            OrbitalAnte.Look.SunShadows.Cast(item.Renderer, solid && !p.Absolute);
             Mesh shape = null;
             bool hasTrunk = false;
             SceneryModels.Trunk trunk = default;

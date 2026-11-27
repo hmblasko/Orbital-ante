@@ -178,6 +178,8 @@ namespace OrbitalAnte.Arena
             var sky = OrbitalAnte.Look.SkyLook.InAir(new OrbitalAnte.Look.Rgb(0.36f, 0.62f, 0.96f), new OrbitalAnte.Look.Rgb(0.78f, 0.87f, 0.95f),
                 toSun.y, 1f, 1f, false, 1f, 1f);
             // A full veil: no deep space showing through a daytime sky.
+            // Real light uses the plain sunlight, so the arena's models take the arena Sun's, not the solar system's.
+            Planets.SkyGlobals.SetPlace((float)Planets.OrbitLook.AirlessSoft, 0f, 1f, 1f, Vector3.zero, sun.color * sun.intensity, Color.black, 1f, 1f);
             Planets.SkyGlobals.SetAir(sun.color * sun.intensity, RenderSettings.ambientSkyColor * 0.5f, new Color(0.56f, 0.71f, 0.88f), 1f);
             Planets.SkyGlobals.SetSky(sky, Vector3.up, 0f);
             OrbitalAnte.Look.SkyDome.Build(transform, 200f, false);
@@ -290,6 +292,7 @@ namespace OrbitalAnte.Arena
             Weapons = eyeGo.AddComponent<PlayerWeapons>();
             // Dropped guns are parented to the arena's weapon folder, which is (re)made with the mannequins.
             Weapons.Initialize(config, PlayerCamera, Player, Health, null);
+            Player.Guns = Weapons;
             // A rare gun that blows up knocks the test player down like any other death here.
             Weapons.Backfired += cause => { if (Health.Alive) Health.TakeDamage(Health.Max * 10f, -PlayerCamera.transform.forward); };
 

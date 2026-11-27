@@ -70,9 +70,11 @@ A realistic suit in one pale colour is harder to read than teal against orange. 
 - **Natural colours for every surface**, measured against photographs. Ground: real rock, soil, sand, ice. Hardware: real cloth, metal, paint, rubber. Nothing brighter than pale sand except snow, ice and white cloth in full sun.
 - **Colour comes from light and air**, not from paint. Warm sunlight, sky-coloured shadow, sunsets, each world's own sky and haze: this is where the picture's colour and mood live. A grey rock at sunset is not grey.
 - **Strong colour is saved for meaning**: warnings, things that shine, the bands that tell enemies apart, loot.
-- The colour grade is turned down to match: less added saturation, no teal and amber push. (A dial on the Look asset; today's value stays until Matthew has seen the new models in the game.)
+- The colour grade is turned down to match: less added saturation, no teal and amber push. Done 22 Nov 2026 (`GradeDefaults`: contrast 5, saturation 0, split tone 0.18, vignette 0.1), because a strong teal and amber grade is the stock look of generated pictures. Older Look assets take the new grade by themselves (`gradeVersion`); set it to 9999 on the asset to keep a grade of your own.
+- **Nothing scattered looks stamped out.** Loose rocks are half buried, tipped and stretched one by one; trees lean a little and differ in girth; no two stones on a slope are quite the same shade (`NaturalPose`). Landmarks and balanced rocks stay nearly upright, because a hoodoo that leans far reads as broken.
 
 ### 2. Lighting
+- **Real light (26 Nov 2026).** With `Real Light` on (the default), sunlight falls only on what faces the Sun, the Sun casts shadows, and shade is lit by the sky alone; `Light Band` and the warm edge below are then not used. Still to prove on the sheet of "Reading a fight": an enemy backlit and in cast shadow on the Moon.
 - **Soft sunlight with a natural fall-off.** The old look firmed the edge between light and dark into a band, which is a cartoon habit. The band's firmness is now a dial on the Look asset (`Light Band`). It is left at the old value (0.6) and will be turned down while looking at the new models in the game, not before.
 - **Sky light from above, bounce from below, warm light and sky-coloured shadow** stay.
 - **Shine.** Until now nothing in the game was shiny: every surface was lit like chalk. A model can now say what each surface is made of (how smooth it is, and whether it is bare metal), and smooth surfaces show a highlight from the Sun and a reflection of the sky. This is what makes metal look like metal and a visor like a visor. It is two numbers per corner of a model, a function in the shared light code (`OA_Shine`) and a shader for models (`OA_Model.shader`). The code is written and has not been seen in Unity, and no model in the game says what it is made of yet, so nothing shines until one does. Inside the ship there is no shine yet either.
@@ -80,7 +82,9 @@ A realistic suit in one pale colour is harder to read than teal against orange. 
 - The baked cabin light is untouched.
 
 ### 3. Sky and air
-Unchanged from look pass 1.
+The air is unchanged from look pass 1. Since 26 Nov 2026 deep space is the real night sky (Matthew: "more like real space", with "interesting galaxy structures"): the real stars at their true places, brightness and colour, a Milky Way with its dust lanes, the Magellanic Clouds, Andromeda and the bright nebulae, plus a handful of invented showpieces (galaxies and nebulae that are not in the real sky, placed away from the Milky Way). Space is black, not blue or purple; colour in it is rare and belongs to something. A planet is always the brightest point in the sky after the Sun: no star is drawn brighter or larger than a far planet. The showpieces are scenery, never places to fly to. See `tools/sky/README.md` and `docs/reports/realistic-space.md`.
+
+Planets seen from space follow the same rule of real things first (26 Nov 2026): the night side is black, the edge of the night is hard where there is no air and soft where there is, air is a thin bright line at the limb and never a wide halo, relief catches the light, clouds cast shadows, gas giants have belts that shear and storms, and rings are hundreds of fine ringlets you can see through. See `docs/reports/realistic-planets.md`.
 
 ### 4. Materials
 - **What it is made of decides how it looks**: matte cloth, satin paint, bright bare metal, dull rubber, mirror visor.
