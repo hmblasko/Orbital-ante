@@ -196,10 +196,11 @@ namespace OrbitalAnte.Tasks
 
         void BuildContractHud()
         {
-            // Under PERK READY / the pace words (-118); the "+points" lines start under it.
-            _contractLine = UiKit.Label(_canvas.transform, string.Empty, 14, UiKit.Cream, TextAnchor.MiddleRight);
-            UiKit.Pin((RectTransform)_contractLine.transform, new Vector2(1f, 1f), new Vector2(-22f, -140f), new Vector2(460f, 20f));
-            UiKit.Halo(_contractLine);
+            // Top right, under the task plate (RunGuideFx, which ends at -86). It stays in a fight, when the
+            // task plate goes, so it stands by itself with a halo and is not a row of that plate.
+            _contractLine = HullKit.Mono(_canvas.transform, string.Empty, 15, HullKit.Paint, TextAnchor.MiddleRight);
+            UiKit.Pin((RectTransform)_contractLine.transform, new Vector2(1f, 1f), new Vector2(-HullKit.Margin - 2f, -102f), new Vector2(520f, 20f));
+            UiKit.Halo(_contractLine, true);
             _contractLine.gameObject.SetActive(false);
         }
 
@@ -219,7 +220,7 @@ namespace OrbitalAnte.Tasks
             string text = "BONUS · " + c.Progress + (c.Paid ? string.Empty : "  ~+" + N(ContractPreview(c)));
             _shownContract = text;
             _contractLine.text = text;
-            _contractLine.color = c.Paid ? Config.scoreColour : UiKit.Cream;
+            _contractLine.color = c.Paid ? Config.scoreColour : HullKit.Paint;
         }
     }
 }
