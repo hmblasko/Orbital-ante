@@ -26,6 +26,13 @@ namespace OrbitalAnte.Tasks
         /// <summary>How many "+points" lines show.</summary>
         public static int Pops(bool inFight) => inFight ? PopsInAFight : PopsAtRest;
 
+        /// <summary>
+        /// Whether PERK READY shows (critique loop round 6). It says which button opens the pick, so it shows wherever
+        /// that button works: outside and walking the cabin. Only in the seat, where Select is the floodlights and the
+        /// pick cannot open, does it wait (the "+points" lines still wait aboard: the seat's own readout is there).
+        /// </summary>
+        public static bool ShowsPerkReady(bool earned, bool seated) => earned && !seated;
+
         /// <summary>The world's task line ("MARS: 1 MAST") is for choosing where to go next, never mid-fight.</summary>
         public static bool ShowsTaskLine(bool inFight) => !inFight;
 
