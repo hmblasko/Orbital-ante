@@ -235,6 +235,8 @@ namespace OrbitalAnte.UI
         // ------------------------------------------------------------------ choices page (ante break)
 
         const int ChoiceSlots = 7;
+        /// <summary>A choice button's height. A full page of seven uses less, so the card still fits 1280 x 800.</summary>
+        public const float ChoiceButtonHeight = 70f;
         Text _choiceTitle, _choiceBody;
         readonly Button[] _choiceButtons = new Button[ChoiceSlots];
         readonly Action[] _choiceActions = new Action[ChoiceSlots];
@@ -248,7 +250,7 @@ namespace OrbitalAnte.UI
             for (int i = 0; i < ChoiceSlots; i++)
             {
                 int slot = i;
-                Button b = UiKit.Button(card, string.Empty, () => _choiceActions[slot]?.Invoke(), 70f, 19);
+                Button b = UiKit.Button(card, string.Empty, () => _choiceActions[slot]?.Invoke(), ChoiceButtonHeight, 19);
                 Text t = UiKit.ButtonText(b);
                 t.horizontalOverflow = HorizontalWrapMode.Wrap;
                 ((RectTransform)t.transform).offsetMin = new Vector2(16f, 4f);
@@ -267,7 +269,7 @@ namespace OrbitalAnte.UI
         /// <param name="holdSelection">Select nothing for a moment, so a button still held or mashed from the fight
         /// cannot pick something unread (the first page of a break, the perk cards).</param>
         public void ShowChoices(string title, string body, IList<MenuChoice> choices, Action onBack = null, float bodyHeight = 120f,
-            int keepSlot = -1, bool holdSelection = false)
+            int keepSlot = -1, bool holdSelection = false, float buttonHeight = ChoiceButtonHeight)
         {
             if (!IsOpen) holdSelection = true;
             if (!IsOpen)
@@ -288,6 +290,7 @@ namespace OrbitalAnte.UI
                 _choiceActions[i] = used ? choices[i].OnPick : null;
                 if (!used) continue;
                 UiKit.ButtonText(b).text = choices[i].Label;
+                UiKit.SetLayout(b.gameObject, buttonHeight);
                 b.interactable = choices[i].Enabled;
                 if (first == null && choices[i].Enabled) first = b.gameObject;
             }

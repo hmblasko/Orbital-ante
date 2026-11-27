@@ -633,6 +633,21 @@ namespace OrbitalAnte.Enemies
             return true;
         }
 
+        /// <summary>
+        /// Enemies still to be fought on a world: the real count once its camps are known, otherwise the fewest its
+        /// open-ground camps could hold (bases add more), so a bonus mission never asks for more than are there.
+        /// </summary>
+        public int EnemiesLeftAtLeast(int body, double radius)
+        {
+            if (_worlds.TryGetValue(body, out World w) && w != null && w.Left != null)
+            {
+                int left = 0;
+                for (int i = 0; i < w.Left.Length; i++) left += w.Left[i];
+                return left;
+            }
+            return EnemyField.CampCount(_config.field, radius) * Mathf.Max(1, _config.field.squadLeast);
+        }
+
         /// <summary>The base a camp guards (its index in PlanetBases.SitesOn), or -1.</summary>
         public int BaseOfCamp(int body, int camp)
         {
