@@ -88,6 +88,17 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Melee.MeleeItem.ResetStatics();
             OrbitalAnte.Combat.GunLadderFx.ResetStatics();
             OrbitalAnte.Rover.RoverConfig.ResetStatics();
+            OrbitalAnte.Creatures.CreatureConfig.ResetStatics();
+            OrbitalAnte.Creatures.Walker.ResetStatics();
+            OrbitalAnte.Creatures.Roller.ResetStatics();
+            OrbitalAnte.Creatures.Hunter.ResetStatics();
+            OrbitalAnte.Creatures.Screamer.ResetStatics();
+            OrbitalAnte.Creatures.Stalker.ResetStatics();
+            OrbitalAnte.Creatures.Ambusher.ResetStatics();
+            OrbitalAnte.Creatures.Maw.ResetStatics();
+            OrbitalAnte.Creatures.Biter.ResetStatics();
+            OrbitalAnte.Creatures.ScreamRings.ResetStatics();
+            OrbitalAnte.Creatures.WalkerChunk.ResetStatics();
             OrbitalAnte.Ship.Astronaut.ResetStatics();
             OrbitalAnte.Items.EnvelopeDirector.ResetStatics();
             OrbitalAnte.Enemies.EnemySpawner.ResetStatics();

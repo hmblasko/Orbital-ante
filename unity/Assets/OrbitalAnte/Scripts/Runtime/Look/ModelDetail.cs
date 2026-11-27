@@ -207,6 +207,17 @@ namespace OrbitalAnte.Look
             return held;
         }
 
+        /// <summary>
+        /// For a thing about to be destroyed in the frame its pieces came off (a creature that bursts): hands the
+        /// pieces that have left it to the loose list now, so they go on being watched by themselves.
+        /// </summary>
+        public static void LetGo(GameObject root)
+        {
+            if (root == null) return;
+            var detail = root.GetComponent<ModelDetail>();
+            if (detail != null) detail.LetGoOfWhatLeft();
+        }
+
         void Show(bool far)
         {
             if (Far == far || _filters == null) return;

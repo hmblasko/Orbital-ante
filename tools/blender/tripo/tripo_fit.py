@@ -425,7 +425,7 @@ def main():
     high.data.materials[0] = tripo_material(high.data.materials[0], j)
     caps.data.materials.append(cap_material())
     stump = be.stump()
-    flesh = mats.flesh("oa_flesh")
+    flesh = mats.painted_flesh("oa_flesh")
     move = Matrix.Translation(STUMP_AT) @ Matrix.Scale(STUMP_SCALE, 4)
     wound = []
     for o in stump:

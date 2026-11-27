@@ -182,6 +182,192 @@
    "note": "The clock has run out short of the target and the hunt is on: the clock's own wood, struck hard once, over a low drum that falls away, with a short dry rattle after it. It belongs to the clock family (the 30 s knocks and the last-ten ticks lead into it), and it is nothing like the suit's two-note air warning, so \"time is up\" and \"air is low\" can never be mistaken for each other."
   },
   {
+   "id": "creature.ambusher.coil",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_coil"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Ambusher's warning, 0.9 s: a wet hiss that tightens as it rears, ticks of its jaws half closing, and at 0.5 s (where it takes aim) the scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+  },
+  {
+   "id": "creature.ambusher.rise",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_rise_01",
+    "Audio/Sfx/creature/creature_ambusher_rise_02"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.25,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 400,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It comes up: the ground heaving, then breaking, and grit falling back. The heave comes first on purpose, so there is time to look down."
+  },
+  {
+   "id": "creature.ambusher.strike",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_strike_01",
+    "Audio/Sfx/creature/creature_ambusher_strike_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 150,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The strike: its length thrown out through the air in under a fifth of a second, and the jaws snapping shut."
+  },
+  {
+   "id": "creature.screamer.scream",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_scream"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 0,
+   "maxVoices": 2,
+   "loop": true,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Screamer's scream, a loop for as long as it lasts: both drums buckling about 190 times a second, not quite together, ringing its hollow abdomen; it throbs five times a second, which is the beat it hurts on."
+  },
+  {
+   "id": "creature.screamer.windup",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_windup"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Screamer's warning: single dry clicks of its drums that quicken into a rattle over one second, rising, with a hard double click at 0.6 s where it takes aim. The end of the climb is the moment the scream starts."
+  },
+  {
+   "id": "creature.stalker.click",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_click_01",
+    "Audio/Sfx/creature/creature_stalker_click_02",
+    "Audio/Sfx/creature/creature_stalker_click_03"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 250,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "Each time it takes a new place from what it hears: a quiet double click. It means: where you are now is known."
+  },
+  {
+   "id": "creature.stalker.gape",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_gape"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The warning, 0.9 s: a long wet breath drawn in through its opening mouth, rising, and at 0.45 s (where it takes aim) the pop of the jaw dropping wide and the gills snapping out. After the pop, stepping aside is a miss."
+  },
+  {
+   "id": "creature.stalker.hear",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_hear_01",
+    "Audio/Sfx/creature/creature_stalker_hear_02"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 500,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It has heard something, 0.7 s: a slow string of clicks that quickens as its head comes round, under a thin wet breath as its gills stand out."
+  },
+  {
+   "id": "creature.stalker.lunge",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_lunge_01",
+    "Audio/Sfx/creature/creature_stalker_lunge_02"
+   ],
+   "volumeDb": -3,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 150,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The lunge: its whole wet length thrown across the ground in a fifth of a second, and the jaws clapping shut."
+  },
+  {
    "id": "enemy.flare.fire",
    "bus": "CombatImpacts",
    "clips": [

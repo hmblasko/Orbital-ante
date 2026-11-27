@@ -25,7 +25,7 @@ No other source was used. In particular: **no recordings from any sound library,
 
 | Folder | Origin |
 |---|---|
-| `Sfx/weapons`, `Sfx/combat`, `Sfx/ship`, `Sfx/player`, `Sfx/ambience`, `Sfx/ui` | Original synthesis. |
+| `Sfx/creature`, `Sfx/weapons`, `Sfx/combat`, `Sfx/ship`, `Sfx/player`, `Sfx/ambience`, `Sfx/ui` | Original synthesis. |
 | `Sfx/rewards` | Original synthesis; seven files also contain FluidR3 GM notes (listed above). |
 | `Music/*` | Original compositions. Performed by FluidR3 GM instruments and original synthesis. |
 

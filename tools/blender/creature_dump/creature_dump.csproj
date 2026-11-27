@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OARuntime>../../../unity/Assets/OrbitalAnte/Scripts/Runtime/</OARuntime>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="RollerDump.cs" />
+    <Compile Include="HunterDump.cs" />
+    <Compile Include="ScreamerDump.cs" />
+    <Compile Include="AmbusherDump.cs" />
+    <Compile Include="StalkerDump.cs" />
+    <Compile Include="MawDump.cs" />
+    <Compile Include="BiterDump.cs" />
+    <Compile Include="$(OARuntime)Core/Vec3d.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/WalkerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/RollerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/HunterBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/ScreamerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/ScreamerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/ScreamerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/ScreamerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/AmbusherLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/AmbusherBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/AmbusherAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/AmbusherBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/StalkerLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/StalkerBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/StalkerAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/StalkerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/BiterLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/BiterBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/BiterAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/BiterBrain.cs" />
+    <Compile Include="$(OARuntime)Core/SeededRandom.cs" />
+  </ItemGroup>
+</Project>

@@ -30,7 +30,7 @@ KINDS = {"fabric": lambda: mats.cloth("oa_cloth"), "webbing": lambda: mats.strap
          "hard": lambda: mats.shell("oa_shell", 0.42), "colour_band": lambda: mats.shell("oa_band", 0.30, seed=3.0),
          "metal": lambda: mats.fitting("oa_fitting"), "rubber": lambda: mats.skin_rubber("oa_rubber"),
          "gold": lambda: mats.mirror_coat("oa_gold", 0.88, 1.0), "glass": lambda: mats.mirror_coat("oa_glass", 0.90, 0.0),
-         "flesh": lambda: mats.flesh("oa_flesh")}
+         "flesh": lambda: mats.painted_flesh("oa_flesh")}
 # The wound is one unit across (the game scales it): it is baked this much smaller and off to one side, or it
 # would take most of the picture.
 STUMP_SCALE, STUMP_AT = 0.11, Vector((0.0, 0.0, -1.0))
