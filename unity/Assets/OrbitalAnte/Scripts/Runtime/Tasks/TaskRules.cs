@@ -139,6 +139,8 @@ namespace OrbitalAnte.Tasks
         public bool freshGun;
         /// <summary>All four limbs were off before the kill.</summary>
         public bool takenApart;
+        /// <summary>The player was crouched or lying prone (not a feat: it counts toward a goal unlock, Ante/Unlocks.cs).</summary>
+        public bool lowStance;
     }
 
     /// <summary>

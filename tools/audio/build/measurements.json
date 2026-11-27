@@ -5243,5 +5243,26 @@
   "highmid_pct": 3.5,
   "high_pct": 0.3,
   "clipped_samples": 0
+ },
+ "Sfx/rewards/reward_unlock": {
+  "seconds": 2.9,
+  "channels": 2,
+  "peak_db": -3.01,
+  "true_peak_db": -3.0,
+  "rms_db": -16.41,
+  "crest_db": 13.41,
+  "lufs": -11.73,
+  "dc": 2e-06,
+  "centroid_hz": 1380.5,
+  "attack_ms": 170.96,
+  "audible_seconds": 2.842,
+  "sub_pct": 0.0,
+  "low_pct": 0.0,
+  "lowmid_pct": 38.2,
+  "mid_pct": 50.9,
+  "highmid_pct": 6.8,
+  "high_pct": 4.1,
+  "clipped_samples": 0,
+  "stereo_correlation": 0.857
  }
 }

@@ -313,6 +313,7 @@ namespace OrbitalAnte.Tasks
                 airborne = player != null && player.Airborne,
                 rover = outcome.Source == HitSource.Rover,
                 melee = outcome.Source == HitSource.Melee,
+                lowStance = player != null && player.Mode == AstronautMode.Outside && player.Stances.Current != Spacewalk.Stance.Stand,
             };
             if (outcome.Killed)
             {
@@ -387,6 +388,7 @@ namespace OrbitalAnte.Tasks
                 // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
                 if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
                 AnteLoop.ContractKill(e.Body, f);
+                AnteLoop.UnlockKill(f);
             }
             if (who != null) _woke.Remove(who);
 
@@ -922,6 +924,7 @@ namespace OrbitalAnte.Tasks
                     "FIRST LANDING: " + (surface.Body.Spec.displayName ?? id).ToUpperInvariant());
             }
             AnteLoop.ContractLanded(body);
+            AnteLoop.UnlockLanded(id);
 
             // Rough ground: the ground under the legs stands well above or below the ground around them.
             Transform t = surface.Body.transform;

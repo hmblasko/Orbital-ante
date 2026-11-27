@@ -23,6 +23,8 @@ namespace OrbitalAnte.Ante
         public string Text { get; private set; }
         /// <summary>Seconds the showing note has left.</summary>
         public float Left { get; private set; }
+        /// <summary>An important note is still in its hold: anything offered now waits, or (if important) cuts it short.</summary>
+        public bool Holding => _held > 0f;
 
         public void Clear()
         {

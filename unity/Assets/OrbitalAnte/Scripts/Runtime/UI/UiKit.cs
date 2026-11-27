@@ -455,3 +455,21 @@ namespace OrbitalAnte.UI
         }
     }
 }
+
+namespace OrbitalAnte.UI
+{
+    /// <summary>
+    /// Hovering the mouse over a button chooses it, as the D-pad does, so whatever reads the chosen button (a kit's
+    /// details on the title screen) follows the mouse too.
+    /// </summary>
+    public sealed class SelectOnHover : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler
+    {
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData)
+        {
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            var selectable = GetComponent<Selectable>();
+            if (events != null && selectable != null && selectable.IsInteractable() && events.currentSelectedGameObject != gameObject)
+                events.SetSelectedGameObject(gameObject);
+        }
+    }
+}

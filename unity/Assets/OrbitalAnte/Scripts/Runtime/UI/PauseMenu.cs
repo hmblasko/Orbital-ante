@@ -277,7 +277,11 @@ namespace OrbitalAnte.UI
             }
             if (_choiceTitle != null) _choiceTitle.text = title;
             _choiceBody.text = body ?? string.Empty;
-            UiKit.SetLayout(_choiceBody.gameObject, string.IsNullOrEmpty(body) ? 0f : bodyHeight);
+            float shownBody = string.IsNullOrEmpty(body) ? 0f : bodyHeight;
+            UiKit.SetLayout(_choiceBody.gameObject, shownBody);
+            // The buttons give up height before the card runs off the screen (UI/MenuFit).
+            int rows = choices == null ? 0 : Math.Min(choices.Count, ChoiceSlots);
+            buttonHeight = MenuFit.ButtonHeight(rows, shownBody, buttonHeight, CanvasHeight);
             _choiceBack = onBack;
             GameObject first = null;
             for (int i = 0; i < ChoiceSlots; i++)
@@ -308,6 +312,16 @@ namespace OrbitalAnte.UI
                 if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
                 _diedAt = Time.unscaledTime;
                 _selectHold.Start(DiedHold);
+            }
+        }
+
+        /// <summary>The menu canvas's height in layout units (800 on the Deck; less on a wider screen).</summary>
+        float CanvasHeight
+        {
+            get
+            {
+                float h = _canvas != null ? ((RectTransform)_canvas.transform).rect.height : 0f;
+                return h > 100f ? h : UiKit.ReferenceResolution.y;
             }
         }
 
@@ -354,7 +368,8 @@ namespace OrbitalAnte.UI
             bool hasRecap = !string.IsNullOrEmpty(recap);
             _diedRecap.gameObject.SetActive(hasRecap);
             _diedRecap.text = hasRecap ? recap : string.Empty;
-            UiKit.SetLayout(_diedRecap.gameObject, hasRecap ? 150f : 0f);
+            // The recap grows with its lines (unlocks add some), up to what the page has room for.
+            UiKit.SetLayout(_diedRecap.gameObject, hasRecap ? Mathf.Min(300f, MenuFit.BodyHeight(recap, 150f, 22f, 52)) : 0f);
             if (!IsOpen)
             {
                 GameSession.SetPaused(true);

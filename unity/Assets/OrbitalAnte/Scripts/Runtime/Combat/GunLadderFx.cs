@@ -117,7 +117,14 @@ namespace OrbitalAnte.Combat
             if (!Ladder.AddKill()) return;
             _nextSearch = 0f;
             _owed = !HandOverNextGun();
+            if (Ladder.AtTop) ReachedTop?.Invoke();
         }
+
+        /// <summary>
+        /// The ladder has just reached its last gun (a goal unlock, Ante/Unlocks.cs). The ante loop listens for the
+        /// whole session and only counts it during a solar-system run, so the practice range never unlocks anything.
+        /// </summary>
+        public static event System.Action ReachedTop;
 
         /// <summary>The ladder is on and not at the top yet, so kills still count toward a new gun.</summary>
         public bool CanClimb => Ladder != null && !Ladder.AtTop;
@@ -135,6 +142,7 @@ namespace OrbitalAnte.Combat
                 if (!Ladder.AddKill()) continue;
                 _nextSearch = 0f;
                 _owed = !HandOverNextGun();
+                if (Ladder.AtTop) ReachedTop?.Invoke();
                 break;
             }
             return true;

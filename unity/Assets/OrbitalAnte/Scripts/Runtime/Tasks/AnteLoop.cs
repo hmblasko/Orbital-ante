@@ -90,11 +90,13 @@ namespace OrbitalAnte.Tasks
             BuildHud();
             _chartView = StarChartView.Create(transform);
             RunPerksFx.Note += OnPerkNote;
+            GunLadderFx.ReachedTop += OnLadderTop;
         }
 
         void OnDestroy()
         {
             RunPerksFx.Note -= OnPerkNote;
+            GunLadderFx.ReachedTop -= OnLadderTop;
             if (Current == this) Current = null;
         }
 
@@ -111,6 +113,8 @@ namespace OrbitalAnte.Tasks
             AnteBalance balance = AnteBalanceData.Load().balance;
             // The full perk list (20 Nov 2026): every perk in it is wired into the game.
             Run = new AnteRun(balance, seed, RoguelitePerks.Create());
+            // The starting kit and the perks still locked (goal unlocks, AnteLoop.Unlocks.cs), before the build is published.
+            BeginUnlocks();
             _recap = new RunRecap();
             Current = this;
             ResetBreak();
@@ -177,6 +181,7 @@ namespace OrbitalAnte.Tasks
             }
             loop.AfterReport(scoreEvent, result, label);
             loop._recap?.Add(scoreEvent, result, loop.Run.Director.Ante, label);
+            loop.UnlockScored(result);
             return result;
         }
 
@@ -253,6 +258,7 @@ namespace OrbitalAnte.Tasks
                       + "). Bank from the pause menu, or keep scoring"
                     : "TARGET MET: bank it from the pause menu, or keep scoring", true);
             }
+            UpdateUnlocks();
             // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
             // star chart once the target is met. In the seat Select is still Floodlights.
             // Never while dying: the burst's hold keeps the ante running for a moment, and nothing may be spent then.
@@ -332,12 +338,14 @@ namespace OrbitalAnte.Tasks
                 case AntePhase.Intermission:
                     // Keep going after the last ante comes here too: its sounds were played on the victory page.
                     if (_fromVictory) { _fromVictory = false; ShowCard(); break; }
+                    UnlockAnteCleared(ante);
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     // Ante 9 is the envelope's; clearing earlier antes changes nothing there yet, but it is told.
                     if (Envelopes != null) Envelopes.AnteCleared(ante);
                     ShowCard();
                     break;
                 case AntePhase.Victory:
+                    UnlockAnteCleared(ante);
                     Audio.AudioDirector.PlayLocal("reward.tier4");
                     if (Envelopes != null) Envelopes.AnteCleared(ante, ShowVictory);
                     else ShowVictory();
@@ -361,8 +369,9 @@ namespace OrbitalAnte.Tasks
             if (Menu == null || Run == null) return;
             // Nothing is recorded yet: a run that keeps going is recorded when it really ends.
             int score = Run.Ledger.LifetimeRunScore;
+            string unlocked = string.IsNullOrEmpty(UnlockBreakLines) ? string.Empty : UnlockBreakLines + "\n";
             Menu.ShowChoices("ALL ANTES CLEARED",
-                "You cleared all " + Run.Director.Ante + " antes. Run score " + score.ToString("N0", Inv) + ".\n"
+                "You cleared all " + Run.Director.Ante + " antes. Run score " + score.ToString("N0", Inv) + ".\n" + unlocked
                 + "Keep going for endless antes, each one asking more, until you die. Your best ante counts on the records.",
                 new List<PauseMenu.MenuChoice>
                 {
@@ -403,6 +412,7 @@ namespace OrbitalAnte.Tasks
             Audio.AudioDirector.PlayLocal("reward.multiplier");
             Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0", Inv) + " TO BANK");
             _skippedPerk = false;
+            BeginAnteUnlocks();
             BeginAnteEffects();
             AnteBegan?.Invoke(Run.Director.Ante);
         }

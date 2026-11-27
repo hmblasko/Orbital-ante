@@ -141,6 +141,7 @@ namespace OrbitalAnte.Tasks
             string sets = SetsLine();
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_breakNote)) body.Append(_breakNote).Append("\n");
+            if (!string.IsNullOrEmpty(UnlockBreakLines)) body.Append(UnlockBreakLines).Append("\n");
             if (Run.Director.ClearedInOvertime) body.Append("Made it in overtime. Close one!\n");
             if (!string.IsNullOrEmpty(_contractResult)) body.Append(_contractResult).Append("\n");
             body.Append("Ante ").Append(ante + 1).Append(" needs ").Append(N(next)).Append(" in ")
@@ -164,9 +165,11 @@ namespace OrbitalAnte.Tasks
             choices.Add(new PauseMenu.MenuChoice("Start ante " + (ante + 1), StartPressed));
             choices.Add(new PauseMenu.MenuChoice("Restart or quit", ShowLeave));
             // Seven rows at full height no longer fit a 1280 x 800 screen (agent review, 25 Nov 2026): shorter rows then.
+            // The body grows with its lines (a goal unlocked at the clear adds one); the menu shrinks the rows to fit.
             bool full = choices.Count >= 7;
-            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, full ? 176f : 190f, _keepSlot,
-                false, full ? 56f : PauseMenu.ChoiceButtonHeight);
+            string words = body.ToString();
+            Menu.ShowChoices("ANTE " + ante + " CLEARED", words, choices, null, MenuFit.BodyHeight(words.TrimEnd('\n'), full ? 176f : 190f, 22f, 64),
+                _keepSlot, false, full ? 56f : PauseMenu.ChoiceButtonHeight);
             _keepSlot = -1;
         }
 
@@ -212,6 +215,8 @@ namespace OrbitalAnte.Tasks
         string LastPerkName()
         {
             IReadOnlyList<PerkDefinition> owned = Run.Perks.Owned;
+            // Antes 1 and 2 of a kit run have no pick: the kit's perks were those picks.
+            if (Run.Director.PickGivenAhead && !_skippedPerk && !Run.Director.PerkTakenEarly) return KitPickWords();
             return _skippedPerk ? "skipped" : owned.Count > 0 ? owned[owned.Count - 1].displayName : "none";
         }
 
@@ -318,6 +323,7 @@ namespace OrbitalAnte.Tasks
                 choices.Add(new PauseMenu.MenuChoice("Pick a perk  (" + offers + " on offer)", () => ShowFieldPerks(0), offers > 0));
             }
             else if (d.PerkTakenEarly) choices.Add(new PauseMenu.MenuChoice("Perk: " + LastPerkName(), null, false));
+            else if (d.PickGivenAhead) choices.Add(new PauseMenu.MenuChoice("Perk: this ante's came " + KitPickWords(), null, false));
             else if (d.IsLastAnte) choices.Add(new PauseMenu.MenuChoice("Perk: none on the last ante", null, false));
             else choices.Add(new PauseMenu.MenuChoice("Perk: yours when you meet the target  (" + N(Mathf.Max(0, d.Target - Run.Ledger.AnteEarned)) + " to go)", null, false));
             choices.Add(new PauseMenu.MenuChoice("Shop  (" + N(Run.Ledger.SpendablePoints) + " to spend)", () => ShowShop(-1, () => ShowFieldUpgrades(1))));
@@ -579,6 +585,7 @@ namespace OrbitalAnte.Tasks
             if (story.Length > 0) s.Append(story).Append("\n");
             if (newAnte) s.Append("NEW RECORD: your highest ante!\n");
             else if (newScore) s.Append("NEW RECORD: your best run score!\n");
+            s.Append(UnlockRecapLines());
             s.Append(RunRecap.NextLine(cleared, Run.Balance.AnteCount));
             return s.ToString();
         }

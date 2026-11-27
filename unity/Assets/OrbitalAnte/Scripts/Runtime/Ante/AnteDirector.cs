@@ -60,8 +60,15 @@ namespace OrbitalAnte.Ante
         /// Select menu during the game). Meeting the target earns the pick at once; the break then has none left.
         /// </summary>
         public bool PerkTakenEarly { get; private set; }
+        /// <summary>
+        /// How many of the first antes had their perk pick given at the start, by a starting kit (Ralph loop pass 1,
+        /// 27 Nov 2026: a kit's two perks are the picks of antes 1 and 2). Those antes have no pick of their own.
+        /// </summary>
+        public int PicksGivenAhead { get; private set; }
+        /// <summary>This ante's pick came with the starting kit.</summary>
+        public bool PickGivenAhead => Ante <= PicksGivenAhead;
         /// <summary>The pick can be taken now, in the field, because this ante's target is met.</summary>
-        public bool PerkEarnedEarly => IsRunning && TargetMet && !PerkTakenEarly && !IsLastAnte;
+        public bool PerkEarnedEarly => IsRunning && TargetMet && !PerkTakenEarly && !IsLastAnte && !PickGivenAhead;
         /// <summary>A perk can be picked now: at the break, or in the field once the target is met.</summary>
         public bool CanPickPerk => PerkDraftPending || PerkEarnedEarly;
         /// <summary>The free scratch-off earned by clearing the last ante has not been used yet.</summary>
@@ -218,6 +225,18 @@ namespace OrbitalAnte.Ante
         }
         public void MarkScratchUsed() => ScratchPending = false;
 
+        /// <summary>
+        /// A starting kit gave the picks of the first <paramref name="antes"/> antes at the start of the run. Only
+        /// while ante 1 is running; later calls change nothing.
+        /// </summary>
+        public bool GivePicksAhead(int antes)
+        {
+            if (antes <= 0 || Ante != 1 || !IsRunning || PicksGivenAhead > 0) return false;
+            PicksGivenAhead = antes;
+            Changed?.Invoke();
+            return true;
+        }
+
         void Clear()
         {
             ClearedInOvertime = InOvertime;
@@ -231,8 +250,8 @@ namespace OrbitalAnte.Ante
                 return;
             }
             // Cleared in overtime still gives the perk pick (Matthew, 21 Nov 2026: "okay with perks continuing even in overtime"),
-            // unless it was already taken in the field.
-            PerkDraftPending = !PerkTakenEarly;
+            // unless it was already taken in the field, or came with the starting kit.
+            PerkDraftPending = !PerkTakenEarly && !PickGivenAhead;
             ScratchPending = true;
             End(AntePhase.Intermission);
         }
@@ -244,9 +263,11 @@ namespace OrbitalAnte.Ante
         }
 
         /// <summary>Keep going and overtime from a saved run. Call before <see cref="Restore"/> (endless antes go past the last).</summary>
-        public void RestoreLater(bool endless, bool inOvertime, float overtimeSeconds, bool clearedInOvertime, bool perkTakenEarly = false)
+        public void RestoreLater(bool endless, bool inOvertime, float overtimeSeconds, bool clearedInOvertime, bool perkTakenEarly = false,
+            int picksGivenAhead = 0)
         {
             PerkTakenEarly = perkTakenEarly;
+            PicksGivenAhead = Math.Max(0, picksGivenAhead);
             Endless = endless;
             InOvertime = inOvertime;
             OvertimeSeconds = Math.Max(0f, overtimeSeconds);

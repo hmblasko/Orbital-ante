@@ -49,6 +49,9 @@ namespace OrbitalAnte.Ante
         /// <summary>The upgrade screen (21 Nov 2026): this ante's pick taken in the field, and rerolls bought this break.</summary>
         public bool perkTakenEarly;
         public int rerolls;
+        /// <summary>The starting kit the run began with, and how many antes' picks it stood in for (27 Nov 2026).</summary>
+        public string kit;
+        public int picksGivenAhead;
     }
 
     /// <summary>
@@ -67,6 +70,9 @@ namespace OrbitalAnte.Ante
         public AttributeShop Attributes { get; }
         public IReadOnlyList<PerkDefinition> Catalog { get; }
 
+        /// <summary>The starting kit this run began with (<see cref="StartingKit.id"/>), or null for none.</summary>
+        public string KitId { get; private set; }
+
         public int RepairRefillVouchers { get; private set; }
         public int TemporaryTacticalPerks { get; private set; }
         public int CosmeticTokens { get; private set; }
@@ -76,6 +82,7 @@ namespace OrbitalAnte.Ante
             Balance = balance ?? new AnteBalance();
             Seed = seed;
             Catalog = catalog ?? PerkCatalog.CreateDefaults();
+            _offerable = Catalog;
             Ledger = new RunLedger();
             Claims = new ClaimRegistry();
             Perks = new PerkLoadout();
@@ -125,7 +132,44 @@ namespace OrbitalAnte.Ante
             if (!Director.CanPickPerk) return new List<PerkDefinition>();
             SeededRandom rng = PerkDraft.StreamFor(Seed, Director.Ante);
             if (Rerolls > 0) rng = rng.Fork(1000 + Rerolls);
-            return PerkDraft.Roll(rng, Catalog, Perks, Balance, unavailable);
+            return PerkDraft.Roll(rng, _offerable, Perks, Balance, unavailable);
+        }
+
+        IReadOnlyList<PerkDefinition> _offerable;
+
+        /// <summary>
+        /// Perks still locked on this profile (Ante/Unlocks.cs, 27 Nov 2026): never offered. Set at the start of each
+        /// ante, so a perk unlocked during an ante joins the drafts from the next one and the offers of an ante
+        /// never change under the player. Null or empty locks nothing.
+        /// </summary>
+        public void SetLocked(ICollection<string> perkIds)
+        {
+            if (perkIds == null || perkIds.Count == 0) { _offerable = Catalog; return; }
+            var open = new List<PerkDefinition>(Catalog.Count);
+            for (int i = 0; i < Catalog.Count; i++)
+                if (Catalog[i] != null && !perkIds.Contains(Catalog[i].id)) open.Add(Catalog[i]);
+            _offerable = open;
+        }
+
+        /// <summary>
+        /// Starts the run with a kit's perks, in place of the picks of the first antes (one ante's pick for each perk
+        /// it gives). Only before anything is held, while ante 1 runs. False for Standard (no perks) or a kit whose
+        /// perks are not in the catalogue.
+        /// </summary>
+        public bool StartWithKit(StartingKit kit)
+        {
+            if (kit == null || kit.perkIds == null || kit.perkIds.Length == 0) return false;
+            if (KitId != null || Perks.Owned.Count > 0 || Director.Ante != 1 || !Director.IsRunning) return false;
+            int given = 0;
+            for (int i = 0; i < kit.perkIds.Length; i++)
+            {
+                PerkDefinition perk = StartingKits.FindPerk(kit.perkIds[i], Catalog);
+                if (perk != null && Perks.Add(perk)) given++;
+            }
+            if (given == 0) return false;
+            KitId = kit.id;
+            Director.GivePicksAhead(given);
+            return true;
         }
 
         /// <summary>Rerolls bought for this ante's pick (21 Nov 2026: a use for points once the shop is full). Back to 0 at the next ante.</summary>
@@ -231,6 +275,8 @@ namespace OrbitalAnte.Ante
                 clearedInOvertime = Director.ClearedInOvertime,
                 perkTakenEarly = Director.PerkTakenEarly,
                 rerolls = Rerolls,
+                kit = KitId,
+                picksGivenAhead = Director.PicksGivenAhead,
             };
             Claims.Export(state.claims, state.counterKeys, state.counterValues);
             for (int i = 0; i < Perks.Owned.Count; i++) state.perkIds.Add(Perks.Owned[i].id);
@@ -255,7 +301,9 @@ namespace OrbitalAnte.Ante
                 }
             }
             AntePhase phase = Enum.IsDefined(typeof(AntePhase), state.phase) ? (AntePhase)state.phase : AntePhase.Running;
-            run.Director.RestoreLater(state.endless, state.inOvertime, state.overtimeSeconds, state.clearedInOvertime, state.perkTakenEarly);
+            run.Director.RestoreLater(state.endless, state.inOvertime, state.overtimeSeconds, state.clearedInOvertime, state.perkTakenEarly,
+                state.picksGivenAhead);
+            run.KitId = string.IsNullOrEmpty(state.kit) ? null : state.kit;
             run.Director.Restore(state.ante, phase, state.secondsLeft, state.stopwatchSecondsAdded, state.runSeconds,
                 state.perkDraftPending, state.scratchPending);
             run.Score.ImportChain(state.chainHasLast, state.chainLastCategory, state.chainLastSeconds, state.chainUsesThisAnte);

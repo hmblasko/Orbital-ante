@@ -1822,6 +1822,26 @@
    "note": "Exceptional: the whole first phrase of the Orbital Ante theme as a fanfare. Brass, vibes and glockenspiel, a run up into it, the theme's flattened-seventh wink in the harmony, and a cymbal to finish."
   },
   {
+   "id": "reward.unlock",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_unlock"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 30,
+   "cooldownMs": 1500,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "A goal met that unlocks a perk or a starting kit for every run after (Ralph loop pass 1, 27 Nov 2026). The one reward that starts mechanical: a key's three pins click up and a latch drops, then what was locked opens out, a run up the D pentatonic on harp and celesta into the ante cell's top (B to D), landing on D and A held over a D major ninth on glass. No other reward has the lock, and none ends on the open fifth, so it is never taken for a kill, a cleared ante or the target."
+  },
+  {
    "id": "ship.cabin.loop",
    "bus": "Engines",
    "clips": [

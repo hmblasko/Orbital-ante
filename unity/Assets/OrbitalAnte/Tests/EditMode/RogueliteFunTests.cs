@@ -351,11 +351,11 @@ namespace OrbitalAnte.Tests
         // ---- records ----
 
         [Test]
-        public void AVersion3Save_IsBroughtUpTo4_WithNoRecords()
+        public void AVersion3Save_IsBroughtUpToDate_WithNoRecords()
         {
             var data = new SaveData { version = 3, runsStarted = 5, bestAnte = 99 };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
-            Assert.AreEqual(4, data.version);
+            Assert.AreEqual(SaveData.CurrentVersion, data.version);
             Assert.AreEqual(0, data.bestAnte);
             Assert.AreEqual(0, data.runsEnded);
             Assert.AreEqual(5, data.runsStarted);
