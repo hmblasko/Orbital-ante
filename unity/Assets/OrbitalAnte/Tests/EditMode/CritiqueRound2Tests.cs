@@ -38,6 +38,15 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void OneAward_IsOneLine_WithThePerksShareOnTheEndOfIt()
+        {
+            Assert.AreEqual("+132  MOON LANDING", OrbitalAnte.Ante.PopFeedback.Line(132, "MOON LANDING", 0));
+            Assert.AreEqual("+138  MOON LANDING  (6 CHANGE OF PACE)", OrbitalAnte.Ante.PopFeedback.Line(138, "MOON LANDING", 6));
+            Assert.AreEqual("+1,250  SPLAT", OrbitalAnte.Ante.PopFeedback.Line(1250, "SPLAT", -3), "a share that is not there is not shown");
+            StringAssert.DoesNotContain("\n", OrbitalAnte.Ante.PopFeedback.Line(138, "X", 6));
+        }
+
+        [Test]
         public void TheDefault_SelectsItself_OnceTheHoldIsOver_AndTheButtonIsAtRest()
         {
             var hold = new SelectionHold();
