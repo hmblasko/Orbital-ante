@@ -53,8 +53,10 @@ then asks Matthew for a Deck playtest, whose findings start the next loop.
 
 ## Restarting the loop
 
-The loop runs as a self-paced `/loop` in a cloud session. Its timer lives in that session's container, so it stops if
-the container is released. To start it again, run `/loop` with this text:
+Since 27 Nov 2026 the loop is durable: instead of a timer inside the cloud container, it keeps exactly one scheduled
+check-in pending (held outside the container, so it wakes the session even on a new container). Each pass ends by
+arming the next one a few minutes later, and the loop stops by 27 Dec 2026 at the latest, or as soon as every line is
+at 8. If the chain ever breaks (no pass for a day), start it again by running `/loop` with this text:
 
 > Ralph loop for Orbital Ante (Matthew, 27 Nov 2026, cmsg_01KEHdyAX6e6hXpiV72stnnJPNeA8pyyC5TGkgv3Cufr85): keep
 > iterating until the game has a clear goal, is easily understandable, has strong aesthetics, has enjoyable gameplay,
