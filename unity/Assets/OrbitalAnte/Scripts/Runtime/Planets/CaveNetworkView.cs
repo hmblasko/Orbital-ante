@@ -47,6 +47,9 @@ namespace OrbitalAnte.Planets
         float _solidCheckAt;
         PlanetSurface _surface;
 
+        /// <summary>The model the work lamp is drawn from.</summary>
+        public const string LampModel = "Props";
+
         static Mesh _lampBody, _lampGlow;
 
         /// <summary>The build's colours must already be linear if the project is (done in the background job).</summary>
@@ -158,9 +161,15 @@ namespace OrbitalAnte.Planets
 
         void MakeLamps()
         {
-            if (_lampBody == null) _lampBody = ToMesh(CaveProps.WorkLamp(out ShapeData glow), "Cave lamp");
-            if (_lampGlow == null) _lampGlow = ToMesh(CaveProps.WorkLampGlow(), "Cave lamp glow");
-            Material body = PlanetMaterials.VertexColour(Color.white, 1f);
+            // The real work lamp from the Props model (tools/blender/build_props.py); the code-made one is the fallback.
+            Mesh modelBody = OrbitalAnte.Look.ModelLibrary.PartMesh(LampModel, "lamp");
+            Mesh modelGlow = OrbitalAnte.Look.ModelLibrary.PartMesh(LampModel, "lampGlow");
+            bool modelled = modelBody != null && modelGlow != null;
+            if (!modelled && _lampBody == null) _lampBody = ToMesh(CaveProps.WorkLamp(out ShapeData glow), "Cave lamp");
+            if (!modelled && _lampGlow == null) _lampGlow = ToMesh(CaveProps.WorkLampGlow(), "Cave lamp glow");
+            // The library's meshes are shared and are never kept in this class's own statics.
+            Mesh lampBody = modelled ? modelBody : _lampBody, lampGlow = modelled ? modelGlow : _lampGlow;
+            Material body = modelled ? OrbitalAnte.Look.ModelLibrary.MaterialFor(LampModel) : PlanetMaterials.VertexColour(Color.white, 1f);
             Material glowing = PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
             foreach (CaveLamp lamp in Network.Lamps)
             {
@@ -173,14 +182,14 @@ namespace OrbitalAnte.Planets
                 Vector3 ahead = Vector3.ProjectOnPlane(facing, up);
                 if (ahead.sqrMagnitude < 1e-6f) ahead = Vector3.ProjectOnPlane(Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.forward, up);
                 go.transform.localRotation = Quaternion.LookRotation(ahead.normalized, up);
-                go.AddComponent<MeshFilter>().sharedMesh = _lampBody;
+                go.AddComponent<MeshFilter>().sharedMesh = lampBody;
                 var lampRenderer = go.AddComponent<MeshRenderer>();
                 lampRenderer.sharedMaterial = body;
                 // Cave darkness comes from the cave's own light box, never from cast shadows.
                 lampRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 var head = new GameObject("Glow");
                 head.transform.SetParent(go.transform, false);
-                head.AddComponent<MeshFilter>().sharedMesh = _lampGlow;
+                head.AddComponent<MeshFilter>().sharedMesh = lampGlow;
                 var glowRenderer = head.AddComponent<MeshRenderer>();
                 glowRenderer.sharedMaterial = glowing;
                 glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

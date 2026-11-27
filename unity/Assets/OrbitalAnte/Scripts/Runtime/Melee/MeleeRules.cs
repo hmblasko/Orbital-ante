@@ -161,6 +161,22 @@ namespace OrbitalAnte.Melee
         /// <summary>Every built-in id, in the order the arena lays them out.</summary>
         public static readonly string[] Ids = { FryingPanId, ButterflyKnifeId, BaseballBatId, MailboxId, LaserSwordId };
 
+        /// <summary>
+        /// How far above the hand the far end of each weapon is, in metres: where its Tip socket stands. The model
+        /// (tools/blender/build_props.py) and the stand-in shapes both keep to it (rule test PropsModelTests).
+        /// </summary>
+        public static float TipHeight(string id)
+        {
+            switch (id)
+            {
+                case LaserSwordId: return 1.21f;
+                case BaseballBatId: return 0.86f;
+                case MailboxId: return 1.15f;
+                case ButterflyKnifeId: return 0.23f;
+                default: return 0.50f;
+            }
+        }
+
         /// <summary>The built-in numbers for an id, or null for an id that is not one of the five.</summary>
         public static MeleeSpec Defaults(string id)
         {

@@ -107,6 +107,12 @@ namespace OrbitalAnte.Look
         /// </summary>
         static Material Shining() => PlanetMaterials.VertexColour(Color.white, 0f, 2f, false);
 
+        /// <summary>
+        /// The material for one piece taken by <see cref="PartMesh"/> and drawn by hand: the shining one for a piece
+        /// whose name ends in Glow, the model's own otherwise. Shared: never change or destroy it.
+        /// </summary>
+        public static Material PieceMaterial(string id, string part) => ModelFile.Shines(part) ? Shining() : MaterialFor(id);
+
         static Material Outdoor() => PlanetMaterials.Model(1f, 0f, PropPaintScale);
 
         /// <summary>The one material every untextured library model is drawn with in the open. Shared: never change or destroy it.</summary>

@@ -80,6 +80,9 @@ namespace OrbitalAnte.Tasks
             public SignalMast Rule;
             public Renderer[] Cells;
             public Collider[] CellColliders;
+            /// <summary>With the Props model: each cell's canister (its mesh is swapped for the burnt one) and its lit window.</summary>
+            public MeshFilter[] CellShapes;
+            public Renderer[] CellGlows;
             public bool InReach;
             public override bool Live => !Rule.Down;
         }
@@ -543,12 +546,24 @@ namespace OrbitalAnte.Tasks
             bool down = m.Rule.Hit(cell, damage, Now);
             if (m.Rule.CellBroken(cell))
             {
-                if (m.Cells[cell] != null) m.Cells[cell].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
-                if (m.CellColliders[cell] != null) m.CellColliders[cell].enabled = false;
+                BurnOut(m, cell);
                 if (fx != null) fx.Sparks(point, normal, 18);
                 Audio.AudioDirector.Play("impact.metal", point, 1f, 0.8f);
             }
             if (down) MastDown(m, false);
+        }
+
+        /// <summary>A cell that is shot out (or whose mast is down) goes dark and can no longer be hit.</summary>
+        static void BurnOut(MastTask m, int cell)
+        {
+            if (m.CellShapes != null && m.CellShapes[cell] != null)
+            {
+                Mesh burnt = Prop("cellBurnt");
+                if (burnt != null) m.CellShapes[cell].sharedMesh = burnt;
+                if (m.CellGlows[cell] != null) m.CellGlows[cell].enabled = false;
+            }
+            else if (m.Cells[cell] != null) m.Cells[cell].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
+            if (m.CellColliders[cell] != null) m.CellColliders[cell].enabled = false;
         }
 
         void Rammed(MastTask m)
@@ -558,11 +573,7 @@ namespace OrbitalAnte.Tasks
 
         void MastDown(MastTask m, bool rammed)
         {
-            for (int i = 0; i < m.Cells.Length; i++)
-            {
-                if (m.Cells[i] != null) m.Cells[i].sharedMaterial = Mat.Lit(new Color(0.12f, 0.11f, 0.10f), 0.3f);
-                if (m.CellColliders[i] != null) m.CellColliders[i].enabled = false;
-            }
+            for (int i = 0; i < m.Cells.Length; i++) BurnOut(m, i);
             // It falls over where it stood (a stand-in: no physics, it is part of the world's ground).
             if (m.View != null) m.View.transform.GetChild(0).localRotation = Quaternion.Euler(78f, Random.Range(0f, 360f), 0f);
             // Ramming pays the mast but is never a feat; shooting it out before it ever called is.
@@ -1056,6 +1067,33 @@ namespace OrbitalAnte.Tasks
             return r;
         }
 
+        /// <summary>The model the task objects are drawn from (tools/blender/build_props.py); the primitive shapes are the fallback.</summary>
+        public const string PropsModel = "Props";
+
+        static Mesh Prop(string part) => OrbitalAnte.Look.ModelLibrary.PartMesh(PropsModel, part);
+
+        /// <summary>
+        /// One piece of the Props model, drawn only (what is solid stays the plain shapes, which are then hidden).
+        /// Null when the model or the piece is missing.
+        /// </summary>
+        static Renderer Drawn(Transform parent, string part, Vector3 at, Quaternion turn, bool castsShadow)
+        {
+            Mesh mesh = Prop(part);
+            if (mesh == null) return null;
+            var go = new GameObject(part);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = at;
+            go.transform.localRotation = turn;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = OrbitalAnte.Look.ModelLibrary.PieceMaterial(PropsModel, part);
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            if (castsShadow) OrbitalAnte.Look.SunShadows.Cast(r, true);
+            return r;
+        }
+
         void BuildMast(MastTask m)
         {
             GameObject root = Root(m, "SignalMast");
@@ -1064,13 +1102,25 @@ namespace OrbitalAnte.Tasks
             pivot.SetParent(root.transform, false);
             Material steel = Mat.Lit(new Color(0.42f, 0.43f, 0.45f), 0.45f);
             Material dark = Mat.Lit(new Color(0.16f, 0.16f, 0.17f), 0.3f);
-            Piece(root.transform, PrimitiveType.Cube, dark, new Vector3(0f, 0.3f, 0f), new Vector3(2.4f, 0.6f, 2.4f), true);
+            Renderer footing = Piece(root.transform, PrimitiveType.Cube, dark, new Vector3(0f, 0.3f, 0f), new Vector3(2.4f, 0.6f, 2.4f), true);
             Renderer pole = Piece(pivot, PrimitiveType.Cylinder, steel, new Vector3(0f, 4.5f, 0f), new Vector3(0.45f, 4.5f, 0.45f), true);
             var ram = pole.gameObject.AddComponent<MastRam>();
             ram.Speed = _rules.mastRamSpeed;
             ram.Rammed = () => Rammed(m);
             Renderer dish = Piece(pivot, PrimitiveType.Cylinder, steel, new Vector3(0f, 9.3f, 0.3f), new Vector3(1.8f, 0.06f, 1.8f), false);
             dish.transform.localRotation = Quaternion.Euler(-35f, 0f, 0f);
+            // The real model, where there is one: the plain shapes stay as what is solid and are no longer drawn.
+            bool modelled = Prop("mast") != null && Prop("mastBase") != null && Prop("cell") != null;
+            if (modelled)
+            {
+                Drawn(root.transform, "mastBase", Vector3.zero, Quaternion.identity, true);
+                Drawn(pivot, "mast", Vector3.zero, Quaternion.identity, true);
+                footing.enabled = false;
+                pole.enabled = false;
+                dish.enabled = false;
+                m.CellShapes = new MeshFilter[m.Rule.Cells];
+                m.CellGlows = new Renderer[m.Rule.Cells];
+            }
 
             Material lit = Mat.Unlit(new Color(1f, 0.36f, 0.16f) * 2.2f);
             int count = m.Rule.Cells;
@@ -1089,6 +1139,14 @@ namespace OrbitalAnte.Tasks
                 hit.Struck = (damage, point, normal) => HitCell(m, which, damage, point, normal);
                 m.Cells[i] = cell;
                 m.CellColliders[i] = cell.GetComponent<Collider>();
+                if (modelled)
+                {
+                    cell.enabled = false;
+                    // Under the pivot, not the scaled box, so the canister keeps its own size and falls with the mast.
+                    Renderer can = Drawn(pivot, "cell", cell.transform.localPosition, cell.transform.localRotation, true);
+                    m.CellShapes[i] = can.GetComponent<MeshFilter>();
+                    m.CellGlows[i] = Drawn(pivot, "cellGlow", cell.transform.localPosition, cell.transform.localRotation, false);
+                }
             }
         }
 
@@ -1099,7 +1157,13 @@ namespace OrbitalAnte.Tasks
             Material band = Mat.Unlit(new Color(0.40f, 0.85f, 1f) * 1.8f);
             Renderer box = Piece(root.transform, PrimitiveType.Cube, shell, new Vector3(0f, 0.3f, 0f), new Vector3(0.8f, 0.6f, 0.55f), true);
             c.Box = box.GetComponent<Collider>();
-            Piece(box.transform, PrimitiveType.Cube, band, new Vector3(0f, 0.15f, 0f), new Vector3(1.02f, 0.12f, 1.02f), false);
+            Renderer strip = Piece(box.transform, PrimitiveType.Cube, band, new Vector3(0f, 0.15f, 0f), new Vector3(1.02f, 0.12f, 1.02f), false);
+            if (Drawn(root.transform, "crate", Vector3.zero, Quaternion.identity, true) != null)
+            {
+                Drawn(root.transform, "crateGlow", Vector3.zero, Quaternion.identity, false);
+                box.enabled = false;
+                strip.enabled = false;
+            }
         }
 
         void BuildPod(DropTask d)
@@ -1113,8 +1177,15 @@ namespace OrbitalAnte.Tasks
             Renderer body = Piece(go.transform, PrimitiveType.Cylinder, shell, new Vector3(0f, 0.7f, 0f), new Vector3(1f, 0.7f, 1f), true);
             d.Shell = body.GetComponent<Collider>();
             d.Shell.enabled = false;
-            Piece(go.transform, PrimitiveType.Cylinder, glow, new Vector3(0f, 1.0f, 0f), new Vector3(1.04f, 0.08f, 1.04f), false);
-            Piece(go.transform, PrimitiveType.Sphere, glow, new Vector3(0f, 1.5f, 0f), new Vector3(0.35f, 0.35f, 0.35f), false);
+            Renderer ring = Piece(go.transform, PrimitiveType.Cylinder, glow, new Vector3(0f, 1.0f, 0f), new Vector3(1.04f, 0.08f, 1.04f), false);
+            Renderer ball = Piece(go.transform, PrimitiveType.Sphere, glow, new Vector3(0f, 1.5f, 0f), new Vector3(0.35f, 0.35f, 0.35f), false);
+            if (Drawn(go.transform, "pod", Vector3.zero, Quaternion.identity, true) != null)
+            {
+                Drawn(go.transform, "podGlow", Vector3.zero, Quaternion.identity, false);
+                body.enabled = false;
+                ring.enabled = false;
+                ball.enabled = false;
+            }
             // A drop carries its own light: it moves too fast for the shared ones.
             Renderer beam = Piece(go.transform, PrimitiveType.Cylinder, Mat.Unlit(BeamColour(_config.haulBeacon)), Vector3.zero, Vector3.one, false);
             beam.name = "TaskLight";
