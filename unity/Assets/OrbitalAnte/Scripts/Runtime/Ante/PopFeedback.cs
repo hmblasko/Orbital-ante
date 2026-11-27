@@ -5,6 +5,7 @@ namespace OrbitalAnte.Ante
     public enum PopTier { Plain = 0, Skilled = 1, Masterful = 2, Big = 3 }
 
     /// <summary>How one "+points" line looks and sounds.</summary>
+    /// <remarks>Rows of "+points" lines are <see cref="PopFeedback.RowPitch"/> apart, room for the biggest line.</remarks>
     public struct PopLook
     {
         public PopTier tier;
@@ -46,6 +47,12 @@ namespace OrbitalAnte.Ante
         /// <summary>A single award worth this share of ante 1's target, in ante 1 points, counts as a big one.</summary>
         public const float BigShare = 0.2f;
 
+        /// <summary>Pixels from one "+points" row to the next, and each row's height (critique loop round 6): at least
+        /// the biggest line's size plus room for its outline, so a big award is never clipped or laid over its neighbour.</summary>
+        public const int RowPitch = 28;
+        /// <summary>The biggest line's size (a Big award).</summary>
+        public const int BiggestFont = 24;
+
         /// <summary>
         /// Points at this ante that make an award big: a fifth of ante 1's target times the ante's value scale, so
         /// Big is the same deed at every ante (design review, 21 Nov 2026: a share of each ante's own target would
@@ -72,7 +79,7 @@ namespace OrbitalAnte.Ante
             switch (tier)
             {
                 case PopTier.Big:
-                    return new PopLook { tier = tier, fontSize = 24, styleColour = false, seconds = 3.6f, sound = "reward.tier3", volume = 0.9f, rackEndVolume = 1f };
+                    return new PopLook { tier = tier, fontSize = BiggestFont, styleColour = false, seconds = 3.6f, sound = "reward.tier3", volume = 0.9f, rackEndVolume = 1f };
                 case PopTier.Masterful:
                     return new PopLook { tier = tier, fontSize = 22, styleColour = true, seconds = 3.2f, sound = "reward.tier2", volume = 0.85f, rackEndVolume = 0.9f };
                 case PopTier.Skilled:
