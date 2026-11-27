@@ -33,7 +33,7 @@ What is solid has not changed: the old shapes are still the colliders, so nothin
 
 ## What was tested, and how
 
-- `dotnet test tools/rules-tests`: 2,757 pass, 1 skipped (the usual cabin bake check). New: `PropsModelTests` (2 tests) hold both model files to the sizes, pieces, sockets and triangle counts the game expects.
+- `dotnet test tools/rules-tests`: 2,782 pass, 1 skipped (the usual cabin bake check). New: `PropsModelTests` (2 tests) hold both model files to the sizes, pieces, sockets and triangle counts the game expects.
 - The runtime code compiles against reference assemblies (only the known Unity 6 name differences).
 - Blender previews of every model, looked at after each change. The thinned models print "seen from inside 0.00%".
 - Before-and-after globes of the Moon, Earth and Mars from `tools/terrain_view` (not Unity screenshots).
