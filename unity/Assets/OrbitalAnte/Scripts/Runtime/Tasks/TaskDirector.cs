@@ -225,7 +225,7 @@ namespace OrbitalAnte.Tasks
             Streak streak = _loop != null ? _loop.Streak : null;
             if (feats >= 2 || streak == null || streak.CountAt(Now) < _rules.streakForFeat) return 0;
             streak.Spend(Now);
-            label = string.IsNullOrEmpty(label) ? "ON A STREAK" : label + " + ON A STREAK";
+            label = string.IsNullOrEmpty(label) ? RunWords.OnARoll : label + " + " + RunWords.OnARoll;
             return 1;
         }
 

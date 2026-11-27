@@ -38,6 +38,25 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void AStringOfTasks_IsShownAsARoll_NeverAsAStreak()
+        {
+            Assert.AreEqual(string.Empty, RunWords.RollLine(0, 3));
+            Assert.AreEqual(string.Empty, RunWords.RollLine(1, 3));
+            Assert.AreEqual("ON A ROLL x2", RunWords.RollLine(2, 3));
+            Assert.AreEqual("ON A ROLL x3  (next task +style)", RunWords.RollLine(3, 3));
+            StringAssert.DoesNotContain("STREAK", RunWords.RollLine(5, 3));
+            StringAssert.DoesNotContain("STREAK", RunWords.OnARoll);
+        }
+
+        [Test]
+        public void TheEnvelope_IsShownFromTheTitleScreen_ButNotAgainOnAStraightRestart()
+        {
+            Assert.IsTrue(OrbitalAnte.Items.RunEnvelope.ShowsAtStart(true, false));
+            Assert.IsFalse(OrbitalAnte.Items.RunEnvelope.ShowsAtStart(true, true));
+            Assert.IsFalse(OrbitalAnte.Items.RunEnvelope.ShowsAtStart(false, false), "the setting still switches it off");
+        }
+
+        [Test]
         public void OneAward_IsOneLine_WithThePerksShareOnTheEndOfIt()
         {
             Assert.AreEqual("+132  MOON LANDING", OrbitalAnte.Ante.PopFeedback.Line(132, "MOON LANDING", 0));

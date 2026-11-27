@@ -587,7 +587,7 @@ namespace OrbitalAnte.Tasks
             if (streak != _shownStreak)
             {
                 _shownStreak = streak;
-                _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
+                _streakLine.text = RunWords.RollLine(streak, Config.rules.streakForFeat);
             }
 
             bool perkReady = d.PerkEarnedEarly && !OrbitalAnte.Ship.Astronaut.PlayerInShip;
