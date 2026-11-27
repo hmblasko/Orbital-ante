@@ -9,12 +9,15 @@ Matthew, 26 Nov 2026: "I really just want the alien assets not to look blocky an
 - **Blind stalker (olm)** and **Ambusher (bobbit worm)**: the body was a row of like pieces drawn at different sizes, which showed as steps and rings. Each is now one continuous outline cut at its joints: every length has its own piece (`StalkerLayout.PieceOf`, `AmbusherLayout.PieceOf`), drawn at its modelled size, ending exactly as wide as the next begins, with the skin's pattern running across the joints. The Stalker has bushy gills, fleshed legs and toes; the Ambusher has a real mouth, hooked teeth, curled feelers and feet on every length.
 - **Roller (isopod)**: plates, brow, head, eyes, tail and legs are finer and smooth, so no flat facets; whip feelers.
 - **Screamer (cicada)**: finer fore body, head, eyes and wing edge; abdomen rings; swollen thighs with thorns, jointed feet with claws.
-- **Strider, Sprinter, Cave hunter**: looked at again and left as they are. They are armoured animals whose bodies really are jointed plates, and they already read that way.
+- **Strider, Sprinter** (and, in the first round, the Cave hunter): looked at again and left as they are. They are armoured animals whose bodies really are jointed plates, and they already read that way.
 - Animators, so pieces meet at their joints in motion: `StalkerAnimator` (lengths laid joint to joint, head turns about the neck, tail's raise eased) and `AmbusherAnimator` (lengths laid joint to joint).
 - Gibbing and limb loss are unchanged: same pieces come off, same health, same kill rules.
 - Tools: `oa._halved` and `FAR_HALVE` (a far copy can halve a regular net), `-- --far-only`, the `rest` attribute for patterns that cross pieces (`mats.rest_place`).
 
 Before and after pictures: `docs/art/previews/creatures/quality-pass/`.
+
+## Second round (27 Nov 2026)
+Matthew, 27 Nov 2026: "You make the executive decisions, continue to build the game until it is finalized". Judged again with a harder eye, the Cave hunter was the weakest left: its plates carried a ragged blotch pattern that read as printed on, and its head, legs and tail legs showed their facets. Its plates are now polished and darken to their rear edge, and the head, legs, feelers and tail legs are rounder. Its far copy is lighter (5,121 from 7,737). Two changes were tried and taken back because they baked badly (a finer fang, and a resampled plate outline whose skirt no longer matched the baked one).
 
 ## Cost (arithmetic, not measured)
 | Creature | Full, as drawn | Far copy | Was (full / far) |
@@ -23,6 +26,7 @@ Before and after pictures: `docs/art/previews/creatures/quality-pass/`.
 | Ambusher (every length out) | 15,742 | 6,395 | 8,008 / 4,228 |
 | Roller | 15,428 | 3,821 | 6,228 / 3,746 |
 | Screamer | 11,192 | 3,596 | 4,378 / 1,488 |
+| Cave hunter | 14,962 | 5,121 | 13,370 / 7,737 |
 
 All are inside the 16,000 allowance for an enemy body; the Stalker has 132 to spare.
 

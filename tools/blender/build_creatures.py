@@ -1055,9 +1055,11 @@ HUNTER_FLAT = {"plate": ((0.30, 0.12, 0.09), 0.55), "margin": ((0.50, 0.28, 0.16
                "tail": ((0.52, 0.26, 0.10), 0.45), "fang": ((0.42, 0.14, 0.07), 0.6), "feeler": ((0.62, 0.38, 0.14), 0.4),
                "joint": ((0.46, 0.30, 0.20), 0.2), "flesh": ((0.78, 0.50, 0.44), 0.6), "eye": ((0.05, 0.04, 0.04), 0.85)}
 HUNTER_MATERIALS = {
-    "plate": lambda: mats.chitin("plate", MAHOGANY, RUSSET, PITCH, under=(0.30, 0.20, 0.12), seed=41.0, bumps=0.12, growth=0.0, mottle=0.22, gloss=0.62),
+    # A polished plate: hardly any blotches (their ragged edges read as a printed pattern at this size), darkening to its rear edge.
+    "plate": lambda: mats.chitin("plate", MAHOGANY, RUSSET, PITCH, under=(0.30, 0.20, 0.12), seed=41.0, bumps=0.10, growth=0.0, mottle=0.04, gloss=0.74,
+                                 tip=(1, -0.02, -0.21, (0.020, 0.008, 0.007))),
     "margin": lambda: mats.chitin("margin", (0.21, 0.085, 0.040), (0.40, 0.22, 0.11), PITCH, seed=42.0, bumps=0.08, growth=0.0, mottle=0.3, gloss=0.6),
-    "head": lambda: mats.chitin("head", (0.24, 0.055, 0.022), (0.42, 0.18, 0.08), PITCH, under=(0.34, 0.20, 0.10), seed=43.0, bumps=0.2, growth=0.0, mottle=0.3, gloss=0.6),
+    "head": lambda: mats.chitin("head", (0.24, 0.055, 0.022), (0.42, 0.18, 0.08), PITCH, under=(0.34, 0.20, 0.10), seed=43.0, bumps=0.2, growth=0.0, mottle=0.08, gloss=0.7),
     "under": lambda: mats.chitin("under", (0.30, 0.20, 0.10), (0.44, 0.34, 0.20), (0.10, 0.05, 0.03), seed=44.0, bumps=0.12, growth=0.0, mottle=0.4, gloss=0.34),
     "side": lambda: mats.membrane("side", (0.24, 0.13, 0.085), seed=45.0, size=3.0),
     "leg": lambda: mats.chitin("leg", AMBER, (0.50, 0.36, 0.14), (0.10, 0.04, 0.02), seed=46.0, bumps=0.15, growth=0.0, mottle=0.4, size=0.6,
@@ -1119,7 +1121,7 @@ def hunter(hi):
     if hi:
         shape = [(1.0 - i / cuts,) + tuple(real.along([(1.0 - k[0],) + k[1:] for k in shape], i / cuts)) for i in range(cuts + 1)]
     rows = [(rear + (front - rear) * t, half * wide, top * tall, 0.030 * skirt) for t, wide, tall, skirt in shape]
-    plate = arch("plate", rows, 0.014, 48 if hi else 10, tuck=22.0)
+    plate = arch("plate", rows, 0.014, 48 if hi else 12, tuck=22.0)
     if hi:
         # The two fine grooves a centipede's back plates carry, a shallow dish between them, and a slow unevenness.
         real.displace(plate, lambda p: (-0.0045 * (math.exp(-((abs(p.x) - 0.062) / 0.007) ** 2)) + 0.003 * noise.noise(p * 9.0)
@@ -1151,7 +1153,7 @@ def hunter(hi):
     back = -sp * 0.5
     hk = [(0.00, hh * 0.80, 0.062, 0, 0.004), (0.05, hh * 0.96, 0.076, 0, 0.004), (0.18, hh, 0.080, 0, 0.004), (0.30, hh * 0.90, 0.070, 0, 0.0),
           (0.39, hh * 0.66, 0.052, 0, -0.006), (0.445, hh * 0.36, 0.030, 0, -0.012), (hl, hh * 0.10, 0.010, 0, -0.016)]
-    shield = g.skin("head", (0, back, 0.0), (0, 1, 0), up, hk, around=14, step=0.06, power=2.5)
+    shield = g.skin("head", (0, back, 0.0), (0, 1, 0), up, hk, around=20, step=0.035, power=2.5)
     if hi:
         # A shallow groove down the middle and two that run out to the feelers.
         real.displace(shield, lambda p: (-0.004 * math.exp(-(p.x / 0.008) ** 2) - 0.003 * math.exp(-((abs(p.x) - 0.03 - max(0.0, p.y) * 0.5) / 0.007) ** 2)
@@ -1189,7 +1191,7 @@ def hunter(hi):
             beaded.append((t, rs * swell, rf * swell, os_, of))
         feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, beaded, around=5, step=el / (beads * 6) * 6, power=2.0)
     else:
-        feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, ek, around=5, step=0.16, power=2.0)
+        feeler = g.skin("feeler", (0, 0, 0), (0, 1, 0), up, ek, around=6, step=0.08, power=2.0)
     g.add(feeler, "feeler", "Feeler")
 
     # ------------------------------------------------------------- Leg: arched up at the knee, down to a dark claw; the same either side
@@ -1197,7 +1199,7 @@ def hunter(hi):
     lk = [(0.00, 0.026, 0.028, 0, 0.000), (0.03, 0.032, 0.034, 0, 0.012), (0.12, 0.028, 0.030, 0, 0.066), (0.135, 0.022, 0.023, 0, 0.072),
           (0.15, 0.026, 0.027, 0, 0.078), (0.25, 0.021, 0.022, 0, 0.092), (0.265, 0.016, 0.017, 0, 0.090), (0.28, 0.019, 0.020, 0, 0.086),
           (0.39, 0.013, 0.014, 0, 0.050), (0.40, 0.010, 0.010, 0, 0.046), (0.47, 0.008, 0.008, 0, 0.018), (leg, 0.003, 0.003, 0, 0.000)]
-    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=6, step=0.065, power=2.0), "leg", "Leg")
+    g.add(g.skin("leg", (0, 0, 0), (0, 1, 0), up, lk, around=7, step=0.078, power=2.0), "leg", "Leg")
     g.add(g.ball("leg joint", (0, 0, 0), 0.030, around=5), "joint", "Leg")
     for y in (0.135, 0.265, 0.395):
         # The darker skin of each joint (only in the pictures).
@@ -1209,7 +1211,7 @@ def hunter(hi):
     tk = [(0.00, 0.040, 0.042, 0, 0.000), (0.04, 0.050, 0.052, 0, 0.006), (0.24, 0.044, 0.046, 0, 0.040), (0.26, 0.034, 0.035, 0, 0.043),
           (0.28, 0.040, 0.041, 0, 0.046), (0.48, 0.030, 0.031, 0, 0.056), (0.50, 0.023, 0.024, 0, 0.056), (0.52, 0.026, 0.027, 0, 0.055),
           (0.70, 0.016, 0.017, 0, 0.034), (0.78, 0.010, 0.010, 0, 0.018), (tl, 0.003, 0.003, 0, 0.000)]
-    g.add(g.skin("tail leg", (0, 0, 0), (0, 1, 0), up, tk, around=7, step=0.08, power=2.0), "tail", "TailLeg")
+    g.add(g.skin("tail leg", (0, 0, 0), (0, 1, 0), up, tk, around=8, step=0.06, power=2.0), "tail", "TailLeg")
     g.add(g.ball("tail joint", (0, 0, 0), 0.045, around=6), "joint", "TailLeg")
     r = random.Random(53)
     for k in range(16):
@@ -1994,9 +1996,9 @@ FAR_HOW = {"Roller": (0.20, 16, ()),
 # and hundreds of them took half the picture from the body): they all share one small patch, baked from a swatch
 # of the named material.
 # Shapes whose far copy is the shape itself: a thinned arch crumples and opens.
-FAR_KEEP = {"Hunter": ("plate",), "Ambusher": ("heap",)}
+FAR_KEEP = {"Ambusher": ("heap",)}
 # Regular nets too fine to keep whole in a far copy: every other row and column is taken out (oa._halved).
-FAR_HALVE = {"Roller": ("plate", "brow")}
+FAR_HALVE = {"Roller": ("plate", "brow"), "Hunter": ("plate",)}
 FINE = {"Sprinter": (("bristle",), "hair"), "Stalker": (("filament",), "gill")}
 FAR_SHARE = 0.30
 ROW = 1.6        # pieces are stood this far apart in a row for the bake (each is modelled round its own joint)
