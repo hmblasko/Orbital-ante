@@ -31,7 +31,7 @@ Prompts under the crosshair, tips, the melee line and the rare-gun warning are i
 - The two visor arcs (air lower left, suit lower right) are replaced by the suit plate. Their numbers and rules (`VisorReadout`) are unchanged: when a plate goes dark, when air is an alarm, what the lines say.
 - The Focus meter and the gun ladder's line moved from the low middle into the gun plate. The Focus meter now always shows while the plate does (it used to hide when full).
 - **New on screen:** the gun's name and rounds in the solar game. Until now they showed only in the practice range.
-- In the practice range, the old ammo text is gone (the gun plate replaces it) and the suit arc there moved left to make room.
+- In the practice range, the old ammo text is gone (the gun plate replaces it), and health is the suit plate's chevrons on a small plate lower left (27 Nov).
 
 ## Not changed
 
@@ -75,4 +75,4 @@ Not done. The unity-reviewer and deck-performance agents were started on this ch
 ## Open
 
 - PR 89 (bonus missions) and PR 91 (the "seen" warning arc and clock cues) are not in the playtest branch yet. Both touch the same files; whichever lands second needs a small merge. The task plate has room for a second "BONUS" row when PR 89 lands.
-- The practice range still uses the old suit arc for health.
+- Done 27 Nov: the practice range's health is now the suit plate's ten chevrons on a small plate lower left, above the help line (`UI/Hud.cs`), so no arc is left on the on-foot screen.

@@ -34,7 +34,11 @@ namespace OrbitalAnte.UI
 
         Text _promptText;
         Text _bannerText;
-        VisorGauge _health;
+        RectTransform _healthPlate;
+        Image[] _healthChevrons;
+        Text _healthLine;
+        int _shownPlates = -1;
+        string _shownHealthLine;
         Image _hurtFlash;
         DamageFeedback _damage;
         HitMarker _hitMarker;
@@ -87,10 +91,13 @@ namespace OrbitalAnte.UI
             flash.SetAsFirstSibling();
             _hurtFlash = UiKit.AddImage(flash, new Color(0.8f, 0.05f, 0.05f, 0f));
 
-            // Health, lower right: the same arc of suit plates as outside the ship (see VisorGauge).
-            // It stands to the left of the gun plate (GunLadderFx), which has the lower right corner and shows the
-            // gun and its rounds here as it does everywhere else.
-            _health = VisorGauge.Build(_arenaOnly, false, "SUIT", UiKit.Cream, 510f, 110f);
+            // Health, lower left above the help line: the suit plate's ten chevrons, as outside the ship (SuitHud),
+            // so the practice range reads the same as the real game. The gun plate (GunLadderFx) has the lower right.
+            _healthPlate = HullKit.Plate(_arenaOnly, "SuitPlate", new Vector2(0f, 0f), new Vector2(HullKit.Margin, 72f), new Vector2(208f, 92f));
+            HullKit.At(HullKit.Mono(_healthPlate, "SUIT PLATES", 14, HullKit.Dim), 18f, 22f, 170f, 18f);
+            _healthChevrons = HullKit.Blocks(_healthPlate, "Plate", 18f, 35f, VisorReadout.Plates, 17f, 28f, 0f, HullKit.Chevron);
+            _healthLine = HullKit.At(HullKit.Mono(_healthPlate, string.Empty, 14, Color.white), 18f, 77f, 180f, 18f);
+            _healthPlate.gameObject.SetActive(false);
 
             // "Pick up" prompt under the crosshair, and a banner at the top for arena state.
             _promptText = UiKit.Label(_arenaOnly, string.Empty, 22, UiKit.Cream);
@@ -99,6 +106,34 @@ namespace OrbitalAnte.UI
             _bannerText = UiKit.Label(_arenaOnly, string.Empty, 24, UiKit.PanelEdge);
             UiKit.Pin((RectTransform)_bannerText.transform, new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(900f, 34f));
             AddShadow(_bannerText);
+        }
+
+        /// <summary>
+        /// The same rule as the suit plate outside (SuitHud.ShowArmour): a chevron goes dark only when its plate is
+        /// used up, and the last one still on is orange while it is being worn through.
+        /// </summary>
+        void ShowHealth(float fraction, GaugeTone tone, bool lit)
+        {
+            fraction = Mathf.Clamp01(float.IsNaN(fraction) ? 0f : fraction);
+            int left = VisorReadout.PlatesLeft(fraction);
+            Color main = tone == GaugeTone.Alarm ? HullKit.Orange : HullKit.Paint;
+            Color last = VisorReadout.LastPlateWorn(fraction) ? HullKit.Orange : main;
+            if (!lit)
+            {
+                main = Color.Lerp(main, Color.black, 0.55f);
+                last = Color.Lerp(last, Color.black, 0.55f);
+            }
+            HullKit.Light(_healthChevrons, left, main, last);
+
+            string words = VisorReadout.SuitLine(fraction);
+            if (left != _shownPlates || !ReferenceEquals(words, _shownHealthLine))
+            {
+                _shownPlates = left;
+                _shownHealthLine = words;
+                _healthLine.text = words.Length > 0 ? words.ToUpperInvariant()
+                    : HullReadout.TwoDigits(left) + " OF " + HullReadout.TwoDigits(VisorReadout.Plates);
+            }
+            HullKit.Tint(_healthLine, tone == GaugeTone.Alarm ? HullKit.Orange : HullKit.Sub);
         }
 
         static void AddShadow(Text text)
@@ -163,11 +198,11 @@ namespace OrbitalAnte.UI
 
             if (Health != null)
             {
-                _health.SetActive(true);
+                if (!_healthPlate.gameObject.activeSelf) _healthPlate.gameObject.SetActive(true);
                 float f = Health.Fraction;
                 bool blink = Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.5f;
                 bool justHit = Time.unscaledTime - Health.LastHitUnscaledTime < 0.25f;
-                _health.Show(f, VisorReadout.SuitLine(f), VisorReadout.SuitTone(f), !justHit || blink);
+                ShowHealth(f, VisorReadout.SuitTone(f), !justHit || blink);
 
                 // Hits are shown by DamageFeedback; this is only the steady tint while knocked down.
                 float alpha = Health.Alive ? 0f : 0.5f;
@@ -179,7 +214,7 @@ namespace OrbitalAnte.UI
             }
             else
             {
-                _health.SetActive(false);
+                if (_healthPlate.gameObject.activeSelf) _healthPlate.gameObject.SetActive(false);
                 if (_hurtFlash.color.a > 0f) _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, 0f);
                 _bannerText.text = string.Empty;
             }
