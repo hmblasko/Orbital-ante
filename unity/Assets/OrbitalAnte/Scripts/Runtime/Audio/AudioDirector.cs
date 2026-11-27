@@ -244,6 +244,17 @@ namespace OrbitalAnte.Audio
 
         public bool Has(string eventId) => Ready && eventId != null && Manifest.Events.ContainsKey(eventId);
 
+        /// <summary>
+        /// Where a creature's warning has its mark (the moment it takes aim), in seconds into the clip; 0 when the sound
+        /// is unknown or has none. See <see cref="AudioEventDef.LockAt"/>.
+        /// </summary>
+        public static float LockMark(string eventId)
+        {
+            AudioDirector a = Instance;
+            if (a == null || !a.Ready || eventId == null) return 0f;
+            return a.Manifest.Events.TryGetValue(eventId, out AudioEventDef def) ? def.LockAt : 0f;
+        }
+
         // ------------------------------------------------------------------ one-shots
 
         /// <summary>Plays an event at a place in the world. False if it did not play (unknown, on cooldown, out of voices).</summary>

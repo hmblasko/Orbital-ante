@@ -46,10 +46,14 @@ namespace OrbitalAnte.Creatures
     ///   is its own transform's up, never +Y.
     /// - It dies only when its head or its fore body gives way; then it comes apart at every joint.
     /// </summary>
-    public sealed class Hunter : MonoBehaviour
+    public sealed class Hunter : MonoBehaviour, IWindup
     {
         public HunterBody Body { get; private set; }
         public HunterBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => HeadPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        WindupStage _windup;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Hunter> Died;
 
@@ -218,10 +222,16 @@ namespace OrbitalAnte.Creatures
             HunterOrders orders = Brain.Think(Body, senses, dt);
             if (orders.Mode != _lastMode)
             {
-                // The warning can be heard as well as seen (its own sound once there is one).
-                if (orders.Mode == HunterMode.Rear && !Audio.AudioDirector.Play("creature.hunter.rear", HeadPoint())) Audio.AudioDirector.Play("enemy.flare.raise", HeadPoint(), 0.8f, 1.5f);
+                // The warning is heard as well as seen: its own sound, played so its fangs click where it takes aim.
+                if (orders.Mode == HunterMode.Rear)
+                    Audio.AudioDirector.Play(Windups.HunterWarning, HeadPoint(), 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(Windups.HunterWarning), Windups.HunterLock(_rules)));
                 _lastMode = orders.Mode;
             }
+            // The visor shows the warning too (UI/WindupCues), until the strike is over.
+            WindupStage stage = Windups.Hunter(orders);
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             Vector3 moved = Move(orders, dt);
             Pose(dt, orders, moved / dt);
             // While the player can see it, its hitboxes must be where it is drawn when their shot is traced: thin legs

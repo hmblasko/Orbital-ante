@@ -50,10 +50,14 @@ namespace OrbitalAnte.Creatures
     /// - It dies when its head gives way or any length of its body is shot through; then whatever is out of the
     ///   ground comes apart.
     /// </summary>
-    public sealed class Ambusher : MonoBehaviour
+    public sealed class Ambusher : MonoBehaviour, IWindup
     {
         public AmbusherBody Body { get; private set; }
         public AmbusherBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => HeadPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        WindupStage _windup;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Ambusher> Died;
 
@@ -61,7 +65,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Ambusher> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string CoilSound = "creature.ambusher.coil", StrikeSound = "creature.ambusher.strike", RiseSound = "creature.ambusher.rise";
+        const string CoilSound = Windups.AmbusherWarning, StrikeSound = "creature.ambusher.strike", RiseSound = "creature.ambusher.rise";
 
         AmbusherRules _rules;
         readonly AmbusherAnimator _animator = new AmbusherAnimator();
@@ -256,12 +260,17 @@ namespace OrbitalAnte.Creatures
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = transform.position + up * 0.3f;
-                // The warning is heard as well as seen (an enemy's warning stands in until its own sound is there).
-                if (orders.Mode == AmbusherMode.Coil && !Audio.AudioDirector.Play(CoilSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.8f, 1.3f);
+                // The warning is heard as well as seen, in its own sounds (never another creature's or an enemy's).
+                if (orders.Mode == AmbusherMode.Coil) Audio.AudioDirector.Play(CoilSound, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(CoilSound), Windups.AmbusherLock(_rules)));
                 if (orders.Mode == AmbusherMode.Strike) Audio.AudioDirector.Play(StrikeSound, at);
-                if (orders.Mode == AmbusherMode.Rise && !Audio.AudioDirector.Play(RiseSound, at)) Audio.AudioDirector.Play("impact.dirt", at, 0.8f, 0.7f);
+                if (orders.Mode == AmbusherMode.Rise) Audio.AudioDirector.Play(RiseSound, at);
                 _lastMode = orders.Mode;
             }
+            // The visor shows the warning too (UI/WindupCues), until the strike is over.
+            WindupStage stage = Windups.Ambusher(orders);
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             Move(orders, dt);
             _felt = hostile && senses.Player.Magnitude < AmbusherBrain.FeelRange(_rules, Body, senses.Noise);
             Solid(!Brain.Buried);

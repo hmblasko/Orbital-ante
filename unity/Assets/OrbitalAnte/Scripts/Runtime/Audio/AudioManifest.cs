@@ -51,6 +51,12 @@ namespace OrbitalAnte.Audio
         public VacuumPolicy Vacuum;
         /// <summary>Semitone steps for sounds that climb as they repeat (a score counting up).</summary>
         public float[] PitchSteps = new float[0];
+        /// <summary>
+        /// A creature's warning only: seconds into the clip where its mark falls (the clack, snick or pop at the moment
+        /// it takes aim), 0 for every other sound. The game plays the warning a little faster or slower so the mark
+        /// still lands on the lock when a dial changes how long the warning lasts (Creatures/Windups.PitchFor).
+        /// </summary>
+        public float LockAt;
         public string Note = "";
     }
 
@@ -160,6 +166,7 @@ namespace OrbitalAnte.Audio
                     Loop = MiniJson.Bool(e, "loop"),
                     Vacuum = ParseEnum(MiniJson.Str(e, "vacuum", "air"), VacuumPolicy.Air),
                     PitchSteps = Floats(MiniJson.List(e, "pitchSteps")),
+                    LockAt = (float)MiniJson.Num(e, "lockAt"),
                     Note = MiniJson.Str(e, "note"),
                 };
                 if (!string.IsNullOrEmpty(def.Id)) m.Events[def.Id] = def;

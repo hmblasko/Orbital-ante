@@ -61,10 +61,14 @@ namespace OrbitalAnte.Creatures
     ///   from. In the suit that is a force on the suit; the arena's player (who has no water) is slid over the ground.
     /// - In the combat arena it swims in the air a little over the ground, as a stand-in for a sea.
     /// </summary>
-    public sealed class Maw : MonoBehaviour
+    public sealed class Maw : MonoBehaviour, IWindup
     {
         public MawBody Body { get; private set; }
         public MawBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its mouth.</summary>
+        public Vector3 WindupPoint => MouthPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        WindupStage _windup;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Maw> Died;
         /// <summary>What the water is like at a place in Unity's space. Null: the combat arena, where the air stands in for a sea.</summary>
@@ -74,7 +78,9 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Maw> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string GapeSound = "creature.maw.gape", InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
+        const string GapeSound = Windups.MawWarning, InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
+        /// <summary>The draw-in sound's length: played faster or slower to last as long as the draw-in does.</summary>
+        const double InhaleDesigned = 2.6;
         /// <summary>In the arena it is told the floor is this much lower than it is, so its mouth comes down to someone standing on it.</summary>
         const float ArenaSink = 1.3f;
 
@@ -294,12 +300,17 @@ namespace OrbitalAnte.Creatures
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = MouthPoint();
-                // Each change the player must notice is heard (other sounds stand in until its own are there).
-                if (orders.Mode == MawMode.Gape && !Audio.AudioDirector.Play(GapeSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.9f, 0.5f);
-                if (orders.Mode == MawMode.Inhale && !Audio.AudioDirector.Play(InhaleSound, at)) Audio.AudioDirector.Play("enemy.heavy.spinup", at, 0.9f, 0.6f);
-                if (orders.Mode == MawMode.Reel && !Audio.AudioDirector.Play(ChokeSound, at)) Audio.AudioDirector.Play("gore.splat", at, 1f, 0.6f);
+                // Each change the player must notice is heard, in its own sounds (never another creature's or an enemy's).
+                if (orders.Mode == MawMode.Gape) Audio.AudioDirector.Play(GapeSound, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(GapeSound), Windups.MawLock(_rules)));
+                if (orders.Mode == MawMode.Inhale) Audio.AudioDirector.Play(InhaleSound, at, 1f, Windups.PitchFor(InhaleDesigned, _rules.inhaleSeconds));
+                if (orders.Mode == MawMode.Reel) Audio.AudioDirector.Play(ChokeSound, at);
                 _lastMode = orders.Mode;
             }
+            // The visor shows the warning too (UI/WindupCues), until the strike is over.
+            WindupStage stage = Windups.Maw(orders);
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             Vector3 moved = Move(orders, dt);
             // Cruising far from anyone it is posed five times a second, not every frame.
             Transform near = CombatWorld.PlayerEye;
@@ -477,7 +488,7 @@ namespace OrbitalAnte.Creatures
                 if (choked)
                 {
                     _animator.Flinch(new Vec3d(0, 1.0, -2.5));
-                    if (!Audio.AudioDirector.Play(ChokeSound, hit.Point)) Audio.AudioDirector.Play("gore.splat", hit.Point, 1f, 0.6f);
+                    Audio.AudioDirector.Play(ChokeSound, hit.Point);
                 }
             }
             _animator.Flinch(new Vec3d(push.x, push.y, push.z) * (outcome.Severed ? 1.5 : 0.3));

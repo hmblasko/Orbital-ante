@@ -16,11 +16,11 @@ Written by `tools/audio/qa.py`. Every number here was measured from the files on
 
 ## Sound effects
 
-106 events, 194 files, all 48 kHz.
+132 events, 228 files, all 48 kHz.
 
 - Highest true peak in any file: -1.0 dB.
 - Clipped samples: 0 files affected.
-- Loudness of one-shots as played (file loudness plus the event's volume): -37 to -14 LUFS.
+- Loudness of one-shots as played (file loudness plus the event's volume): -39 to -14 LUFS.
 
 ## Weapon distinctiveness
 

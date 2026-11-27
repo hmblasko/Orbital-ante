@@ -47,10 +47,14 @@ namespace OrbitalAnte.Creatures
     ///   own transform's up, never +Y.
     /// - It dies only when its soft body or its head gives way; then it bursts into its segments.
     /// </summary>
-    public sealed class Roller : MonoBehaviour
+    public sealed class Roller : MonoBehaviour, IWindup
     {
         public RollerBody Body { get; private set; }
         public RollerBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of the ball.</summary>
+        public Vector3 WindupPoint => Middle();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        WindupStage _windup;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Roller> Died;
 
@@ -243,9 +247,9 @@ namespace OrbitalAnte.Creatures
                 Vector3 at = Middle();
                 if (orders.Mode == RollerMode.Wind)
                 {
-                    // The warning can be heard as well as seen (its own sound once there is one).
+                    // The warning is heard as well as seen: its own sound, played so its clunk lands where it takes aim.
                     _hitThisRoll = false;
-                    if (!Audio.AudioDirector.Play("creature.roller.curl", at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.8f, 0.5f);
+                    Audio.AudioDirector.Play(Windups.RollerWarning, at, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(Windups.RollerWarning), Windups.RollerLock(_rules)));
                 }
                 else if (orders.Mode == RollerMode.Open && Brain.Crashed)
                 {
@@ -254,6 +258,11 @@ namespace OrbitalAnte.Creatures
                 }
                 _lastMode = orders.Mode;
             }
+            // The visor shows the warning too (UI/WindupCues), until the strike is over.
+            WindupStage stage = Windups.Roller(orders);
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             Move(orders, dt);
             Pose(dt, orders);
             if (orders.Mode == RollerMode.Roll)

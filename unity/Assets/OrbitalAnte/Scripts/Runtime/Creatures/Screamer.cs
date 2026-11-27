@@ -48,12 +48,16 @@ namespace OrbitalAnte.Creatures
     /// - Its scream hurts whoever the rules say is in front of it and in range, unless something solid is between
     ///   them. The rings that race out of it show where that is.
     /// </summary>
-    public sealed class Screamer : MonoBehaviour
+    public sealed class Screamer : MonoBehaviour, IWindup
     {
-        public const string WarnSound = "creature.screamer.windup", ScreamSound = "creature.screamer.scream";
+        public const string WarnSound = Windups.ScreamerWarning, ScreamSound = "creature.screamer.scream";
 
         public ScreamerBody Body { get; private set; }
         public ScreamerBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its body, in the air or on the ground.</summary>
+        public Vector3 WindupPoint => Chest();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
+        WindupStage _windup;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Screamer> Died;
 
@@ -263,11 +267,17 @@ namespace OrbitalAnte.Creatures
             if (orders.Mode != _lastMode)
             {
                 // The warning is heard as well as seen.
-                if (orders.Mode == ScreamerMode.WindUp && !Audio.AudioDirector.Play(WarnSound, Chest())) Audio.AudioDirector.Play("enemy.flare.raise", Chest(), 0.8f, 1.8f);
+                if (orders.Mode == ScreamerMode.WindUp)
+                    Audio.AudioDirector.Play(WarnSound, Chest(), 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(WarnSound), Windups.ScreamerLock(_rules)));
                 if (orders.Mode == ScreamerMode.Scream) Loud(true);
                 else if (_lastMode == ScreamerMode.Scream) Loud(false);
                 _lastMode = orders.Mode;
             }
+            // The visor shows the warning too (UI/WindupCues), until the strike is over.
+            WindupStage stage = Windups.Screamer(orders);
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             if (orders.Crashed)
             {
                 Audio.AudioDirector.Play("impact.dirt", transform.position, 1f, 0.7f);

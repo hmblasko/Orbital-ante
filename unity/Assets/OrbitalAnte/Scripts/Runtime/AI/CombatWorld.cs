@@ -47,6 +47,13 @@ namespace OrbitalAnte.AI
         /// </summary>
         public static event Action<Vector3> SquadSent;
         public static void RaiseSquadSent(Vector3 from) => SquadSent?.Invoke(from);
+        /// <summary>
+        /// A creature has begun to wind up a strike (Ralph loop pass 2): the visor puts an amber arc on it that follows it
+        /// and shows how far the warning has got, read from the creature every frame until it is over (UI/WindupCues).
+        /// Not cleared by <see cref="Reset"/>, as above.
+        /// </summary>
+        public static event Action<Creatures.IWindup> CreatureWindup;
+        public static void RaiseCreatureWindup(Creatures.IWindup source) => CreatureWindup?.Invoke(source);
         /// <summary>Time.time when any enemy last had the player in sight.</summary>
         public static float PlayerLastSeenAt = -1000f;
         /// <summary>When true, enemies keep their guns but do not shoot. A playtest switch.</summary>

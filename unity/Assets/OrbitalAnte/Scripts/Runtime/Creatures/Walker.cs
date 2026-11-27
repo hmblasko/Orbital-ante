@@ -145,10 +145,13 @@ namespace OrbitalAnte.Creatures
     ///   by the animator. "Up" is its own transform's up, never +Y.
     /// - It dies only when its soft piece or its armoured one gives way; then it bursts.
     /// </summary>
-    public sealed class Walker : MonoBehaviour
+    public sealed class Walker : MonoBehaviour, IWindup
     {
         public WalkerBody Body { get; private set; }
         public WalkerBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of its body.</summary>
+        public Vector3 WindupPoint => _bodyRoot != null ? _bodyRoot.position : transform.position;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup : WindupStage.None;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Walker> Died;
         public WalkerLayout Kind => _l;
@@ -162,6 +165,7 @@ namespace OrbitalAnte.Creatures
         WalkerAnimator _animator;
         readonly Transform[] _jaw = new Transform[2];
         string _raiseSound;
+        WindupStage _windup;
         readonly WalkerPose _pose = new WalkerPose();
         readonly Transform[] _piece = new Transform[WalkerLayout.Limbs * WalkerLayout.Segments];
         readonly Transform[] _finger = new Transform[2];
@@ -199,7 +203,7 @@ namespace OrbitalAnte.Creatures
             // Not every walker looks for the player on the same frame.
             _nextLook = Time.time + (seed & 0xff) / 1024f;
             _material = ModelLibrary.MaterialFor(kind.Model);
-            _raiseSound = "creature." + kind.Model.ToLowerInvariant() + ".raise";
+            _raiseSound = Windups.WalkerWarning(kind.Model);
 
             // Its hitboxes move with it every frame: a kinematic body tells the physics so.
             var rb = gameObject.AddComponent<Rigidbody>();
@@ -339,10 +343,16 @@ namespace OrbitalAnte.Creatures
             WalkerOrders orders = Brain.Think(Body, senses, dt);
             if (orders.StrikeSide >= 0 && !_striking)
             {
-                // The warning can be heard as well as seen (its own sound once there is one).
-                if (!Audio.AudioDirector.Play(_raiseSound, _bodyRoot.position)) Audio.AudioDirector.Play("enemy.flare.raise", _bodyRoot.position, 0.8f, 0.6f);
+                // The warning is heard as well as seen: its own sound, played so its clack lands where it takes aim.
+                double share = Brain.LockShare(Body);
+                Audio.AudioDirector.Play(_raiseSound, _bodyRoot.position, 1f, Windups.PitchFor(Audio.AudioDirector.LockMark(_raiseSound), Windups.WalkerLock(_rules, share)));
             }
             _striking = orders.StrikeSide >= 0;
+            // The visor shows it too (UI/WindupCues), from the moment the claw starts up until it lands.
+            WindupStage stage = orders.StrikeSide >= 0 ? Windups.Walker(orders, Brain.LockShare(Body)) : WindupStage.None;
+            bool began = stage != WindupStage.None && _windup == WindupStage.None;
+            _windup = stage;
+            if (began) CombatWorld.RaiseCreatureWindup(this);
             Walk(orders, dt);
             Pose(dt, orders);
             // A quick animal's hitboxes must be where it is drawn when the player's shot is traced this frame.
