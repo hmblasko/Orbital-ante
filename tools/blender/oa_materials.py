@@ -559,6 +559,36 @@ def pallid(name, base=(0.40, 0.31, 0.29), flush=(0.42, 0.19, 0.18), vein=(0.17, 
     return m.finish(colour, smoothness, 0.0, height, occlusion=near)
 
 
+def sharkskin(name, back=(0.060, 0.058, 0.062), belly=(0.46, 0.44, 0.42), blotch=(0.020, 0.020, 0.024), seed=0.0, gloss=0.46, rest=False, shade_line=0.0):
+    """The skin of a big soft shark: dark slate on its back shading to a pale belly along a ragged line, slow darker
+    clouds and pale flecks, old pale scars raked across it, and the fine sandpaper grain of its scales. Wet.
+    shade_line moves the line between back and belly up (+) or down (-)."""
+    m = Tree(name, rest=rest)
+    cloud = m.noise(1.1, 4.0, 0.6, shift=(seed, 0, 0))
+    mid = m.noise(4.5, 4.0, 0.6, shift=(0, seed, 0), distortion=0.6)
+    grain = m.noise(260.0, 2.0, 0.6, shift=(0, 0, seed))
+    cells_at, cells_rnd = m.cells(170.0, shift=(seed, seed, 0), soft=0.2)
+    colour = m.mix(tuple(c * 0.70 for c in back), tuple(min(1.0, c * 1.45) for c in back), m.lerp(cloud, mid, 0.45))
+    colour = m.mix(colour, blotch, m.mul(m.step(m.noise(2.2, 4.0, 0.6, shift=(seed, 6.0, 0), distortion=1.0), 0.55, 0.72), 0.6))
+    # Pale flecks, few and small.
+    fleck_at, fleck_rnd = m.cells(18.0, shift=(0, seed, seed))
+    fleck = m.mul(m.step(m.sub(0.22, fleck_at), 0.0, 0.10), m.step(fleck_rnd, 0.80, 0.84))
+    colour = m.mix(colour, tuple(c * 0.55 for c in belly), m.mul(fleck, 0.7))
+    # Its belly: pale where the skin faces down, along a ragged line.
+    below = m.step(m.add(m.mul(m.up(), -1.0), m.add(m.mul(m.sub(mid, 0.5), 0.9), -shade_line)), -0.10, 0.42)
+    colour = m.mix(colour, m.mix(tuple(c * 0.82 for c in belly), belly, cloud), below)
+    # Old scars: thin pale rakes.
+    scar = m.step(m.noise(3.0, 2.0, 0.5, stretch=(1.0, 9.0, 1.0), shift=(0, 2.0, seed), distortion=0.4), 0.735, 0.76)
+    colour = m.mix(colour, tuple(min(1.0, c * 3.2 + 0.04) for c in back), m.mul(m.mul(scar, m.sub(1.0, below)), 0.55))
+    near = m.hollows(0.10)
+    grime = m.sub(1.0, m.step(near, 0.3, 0.9))
+    colour = m.mix(colour, tuple(c * 0.4 for c in back), m.mul(grime, 0.6))
+    smoothness = m.lerp(m.lerp(gloss - 0.10, gloss + 0.10, cloud), 0.30, grime)
+    scale = m.mul(m.step(m.sub(0.5, cells_at), 0.0, 0.4), 0.0005)
+    height = m.add(m.add(scale, m.mul(grain, 0.0004)), m.add(m.mul(scar, -0.0012), m.mul(mid, 0.004)))
+    return m.finish(colour, smoothness, 0.0, height, occlusion=near)
+
+
 def plume(name, colour=(0.36, 0.04, 0.05), tip=(0.20, 0.02, 0.04), seed=0.0, along='Y', reach=0.36):
     """A gill: wet, blood red, feathery (the filaments are modelled; this is the wet red they are made of), darker
     at the stem and between filaments."""

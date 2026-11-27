@@ -67,7 +67,7 @@ namespace OrbitalAnte.Creatures
 
         /// <summary>The tail fin is on the last length, its root at that length's rear joint. Modelled from its root, +Z toward the head, the long blade up and back.</summary>
         public static readonly Vec3d TailFinRoot = new Vec3d(0.0, 0.0, -Spacing * 0.5);
-        public const double TailFinUp = 1.55, TailFinDown = 0.60, TailFinBack = 1.35;
+        public const double TailFinUp = 1.05, TailFinDown = 0.55, TailFinBack = 1.45;
 
         public const double StumpRadius = 0.16;
         /// <summary>A length's ends are round and reach into its neighbours: a wound at a cut sits this far beyond the joint.</summary>

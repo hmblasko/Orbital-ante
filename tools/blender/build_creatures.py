@@ -60,11 +60,16 @@ class Maker:
             obj["oa_smooth"] = smooth
         if self.hi:
             obj.data.materials.append(self.material(material))
-            if second:
-                obj.data.materials.append(self.material(second[0]))
+            # second may also be a list of (material, rule): the first rule that says yes wins.
+            others = [second] if second and not isinstance(second, list) else (second or [])
+            for other in others:
+                obj.data.materials.append(self.material(other[0]))
+            if others:
                 for p in obj.data.polygons:
-                    if second[1](p.center, p.normal):
-                        p.material_index = 1
+                    for index, other in enumerate(others):
+                        if other[1](p.center, p.normal):
+                            p.material_index = index + 1
+                            break
             oa.auto_smooth(obj.data, obj.get("oa_smooth", 60.0))
         else:
             colour, smoothness = self.flat[material]
@@ -539,10 +544,12 @@ def instances(parts, placed):
 
 def person(at):
     """Something the height of the player (1.8 m), so the pictures show how big the animal is."""
-    x, y = at
+    # A third number is how high their feet are (someone afloat).
+    x, y = at[0], at[1]
+    z = at[2] if len(at) > 2 else 0.0
     grey = (0.5, 0.5, 0.5)
-    shapes = [oa.cylinder("person", (x, y, 0.0), (x, y, 1.45), 0.20, grey, radius_end=0.24, segments=14, bevel=0.05),
-              oa.sphere("person head", (x, y, 1.64), 0.16, grey)]
+    shapes = [oa.cylinder("person", (x, y, z), (x, y, z + 1.45), 0.20, grey, radius_end=0.24, segments=14, bevel=0.05),
+              oa.sphere("person head", (x, y, z + 1.64), 0.16, grey)]
     mat = bpy.data.materials.new("person")
     mat.use_nodes = True
     mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.75, 0.75, 0.72, 1)
@@ -1979,11 +1986,311 @@ def stalker_sockets():
             oa.socket("StumpRim", (L["stump"], 0, 0))]
 
 
+# ====================================================================== the Drifting maw (megamouth shark)
+
+# A copy of MawLayout (Blender axes: x, forward, up). The rule test MawModelFile_MatchesTheLayout holds the two
+# together through the sockets.
+MAW = {
+    "spacing": 0.70,
+    "head": 1.90, "head_half": 0.78, "head_tall": 0.66,
+    "half": (0.70, 0.66, 0.58, 0.47, 0.36, 0.26, 0.19, 0.14),
+    "tall": (0.64, 0.62, 0.56, 0.47, 0.37, 0.28, 0.21, 0.17),
+    "jaw_hinge": (0.0, 0.10, -0.20), "jaw": 1.38, "jaw_half": 0.70,
+    "mouth": (0.0, 1.30, -0.16),
+    "fin_root": (0.60, 0.10, -0.30), "fin": 1.45, "fin_chord": 0.55,
+    "back_fin_root": (0.0, 0.10, 0.50), "back_fin": 0.62, "back_fin_chord": 0.70,
+    "tail_up": 1.05, "tail_down": 0.55, "tail_back": 1.45,
+    "stump": 0.16,
+}
+MAW_FLAT = {"skin": ((0.20, 0.20, 0.22), 0.45), "lip": ((0.74, 0.72, 0.70), 0.5), "mouth": ((0.42, 0.20, 0.24), 0.6), "gullet": ((0.10, 0.03, 0.04), 0.5),
+            "eye": ((0.03, 0.03, 0.04), 0.85), "flesh": ((0.78, 0.50, 0.44), 0.6), "fin": ((0.16, 0.16, 0.18), 0.45)}
+MAW_MATERIALS = {
+    "skin": lambda: mats.sharkskin("skin", back=(0.046, 0.042, 0.044), seed=111.0, rest=True),
+    # A fin is the same above as below (the left front fin is the right one turned over), so it has no pale side.
+    "fin": lambda: mats.sharkskin("fin", back=(0.040, 0.037, 0.040), seed=116.0, rest=True, shade_line=3.0),
+    # Its lips: pale, rubbery, a little see-through; they catch what light there is.
+    "lip": lambda: mats.pallid("lip", base=(0.56, 0.52, 0.50), flush=(0.50, 0.34, 0.34), seed=112.0, gloss=0.62, rest=True, groove_shade=0.0, groove_depth=0.0, vein_show=0.25, wrinkles=1.6),
+    "mouth": lambda: mats.pallid("mouth", base=(0.31, 0.20, 0.22), flush=(0.24, 0.07, 0.09), vein=(0.10, 0.05, 0.12), seed=113.0, gloss=0.70, furrow=0.09, groove_shade=0.5, groove_depth=0.004, wrinkles=2.0),
+    "gullet": lambda: mats.flesh("gullet", pale=(0.14, 0.05, 0.06), red=(0.05, 0.008, 0.012), seed=114.0, size=3.0),
+    "eye": lambda: mats.eye("eye", colour=(0.008, 0.008, 0.012), glint=(0.06, 0.07, 0.09)),
+    "flesh": lambda: mats.flesh("flesh", pale=(0.74, 0.60, 0.56), red=(0.42, 0.05, 0.05), seed=115.0, size=2.5),
+}
+
+
+def maw_outline():
+    """The whole body as one outline from the neck to the root of the tail fin: at each distance behind the head's
+    node, (half width, half height, how square the cross-section is). It passes through the sizes MawLayout gives
+    the middle of every length, so the hitboxes fit, and is smooth everywhere between."""
+    L = MAW
+    sp = L["spacing"]
+    keys = [(0.00, 0.755, 0.660, 2.15), (sp * 0.5, 0.735, 0.652, 2.15)]
+    keys += [(sp * (k + 1), L["half"][k], L["tall"][k], 2.15 - 0.03 * k) for k in range(8)]
+    keys.append((sp * 8.5, 0.115, 0.150, 1.90))
+    return lambda s: real.along(keys, min(max(s, 0.0), sp * 8.5))
+
+
+def maw(hi):
+    g = Maker(hi, MAW_FLAT, MAW_MATERIALS)
+    L = MAW
+    up = (0, 0, 1)
+    sp = L["spacing"]
+    outline = maw_outline()
+    segs = 8
+    over, pad = 0.16, 0.03
+    r = random.Random(111)
+
+    def placed(obj, material, piece, offset=(0.0, 0.0, 0.0), **more):
+        """Adds a shape, saying where it is in the animal: the skin's clouds and scars are laid out by that, so
+        they run across the joints unbroken."""
+        obj = g.add(obj, material, piece, **more)
+        if obj is not None and hi:
+            mats.rest_place(obj, offset)
+        return obj
+
+    def smooth(x, a, b):
+        x = min(1.0, max(0.0, (x - a) / (b - a)))
+        return x * x * (3 - 2 * x)
+
+    def pulse(x, sharp=6):
+        return (0.5 + 0.5 * math.cos(2 * math.pi * x)) ** sharp
+
+    def blade(name, root, tip, chord, thick, flat, around=10, stations=7, bow=0.0, tip_share=0.30, foot=0.12, sweep=0.0):
+        """A fin: a flat blade from its root to a rounded tip. `flat` is the way its thickness lies; its chord lies
+        across both. It starts `foot` inside whatever it grows from. bow curves its trailing edge;
+        sweep curls its tip back along the chord, so its leading edge is a curve and not a straight line."""
+        root, tip, flat = Vector(root), Vector(tip), Vector(flat).normalized()
+        axis = (tip - root)
+        length = axis.length
+        axis = axis / length
+        across = axis.cross(flat).normalized()
+        n = around * 3 if hi else around
+        count = stations * 5 if hi else stations
+        rings = []
+        for i in range(count + 1):
+            t = i / count
+            s = -foot / length + (1.0 + foot / length) * t
+            round_tip = math.sqrt(max(0.0, 1.0 - max(0.0, (s - 0.72) / 0.28) ** 2))
+            c = chord * (1.0 - (1.0 - tip_share) * max(0.0, s) ** 1.25) * (0.06 + 0.94 * round_tip)
+            th = thick * (1.0 - 0.72 * max(0.0, s)) * (0.25 + 0.75 * round_tip)
+            centre = root + axis * (length * s) + across * ((bow * math.sin(math.pi * max(0.0, s)) + sweep * max(0.0, s) ** 2.2) * chord)
+            # A fin is thickest a third of the way back from its leading edge: its section is a blunt teardrop.
+            ring_ = []
+            for k in range(n):
+                a_ = 2 * math.pi * k / n
+                cx, cz = math.cos(a_), math.sin(a_)
+                fat = 0.55 + 0.45 * cx if cx > 0 else 1.0 - 0.55 * cx * cx
+                ring_.append(centre + across * (c * 0.5 * cx) + flat * (th * fat * cz))
+            rings.append(ring_)
+        return real.loft(name, rings, (0.5, 0.5, 0.5), smooth=80.0)
+
+    def fin_fold(axis_index, period):
+        """What a baked fin has that the game's does not: the faint rays along it and a slow unevenness."""
+        def fold(p):
+            return 0.0030 * math.sin(2 * math.pi * p[axis_index] / period) * 0.5 + 0.006 * noise.noise(p * 3.0) + 0.002 * noise.noise(p * 11.0)
+        return fold
+
+    def body_fold(node):
+        """What the baked body has that the game's does not: five gill slits behind the head, the soft sag of its
+        flanks, the line along its side. Laid out along the whole animal, never per piece."""
+        def fold(p):
+            s = node - p.y
+            at = Vector((p.x, -s, p.z))
+            w, t, _ = outline(s)
+            flank = min(1.0, abs(p.x) / max(0.05, w * 0.55))
+            d = 0.0
+            # Gill slits: five, on the flanks just behind the head, each a curved cut.
+            for k in range(5):
+                at_s = 0.48 + 0.115 * k + 0.05 * (p.z / max(0.1, t)) ** 2
+                tall_ = math.exp(-((p.z + 0.02) / (t * 0.50)) ** 2)
+                d -= 0.020 * flank * tall_ * math.exp(-((s - at_s) / 0.014) ** 2)
+                d += 0.006 * flank * tall_ * math.exp(-((s - at_s - 0.030) / 0.022) ** 2)
+            # The line along its side, and the loose skin of its belly.
+            d -= 0.004 * flank * math.exp(-((p.z - t * 0.12) / 0.02) ** 2) * smooth(s, 1.1, 1.5)
+            d -= 0.007 * (1.0 if p.z < -t * 0.3 else 0.0) * pulse(p.x / 0.16 + 0.3 * noise.noise(at * 0.9), 3) * (1.0 - smooth(s, 2.4, 3.6))
+            return d + 0.016 * noise.noise(at * 1.6) + 0.006 * noise.noise(at * 5.5) + 0.002 * noise.noise(at * 17.0)
+        return fold
+
+    def turned_in(s_joint, d, behind):
+        w, t, power = outline(s_joint)
+        share = math.sqrt(max(0.0, 1.0 - ((d - pad) / (over - pad + 0.008)) ** 2))
+        s = s_joint + (d if behind else -d)
+        w2, t2, _ = outline(s)
+        return (s, min(w * share, w2 * 0.985), min(t * share, t2 * 0.985), power)
+
+    def sunk(ring):
+        return (ring[0] - 0.004, ring[1] - 0.004, ring[2])
+
+    # ------------------------------------------------------------- Seg0..Seg7: the body, one shape cut at its joints
+    for k in range(segs):
+        node = (k + 1) * sp
+        front, back = node - sp * 0.5, node + sp * 0.5
+        around = (22 if k < 4 else 16 if k < 6 else 12) * (4 if hi else 1)
+        step = 0.014 if hi else 0.10
+        ends = [0.158, 0.150, 0.136, 0.118, 0.098, 0.078, 0.058, 0.042] if hi else [0.154, 0.122, 0.074]
+        stations = [turned_in(back, d, True) for d in ends]
+        stations.append((back + pad,) + sunk(outline(back + pad)))
+        count = max(2, round(sp / step))
+        for i in range(count + 1):
+            s = back - sp * i / count
+            stations.append((s,) + tuple(outline(s)))
+        stations.append((front - pad,) + sunk(outline(front - pad)))
+        stations += [turned_in(front, d, False) for d in reversed(ends)]
+        rings = [real.ring(Vector((0, node - s, 0)), Vector((-1, 0, 0)), Vector(up), max(w, 0.004), max(t, 0.004), around, power) for s, w, t, power in stations]
+        piece = "Seg%d" % k
+        body = real.loft("length", rings, (0.5, 0.5, 0.5), smooth=80.0)
+        if hi:
+            real.displace(body, body_fold(node))
+        placed(body, "skin", piece, (0, -node, 0), smooth=80.0)
+        if k == 0:
+            # The shoulders its front fins grow from.
+            root = L["fin_root"]
+            for side in (-1, 1):
+                placed(g.ball("shoulder", (side * (root[0] - 0.10), root[1], root[2] + 0.03), 0.20, scale=(0.8, 1.5, 0.9), around=10), "skin", piece, (0, -node, 0), smooth=80.0)
+        if k == 2:
+            root = L["back_fin_root"]
+            placed(g.ball("back fin foot", (0, root[1] - 0.05, root[2] - 0.06), 0.14, scale=(0.7, 2.6, 0.8), around=8), "skin", piece, (0, -node, 0), smooth=80.0)
+        if k == 4:
+            # The small second back fin and the two belly fins: part of this length, they do not come off.
+            w, t, _ = outline(node)
+            placed(blade("small fin", (0, 0.06, t - 0.03), (0, -0.20, t + 0.24), 0.36, 0.030, (1, 0, 0), around=8, stations=7), "skin", piece, (0, -node, 0), smooth=80.0)
+            for side in (-1, 1):
+                placed(blade("belly fin", (side * w * 0.55, 0.05, -t * 0.72), (side * (w * 0.55 + 0.26), -0.26, -t * 0.72 - 0.22), 0.34, 0.028, (side * 0.5, 0, 0.85), around=8, stations=7),
+                       "skin", piece, (0, -node, 0), smooth=80.0)
+        if k == 6:
+            w, t, _ = outline(node)
+            placed(blade("under fin", (0, 0.04, -t + 0.02), (0, -0.18, -t - 0.18), 0.28, 0.022, (1, 0, 0), around=8, stations=7), "skin", piece, (0, -node, 0), smooth=80.0)
+
+    # ------------------------------------------------------------- Head: a great soft dome over the roof of its mouth; the lower jaw is a piece of its own
+    hl, hh, ht = L["head"], L["head_half"], L["head_tall"]
+    back = -sp * 0.5
+    nw, nt, _ = outline(sp * 0.5)
+    # Behind the hinge the head is whole; in front of it only the part above the mouth (the jaw is the rest). It
+    # begins as the neck's own outline, with a rounded end reaching back into the neck.
+    c = 0.158
+    keys = [(-c, nw * 0.22, nt * 0.22, 0, 0.0), (-0.122, nw * 0.72, nt * 0.72, 0, 0.0), (-0.074, nw * 0.94, nt * 0.94, 0, 0.0), (-pad, nw - 0.004, nt - 0.004, 0, 0.0), (0.00, nw, nt, 0, 0.0),
+            (0.12, 0.765, 0.660, 0, 0.0), (0.28, hh, ht, 0, 0.005), (0.45, hh, 0.610, 0, 0.050), (0.62, 0.778, 0.500, 0, 0.150), (0.80, 0.770, 0.440, 0, 0.200),
+            (1.15, 0.730, 0.395, 0, 0.215), (1.50, 0.630, 0.320, 0, 0.215), (1.72, 0.490, 0.230, 0, 0.200), (1.84, 0.340, 0.140, 0, 0.180), (1.885, 0.200, 0.070, 0, 0.165), (hl, 0.070, 0.022, 0, 0.158)]
+    keys = [(k_[0] + c,) + tuple(k_[1:]) for k_ in keys]
+    skull = g.skin("skull", (0, back - c, 0.0), (0, 1, 0), up, keys, around=26, step=0.085, power=2.2)
+    if hi:
+        # The swell of its brow, a soft crease above the lip, pores over its snout, and the loose skin of the head.
+        def head_fold(p):
+            at = Vector((p.x, p.y, p.z))
+            above = 1.0 if p.z > 0.1 else 0.0
+            d = 0.020 * math.exp(-(((abs(p.x) - 0.42) / 0.20) ** 2 + ((p.y - 0.55) / 0.30) ** 2)) * above
+            d -= 0.010 * math.exp(-((p.z + 0.02 - 0.10 * smooth(p.y, 0.3, 1.2)) / 0.035) ** 2) * smooth(p.y, 0.35, 0.6)
+            pore_at = noise.noise(at * 30.0)
+            d -= 0.004 * max(0.0, pore_at - 0.45) * smooth(p.y, 0.9, 1.4)
+            return d + 0.016 * noise.noise(at * 1.6) + 0.006 * noise.noise(at * 5.5) + 0.002 * noise.noise(at * 17.0)
+        real.displace(skull, head_fold)
+    # The roof of its mouth is a hollow arched up into the head, inside the rim of its lip.
+    def half_at(table, y, shift):
+        ys = [k_[0] + shift for k_ in table]
+        for a_, b_ in zip(range(len(ys) - 1), range(1, len(ys))):
+            if y <= ys[b_]:
+                f_ = min(1.0, max(0.0, (y - ys[a_]) / (ys[b_] - ys[a_])))
+                return table[a_][1] + (table[b_][1] - table[a_][1]) * f_
+        return table[-1][1]
+
+    def roof(x, y):
+        wide = half_at(keys, y, back - c) * 0.84
+        across_ = max(0.0, 1.0 - (abs(x) / wide) ** 2.4)
+        return across_ * smooth(y, 0.14, 0.50) * (1.0 - smooth(y, 1.10, 1.42))
+
+    for v in skull.data.vertices:
+        if v.co.z < -0.085 + 0.13 * smooth(v.co.y, 0.3, 1.3):
+            v.co.z += 0.26 * roof(v.co.x, v.co.y)
+    skull.data.update()
+    # Its upper lip: the pale band along the edge of its mouth.
+    placed(skull, "skin", "Head", smooth=80.0, second=[
+        ("mouth", lambda c_, n: n.z < -0.15 and c_.z < 0.25 and roof(c_.x, c_.y) > 0.10),
+        ("lip", lambda c_, n: c_.y > 0.22 and c_.z < -0.085 + 0.13 * smooth(c_.y, 0.3, 1.3) and n.z < 0.55)])
+    # The dark of its throat, seen when the jaw drops.
+    placed(g.ball("gullet", (0, 0.14, -0.04), 0.34, scale=(1.7, 1.0, 0.62), around=12), "gullet", "Head")
+    for side in (-1, 1):
+        # Small eyes, low on the side of the head above the corner of the mouth; a pit of a nostril ahead of each.
+        placed(g.ball("eye", (side * 0.742, 0.62, 0.150), 0.050, scale=(0.5, 1.0, 1.0), around=8), "eye", "Head")
+        placed(g.ball("eye lid", (side * 0.730, 0.62, 0.150), 0.070, scale=(0.5, 1.1, 1.1), around=8), "skin", "Head", only='hi')
+
+    # ------------------------------------------------------------- Jaw: the lower jaw, a wide scoop from its hinge; it drops open
+    jl, jh = L["jaw"], L["jaw_half"]
+    jk = [(-0.16, jh * 0.50, 0.060, 0, -0.130), (-0.08, jh * 0.86, 0.150, 0, -0.160), (0.00, jh * 1.04, 0.215, 0, -0.195), (0.30, jh * 1.08, 0.240, 0, -0.215), (0.62, jh * 1.04, 0.225, 0, -0.200),
+          (0.95, jh * 0.90, 0.185, 0, -0.165), (1.18, jh * 0.70, 0.135, 0, -0.118), (1.30, jh * 0.48, 0.085, 0, -0.074), (1.355, jh * 0.28, 0.045, 0, -0.040), (jl, jh * 0.10, 0.016, 0, -0.016)]
+    jk = [(k_[0] + 0.16,) + tuple(k_[1:]) for k_ in jk]
+    jaw = g.skin("jaw", (0, -0.16, 0), (0, 1, 0), up, jk, around=22, step=0.09, power=2.2)
+    if hi:
+        # The pleats of its throat, which let its mouth balloon, running fore and aft.
+        real.displace(jaw, lambda p: (-0.008 * pulse(p.x / 0.11 + 0.3 * noise.noise(p * 1.2), 3) * (1.0 if p.z < -0.22 else 0.0) * (1.0 - smooth(p.y, 0.95, 1.25))
+                                      + 0.012 * noise.noise(p * 1.8 + Vector((4.0, 0, 0))) + 0.004 * noise.noise(p * 7.0)))
+    # The floor of its mouth is a scoop sunk into the jaw, inside the rim of its lip.
+    def floor(x, y):
+        wide = half_at(jk, y, -0.16) * 0.84
+        across_ = max(0.0, 1.0 - (abs(x) / wide) ** 2.4)
+        return across_ * smooth(y, -0.06, 0.30) * (1.0 - smooth(y, 0.98, 1.28))
+
+    for v in jaw.data.vertices:
+        if v.co.z > -0.105:
+            v.co.z -= 0.21 * floor(v.co.x, v.co.y)
+    jaw.data.update()
+    placed(jaw, "skin", "Jaw", (2.2, 0, 0), smooth=80.0, second=[
+        ("mouth", lambda c_, n: n.z > 0.15 and floor(c_.x, c_.y) > 0.10),
+        ("lip", lambda c_, n: c_.y > 0.10 and c_.z > -0.075 - 0.02 * smooth(c_.y, 0.2, 1.2) and n.z > -0.3)])
+    # Its tongue, lying in the scoop.
+    placed(g.ball("tongue", (0, 0.46, -0.205), 0.30, scale=(1.05, 1.7, 0.24), around=12), "mouth", "Jaw", (2.2, 0, 0))
+
+    # ------------------------------------------------------------- Fin: a long front fin from its root, flat, the same above as below (the left one is this turned over)
+    fl, fc = L["fin"], L["fin_chord"]
+    fin = blade("front fin", (0, 0, 0), (-0.30, fl, 0), fc, 0.060, (0, 0, 1), around=10, stations=14, bow=-0.06, tip_share=0.36, foot=0.16)
+    if hi:
+        real.displace(fin, fin_fold(0, 0.045))
+    placed(fin, "fin", "Fin", (3.4, 0, 0), smooth=80.0)
+
+    # ------------------------------------------------------------- BackFin: low and rounded, leaning back
+    bh, bc = L["back_fin"], L["back_fin_chord"]
+    back_fin = blade("back fin", (0, 0, 0), (0, -0.34, bh), bc, 0.060, (1, 0, 0), around=10, stations=11, bow=0.0, sweep=0.22, tip_share=0.34, foot=0.14)
+    if hi:
+        real.displace(back_fin, fin_fold(1, 0.05))
+    placed(back_fin, "fin", "BackFin", (4.4, 0, 0), smooth=80.0)
+
+    # ------------------------------------------------------------- TailFin: a long upper blade and a short lower one, from the end of the tail
+    tu, td, tb = L["tail_up"], L["tail_down"], L["tail_back"]
+    upper = blade("tail blade", (0, 0.05, 0.02), (0, -tb, tu), 0.50, 0.075, (1, 0, 0), around=10, stations=14, bow=0.05, tip_share=0.42, foot=0.10)
+    lower = blade("tail lobe", (0, 0.03, -0.03), (0, -tb * 0.34, -td), 0.40, 0.055, (1, 0, 0), around=8, stations=9, tip_share=0.36, foot=0.10)
+    if hi:
+        real.displace(upper, fin_fold(2, 0.06))
+        real.displace(lower, fin_fold(2, 0.05))
+    placed(upper, "fin", "TailFin", (5.4, 0, 0), smooth=80.0)
+    placed(lower, "fin", "TailFin", (5.4, 0, 0), smooth=80.0)
+    placed(g.ball("tail root", (0, 0.02, 0.0), 0.150, scale=(0.72, 1.6, 1.0), around=10), "skin", "TailFin", (5.4, 0, 0), smooth=80.0)
+
+    leftovers(g, L["stump"], "skin")
+    if hi:
+        for objects in g.parts.values():
+            for o in objects:
+                if mats.REST not in o.data.attributes:
+                    mats.rest_place(o, (6.6, 0, 0))
+    return g
+
+
+def maw_sockets():
+    L = MAW
+    sp = L["spacing"]
+    sockets = [oa.socket("SegEnd", (0, sp * 0.5, 0)), oa.socket("HeadEnd", (0, L["head"] - sp * 0.5, 0)), oa.socket("HeadSide", (L["head_half"], 0, 0)), oa.socket("HeadTop", (0, 0, L["head_tall"])),
+               oa.socket("JawHinge", L["jaw_hinge"]), oa.socket("JawEnd", (0, L["jaw"], 0)), oa.socket("JawSide", (L["jaw_half"], 0, 0)), oa.socket("Mouth", L["mouth"]),
+               oa.socket("FinR", L["fin_root"]), oa.socket("FinEnd", (0, L["fin"], 0)), oa.socket("FinChord", (L["fin_chord"], 0, 0)),
+               oa.socket("BackFin", L["back_fin_root"]), oa.socket("BackFinTop", (0, 0, L["back_fin"])), oa.socket("BackFinChord", (0, L["back_fin_chord"], 0)),
+               oa.socket("TailFinUp", (0, -L["tail_back"], L["tail_up"])), oa.socket("TailFinDown", (0, 0, -L["tail_down"])),
+               oa.socket("StumpRim", (L["stump"], 0, 0))]
+    for k in range(8):
+        sockets.append(oa.socket("Size%d" % k, (L["half"][k], 0, L["tall"][k])))
+    return sockets
+
+
 # ---------------------------------------------------------------------- building
 
 CREATURES = {"Strider": (strider, strider_sockets, 2048), "Sprinter": (sprinter, sprinter_sockets, 2048), "Roller": (roller, roller_sockets, 2048),
              "Hunter": (hunter, hunter_sockets, 2048), "Screamer": (screamer, screamer_sockets, 2048),
-             "Ambusher": (ambusher, ambusher_sockets, 2048), "Stalker": (stalker, stalker_sockets, 2048)}
+             "Ambusher": (ambusher, ambusher_sockets, 2048), "Stalker": (stalker, stalker_sockets, 2048), "Maw": (maw, maw_sockets, 2048)}
 # Shapes a far copy does without: from where it is seen they are thinner than a pixel.
 FAR_LEAVE_OUT = {"Sprinter": ("bristle", "claw")}
 # How a far copy is cut when the usual way starves it: (share of the triangles, fewest a shape may keep, small

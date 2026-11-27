@@ -13,6 +13,7 @@
     <Compile Include="ScreamerDump.cs" />
     <Compile Include="AmbusherDump.cs" />
     <Compile Include="StalkerDump.cs" />
+    <Compile Include="MawDump.cs" />
     <Compile Include="$(OARuntime)Core/Vec3d.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerLayout.cs" />
     <Compile Include="$(OARuntime)Creatures/WalkerBody.cs" />
@@ -38,6 +39,10 @@
     <Compile Include="$(OARuntime)Creatures/StalkerBody.cs" />
     <Compile Include="$(OARuntime)Creatures/StalkerAnimator.cs" />
     <Compile Include="$(OARuntime)Creatures/StalkerBrain.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawLayout.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawBody.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawAnimator.cs" />
+    <Compile Include="$(OARuntime)Creatures/MawBrain.cs" />
     <Compile Include="$(OARuntime)Core/SeededRandom.cs" />
   </ItemGroup>
 </Project>

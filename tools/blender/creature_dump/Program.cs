@@ -51,6 +51,7 @@ static class Program
         if (args.Length > 2 && args[2] == ScreamerLayout.Model) return ScreamerDump.Run(args[0], scene);
         if (args.Length > 2 && args[2] == AmbusherLayout.Model) return AmbusherDump.Run(args[0], scene);
         if (args.Length > 2 && args[2] == StalkerLayout.Model) return StalkerDump.Run(args[0], scene);
+        if (args.Length > 2 && args[2] == MawLayout.Model) return MawDump.Run(args[0], scene);
         WalkerLayout _l = args.Length > 2 ? WalkerLayout.For(args[2]) : WalkerLayout.Strider;
         if (_l == null) { Console.Error.WriteLine("no such kind: " + args[2]); return 2; }
         bool quick = _l == WalkerLayout.Sprinter;
