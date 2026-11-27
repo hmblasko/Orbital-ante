@@ -165,7 +165,8 @@ namespace OrbitalAnte.Tasks
             // Aboard, the ship's damage list has this corner (as the "+points" lines do); the map shows tasks per world.
             string objective = WorldTaskLine.Objective(_lineText, _tasks != null && _tasks.CarryingSalvage);
             if (_line.text != objective) _line.text = objective;
-            bool lineOn = objective.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip;
+            bool lineOn = objective.Length > 0 && d.IsRunning && !Ship.Astronaut.PlayerInShip
+                          && ReadoutFocus.ShowsTaskLine(AnteLoop.InFight);
             if (_line.gameObject.activeSelf != lineOn) _line.gameObject.SetActive(lineOn);
         }
 
@@ -208,6 +209,8 @@ namespace OrbitalAnte.Tasks
             };
             GuideTip tip = RunGuide.Next(state, _seen);
             if (tip == GuideTip.None) return;
+            // Mid-fight only the tips about the clock cut in; the rest wait, unseen, for a quiet moment.
+            if (!ReadoutFocus.TipMayStart(tip, AnteLoop.InFight)) return;
             Remember(tip);
             _tip.text = RunGuide.Text(tip, Keys(), d.Target);
             Color col = _tip.color;

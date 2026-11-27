@@ -58,7 +58,7 @@ namespace OrbitalAnte.Tasks
         float _shown;
         float _tickAt;
         int _shownSeconds = -1, _shownAnte = -1, _shownTarget = -1, _shownStreak = -1, _shownPoints = -1;
-        float _noteLeft;
+        readonly NoteBoard _notes = new NoteBoard();
         bool _counting;
 
         static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -120,7 +120,7 @@ namespace OrbitalAnte.Tasks
             _shown = 0f;
             _shownSeconds = _shownAnte = _shownTarget = _shownStreak = _shownPoints = -1;
             for (int i = 0; i < _pops.Length; i++) { _popLeft[i] = 0f; _pops[i].gameObject.SetActive(false); }
-            _noteLeft = 0f;
+            _notes.Clear();
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
             _shownPerkReady = false;
             _perkLine.gameObject.SetActive(false);
@@ -166,9 +166,9 @@ namespace OrbitalAnte.Tasks
             {
                 // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
                 PopLook look = PopFeedback.For(scoreEvent, result, PopFeedback.BigAt(loop.Run.Balance, loop.Run.Director.Ante));
-                if (result.chainBonusUsed)
-                    loop.Pop("Includes " + N(result.chainBonusPoints) + " from Change of Pace");
-                loop.Pop("+" + result.points.ToString("N0", Inv) + "  " + label, look);
+                // One line per award, the perk's share on the end of it (critique loop round 3): a second line for
+                // the same award took one of the two rows a fight leaves (ReadoutFocus) and read as a second award.
+                loop.Pop(PopFeedback.Line(result.points, label, result.chainBonusUsed ? result.chainBonusPoints : 0), look);
             }
             loop.AfterReport(scoreEvent, result, label);
             loop._recap?.Add(scoreEvent, result, loop.Run.Director.Ante, label);
@@ -176,13 +176,35 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>A line on the readout with no points (a task found, a supply drop coming).</summary>
-        public static void Note(string text)
+        public static void Note(string text) => Note(text, false);
+
+        /// <summary>
+        /// A note; an <paramref name="important"/> one (the target met, overtime) cannot be written over for a few
+        /// seconds, and a plain note arriving meanwhile is shown after it (Ante/NoteBoard).
+        /// </summary>
+        public static void Note(string text, bool important)
         {
             AnteLoop loop = Current;
             if (loop == null || loop._noteLine == null) return;
-            loop._noteLine.text = text;
-            loop._noteLeft = 3.5f;
+            loop._notes.Offer(text, important);
+            loop.ShowNote();
         }
+
+        void ShowNote()
+        {
+            bool on = _notes.Text != null;
+            if (on) _noteLine.text = _notes.Text;
+            if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
+        }
+
+        // A restless squad was sent (Enemies/LullRules): the radio call's twin in words, for a muted Deck.
+        void OnSquadSent(Vector3 from)
+        {
+            if (Run != null && Run.Director.IsRunning && !Run.Director.InOvertime) Note("RADIO CHATTER: A SQUAD IS COMING TO LOOK");
+        }
+
+        void OnEnable() => AI.CombatWorld.SquadSent += OnSquadSent;
+        void OnDisable() => AI.CombatWorld.SquadSent -= OnSquadSent;
 
         public bool Running => Run != null && Run.Director.IsRunning;
 
@@ -196,8 +218,10 @@ namespace OrbitalAnte.Tasks
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if (!paused && Run.Director.IsRunning) PlayTime += dt;
             bool held = HoldClock != null && HoldClock();
+            float clockBefore = Run.Director.SecondsLeft;
             // While the player's burst plays before the death page the clock stops: the run is already lost.
             Run.Tick(dt, paused || held || OrbitalAnte.Ship.Astronaut.PlayerDown);
+            UpdateClockCues(clockBefore, held || paused);
             UpdateOvertime(dt, paused);
 
             AntePhase phase = Run.Director.Phase;
@@ -215,12 +239,14 @@ namespace OrbitalAnte.Tasks
             if (Run.Director.IsRunning && Run.Director.TargetMet && !_toldTargetMet)
             {
                 _toldTargetMet = true;
-                Audio.AudioDirector.PlayLocal("reward.tier2");
+                // The ante's own moment: a sound heard nowhere else (it used to share the two-feat kill's), and a note
+                // nothing can write over until it has been read.
+                Audio.AudioDirector.PlayLocal("reward.target");
                 // In the seat Select is Floodlights, so the note says the pick waits for you on foot.
                 Note(Run.Director.PerkEarnedEarly
                     ? "TARGET MET: perk ready (" + GameInput.Describe(GameInput.Upgrades) + (OrbitalAnte.Ship.Astronaut.PlayerSeated ? " on foot" : "")
                       + "). Bank from the pause menu, or keep scoring"
-                    : "TARGET MET: bank it from the pause menu, or keep scoring");
+                    : "TARGET MET: bank it from the pause menu, or keep scoring", true);
             }
             // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
             // star chart once the target is met. In the seat Select is still Floodlights.
@@ -238,6 +264,25 @@ namespace OrbitalAnte.Tasks
         }
 
         /// <summary>
+        /// The clock by ear (Ante/ClockCues): a heads-up at a minute and a tick each of the last 5, while the target is
+        /// not met. The eyes are on the fight; the red clock is in a corner.
+        /// </summary>
+        void UpdateClockCues(float before, bool held)
+        {
+            AnteDirector d = Run.Director;
+            float now = d.SecondsLeft;
+            switch (ClockCues.Step(before, now, d.IsRunning, d.TargetMet, held, d.InOvertime, OrbitalAnte.Ship.Astronaut.PlayerSeated))
+            {
+                case ClockCue.Warn:
+                    Audio.AudioDirector.PlayLocal("ante.clock.warn");
+                    break;
+                case ClockCue.Tick:
+                    Audio.AudioDirector.PlayLocal("ante.clock.tick", ClockCues.TickVolume);
+                    break;
+            }
+        }
+
+        /// <summary>
         /// Overtime (Matthew, 21 Nov 2026): the clock ran out short of the target, the ante goes on, and the enemies
         /// hunt. They get Hunted's sharpness and heavies, and every <see cref="AnteBalance.overtimeHuntEvery"/> seconds
         /// those near are told where the player is (a place to go and look, as a flare gives, never a live track).
@@ -252,10 +297,11 @@ namespace OrbitalAnte.Tasks
                 if (ot)
                 {
                     _huntIn = 1f;
-                    Audio.AudioDirector.PlayLocal("player.suit.alarm", 0.8f);
+                    // Its own sound, in the clock's family: the suit's air warning must never be taken for this.
+                    Audio.AudioDirector.PlayLocal("ante.overtime");
                     // A chosen hazard stops paying here (HazardRules.PaysNow), and the note says so.
                     Note("OVERTIME: REACH " + Run.Director.Target.ToString("N0", Inv) + ". THEY'RE HUNTING YOU"
-                         + (CurrentHazard != Hazard.None ? " · " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + " STILL ON, BONUS OVER" : ""));
+                         + (CurrentHazard != Hazard.None ? " · " + HazardRules.Name(CurrentHazard).ToUpperInvariant() + " STILL ON, BONUS OVER" : ""), true);
                 }
             }
             if (!ot || paused) return;
@@ -267,6 +313,8 @@ namespace OrbitalAnte.Tasks
             float reach = Mathf.Max(20f, Run.Balance.overtimeHuntRadius);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.None);
             AI.CombatWorld.RaiseAlarm(eye.position, reach, eye.position, Enemies.Factions.A);
+            // Each time they are told where you are, you hear them being told: the hunt was a silent rule before.
+            if (!OrbitalAnte.Ship.Astronaut.PlayerInShip) Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.7f);
         }
 
         void OnPhase(AntePhase phase)
@@ -429,6 +477,9 @@ namespace OrbitalAnte.Tasks
             _canvas.gameObject.SetActive(false);
         }
 
+        /// <summary>True while an enemy has had the player in sight lately: the readout keeps to what a fight needs.</summary>
+        public static bool InFight => ReadoutFocus.InFight(Time.time - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt);
+
         void Pop(string text) => Pop(text, PopFeedback.LookFor(PopTier.Plain));
 
         void Pop(string text, PopLook look)
@@ -457,7 +508,7 @@ namespace OrbitalAnte.Tasks
                 _popColour[k] = _popColour[k - 1];
                 _pops[k].color = _popColour[k];
                 _popLeft[k] = _popLeft[k - 1];
-                _pops[k].gameObject.SetActive(_popLeft[k] > 0f);
+                _pops[k].gameObject.SetActive(_popLeft[k] > 0f && k < ReadoutFocus.Pops(InFight) && !OrbitalAnte.Ship.Astronaut.PlayerInShip);
             }
         }
 
@@ -540,7 +591,7 @@ namespace OrbitalAnte.Tasks
             if (streak != _shownStreak)
             {
                 _shownStreak = streak;
-                _streakLine.text = streak >= 2 ? "STREAK x" + streak + (streak >= Config.rules.streakForFeat ? "  (next task +style)" : string.Empty) : string.Empty;
+                _streakLine.text = RunWords.RollLine(streak, Config.rules.streakForFeat);
             }
 
             bool perkReady = d.PerkEarnedEarly && !OrbitalAnte.Ship.Astronaut.PlayerInShip;
@@ -555,10 +606,13 @@ namespace OrbitalAnte.Tasks
 
             // Aboard, the ship's damage list takes this corner: the lines wait (the score still counts up).
             bool popsShown = !OrbitalAnte.Ship.Astronaut.PlayerInShip;
+            // In a fight only the newest lines show (ReadoutFocus); older ones still on their time come back after it.
+            int popRows = ReadoutFocus.Pops(InFight);
             for (int i = 0; i < _pops.Length; i++)
             {
                 if (_popLeft[i] <= 0f) continue;
-                if (_pops[i].gameObject.activeSelf != popsShown) _pops[i].gameObject.SetActive(popsShown);
+                bool rowShown = popsShown && i < popRows;
+                if (_pops[i].gameObject.activeSelf != rowShown) _pops[i].gameObject.SetActive(rowShown);
                 _popLeft[i] -= dt;
                 if (_popLeft[i] <= 0f) _pops[i].gameObject.SetActive(false);
                 else
@@ -571,12 +625,7 @@ namespace OrbitalAnte.Tasks
 
             UpdateContractHud();
 
-            if (_noteLeft > 0f)
-            {
-                _noteLeft -= dt;
-                bool on = _noteLeft > 0f;
-                if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
-            }
+            if (_notes.Tick(dt)) ShowNote();
         }
     }
 }

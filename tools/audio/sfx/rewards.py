@@ -237,3 +237,19 @@ def ui_back(rng, v):
     """Backing out: the same two notes falling (D to A)."""
     x = _synth(line("D6:.1 A5:.4", vel=85), synth.v_pluck, 0.35, rng, bright=0.7, decay=0.1)
     return finish(x, -6, 0.08)
+
+
+@sfx("reward.target", "rewards", volumeDb=-9, cooldownMs=3000, maxVoices=1, priority=40, **UI)
+def target_met(rng, v):
+    """The ante's target is met (critique loop round 1): the moment the whole ante was for, so it has a sound of
+    its own, heard nowhere else. A D major chord thrown open from the bottom up (D, A, D, F sharp), then one bell on
+    the high A left ringing: an arrival, where the kill chimes are flicks and the banked-ante sound is a phrase.
+    It used to share the two-feat kill's sound, which made the goal read as one more kill."""
+    L = 1.9
+    strum = line("D5:.08 A5:.08 D6:.08 F#6:1.2", vel=112)
+    x = _synth(strum, synth.v_pluck, L, rng, bright=1.3, decay=0.5)
+    x += _synth(line("[D4 A4 D5 F#5]:1.6", vel=84), synth.v_tine, L, rng) * 0.7
+    x += _synth(line("r:.3 A6:1.4", vel=96), synth.v_bell, L, rng, decay=0.9) * 0.55
+    x += _sparkle(len(x), rng, 0.2, 0.6, 30, 0.04)
+    x = dsp.reverb(x, 1.3, 0.2, 0.45, seed=36)
+    return finish(x, -3, 0.4, limit=True)

@@ -76,11 +76,15 @@ namespace OrbitalAnte.Items
         // ------------------------------------------------------------------ the run
 
         /// <summary>A run is starting: number its envelope and show it. Call before the run's first save.</summary>
-        public void RunStarted()
+        public void RunStarted() => RunStarted(false);
+
+        /// <param name="restartedFromARun">The run was restarted from the death page or the pause menu: its
+        /// envelope is sealed as always but not shown again (<see cref="RunEnvelope.ShowsAtStart"/>).</param>
+        public void RunStarted(bool restartedFromARun)
         {
             _screen.Close();
             _run = RunEnvelope.Seal(Book());
-            if (!EnvelopeConfig.Load().showAtRunStart) return;
+            if (!RunEnvelope.ShowsAtStart(EnvelopeConfig.Load().showAtRunStart, restartedFromARun)) return;
             _screen.UseCard(null);
             _screen.Show(new EnvelopeShow
             {

@@ -119,6 +119,7 @@ namespace OrbitalAnte.AI
         public void Noticed()
         {
             _lastSaw = Time.time;
+            CombatWorld.PlayerLastSeenAt = _lastSaw;
             if (Squad != null) Squad.Saw(_lastSaw);
         }
 
@@ -437,8 +438,13 @@ namespace OrbitalAnte.AI
                 // "Already" means the squad had the player before this moment, not a squadmate who looked a
                 // fraction of a second earlier in the same sighting.
                 if (now - _lastSaw > _cfg.chaseMemory)
+                {
                     FirstSight(now, Squad != null && Squad.SawWithin(now, _cfg.chaseMemory) && !Squad.SawWithin(now, 1f));
+                    // The visor's amber warning: this one has just picked the player out and fires after its beat.
+                    CombatWorld.RaisePlayerSpotted(head, FirstShotBeat(), now - CombatWorld.PlayerLastSeenAt >= _cfg.chaseMemory);
+                }
                 _lastSaw = now;
+                CombatWorld.PlayerLastSeenAt = now;
                 if (Squad != null) Squad.Saw(now);
             }
             if (_flare.Raising && CombatWorld.PlayerEye != null)
@@ -596,7 +602,7 @@ namespace OrbitalAnte.AI
             // Nothing to shoot with: get out of the line of fire, looking back over its shoulder while it can see
             // the player. It never knows where the player is through a hill.
             bool seen = CombatWorld.PlayerPresent && SeesPlayer();
-            if (seen) _lastSaw = Time.time;
+            if (seen) { _lastSaw = Time.time; CombatWorld.PlayerLastSeenAt = _lastSaw; }
             bool threatened = CombatWorld.PlayerPresent && (seen || Time.time - _lastSaw <= _cfg.chaseMemory);
             _loco.LookAt = seen ? CombatWorld.PlayerEye.position : (Vector3?)null;
             if (CombatWorld.PlayerPresent && (CombatWorld.FindCover != null || threatened))

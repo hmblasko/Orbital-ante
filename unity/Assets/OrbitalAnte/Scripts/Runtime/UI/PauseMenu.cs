@@ -229,6 +229,7 @@ namespace OrbitalAnte.UI
             Show(Page.Intermission);
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
             _diedAt = Time.unscaledTime;
+            _selectHold.Start(DiedHold);
         }
 
         // ------------------------------------------------------------------ choices page (ante break)
@@ -308,6 +309,7 @@ namespace OrbitalAnte.UI
             {
                 if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
                 _diedAt = Time.unscaledTime;
+                _selectHold.Start(DiedHold);
             }
         }
 
@@ -367,10 +369,13 @@ namespace OrbitalAnte.UI
             // Nothing is chosen for a moment, so a button still held from the crash cannot skip the page.
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
             _diedAt = Time.unscaledTime;
+            _selectHold.Start(DiedHold);
         }
 
         float _diedAt = -10f;
         const float DiedHold = 0.8f;
+        /// <summary>Selects the page's default by itself once the hold is over and the confirm button is at rest.</summary>
+        readonly SelectionHold _selectHold = new SelectionHold();
 
         void BuildQuit()
         {
@@ -431,6 +436,7 @@ namespace OrbitalAnte.UI
             foreach (var pair in _pages) pair.Value.SetActive(false);
             _current = Page.None;
             _canvas.gameObject.SetActive(false);
+            _selectHold.Cancel();
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
             GameSession.SetPaused(false);
         }
@@ -541,8 +547,17 @@ namespace OrbitalAnte.UI
             EventSystem es = EventSystem.current;
             if (es == null) return;
             GameObject selected = es.currentSelectedGameObject;
-            if (selected != null && selected.activeInHierarchy) return;
-            if ((_current == Page.Died || _current == Page.Intermission || _current == Page.Choices) && Time.unscaledTime - _diedAt < DiedHold) return;
+            if (selected != null && selected.activeInHierarchy) { _selectHold.Cancel(); return; }
+            bool heldPage = _current == Page.Died || _current == Page.Intermission || _current == Page.Choices;
+            if (!heldPage) _selectHold.Cancel();
+            // One press from failing to trying again: the default selects itself once the hands are still.
+            if (_selectHold.Step(Time.unscaledDeltaTime, GameInput.UiSubmit.IsPressed())
+                && _defaults.TryGetValue(_current, out GameObject ready) && ready != null && ready.activeInHierarchy)
+            {
+                es.SetSelectedGameObject(ready);
+                return;
+            }
+            if (heldPage && Time.unscaledTime - _diedAt < DiedHold) return;
 
             bool navigating = GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f
                               || GameInput.UiSubmit.WasPressedThisFrame();

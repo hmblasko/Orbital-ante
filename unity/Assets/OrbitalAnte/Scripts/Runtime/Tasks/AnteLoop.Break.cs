@@ -562,7 +562,8 @@ namespace OrbitalAnte.Tasks
             var s = new StringBuilder();
             // Gain framed: what was cleared first, then the distance to the next (plain numbers, never dressed up as "so close").
             s.Append("Cleared ").Append(Mathf.Max(0, cleared)).Append(cleared == 1 ? " ante" : " antes").Append(", reached ante ").Append(ante);
-            if (Run.Director.Phase != AntePhase.Victory && banked < target)
+            // With nothing banked the distance is the whole target, which says nothing and reads as a scolding.
+            if (Run.Director.Phase != AntePhase.Victory && banked < target && banked > 0)
                 s.Append(", ").Append(N(target - banked)).Append(" short of ").Append(N(target));
             s.Append(".   Run score ").Append(N(score)).Append(".\n");
             if (save != null)
@@ -578,7 +579,8 @@ namespace OrbitalAnte.Tasks
             if (story.Length > 0) s.Append(story).Append("\n");
             if (newAnte) s.Append("NEW RECORD: your highest ante!\n");
             else if (newScore) s.Append("NEW RECORD: your best run score!\n");
-            return s.ToString().TrimEnd('\n');
+            s.Append(RunRecap.NextLine(cleared, Run.Balance.AnteCount));
+            return s.ToString();
         }
     }
 }

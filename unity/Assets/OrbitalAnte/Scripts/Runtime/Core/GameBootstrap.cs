@@ -250,7 +250,7 @@ namespace OrbitalAnte.Core
             pauseGo.transform.SetParent(_uiRoot, false);
             _pauseMenu = pauseGo.AddComponent<PauseMenu>();
             _pauseMenu.Build(_uiRoot);
-            _pauseMenu.RestartRequested = sameSeed => StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed());
+            _pauseMenu.RestartRequested = sameSeed => { _restarting = true; StartRun(sameSeed ? GameSession.Seed : GameSession.NewRandomSeed()); };
             _pauseMenu.QuitToMenuRequested = ShowMainMenu;
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
             OrbitalAnte.Ship.Astronaut.OnDeath = cause =>
@@ -285,6 +285,9 @@ namespace OrbitalAnte.Core
         }
 
         /// <summary>Restarts in the same test world.</summary>
+        /// <summary>Set for the one run a restart from the death page or pause menu starts (the envelope is not shown again).</summary>
+        bool _restarting;
+
         public void StartRun(int seed) => StartRun(seed, GameSession.Scenario);
 
         /// <summary>Tears down whatever is running and starts a fresh run from a seed.</summary>
@@ -304,7 +307,8 @@ namespace OrbitalAnte.Core
             save.lastScenario = (int)scenario;
             save.runsStarted++;
             // Number this run's envelope before the save is written, so a number is never handed out twice.
-            if (_envelopes != null) _envelopes.RunStarted();
+            if (_envelopes != null) _envelopes.RunStarted(_restarting);
+            _restarting = false;
             BankPlayTime();
             Save.SaveSystem.Save();
 
