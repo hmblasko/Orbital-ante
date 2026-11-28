@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum StalkerPiece { Head, Seg, Leg, Gill }
-
     /// <summary>One hitbox of a Blind stalker: its head, a length of body or tail, a leg (either bone) or a gill.</summary>
     public sealed class StalkerPart : MonoBehaviour, IHittable
     {
@@ -52,6 +50,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Stalker";
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public StalkerBody Body { get; private set; }
@@ -385,7 +385,7 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             StalkerHit result;
-            bool armour = false, soft = false;
+            bool soft = false;
             switch (part.Piece)
             {
                 case StalkerPiece.Leg:
@@ -412,13 +412,15 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Stalker skull";
-                    armour = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the trunk rings gold, the skull only knocks (WhereToShoot).
+            outcome.Zone = WhereToShoot.Stalker(part.Piece, part.Index);
+            bool armour = outcome.Zone == HitZone.Armour;
             if (!killed)
             {
                 // Pain tells it where, as a shot's noise would: it comes at whoever did it.

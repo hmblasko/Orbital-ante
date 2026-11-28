@@ -149,6 +149,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind's name, its model's ("Strider", "Sprinter"), for the aim line (<see cref="WhereToShoot"/>). <see cref="Kind"/> is its layout.</summary>
+        string ICreature.Kind => _l != null ? _l.Model : null;
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public WalkerBody Body { get; private set; }
@@ -464,11 +466,16 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             WalkerHit result;
+            bool weaponLost = false;
             if (isJaw)
             {
                 result = Body.HitJaw(part.Limb - WalkerLayout.Limbs, hit.Damage, hit.Sever);
                 outcome.Label = _l.Model + " " + _l.JawPiece;
-                for (int i = 0; i < result.Losses.Count; i++) Detach(result.Losses[i], hit.Direction, hit.Point);
+                for (int i = 0; i < result.Losses.Count; i++)
+                {
+                    weaponLost |= TakesWeapon(result.Losses[i]);
+                    Detach(result.Losses[i], hit.Direction, hit.Point);
+                }
                 outcome.Severed = result.Losses.Count > 0;
                 if (hit.Lethal) result = Body.HitBody(true, 0, lethal: true);
             }
@@ -476,7 +483,11 @@ namespace OrbitalAnte.Creatures
             {
                 result = Body.HitLimb(part.Limb, part.Segment, hit.Damage, hit.Sever);
                 outcome.Label = _l.Model + " " + _l.Piece(part.Limb, part.Segment);
-                for (int i = 0; i < result.Losses.Count; i++) Detach(result.Losses[i], hit.Direction, hit.Point);
+                for (int i = 0; i < result.Losses.Count; i++)
+                {
+                    weaponLost |= TakesWeapon(result.Losses[i]);
+                    Detach(result.Losses[i], hit.Direction, hit.Point);
+                }
                 outcome.Severed = result.Losses.Count > 0;
                 if (hit.Lethal)
                 {
@@ -489,10 +500,12 @@ namespace OrbitalAnte.Creatures
                 result = Body.HitBody(part.Limb == WalkerPart.Belly, hit.Damage, hit.Lethal);
                 outcome.Label = _l.Model + " " + (part.Limb == WalkerPart.Belly ? _l.Soft : _l.Armoured);
             }
+            // Where it landed, for the hit marker: the soft piece rings gold, the lid only knocks (WhereToShoot).
+            outcome.Zone = WhereToShoot.Walker(part.Limb == WalkerPart.Belly, part.Limb == WalkerPart.Carapace, weaponLost);
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.35));
-            bool lid = part.Limb == WalkerPart.Carapace;
+            bool lid = outcome.Zone == HitZone.Armour;
             GoreFx gore = GoreFx.Instance;
             // The lid is armour and says so: no blood, a dull knock. Everything else bleeds.
             if (lid && !result.Killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.55f);
@@ -504,6 +517,17 @@ namespace OrbitalAnte.Creatures
             }
             outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : lid ? 0.04f : 0.12f;
             return outcome;
+        }
+
+        /// <summary>
+        /// True if this loss takes a piece it still strikes with: a jaw still on, or a claw arm still whole (the claw is
+        /// its tip, so an arm already short has lost it before). Asked before the loss is carried out.
+        /// </summary>
+        bool TakesWeapon(in WalkerLoss loss)
+        {
+            if (loss.Burst || !WhereToShoot.WalkerWeapon(_l, loss.Limb)) return false;
+            if (loss.Limb >= WalkerLayout.Limbs) return _jaw[loss.Limb - WalkerLayout.Limbs] != null;
+            return _shown[loss.Limb] == WalkerLayout.Segments;
         }
 
         /// <summary>A limb's pieces from one joint outward come off as one loose chain, and a wound is left behind.</summary>

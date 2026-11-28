@@ -1000,6 +1000,26 @@
    "note": "A chunk landing."
   },
   {
+   "id": "hit.glance",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/combat/hit_glance"
+   ],
+   "volumeDb": -13,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 10,
+   "cooldownMs": 50,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's reward goes only to shots that work. Dry, short and unpitched on purpose: a tight crack of noise, a padded thud under it, and a whisper of the shot skating off (a band of noise sliding down), with no partials that ring, so it is never a bell (rewards), never the clock's wood (whose ticks are two sine partials) and never a suit tone. Measured: all of it between 500 Hz and 6 kHz, two thirds between 2 and 6 kHz (the Deck's own speakers carry it), centred near 3 kHz where the bell is a pure 1.2 kHz, over in a tenth of a second. Quieter than the bell; the creature's own knock (impact.armor, in the world, centred near 500 Hz) plays with it, so the two read as one knock and scrape."
+  },
+  {
    "id": "hit.headshot",
    "bus": "UI",
    "clips": [

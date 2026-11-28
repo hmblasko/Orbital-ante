@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum AmbusherPiece { Head, Seg, Jaw, Feeler }
-
     /// <summary>One hitbox of an Ambusher: its head, a length of its body, a jaw or a feeler.</summary>
     public sealed class AmbusherPart : MonoBehaviour, IHittable
     {
@@ -54,6 +52,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Ambusher";
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public AmbusherBody Body { get; private set; }
@@ -373,13 +373,11 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             AmbusherHit result;
-            bool armour = false;
             switch (part.Piece)
             {
                 case AmbusherPiece.Jaw:
                     result = Body.HitJaw(part.Index, hit.Damage, hit.Sever);
                     outcome.Label = "Ambusher jaw";
-                    armour = result.JawLost < 0;
                     if (result.JawLost >= 0)
                     {
                         LoseJaw(result.JawLost, hit.Direction);
@@ -402,12 +400,15 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Ambusher head";
-                    armour = true;
                     break;
             }
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the body rings gold, the head and a jaw that holds only knock, and a jaw
+            // shot off is a weapon gone (WhereToShoot).
+            outcome.Zone = WhereToShoot.Ambusher(part.Piece, part.Piece == AmbusherPiece.Jaw && result.JawLost >= 0);
+            bool armour = outcome.Zone == HitZone.Armour;
             if (!killed) Brain.Hurt(hit.Damage, Body);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0, push.z) * (outcome.Severed ? 1.5 : 0.5));

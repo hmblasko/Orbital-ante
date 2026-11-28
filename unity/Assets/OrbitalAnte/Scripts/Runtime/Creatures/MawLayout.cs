@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Drifting maw that can be hit: its skull, its lower jaw, its body, a fin, or the way down its open throat.</summary>
+    public enum MawPiece { Head, Jaw, Seg, Fin, BackFin, TailFin, Throat }
+
     /// <summary>
     /// Every dimension and piece name of the Drifting maw (placeholder name; "Maw" in code): an alien from the megamouth
     /// shark (Matthew, 17 Nov 2026), a little over life size: 7 m of soft dark body behind a huge round head whose

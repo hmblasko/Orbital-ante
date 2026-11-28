@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum RollerPiece { Head, Soft, Plate, Tail, Leg }
-
     /// <summary>One hitbox of a Roller: its head, a segment's soft body, a plate, the tail fan or a leg.</summary>
     public sealed class RollerPart : MonoBehaviour, IHittable
     {
@@ -51,6 +49,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Roller";
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public RollerBody Body { get; private set; }
@@ -357,7 +357,7 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             RollerHit result;
-            bool armour = false;
+            bool couldRoll = Body.CanRoll;
             switch (part.Piece)
             {
                 case RollerPiece.Leg:
@@ -367,17 +367,14 @@ namespace OrbitalAnte.Creatures
                 case RollerPiece.Plate:
                     result = Body.HitPlate(part.Index, hit.Damage, hit.Sever);
                     outcome.Label = "Roller plate";
-                    armour = true;
                     break;
                 case RollerPiece.Tail:
                     result = Body.HitTail(hit.Damage, hit.Sever);
                     outcome.Label = "Roller tail";
-                    armour = true;
                     break;
                 case RollerPiece.Head:
                     result = Body.HitBody(false, hit.Damage, hit.Lethal);
                     outcome.Label = "Roller head";
-                    armour = true;
                     break;
                 default:
                     result = Body.HitBody(true, hit.Damage, hit.Lethal);
@@ -388,12 +385,16 @@ namespace OrbitalAnte.Creatures
             outcome.Severed = result.Losses.Count > 0;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !result.Killed) result = Body.HitBody(true, 0, lethal: true);
+            // Where it landed, for the hit marker: plates, tail and head knock until they break; the soft body rings gold;
+            // the plate that leaves it too few to close into a ball takes its charge away (WhereToShoot).
+            outcome.Zone = WhereToShoot.Roller(part.Piece, outcome.Severed, couldRoll && Body.Alive && !Body.CanRoll);
+            bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.35));
             GoreFx gore = GoreFx.Instance;
             // Armour says it is armour: no blood, a dull knock, until it breaks. Everything else bleeds.
-            if (armour && !outcome.Severed && !result.Killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.6f);
+            if (armour && !result.Killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.6f);
             else if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 16 : 4, outcome.Severed ? 6f : 3f);
             if (result.Killed)
             {

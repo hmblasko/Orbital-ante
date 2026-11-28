@@ -33,6 +33,11 @@ namespace OrbitalAnte.Core
         /// <summary>The part hit was a head (whether or not it killed).</summary>
         public bool Head;
         /// <summary>
+        /// Where on a creature the hit landed (its armour, its one weak place, or a piece it fights with coming off),
+        /// for the hit marker and its sound. Left Plain for people and everything else.
+        /// </summary>
+        public HitZone Zone;
+        /// <summary>
         /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
         /// </summary>
         public float Juice;

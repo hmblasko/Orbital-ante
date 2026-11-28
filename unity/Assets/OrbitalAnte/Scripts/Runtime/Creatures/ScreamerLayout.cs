@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Screamer that can be hit: its armoured fore body, its abdomen, a drum, a wing or a leg.</summary>
+    public enum ScreamerPiece { Body, Abdomen, Drum, Wing, Leg }
+
     /// <summary>
     /// Every dimension and piece name of the Screamer (placeholder name): an alien from the cicada (Matthew,
     /// 17 Nov 2026), 1.7 m long with wings that span 3.6 m: a broad armoured fore body with wide-set eyes, a hollow

@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum HunterPiece { Head, Seg, Leg }
-
     /// <summary>One hitbox of a Cave hunter: its head, a segment or a leg.</summary>
     public sealed class HunterPart : MonoBehaviour, IHittable
     {
@@ -50,6 +48,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Hunter";
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public HunterBody Body { get; private set; }
@@ -308,7 +308,7 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             HunterHit result;
-            bool armour = false, soft = false;
+            bool soft = false;
             switch (part.Piece)
             {
                 case HunterPiece.Leg:
@@ -331,12 +331,14 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Hunter head";
-                    armour = true;
                     break;
             }
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the fore body rings gold, the head only knocks (WhereToShoot).
+            outcome.Zone = WhereToShoot.Hunter(part.Piece, part.Index);
+            bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.4));

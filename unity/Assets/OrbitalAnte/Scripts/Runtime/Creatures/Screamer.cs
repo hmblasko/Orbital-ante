@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum ScreamerPiece { Body, Abdomen, Drum, Wing, Leg }
-
     /// <summary>One hitbox of a Screamer: its fore body, its abdomen, a drum, a wing, or one of the two pieces of a leg.</summary>
     public sealed class ScreamerPart : MonoBehaviour, IHittable
     {
@@ -52,6 +50,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Screamer";
         /// <summary>On land it can always come to the player, so a kill always pays.</summary>
         public bool InReach => true;
         public const string WarnSound = Windups.ScreamerWarning, AimSound = Windups.ScreamerAim, ScreamSound = "creature.screamer.scream";
@@ -423,7 +423,7 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             ScreamerHit result;
-            bool armour = false, soft = false;
+            bool soft = false;
             switch (part.Piece)
             {
                 case ScreamerPiece.Wing:
@@ -449,13 +449,16 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitBody(hit.Damage);
                     outcome.Label = "Screamer fore body";
-                    armour = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitBody(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the abdomen rings gold, the fore body only knocks, and a drum shot off
+            // takes its scream down a voice, like a disarm (WhereToShoot).
+            outcome.Zone = WhereToShoot.Screamer(part.Piece, part.Piece == ScreamerPiece.Drum && result.DrumLost >= 0);
+            bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.3, push.z) * (outcome.Severed ? 1.5 : 0.5));

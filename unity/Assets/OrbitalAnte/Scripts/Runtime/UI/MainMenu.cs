@@ -101,6 +101,7 @@ namespace OrbitalAnte.UI
             UiKit.Button(ex, "Show the new-player tips again", () =>
             {
                 Tasks.RunGuideFx.ForgetTips();
+                HitMarker.ForgetAimLines();
                 FeelSettings.GuideTips = true;
                 _extrasNote.text = "Tips are back on. The goal card shows at the start of your next run.";
             });

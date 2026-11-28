@@ -87,8 +87,9 @@ namespace OrbitalAnte.Audio
             if (outcome.Killed) d.Intensity.Report(IntensityEvent.Kill);
             // One ding per hit, the biggest that applies, and only for hits on living enemies (UI.HitConfirm):
             // rocks, the ship's walls and loose limbs stay quiet. Quieter in a burst, so it never nags.
+            // A creature's armour that held gets a dull knock instead of the bell, its weak place the head's bell (HitZone).
             UI.HitKind kind = UI.HitConfirm.Classify(outcome.Hit, outcome.Enemy, outcome.Head, outcome.Severed,
-                outcome.Disarmed, outcome.Killed, outcome.HeadshotKill);
+                outcome.Disarmed, outcome.Killed, outcome.HeadshotKill, outcome.Zone);
             string ding = UI.HitConfirm.Ding(kind);
             if (ding == null) return;
             float now = Time.unscaledTime;

@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum BiterPiece { Head, Jaw, Seg, Fin, BackFin, TailFin }
-
     /// <summary>One hitbox of a Pack biter: its head, its lower jaw, a length of body or a fin.</summary>
     public sealed class BiterPart : MonoBehaviour, IHittable
     {
@@ -189,6 +187,8 @@ namespace OrbitalAnte.Creatures
         public int Place { get; private set; }
         /// <summary>Who pays for it, given by its shoal; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Biter";
         /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
         public bool InReach => _inReach;
         bool _inReach = true;
@@ -487,7 +487,6 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             BiterHit result;
-            bool bone = false;
             switch (part.Piece)
             {
                 case BiterPiece.Fin:
@@ -517,26 +516,25 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Biter head";
-                    // The head ding is for the shot that kills: the bony head mostly knocks.
-                    outcome.Head = result.Killed;
-                    bone = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: its head is its weak place and rings gold (it used to knock like armour,
+            // which said the opposite), and the jaw shot off is its bite gone (WhereToShoot).
+            outcome.Zone = WhereToShoot.Biter(part.Piece, part.Piece == BiterPiece.Jaw && result.JawLost);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             if (!killed) Brain.Hurt();
             _animator.Flinch(new Vec3d(push.x, push.y, push.z) * (outcome.Severed ? 1.2 : 0.5));
             GoreFx gore = GoreFx.Instance;
-            if (bone && !killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.5f, 1.3f);
             if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 12 : 5, outcome.Severed ? 4.5f : 3f);
             if (killed)
             {
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : bone ? 0.12f : 0.15f;
+            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : outcome.Zone == HitZone.Vital ? 0.2f : 0.15f;
             return outcome;
         }
 

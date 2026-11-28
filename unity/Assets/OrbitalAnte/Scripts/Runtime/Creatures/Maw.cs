@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum MawPiece { Head, Jaw, Seg, Fin, BackFin, TailFin, Throat }
-
     /// <summary>One hitbox of a Drifting maw: its skull, its lower jaw, a length of body, a fin, or the way down its open throat.</summary>
     public sealed class MawPart : MonoBehaviour, IHittable
     {
@@ -65,6 +63,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by its sea; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Maw";
         /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
         public bool InReach => _inReach;
         /// <summary>True while it has noticed the swimmer (alive, and they are in the water within its notice): for the music.</summary>
@@ -446,7 +446,7 @@ namespace OrbitalAnte.Creatures
             outcome.Enemy = true;
             outcome.Target = this;
             MawHit result;
-            bool armour = false, soft = false, choked = false;
+            bool soft = false, choked = false;
             switch (part.Piece)
             {
                 case MawPiece.Fin:
@@ -484,13 +484,16 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Maw skull";
-                    armour = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: down its throat rings gold, the skull only knocks, and the jaw shot off
+            // is its bite gone (WhereToShoot).
+            outcome.Zone = WhereToShoot.Maw(part.Piece, part.Piece == MawPiece.Jaw && result.JawLost);
+            bool armour = outcome.Zone == HitZone.Armour;
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             if (!killed)
             {

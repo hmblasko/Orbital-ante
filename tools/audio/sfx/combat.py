@@ -176,6 +176,26 @@ def hit_marker(rng, v):
     return finish(x, -4, 0.05)
 
 
+@sfx("hit.glance", "combat", variants=1, pitchVar=0.0, volumeDb=-13, cooldownMs=50, maxVoices=2, **UI_HIT)
+def hit_glance(rng, v):
+    """A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's
+    reward goes only to shots that work. Dry, short and unpitched on purpose: a tight crack of noise, a padded thud
+    under it, and a whisper of the shot skating off (a band of noise sliding down), with no partials that ring, so it
+    is never a bell (rewards), never the clock's wood (whose ticks are two sine partials) and never a suit tone. Measured:
+    all of it between 500 Hz and 6 kHz, two thirds between 2 and 6 kHz (the Deck's own speakers carry it), centred near
+    3 kHz where the bell is a pure 1.2 kHz, over in a tenth of a second. Quieter than the bell; the creature's own knock
+    (impact.armor, in the world, centred near 500 Hz) plays with it, so the two read as one knock and scrape."""
+    n = secs(0.12)
+    t = np.arange(n) / SR
+    crack = dsp.bandpass(dsp.white(n, rng), 900, 3600) * np.exp(-t / 0.0035) * 1.3
+    thud = dsp.bandpass(dsp.white(n, rng), 260, 900) * np.exp(-t / 0.012) * 0.9
+    # The skate: a band of noise whose middle falls from about 4 kHz to 1.6 kHz as it fades.
+    centre = 1600 + 2400 * np.exp(-t / 0.025)
+    skate = dsp.svf(dsp.white(n, rng), centre, 2.2, "bp") * np.exp(-t / 0.03) * np.minimum(t / 0.004, 1.0) * 0.45
+    x = dsp.saturate(crack + thud + skate, 1.4)
+    return finish(x, -5, 0.03, hp=180)
+
+
 @sfx("hit.headshot", "combat", variants=1, pitchVar=0.0, volumeDb=-6, cooldownMs=60, maxVoices=2, **UI_HIT)
 def hit_headshot(rng, v):
     """Headshot kill: two bells struck together a fifth apart (D6 and A6) with a longer, shining

@@ -3,6 +3,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Roller that can be hit: its armoured head, a segment's soft body, a plate, the tail fan or a leg.</summary>
+    public enum RollerPiece { Head, Soft, Plate, Tail, Leg }
+
     /// <summary>
     /// Every dimension and piece name of the Roller (placeholder name): an alien from the giant isopod (Matthew,
     /// 17 Nov 2026), 2.4 m long, armoured in seven overlapping plates, on fourteen short legs, that rolls itself into

@@ -1,4 +1,5 @@
 using OrbitalAnte.Core;
+using OrbitalAnte.Creatures;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,6 +13,11 @@ namespace OrbitalAnte.UI
     ///
     /// It has its own canvas so it shows in the solar system as well as the arena (the arena HUD's parts are
     /// hidden there). Only hits by the player on living enemies show.
+    ///
+    /// Creatures say where a hit landed (<see cref="HitZone"/>): a glance off armour is a small grey X, the weak place
+    /// gold. The first time a kind's armour turns the player's shots, until they have hit its weak place, one line under
+    /// the crosshair says where to aim instead (<see cref="WhereToShoot.Line"/>; when, <see cref="AimLines"/>; remembered
+    /// in PlayerPrefs, written only in memory here so a fight never waits on the disk; Unity saves it on quit).
     /// </summary>
     public sealed class HitMarker : MonoBehaviour
     {
@@ -24,6 +30,14 @@ namespace OrbitalAnte.UI
         static readonly Color Gold = new Color(1f, 0.80f, 0.30f);
         static readonly Color Cyan = new Color(0.45f, 0.85f, 1f);
         static readonly Color Red = new Color(1f, 0.22f, 0.16f);
+        // A glance: duller than the body's white and drawn smaller, so it reads as "that did little", not as a hit to repeat.
+        static readonly Color Grey = new Color(0.62f, 0.62f, 0.60f);
+        const string GreyHex = "#9E9E99";
+
+        /// <summary>Where the aim line sits: under the crosshair, inside the damage ring, below the melee TAKEDOWN (-52).</summary>
+        const float AimLineY = -78f;
+        const string AimKey = "oa.aim.lines";
+        static AimLines _aimLines;
 
         Canvas _canvas;
         RectTransform _root;
@@ -35,9 +49,23 @@ namespace OrbitalAnte.UI
         HitKind _kind = HitKind.None;
         float _shownAt = -100f;
         bool _showing;
+        Text _aim;
+        float _aimAge = -1f;
 
         /// <summary>The kind of the marker showing now, for tests and the debug readout.</summary>
         public HitKind Showing => _showing ? _kind : HitKind.None;
+
+        /// <summary>The aim line on screen now, or null, for tests and the debug readout.</summary>
+        public string AimLineShowing => _aim != null && _aim.enabled ? _aim.text : null;
+
+        /// <summary>Forgets which creatures' aim lines have been shown, with the new-player tips (title screen, Extras).</summary>
+        public static void ForgetAimLines()
+        {
+            _aimLines = new AimLines();
+            PlayerPrefs.DeleteKey(AimKey);
+        }
+
+        static AimLines Lines => _aimLines ?? (_aimLines = AimLines.Parse(PlayerPrefs.GetString(AimKey, string.Empty)));
 
         public static HitMarker Create(Transform uiRoot)
         {
@@ -75,6 +103,12 @@ namespace OrbitalAnte.UI
                 _outer[i] = Tick("OuterTick", Gold, out _outerImg[i]);
                 _inner[i] = Tick("Tick", White, out _innerImg[i]);
             }
+
+            _aim = HullKit.AsMono(UiKit.Label(_canvas.transform, string.Empty, 15, UiKit.Cream, TextAnchor.MiddleCenter));
+            UiKit.Pin((RectTransform)_aim.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, AimLineY), new Vector2(620f, 22f));
+            _aim.supportRichText = true;
+            UiKit.Halo(_aim, true);
+            _aim.enabled = false;
             Hide();
         }
 
@@ -93,7 +127,8 @@ namespace OrbitalAnte.UI
         void OnPlayerHit(HitOutcome outcome)
         {
             HitKind kind = HitConfirm.Classify(outcome.Hit, outcome.Enemy, outcome.Head, outcome.Severed,
-                outcome.Disarmed, outcome.Killed, outcome.HeadshotKill);
+                outcome.Disarmed, outcome.Killed, outcome.HeadshotKill, outcome.Zone);
+            if (outcome.Zone != HitZone.Plain && outcome.Target is ICreature creature) Learn(creature.Kind, outcome.Zone, kind);
             float now = Time.unscaledTime;
             if (!HitConfirm.Replaces(_showing ? _kind : HitKind.None, now - _shownAt, kind)) return;
             bool reshape = !_showing || kind != _kind;
@@ -104,8 +139,42 @@ namespace OrbitalAnte.UI
             Animate(0f);
         }
 
+        /// <summary>
+        /// A hit on a creature's weak place: that kind is known. A glance off its armour: its aim line, if it is due. Both
+        /// are rare, so the save in memory and the words are only touched then.
+        /// </summary>
+        void Learn(string kind, HitZone zone, HitKind shown)
+        {
+            if (string.IsNullOrEmpty(kind)) return;
+            if (zone == HitZone.Vital)
+            {
+                if (Lines.Found(kind)) PlayerPrefs.SetString(AimKey, Lines.Store());
+                return;
+            }
+            if (shown != HitKind.Glance || Lines.HasFound(kind) || Lines.Told(kind) >= AimLines.MostTold) return;
+            if (!FeelSettings.GuideTips || !Lines.Glanced(kind, Time.unscaledTime)) return;
+            PlayerPrefs.SetString(AimKey, Lines.Store());
+            string aim = WhereToShoot.AimLine(kind);
+            _aim.text = "<color=" + GreyHex + ">" + WhereToShoot.ArmourWord + "</color> · " + aim;
+            _aim.enabled = true;
+            _aimAge = 0f;
+            _aim.canvasRenderer.SetAlpha(1f);
+        }
+
         void Update()
         {
+            if (_aimAge >= 0f)
+            {
+                // Stands still while the game is paused (and through a hitstop), so a line is never lost under the menu.
+                if (Time.timeScale > 0f) _aimAge += Time.unscaledDeltaTime;
+                float a = AimLines.Alpha(_aimAge);
+                if (a <= 0f)
+                {
+                    _aim.enabled = false;
+                    _aimAge = -1f;
+                }
+                else _aim.canvasRenderer.SetAlpha(a);
+            }
             if (!_showing) return;
             float age = Time.unscaledTime - _shownAt;
             if (age >= HitConfirm.Seconds(_kind)) { Hide(); return; }
@@ -173,6 +242,7 @@ namespace OrbitalAnte.UI
                 case MarkerTone.Gold: return Gold;
                 case MarkerTone.Cyan: return Cyan;
                 case MarkerTone.Red: return Red;
+                case MarkerTone.Grey: return Grey;
                 default: return White;
             }
         }
