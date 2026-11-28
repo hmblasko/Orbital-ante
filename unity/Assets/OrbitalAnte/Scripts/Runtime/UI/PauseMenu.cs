@@ -386,6 +386,7 @@ namespace OrbitalAnte.UI
 
         public void ShowRunOver(string title, string cause, string recap)
         {
+            Playtest.PlaytestHooks.RunOver(title, cause);
             ShowDeath(cause, recap);
             if (_diedTitle != null) _diedTitle.text = title;
         }

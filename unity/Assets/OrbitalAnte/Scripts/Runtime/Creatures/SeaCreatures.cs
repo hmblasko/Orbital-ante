@@ -165,6 +165,7 @@ namespace OrbitalAnte.Creatures
                 bool stay = w != null && l.Body == body && (where - at).sqrMagnitude < rules.sleepRange * rules.sleepRange;
                 if (stay) continue;
                 if (_worlds.TryGetValue(l.Body, out World was) && was != null) was.Awake[l.Haunt] = false;
+                Playtest.PlaytestHooks.PutAway(l.Who);
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
@@ -235,6 +236,8 @@ namespace OrbitalAnte.Creatures
                 pack.Lost += place => (there.Dead[live.Haunt] ??= new HashSet<int>()).Add(place);
             }
             _live.Add(live);
+            if (Playtest.PlaytestHooks.Log != null)
+                Playtest.PlaytestHooks.Woke(who, who is BiterShoal ? Playtest.PlaytestLog.PackOf(BiterLayout.Model) : MawLayout.Model, surface.Body.Spec.displayName, body);
         }
 
         /// <summary>Where a haunt's animal lives, in its world's own space.</summary>

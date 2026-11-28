@@ -41,6 +41,8 @@ namespace OrbitalAnte.Creatures
             if (change.Warn) AudioDirector.Play(warnSound, at);
             if (change.Aim) AudioDirector.Play(aimSound, at);
             if (change.Began) CombatWorld.RaiseCreatureWindup(who);
+            // The playtest log (editor and development builds only; null otherwise) counts every warning's stages.
+            if (change.Changed && Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Warning(who, change);
         }
     }
 }

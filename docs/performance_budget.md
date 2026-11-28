@@ -658,3 +658,25 @@ To read off in Unity, with two creatures awake, on Earth then Mars: (1) in the P
 `Roller.Update` and `Screamer.Update` should each be under 0.25 ms with 0 B of GC Alloc; (2) `Physics.SyncTransforms`
 (Calls and Time ms); (3) on a wake frame, `LandCreatures.Update` should be under 3 ms; (4) texture memory about 30 MB
 higher than before; (5) `BuiltGround.Misses` per frame (counted but not yet on F3) should be under 1.
+
+## Playtest log (Ralph loop pass 9, 28 Nov 2026): estimates from reading the code and an off-engine run, not measured in Unity
+
+The Deck cost review's bench, run again after its findings were applied: the log's own plain C# under .NET 8 (Release,
+a 2.1 GHz Xeon), with made-up runs; on the Deck under Mono guessed at 2 to 4 times that. Only the editor and
+development builds have a recorder.
+
+| | Cost | Cap |
+|---|---|---|
+| Release build | No recorder: every hook is one null check (the creature warning hook first checks that its stage changed); `WindupChange` is 12 bytes (it was 3); no garbage | none needed |
+| In play, every frame | The antes (a few reads); for each creature warning under way, the dodge (two positions, the sums and the log's look-up: 0.3 µs and 0 B off-engine); a wake's frame time into a ring of 64 (sorted once, at a wake); F7 | one dodge per warning under way |
+| In play, four times a second | Each watched creature's notice and, until it is first seen, whether it is in the frame (one projection); on a world, for one in the frame not yet seen, a sight line of at most 64 ground reads through `PlanetSurface.GroundRadius` (the sums alone 1.1 to 1.3 µs; the reads guessed 0.02 to 0.2 ms through the plane cache); the music; enemy sight; and while an aim line shows, five rays along it (guessed under 0.05 ms) | 2 land creatures awake; one line a creature until it is seen |
+| Events | A creature hit that only strikes, after the first on that animal: 0.07 µs and 0 B (it was 1.2 to 1.6 µs and 0.7 KB); a hit with a line (the first, a piece off, the weak place, a kill): 0.74 µs and 0.4 KB; a warning's stage: 1.1 µs and 0.5 KB. Hits, stages and hurts check the cap before their words are built | 6,000 lines, 400 creatures, 2,000 warnings, 60 names a tally: 0.25 MB held for a typical run, 1.3 MB at the caps, freed at the run's end; put-away creatures let go |
+| Writing the log | 1.5 to 1.7 ms (mean 3.5) and 1.0 MB of garbage for a typical run (30 animals, 200 warnings, 1,300 lines); 8 to 11 ms and 3.7 MB for a long one (120, 800, 5,000); 7 to 15 ms and 7.2 MB at the caps; the two files and the trim 0.3 to 1.6 ms. On the first frame of the death and run-over pages, on pausing (at most every 30 s), at a restart, the title screen and quit, all frames the game stands still on; only F7 lands in play. Inside the profiler marker `OA.Playtest.Write` | two files a write; 40 runs kept, 0.1 to 1 MB each |
+
+If writing proves dear on the Deck: build the text on a worker (the log's records are only read), or size the text's
+buffer once from the line count.
+
+To read off in Unity (a development build, the Profiler's CPU Usage): (1) fire full-auto into a Strider's lid: GC Alloc
+on hit frames under 1 KB a hit (only the first hit makes a line); (2) after a long run, pause: that frame's time in
+`OA.Playtest.Write`; (3) with two land creatures awake, `PlaytestRecorder.Update` under 0.1 ms with 0 B; (4) a wake's
+three frame times in the file against the Profiler's frames at that wake.

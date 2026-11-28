@@ -168,8 +168,9 @@ From the design review. Not run: nothing here is a playtest result.
 - **Setup:** the practice range, the kinds in a random order, the rifle and then the SMG, on the Deck's speakers and
   on headphones. Half the testers play with the tips (and so the line) off, to measure what the line adds.
 - **Record** every hit (kind, piece, zone, range) and every fight (time to kill, where the kill landed, whether the
-  line showed, whether the creature's mark was dodged). The game has no hit log yet; until it does, record the screen
-  and count from the video.
+  line showed, whether the creature's mark was dodged). Since pass 9 a development build writes these counts to its
+  playtest log (`docs/reports/playtest-log.md`); record the screen too until the log has been checked against a
+  recording.
 - **After each fight, ask:** where would you shoot it next time? What did the grey X mean, and what did the line
   mean? Did anything sound like you being hit, or like the creature's mark?
 - **A day later,** the same session again, without the line.

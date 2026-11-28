@@ -25,6 +25,8 @@ namespace OrbitalAnte.Ante
         public float Left { get; private set; }
         /// <summary>An important note is still in its hold: anything offered now waits, or (if important) cuts it short.</summary>
         public bool Holding => _held > 0f;
+        /// <summary>How many notes have come up on the board (one that waited counts when it shows, one replaced while it waited never).</summary>
+        public int Showings { get; private set; }
 
         public void Clear()
         {
@@ -44,6 +46,7 @@ namespace OrbitalAnte.Ante
                 return;
             }
             Text = text;
+            Showings++;
             Left = important ? ImportantSeconds : PlainSeconds;
             _held = important ? HoldSeconds : 0f;
             if (important) _waiting = null;
@@ -57,6 +60,7 @@ namespace OrbitalAnte.Ante
             if (_held <= 0f && _waiting != null)
             {
                 Text = _waiting;
+                Showings++;
                 _waiting = null;
                 Left = PlainSeconds;
                 return true;

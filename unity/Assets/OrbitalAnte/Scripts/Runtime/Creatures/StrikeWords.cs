@@ -29,5 +29,28 @@ namespace OrbitalAnte.Creatures
         public const string Shoal = "Bitten by a shoal.";
 
         public static readonly string[] All = { Claw, Lunge, Roll, Butt, Scream, Rear, Burrow, Heard, Mouth, Shoal };
+
+        /// <summary>
+        /// The kind (its model's name, <see cref="ICreature.Kind"/>) whose strike these words name, or null for a shot and
+        /// anything else: how the playtest log (Ralph loop pass 9, <c>Playtest.PlaytestLog</c>) puts a hurt down to the
+        /// warning that came before it.
+        /// </summary>
+        public static string KindOf(string words)
+        {
+            switch (words)
+            {
+                case Claw: return "Strider";
+                case Lunge: return "Sprinter";
+                case Roll:
+                case Butt: return RollerLayout.Model;
+                case Scream: return ScreamerLayout.Model;
+                case Rear: return HunterLayout.Model;
+                case Burrow: return AmbusherLayout.Model;
+                case Heard: return StalkerLayout.Model;
+                case Mouth: return MawLayout.Model;
+                case Shoal: return BiterLayout.Model;
+                default: return null;
+            }
+        }
     }
 }

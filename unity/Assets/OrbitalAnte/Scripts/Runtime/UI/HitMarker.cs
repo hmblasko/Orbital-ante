@@ -65,6 +65,25 @@ namespace OrbitalAnte.UI
         /// <summary>The aim line on screen now, or null, for tests and the debug readout.</summary>
         public string AimLineShowing => _aim != null && _aim.enabled ? _aim.text : null;
 
+        static readonly Vector3[] Corners = new Vector3[4];
+
+        /// <summary>
+        /// For the playtest log: the screen points (in pixels) at either end of the aim line's words, along their middle.
+        /// False when no line shows. The marker's canvas lays itself over the screen, so its corners are pixels.
+        /// </summary>
+        public bool AimLineSpan(out Vector2 left, out Vector2 right)
+        {
+            left = right = default;
+            if (_aim == null || !_aim.enabled || _canvas == null || !_canvas.gameObject.activeInHierarchy) return false;
+            var rect = (RectTransform)_aim.transform;
+            rect.GetWorldCorners(Corners);
+            Vector3 middle = (Corners[0] + Corners[2]) * 0.5f;
+            float half = Mathf.Min(_aim.preferredWidth, rect.rect.width) * 0.5f * rect.lossyScale.x;
+            left = new Vector2(middle.x - half, middle.y);
+            right = new Vector2(middle.x + half, middle.y);
+            return true;
+        }
+
         /// <summary>Forgets which creatures' aim lines have been shown, with the new-player tips (title screen, Extras).</summary>
         public static void ForgetAimLines()
         {
@@ -152,7 +171,7 @@ namespace OrbitalAnte.UI
         {
             HitKind kind = HitConfirm.Classify(outcome.Hit, outcome.Enemy, outcome.Head, outcome.Severed,
                 outcome.Disarmed, outcome.Killed, outcome.HeadshotKill, outcome.Zone);
-            if (outcome.Zone != HitZone.Plain && outcome.Target is ICreature creature) Learn(creature.Kind, outcome.Zone, kind);
+            if (outcome.Zone != HitZone.Plain && outcome.Target is ICreature creature) Learn(creature.Kind, outcome.Zone, kind, outcome.Target);
             float now = Time.unscaledTime;
             if (!HitConfirm.Replaces(_showing ? _kind : HitKind.None, now - _shownAt, kind)) return;
             bool reshape = !_showing || kind != _kind;
@@ -167,7 +186,7 @@ namespace OrbitalAnte.UI
         /// A hit on a creature's weak place: that kind is known. A glance off its armour: its aim line, if it is due. Both
         /// are rare, so the save in memory and the words are only touched then.
         /// </summary>
-        void Learn(string kind, HitZone zone, HitKind shown)
+        void Learn(string kind, HitZone zone, HitKind shown, Component target)
         {
             if (string.IsNullOrEmpty(kind)) return;
             if (zone == HitZone.Vital)
@@ -183,6 +202,8 @@ namespace OrbitalAnte.UI
             _aimAge = 0f;
             _aimAlpha = 1f;
             _aim.canvasRenderer.SetAlpha(1f);
+            // The playtest log (editor and development builds only) looks along the line while it shows.
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.AimLine(kind, target, this);
         }
 
         void Update()

@@ -110,6 +110,7 @@ namespace OrbitalAnte.Core
             Combat.RunEffects.ResetStatics();
             Combat.RunPerksFx.ResetStatics();
             OrbitalAnte.Tasks.TaskDirector.ResetStatics();
+            Playtest.PlaytestHooks.ResetStatics();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -153,6 +154,9 @@ namespace OrbitalAnte.Core
             _anteLoop = gameObject.AddComponent<Tasks.AnteLoop>();
             // The perks that answer kills (heals, rounds back, double ladder kills), next to the ladder they feed.
             _runPerks = gameObject.AddComponent<Combat.RunPerksFx>();
+            // The playtest log (Ralph loop pass 9): what each run was like, written to a file for counting playtests.
+            // The editor and development builds only; a release build has no recorder, so every hook returns at once.
+            if (Playtest.PlaytestHooks.Allowed) gameObject.AddComponent<Playtest.PlaytestRecorder>();
             _anteLoop.Menu = _pauseMenu;
             _anteLoop.Envelopes = _envelopes;
             _pauseMenu.CanEndAnte = _anteLoop.CanEndAnte;
@@ -268,6 +272,8 @@ namespace OrbitalAnte.Core
             _pauseMenu.QuitToDesktopRequested = QuitToDesktop;
             OrbitalAnte.Ship.Astronaut.OnDeath = cause =>
             {
+                // The playtest log ends with the death page's own words.
+                Playtest.PlaytestHooks.Died(cause);
                 // A death ends the ante run too; the death page says what happened.
                 if (_anteLoop != null) _anteLoop.PlayerDied();
                 _pauseMenu.ShowDeath(cause, _anteLoop != null ? _anteLoop.RecapAndRecord() : null);
@@ -278,6 +284,7 @@ namespace OrbitalAnte.Core
 
         public void ShowMainMenu()
         {
+            Playtest.PlaytestHooks.End(Playtest.RunEnd.Left, "back to the title screen");
             bool wasPlaying = _world != null;
             DestroyWorld();
             if (wasPlaying)
@@ -306,6 +313,7 @@ namespace OrbitalAnte.Core
         /// <summary>Tears down whatever is running and starts a fresh run from a seed.</summary>
         public void StartRun(int seed, Scenario scenario)
         {
+            Playtest.PlaytestHooks.End(Playtest.RunEnd.Left, _restarting ? "restarted" : "a new run started");
             DestroyWorld();
             if (_audioShowcase != null) _audioShowcase.Stop();
             GameInput.Play.Disable();
@@ -377,10 +385,13 @@ namespace OrbitalAnte.Core
             // The run-start envelope turns the controls on when it is closed.
             if (_envelopes == null || !_envelopes.Showing) GameInput.Play.Enable();
             SetCursorLocked(true);
+            Playtest.PlaytestHooks.RunBegan(scenario, seed);
         }
 
         void DestroyWorld()
         {
+            // Before the ante run ends, so the log keeps the ante reached and the score (a hook above names how it ended).
+            Playtest.PlaytestHooks.End(Playtest.RunEnd.Left, null);
             if (_timeFx != null) _timeFx.Clear();
             // Every run starts with a full breath.
             if (_deepBreath != null) _deepBreath.ResetForNewRun();
@@ -423,6 +434,7 @@ namespace OrbitalAnte.Core
 
         void OnApplicationQuit()
         {
+            Playtest.PlaytestHooks.End(Playtest.RunEnd.Closed, "the game closed");
             if (_perf != null && _world != null) _perf.LogAndReset("seed " + GameSession.Seed);
             BankPlayTime();
             Save.SaveSystem.Save();
@@ -452,6 +464,7 @@ namespace OrbitalAnte.Core
 
         public void QuitToDesktop()
         {
+            Playtest.PlaytestHooks.End(Playtest.RunEnd.Closed, "quit to desktop");
             // The run's records are saved on the way out.
             if (_anteLoop != null) _anteLoop.EndRun();
             GameSession.SetPaused(false);

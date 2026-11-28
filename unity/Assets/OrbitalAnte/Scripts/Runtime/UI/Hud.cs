@@ -230,7 +230,7 @@ namespace OrbitalAnte.UI
                     (average * 1000f).ToString("0.0") + " ms avg   " +
                     (_worstFrame * 1000f).ToString("0.0") + " ms worst   " +
                     Mathf.RoundToInt(1f / Mathf.Max(0.0001f, average)) + " fps\n" +
-                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout() + FinishReadout() + DetailReadout() +
+                    "Seed " + GameSession.Seed + GoreReadout() + BudgetReadout() + FinishReadout() + DetailReadout() + Playtest.PlaytestHooks.Describe() +
                     (ExtraDebug != null ? "\n" + ExtraDebug() : string.Empty);
             }
             _frameAccumulator = 0f;

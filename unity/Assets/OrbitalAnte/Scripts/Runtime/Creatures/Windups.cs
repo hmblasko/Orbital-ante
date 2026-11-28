@@ -43,13 +43,23 @@ namespace OrbitalAnte.Creatures
         public readonly bool Warn;
         /// <summary>Play the creature's aim sound: it has taken aim this very frame.</summary>
         public readonly bool Aim;
+        /// <summary>
+        /// The stage before and after (both <see cref="WindupStage.None"/> when nothing changed), for the development
+        /// build's playtest log (Ralph loop pass 9), which counts each warning from its start to its end.
+        /// </summary>
+        public readonly WindupStage Was, Now;
 
-        public WindupChange(bool began, bool warn, bool aim)
+        public WindupChange(WindupStage was, WindupStage now, bool began, bool warn, bool aim)
         {
+            Was = was;
+            Now = now;
             Began = began;
             Warn = warn;
             Aim = aim;
         }
+
+        /// <summary>True when the stage changed this frame (every frame with something to say, and some with nothing to play).</summary>
+        public bool Changed => Was != Now;
     }
 
     /// <summary>
@@ -119,7 +129,7 @@ namespace OrbitalAnte.Creatures
             bool warn = now == WindupStage.Winding;
             bool aim = now == WindupStage.Aimed || (now == WindupStage.Striking && (was == WindupStage.Winding || was == WindupStage.None));
             bool began = warn || (was == WindupStage.None && now != WindupStage.None);
-            return new WindupChange(began, warn, aim);
+            return new WindupChange(was, now, began, warn, aim);
         }
 
         // ------------------------------------------------------------------ stages

@@ -183,6 +183,7 @@ namespace OrbitalAnte.Tasks
             if (loop == null || loop.Run == null) return default;
             loop.BeforeReport(ref scoreEvent);
             ScoreResult result = loop.Run.Report(scoreEvent);
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Points(loop.Run.Director.Ante, scoreEvent, label, result);
             if (result.Awarded && result.points > 0)
             {
                 // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
@@ -208,6 +209,7 @@ namespace OrbitalAnte.Tasks
         {
             AnteLoop loop = Current;
             if (loop == null || loop._noteLine == null) return;
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Note(text);
             loop._notes.Offer(text, important);
             loop.ShowNote();
         }
@@ -217,7 +219,13 @@ namespace OrbitalAnte.Tasks
             bool on = _notes.Text != null;
             if (on) _noteLine.text = _notes.Text;
             if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
+            // The playtest log counts the notes really shown, apart from those offered (design review, pass 9).
+            if (_notes.Showings == _noteShowings) return;
+            _noteShowings = _notes.Showings;
+            if (on && Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.NoteShown(_notes.Text);
         }
+
+        int _noteShowings;
 
         // A restless squad was sent (Enemies/LullRules): the radio call's twin in words, for a muted Deck.
         void OnSquadSent(Vector3 from)

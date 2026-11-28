@@ -329,7 +329,8 @@ Not run: nothing here is a playtest result.
   - every time the note KILLS PAY ONLY WHEN IT CAN GET AT YOU shows, and whether the player understood why;
   - every death to an animal, and whether the death page's words told the player what killed them;
   - the frame time while one is woken.
-  The game has no playtest log yet. Until it does, record the screen and count from the video.
+  Since pass 9 a development build writes these counts to its playtest log (`docs/reports/playtest-log.md`); record
+  the screen too until the log has been checked against a recording.
 - **After each landing, ask:** what lives on this world? Did you go after it or keep away, and why? Did it feel like
   part of the world or dropped in?
 - **Report counts,** not percentages.

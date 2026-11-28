@@ -390,6 +390,7 @@ namespace OrbitalAnte.Player
             if (shot.Fired)
             {
                 LastShotTime = Time.time;
+                if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Shot(weapon.Data.Id);
                 Vector3 direction = Ballistics.SpreadDirection(_eye.transform.forward, shot.SpreadDegrees, _rng);
                 ShotResult result = Ballistics.FireFromPlayer(weapon.Data, _eye.transform.position, direction);
                 fx.Shot(weapon.Data, weapon.Muzzle.position, result.End);

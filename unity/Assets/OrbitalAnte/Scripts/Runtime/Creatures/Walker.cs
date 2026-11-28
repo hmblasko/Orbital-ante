@@ -173,6 +173,8 @@ namespace OrbitalAnte.Creatures
                                      && (Body.CanStrike(WalkerLayout.Right) || Body.CanStrike(WalkerLayout.Left));
         public event System.Action<Walker> Died;
         public WalkerLayout Kind => _l;
+        /// <summary>Its feet that slipped toward their legs out of reach of the ground so far (the playtest log, pass 9).</summary>
+        public int FootSlips => _animator != null ? _animator.Slips : 0;
 
         /// <summary>
         /// What it stands on: flat ground in the practice range (the old rule), a world's own ground out there

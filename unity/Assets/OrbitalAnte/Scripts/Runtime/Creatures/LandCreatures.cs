@@ -244,6 +244,7 @@ namespace OrbitalAnte.Creatures
                 bool stay = here != null && l.Body == body && (here.InverseTransformPoint(l.Who.transform.position) - at).sqrMagnitude < rules.sleepRange * rules.sleepRange;
                 if (stay) continue;
                 if (_worlds.TryGetValue(l.Body, out World was) && was != null) was.Awake[l.Haunt] = false;
+                Playtest.PlaytestHooks.PutAway(l.Who);
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
@@ -342,6 +343,7 @@ namespace OrbitalAnte.Creatures
             }
             w.Awake[index] = true;
             _live.Add(new Live { Who = who, Body = body, Haunt = index });
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Woke(who, LandHabitats.ModelOf(haunt.Kind), surface.Body.Spec.displayName, body);
         }
 
         static CreatureCredit Credit(in LandHaunt haunt, int body, string world, int index)

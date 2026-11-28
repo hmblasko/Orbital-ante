@@ -556,3 +556,62 @@ or a Strider walking crouched on a steep slope, looks right; whether an animal c
 worlds feel alive without crowding the camps. Not built: the Ambusher, the Cave hunter and the Blind stalker on the
 worlds (they need soft ground and caves); an animal held below a ledge backing off home; creatures and the camps
 noticing each other (gap 12). Next pass: gap 9 or gap 12, by re-scoring.
+
+## Pass 9 (28 Nov 2026): a playtest log for the Deck
+
+**Gap closed:** gap 9, a development-only playtest log. Every protocol of passes 1 to 8 asked a Deck playtest to count
+things the game already knows (a warning's mark and whether it hurt, where a shot landed, whether a kill paid, the
+music's bands), by eye or from a screen recording. That is slow, misses what happens off screen, and was the last
+thing line 2 could gain in the cloud.
+
+**Built** (report `docs/reports/playtest-log.md`):
+
+- The records and the text (`Playtest/PlaytestLog.cs`, `PlaytestReport.cs`, `PlaytestFiles.cs`, `PlaytestRules.cs`,
+  plain C#): one plain text file a run, written at its end (a death, the run-over page, a restart, the title screen,
+  quitting or stopping Play), on pausing at most every 30 s, and on F7; `latest.txt` beside it; the 40 newest kept.
+  Sections per protocol: the antes, points (by what paid, refusals by why, notes offered and shown), unlocks, creature
+  warnings (marked, hurt, missed, stopped, killed during, called off), the dodge, hits on creatures (and where the aim
+  line lay), creatures met (a count table and an entry per animal or pack), people and guns, the player's hurt and
+  deaths, the music, every warning one row each, every event. Counts only, never a percentage or a judgment.
+- Two clocks (`Moment`): lines on real time from the run's start, so they line up with a recording; windows and
+  durations on game time, so Focus and a pause never stretch them.
+- The dodge (`DodgeRules`), every frame while a warning is open: the player's speed across the line to the creature,
+  along the ground, smoothed over 0.08 s, over 2 m/s (a first guess) counted as moving out of its way, kept against the
+  mark and the strike.
+- Seen (`SightLine`): on a world, an animal counts as in view only once the ground (hills and the horizon, from the
+  ground really built) is not between the eye and it.
+- Unity side (`Playtest/PlaytestRecorder.cs`): `PlaytestHooks` (static, one null check each in a release build) and
+  `PlaytestRecorder` on the game's root, added only in the editor and development builds. One-line hooks in
+  `GameBootstrap`, `PauseMenu`, `AnteLoop`, `HitMarker`, `WindupTell`, `LandCreatures`, `SeaCreatures`, `TestArena`,
+  `PlayerWeapons` and `Hud` (F3 shows the file's path); `Biter.Shoal`, `NoteBoard.Showings`, `HitMarker.AimLineSpan`.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`: 3,269 run, 3,268 passed, 1 skipped (the cabin bake check). New: `PlaytestLogTests`
+  (32 on the first build, 47 after the reviews).
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.
+- An off-engine bench of the log's plain C# (.NET 8), run again after the reviews: numbers in the budget section.
+
+**Specialist reviews** (on this pass's first build; the report's "Reviews" section has all of them by number):
+
+- unity-reviewer: Pack biters never grouped (a fish stands beside its shoal, not under it), a death in the burst's 2.6 s
+  logged as leaving, the aim line's creature heard too late, "missed" counting strikes that never came, F10 being the
+  Windows menu key, put-away creatures held: all applied.
+- game-designer: the dodge not counted and too coarse at four times a second, animals counted as seen over the horizon
+  (the two that held line 2 at 7), "a camp joined" saying more than was seen, "left alone" mixing cases, one clock,
+  practice range creatures met late, pay predicted instead of heard, notes counted when offered, the music's band ahead
+  of what is heard, the hold's grace on every kind, a wake with no baseline, and eleven smaller ones: all applied. Its
+  pass 7 question (does the aim line cover the piece it names) is answered by five rays along the line.
+- deck-performance: nothing to fix in a release build; in a development build a wake timed through a pause or a write,
+  the longest frame being an upper bound, the report walking every warning for every animal, garbage per hit and a full
+  log still building words, put-away creatures held, two hooks not guarded: all applied. A plain hit on a creature is
+  now 0.07 µs and no garbage off-engine (it was 1.2 to 1.6 µs and 0.7 KB).
+
+**Scores after:** see `scorecard.md`, pass 9. Line 2 moves to 8: what each protocol asks can now be counted from the
+game itself, and only a playtest can say more. The others stay.
+
+**Left open:** nothing here has run in Unity or on a Deck. The log must be checked once against a recording before its
+counts are trusted (the report's protocol), and 2 m/s is a guess at what a dodge is. "In view" does not check rocks,
+trees, buildings, night or water; the Cave hunter's notice is not read. Not logged: the seat (flight, landings and
+crashes), the suit's air and jet fuel over time, the restless camps' quiet clock, the envelope's reveal. Next pass:
+gap 12, creatures and the camps noticing each other (line 4).

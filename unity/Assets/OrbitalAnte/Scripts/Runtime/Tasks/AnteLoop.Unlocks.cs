@@ -243,6 +243,7 @@ namespace OrbitalAnte.Tasks
                 UnlockDefinition d = UnlockBook.Grant(save, met[i]);
                 if (d == null) continue;
                 any = true;
+                if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.UnlockMet(d.name, InFight, atTheBreak);
                 _unlockedThisRun.Add(d);
                 if (atTheBreak) AddBreakLine(d);
                 else _unlockNotes.Add(d);
@@ -340,6 +341,7 @@ namespace OrbitalAnte.Tasks
 
         void ShowUnlock(UnlockDefinition d)
         {
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.UnlockShown(d.name, _unlockWaited);
             _unlockBanner.text = UnlockCatalog.BannerWords(d);
             _unlockBanner.canvasRenderer.SetAlpha(1f);
             _unlockBanner.gameObject.SetActive(true);

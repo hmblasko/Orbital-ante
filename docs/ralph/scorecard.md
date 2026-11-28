@@ -102,6 +102,17 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
 | 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 9 (28 Nov 2026): after the playtest log
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 8 | +1 | The editor and development builds keep, for each run, what every protocol of passes 1 to 8 asks a playtest to count, and write it as plain text at the run's end (`PlaytestLog`, `PlaytestReport`, held by `PlaytestLogTests`): each creature's warning and whether the player moved across on its mark (checked every frame, `DodgeRules`), whether it hurt; whether an animal could really have been seen (the ground between, `SightLine`); hits by where they landed and where the aim line lay; what each kill paid by the ante's own answer; the notes really shown; the unlock moments; the music heard. Counts only, on two clocks. Only a playtest can now say whether the game is understood | A Deck playtest, counted from the log; nothing seen in Unity |
+| 3 | Strong aesthetics | 6 | = | Unchanged | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | Unchanged | Creatures and the camps ignore each other in the fights the placement makes likely (gap 12); the three cave and burrow creatures are not on the worlds yet; nothing seen in Unity |
+| 5 | Fun unlockables | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
@@ -114,10 +125,8 @@ None of them is a playtest result. Bar: 8 on every line.
 7. ~~**Understandable: where to shoot a creature.**~~ Done in pass 7.
 8. ~~**Gameplay: land creatures on the real worlds.**~~ Done in pass 8 (the Strider, the Sprinter, the Roller and the
    Screamer; the Ambusher, the Cave hunter and the Blind stalker wait for soft ground and caves).
-9. **Understandable: a development-only playtest log.** One log the Deck playtests of passes 2 to 8 can be counted
-   from (hits by zone, kills, aim lines shown, creatures' marks and whether they hurt, unlock moments, land creatures
-   met and how each fight ended, kills that did not pay), kept in memory and written at a run's end, editor and
-   development builds only. The design review's last cloud item for line 2.
+9. ~~**Understandable: a development-only playtest log.**~~ Done in pass 9 (`docs/reports/playtest-log.md`). It has to
+   be checked once against a recording before its counts are trusted.
 10. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
 11. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
    would make "get in the water with them" a rule you can see, but lets a swimmer dive out of gunfire (pass 3's design

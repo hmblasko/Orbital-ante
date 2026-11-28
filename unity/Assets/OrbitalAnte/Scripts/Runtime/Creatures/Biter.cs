@@ -187,6 +187,8 @@ namespace OrbitalAnte.Creatures
         public int Place { get; private set; }
         /// <summary>Who pays for it, given by its shoal; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>The pack it swims with. Not its parent: a fish is made beside its shoal, under the sea's or the arena's object.</summary>
+        public BiterShoal Shoal { get; private set; }
         /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
         public string Kind => "Biter";
         /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
@@ -237,6 +239,7 @@ namespace OrbitalAnte.Creatures
             go.transform.SetParent(parent, false);
             go.transform.SetPositionAndRotation(position, rotation);
             var fish = go.AddComponent<Biter>();
+            fish.Shoal = shoal;
             fish.Water = water;
             fish.Build(rules ?? new BiterRules(), shoal != null ? shoal.Pack : null, place, home);
             return fish;
