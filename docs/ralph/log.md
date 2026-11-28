@@ -273,3 +273,50 @@ nothing.
 late; Celestial effects are not drawn; paintings wait for frames on the cabin wall and the five public-domain
 pictures; the ticket's cosmetic token is still used by nothing. Next pass: gap 5, reach (goal unlocks that give a
 cosmetic, and more goals).
+
+## Pass 5 (28 Nov 2026): earned looks, within a new player's reach
+
+**Gap closed:** reach. Envelopes open only after ante 9 (Matthew's rule, kept), and a first-time player is expected
+to die around ante 3 or 4, so the looks pass 4 made to work stayed out of a new player's hands for many runs.
+
+**Built** (report `docs/reports/earned-looks.md`):
+
+- Eight goal unlocks give a look instead of a perk or a kit (`UnlockKind.Look`; eighteen unlocks in all), each in a
+  place no other look takes: a ship paint for the first landing away from Earth, a gun skin for a disarm, a badge for
+  a leg shot off, then a visor tint (a kill in Focus), a helmet shade (a salvage crate brought home), a jet flame
+  colour (an AIRBORNE kill), a readout plate colour (a bonus mission) and a pistol skin (a kill in the sea, from in
+  the water). The first three lead the catalogue, within a first run's reach.
+- Each goal is one feat in one run (`UnlockTracker`; feats from `TaskDirector`: `HitOutcome.Disarmed`,
+  `MannequinCombat.DisarmedFrame` for an arm shot off with its gun, `HitRecord.Legs` for a leg off, `KillFacts.inFocus`
+  and `seaCreature`). Nothing counts across runs, and there are no meters.
+- A look goes on as its moment shows: `LockerLook.Refresh` raises `LockerLook.Changed`, and the hull, the suit plate
+  and visor, the jet flames and the gun in hand take it there and then.
+- Kept out of the envelopes: `PrizeRoll.InEnvelopes` leaves earned looks out of every pool while the roll draws the
+  same numbers, so every envelope gives what it gave before. An envelope's prize takes an earned look's place
+  (`Locker.GivesWay`), and the reveal names it.
+- On screen: the unlock moment says what the look is and where ("A SHIP PAINT, NOW ON YOUR LANDER"); the next unlocks
+  carry a look's kind beside its name; an empty Collection names the next look before the envelope; earned looks are
+  "Earned", with a cream stripe and the word on the row; the title screen's Unlocks page has two lists; the practice
+  range says once that goals count only in a run (`PracticeNote`).
+- The save for a goal met in a fight waits for the fight to end, a pause, or 20 s at most (`UnlockMoment.SaveNow`).
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`: 3,164 run, 3,163 passed, 1 skipped (the cabin bake check, as before). New:
+  `EarnedLookTests` (7), fourteen in `UnlockTests`, one in `LockerTests`; older tests follow the new order and words.
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.
+
+**Specialist reviews** (on this pass's first build; each finding checked before it was applied):
+
+- game-designer: the looks showed only from the next run (now at once); the landing should lead, as the first tips
+  point at the Moon and the practice range cannot meet it; "a jetpack", "a helmet" and "a suit" read as gear (now
+  what they change: "a jet flame colour" and so on); a look's name says nothing of what it is (its kind beside it);
+  the earned stripe was the IN USE green (now cream, and the word "earned"); stripes on every gun looked like a toy
+  (muted enamel); the visor's blue was the Focus rim's (smoke grey); the sea goal did not say where sea creatures
+  live; the practice range would leave a new player wondering where the unlocks went (the note). Its view was 8 for
+  unlockables once the first three were done; scored 7 here because the Celestial effects are still undrawn and can
+  be done in the cloud.
+- unity-reviewer: an envelope prize won after the earned looks would never go to work (now an earned look gives way);
+  a torso blown off counted as a leg shot off (now the torso must still be on); checked that the arm-sever disarm
+  reaches the director in the same frame; a dead field on the Unlocks page.
+- deck-performance: a goal's save mid-fight could be felt (now it waits). Budget rows written.

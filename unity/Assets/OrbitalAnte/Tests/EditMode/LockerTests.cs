@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
+using OrbitalAnte.Ante;
 using OrbitalAnte.Items;
 using OrbitalAnte.Save;
 
@@ -117,6 +118,29 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void AnEnvelopesPrize_TakesAnEarnedLooksPlace_ButAnEarnedLookNeverTakesAPrizes()
+        {
+            // The earned looks fill their places early; the ante 9 reveal must still go to work (Unity review, pass 5).
+            SaveData save = Owning("PaintMoonDust", "SkinHazard", "VisorSunset");
+            UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);
+            UnlockBook.Grant(save, UnlockGoal.Disarm);
+            Assert.AreEqual("PaintRollPattern", Locker.Worn(save, LockerSlot.Paint).itemId, "the earned paint went on the empty lander");
+            Assert.AreEqual("Roll Pattern", Locker.InPlaceOf(save, Find("PaintMoonDust"), Find), "what the reveal names");
+            Assert.IsTrue(Locker.AutoUse(save, Find("PaintMoonDust"), ""), "the envelope's paint goes to work");
+            Assert.AreEqual("PaintMoonDust", Locker.Worn(save, LockerSlot.Paint).itemId);
+            Assert.IsTrue(new ItemInventory(save.items).Has("PaintRollPattern", ""), "the earned look stays in the collection");
+            Assert.IsTrue(Locker.AutoUse(save, Find("SkinHazard"), ""), "and a skin for every gun takes the earned one's place");
+            Assert.AreEqual("SkinHazard", Locker.SkinFor(save, "Rifle").itemId);
+
+            // The other way round: what the player put to use is never replaced by a look earned later.
+            Assert.IsTrue(Locker.Use(save, Find("VisorSunset"), ""));
+            UnlockBook.Grant(save, UnlockGoal.FocusKill);
+            Assert.AreEqual("VisorSunset", Locker.Worn(save, LockerSlot.Visor).itemId);
+            Assert.IsFalse(Locker.AutoUse(save, Find("PaintRollPattern"), ""), "an earned look never takes an envelope prize's place");
+            Assert.AreEqual("PaintMoonDust", Locker.Worn(save, LockerSlot.Paint).itemId);
+        }
+
+        [Test]
         public void Toggle_PutsOnAndTakesOff()
         {
             SaveData save = Owning("VisorSunset");
@@ -194,14 +218,17 @@ namespace OrbitalAnte.Tests
         public void TheReveal_SaysWhereAPrizeWentToWork_OrHowToPutItToUse()
         {
             Assert.AreEqual("In use on your lander.", Locker.RevealWords(Find("PaintMoonDust"), true));
-            Assert.AreEqual("In use on every gun from your next run.", Locker.RevealWords(Find("SkinHazard"), true, null, true));
+            // A look put to use in the middle of a run goes on there and then, so the words never say "next run".
+            Assert.AreEqual("In use on every gun.", Locker.RevealWords(Find("SkinHazard"), true));
+            Assert.AreEqual("In use on your lander, in place of Roll Pattern (still in your Collection).",
+                Locker.RevealWords(Find("PaintMoonDust"), true, null, "Roll Pattern"), "it names the earned look it took the place of");
             Assert.AreEqual("In use on the Test Pistol.", Locker.RevealWords(Find("SkinPistolPearl"), true, "Test Pistol"));
             string upgrade = Locker.RevealWords(Find("UpgradeBigLungs"), false);
             StringAssert.Contains("cost", upgrade);
             StringAssert.Contains("Collection", upgrade);
             StringAssert.Contains("Collection", Locker.RevealWords(Find("HelmetCrown"), false));
             Assert.AreEqual("Your Fishbowl Dome is in its place: swap this in from Collection on the title screen.",
-                Locker.RevealWords(Find("HelmetCrown"), false, null, false, "Fishbowl Dome"), "it names what is in the way");
+                Locker.RevealWords(Find("HelmetCrown"), false, null, "Fishbowl Dome"), "it names what is in the way");
             Assert.AreEqual("", Locker.RevealWords(Find("ArtStarryNight"), false), "a painting has no place to go yet");
         }
 

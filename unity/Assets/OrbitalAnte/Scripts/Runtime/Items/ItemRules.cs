@@ -231,10 +231,11 @@ namespace OrbitalAnte.Items
         }
 
         /// <summary>
-        /// The colour of a look earned by a goal, in place of a rarity's: the green of the unlock banner and of a target
-        /// met (HullKit.Good), so the collection shows at a glance which looks came from goals.
+        /// The stripe of a look earned by a goal: the screen's own cream paint (HullKit.Paint), no rarity's colour and not
+        /// the IN USE green, so an earned look is never taken for an Uncommon or for one in use (design review, Ralph loop
+        /// pass 5). The row also says "earned" in words, so the colour is never the only sign.
         /// </summary>
-        public static readonly float[] EarnedColour = { 0.624f, 0.878f, 0.478f };
+        public static readonly float[] EarnedColour = { 0.937f, 0.902f, 0.824f };
 
         /// <summary>What the kind line says in place of a rarity for a look earned by a goal.</summary>
         public const string EarnedName = "Earned";

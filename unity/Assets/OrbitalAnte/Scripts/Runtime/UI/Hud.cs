@@ -1,4 +1,5 @@
 using OrbitalAnte.AI;
+using OrbitalAnte.Ante;
 using OrbitalAnte.Core;
 using OrbitalAnte.Player;
 using OrbitalAnte.Weapons;
@@ -44,11 +45,33 @@ namespace OrbitalAnte.UI
 
         /// <summary>Everything that only makes sense in the combat arena (crosshair, ammo, health) lives under this.</summary>
         RectTransform _arenaOnly;
+        bool _arenaMode;
+
+        // The practice range's one note (PracticeNote): unlock goals count only in a run. Once a session.
+        float _practiceLeft;
+        static bool _practiceNoteShown;
+
+        /// <summary>Unity can keep static values between Play sessions; start clean every time.</summary>
+        public static void ResetStatics() => _practiceNoteShown = false;
 
         /// <summary>Shows or hides the combat parts. The frame-time readout stays either way.</summary>
         public void SetArenaMode(bool arena)
         {
+            _arenaMode = arena;
+            if (!arena) _practiceLeft = 0f;
             if (_arenaOnly != null) _arenaOnly.gameObject.SetActive(arena);
+        }
+
+        void OnEnable() => CombatEvents.PlayerHitSomething += OnPlayerHit;
+        void OnDisable() => CombatEvents.PlayerHitSomething -= OnPlayerHit;
+
+        void OnPlayerHit(HitOutcome outcome)
+        {
+            if (!_arenaMode || _practiceNoteShown) return;
+            bool goalLeft = Save.SaveSystem.Data != null && UnlockBook.Next(Save.SaveSystem.Data) != null;
+            if (!PracticeNote.Shows(outcome.Disarmed, outcome.Severed, outcome.Killed, outcome.Enemy, FeelSettings.GuideTips, _practiceNoteShown, goalLeft)) return;
+            _practiceNoteShown = true;
+            _practiceLeft = PracticeNote.Seconds;
         }
 
         public void Build(Transform uiRoot)
@@ -173,7 +196,9 @@ namespace OrbitalAnte.UI
                 float alpha = Health.Alive ? 0f : 0.5f;
                 if (!Mathf.Approximately(_hurtFlash.color.a, alpha)) _hurtFlash.color = new Color(0.8f, 0.05f, 0.05f, alpha);
 
+                if (_practiceLeft > 0f && !GameSession.Paused) _practiceLeft -= Time.unscaledDeltaTime;
                 if (!Health.Alive) _bannerText.text = "KNOCKED DOWN.  Back on your feet in a moment.";
+                else if (_practiceLeft > 0f) _bannerText.text = PracticeNote.Words;
                 else if (CombatWorld.EnemiesHoldFire) _bannerText.text = "Enemies are holding fire.  H or D-Pad Down starts the fight.";
                 else _bannerText.text = string.Empty;
             }

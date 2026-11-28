@@ -58,18 +58,31 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 7 | +1 | Envelope prizes now do something (the gap listed since pass 0): one in use per place (upgrade, ship paint, gun skins, helmet, visor, suit, jetpack, badge), a won cosmetic goes to work by itself where its place is empty, one press on the Collection page puts a prize to use or takes it off, and older item assets follow retuned upgrades (`Items/Locker.cs`, `PrizeLooks.cs`, `ItemCatalog.Version`) | Reach: prizes open only after ante 9, so a new player meets none for many runs (the envelope rule is Matthew's, 16 Nov 2026); ten goal unlocks is a small catalogue; Celestial effects are not drawn; paintings wait for frames and Matthew's downloads |
 | 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 5 (28 Nov 2026): after earned looks
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | An empty Collection now names the next look and how to earn it before the envelope; a look's kind is said beside its name wherever the next unlocks are named | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 7 | = | Every look says what it changes ("a visor tint", never "a visor"), where it went ("now on your lander"), and what an envelope prize took the place of; the practice range says once that goals count only in a run (`PracticeNote`) | Where to shoot a creature is taught only by knocks, blood and the hit marker; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | Eight looks made of numbers on the existing patterns and styles; the two earliest kept quiet (muted enamel on every gun, smoked glass on the visor) | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | The first looks are earned by the game's own best moments (a disarm, a leg shot off, the first landing away from Earth) | Land creatures live only in the practice range; nothing seen in Unity |
+| 5 | Fun unlockables | 7 | = | Reach closed (the gap listed since pass 4): eighteen one-run goals, eight of them looks in places of their own, three within a first run's reach; each look goes on as its moment shows (`LockerLook.Refresh`), an envelope's prize takes an earned look's place, and the envelope's printed odds are unchanged (3,000 envelopes rolled both ways, `EarnedLookTests`) | Still short of 8: the Celestial tier's effects are not drawn (Part B section 12's "special effects (e.g. fire)"; the words say "not shown yet"), the one piece of this line the cloud can still close; paintings wait for frames and the five public-domain pictures |
+| 6 | All-round fun | 7 | +1 | The reason for one more run now reaches a first-time player: a first run tends to end with a look on the lander or the guns and the next unlock named, where before a new player's Collection stayed empty for many runs | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
 2. ~~**Understandable: creature tells.**~~ Done in pass 2.
 3. ~~**Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**~~ Done in pass 3.
 4. ~~**Unlockables: envelope prizes do something.**~~ Done in pass 4 (the Locker).
-5. **Unlockables: reach.** Envelopes open only after ante 9, so the Collection stays empty for a new player. Goal
-   unlocks that give a cosmetic, a skin or a paint (within a new player's reach, like the first goals) would fill it
-   early; more goals; Celestial effects drawn; paintings framed on the cabin wall (needs the five public-domain
-   pictures from Matthew).
-6. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
-7. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
-8. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
+5. ~~**Unlockables: reach.**~~ Done in pass 5 (earned looks).
+6. **Unlockables: Celestial effects drawn.** The top tier (Part B section 12: "an Unusual-like top tier featuring
+   special effects (e.g. fire)") is rolled and saved, but its effect is not drawn on the item; the words say "not
+   shown yet". Doable in code. Paintings framed on the cabin wall stay blocked on the five public-domain pictures.
+7. **Understandable: where to shoot a creature.** Only knocks, blood and the hit marker teach a creature's soft and
+   armoured pieces.
+8. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
+9. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
+10. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
    would make "get in the water with them" a rule you can see, but lets a swimmer dive out of gunfire (pass 3's design
    review). A design question to settle before the seas get more creatures.

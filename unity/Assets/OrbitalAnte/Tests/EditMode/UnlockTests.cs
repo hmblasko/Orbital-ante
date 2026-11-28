@@ -314,11 +314,12 @@ namespace OrbitalAnte.Tests
         public void ANewPlayersFirstThreeGoals_AreLooks_InThreeDifferentPlaces()
         {
             IReadOnlyList<UnlockDefinition> all = UnlockCatalog.All;
-            CollectionAssert.AreEqual(new[] { UnlockGoal.Disarm, UnlockGoal.LegOff, UnlockGoal.LandAwayFromEarth },
+            // The landing first: the first tips point at the Moon, and it is the one goal the practice range cannot meet.
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LandAwayFromEarth, UnlockGoal.Disarm, UnlockGoal.LegOff },
                 new[] { all[0].goal, all[1].goal, all[2].goal });
             for (int i = 0; i < 3; i++) Assert.IsTrue(UnlockCatalog.IsLook(all[i]), all[i].id);
-            // Each one looks different and goes somewhere a new player sees: the guns, the suit plate, the lander.
-            CollectionAssert.AreEqual(new[] { Items.LockerSlot.Skin, Items.LockerSlot.Badge, Items.LockerSlot.Paint },
+            // Each one looks different and goes somewhere a new player sees: the lander, the guns, the suit plate.
+            CollectionAssert.AreEqual(new[] { Items.LockerSlot.Paint, Items.LockerSlot.Skin, Items.LockerSlot.Badge },
                 new[] { Items.Locker.SlotOf(UnlockCatalog.LookItem(all[0])), Items.Locker.SlotOf(UnlockCatalog.LookItem(all[1])),
                         Items.Locker.SlotOf(UnlockCatalog.LookItem(all[2])) });
         }
@@ -397,7 +398,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1, line.count);
             Assert.AreEqual(0, line.firstSerial, "it came from no envelope");
             Assert.IsFalse(line.fromTest, "a real line: clearing test items never takes it");
-            Assert.IsTrue(UnlockBook.LookInUse(save, d), "on every gun from the next run, nothing to press");
+            Assert.IsTrue(UnlockBook.LookInUse(save, d), "on every gun at once, nothing to press");
             Assert.IsNull(UnlockBook.Grant(save, UnlockGoal.Disarm), "earned once");
             Assert.AreEqual(1, owned.Find("SkinButterfingers", "").count);
 
@@ -429,18 +430,22 @@ namespace OrbitalAnte.Tests
         {
             UnlockDefinition skin = UnlockCatalog.ForGoal(UnlockGoal.Disarm);
             Assert.AreEqual("UNLOCKED: BUTTERFINGERS", UnlockCatalog.BannerWords(skin));
-            Assert.AreEqual("DISARMED · A GUN SKIN, ON EVERY GUN FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(skin, 3));
-            Assert.AreEqual("UNLOCKED: Butterfingers, for a disarm. A gun skin, on every gun from your next run.", UnlockCatalog.BreakLine(skin, 3));
-            Assert.AreEqual("Butterfingers, for a disarm", UnlockCatalog.NextWords(skin));
-            Assert.AreEqual("LEG OFF · A BADGE, ON YOUR SUIT FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.LegOff), 0),
-                "a look waits for no draft: the last ante says the same");
-            Assert.AreEqual("LANDED AWAY FROM EARTH · A SHIP PAINT, ON YOUR LANDER FROM YOUR NEXT RUN",
+            // A look goes on as its moment shows (the game refreshes the looks then), so the words say "now", not "next run".
+            Assert.AreEqual("DISARMED · A GUN SKIN, NOW ON EVERY GUN", UnlockCatalog.EarnedNote(skin, 3));
+            Assert.AreEqual("UNLOCKED: Butterfingers, for a disarm. A gun skin, now on every gun.", UnlockCatalog.BreakLine(skin, 3));
+            Assert.AreEqual("Butterfingers (gun skin), for a disarm", UnlockCatalog.NextWords(skin), "a look's name says nothing of what it is");
+            Assert.AreEqual("Patient Hunter, for a crouched or prone kill", UnlockCatalog.NextWords(UnlockCatalog.ForGoal(UnlockGoal.LowStanceKill)),
+                "a perk's name is enough");
+            Assert.AreEqual("LEG OFF · A BADGE, NOW ON YOUR SUIT'S READOUT", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.LegOff), 0),
+                "a look waits for no draft: the last ante says the same; and it is on the readout plate, where the player sees it");
+            Assert.AreEqual("LANDED AWAY FROM EARTH · A SHIP PAINT, NOW ON YOUR LANDER",
                 UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.LandAwayFromEarth), 3));
-            Assert.AreEqual("SEA KILL · A PISTOL SKIN, ON THE PISTOL FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.SeaKill), 3));
-            Assert.AreEqual("a visor", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.FocusKill)));
-            Assert.AreEqual("a helmet", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.SalvageHome)));
-            Assert.AreEqual("a jetpack", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.AirborneKill)));
-            Assert.AreEqual("a suit", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.BonusMission)));
+            Assert.AreEqual("SEA KILL · A PISTOL SKIN, NOW ON THE PISTOL", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.SeaKill), 3));
+            // What it changes, never a piece of gear: beside the upgrades "a jetpack" would read as new kit.
+            Assert.AreEqual("a visor tint", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.FocusKill)));
+            Assert.AreEqual("a helmet shade", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.SalvageHome)));
+            Assert.AreEqual("a jet flame colour", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.AirborneKill)));
+            Assert.AreEqual("a readout plate colour", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.BonusMission)));
             Assert.AreEqual("Paints your lander's hull. In use.", UnlockCatalog.GiftWords(UnlockCatalog.ForGoal(UnlockGoal.LandAwayFromEarth)));
         }
 
@@ -487,7 +492,7 @@ namespace OrbitalAnte.Tests
         public void TheNextLook_IsTheEasiestLookNotEarned()
         {
             var save = new SaveData();
-            Assert.AreEqual(UnlockGoal.Disarm, UnlockBook.NextLook(save).goal);
+            Assert.AreEqual(UnlockGoal.LandAwayFromEarth, UnlockBook.NextLook(save).goal);
             UnlockBook.Grant(save, UnlockGoal.Disarm);
             UnlockBook.Grant(save, UnlockGoal.LegOff);
             UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);
@@ -573,6 +578,31 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
+        public void AnOwedUnlockSave_WaitsOutAFight_ButNotAPause_NorLongerThanTheBanner()
+        {
+            Assert.IsTrue(UnlockMoment.SaveNow(false, false, 0f), "with no fight on, the frame after the goal");
+            Assert.IsFalse(UnlockMoment.SaveNow(true, false, 0f), "never in the middle of a fight");
+            Assert.IsFalse(UnlockMoment.SaveNow(true, false, UnlockMoment.FightWaitMost - 0.1f));
+            Assert.IsTrue(UnlockMoment.SaveNow(true, false, UnlockMoment.FightWaitMost), "a long fight never keeps it unwritten for long");
+            Assert.IsTrue(UnlockMoment.SaveNow(true, true, 0f), "a pause is the cheapest moment there is");
+        }
+
+        [Test]
+        public void ThePracticeRange_SaysOnceThatGoalsCountOnlyInARun()
+        {
+            Assert.IsTrue(PracticeNote.Shows(true, false, false, false, true, false, true), "a gun knocked out of a dummy's hands");
+            Assert.IsTrue(PracticeNote.Shows(false, true, false, true, true, false, true), "a limb off a living one");
+            Assert.IsTrue(PracticeNote.Shows(false, false, true, true, true, false, true), "a kill");
+            Assert.IsFalse(PracticeNote.Shows(false, true, false, false, true, false, true), "splitting a loose limb is no fight");
+            Assert.IsFalse(PracticeNote.Shows(false, false, false, true, true, false, true), "a plain hit meets no goal");
+            Assert.IsFalse(PracticeNote.Shows(true, false, false, false, true, true, true), "once a session");
+            Assert.IsFalse(PracticeNote.Shows(true, false, false, false, false, false, true), "tips off");
+            Assert.IsFalse(PracticeNote.Shows(true, false, false, false, true, false, false), "nothing left to earn");
+            StringAssert.Contains("only in a run", PracticeNote.Words);
+            Assert.LessOrEqual(PracticeNote.Words.Length, 60, "one line of the arena's banner");
+        }
+
+        [Test]
         public void TheUnlockMoment_SaysTheFeat_AndWhereTheUnlockTurnsUp()
         {
             UnlockDefinition hunter = UnlockCatalog.ForGoal(UnlockGoal.LowStanceKill);
@@ -592,12 +622,12 @@ namespace OrbitalAnte.Tests
         public void TheRecap_NamesTheNextTwo_AndFoldsClearingAnte2IntoTheNextMark()
         {
             var save = new SaveData();
-            Assert.AreEqual("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n"
+            Assert.AreEqual("Next unlocks: Roll Pattern (ship paint), for a landing away from Earth · Butterfingers (gun skin), for a disarm\n"
                             + "Next mark: clear ante 2, which unlocks the Gunner kit.", UnlockRecap.Lines(save, null, 1, 8));
-            Assert.AreEqual("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n"
+            Assert.AreEqual("Next unlocks: Roll Pattern (ship paint), for a landing away from Earth · Butterfingers (gun skin), for a disarm\n"
                             + "Next mark: clear ante 1.", UnlockRecap.Lines(save, null, 0, 8), "ante 1 is not a goal: nothing to fold");
             SaveData firstRun = SaveWith(UnlockGoal.Disarm, UnlockGoal.LegOff, UnlockGoal.LandAwayFromEarth);
-            Assert.AreEqual("Next unlocks: Patient Hunter, for a crouched or prone kill · Tunnel Vision, for a kill in Focus\n"
+            Assert.AreEqual("Next unlocks: Patient Hunter, for a crouched or prone kill · Tunnel Vision (visor tint), for a kill in Focus\n"
                             + "Next mark: clear ante 2, which unlocks the Gunner kit.", UnlockRecap.Lines(firstRun, null, 1, 8));
             Assert.AreEqual("Next unlocks: Gunner kit, for clearing ante 2 · Patient Hunter, for a crouched or prone kill\n"
                             + "Next mark: clear ante 1.", UnlockRecap.Lines(firstRun, null, 0, 8));
@@ -605,7 +635,7 @@ namespace OrbitalAnte.Tests
             SaveData some = SaveWith(UnlockGoal.RoverSplat);
             string lines = UnlockRecap.Lines(some, new List<UnlockDefinition> { UnlockCatalog.ForGoal(UnlockGoal.RoverSplat) }, 1, 8);
             StringAssert.StartsWith("Unlocked this run: Road Rage. See Unlocks on the title screen.\n", lines);
-            StringAssert.Contains("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n", lines);
+            StringAssert.Contains("Next unlocks: Roll Pattern (ship paint), for a landing away from Earth · Butterfingers (gun skin), for a disarm\n", lines);
 
             Assert.AreEqual("Next mark: a higher run score.", UnlockRecap.Lines(SaveWithEverything(), null, 8, 8), "nothing left to unlock");
             Assert.AreEqual("Next unlock: All In, for beating the clock with the stakes raised\nNext mark: clear ante 4.",
@@ -708,7 +738,7 @@ namespace OrbitalAnte.Tests
         public void TheNextUnlock_IsTheFirstNotEarned_EasiestFirst()
         {
             var save = new SaveData();
-            Assert.AreEqual(UnlockGoal.Disarm, UnlockBook.Next(save).goal, "a new player's first goal is one a first fight meets");
+            Assert.AreEqual(UnlockGoal.LandAwayFromEarth, UnlockBook.Next(save).goal, "a new player's first goal is the first flight's");
             UnlockBook.Grant(save, UnlockGoal.Disarm);
             UnlockBook.Grant(save, UnlockGoal.LegOff);
             UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);

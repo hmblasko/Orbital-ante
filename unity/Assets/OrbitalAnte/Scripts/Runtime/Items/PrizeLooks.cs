@@ -94,8 +94,7 @@ namespace OrbitalAnte.Items
                 case "SkinShotgunCandy": return SkinPattern.Flake;
                 case "SkinRifleStarChart": return SkinPattern.Stars;
                 case "SkinSniperGilded": return SkinPattern.Gilt;
-                // Earned looks (Ralph loop pass 5).
-                case "SkinButterfingers": return SkinPattern.Stripes;
+                // Earned looks (Ralph loop pass 5). Butterfingers is plain enamel (the default), the pictures' wear showing.
                 case "SkinPistolSharkskin": return SkinPattern.Flake;
                 default: return SkinPattern.Paint;
             }

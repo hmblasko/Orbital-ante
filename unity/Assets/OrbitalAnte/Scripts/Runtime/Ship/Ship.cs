@@ -73,6 +73,8 @@ namespace OrbitalAnte.Ship
         readonly RaycastHit[] _rayHits = new RaycastHit[8];
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
+        /// <summary>The outside hull's mesh, which a ship paint put to use mid-run repaints (<see cref="Repaint"/>).</summary>
+        MeshFilter _hull;
 
         // ------------------------------------------------------------------ building
 
@@ -137,7 +139,9 @@ namespace OrbitalAnte.Ship
             int cabin = Model.IndexOf("cabin");
             GameObject cabinGo = NewPart(cabin, new Vector3(0f, 1.2f, 0f));
             // The hull wears the Locker's ship paint, if one is in use (Ralph loop pass 4); the cabin inside never does.
-            AddVisual(cabinGo, ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", outside, HullRoundDegrees);
+            // A paint that goes to work mid-run (earned, or won at ante 9) repaints it there and then (pass 5).
+            _hull = AddVisual(cabinGo, ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", outside, HullRoundDegrees).GetComponent<MeshFilter>();
+            Items.LockerLook.Changed += Repaint;
             AddVisual(cabinGo, ShipProps.HullDetails(), "HullDetails", outside);
             AddConvex(cabinGo, ShipShell.CabinCollision(), "CabinCollision", grip);
             _anchors[cabin].Add(new Vector3(0f, 1.25f, -2.3f));
@@ -1045,8 +1049,28 @@ namespace OrbitalAnte.Ship
                    (worst >= 0 ? "   worst: " + Model.Parts[worst].Name + " " + Mathf.RoundToInt(Model.Fraction(worst) * 100f) + "%" : "   no damage");
         }
 
+        /// <summary>
+        /// The Locker's looks changed in the middle of a run (<c>LockerLook.Refresh</c>): the outside hull takes the
+        /// ship paint in use now. Only its colours differ, so the new mesh replaces the old one on the same renderer;
+        /// the collider, the cabin and the baked light are untouched.
+        /// </summary>
+        void Repaint()
+        {
+            if (_hull == null) return;
+            Mesh old = _hull.sharedMesh;
+            Mesh fresh = ShipMeshes.ToMesh(ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", null, HullRoundDegrees);
+            _owned.Add(fresh);
+            _hull.sharedMesh = fresh;
+            if (old != null && old != fresh)
+            {
+                _owned.Remove(old);
+                Destroy(old);
+            }
+        }
+
         void OnDestroy()
         {
+            Items.LockerLook.Changed -= Repaint;
             if (Boarded == this) Boarded = null;
             if (_bakeJob != null) _bakeJob.Cancel();
             if (_panes != null)

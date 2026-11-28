@@ -22,7 +22,7 @@ namespace OrbitalAnte.Items
             return item != null ? item.rarity : ItemRarity.Common;
         }
 
-        /// <summary>The colour of a row's stripe: its rarity's, or the earned green for a look earned by a goal.</summary>
+        /// <summary>The colour of a row's stripe: its rarity's, or the earned cream for a look earned by a goal.</summary>
         public static float[] StripeColour(OwnedItem line, ItemSpec item)
         {
             ItemRarity rarity = RarityOf(line, item);
@@ -83,13 +83,15 @@ namespace OrbitalAnte.Items
         /// <summary>A page kept inside the pages there are.</summary>
         public static int ClampPage(int page, int lines) => Math.Max(0, Math.Min(page, Pages(lines) - 1));
 
-        /// <summary>A row's words: "Comet Trail Fishbowl Dome · helmet x2".</summary>
+        /// <summary>A row's words: "Comet Trail Fishbowl Dome · helmet x2", "Leg Day · badge · earned".</summary>
         public static string RowWords(ItemSpec item, OwnedItem line, string effectName, string gunName = null)
         {
             if (item == null) return "";
             var s = new StringBuilder();
             if (!string.IsNullOrEmpty(effectName)) s.Append(effectName).Append(' ');
             s.Append(item.displayName).Append("  · ").Append(KindWords(item, gunName));
+            // Said in words as well as by the stripe's colour (design review, Ralph loop pass 5).
+            if (ItemCatalog.IsEarned(item.id)) s.Append("  · earned");
             if (line != null && line.count > 1) s.Append("  x").Append(line.count);
             return s.ToString();
         }

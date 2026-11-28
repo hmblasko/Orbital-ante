@@ -30,11 +30,15 @@ namespace OrbitalAnte.Tasks
         string _kitNote;
         /// <summary>
         /// An unlock waits to be written to the save: once, the frame after the goal, so a kill that meets three
-        /// goals writes one save and not on the kill's own frame (deck-performance review, 27 Nov 2026). Every
-        /// way a run ends saves anyway (<see cref="RecapAndRecord"/>), so only a crash in that one frame loses it.
+        /// goals writes one save and not on the kill's own frame (deck-performance review, 27 Nov 2026). A goal met
+        /// in a fight waits for the fight to end, a pause, or <see cref="UnlockMoment.FightWaitMost"/> s, so a new
+        /// player's first fight (a disarm, then a leg) gets one write after it, not two in it (deck-performance
+        /// review, 28 Nov 2026). Every way a run ends saves anyway (<see cref="RecapAndRecord"/>), so only a crash
+        /// before then loses it.
         /// </summary>
         bool _unlockSaveOwed;
         int _unlockSaveFrame;
+        float _unlockSaveOwedAt;
 
         Text _unlockBanner;
         float _unlockBannerLeft;
@@ -169,8 +173,20 @@ namespace OrbitalAnte.Tasks
 
         void AddBreakLine(UnlockDefinition d)
         {
-            string line = UnlockCatalog.BreakLine(d, FirstDraftAnte, Hints(), UnlockBook.LookInUse(Save.SaveSystem.Data, d));
+            bool inUse = UnlockBook.LookInUse(Save.SaveSystem.Data, d);
+            string line = UnlockCatalog.BreakLine(d, FirstDraftAnte, Hints(), inUse);
             _unlockBreakLines = string.IsNullOrEmpty(_unlockBreakLines) ? line : _unlockBreakLines + "\n" + line;
+            PutOnNow(d, inUse);
+        }
+
+        /// <summary>
+        /// A look that went to work goes on as its moment shows (Ralph loop pass 5, design review: a look is seen when it
+        /// is earned, not a run later): the hull, the suit and the gun in hand read the Locker again. The moment waits
+        /// out a fight, so the change is never made in the middle of one.
+        /// </summary>
+        static void PutOnNow(UnlockDefinition d, bool inUse)
+        {
+            if (inUse && UnlockCatalog.IsLook(d)) Items.LockerLook.Refresh();
         }
 
         /// <summary>
@@ -238,14 +254,18 @@ namespace OrbitalAnte.Tasks
 
         void OweUnlockSave()
         {
+            // A second goal before the write keeps the first one's wait: one write for both, never later than the first allows.
+            if (!_unlockSaveOwed) _unlockSaveOwedAt = Time.unscaledTime;
             _unlockSaveOwed = true;
             _unlockSaveFrame = Time.frameCount;
         }
 
-        /// <summary>First thing every frame, run or no run: the owed write, the frame after the goal.</summary>
+        /// <summary>First thing every frame, run or no run: the owed write, the frame after the goal, once no fight is on.</summary>
         void WriteOwedUnlockSave()
         {
             if (!_unlockSaveOwed || Time.frameCount <= _unlockSaveFrame) return;
+            bool paused = GameSession.Paused || TimeFlow.Held;
+            if (!UnlockMoment.SaveNow(InFight, paused, Time.unscaledTime - _unlockSaveOwedAt)) return;
             _unlockSaveOwed = false;
             Save.SaveSystem.Save();
         }
@@ -324,8 +344,10 @@ namespace OrbitalAnte.Tasks
             _unlockBanner.canvasRenderer.SetAlpha(1f);
             _unlockBanner.gameObject.SetActive(true);
             _unlockBannerLeft = UnlockBannerSeconds;
-            Note(UnlockCatalog.EarnedNote(d, FirstDraftAnte, Hints(), UnlockBook.LookInUse(Save.SaveSystem.Data, d)), true);
+            bool inUse = UnlockBook.LookInUse(Save.SaveSystem.Data, d);
+            Note(UnlockCatalog.EarnedNote(d, FirstDraftAnte, Hints(), inUse), true);
             Audio.AudioDirector.PlayLocal("reward.unlock");
+            PutOnNow(d, inUse);
         }
 
         /// <summary>For the break and the victory page: what clearing the ante unlocked, or nothing.</summary>

@@ -333,8 +333,9 @@ namespace OrbitalAnte.Tasks
                 // The hand or arm holding its gun came off in this hit: the gun fell as the part did (MannequinCombat).
                 MannequinCombat combat = _woke.TryGetValue(who, out WokeRecord woke) && woke.Combat != null ? woke.Combat : who.GetComponent<MannequinCombat>();
                 if (combat != null && combat.DisarmedFrame == Time.frameCount) AnteLoop.UnlockDisarm();
-                // A leg off one that stood on two drops it to the ground.
-                if (stood == 2 && legs < 2) AnteLoop.UnlockLegOff();
+                // A leg off one that stood on two drops it to the ground. Not a torso blown away, which takes both legs
+                // with it: the goal teaches the leg shot (Unity review, Ralph loop pass 5).
+                if (stood == 2 && legs < 2 && who.Model != null && who.Model.OnBody(BodyPartId.Torso)) AnteLoop.UnlockLegOff();
             }
             _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1, Legs = legs };
         }

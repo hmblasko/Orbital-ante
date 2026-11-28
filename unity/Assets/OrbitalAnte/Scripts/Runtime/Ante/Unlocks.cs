@@ -231,9 +231,10 @@ namespace OrbitalAnte.Ante
     /// The eighteen unlocks, easiest goal first: six perks start locked, four kits wait to be earned, and eight looks
     /// (Ralph loop pass 5) are earned by goals instead of envelopes. Envelopes open only after ante 9 (Matthew's rule,
     /// 16 Nov 2026), while a first-time player is meant to die around ante 3 or 4, so without these a new player's
-    /// collection stayed empty for many runs. The first three looks come from what a first run does anyway (a disarm,
-    /// a leg shot off, a landing away from Earth), each naming one of the game's verbs, and they show from the next run
-    /// (on the lander at the pad, in the hand, on the suit plate).
+    /// collection stayed empty for many runs. The first three looks come from what a first run does anyway (a landing
+    /// away from Earth, which the first tips after liftoff ask for, then a disarm and a leg shot off, each naming one of
+    /// the game's verbs), and a look goes on the moment it is earned where its place is empty (on the lander, in the
+    /// hand, on the suit plate; <c>Items.LockerLook.Refresh</c>).
     /// </summary>
     public static class UnlockCatalog
     {
@@ -241,11 +242,13 @@ namespace OrbitalAnte.Ante
 
         static readonly UnlockDefinition[] _all =
         {
+            // The first tips after liftoff ask for a flight to another world, and the Moon is the nearest: so the
+            // title screen's first "next unlock" points at a run, never at the practice range (design review, 28 Nov 2026).
+            Look("PaintRollPattern", UnlockGoal.LandAwayFromEarth),
             // A first fight does these by itself; each one says what the game wants you to know: shoot the gun or the
             // arm to disarm, a leg to drop them.
             Look("SkinButterfingers", UnlockGoal.Disarm),
             Look("BadgeLegDay", UnlockGoal.LegOff),
-            Look("PaintRollPattern", UnlockGoal.LandAwayFromEarth),
             Kit("kit.gunner", UnlockGoal.ClearAnte2),
             Perk("perk.patient_hunter", UnlockGoal.LowStanceKill),
             // Teaches the Focus key, which nothing else asks for.
@@ -257,9 +260,10 @@ namespace OrbitalAnte.Ante
             Look("SuitBountyHunter", UnlockGoal.BonusMission),
             Kit("kit.pilot", UnlockGoal.ThreeWorldsInOneAnte),
             Perk(PerkCatalog.ChainPerkId, UnlockGoal.FourWaysInOneAnte),
-            Look("SkinPistolSharkskin", UnlockGoal.SeaKill),
-            // Risk for reward: the Daredevil family's own way to play (design review, 27 Nov 2026).
+            // Risk for reward: the Daredevil family's own way to play (design review, 27 Nov 2026). A kill on the last
+            // plates comes by accident sooner than a swim out to deep water with a shark (design review, 28 Nov 2026).
             Kit("kit.daredevil", UnlockGoal.LowArmourKill),
+            Look("SkinPistolSharkskin", UnlockGoal.SeaKill),
             Perk("perk.trigger_discipline", UnlockGoal.LadderTop),
             // Only worth holding with a melee weapon in hand, so it waits until the player has used one.
             Perk("perk.heavy_swing", UnlockGoal.MeleeKill),
@@ -343,7 +347,9 @@ namespace OrbitalAnte.Ante
                 case UnlockGoal.FocusKill: return "Kill an enemy while Focus slows the world (hold " + hints.focusKey + "; kills and limbs fill it again).";
                 case UnlockGoal.AirborneKill: return "Kill an enemy while you are off the ground (an AIRBORNE kill: jump, or fire your jets).";
                 case UnlockGoal.BonusMission: return "Finish a bonus mission (pick one at a break, then do it in that ante).";
-                case UnlockGoal.SeaKill: return "Kill a sea creature while you are in the water with it (from the shore or the air it does not count).";
+                case UnlockGoal.SeaKill:
+                    return "Kill a sea creature while you are in the water with it (they keep to deep water, well out from the shore; "
+                           + "a kill from the shore or the air does not count).";
                 default: return goal.ToString();
             }
         }
@@ -416,16 +422,34 @@ namespace OrbitalAnte.Ante
 
         static string LookKindWords(ItemSpec item)
         {
-            if (item == null) return "a look";
+            string kind = LookKind(item);
+            return kind.Length > 0 ? "a " + kind : "a look";
+        }
+
+        /// <summary>
+        /// What a look changes, in two or three words: "gun skin", "pistol skin", "ship paint", "helmet shade", "visor
+        /// tint", "jet flame colour", "readout plate colour", "badge". Never "a jetpack" or "a helmet", which beside the
+        /// upgrades would read as new gear (design review, 28 Nov 2026). Empty for anything else.
+        /// </summary>
+        public static string LookKind(ItemSpec item)
+        {
+            if (item == null) return string.Empty;
             switch (item.category)
             {
-                case ItemCategory.ShipPaint: return "a ship paint";
+                case ItemCategory.ShipPaint: return "ship paint";
                 case ItemCategory.WeaponSkin:
-                    return string.IsNullOrEmpty(item.weaponId) ? "a gun skin" : "a " + item.weaponId.ToLowerInvariant() + " skin";
+                    return string.IsNullOrEmpty(item.weaponId) ? "gun skin" : item.weaponId.ToLowerInvariant() + " skin";
                 case ItemCategory.Cosmetic:
-                    string slot = ItemLook.SlotName(item.slot);
-                    return slot.Length > 0 ? "a " + slot : "a look";
-                default: return "a look";
+                    switch (item.slot)
+                    {
+                        case CosmeticSlot.Helmet: return "helmet shade";
+                        case CosmeticSlot.Visor: return "visor tint";
+                        case CosmeticSlot.Pack: return "jet flame colour";
+                        case CosmeticSlot.Suit: return "readout plate colour";
+                        case CosmeticSlot.Badge: return "badge";
+                        default: return string.Empty;
+                    }
+                default: return string.Empty;
             }
         }
 
@@ -453,9 +477,9 @@ namespace OrbitalAnte.Ante
 
         /// <summary>
         /// Where it now turns up: "in your drafts from ante 3", "in your next run's drafts" (when this run has no draft
-        /// left, <paramref name="firstDraftAnte"/> 0 or less), "choose it at New run", or for a look "on your lander from
-        /// your next run" (it went into use by itself, <paramref name="lookInUse"/>) or "in your Collection" (its place was
-        /// taken, so it waits there to be swapped in).
+        /// left, <paramref name="firstDraftAnte"/> 0 or less), "choose it at New run", or for a look "now on your lander"
+        /// (it went into use by itself, <paramref name="lookInUse"/>, and goes on as its moment shows) or "in your
+        /// Collection" (its place was taken, so it waits there to be swapped in).
         /// </summary>
         public static string WhereWords(UnlockDefinition d, int firstDraftAnte, bool lookInUse = true)
         {
@@ -465,17 +489,22 @@ namespace OrbitalAnte.Ante
             {
                 ItemSpec item = LookItem(d);
                 string where = item != null ? Locker.WhereWords(item) : string.Empty;
-                // A run's lander, suit and guns are built as it starts, so a look earned in one shows from the next.
-                return lookInUse && where.Length > 0 ? where + " from your next run" : "in your Collection";
+                // The look goes on as its moment shows (AnteLoop.ShowUnlock calls LockerLook.Refresh): seen when earned.
+                return lookInUse && where.Length > 0 ? "now " + where : "in your Collection";
             }
             return firstDraftAnte <= 0 ? "in your next run's drafts"
                 : "in your drafts from ante " + firstDraftAnte.ToString(CultureInfo.InvariantCulture);
         }
 
-        /// <summary>"Patient Hunter, for a crouched or prone kill": an unlock still to earn, in a few words.</summary>
+        /// <summary>
+        /// "Patient Hunter, for a crouched or prone kill", "Butterfingers (gun skin), for a disarm": an unlock still to
+        /// earn, in a few words. A look's name says nothing of what it is, so its kind goes beside it (design review).
+        /// </summary>
         public static string NextWords(UnlockDefinition d, UnlockHints hints = null)
         {
-            return d == null ? string.Empty : d.name + ", for " + ShortGoal(d.goal, hints);
+            if (d == null) return string.Empty;
+            string kind = d.kind == UnlockKind.Look ? LookKind(LookItem(d)) : string.Empty;
+            return d.name + (kind.Length > 0 ? " (" + kind + ")" : string.Empty) + ", for " + ShortGoal(d.goal, hints);
         }
 
         /// <summary>The unlock moment's banner: "UNLOCKED: PATIENT HUNTER".</summary>
@@ -483,7 +512,7 @@ namespace OrbitalAnte.Ante
 
         /// <summary>
         /// The note under the banner, which says why and where: "CROUCHED OR PRONE KILL · A GHOST PERK, IN YOUR DRAFTS
-        /// FROM ANTE 3", "DISARMED · A GUN SKIN, ON EVERY GUN FROM YOUR NEXT RUN".
+        /// FROM ANTE 3", "DISARMED · A GUN SKIN, NOW ON EVERY GUN".
         /// </summary>
         public static string EarnedNote(UnlockDefinition d, int firstDraftAnte, UnlockHints hints = null, bool lookInUse = true)
         {
@@ -527,6 +556,42 @@ namespace OrbitalAnte.Ante
         {
             if (!readoutShown || noteHolding || bannerUp) return false;
             return !inFight || waited >= FightWaitMost;
+        }
+
+        /// <summary>
+        /// Whether an unlock owed to the save is written now (deck-performance review, 28 Nov 2026): not in a fight,
+        /// where the write could be felt, unless the game is paused (the cheapest moment there is) or it has waited
+        /// <see cref="FightWaitMost"/> s, so a long fight never keeps it unwritten for long. Every way a run ends saves anyway.
+        /// </summary>
+        /// <param name="inFight">An enemy has had the player in sight lately.</param>
+        /// <param name="paused">A pause page or the run-start envelope holds the game.</param>
+        /// <param name="owedFor">Real seconds since the first goal still waiting to be written.</param>
+        public static bool SaveNow(bool inFight, bool paused, float owedFor) => !inFight || paused || owedFor >= FightWaitMost;
+    }
+
+    /// <summary>
+    /// The practice range's one note (design review, Ralph loop pass 5): goals count only in a run, so a new player who
+    /// shoots a gun out of a dummy's hands there and sees no unlock is told why, once a session, on the first disarm,
+    /// limb or kill, while a goal is still to be met and tips are on. Plain C#.
+    /// </summary>
+    public static class PracticeNote
+    {
+        public const string Words = "PRACTICE.  Unlock goals count only in a run, not here.";
+
+        /// <summary>How long the note stays up, in unpaused seconds.</summary>
+        public const float Seconds = 4f;
+
+        /// <param name="disarmed">The hit knocked a gun out of someone's hands.</param>
+        /// <param name="severed">A part came off.</param>
+        /// <param name="killed">The hit killed.</param>
+        /// <param name="enemy">The thing hit was a living enemy's body.</param>
+        /// <param name="tipsOn">Tips for new players are on (pause, Feel).</param>
+        /// <param name="shown">The note has already been shown this session.</param>
+        /// <param name="goalLeft">Some unlock is still to be earned.</param>
+        public static bool Shows(bool disarmed, bool severed, bool killed, bool enemy, bool tipsOn, bool shown, bool goalLeft)
+        {
+            if (!tipsOn || shown || !goalLeft) return false;
+            return disarmed || enemy && (severed || killed);
         }
     }
 

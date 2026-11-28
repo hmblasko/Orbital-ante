@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using OrbitalAnte.Content;
 using OrbitalAnte.Save;
@@ -10,8 +11,11 @@ namespace OrbitalAnte.Items
     /// The Unity side of the Locker (Ralph loop pass 4, 28 Nov 2026): what is in use, read from the save and the item
     /// assets, for the systems that show it. A world (a run, or the practice range) reads these once as its pieces are
     /// built (the lander, the suit, the run's numbers, and the skins the first time a gun comes into the player's hands),
-    /// so a change made in the Locker, or a prize won at an ante's end, shows from the next run, as the reveal says. An
-    /// item that is in use but whose asset has gone, or no longer fits its place, counts as nothing.
+    /// so a change made in the Collection shows from the next run. A look that goes to work in the middle of a run (one
+    /// earned by a goal, or an envelope's prize at ante 9) calls <see cref="Refresh"/>, and the lander's hull, the suit's
+    /// display and jets, and the gun in hand put it on there and then (Ralph loop pass 5: a look is seen when it is
+    /// earned). The run's numbers (an upgrade) never change mid-run. An item that is in use but whose asset has gone, or
+    /// no longer fits its place, counts as nothing.
     /// </summary>
     public static class LockerLook
     {
@@ -48,6 +52,23 @@ namespace OrbitalAnte.Items
         /// <summary>A new world is being built (GameBootstrap.StartRun): what is in use is read again when it is next asked for.</summary>
         public static void NewWorld() => _skinsRead = false;
 
+        /// <summary>
+        /// Raised by <see cref="Refresh"/>: a look went to work in the middle of a run. The hull, the suit's display, its
+        /// jets and the player's guns listen (subscribed while enabled) and read what is in use again.
+        /// </summary>
+        public static event Action Changed;
+
+        /// <summary>
+        /// A look went to work in the middle of a run: the skins are read again, and everything that shows a look puts it
+        /// on now. Cheap enough for the moment it is called at (a few materials and one hull mesh), and never in a fight:
+        /// the unlock moment waits the fight out.
+        /// </summary>
+        public static void Refresh()
+        {
+            _skinsRead = false;
+            Changed?.Invoke();
+        }
+
         /// <summary>The skin a gun of this kind wears in the player's hands, or null for none. A gun's own skin wins over the one for every gun.</summary>
         public static SkinLook? SkinFor(string gunId)
         {
@@ -79,6 +100,7 @@ namespace OrbitalAnte.Items
         {
             Skins.Clear();
             _skinsRead = false;
+            Changed = null;
         }
 
         /// <summary>An sRGB triple (0 to 1) as a colour, or <paramref name="otherwise"/> when there is none.</summary>

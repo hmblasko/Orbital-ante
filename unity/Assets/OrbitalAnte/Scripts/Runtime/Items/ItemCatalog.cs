@@ -118,10 +118,12 @@ namespace OrbitalAnte.Items
 
                 // ---- Earned looks (Ralph loop pass 5): one goal each, never in an envelope (IsEarned) ----
                 // Shown as "Earned", not by rarity; the rarity here only sorts them in the collection.
-                Skin("SkinButterfingers", "Butterfingers", ItemRarity.Common, "", "Butter yellow and cream, for whoever made them drop it.", 0.93f, 0.78f, 0.36f, 0.97f, 0.94f, 0.85f),
+                // Muted, like a factory finish, not a toy's: the first look most players earn goes on every gun (design review).
+                Skin("SkinButterfingers", "Butterfingers", ItemRarity.Common, "", "Butter-coloured enamel, worn through where the hands go. For whoever made them drop it.", 0.80f, 0.72f, 0.47f, 0.93f, 0.89f, 0.78f),
                 Cosmetic("BadgeLegDay", "Leg Day", ItemRarity.Common, CosmeticSlot.Badge, "Never skip it. They did.", 0.16f, 0.36f, 0.24f, 0.95f, 0.90f, 0.78f),
                 Paint("PaintRollPattern", "Roll Pattern", ItemRarity.Common, "Black on white, like the old test rockets: anyone watching can see it turn.", 0.90f, 0.89f, 0.86f, 0.10f, 0.10f, 0.11f),
-                Cosmetic("VisorTunnelVision", "Tunnel Vision", ItemRarity.Common, CosmeticSlot.Visor, "A cold blue tint, for when the world slows down.", 0.62f, 0.78f, 1.00f, 0.85f, 0.92f, 1.00f),
+                // Smoke grey: never the Focus rim's own blue, which means the world is slowed (design review).
+                Cosmetic("VisorTunnelVision", "Tunnel Vision", ItemRarity.Common, CosmeticSlot.Visor, "Smoked glass: everything outside a shade darker.", 0.50f, 0.52f, 0.54f, 0.80f, 0.82f, 0.84f),
                 Cosmetic("HelmetHardHat", "Hard Hat", ItemRarity.Common, CosmeticSlot.Helmet, "Salvage crew. Safety first, salvage a close second.", 0.95f, 0.74f, 0.16f, 0.20f, 0.20f, 0.20f),
                 Cosmetic("PackAfterburner", "Afterburner", ItemRarity.Common, CosmeticSlot.Pack, "Violet flames. Purely for show, mostly.", 0.68f, 0.58f, 1.00f, 0.92f, 0.90f, 1.00f),
                 Cosmetic("SuitBountyHunter", "Bounty Hunter", ItemRarity.Common, CosmeticSlot.Suit, "Worn leather and brass. Takes the job, finishes the job.", 0.45f, 0.24f, 0.16f, 0.86f, 0.66f, 0.32f),

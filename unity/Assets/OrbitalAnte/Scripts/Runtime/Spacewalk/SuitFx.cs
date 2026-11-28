@@ -86,6 +86,7 @@ namespace OrbitalAnte.Spacewalk
                 go.SetActive(false);
                 fx._flames[i] = go.transform;
             }
+            Items.LockerLook.Changed += fx.Recolour;
 
             fx._tether = new GameObject("Tether");
             fx._tether.layer = Layers.Default;
@@ -238,8 +239,27 @@ namespace OrbitalAnte.Spacewalk
             _tetherMesh.RecalculateBounds();
         }
 
+        /// <summary>
+        /// A jet pack went to work in the middle of a run (<c>LockerLook.Refresh</c>, Ralph loop pass 5): the flames
+        /// take its colour now, so the look is seen as it is earned.
+        /// </summary>
+        void Recolour()
+        {
+            if (_config == null || _flameMaterial == null) return;
+            Color flame = Items.LockerLook.Colour(Items.LockerLook.Suit().Jet, _config.jetColour);
+            var fresh = new Material(PlanetMaterials.VertexColour(flame, 0f, 2f, false)) { name = "OA_SuitJet" };
+            for (int i = 0; i < _flames.Length; i++)
+            {
+                MeshRenderer r = _flames[i] != null ? _flames[i].GetComponent<MeshRenderer>() : null;
+                if (r != null) r.sharedMaterial = fresh;
+            }
+            Destroy(_flameMaterial);
+            _flameMaterial = fresh;
+        }
+
         void OnDestroy()
         {
+            Items.LockerLook.Changed -= Recolour;
             if (Sounds != null) Sounds.Destroy();
             if (_flameMesh != null) Destroy(_flameMesh);
             if (_tetherMesh != null) Destroy(_tetherMesh);

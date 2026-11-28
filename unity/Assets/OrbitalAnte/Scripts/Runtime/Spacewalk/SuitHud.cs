@@ -40,6 +40,8 @@ namespace OrbitalAnte.Spacewalk
         readonly Image[] _shade = new Image[2];
         Texture2D _shadeTexture;
         Sprite _shadeSprite;
+        /// <summary>The badge's ring, face and point, when one is sewn on.</summary>
+        Image[] _badge;
         readonly Image[] _rim = new Image[4];
         Texture2D _rimTexture;
         Sprite _rimSprite;
@@ -49,7 +51,8 @@ namespace OrbitalAnte.Spacewalk
         int _shownSpeed = -1, _shownLine = -1, _noticeKey = -1, _againstKey = -1;
         string _shownAgainst = string.Empty, _shownNotice = string.Empty;
         readonly StringBuilder _text = new StringBuilder(48);
-        // What the Locker's suit pieces change (Ralph loop pass 4): read once, as the suit is built for a run.
+        // What the Locker's suit pieces change (Ralph loop pass 4): read as the suit is built for a run, and again when a
+        // look goes to work mid-run (ApplyLook, pass 5).
         Items.SuitLook _look;
         Color _jetColour, _tint = Color.white;
         float _tintShown;
@@ -109,6 +112,7 @@ namespace OrbitalAnte.Spacewalk
             HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
                 Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
             if (_look.Badge) SewBadge(_plate);
+            Items.LockerLook.Changed += ApplyLook;
 
             // Air: a tank that drains, its per cent, and the time left at a resting breath.
             Image tank = HullKit.Box(_plate, "Tank", 18f, 15f, 30f, 92f, HullKit.PlateEdge);
@@ -180,9 +184,35 @@ namespace OrbitalAnte.Spacewalk
         /// </summary>
         void BuildShade()
         {
+            MakeShadePicture();
+            for (int i = 0; i < 2; i++)
+            {
+                RectTransform rt = UiKit.NewRect(i == 0 ? "ShadeLeft" : "ShadeRight", _canvas.transform);
+                Vector2 corner = new Vector2(i, 0f);
+                UiKit.Pin(rt, corner, Vector2.zero, new Vector2(440f, 270f));
+                // Both turn about their darkest corner, which sits in the screen's corner; the right one is the
+                // left one mirrored about it.
+                rt.pivot = Vector2.zero;
+                rt.anchoredPosition = Vector2.zero;
+                if (i == 1) rt.localScale = new Vector3(-1f, 1f, 1f);
+                _shade[i] = UiKit.AddImage(rt, new Color(1f, 1f, 1f, Mathf.Clamp01(_config.visorShade * _look.ShadeStrength)), _shadeSprite);
+                _shade[i].type = Image.Type.Simple;
+                _shade[i].enabled = false;
+            }
+        }
+
+        /// <summary>
+        /// The shade's picture, in the helmet's colour: darkest in the lower-left corner, fading out along an ellipse.
+        /// Made again (the old one is freed) when a helmet goes to work mid-run, since a picture sent to the GPU can no
+        /// longer be written.
+        /// </summary>
+        void MakeShadePicture()
+        {
             const int w = 64, h = 40;
             // The edge of a helmet from the Locker takes its colour, darkened to the depth of the glass's edge.
             Color shade = Items.LockerLook.Colour(_look.Shade, new Color(0.04f, 0.03f, 0.03f));
+            Texture2D oldTexture = _shadeTexture;
+            Sprite oldSprite = _shadeSprite;
             _shadeTexture = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "VisorShade" };
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
@@ -201,18 +231,51 @@ namespace OrbitalAnte.Spacewalk
             _shadeSprite = Sprite.Create(_shadeTexture, new Rect(0f, 0f, w, h), new Vector2(0f, 0f), 100f, 0, SpriteMeshType.FullRect);
             for (int i = 0; i < 2; i++)
             {
-                RectTransform rt = UiKit.NewRect(i == 0 ? "ShadeLeft" : "ShadeRight", _canvas.transform);
-                Vector2 corner = new Vector2(i, 0f);
-                UiKit.Pin(rt, corner, Vector2.zero, new Vector2(440f, 270f));
-                // Both turn about their darkest corner, which sits in the screen's corner; the right one is the
-                // left one mirrored about it.
-                rt.pivot = Vector2.zero;
-                rt.anchoredPosition = Vector2.zero;
-                if (i == 1) rt.localScale = new Vector3(-1f, 1f, 1f);
-                _shade[i] = UiKit.AddImage(rt, new Color(1f, 1f, 1f, Mathf.Clamp01(_config.visorShade * _look.ShadeStrength)), _shadeSprite);
-                _shade[i].type = Image.Type.Simple;
-                _shade[i].enabled = false;
+                if (_shade[i] == null) continue;
+                _shade[i].sprite = _shadeSprite;
+                _shade[i].color = new Color(1f, 1f, 1f, Mathf.Clamp01(_config.visorShade * _look.ShadeStrength));
             }
+            if (oldSprite != null) Destroy(oldSprite);
+            if (oldTexture != null) Destroy(oldTexture);
+        }
+
+        /// <summary>
+        /// A look went to work in the middle of a run (<c>LockerLook.Refresh</c>, Ralph loop pass 5: a look is seen when
+        /// it is earned): the suit's pieces are read again and what they change is repainted: the jets' colour (rim and
+        /// jet blocks), the visor's tint (faded in), the helmet's shade, the plate's paint and the badge.
+        /// </summary>
+        void ApplyLook()
+        {
+            if (_canvas == null || _config == null || _plate == null) return;
+            Items.SuitLook was = _look;
+            _look = Items.LockerLook.Suit();
+            _jetColour = Items.LockerLook.Colour(_look.Jet, _config.jetColour);
+            for (int i = 0; i < _rim.Length; i++) if (_rim[i] != null) _rim[i].color = _jetColour;
+            Color tint = Items.LockerLook.Colour(_look.VisorTint, Color.white);
+            if (tint != _tint)
+            {
+                // A new tint fades in as a step outside does; one taken off goes at once.
+                if (was.Tinted) OrbitalAnte.Look.PostFx.VisorTint = Color.white;
+                _tint = tint;
+                _tintShown = 0f;
+            }
+            if (!SameColour(was.Shade, _look.Shade) || !Mathf.Approximately(was.ShadeStrength, _look.ShadeStrength)) MakeShadePicture();
+            HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
+                Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
+            if (_badge != null)
+            {
+                for (int i = 0; i < _badge.Length; i++) if (_badge[i] != null) Destroy(_badge[i].gameObject);
+                _badge = null;
+            }
+            if (_look.Badge) SewBadge(_plate);
+        }
+
+        static bool SameColour(float[] a, float[] b)
+        {
+            if (a == null || b == null) return a == b;
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (!Mathf.Approximately(a[i], b[i])) return false;
+            return true;
         }
 
         void LateUpdate()
@@ -454,6 +517,7 @@ namespace OrbitalAnte.Spacewalk
             face.sprite = UiKit.Circle;
             Image point = HullKit.Box(plate, "BadgePoint", 369.5f, 15.5f, 5f, 5f, accent);
             point.sprite = UiKit.Circle;
+            _badge = new[] { ring, face, point };
         }
 
         /// <summary>
@@ -485,6 +549,7 @@ namespace OrbitalAnte.Spacewalk
 
         void OnDestroy()
         {
+            Items.LockerLook.Changed -= ApplyLook;
             // A tint left on would stay on the title screen and the next run.
             if (_look.Tinted) OrbitalAnte.Look.PostFx.VisorTint = Color.white;
             if (_rimSprite != null) Destroy(_rimSprite);

@@ -90,6 +90,23 @@ namespace OrbitalAnte.Player
         /// </summary>
         public bool Indoors { get; set; }
 
+        // Subscribed for the component's whole life, not only while enabled: the weapons are switched off while the
+        // player is seated or driving, and the gun in hand must still take a look earned meanwhile.
+        void Awake() => OrbitalAnte.Items.LockerLook.Changed += WearAgain;
+        void OnDestroy() => OrbitalAnte.Items.LockerLook.Changed -= WearAgain;
+
+        /// <summary>
+        /// A look went to work in the middle of a run (<c>LockerLook.Refresh</c>, Ralph loop pass 5): the gun in hand
+        /// puts its skin on now, so it is seen as it is earned; a carried gun puts its own on as it comes into the hand.
+        /// </summary>
+        void WearAgain()
+        {
+            Weapon weapon = Current;
+            if (weapon == null) return;
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data != null ? weapon.Data.Id : null));
+            OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
+        }
+
         /// <summary>
         /// Where the view's kick goes when there is no arena <see cref="FpsController"/> (the astronaut in the real
         /// game). Null means no kick.

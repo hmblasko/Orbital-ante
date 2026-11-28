@@ -217,21 +217,32 @@ namespace OrbitalAnte.Items
         /// <summary>
         /// A prize just won goes into use by itself when its place is empty, so it shows the next time the player
         /// plays. Never an upgrade (every upgrade has a cost, so taking one on is the player's choice) and never over
-        /// something already in use. Returns whether it went into use.
+        /// something already in use, except that a look earned by a goal gives its place to an envelope's prize: the
+        /// earned looks fill their places early, and the ante 9 reveal would otherwise go to work for nobody (Unity
+        /// review, Ralph loop pass 5). The earned look stays in the collection. Returns whether it went into use.
         /// </summary>
         public static bool AutoUse(SaveData save, ItemSpec item, string effectId)
         {
             if (item == null || !Usable(item) || SlotOf(item) == LockerSlot.Upgrade) return false;
+            bool earned = ItemCatalog.IsEarned(item.id);
             Loadout l = Of(save);
             LockerSlot slot = SlotOf(item);
             if (slot == LockerSlot.Skin)
             {
                 string gun = GunOf(item);
-                for (int i = 0; i < l.skins.Count; i++) if (l.skins[i].gunId == gun) return false;
+                for (int i = 0; i < l.skins.Count; i++)
+                    if (l.skins[i].gunId == gun && !GivesWay(l.skins[i].itemId, earned)) return false;
             }
-            else if (!Place(l, slot).Empty) return false;
+            else
+            {
+                LockerItem place = Place(l, slot);
+                if (!place.Empty && !GivesWay(place.itemId, earned)) return false;
+            }
             return Use(save, item, effectId);
         }
+
+        /// <summary>Whether what is in a place gives way to a prize going to work by itself: only an earned look, and only to an envelope's prize.</summary>
+        static bool GivesWay(string inUseId, bool newIsEarned) => !newIsEarned && ItemCatalog.IsEarned(inUseId);
 
         /// <summary>
         /// Takes out of use anything no longer owned (test items cleared), no longer in the catalogue, or no longer
@@ -308,9 +319,10 @@ namespace OrbitalAnte.Items
                     return string.IsNullOrEmpty(item.weaponId) ? "on every gun" : "on the " + (string.IsNullOrEmpty(gunName) ? item.weaponId.ToLowerInvariant() : gunName);
                 case LockerSlot.Helmet: return "on your helmet";
                 case LockerSlot.Visor: return "on your visor";
-                case LockerSlot.Suit: return "on your suit";
+                // Both show on the suit's readout plate, lower left: the player never sees the suit itself (design review, pass 5).
+                case LockerSlot.Suit: return "on your suit's readout";
                 case LockerSlot.Pack: return "on your jetpack";
-                case LockerSlot.Badge: return "on your suit";
+                case LockerSlot.Badge: return "on your suit's readout";
                 default: return "";
             }
         }
@@ -324,14 +336,16 @@ namespace OrbitalAnte.Items
 
         /// <summary>
         /// The line under a prize as it is revealed: where it went into use by itself, or how to put it to use. Empty
-        /// for a painting (which has no place yet). <paramref name="midRun"/>: the reveal came in the middle of a run,
-        /// whose lander, suit, guns and numbers were built at its start, so the prize shows from the next run.
-        /// <paramref name="inPlaceOf"/>: the name of what is in its place (<see cref="InPlaceOf"/>), when it did not go in.
+        /// for a painting (which has no place yet). A look put to use in the middle of a run goes on there and then
+        /// (<c>LockerLook.Refresh</c>). <paramref name="inPlaceOf"/>: the name of what is in its place
+        /// (<see cref="InPlaceOf"/>) when it did not go in, or of the earned look it took the place of when it did.
         /// </summary>
-        public static string RevealWords(ItemSpec item, bool inUse, string gunName = null, bool midRun = false, string inPlaceOf = null)
+        public static string RevealWords(ItemSpec item, bool inUse, string gunName = null, string inPlaceOf = null)
         {
             if (!Usable(item)) return "";
-            if (inUse) return "In use " + WhereWords(item, gunName) + (midRun ? " from your next run." : ".");
+            if (inUse)
+                return "In use " + WhereWords(item, gunName)
+                       + (string.IsNullOrEmpty(inPlaceOf) ? "." : ", in place of " + inPlaceOf + " (still in your Collection).");
             if (SlotOf(item) == LockerSlot.Upgrade)
                 return "Every upgrade has a cost, so it waits for you: put it to use from Collection on the title screen.";
             if (!string.IsNullOrEmpty(inPlaceOf))

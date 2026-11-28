@@ -45,7 +45,7 @@ namespace OrbitalAnte.UI
         /// <summary>The perk list, built once with the kit page (the details are written from it as the cursor moves).</summary>
         List<PerkDefinition> _perks;
         RectTransform _kitCard, _unlocksCard;
-        GameObject _kitBack, _unlocksBack, _shownKitFor;
+        GameObject _kitBack, _shownKitFor;
 
         Canvas _canvas;
         GameObject _playButton;
@@ -148,8 +148,8 @@ namespace OrbitalAnte.UI
 
         const string PerksIntro = "Each is one goal to meet in a single run. Meet it and it is yours for every run after: "
             + "a perk joins your drafts (marked NEW the first time), a kit is chosen at New run. The practice range does not count.";
-        const string LooksIntro = "Each is one goal to meet in a single run. Meet it and the look is yours: it goes on by itself where "
-            + "nothing is in its place, from your next run, and Collection swaps it. Looks change nothing but how things look.";
+        const string LooksIntro = "Each is one goal to meet in a single run. Meet it and the look is yours: it goes on at once where "
+            + "nothing is in its place, and Collection swaps it. Looks change only how things look. The practice range does not count.";
 
         void BuildUnlocksPage()
         {
@@ -170,7 +170,6 @@ namespace OrbitalAnte.UI
             UiKit.SetLayout(_unlocksSwitch.gameObject, 48f, 330f);
             Button back = UiKit.Button(row, "Back", () => Show(Page.Main), 48f, 22);
             UiKit.SetLayout(back.gameObject, 48f, 330f);
-            _unlocksBack = back.gameObject;
         }
 
         /// <summary>
