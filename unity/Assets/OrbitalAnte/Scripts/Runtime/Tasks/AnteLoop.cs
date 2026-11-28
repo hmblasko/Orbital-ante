@@ -235,6 +235,8 @@ namespace OrbitalAnte.Tasks
         void Update()
         {
             WriteOwedUnlockSave();
+            // A look that went to work goes on here, never on the frame the save is written (Ralph loop pass 5).
+            Items.LockerLook.RefreshIfDue(Save.SaveSystem.SavedFrame == Time.frameCount);
             if (Run == null) return;
             // The run-start envelope holds the world without pausing it: the clock waits too.
             bool paused = GameSession.Paused || TimeFlow.Held;

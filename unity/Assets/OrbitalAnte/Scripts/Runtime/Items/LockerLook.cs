@@ -12,7 +12,7 @@ namespace OrbitalAnte.Items
     /// assets, for the systems that show it. A world (a run, or the practice range) reads these once as its pieces are
     /// built (the lander, the suit, the run's numbers, and the skins the first time a gun comes into the player's hands),
     /// so a change made in the Collection shows from the next run. A look that goes to work in the middle of a run (one
-    /// earned by a goal, or an envelope's prize at ante 9) calls <see cref="Refresh"/>, and the lander's hull, the suit's
+    /// earned by a goal, or an envelope's prize at ante 9) calls <see cref="RefreshSoon"/>, and the lander's hull, the suit's
     /// display and jets, and the gun in hand put it on there and then (Ralph loop pass 5: a look is seen when it is
     /// earned). The run's numbers (an upgrade) never change mid-run. An item that is in use but whose asset has gone, or
     /// no longer fits its place, counts as nothing.
@@ -41,6 +41,13 @@ namespace OrbitalAnte.Items
         /// <summary>The lander's paint, or null for its own white, grey and gold.</summary>
         public static HullPaint ShipPaint() => PrizeLooks.Paint(Worn(LockerSlot.Paint));
 
+        /// <summary>The id of the paint in use, or "" for the lander's own: the hull is built again only when this changes.</summary>
+        public static string ShipPaintId()
+        {
+            ItemSpec paint = Worn(LockerSlot.Paint);
+            return paint != null ? paint.id : string.Empty;
+        }
+
         /// <summary>What the suit's pieces in use change in the view and on the suit plate.</summary>
         public static SuitLook Suit() =>
             PrizeLooks.Suit(Worn(LockerSlot.Helmet), Worn(LockerSlot.Visor), Worn(LockerSlot.Suit), Worn(LockerSlot.Pack), Worn(LockerSlot.Badge));
@@ -50,7 +57,11 @@ namespace OrbitalAnte.Items
         static bool _skinsRead;
 
         /// <summary>A new world is being built (GameBootstrap.StartRun): what is in use is read again when it is next asked for.</summary>
-        public static void NewWorld() => _skinsRead = false;
+        public static void NewWorld()
+        {
+            _skinsRead = false;
+            _refreshDue = false;
+        }
 
         /// <summary>
         /// Raised by <see cref="Refresh"/>: a look went to work in the middle of a run. The hull, the suit's display, its
@@ -58,10 +69,29 @@ namespace OrbitalAnte.Items
         /// </summary>
         public static event Action Changed;
 
+        static bool _refreshDue;
+
         /// <summary>
-        /// A look went to work in the middle of a run: the skins are read again, and everything that shows a look puts it
-        /// on now. Cheap enough for the moment it is called at (a few materials and one hull mesh), and never in a fight:
-        /// the unlock moment waits the fight out.
+        /// A look went to work in the middle of a run (an unlock's moment, or an envelope's prize): it is put on at the
+        /// next frame that writes no save (<see cref="RefreshIfDue"/>, from AnteLoop's Update), so two looks named on one
+        /// break page, or a look and the save that keeps it, cost one refresh on a frame of its own (deck-performance
+        /// review, Ralph loop pass 5). The unlock moment waits out a fight for up to 20 s, so this can still fall in one.
+        /// </summary>
+        public static void RefreshSoon() => _refreshDue = true;
+
+        /// <summary>Runs the refresh <see cref="RefreshSoon"/> asked for, unless this frame wrote the save. Returns whether it ran.</summary>
+        public static bool RefreshIfDue(bool savedThisFrame)
+        {
+            if (!_refreshDue || savedThisFrame) return false;
+            _refreshDue = false;
+            Refresh();
+            return true;
+        }
+
+        /// <summary>
+        /// The skins are read again, and everything that shows a look puts it on now. Each listener changes only what
+        /// changed: the hull is built again only for a new paint (a few ms on the Deck), the rest is a few colours and at
+        /// most a few materials. Called through <see cref="RefreshSoon"/>.
         /// </summary>
         public static void Refresh()
         {
@@ -100,6 +130,7 @@ namespace OrbitalAnte.Items
         {
             Skins.Clear();
             _skinsRead = false;
+            _refreshDue = false;
             Changed = null;
         }
 

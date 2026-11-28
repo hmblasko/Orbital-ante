@@ -249,8 +249,12 @@ namespace OrbitalAnte.Spacewalk
             if (_canvas == null || _config == null || _plate == null) return;
             Items.SuitLook was = _look;
             _look = Items.LockerLook.Suit();
-            _jetColour = Items.LockerLook.Colour(_look.Jet, _config.jetColour);
-            for (int i = 0; i < _rim.Length; i++) if (_rim[i] != null) _rim[i].color = _jetColour;
+            // Each piece is touched only when it changed (deck-performance review): a badge sewn again rebuilds the canvas.
+            if (!SameColour(was.Jet, _look.Jet))
+            {
+                _jetColour = Items.LockerLook.Colour(_look.Jet, _config.jetColour);
+                for (int i = 0; i < _rim.Length; i++) if (_rim[i] != null) _rim[i].color = _jetColour;
+            }
             Color tint = Items.LockerLook.Colour(_look.VisorTint, Color.white);
             if (tint != _tint)
             {
@@ -260,8 +264,10 @@ namespace OrbitalAnte.Spacewalk
                 _tintShown = 0f;
             }
             if (!SameColour(was.Shade, _look.Shade) || !Mathf.Approximately(was.ShadeStrength, _look.ShadeStrength)) MakeShadePicture();
-            HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
-                Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
+            if (!SameColour(was.PlateFace, _look.PlateFace) || !SameColour(was.PlateEdge, _look.PlateEdge))
+                HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
+                    Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
+            if (was.Badge == _look.Badge && SameColour(was.BadgeColour, _look.BadgeColour) && SameColour(was.BadgeAccent, _look.BadgeAccent)) return;
             if (_badge != null)
             {
                 for (int i = 0; i < _badge.Length; i++) if (_badge[i] != null) Destroy(_badge[i].gameObject);

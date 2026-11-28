@@ -75,6 +75,8 @@ namespace OrbitalAnte.Ship
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
         /// <summary>The outside hull's mesh, which a ship paint put to use mid-run repaints (<see cref="Repaint"/>).</summary>
         MeshFilter _hull;
+        /// <summary>The paint the hull was built in ("" for the lander's own), so a refresh for any other look leaves it be.</summary>
+        string _hullPaintId = string.Empty;
 
         // ------------------------------------------------------------------ building
 
@@ -140,6 +142,7 @@ namespace OrbitalAnte.Ship
             GameObject cabinGo = NewPart(cabin, new Vector3(0f, 1.2f, 0f));
             // The hull wears the Locker's ship paint, if one is in use (Ralph loop pass 4); the cabin inside never does.
             // A paint that goes to work mid-run (earned, or won at ante 9) repaints it there and then (pass 5).
+            _hullPaintId = Items.LockerLook.ShipPaintId();
             _hull = AddVisual(cabinGo, ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", outside, HullRoundDegrees).GetComponent<MeshFilter>();
             Items.LockerLook.Changed += Repaint;
             AddVisual(cabinGo, ShipProps.HullDetails(), "HullDetails", outside);
@@ -1052,11 +1055,15 @@ namespace OrbitalAnte.Ship
         /// <summary>
         /// The Locker's looks changed in the middle of a run (<c>LockerLook.Refresh</c>): the outside hull takes the
         /// ship paint in use now. Only its colours differ, so the new mesh replaces the old one on the same renderer;
-        /// the collider, the cabin and the baked light are untouched.
+        /// the collider, the cabin and the baked light are untouched. Building the hull costs a few ms and over a MB on
+        /// the Deck (deck-performance review), so it is done only when the paint really changed.
         /// </summary>
         void Repaint()
         {
             if (_hull == null) return;
+            string paintId = Items.LockerLook.ShipPaintId();
+            if (paintId == _hullPaintId) return;
+            _hullPaintId = paintId;
             Mesh old = _hull.sharedMesh;
             Mesh fresh = ShipMeshes.ToMesh(ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", null, HullRoundDegrees);
             _owned.Add(fresh);

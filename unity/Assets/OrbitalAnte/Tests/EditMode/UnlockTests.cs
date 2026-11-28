@@ -598,6 +598,8 @@ namespace OrbitalAnte.Tests
             Assert.IsFalse(PracticeNote.Shows(true, false, false, false, true, true, true), "once a session");
             Assert.IsFalse(PracticeNote.Shows(true, false, false, false, false, false, true), "tips off");
             Assert.IsFalse(PracticeNote.Shows(true, false, false, false, true, false, false), "nothing left to earn");
+            Assert.IsFalse(PracticeNote.WouldCount(false, false, false, true), "the cheap check a plain hit stops at");
+            Assert.IsTrue(PracticeNote.WouldCount(false, true, false, true));
             StringAssert.Contains("only in a run", PracticeNote.Words);
             Assert.LessOrEqual(PracticeNote.Words.Length, 60, "one line of the arena's banner");
         }

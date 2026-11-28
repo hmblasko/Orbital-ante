@@ -591,8 +591,11 @@ namespace OrbitalAnte.Ante
         public static bool Shows(bool disarmed, bool severed, bool killed, bool enemy, bool tipsOn, bool shown, bool goalLeft)
         {
             if (!tipsOn || shown || !goalLeft) return false;
-            return disarmed || enemy && (severed || killed);
+            return WouldCount(disarmed, severed, killed, enemy);
         }
+
+        /// <summary>Whether a hit is the kind a goal counts in a run (a disarm, or a limb off or a kill on a living enemy).</summary>
+        public static bool WouldCount(bool disarmed, bool severed, bool killed, bool enemy) => disarmed || enemy && (severed || killed);
     }
 
     /// <summary>

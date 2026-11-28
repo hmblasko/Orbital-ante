@@ -16,10 +16,12 @@ namespace OrbitalAnte.Items
         /// Which set of built-in upgrade numbers this catalogue holds. The setup tool makes each item's asset once and
         /// then leaves it alone, so an asset made from an older set takes its upgrade's gain, cost and blurb from here
         /// when it loads (<see cref="ItemData"/>; an asset whose Catalog Version is 9999 keeps its own). Raise this
-        /// whenever an upgrade's numbers change. 2: Ralph loop pass 4's design review (28 Nov 2026) retuned Big Lungs,
-        /// Light Frame, Deep Focus and Heavy Hands so each is a real choice.
+        /// whenever an upgrade's numbers change, or an earned look's colours or blurb (<see cref="FollowEarnedLook"/>).
+        /// 2: Ralph loop pass 4's design review (28 Nov 2026) retuned Big Lungs, Light Frame, Deep Focus and Heavy Hands
+        /// so each is a real choice. 3: pass 5's design review made Butterfingers muted enamel and Tunnel Vision smoked
+        /// glass.
         /// </summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         static Dictionary<string, ItemSpec> _byId;
 
@@ -67,6 +69,23 @@ namespace OrbitalAnte.Items
             asset.upgradeUpAmount = built.upgradeUpAmount;
             asset.upgradeDown = built.upgradeDown;
             asset.upgradeDownAmount = built.upgradeDownAmount;
+            asset.blurb = built.blurb;
+            return true;
+        }
+
+        /// <summary>
+        /// Brings an older asset of a look earned by a goal up to the catalogue's (<see cref="Version"/>): its colours and
+        /// its blurb, nothing else. The earned looks are the game's own, not prizes to tune, so a retune must reach a
+        /// machine whose asset was made before it (Unity review, Ralph loop pass 5); an asset at 9999 keeps its own. True
+        /// if anything was taken from the catalogue.
+        /// </summary>
+        public static bool FollowEarnedLook(ItemSpec asset, string id, int assetVersion)
+        {
+            if (asset == null || assetVersion >= Version || !IsEarned(id)) return false;
+            ItemSpec built = Default(id);
+            if (built == null || built.category != asset.category) return false;
+            asset.colour = built.colour != null ? (float[])built.colour.Clone() : null;
+            asset.accent = built.accent != null ? (float[])built.accent.Clone() : null;
             asset.blurb = built.blurb;
             return true;
         }

@@ -153,6 +153,32 @@ namespace OrbitalAnte.Tests.EditMode
         }
 
         [Test]
+        public void AnOlderEarnedLooksAsset_TakesTheCataloguesColours_AndNothingElse()
+        {
+            // An item's asset is made once on a machine; a retuned earned look must still arrive (Unity review, pass 5).
+            ItemSpec built = ItemCatalog.Default("SkinButterfingers");
+            ItemSpec asset = built.Copy();
+            asset.colour = new[] { 0.93f, 0.78f, 0.36f };
+            asset.accent = new[] { 0.97f, 0.94f, 0.85f };
+            asset.blurb = "Butter yellow and cream, for whoever made them drop it.";
+            asset.displayName = "Matthew's Butter";
+            Assert.IsTrue(ItemCatalog.FollowEarnedLook(asset, "SkinButterfingers", 2));
+            CollectionAssert.AreEqual(built.colour, asset.colour);
+            CollectionAssert.AreEqual(built.accent, asset.accent);
+            Assert.AreEqual(built.blurb, asset.blurb);
+            Assert.AreEqual("Matthew's Butter", asset.displayName, "only the colours and the blurb follow");
+            Assert.AreNotSame(built.colour, asset.colour, "a copy, never the catalogue's own numbers");
+
+            Assert.IsFalse(ItemCatalog.FollowEarnedLook(asset, "SkinButterfingers", 9999), "9999 keeps its own");
+            Assert.IsFalse(ItemCatalog.FollowEarnedLook(asset, "SkinButterfingers", ItemCatalog.Version), "already up to date");
+            ItemSpec prize = ItemCatalog.Default("SkinHazard").Copy();
+            prize.colour = new[] { 0.1f, 0.2f, 0.3f };
+            Assert.IsFalse(ItemCatalog.FollowEarnedLook(prize, "SkinHazard", 0), "an envelope's prize keeps its asset's colours");
+            Assert.AreEqual(0.1f, prize.colour[0]);
+            Assert.GreaterOrEqual(ItemCatalog.Version, 3, "pass 5 retuned two earned looks, so the version moved on");
+        }
+
+        [Test]
         public void ClearingTestItems_NeverTakesAnEarnedLook()
         {
             var save = new SaveData();

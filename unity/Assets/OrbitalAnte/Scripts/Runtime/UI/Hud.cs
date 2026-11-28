@@ -58,7 +58,8 @@ namespace OrbitalAnte.UI
         public void SetArenaMode(bool arena)
         {
             _arenaMode = arena;
-            if (!arena) _practiceLeft = 0f;
+            // A note cut short by a restart or a quit (its clock stands still while paused) never greets the next world.
+            _practiceLeft = 0f;
             if (_arenaOnly != null) _arenaOnly.gameObject.SetActive(arena);
         }
 
@@ -67,7 +68,9 @@ namespace OrbitalAnte.UI
 
         void OnPlayerHit(HitOutcome outcome)
         {
-            if (!_arenaMode || _practiceNoteShown) return;
+            // The cheap flags first: a plain hit costs nothing (deck-performance review); the save is read only for a
+            // hit that would have met a goal in a run.
+            if (!_arenaMode || _practiceNoteShown || !PracticeNote.WouldCount(outcome.Disarmed, outcome.Severed, outcome.Killed, outcome.Enemy)) return;
             bool goalLeft = Save.SaveSystem.Data != null && UnlockBook.Next(Save.SaveSystem.Data) != null;
             if (!PracticeNote.Shows(outcome.Disarmed, outcome.Severed, outcome.Killed, outcome.Enemy, FeelSettings.GuideTips, _practiceNoteShown, goalLeft)) return;
             _practiceNoteShown = true;

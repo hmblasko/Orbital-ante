@@ -302,8 +302,9 @@ to die around ante 3 or 4, so the looks pass 4 made to work stayed out of a new 
 
 **Checked:**
 
-- `dotnet test tools/rules-tests`: 3,164 run, 3,163 passed, 1 skipped (the cabin bake check, as before). New:
-  `EarnedLookTests` (7), fourteen in `UnlockTests`, one in `LockerTests`; older tests follow the new order and words.
+- `dotnet test tools/rules-tests`, after the first reviews' fixes: 3,164 run, 3,163 passed, 1 skipped (the cabin
+  bake check, as before). New: `EarnedLookTests` (7, then 8 after the second look below), fourteen in `UnlockTests`,
+  one in `LockerTests`; older tests follow the new order and words.
 - Runtime compile check: clean apart from the two known `excludeLayers` lines.
 
 **Specialist reviews** (on this pass's first build; each finding checked before it was applied):
@@ -320,3 +321,21 @@ to die around ante 3 or 4, so the looks pass 4 made to work stayed out of a new 
   a torso blown off counted as a leg shot off (now the torso must still be on); checked that the arm-sever disarm
   reaches the director in the same frame; a dead field on the Unlocks page.
 - deck-performance: a goal's save mid-fight could be felt (now it waits). Budget rows written.
+- Second look (the code that puts a look on at its moment and the practice note were built after the reviews, so
+  unity-reviewer and deck-performance read them again): every refresh built the hull again, a few ms on the Deck,
+  whatever look changed (now only a new paint does); a refresh could share a frame with the save, or run twice in
+  one at a break (now one, on the next frame that writes no save); the suit plate, badge and jet material were
+  remade unchanged; the practice note read the save on every arena hit (now only for a disarm, a limb or a kill); a
+  note cut short by a restart came back on the next world; and the retuned colours of the two earliest looks would
+  never reach item assets made before them (now earned looks follow the catalogue, `ItemCatalog.Version` 3).
+  Checked sound: every listener leaves on every way its object is destroyed, the old hull mesh is freed once, the
+  visor tint never outlives the suit.
+- After the fixes: `dotnet test tools/rules-tests` 3,165 run, 3,164 passed, 1 skipped; compile check clean apart
+  from the two known lines.
+
+**Scores after:** see `scorecard.md`, pass 5. All-round fun 6 to 7; Fun unlockables stays at 7 until the Celestial
+effects are drawn (the design review would have given 8).
+
+**Left open:** nothing here has run in Unity. Celestial effects are not drawn (the words say "not shown yet"), the
+one part of the unlockables line the cloud can still close; paintings wait for frames and the five public-domain
+pictures; the ticket's cosmetic token is still used by nothing. Next pass: gap 6, the Celestial effects.

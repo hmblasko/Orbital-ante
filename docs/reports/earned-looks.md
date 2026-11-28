@@ -149,15 +149,26 @@ Each finding was checked before it was applied.
   raises the part's loss before the hit); the Unlocks page kept a reference it no longer used (removed).
 - **deck-performance:** a goal's save in the middle of a fight could be felt as a hitch on the Deck (now it waits, see
   above). Budget rows written.
-- **The fixes, reviewed again.** Putting a look on at its moment (`LockerLook.Changed` and its four listeners on the
-  hull, the suit plate and visor, the jet flames and the gun in hand) and the practice note were built after the
-  three reviews, so unity-reviewer and deck-performance read that code again before it was committed (see the Ralph
-  log, pass 5).
+- **The fixes, reviewed again.** Putting a look on at its moment and the practice note were built after the three
+  reviews, so unity-reviewer and deck-performance read that code again:
+  - deck-performance: every refresh built the hull again (2.0 ms and 1.2 MB measured off-engine on a cloud Xeon,
+    guessed 2.5 to 6 ms on the Deck), whatever look changed; now only a new paint does (`LockerLook.ShipPaintId`).
+    The moment can fall in a fight after its 20 s wait, and two looks at one break or a reveal beside its save
+    refreshed twice in a frame; now `LockerLook.RefreshSoon` runs one refresh on the next frame that writes no save
+    (`RefreshIfDue`, `SaveSystem.SavedFrame`). The suit plate, badge and jet material are touched only when they
+    changed, and the practice note reads the save only for a hit that would have met a goal.
+  - unity-reviewer: the retuned colours of Butterfingers and Tunnel Vision would never reach a machine whose item
+    assets were made before them (an item's asset is made once); now an earned look's colours and blurb follow the
+    catalogue like an upgrade's numbers (`ItemCatalog.FollowEarnedLook`, `ItemCatalog.Version` 3; 9999 keeps an
+    asset's own). A practice note cut short by a restart or a quit came back on the next world; now every world
+    clears it. Checked and found sound: every listener leaves on every way its object is destroyed, the hull's old
+    mesh is freed once, the shade picture is freed only after nothing shows it, and the visor tint never outlives
+    the suit.
 
 ## Tests
 
-- `dotnet test tools/rules-tests`: 3,164 run, 3,163 passed, 1 skipped (the cabin bake check, as before). New:
-  `EarnedLookTests` (7), fourteen in `UnlockTests` (the first three goals and their places, every look's place and its
+- `dotnet test tools/rules-tests`: 3,165 run, 3,164 passed, 1 skipped (the cabin bake check, as before). New:
+  `EarnedLookTests` (8), fourteen in `UnlockTests` (the first three goals and their places, every look's place and its
   goal, each new goal met only by its feat, a rover jump, granting into an empty and a taken place, the words, the
   keys, mending, the two lists' NEW marks, the next look, the home world named by the id the game uses, the save
   waiting out a fight, the practice note) and one in `LockerTests` (an envelope prize takes an earned look's place, an

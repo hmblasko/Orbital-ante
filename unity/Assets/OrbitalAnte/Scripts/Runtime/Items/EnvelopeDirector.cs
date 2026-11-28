@@ -146,7 +146,7 @@ namespace OrbitalAnte.Items
             string inPlaceOf = placed ? (string.IsNullOrEmpty(held) ? null : held) : inUse ? null : Locker.InPlaceOf(SaveSystem.Data, item, LockerLook.Find);
             // In the middle of a run (the reveal at ante 9) the look goes on there and then: the lander, the suit and
             // the gun in hand are told to read the Locker again.
-            if (placed && GameSession.Mode == GameMode.Playing) LockerLook.Refresh();
+            if (placed && GameSession.Mode == GameMode.Playing) LockerLook.RefreshSoon();
 
             ItemEffect effect = effects.Find(e => e.id == prize.effectId);
             OwnedItem owned = book.Inventory.Find(prize.itemId, prize.effectId);

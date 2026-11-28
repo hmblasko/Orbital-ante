@@ -181,12 +181,12 @@ namespace OrbitalAnte.Tasks
 
         /// <summary>
         /// A look that went to work goes on as its moment shows (Ralph loop pass 5, design review: a look is seen when it
-        /// is earned, not a run later): the hull, the suit and the gun in hand read the Locker again. The moment waits
-        /// out a fight, so the change is never made in the middle of one.
+        /// is earned, not a run later): the hull, the suit and the gun in hand read the Locker again, on the next frame
+        /// that writes no save, once however many looks one page names.
         /// </summary>
         static void PutOnNow(UnlockDefinition d, bool inUse)
         {
-            if (inUse && UnlockCatalog.IsLook(d)) Items.LockerLook.Refresh();
+            if (inUse && UnlockCatalog.IsLook(d)) Items.LockerLook.RefreshSoon();
         }
 
         /// <summary>
