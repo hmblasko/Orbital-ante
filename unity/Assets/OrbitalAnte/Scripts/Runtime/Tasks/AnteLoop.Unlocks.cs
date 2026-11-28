@@ -15,7 +15,8 @@ namespace OrbitalAnte.Tasks
     /// name, over a note that says what earned it and where it turns up, with a sound of its own (<c>reward.unlock</c>).
     /// It waits out a fight (at most <see cref="UnlockMoment.FightWaitMost"/> s), an important note and the gun ladder's
     /// banner, so it is read rather than lost in a firefight. Only solar-system runs count: the practice range has no
-    /// ante loop.
+    /// ante loop. Since Ralph loop pass 5 a goal can give a look (a paint, a skin, a suit piece): it is put in the
+    /// collection and, where its place is empty, into use by <see cref="UnlockBook.Grant"/>, and the note says which.
     /// </summary>
     public sealed partial class AnteLoop
     {
@@ -84,13 +85,48 @@ namespace OrbitalAnte.Tasks
 
         bool CountsForUnlocks => _unlocks != null && Run != null && Run.Director.IsRunning;
 
-        /// <summary>The task director saw the player kill an enemy.</summary>
+        /// <summary>The task director saw the player kill an enemy or a creature.</summary>
         public static void UnlockKill(in KillFacts f)
         {
             AnteLoop loop = Current;
             if (loop == null || !loop.CountsForUnlocks) return;
-            loop._unlocks.Kill(f.melee, f.rover, f.longShot, f.lowStance, f.lowArmour);
+            loop._unlocks.Kill(f.melee, f.rover, f.longShot, f.lowStance, f.lowArmour, airborne: f.airborne, inFocus: f.inFocus, seaCreature: f.seaCreature);
             loop.TakeUnlocks(false);
+        }
+
+        /// <summary>The task director saw the player knock a gun out of a living enemy's hands.</summary>
+        public static void UnlockDisarm()
+        {
+            AnteLoop loop = Current;
+            if (loop == null || !loop.CountsForUnlocks) return;
+            loop._unlocks.Disarmed();
+            loop.TakeUnlocks(false);
+        }
+
+        /// <summary>The task director saw the player take a leg off an enemy standing on two.</summary>
+        public static void UnlockLegOff()
+        {
+            AnteLoop loop = Current;
+            if (loop == null || !loop.CountsForUnlocks) return;
+            loop._unlocks.LegOff();
+            loop.TakeUnlocks(false);
+        }
+
+        /// <summary>The task director saw a salvage crate come aboard.</summary>
+        public static void UnlockSalvageHome()
+        {
+            AnteLoop loop = Current;
+            if (loop == null || !loop.CountsForUnlocks) return;
+            loop._unlocks.SalvageHome();
+            loop.TakeUnlocks(false);
+        }
+
+        /// <summary>From the bonus mission's own payout (AnteLoop.Contracts): the ante's bonus mission is done.</summary>
+        void UnlockBonusMission()
+        {
+            if (!CountsForUnlocks) return;
+            _unlocks.BonusMissionDone();
+            TakeUnlocks(false);
         }
 
         /// <summary>The task director saw the ship touch down on a world (its body id, "moon").</summary>
@@ -133,7 +169,7 @@ namespace OrbitalAnte.Tasks
 
         void AddBreakLine(UnlockDefinition d)
         {
-            string line = UnlockCatalog.BreakLine(d, FirstDraftAnte, Hints());
+            string line = UnlockCatalog.BreakLine(d, FirstDraftAnte, Hints(), UnlockBook.LookInUse(Save.SaveSystem.Data, d));
             _unlockBreakLines = string.IsNullOrEmpty(_unlockBreakLines) ? line : _unlockBreakLines + "\n" + line;
         }
 
@@ -160,9 +196,10 @@ namespace OrbitalAnte.Tasks
                 longShotMetres = Config != null ? Config.rules.longShot : 60f,
                 lowArmourLine = Run != null ? Run.Balance.lowHealthLine : 0.30f,
             };
-            string crouch = KeyName(GameInput.JetDown), interact = KeyName(GameInput.Interact);
+            string crouch = KeyName(GameInput.JetDown), interact = KeyName(GameInput.Interact), focus = KeyName(GameInput.DeepBreath);
             if (crouch != null) hints.crouchKey = crouch;
             if (interact != null) hints.interactKey = interact;
+            if (focus != null) hints.focusKey = focus;
             return hints;
         }
 
@@ -287,7 +324,7 @@ namespace OrbitalAnte.Tasks
             _unlockBanner.canvasRenderer.SetAlpha(1f);
             _unlockBanner.gameObject.SetActive(true);
             _unlockBannerLeft = UnlockBannerSeconds;
-            Note(UnlockCatalog.EarnedNote(d, FirstDraftAnte, Hints()), true);
+            Note(UnlockCatalog.EarnedNote(d, FirstDraftAnte, Hints(), UnlockBook.LookInUse(Save.SaveSystem.Data, d)), true);
             Audio.AudioDirector.PlayLocal("reward.unlock");
         }
 

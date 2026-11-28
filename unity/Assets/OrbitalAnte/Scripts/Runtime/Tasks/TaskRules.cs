@@ -23,6 +23,11 @@ namespace OrbitalAnte.Tasks
         public int streakForFeat = 5;
         /// <summary>A kill from at least this far (metres from the eye) is a long shot.</summary>
         public float longShot = 60f;
+        /// <summary>
+        /// How slowed the world must be by Focus (<c>DeepBreathFx.Amount</c>, 0 to 1) for a kill to be a Focus kill: past
+        /// half way, so a kill in the tail of the ease out after letting go does not count (a goal unlock, never a feat).
+        /// </summary>
+        public const float FocusKillAt = 0.5f;
 
         // ---------------------------------------------------------------- signal masts
         /// <summary>Share of bases that have a signal mast standing near them.</summary>
@@ -143,6 +148,10 @@ namespace OrbitalAnte.Tasks
         public bool lowStance;
         /// <summary>The player's armour was under the low-health line, as Last Stand reads it (not a feat: a goal unlock).</summary>
         public bool lowArmour;
+        /// <summary>Focus had the world at least half slowed (<see cref="TaskRules.FocusKillAt"/>; not a feat: a goal unlock).</summary>
+        public bool inFocus;
+        /// <summary>A sea creature, killed from in the water with it (not a feat: a goal unlock).</summary>
+        public bool seaCreature;
     }
 
     /// <summary>
@@ -479,6 +488,9 @@ namespace OrbitalAnte.Tasks
         /// not fight back, so it pays nothing, and this says what does.
         /// </summary>
         public const string OutOfReach = "SEA KILLS PAY ONLY IN THE WATER WITH THEM";
+
+        /// <summary>The creatures of the seas (<see cref="Creatures.SeaCreatures"/>): the Drifting maw and the Pack biter.</summary>
+        public static bool Swims(string kind) => kind == "Maw" || kind == "Biter";
 
         public static ScoreEventKind KindFor(string kind)
         {

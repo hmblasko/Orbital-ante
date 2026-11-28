@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using OrbitalAnte.Items;
 using OrbitalAnte.Save;
 
 namespace OrbitalAnte.Ante
@@ -11,8 +12,9 @@ namespace OrbitalAnte.Ante
     /// Part B section 5, "Balatro-style goal unlocks"). Every goal is a single feat inside one run, never a count
     /// across runs, so nothing is a grind (constitution rule 9), and each one teaches a part of the game its unlock
     /// is about: crouching opens the perk for shooting low, a rover splat the perk that heals on one, a melee kill
-    /// the perk that hits harder with one. The order here is the order they are listed and suggested in, easiest
-    /// first. Nothing saves these numbers (the save keeps unlock ids), but keep them.
+    /// the perk that hits harder with one. The order they are listed and suggested in, easiest first, is the
+    /// catalogue's (<see cref="UnlockCatalog.All"/>), not this. Nothing saves these numbers (the save keeps unlock
+    /// ids), but keep them, and add a new goal at the end.
     /// </summary>
     public enum UnlockGoal
     {
@@ -26,6 +28,23 @@ namespace OrbitalAnte.Ante
         LadderTop = 7,
         MeleeKill = 8,
         HazardBeatsTheClock = 9,
+        // Ralph loop pass 5 (28 Nov 2026): goals that give a look, the first three within a new player's first run.
+        /// <summary>A gun knocked out of an enemy's hands: shot out, or the hand or arm holding it shot off.</summary>
+        Disarm = 10,
+        /// <summary>A leg shot off an enemy standing on two.</summary>
+        LegOff = 11,
+        /// <summary>A touchdown on any world but Earth.</summary>
+        LandAwayFromEarth = 12,
+        /// <summary>A salvage crate carried (or driven) back aboard the lander.</summary>
+        SalvageHome = 13,
+        /// <summary>A kill while Focus has the world slowed.</summary>
+        FocusKill = 14,
+        /// <summary>A kill while the player is off the ground (the AIRBORNE feat).</summary>
+        AirborneKill = 15,
+        /// <summary>A bonus mission finished.</summary>
+        BonusMission = 16,
+        /// <summary>A sea creature killed from in the water with it.</summary>
+        SeaKill = 17,
     }
 
     public enum UnlockKind
@@ -34,6 +53,12 @@ namespace OrbitalAnte.Ante
         Perk = 0,
         /// <summary>A starting kit to choose on the title screen.</summary>
         Kit = 1,
+        /// <summary>
+        /// A look (Ralph loop pass 5): a ship paint, a gun skin or a suit piece that goes into the collection and, where
+        /// its place is empty, into use (<see cref="Locker.AutoUse"/>). Purely how things look: it changes no number.
+        /// Earned only by its goal, never found in an envelope (<see cref="ItemCatalog.IsEarned"/>).
+        /// </summary>
+        Look = 2,
     }
 
     public sealed class UnlockDefinition
@@ -41,10 +66,10 @@ namespace OrbitalAnte.Ante
         /// <summary>Kept in <see cref="SaveData.unlocks"/>: never rename one.</summary>
         public string id;
         public UnlockKind kind;
-        /// <summary>The perk id ("perk.road_rage") or kit id ("kit.ghost") it opens.</summary>
+        /// <summary>The perk id ("perk.road_rage"), kit id ("kit.ghost") or item id ("PaintRollPattern") it opens.</summary>
         public string target;
         public UnlockGoal goal;
-        /// <summary>What it is called on screen ("Road Rage", "Ghost kit"), taken from the perk or kit itself.</summary>
+        /// <summary>What it is called on screen ("Road Rage", "Ghost kit", "Roll Pattern"), taken from the perk, kit or item itself.</summary>
         public string name;
     }
 
@@ -58,6 +83,8 @@ namespace OrbitalAnte.Ante
         /// <summary>The Jets Down key or button: on the ground a tap crouches and a hold lies prone.</summary>
         public string crouchKey = "Jets Down";
         public string interactKey = "Interact";
+        /// <summary>The Focus key or button (held).</summary>
+        public string focusKey = "Focus";
 
         public static UnlockHints Default => new UnlockHints();
     }
@@ -200,19 +227,37 @@ namespace OrbitalAnte.Ante
         }
     }
 
-    /// <summary>The ten unlocks, easiest goal first. Six perks start locked and four kits wait to be earned.</summary>
+    /// <summary>
+    /// The eighteen unlocks, easiest goal first: six perks start locked, four kits wait to be earned, and eight looks
+    /// (Ralph loop pass 5) are earned by goals instead of envelopes. Envelopes open only after ante 9 (Matthew's rule,
+    /// 16 Nov 2026), while a first-time player is meant to die around ante 3 or 4, so without these a new player's
+    /// collection stayed empty for many runs. The first three looks come from what a first run does anyway (a disarm,
+    /// a leg shot off, a landing away from Earth), each naming one of the game's verbs, and they show from the next run
+    /// (on the lander at the pad, in the hand, on the suit plate).
+    /// </summary>
     public static class UnlockCatalog
     {
         static readonly List<PerkDefinition> Perks = RoguelitePerks.Create();
 
         static readonly UnlockDefinition[] _all =
         {
+            // A first fight does these by itself; each one says what the game wants you to know: shoot the gun or the
+            // arm to disarm, a leg to drop them.
+            Look("SkinButterfingers", UnlockGoal.Disarm),
+            Look("BadgeLegDay", UnlockGoal.LegOff),
+            Look("PaintRollPattern", UnlockGoal.LandAwayFromEarth),
             Kit("kit.gunner", UnlockGoal.ClearAnte2),
             Perk("perk.patient_hunter", UnlockGoal.LowStanceKill),
+            // Teaches the Focus key, which nothing else asks for.
+            Look("VisorTunnelVision", UnlockGoal.FocusKill),
             Perk("perk.road_rage", UnlockGoal.RoverSplat),
+            Look("HelmetHardHat", UnlockGoal.SalvageHome),
+            Look("PackAfterburner", UnlockGoal.AirborneKill),
             Kit("kit.ghost", UnlockGoal.LongShotKill),
+            Look("SuitBountyHunter", UnlockGoal.BonusMission),
             Kit("kit.pilot", UnlockGoal.ThreeWorldsInOneAnte),
             Perk(PerkCatalog.ChainPerkId, UnlockGoal.FourWaysInOneAnte),
+            Look("SkinPistolSharkskin", UnlockGoal.SeaKill),
             // Risk for reward: the Daredevil family's own way to play (design review, 27 Nov 2026).
             Kit("kit.daredevil", UnlockGoal.LowArmourKill),
             Perk("perk.trigger_discipline", UnlockGoal.LadderTop),
@@ -233,7 +278,19 @@ namespace OrbitalAnte.Ante
             return new UnlockDefinition { id = "unlock." + kitId, kind = UnlockKind.Kit, target = kitId, goal = goal, name = k != null ? k.displayName : kitId };
         }
 
+        static UnlockDefinition Look(string itemId, UnlockGoal goal)
+        {
+            ItemSpec item = ItemCatalog.Default(itemId);
+            return new UnlockDefinition { id = "unlock." + itemId, kind = UnlockKind.Look, target = itemId, goal = goal, name = item != null ? item.displayName : itemId };
+        }
+
         public static IReadOnlyList<UnlockDefinition> All => _all;
+
+        /// <summary>True for an unlock that gives a look (the Unlocks page lists them on their own).</summary>
+        public static bool IsLook(UnlockDefinition d) => d != null && d.kind == UnlockKind.Look;
+
+        /// <summary>The item a look unlock gives (the built-in one), or null for anything else.</summary>
+        public static ItemSpec LookItem(UnlockDefinition d) => IsLook(d) ? ItemCatalog.Default(d.target) : null;
 
         public static UnlockDefinition Find(string unlockId)
         {
@@ -278,6 +335,15 @@ namespace OrbitalAnte.Ante
                 case UnlockGoal.LadderTop: return "Climb the gun ladder to its last gun.";
                 case UnlockGoal.MeleeKill: return "Kill an enemy with a melee weapon (some bases have one).";
                 case UnlockGoal.HazardBeatsTheClock: return "Raise the stakes at a break, then meet that ante's target before its clock runs out.";
+                case UnlockGoal.Disarm: return "Disarm an enemy: shoot the gun out of its hands, or the hand or arm that holds it.";
+                case UnlockGoal.LegOff: return "Shoot a leg off an enemy that is standing (a thigh, shin or foot): it drops and has to crawl.";
+                case UnlockGoal.LandAwayFromEarth: return "Land on any world but Earth (the Moon is the nearest).";
+                case UnlockGoal.SalvageHome:
+                    return "Carry a salvage crate back aboard your lander (they lie near bases: press " + hints.interactKey + " at one to pick it up).";
+                case UnlockGoal.FocusKill: return "Kill an enemy while Focus slows the world (hold " + hints.focusKey + "; kills and limbs fill it again).";
+                case UnlockGoal.AirborneKill: return "Kill an enemy while you are off the ground (an AIRBORNE kill: jump, or fire your jets).";
+                case UnlockGoal.BonusMission: return "Finish a bonus mission (pick one at a break, then do it in that ante).";
+                case UnlockGoal.SeaKill: return "Kill a sea creature while you are in the water with it (from the shore or the air it does not count).";
                 default: return goal.ToString();
             }
         }
@@ -298,6 +364,14 @@ namespace OrbitalAnte.Ante
                 case UnlockGoal.LadderTop: return "the gun ladder's last gun";
                 case UnlockGoal.MeleeKill: return "a melee kill";
                 case UnlockGoal.HazardBeatsTheClock: return "beating the clock with the stakes raised";
+                case UnlockGoal.Disarm: return "a disarm";
+                case UnlockGoal.LegOff: return "shooting a leg off";
+                case UnlockGoal.LandAwayFromEarth: return "a landing away from Earth";
+                case UnlockGoal.SalvageHome: return "a salvage crate brought home";
+                case UnlockGoal.FocusKill: return "a kill in Focus";
+                case UnlockGoal.AirborneKill: return "an AIRBORNE kill";
+                case UnlockGoal.BonusMission: return "a bonus mission";
+                case UnlockGoal.SeaKill: return "a kill in the sea";
                 default: return goal.ToString();
             }
         }
@@ -318,21 +392,48 @@ namespace OrbitalAnte.Ante
                 case UnlockGoal.LadderTop: return "LAST GUN ON THE LADDER";
                 case UnlockGoal.MeleeKill: return "MELEE KILL";
                 case UnlockGoal.HazardBeatsTheClock: return "STAKES RAISED, CLOCK BEATEN";
+                case UnlockGoal.Disarm: return "DISARMED";
+                case UnlockGoal.LegOff: return "LEG OFF";
+                case UnlockGoal.LandAwayFromEarth: return "LANDED AWAY FROM EARTH";
+                case UnlockGoal.SalvageHome: return "SALVAGE BROUGHT HOME";
+                case UnlockGoal.FocusKill: return "FOCUS KILL";
+                case UnlockGoal.AirborneKill: return "AIRBORNE KILL";
+                case UnlockGoal.BonusMission: return "BONUS MISSION DONE";
+                case UnlockGoal.SeaKill: return "SEA KILL";
                 default: return goal.ToString().ToUpperInvariant();
             }
         }
 
-        /// <summary>"a Pilot perk" or "a starting kit": what kind of thing an unlock is.</summary>
+        /// <summary>"a Pilot perk", "a starting kit", "a ship paint", "a gun skin": what kind of thing an unlock is.</summary>
         public static string KindWords(UnlockDefinition d)
         {
             if (d == null) return string.Empty;
             if (d.kind == UnlockKind.Kit) return "a starting kit";
+            if (d.kind == UnlockKind.Look) return LookKindWords(LookItem(d));
             PerkDefinition p = StartingKits.FindPerk(d.target, Perks);
             return p == null || p.family == PerkFamily.None ? "a wild-card perk" : "a " + p.family + " perk";
         }
 
-        /// <summary>What it gives once earned: a perk's effect in words, or a kit's two perks and its price.</summary>
-        public static string GiftWords(UnlockDefinition d, AnteBalance balance = null)
+        static string LookKindWords(ItemSpec item)
+        {
+            if (item == null) return "a look";
+            switch (item.category)
+            {
+                case ItemCategory.ShipPaint: return "a ship paint";
+                case ItemCategory.WeaponSkin:
+                    return string.IsNullOrEmpty(item.weaponId) ? "a gun skin" : "a " + item.weaponId.ToLowerInvariant() + " skin";
+                case ItemCategory.Cosmetic:
+                    string slot = ItemLook.SlotName(item.slot);
+                    return slot.Length > 0 ? "a " + slot : "a look";
+                default: return "a look";
+            }
+        }
+
+        /// <summary>
+        /// What it gives once earned: a perk's effect in words, a kit's two perks and its price, or what a look does and
+        /// whether it is in use (<paramref name="lookInUse"/>, from <see cref="UnlockBook.LookInUse"/>).
+        /// </summary>
+        public static string GiftWords(UnlockDefinition d, AnteBalance balance = null, bool lookInUse = true)
         {
             if (d == null) return string.Empty;
             if (d.kind == UnlockKind.Kit)
@@ -340,18 +441,33 @@ namespace OrbitalAnte.Ante
                 StartingKit kit = StartingKits.Find(d.target);
                 return StartingKits.Summary(kit, Perks) + " " + StartingKits.Cost(kit);
             }
+            if (d.kind == UnlockKind.Look)
+            {
+                ItemSpec item = LookItem(d);
+                if (item == null) return string.Empty;
+                return Locker.DoesWords(item) + (lookInUse ? " In use." : " In your Collection: put it to use there.");
+            }
             PerkDefinition p = StartingKits.FindPerk(d.target, Perks);
             return p == null ? string.Empty : Capital(p.Describe(balance ?? new AnteBalance())) + ".";
         }
 
         /// <summary>
         /// Where it now turns up: "in your drafts from ante 3", "in your next run's drafts" (when this run has no draft
-        /// left, <paramref name="firstDraftAnte"/> 0 or less), or "choose it at New run".
+        /// left, <paramref name="firstDraftAnte"/> 0 or less), "choose it at New run", or for a look "on your lander from
+        /// your next run" (it went into use by itself, <paramref name="lookInUse"/>) or "in your Collection" (its place was
+        /// taken, so it waits there to be swapped in).
         /// </summary>
-        public static string WhereWords(UnlockDefinition d, int firstDraftAnte)
+        public static string WhereWords(UnlockDefinition d, int firstDraftAnte, bool lookInUse = true)
         {
             if (d == null) return string.Empty;
             if (d.kind == UnlockKind.Kit) return "choose it at New run";
+            if (d.kind == UnlockKind.Look)
+            {
+                ItemSpec item = LookItem(d);
+                string where = item != null ? Locker.WhereWords(item) : string.Empty;
+                // A run's lander, suit and guns are built as it starts, so a look earned in one shows from the next.
+                return lookInUse && where.Length > 0 ? where + " from your next run" : "in your Collection";
+            }
             return firstDraftAnte <= 0 ? "in your next run's drafts"
                 : "in your drafts from ante " + firstDraftAnte.ToString(CultureInfo.InvariantCulture);
         }
@@ -367,19 +483,19 @@ namespace OrbitalAnte.Ante
 
         /// <summary>
         /// The note under the banner, which says why and where: "CROUCHED OR PRONE KILL · A GHOST PERK, IN YOUR DRAFTS
-        /// FROM ANTE 3".
+        /// FROM ANTE 3", "DISARMED · A GUN SKIN, ON EVERY GUN FROM YOUR NEXT RUN".
         /// </summary>
-        public static string EarnedNote(UnlockDefinition d, int firstDraftAnte, UnlockHints hints = null)
+        public static string EarnedNote(UnlockDefinition d, int firstDraftAnte, UnlockHints hints = null, bool lookInUse = true)
         {
             if (d == null) return string.Empty;
-            return (FeatWords(d.goal, hints) + " · " + KindWords(d) + ", " + WhereWords(d, firstDraftAnte)).ToUpperInvariant();
+            return (FeatWords(d.goal, hints) + " · " + KindWords(d) + ", " + WhereWords(d, firstDraftAnte, lookInUse)).ToUpperInvariant();
         }
 
         /// <summary>The line on the break, victory or recap page: "UNLOCKED: Patient Hunter, for a crouched or prone kill. A Ghost perk, in your drafts from ante 3."</summary>
-        public static string BreakLine(UnlockDefinition d, int firstDraftAnte, UnlockHints hints = null)
+        public static string BreakLine(UnlockDefinition d, int firstDraftAnte, UnlockHints hints = null, bool lookInUse = true)
         {
             if (d == null) return string.Empty;
-            return "UNLOCKED: " + d.name + ", for " + ShortGoal(d.goal, hints) + ". " + Capital(KindWords(d)) + ", " + WhereWords(d, firstDraftAnte) + ".";
+            return "UNLOCKED: " + d.name + ", for " + ShortGoal(d.goal, hints) + ". " + Capital(KindWords(d)) + ", " + WhereWords(d, firstDraftAnte, lookInUse) + ".";
         }
 
         static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
@@ -458,6 +574,8 @@ namespace OrbitalAnte.Ante
     {
         public const int WorldsInOneAnte = 3;
         public const int WaysInOneAnte = 4;
+        /// <summary>Where every run starts (the launch pad): landing anywhere else is <see cref="UnlockGoal.LandAwayFromEarth"/>.</summary>
+        public const string HomeWorld = Launch.LaunchSite.BodyId;
 
         readonly HashSet<string> _worlds = new HashSet<string>();
         /// <summary>One bit per <see cref="ScoreCategory"/> scored this ante.</summary>
@@ -492,19 +610,41 @@ namespace OrbitalAnte.Ante
         public void Landed(string worldId)
         {
             if (string.IsNullOrEmpty(worldId)) return;
+            if (worldId != HomeWorld) Met(UnlockGoal.LandAwayFromEarth);
             if (_worlds.Add(worldId) && _worlds.Count >= WorldsInOneAnte) Met(UnlockGoal.ThreeWorldsInOneAnte);
         }
 
-        /// <summary>The player killed an enemy in a running ante.</summary>
-        public void Kill(bool melee, bool rover, bool longShot, bool lowStance, bool lowArmour = false)
+        /// <summary>
+        /// The player killed an enemy or a creature in a running ante. <paramref name="airborne"/>: the AIRBORNE feat
+        /// (off the ground, not in the sea). <paramref name="inFocus"/>: Focus had the world at least half slowed.
+        /// <paramref name="seaCreature"/>: a swimmer, killed from in the water with it (a kill from out of its reach pays
+        /// nothing and is never reported).
+        /// </summary>
+        public void Kill(bool melee, bool rover, bool longShot, bool lowStance, bool lowArmour = false,
+            bool airborne = false, bool inFocus = false, bool seaCreature = false)
         {
             if (melee) Met(UnlockGoal.MeleeKill);
             if (rover) Met(UnlockGoal.RoverSplat);
             if (longShot) Met(UnlockGoal.LongShotKill);
-            // From the rover's seat nobody is crouching.
+            // From the rover's seat nobody is crouching, and its jumps are the rover's, not the player's.
             if (lowStance && !rover) Met(UnlockGoal.LowStanceKill);
             if (lowArmour) Met(UnlockGoal.LowArmourKill);
+            if (airborne && !rover) Met(UnlockGoal.AirborneKill);
+            if (inFocus) Met(UnlockGoal.FocusKill);
+            if (seaCreature) Met(UnlockGoal.SeaKill);
         }
+
+        /// <summary>The player knocked a gun out of a living enemy's hands (shot it out, or shot off the hand or arm holding it).</summary>
+        public void Disarmed() => Met(UnlockGoal.Disarm);
+
+        /// <summary>The player's hit took a leg off a living enemy that was standing on two.</summary>
+        public void LegOff() => Met(UnlockGoal.LegOff);
+
+        /// <summary>A salvage crate came aboard the lander.</summary>
+        public void SalvageHome() => Met(UnlockGoal.SalvageHome);
+
+        /// <summary>The ante's bonus mission was finished (and paid).</summary>
+        public void BonusMissionDone() => Met(UnlockGoal.BonusMission);
 
         /// <summary>
         /// An ante was cleared: banked by choice, or its clock ran out with the target met, or the target was met in
@@ -558,7 +698,9 @@ namespace OrbitalAnte.Ante
 
         /// <summary>
         /// Records what a goal unlocks. Returns it when it is new, or null when it was earned before. A perk is also
-        /// owed a place in a draft (<see cref="PerkToShow"/>), so the player meets it soon after earning it.
+        /// owed a place in a draft (<see cref="PerkToShow"/>), so the player meets it soon after earning it. A look goes
+        /// into the collection as a line of its own (no envelope number) and into use where its place is empty
+        /// (<see cref="Locker.AutoUse"/>, the same rule as a won prize), so it shows from the next run with nothing to press.
         /// </summary>
         public static UnlockDefinition Grant(SaveData save, UnlockGoal goal)
         {
@@ -571,7 +713,49 @@ namespace OrbitalAnte.Ante
                 if (save.perksToShow == null) save.perksToShow = new List<string>();
                 if (!save.perksToShow.Contains(d.target)) save.perksToShow.Add(d.target);
             }
+            if (d.kind == UnlockKind.Look) KeepLook(save, d);
             return d;
+        }
+
+        /// <summary>Puts a look into the collection (once) and into use if its place is empty. True if it went into use.</summary>
+        static bool KeepLook(SaveData save, UnlockDefinition d)
+        {
+            ItemSpec item = UnlockCatalog.LookItem(d);
+            if (item == null) return false;
+            if (save.items == null) save.items = new List<OwnedItem>();
+            var owned = new ItemInventory(save.items);
+            if (!owned.Has(item.id, "")) owned.Add(new Prize { itemId = item.id, effectId = "", rarity = item.rarity }, 0, false);
+            return Locker.AutoUse(save, item, "");
+        }
+
+        /// <summary>
+        /// Mends a save whose earned looks have gone missing from the collection (a test clear, an item dropped and
+        /// then restored): every earned look is owned again. Never puts one into use. Returns how many came back.
+        /// </summary>
+        public static int KeepEarnedLooks(SaveData save)
+        {
+            if (save == null || save.unlocks == null) return 0;
+            int back = 0;
+            IReadOnlyList<UnlockDefinition> all = UnlockCatalog.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (!UnlockCatalog.IsLook(all[i]) || !Has(save, all[i].id)) continue;
+                ItemSpec item = UnlockCatalog.LookItem(all[i]);
+                if (item == null) continue;
+                if (save.items == null) save.items = new List<OwnedItem>();
+                var owned = new ItemInventory(save.items);
+                if (owned.Has(item.id, "")) continue;
+                owned.Add(new Prize { itemId = item.id, effectId = "", rarity = item.rarity }, 0, false);
+                back++;
+            }
+            return back;
+        }
+
+        /// <summary>Whether an earned look is in use now (false for anything that is not a look).</summary>
+        public static bool LookInUse(SaveData save, UnlockDefinition d)
+        {
+            ItemSpec item = UnlockCatalog.LookItem(d);
+            return save != null && item != null && Locker.InUse(save, item, "");
         }
 
         /// <summary>
@@ -653,6 +837,15 @@ namespace OrbitalAnte.Ante
             return next;
         }
 
+        /// <summary>The first look not earned yet, easiest first, or null when every look is earned.</summary>
+        public static UnlockDefinition NextLook(SaveData save)
+        {
+            IReadOnlyList<UnlockDefinition> all = UnlockCatalog.All;
+            for (int i = 0; i < all.Count; i++)
+                if (UnlockCatalog.IsLook(all[i]) && !Has(save, all[i].id)) return all[i];
+            return null;
+        }
+
         /// <summary>Earned and not yet looked at on the Unlocks page.</summary>
         public static bool IsNew(SaveData save, string unlockId)
         {
@@ -667,6 +860,16 @@ namespace OrbitalAnte.Ante
             return n;
         }
 
+        /// <summary>New ones on one list of the Unlocks page: the looks, or the perks and kits.</summary>
+        public static int NewCount(SaveData save, bool looks)
+        {
+            if (save == null || save.unlocks == null) return 0;
+            int n = 0;
+            for (int i = 0; i < save.unlocks.Count; i++)
+                if (IsNew(save, save.unlocks[i]) && UnlockCatalog.IsLook(UnlockCatalog.Find(save.unlocks[i])) == looks) n++;
+            return n;
+        }
+
         /// <summary>The Unlocks page has been shown: nothing on it is new any more.</summary>
         public static void MarkAllSeen(SaveData save)
         {
@@ -674,6 +877,18 @@ namespace OrbitalAnte.Ante
             if (save.unlocksSeen == null) save.unlocksSeen = new List<string>();
             for (int i = 0; i < save.unlocks.Count; i++)
                 if (!save.unlocksSeen.Contains(save.unlocks[i])) save.unlocksSeen.Add(save.unlocks[i]);
+        }
+
+        /// <summary>One list of the Unlocks page has been shown (the looks, or the perks and kits): its new ones are seen.</summary>
+        public static void MarkSeen(SaveData save, bool looks)
+        {
+            if (save == null || save.unlocks == null) return;
+            if (save.unlocksSeen == null) save.unlocksSeen = new List<string>();
+            for (int i = 0; i < save.unlocks.Count; i++)
+            {
+                string id = save.unlocks[i];
+                if (UnlockCatalog.IsLook(UnlockCatalog.Find(id)) == looks && !save.unlocksSeen.Contains(id)) save.unlocksSeen.Add(id);
+            }
         }
     }
 }

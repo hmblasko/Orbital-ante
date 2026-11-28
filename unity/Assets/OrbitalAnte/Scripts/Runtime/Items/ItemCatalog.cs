@@ -23,6 +23,24 @@ namespace OrbitalAnte.Items
 
         static Dictionary<string, ItemSpec> _byId;
 
+        /// <summary>
+        /// The looks earned by goals (Ralph loop pass 5; each is the target of one unlock in Ante/Unlocks.cs). They are
+        /// never in an envelope: the roll passes over them (<see cref="PrizeRoll"/>), so the odds printed on the
+        /// envelope and every pool behind them stay as they were. Kept by id, like the looks in <see cref="PrizeLooks"/>,
+        /// because an item's asset on a machine is made once and would never learn a new field.
+        /// </summary>
+        static readonly HashSet<string> EarnedIds = new HashSet<string>
+        {
+            "SkinButterfingers", "BadgeLegDay", "PaintRollPattern", "VisorTunnelVision",
+            "HelmetHardHat", "PackAfterburner", "SuitBountyHunter", "SkinPistolSharkskin",
+        };
+
+        /// <summary>True for a look earned by a goal, never found in an envelope.</summary>
+        public static bool IsEarned(string id) => !string.IsNullOrEmpty(id) && EarnedIds.Contains(id);
+
+        /// <summary>Every earned look's id, for the rule tests.</summary>
+        public static IEnumerable<string> EarnedItemIds => EarnedIds;
+
         /// <summary>The built-in item with this id, or null. A shared copy: read it, never change it.</summary>
         public static ItemSpec Default(string id)
         {
@@ -97,6 +115,17 @@ namespace OrbitalAnte.Items
                 Art("ArtGreatWave", "The Great Wave off Kanagawa", ItemRarity.Rare, "Katsushika Hokusai", "c. 1831", "The sea, rising, with a mountain behind.", 0.18f, 0.30f, 0.50f, 0.92f, 0.90f, 0.82f),
                 Art("ArtWanderer", "Wanderer above the Sea of Fog", ItemRarity.Exotic, "Caspar David Friedrich", "c. 1818", "Someone else who likes a view.", 0.45f, 0.48f, 0.55f, 0.85f, 0.82f, 0.75f),
                 Art("ArtStarryNight", "The Starry Night", ItemRarity.Legendary, "Vincent van Gogh", "1889", "The sky as it ought to look.", 0.12f, 0.22f, 0.50f, 0.98f, 0.88f, 0.35f),
+
+                // ---- Earned looks (Ralph loop pass 5): one goal each, never in an envelope (IsEarned) ----
+                // Shown as "Earned", not by rarity; the rarity here only sorts them in the collection.
+                Skin("SkinButterfingers", "Butterfingers", ItemRarity.Common, "", "Butter yellow and cream, for whoever made them drop it.", 0.93f, 0.78f, 0.36f, 0.97f, 0.94f, 0.85f),
+                Cosmetic("BadgeLegDay", "Leg Day", ItemRarity.Common, CosmeticSlot.Badge, "Never skip it. They did.", 0.16f, 0.36f, 0.24f, 0.95f, 0.90f, 0.78f),
+                Paint("PaintRollPattern", "Roll Pattern", ItemRarity.Common, "Black on white, like the old test rockets: anyone watching can see it turn.", 0.90f, 0.89f, 0.86f, 0.10f, 0.10f, 0.11f),
+                Cosmetic("VisorTunnelVision", "Tunnel Vision", ItemRarity.Common, CosmeticSlot.Visor, "A cold blue tint, for when the world slows down.", 0.62f, 0.78f, 1.00f, 0.85f, 0.92f, 1.00f),
+                Cosmetic("HelmetHardHat", "Hard Hat", ItemRarity.Common, CosmeticSlot.Helmet, "Salvage crew. Safety first, salvage a close second.", 0.95f, 0.74f, 0.16f, 0.20f, 0.20f, 0.20f),
+                Cosmetic("PackAfterburner", "Afterburner", ItemRarity.Common, CosmeticSlot.Pack, "Violet flames. Purely for show, mostly.", 0.68f, 0.58f, 1.00f, 0.92f, 0.90f, 1.00f),
+                Cosmetic("SuitBountyHunter", "Bounty Hunter", ItemRarity.Common, CosmeticSlot.Suit, "Worn leather and brass. Takes the job, finishes the job.", 0.45f, 0.24f, 0.16f, 0.86f, 0.66f, 0.32f),
+                Skin("SkinPistolSharkskin", "Sharkskin", ItemRarity.Common, "Pistol", "Grey-blue with a fine sheen, for the one that came out of the water.", 0.30f, 0.38f, 0.46f, 0.75f, 0.85f, 0.92f),
             };
         }
 

@@ -230,7 +230,16 @@ namespace OrbitalAnte.Items
             }
         }
 
-        /// <summary>The line under the name: "Rare cosmetic (helmet)", "Common weapon skin (any gun)".</summary>
+        /// <summary>
+        /// The colour of a look earned by a goal, in place of a rarity's: the green of the unlock banner and of a target
+        /// met (HullKit.Good), so the collection shows at a glance which looks came from goals.
+        /// </summary>
+        public static readonly float[] EarnedColour = { 0.624f, 0.878f, 0.478f };
+
+        /// <summary>What the kind line says in place of a rarity for a look earned by a goal.</summary>
+        public const string EarnedName = "Earned";
+
+        /// <summary>The line under the name: "Rare cosmetic (helmet)", "Common weapon skin (any gun)", "Earned ship paint".</summary>
         public static string KindLine(ItemSpec item, ItemRarity shownRarity, string weaponName = null)
         {
             string kind = CategoryName(item.category).ToLowerInvariant();
@@ -239,7 +248,8 @@ namespace OrbitalAnte.Items
             else if (item.category == ItemCategory.WeaponSkin) detail = string.IsNullOrEmpty(item.weaponId) ? "any gun" : (weaponName ?? item.weaponId);
             else if (item.category == ItemCategory.Artwork && !string.IsNullOrEmpty(item.artist))
                 detail = item.artist + (string.IsNullOrEmpty(item.year) ? "" : ", " + item.year);
-            return RarityName(shownRarity) + " " + kind + (detail.Length > 0 ? " (" + detail + ")" : "");
+            string tier = shownRarity != ItemRarity.Celestial && ItemCatalog.IsEarned(item.id) ? EarnedName : RarityName(shownRarity);
+            return tier + " " + kind + (detail.Length > 0 ? " (" + detail + ")" : "");
         }
 
         /// <summary>What an upgrade does, as two short lines ("+15% jet fuel", "-10% max armour").</summary>
@@ -366,7 +376,7 @@ namespace OrbitalAnte.Items
             var fresh = new List<ItemSpec>();
             for (int i = 0; i < catalog.Count; i++)
             {
-                if (catalog[i] == null || catalog[i].rarity != tier || catalog[i].rarity == ItemRarity.Celestial) continue;
+                if (!InEnvelopes(catalog[i]) || catalog[i].rarity != tier || catalog[i].rarity == ItemRarity.Celestial) continue;
                 pool.Add(catalog[i]);
                 if (owned == null || !owned.Has(catalog[i].id, "")) fresh.Add(catalog[i]);
             }
@@ -385,7 +395,7 @@ namespace OrbitalAnte.Items
             if (effects == null || effects.Count == 0) return default;
             var bases = new List<ItemSpec>();
             for (int i = 0; i < catalog.Count; i++)
-                if (catalog[i] != null && catalog[i].CanCarryEffect) bases.Add(catalog[i]);
+                if (InEnvelopes(catalog[i]) && catalog[i].CanCarryEffect) bases.Add(catalog[i]);
             if (bases.Count == 0) return default;
 
             // Every (item, effect) pair is one ticket; pairs not owned yet are preferred.
@@ -405,6 +415,12 @@ namespace OrbitalAnte.Items
             };
         }
 
+        /// <summary>
+        /// True for an item an envelope can hold: anything but a look earned by a goal (<see cref="ItemCatalog.IsEarned"/>),
+        /// so the roll and the odds printed on the envelope are the same with or without the earned looks.
+        /// </summary>
+        public static bool InEnvelopes(ItemSpec item) => item != null && !ItemCatalog.IsEarned(item.id);
+
         /// <summary>The asked rarity if any item has it, else the nearest below, else the nearest above.</summary>
         public static ItemRarity NearestStocked(IReadOnlyList<ItemSpec> catalog, ItemRarity wanted)
         {
@@ -419,7 +435,7 @@ namespace OrbitalAnte.Items
         static bool Stocked(IReadOnlyList<ItemSpec> catalog, ItemRarity rarity)
         {
             for (int i = 0; i < catalog.Count; i++)
-                if (catalog[i] != null && catalog[i].rarity == rarity) return true;
+                if (InEnvelopes(catalog[i]) && catalog[i].rarity == rarity) return true;
             return false;
         }
     }

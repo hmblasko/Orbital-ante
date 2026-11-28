@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using OrbitalAnte.Ante;
 using OrbitalAnte.Save;
 
 namespace OrbitalAnte.Items
@@ -19,6 +20,26 @@ namespace OrbitalAnte.Items
         {
             if (line != null && !string.IsNullOrEmpty(line.effectId)) return ItemRarity.Celestial;
             return item != null ? item.rarity : ItemRarity.Common;
+        }
+
+        /// <summary>The colour of a row's stripe: its rarity's, or the earned green for a look earned by a goal.</summary>
+        public static float[] StripeColour(OwnedItem line, ItemSpec item)
+        {
+            ItemRarity rarity = RarityOf(line, item);
+            return rarity != ItemRarity.Celestial && item != null && ItemCatalog.IsEarned(item.id) ? ItemLook.EarnedColour : ItemLook.RarityColour(rarity);
+        }
+
+        /// <summary>
+        /// What the page says with nothing in the collection: the next look a goal gives, then the envelope. A new player
+        /// reads this long before an envelope can open (only after ante 9), so the near thing comes first.
+        /// </summary>
+        public static string EmptyWords(SaveData save, UnlockHints hints = null)
+        {
+            const string Envelope = "Every run also starts with a sealed envelope: clear Ante 9 and it opens.";
+            UnlockDefinition next = UnlockBook.NextLook(save);
+            if (next == null) return "Nothing yet. " + Envelope;
+            return "Nothing yet. Looks are earned by goals in a run. The next: " + UnlockCatalog.NextWords(next, hints)
+                   + " (Unlocks on the title screen says how).\n" + Envelope;
         }
 
         /// <summary>The group a line sorts into: the Locker's places in order, then anything with no place.</summary>
@@ -114,6 +135,8 @@ namespace OrbitalAnte.Items
             if (Locker.Usable(item)) s.Append(Locker.DoesWords(item, gunName)).Append('\n').Append(Locker.StateWords(save, item, line != null ? line.effectId : "", find));
             else s.Append(item.blurb).Append('\n').Append("Kept for the cabin wall: no frame to hang it in yet.");
             var extra = new List<string>();
+            UnlockDefinition goal = ItemCatalog.IsEarned(item.id) ? UnlockCatalog.ForTarget(item.id) : null;
+            if (goal != null) extra.Add("Earned for " + UnlockCatalog.ShortGoal(goal.goal));
             if (!string.IsNullOrEmpty(effectName)) extra.Add("Effect: " + effectName + " (" + Locker.EffectNotShown + ")");
             if (line != null && line.count > 1) extra.Add("You have " + line.count);
             if (line != null && line.fromTest) extra.Add("Test item");

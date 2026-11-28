@@ -135,8 +135,11 @@ namespace OrbitalAnte.UI
         {
             _canvas.gameObject.SetActive(visible);
             if (!visible) return;
-            // Anything in use that has gone from the collection (or from the game) comes out of use first.
-            if (Locker.Tidy(SaveSystem.Data, LockerLook.Find) > 0) SaveSystem.Save();
+            // An earned look missing from the collection comes back (it was earned, so it is owned); then anything in use
+            // that has gone from the collection (or from the game) comes out of use.
+            int mended = Ante.UnlockBook.KeepEarnedLooks(SaveSystem.Data);
+            int tidied = Locker.Tidy(SaveSystem.Data, LockerLook.Find);
+            if (mended + tidied > 0) SaveSystem.Save();
             _page = 0;
             Refresh();
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(FirstChoice());
@@ -222,7 +225,7 @@ namespace OrbitalAnte.UI
                 bool kept = item != null && !Locker.Usable(item);
                 _rowState[i].text = kept ? "KEPT" : item != null && Locker.InUse(data, item, line.effectId) ? "IN USE" : "";
                 _rowInk[i].SetColour(kept ? HullKit.Dim : HullKit.Good);
-                _rowRarity[i].color = ToColour(ItemLook.RarityColour(CollectionRows.RarityOf(line, item)));
+                _rowRarity[i].color = ToColour(CollectionRows.StripeColour(line, item));
             }
             _rowsSpace.minHeight = _lines.Count > 0 ? CollectionRows.PerPage * RowHeight + (CollectionRows.PerPage - 1) * RowGap : 0f;
             int pages = CollectionRows.Pages(_lines.Count);
@@ -270,9 +273,7 @@ namespace OrbitalAnte.UI
                 ItemSpec item = Find(line.itemId);
                 return CollectionRows.Details(SaveSystem.Data, item, line, EffectName(line), Find, GunName(item));
             }
-            if (_lines.Count == 0)
-                return "Nothing yet. Every run starts with a sealed envelope: clear Ante 9 and it opens.\n" +
-                       "Prizes go to work from here: upgrades for every run, paint for your lander, skins for your guns and pieces for your suit.";
+            if (_lines.Count == 0) return CollectionRows.EmptyWords(SaveSystem.Data);
             return "Press a prize to put it to use, or to take it off. One upgrade at a time, and every upgrade has a cost.\n" +
                    "What you change here shows from your next run.";
         }

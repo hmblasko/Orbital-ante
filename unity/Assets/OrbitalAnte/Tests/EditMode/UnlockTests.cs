@@ -93,11 +93,19 @@ namespace OrbitalAnte.Tests
                     Assert.IsNotNull(p, d.target + " is not in the perk list");
                     Assert.AreEqual(p.displayName, d.name, d.id);
                 }
-                else
+                else if (d.kind == UnlockKind.Kit)
                 {
                     StartingKit k = StartingKits.Find(d.target);
                     Assert.IsNotNull(k, d.target + " is not a kit");
                     Assert.AreEqual(k.displayName, d.name, d.id);
+                }
+                else
+                {
+                    Assert.AreEqual(UnlockKind.Look, d.kind, d.id);
+                    Items.ItemSpec item = Items.ItemCatalog.Default(d.target);
+                    Assert.IsNotNull(item, d.target + " is not an item");
+                    Assert.AreEqual(item.displayName, d.name, d.id);
+                    Assert.IsTrue(Items.ItemCatalog.IsEarned(d.target), d.target + " would also be in envelopes");
                 }
             }
         }
@@ -268,19 +276,28 @@ namespace OrbitalAnte.Tests
         public void ThreeWorlds_MustBeDifferent_AndInOneAnte()
         {
             var t = new UnlockTracker();
-            t.Landed("earth");
-            t.Landed("earth");
-            t.Landed("moon");
-            Assert.IsEmpty(Met(t));
+            t.Landed("Earth");
+            t.Landed("Earth");
+            Assert.IsEmpty(Met(t), "Earth is home: landing back there meets nothing");
+            t.Landed("Moon");
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LandAwayFromEarth }, Met(t), "the first landing anywhere else is a goal of its own");
             t.AnteBegan();
-            t.Landed("mars");
+            t.Landed("Mars");
             Assert.IsEmpty(Met(t));
             t.Landed(null);
             t.Landed("");
-            t.Landed("earth");
+            t.Landed("Earth");
             Assert.IsEmpty(Met(t));
-            t.Landed("moon");
+            t.Landed("Moon");
             CollectionAssert.AreEqual(new[] { UnlockGoal.ThreeWorldsInOneAnte }, Met(t));
+        }
+
+        [Test]
+        public void Home_IsTheWorldEveryRunStartsOn_ByTheIdTheGameKnowsItBy()
+        {
+            Assert.IsNotNull(Space.SolarSystemDefaults.Bodies().Find(b => b.id == UnlockTracker.HomeWorld), "a body with that id");
+            Assert.AreEqual("Earth", UnlockTracker.HomeWorld, "the goal's words say Earth");
+            StringAssert.Contains(UnlockTracker.HomeWorld, UnlockCatalog.GoalWords(UnlockGoal.LandAwayFromEarth));
         }
 
         [Test]
@@ -289,6 +306,193 @@ namespace OrbitalAnte.Tests
             var t = new UnlockTracker();
             t.LadderTop();
             CollectionAssert.AreEqual(new[] { UnlockGoal.LadderTop }, Met(t));
+        }
+
+        // ---- the looks (Ralph loop pass 5) ----
+
+        [Test]
+        public void ANewPlayersFirstThreeGoals_AreLooks_InThreeDifferentPlaces()
+        {
+            IReadOnlyList<UnlockDefinition> all = UnlockCatalog.All;
+            CollectionAssert.AreEqual(new[] { UnlockGoal.Disarm, UnlockGoal.LegOff, UnlockGoal.LandAwayFromEarth },
+                new[] { all[0].goal, all[1].goal, all[2].goal });
+            for (int i = 0; i < 3; i++) Assert.IsTrue(UnlockCatalog.IsLook(all[i]), all[i].id);
+            // Each one looks different and goes somewhere a new player sees: the guns, the suit plate, the lander.
+            CollectionAssert.AreEqual(new[] { Items.LockerSlot.Skin, Items.LockerSlot.Badge, Items.LockerSlot.Paint },
+                new[] { Items.Locker.SlotOf(UnlockCatalog.LookItem(all[0])), Items.Locker.SlotOf(UnlockCatalog.LookItem(all[1])),
+                        Items.Locker.SlotOf(UnlockCatalog.LookItem(all[2])) });
+        }
+
+        [Test]
+        public void EveryLook_IsACosmeticSkinOrPaint_InAPlaceOfItsOwn_AndEarnedOnlyThisWay()
+        {
+            var places = new HashSet<string>();
+            int looks = 0;
+            foreach (UnlockDefinition d in UnlockCatalog.All)
+            {
+                if (!UnlockCatalog.IsLook(d)) continue;
+                looks++;
+                Items.ItemSpec item = UnlockCatalog.LookItem(d);
+                Assert.IsNotNull(item, d.id);
+                Assert.IsTrue(Items.Locker.Usable(item), d.id + " has a place to go to work");
+                Assert.AreNotEqual(Items.ItemCategory.Upgrade, item.category, d.id + ": an upgrade has a cost, so it is never a goal's gift");
+                Assert.AreNotEqual(Items.ItemCategory.Artwork, item.category, d.id + ": paintings wait for frames");
+                // Two looks for one place would leave the second waiting in the collection the first time.
+                string place = Items.Locker.SlotOf(item) + ":" + item.weaponId;
+                Assert.IsTrue(places.Add(place), d.id + " shares its place with another look");
+            }
+            Assert.AreEqual(8, looks);
+            int earned = 0;
+            foreach (string id in Items.ItemCatalog.EarnedItemIds)
+            {
+                earned++;
+                UnlockDefinition d = UnlockCatalog.ForTarget(id);
+                Assert.IsNotNull(d, id + " is earned by nothing");
+                Assert.AreEqual(UnlockKind.Look, d.kind, id);
+            }
+            Assert.AreEqual(looks, earned, "every earned look is given by one goal, and every look given is earned");
+        }
+
+        [Test]
+        public void EachNewGoal_IsMetByItsOwnFeat_AndNothingElse()
+        {
+            var t = new UnlockTracker();
+            t.Disarmed();
+            CollectionAssert.AreEqual(new[] { UnlockGoal.Disarm }, Met(t));
+            t.LegOff();
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LegOff }, Met(t));
+            t.SalvageHome();
+            CollectionAssert.AreEqual(new[] { UnlockGoal.SalvageHome }, Met(t));
+            t.BonusMissionDone();
+            CollectionAssert.AreEqual(new[] { UnlockGoal.BonusMission }, Met(t));
+            t.Kill(false, false, false, false, airborne: true);
+            CollectionAssert.AreEqual(new[] { UnlockGoal.AirborneKill }, Met(t));
+            t.Kill(false, false, false, false, inFocus: true);
+            CollectionAssert.AreEqual(new[] { UnlockGoal.FocusKill }, Met(t));
+            t.Kill(false, false, false, false, seaCreature: true);
+            CollectionAssert.AreEqual(new[] { UnlockGoal.SeaKill }, Met(t));
+            t.Disarmed();
+            t.Kill(false, false, false, false, airborne: true, inFocus: true, seaCreature: true);
+            Assert.IsEmpty(Met(t), "each once a run");
+        }
+
+        [Test]
+        public void ARoverJump_IsNotAnAirborneKill()
+        {
+            var t = new UnlockTracker();
+            t.Kill(false, true, false, false, airborne: true);
+            CollectionAssert.AreEqual(new[] { UnlockGoal.RoverSplat }, Met(t), "the jump is the rover's");
+        }
+
+        [Test]
+        public void GrantingALook_PutsItInTheCollection_AndToWorkWhereItsPlaceIsEmpty()
+        {
+            var save = new SaveData { items = null };
+            UnlockDefinition d = UnlockBook.Grant(save, UnlockGoal.Disarm);
+            Assert.IsNotNull(d);
+            Assert.AreEqual("unlock.SkinButterfingers", d.id);
+            var owned = new Items.ItemInventory(save.items);
+            Items.OwnedItem line = owned.Find("SkinButterfingers", "");
+            Assert.IsNotNull(line, "in the collection");
+            Assert.AreEqual(1, line.count);
+            Assert.AreEqual(0, line.firstSerial, "it came from no envelope");
+            Assert.IsFalse(line.fromTest, "a real line: clearing test items never takes it");
+            Assert.IsTrue(UnlockBook.LookInUse(save, d), "on every gun from the next run, nothing to press");
+            Assert.IsNull(UnlockBook.Grant(save, UnlockGoal.Disarm), "earned once");
+            Assert.AreEqual(1, owned.Find("SkinButterfingers", "").count);
+
+            // A pistol skin has a place of its own beside the skin for every gun.
+            UnlockBook.Grant(save, UnlockGoal.SeaKill);
+            Assert.IsTrue(UnlockBook.LookInUse(save, UnlockCatalog.ForGoal(UnlockGoal.SeaKill)));
+            Assert.AreEqual("SkinPistolSharkskin", Items.Locker.SkinFor(save, "Pistol").itemId);
+            Assert.AreEqual("SkinButterfingers", Items.Locker.SkinFor(save, "Rifle").itemId);
+            Assert.IsFalse(UnlockBook.LookInUse(save, UnlockCatalog.ForGoal(UnlockGoal.ClearAnte2)), "a kit is no look");
+        }
+
+        [Test]
+        public void ALookWhosePlaceIsTaken_WaitsInTheCollection_AndSaysSo()
+        {
+            var save = new SaveData();
+            Items.ItemSpec orange = Items.ItemCatalog.Default("PaintSafetyOrange");
+            new Items.ItemInventory(save.items).Add(new Items.Prize { itemId = orange.id, effectId = "", rarity = orange.rarity }, 4, false);
+            Assert.IsTrue(Items.Locker.Use(save, orange, ""));
+            UnlockDefinition d = UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);
+            Assert.IsTrue(new Items.ItemInventory(save.items).Has("PaintRollPattern", ""));
+            Assert.IsFalse(UnlockBook.LookInUse(save, d), "never over something the player put to use");
+            Assert.AreEqual("PaintSafetyOrange", Items.Locker.Worn(save, Items.LockerSlot.Paint).itemId);
+            Assert.AreEqual("LANDED AWAY FROM EARTH · A SHIP PAINT, IN YOUR COLLECTION", UnlockCatalog.EarnedNote(d, 3, null, false));
+            StringAssert.EndsWith("In your Collection: put it to use there.", UnlockCatalog.GiftWords(d, null, false));
+        }
+
+        [Test]
+        public void ALooksWords_SayWhatItIs_AndWhereItShows()
+        {
+            UnlockDefinition skin = UnlockCatalog.ForGoal(UnlockGoal.Disarm);
+            Assert.AreEqual("UNLOCKED: BUTTERFINGERS", UnlockCatalog.BannerWords(skin));
+            Assert.AreEqual("DISARMED · A GUN SKIN, ON EVERY GUN FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(skin, 3));
+            Assert.AreEqual("UNLOCKED: Butterfingers, for a disarm. A gun skin, on every gun from your next run.", UnlockCatalog.BreakLine(skin, 3));
+            Assert.AreEqual("Butterfingers, for a disarm", UnlockCatalog.NextWords(skin));
+            Assert.AreEqual("LEG OFF · A BADGE, ON YOUR SUIT FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.LegOff), 0),
+                "a look waits for no draft: the last ante says the same");
+            Assert.AreEqual("LANDED AWAY FROM EARTH · A SHIP PAINT, ON YOUR LANDER FROM YOUR NEXT RUN",
+                UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.LandAwayFromEarth), 3));
+            Assert.AreEqual("SEA KILL · A PISTOL SKIN, ON THE PISTOL FROM YOUR NEXT RUN", UnlockCatalog.EarnedNote(UnlockCatalog.ForGoal(UnlockGoal.SeaKill), 3));
+            Assert.AreEqual("a visor", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.FocusKill)));
+            Assert.AreEqual("a helmet", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.SalvageHome)));
+            Assert.AreEqual("a jetpack", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.AirborneKill)));
+            Assert.AreEqual("a suit", UnlockCatalog.KindWords(UnlockCatalog.ForGoal(UnlockGoal.BonusMission)));
+            Assert.AreEqual("Paints your lander's hull. In use.", UnlockCatalog.GiftWords(UnlockCatalog.ForGoal(UnlockGoal.LandAwayFromEarth)));
+        }
+
+        [Test]
+        public void TheNewGoalWords_SayThePlayersKeys()
+        {
+            var hints = new UnlockHints { focusKey = "Q", interactKey = "E" };
+            StringAssert.Contains("hold Q", UnlockCatalog.GoalWords(UnlockGoal.FocusKill, hints));
+            StringAssert.Contains("press E at one", UnlockCatalog.GoalWords(UnlockGoal.SalvageHome, hints));
+            StringAssert.Contains("the gun out of its hands, or the hand or arm", UnlockCatalog.GoalWords(UnlockGoal.Disarm),
+                "both ways to disarm, as How to play says them");
+            StringAssert.Contains("in the water with it", UnlockCatalog.GoalWords(UnlockGoal.SeaKill), "the rule a sea kill pays by");
+        }
+
+        [Test]
+        public void AnEarnedLookMissingFromTheCollection_ComesBack_WithoutGoingToWork()
+        {
+            SaveData save = SaveWith(UnlockGoal.Disarm, UnlockGoal.ClearAnte2);
+            save.items.Clear();
+            Items.Locker.Tidy(save, Items.ItemCatalog.Default);
+            Assert.AreEqual(1, UnlockBook.KeepEarnedLooks(save));
+            Assert.IsTrue(new Items.ItemInventory(save.items).Has("SkinButterfingers", ""));
+            Assert.IsFalse(UnlockBook.LookInUse(save, UnlockCatalog.ForGoal(UnlockGoal.Disarm)), "mending never chooses for the player");
+            Assert.AreEqual(0, UnlockBook.KeepEarnedLooks(save), "once");
+            Assert.AreEqual(0, UnlockBook.KeepEarnedLooks(new SaveData { unlocks = null }));
+            Assert.AreEqual(0, UnlockBook.KeepEarnedLooks(null));
+        }
+
+        [Test]
+        public void NewLooks_AndNewPerksAndKits_AreSeenOnTheirOwnLists()
+        {
+            SaveData save = SaveWith(UnlockGoal.Disarm, UnlockGoal.LegOff, UnlockGoal.ClearAnte2);
+            Assert.AreEqual(2, UnlockBook.NewCount(save, true));
+            Assert.AreEqual(1, UnlockBook.NewCount(save, false));
+            UnlockBook.MarkSeen(save, true);
+            Assert.AreEqual(0, UnlockBook.NewCount(save, true));
+            Assert.AreEqual(1, UnlockBook.NewCount(save, false), "the other list's new one is still new");
+            Assert.AreEqual(1, UnlockBook.NewCount(save));
+            UnlockBook.MarkSeen(save, false);
+            Assert.AreEqual(0, UnlockBook.NewCount(save));
+        }
+
+        [Test]
+        public void TheNextLook_IsTheEasiestLookNotEarned()
+        {
+            var save = new SaveData();
+            Assert.AreEqual(UnlockGoal.Disarm, UnlockBook.NextLook(save).goal);
+            UnlockBook.Grant(save, UnlockGoal.Disarm);
+            UnlockBook.Grant(save, UnlockGoal.LegOff);
+            UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);
+            Assert.AreEqual(UnlockGoal.FocusKill, UnlockBook.NextLook(save).goal, "kits and perks are passed over");
+            Assert.IsNull(UnlockBook.NextLook(SaveWithEverything()));
         }
 
         // ---- the kinds of score, in the player's words ----
@@ -388,15 +592,20 @@ namespace OrbitalAnte.Tests
         public void TheRecap_NamesTheNextTwo_AndFoldsClearingAnte2IntoTheNextMark()
         {
             var save = new SaveData();
-            Assert.AreEqual("Next unlocks: Patient Hunter, for a crouched or prone kill · Road Rage, for a rover splat\n"
+            Assert.AreEqual("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n"
                             + "Next mark: clear ante 2, which unlocks the Gunner kit.", UnlockRecap.Lines(save, null, 1, 8));
-            Assert.AreEqual("Next unlocks: Gunner kit, for clearing ante 2 · Patient Hunter, for a crouched or prone kill\n"
+            Assert.AreEqual("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n"
                             + "Next mark: clear ante 1.", UnlockRecap.Lines(save, null, 0, 8), "ante 1 is not a goal: nothing to fold");
+            SaveData firstRun = SaveWith(UnlockGoal.Disarm, UnlockGoal.LegOff, UnlockGoal.LandAwayFromEarth);
+            Assert.AreEqual("Next unlocks: Patient Hunter, for a crouched or prone kill · Tunnel Vision, for a kill in Focus\n"
+                            + "Next mark: clear ante 2, which unlocks the Gunner kit.", UnlockRecap.Lines(firstRun, null, 1, 8));
+            Assert.AreEqual("Next unlocks: Gunner kit, for clearing ante 2 · Patient Hunter, for a crouched or prone kill\n"
+                            + "Next mark: clear ante 1.", UnlockRecap.Lines(firstRun, null, 0, 8));
 
             SaveData some = SaveWith(UnlockGoal.RoverSplat);
             string lines = UnlockRecap.Lines(some, new List<UnlockDefinition> { UnlockCatalog.ForGoal(UnlockGoal.RoverSplat) }, 1, 8);
             StringAssert.StartsWith("Unlocked this run: Road Rage. See Unlocks on the title screen.\n", lines);
-            StringAssert.Contains("Next unlocks: Patient Hunter, for a crouched or prone kill · Ghost kit, for a LONG SHOT kill\n", lines);
+            StringAssert.Contains("Next unlocks: Butterfingers, for a disarm · Leg Day, for shooting a leg off\n", lines);
 
             Assert.AreEqual("Next mark: a higher run score.", UnlockRecap.Lines(SaveWithEverything(), null, 8, 8), "nothing left to unlock");
             Assert.AreEqual("Next unlock: All In, for beating the clock with the stakes raised\nNext mark: clear ante 4.",
@@ -499,14 +708,18 @@ namespace OrbitalAnte.Tests
         public void TheNextUnlock_IsTheFirstNotEarned_EasiestFirst()
         {
             var save = new SaveData();
+            Assert.AreEqual(UnlockGoal.Disarm, UnlockBook.Next(save).goal, "a new player's first goal is one a first fight meets");
+            UnlockBook.Grant(save, UnlockGoal.Disarm);
+            UnlockBook.Grant(save, UnlockGoal.LegOff);
+            UnlockBook.Grant(save, UnlockGoal.LandAwayFromEarth);
             Assert.AreEqual(UnlockGoal.ClearAnte2, UnlockBook.Next(save).goal);
             UnlockBook.Grant(save, UnlockGoal.ClearAnte2);
             Assert.AreEqual(UnlockGoal.LowStanceKill, UnlockBook.Next(save).goal);
             UnlockBook.Grant(save, UnlockGoal.RoverSplat);
             Assert.AreEqual(UnlockGoal.LowStanceKill, UnlockBook.Next(save).goal, "a later one earned first does not move the next mark");
-            CollectionAssert.AreEqual(new[] { UnlockGoal.LowStanceKill, UnlockGoal.LongShotKill },
+            CollectionAssert.AreEqual(new[] { UnlockGoal.LowStanceKill, UnlockGoal.FocusKill },
                 UnlockBook.Next(save, 2, null).ConvertAll(d => d.goal));
-            CollectionAssert.AreEqual(new[] { UnlockGoal.LongShotKill, UnlockGoal.ThreeWorldsInOneAnte },
+            CollectionAssert.AreEqual(new[] { UnlockGoal.FocusKill, UnlockGoal.SalvageHome },
                 UnlockBook.Next(save, 2, UnlockGoal.LowStanceKill).ConvertAll(d => d.goal));
             Assert.IsNull(UnlockBook.Next(SaveWithEverything()));
             Assert.IsEmpty(UnlockBook.Next(SaveWithEverything(), 3, null));

@@ -127,6 +127,8 @@ namespace OrbitalAnte.Tasks
             public float At;
             public KillFacts Facts;
             public int Hits;
+            /// <summary>Legs it still stood on after the last hit (two before the first), for the leg-off goal unlock.</summary>
+            public int Legs;
         }
 
         struct WokeRecord
@@ -178,7 +180,7 @@ namespace OrbitalAnte.Tasks
             var problems = _rules.Problems();
             if (problems.Count > 0) Debug.LogWarning("Task rules: " + string.Join(" ", problems));
             // A run that starts on the pad has already "landed" on Earth.
-            if (world.StartedOnPad) _noFirstLanding.Add("Earth");
+            if (world.StartedOnPad) _noFirstLanding.Add(Launch.LaunchSite.BodyId);
             // The first seconds of a run settle the ship onto its legs: not a landing.
             _quietUntil = Time.time + 3f;
             if (loop != null)
@@ -305,6 +307,8 @@ namespace OrbitalAnte.Tasks
 
         void OnPlayerHit(HitOutcome outcome)
         {
+            // A gun shot out of an enemy's hands answers as the gun, not the enemy (Weapon.Hit).
+            if (outcome.Disarmed) AnteLoop.UnlockDisarm();
             if (!outcome.Enemy) return;
             if (outcome.Target is Creatures.ICreature creature)
             {
@@ -323,8 +327,24 @@ namespace OrbitalAnte.Tasks
                 facts.freshGun = FreshGun(outcome, facts, player);
                 facts.takenApart = AllFourLimbsOff(who);
             }
-            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
+            int stood = known ? before.Legs : 2, legs = LegsStoodOn(who);
+            if (outcome.Severed && !outcome.Killed)
+            {
+                // The hand or arm holding its gun came off in this hit: the gun fell as the part did (MannequinCombat).
+                MannequinCombat combat = _woke.TryGetValue(who, out WokeRecord woke) && woke.Combat != null ? woke.Combat : who.GetComponent<MannequinCombat>();
+                if (combat != null && combat.DisarmedFrame == Time.frameCount) AnteLoop.UnlockDisarm();
+                // A leg off one that stood on two drops it to the ground.
+                if (stood == 2 && legs < 2) AnteLoop.UnlockLegOff();
+            }
+            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1, Legs = legs };
+        }
 
+        /// <summary>Legs a living enemy still stands on: 0, 1 or 2 (0 once it is dead).</summary>
+        static int LegsStoodOn(Mannequin who)
+        {
+            BodyModel m = who.Model;
+            if (m == null || !m.Alive) return 0;
+            return (m.LegWorks(true) ? 1 : 0) + (m.LegWorks(false) ? 1 : 0);
         }
 
         /// <summary>
@@ -357,6 +377,8 @@ namespace OrbitalAnte.Tasks
                 f.longShot = LongShot(f, player, at);
             }
             f.freshGun = FreshGun(outcome, f, player);
+            // In reach, a swimmer is always killed from in the water with it (InReach above).
+            f.seaCreature = CreatureTiers.Swims(credit.Kind);
             int feats = StyleKill.Feats(f, out string style);
             PayKill(CreatureTiers.KindFor(credit.Kind), credit.Claim, credit.Body, f, feats, string.IsNullOrEmpty(style) ? "KILL" : style);
         }
@@ -372,6 +394,7 @@ namespace OrbitalAnte.Tasks
                 melee = outcome.Source == HitSource.Melee,
                 lowStance = player != null && player.Mode == AstronautMode.Outside && player.Stances.Current != Spacewalk.Stance.Stand,
                 lowArmour = _loop != null && _loop.Run != null && Combat.RunEffects.HealthShare < _loop.Run.Balance.lowHealthLine,
+                inFocus = Combat.DeepBreathFx.Amount >= TaskRules.FocusKillAt,
             };
         }
 
@@ -700,6 +723,7 @@ namespace OrbitalAnte.Tasks
                 Audio.AudioDirector.PlayLocal("reward.loot.rare");
                 Score(ScoreEventKind.SalvageDelivered, TaskIds.Salvage(c.World.Id, c.Index), feats, Join("SALVAGE DELIVERED", label));
                 AnteLoop.ContractCrateDelivered();
+                AnteLoop.UnlockSalvageHome();
             }
         }
 

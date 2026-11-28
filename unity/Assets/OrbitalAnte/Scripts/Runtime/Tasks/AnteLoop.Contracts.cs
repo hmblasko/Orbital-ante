@@ -190,6 +190,7 @@ namespace OrbitalAnte.Tasks
             Audio.AudioDirector.PlayLocal("reward.tier2", 0.9f);
             Note("BONUS MISSION DONE: " + c.Title);
             if (paid.Awarded) _contractResult = "Bonus mission " + c.Title + " done: +" + N(paid.points) + ".";
+            UnlockBonusMission();
         }
 
         // ------------------------------------------------------------------ readout

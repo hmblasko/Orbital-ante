@@ -37,7 +37,10 @@ namespace OrbitalAnte.UI
         Button _collectionButton;
         Button _unlocksButton;
         Text _bestLine, _howBody, _recordsBody, _extrasNote;
-        Text _kitDetails, _kitLocked, _unlocksBody;
+        Text _kitDetails, _kitLocked, _unlocksBody, _unlocksIntro;
+        /// <summary>The Unlocks page lists either the looks or the perks and kits (eighteen do not fit one 16:9 page).</summary>
+        bool _unlocksLooks;
+        Button _unlocksSwitch;
         readonly List<Button> _kitButtons = new List<Button>();
         /// <summary>The perk list, built once with the kit page (the details are written from it as the cursor moves).</summary>
         List<PerkDefinition> _perks;
@@ -143,20 +146,62 @@ namespace OrbitalAnte.UI
             _kitBack = UiKit.Button(kit, "Back", () => Show(Page.Main), 44f, 22).gameObject;
         }
 
+        const string PerksIntro = "Each is one goal to meet in a single run. Meet it and it is yours for every run after: "
+            + "a perk joins your drafts (marked NEW the first time), a kit is chosen at New run. The practice range does not count.";
+        const string LooksIntro = "Each is one goal to meet in a single run. Meet it and the look is yours: it goes on by itself where "
+            + "nothing is in its place, from your next run, and Collection swaps it. Looks change nothing but how things look.";
+
         void BuildUnlocksPage()
         {
             RectTransform un = UiKit.Card(_canvas.transform, "UnlocksCard", 760f);
             _unlocksCard = (RectTransform)un.parent;
             UiKit.Heading(un, "UNLOCKS", 40, 56f);
-            Text intro = UiKit.LayoutLabel(un, "Each is one goal to meet in a single run. Meet it and it is yours for every run after: "
-                + "a perk joins your drafts (marked NEW the first time), a kit is chosen at New run. The practice range does not count.",
-                16, UiKit.Muted, 62f, TextAnchor.MiddleCenter, FontStyle.Normal);
-            intro.horizontalOverflow = HorizontalWrapMode.Wrap;
-            // Ten names and their goals, which now say how (some wrap to two or three lines).
+            _unlocksIntro = UiKit.LayoutLabel(un, PerksIntro, 16, UiKit.Muted, 62f, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _unlocksIntro.horizontalOverflow = HorizontalWrapMode.Wrap;
+            // Ten perks and kits, or eight looks, with their goals, which say how (some wrap to two or three lines).
             _unlocksBody = UiKit.LayoutLabel(un, string.Empty, 14, UiKit.Cream, 470f, TextAnchor.UpperLeft, FontStyle.Normal);
             _unlocksBody.horizontalOverflow = HorizontalWrapMode.Wrap;
             _unlocksBody.supportRichText = true;
-            _unlocksBack = UiKit.Button(un, "Back", () => Show(Page.Main), 48f, 22).gameObject;
+            // The other list and Back side by side, so the page is no taller than it was with one list.
+            RectTransform row = UiKit.NewRect("UnlocksButtons", un);
+            UiKit.HStack(row, 10f);
+            UiKit.SetLayout(row.gameObject, 48f);
+            _unlocksSwitch = UiKit.Button(row, "Looks", () => ShowUnlocksList(!_unlocksLooks), 48f, 22);
+            UiKit.SetLayout(_unlocksSwitch.gameObject, 48f, 330f);
+            Button back = UiKit.Button(row, "Back", () => Show(Page.Main), 48f, 22);
+            UiKit.SetLayout(back.gameObject, 48f, 330f);
+            _unlocksBack = back.gameObject;
+        }
+
+        /// <summary>
+        /// Which list the Unlocks page opens on: the one with something new on it (the looks first), else the one holding
+        /// the next unlock, which the title screen names, else the one shown last.
+        /// </summary>
+        static bool UnlocksOpenOnLooks(SaveData save, bool last)
+        {
+            if (UnlockBook.NewCount(save, true) > 0) return true;
+            if (UnlockBook.NewCount(save, false) > 0) return false;
+            UnlockDefinition next = UnlockBook.Next(save);
+            return next != null ? UnlockCatalog.IsLook(next) : last;
+        }
+
+        /// <summary>Shows one list of the Unlocks page and marks its new ones seen (they still say NEW this time).</summary>
+        void ShowUnlocksList(bool looks)
+        {
+            _unlocksLooks = looks;
+            SaveData save = SaveSystem.Data;
+            _unlocksIntro.text = looks ? LooksIntro : PerksIntro;
+            _unlocksBody.text = UnlocksText(save, looks);
+            if (UnlockBook.NewCount(save, looks) > 0)
+            {
+                UnlockBook.MarkSeen(save, looks);
+                SaveSystem.Save();
+            }
+            // The button names the other list, and says when it has something new.
+            int other = UnlockBook.NewCount(save, !looks);
+            UiKit.ButtonText(_unlocksSwitch).text = (looks ? "Perks and kits" : "Looks") + (other > 0 ? " (" + other + " new)" : string.Empty);
+            int fresh = UnlockBook.NewCount(save);
+            UiKit.ButtonText(_unlocksButton).text = fresh > 0 ? "Unlocks (" + fresh + " new)" : "Unlocks";
         }
 
         static string KitLabel(StartingKit kit, List<PerkDefinition> perks)
@@ -234,12 +279,16 @@ namespace OrbitalAnte.UI
             {
                 hints.crouchKey = GameInput.Describe(GameInput.JetDown);
                 hints.interactKey = GameInput.Describe(GameInput.Interact);
+                hints.focusKey = GameInput.Describe(GameInput.DeepBreath);
             }
             return hints;
         }
 
-        /// <summary>Every unlock, easiest goal first: its goal while it is still to earn, what it gives once it is earned.</summary>
-        static string UnlocksText(SaveData save)
+        /// <summary>
+        /// One list of unlocks (the looks, or the perks and kits), easiest goal first: its goal while it is still to earn,
+        /// what it gives once it is earned.
+        /// </summary>
+        static string UnlocksText(SaveData save, bool looks)
         {
             string dim = Hex(HullKit.Dim), good = Hex(HullKit.Good), act = Hex(HullKit.Orange);
             UnlockHints hints = Hints();
@@ -249,15 +298,16 @@ namespace OrbitalAnte.UI
             for (int i = 0; i < all.Count; i++)
             {
                 UnlockDefinition d = all[i];
+                if (UnlockCatalog.IsLook(d) != looks) continue;
                 bool earned = UnlockBook.Has(save, d.id);
-                if (i > 0) s.Append('\n');
+                if (s.Length > 0) s.Append('\n');
                 // The name in the label's own cream, the rest dimmed: no <b>, which would fake a bold B612 (UiKit.SetStyle).
                 s.Append(d.name).Append("  <color=").Append(dim).Append(">· ").Append(UnlockCatalog.KindWords(d)).Append("</color>");
                 if (earned)
                 {
                     s.Append("  <color=").Append(good).Append(">UNLOCKED</color>");
                     if (UnlockBook.IsNew(save, d.id)) s.Append("  <color=").Append(act).Append(">NEW</color>");
-                    s.Append("\n<color=").Append(dim).Append('>').Append(UnlockCatalog.GiftWords(d, balance)).Append("</color>");
+                    s.Append("\n<color=").Append(dim).Append('>').Append(UnlockCatalog.GiftWords(d, balance, UnlockBook.LookInUse(save, d))).Append("</color>");
                 }
                 else s.Append("\n<color=").Append(dim).Append(">Goal:</color> ").Append(UnlockCatalog.GoalWords(d.goal, hints));
             }
@@ -313,18 +363,7 @@ namespace OrbitalAnte.UI
             _kitCard.gameObject.SetActive(page == Page.Kit);
             _unlocksCard.gameObject.SetActive(page == Page.Unlocks);
             if (page == Page.Kit) RefreshKitPage();
-            if (page == Page.Unlocks)
-            {
-                SaveData save = SaveSystem.Data;
-                _unlocksBody.text = UnlocksText(save);
-                // Seen now: NEW goes once the page has been shown (the words above still say it this time).
-                if (UnlockBook.NewCount(save) > 0)
-                {
-                    UnlockBook.MarkAllSeen(save);
-                    SaveSystem.Save();
-                }
-                UiKit.ButtonText(_unlocksButton).text = "Unlocks";
-            }
+            if (page == Page.Unlocks) ShowUnlocksList(UnlocksOpenOnLooks(SaveSystem.Data, _unlocksLooks));
             if (page == Page.HowTo) _howBody.text = HowToPlay();
             if (page == Page.Records) _recordsBody.text = Records(SaveSystem.Data);
             if (page == Page.Extras) _extrasNote.text = string.Empty;
@@ -338,7 +377,7 @@ namespace OrbitalAnte.UI
                 case Page.HowTo: return _howBack;
                 case Page.Records: return _recordsBack;
                 case Page.Extras: return _extrasFirst;
-                case Page.Unlocks: return _unlocksBack;
+                case Page.Unlocks: return _unlocksSwitch.gameObject;
                 case Page.Kit:
                 {
                     // The kit chosen last time, so Try again and New run start the same way by default.
@@ -369,7 +408,7 @@ namespace OrbitalAnte.UI
             string auto = GameInput.Asset != null ? GameInput.Describe(GameInput.Autopilot) : "?";
             return goal + "\n\nFlying: " + map + " opens the map (worlds you have visited show the tasks left there). Point the nose at a world, "
                    + lockKey + " locks it and " + auto + " flies you there.\nOn foot: limbs come off, so shoot the gun or the arm to disarm, a leg to drop them. "
-                   + "Only a destroyed head kills, yours too.\nUnlocks: one goal met in a run opens a new perk or starting kit for every run after. "
+                   + "Only a destroyed head kills, yours too.\nUnlocks: one goal met in a run opens a new perk, starting kit or look for every run after. "
                    + "The Unlocks page lists each goal and how to meet it.";
         }
 

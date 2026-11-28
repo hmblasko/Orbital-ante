@@ -94,6 +94,9 @@ namespace OrbitalAnte.Items
                 case "SkinShotgunCandy": return SkinPattern.Flake;
                 case "SkinRifleStarChart": return SkinPattern.Stars;
                 case "SkinSniperGilded": return SkinPattern.Gilt;
+                // Earned looks (Ralph loop pass 5).
+                case "SkinButterfingers": return SkinPattern.Stripes;
+                case "SkinPistolSharkskin": return SkinPattern.Flake;
                 default: return SkinPattern.Paint;
             }
         }
@@ -118,6 +121,8 @@ namespace OrbitalAnte.Items
             {
                 case "PaintRacingGreen": return HullPaintStyle.Band;
                 case "PaintTwoTone": return HullPaintStyle.TwoTone;
+                // Earned (Ralph loop pass 5): the band is the accent, black on a white hull.
+                case "PaintRollPattern": return HullPaintStyle.Band;
                 default: return HullPaintStyle.Plain;
             }
         }

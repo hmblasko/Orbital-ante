@@ -34,6 +34,9 @@ namespace OrbitalAnte.Launch
     /// </summary>
     public static class LaunchSite
     {
+        /// <summary>The world the launch base stands on, by its body id: every run starts there.</summary>
+        public const string BodyId = "Earth";
+
         /// <summary>Cape Canaveral, near enough: 28.5 degrees north, 80.6 degrees west.</summary>
         public const double PreferredLatitude = 28.5;
         public const double PreferredLongitude = -80.6;
