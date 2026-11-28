@@ -49,6 +49,10 @@ namespace OrbitalAnte.Spacewalk
         int _shownSpeed = -1, _shownLine = -1, _noticeKey = -1, _againstKey = -1;
         string _shownAgainst = string.Empty, _shownNotice = string.Empty;
         readonly StringBuilder _text = new StringBuilder(48);
+        // What the Locker's suit pieces change (Ralph loop pass 4): read once, as the suit is built for a run.
+        Items.SuitLook _look;
+        Color _jetColour, _tint = Color.white;
+        float _tintShown;
 
         public bool Shown => _panel != null && _panel.gameObject.activeSelf;
         public string NoticeShown => _shownNotice;
@@ -57,6 +61,10 @@ namespace OrbitalAnte.Spacewalk
         {
             _astronaut = astronaut;
             _config = config;
+            _look = Items.LockerLook.Suit();
+            // A jet pack from the Locker colours the jets (their flames, the visor's rim and the plate's jet blocks).
+            _jetColour = Items.LockerLook.Colour(_look.Jet, _config.jetColour);
+            _tint = Items.LockerLook.Colour(_look.VisorTint, Color.white);
             _canvas = UiKit.CreateCanvas("SuitHUD", transform, 9);
             _canvas.GetComponent<GraphicRaycaster>().enabled = false;
 
@@ -87,7 +95,7 @@ namespace OrbitalAnte.Spacewalk
                 rt.sizeDelta = new Vector2((sideways ? screen.y : screen.x) * 1.6f, 90f);
                 rt.localRotation = Quaternion.Euler(0f, 0f, turn[i]);
                 // Coloured once; its brightness is then set on the renderer, which does not rebuild the canvas.
-                _rim[i] = UiKit.AddImage(rt, _config.jetColour, _rimSprite);
+                _rim[i] = UiKit.AddImage(rt, _jetColour, _rimSprite);
                 _rim[i].type = Image.Type.Simple;
                 _rim[i].enabled = false;
             }
@@ -96,6 +104,11 @@ namespace OrbitalAnte.Spacewalk
 
             // The suit plate, lower left. Measured from its top left corner.
             _plate = HullKit.Plate(_canvas.transform, "SuitPlate", new Vector2(0f, 0f), new Vector2(HullKit.Margin, HullKit.Margin), new Vector2(400f, 122f));
+            // A suit from the Locker paints its plate (kept dark, so the words stay as easy to read), and a badge is
+            // sewn on in the top right corner, clear of the screw and the armour's chevrons.
+            HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
+                Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
+            if (_look.Badge) SewBadge(_plate);
 
             // Air: a tank that drains, its per cent, and the time left at a resting breath.
             Image tank = HullKit.Box(_plate, "Tank", 18f, 15f, 30f, 92f, HullKit.PlateEdge);
@@ -168,6 +181,8 @@ namespace OrbitalAnte.Spacewalk
         void BuildShade()
         {
             const int w = 64, h = 40;
+            // The edge of a helmet from the Locker takes its colour, darkened to the depth of the glass's edge.
+            Color shade = Items.LockerLook.Colour(_look.Shade, new Color(0.04f, 0.03f, 0.03f));
             _shadeTexture = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "VisorShade" };
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
@@ -178,7 +193,7 @@ namespace OrbitalAnte.Spacewalk
                     float u = (x + 0.5f) / w, v = (y + 0.5f) / h;
                     float d = Mathf.Sqrt(u * u + v * v);
                     float a = Mathf.Clamp01(1f - d);
-                    px[y * w + x] = new Color(0.04f, 0.03f, 0.03f, a * a * (3f - 2f * a));
+                    px[y * w + x] = new Color(shade.r, shade.g, shade.b, a * a * (3f - 2f * a));
                 }
             }
             _shadeTexture.SetPixels32(px);
@@ -194,7 +209,7 @@ namespace OrbitalAnte.Spacewalk
                 rt.pivot = Vector2.zero;
                 rt.anchoredPosition = Vector2.zero;
                 if (i == 1) rt.localScale = new Vector3(-1f, 1f, 1f);
-                _shade[i] = UiKit.AddImage(rt, new Color(1f, 1f, 1f, _config.visorShade), _shadeSprite);
+                _shade[i] = UiKit.AddImage(rt, new Color(1f, 1f, 1f, Mathf.Clamp01(_config.visorShade * _look.ShadeStrength)), _shadeSprite);
                 _shade[i].type = Image.Type.Simple;
                 _shade[i].enabled = false;
             }
@@ -223,6 +238,7 @@ namespace OrbitalAnte.Spacewalk
             if (!Mathf.Approximately(_noticePlate.anchoredPosition.y, noticeY)) _noticePlate.anchoredPosition = new Vector2(0f, noticeY);
             bool shade = show && open && _config.visorShade > 0.001f;
             for (int i = 0; i < 2; i++) if (_shade[i].enabled != shade) _shade[i].enabled = shade;
+            if (_look.Tinted) TintVisor(open && !_astronaut.Dead && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen);
 
             Rim(outside && show);
             if (!show)
@@ -237,16 +253,19 @@ namespace OrbitalAnte.Spacewalk
             bool blink = Mathf.Repeat(now, 0.8f) < 0.5f;
             if (panel)
                 HullKit.Light(_jetBlocks, HullReadout.Blocks(s.Fuel, HullReadout.JetBlocks),
-                    s.FuelLow ? (blink ? HullKit.Orange : HullKit.Unlit) : _config.jetColour);
+                    s.FuelLow ? (blink ? HullKit.Orange : HullKit.Unlit) : _jetColour);
 
             GaugeTone airTone = VisorReadout.AirTone(s.AirLow, s.AirOut, s.BurningAir);
+            // The time left at a resting breath is the real tank's: a bigger one (the shop's Oxygen, a Locker
+            // upgrade) lasts longer, and the readout says so.
+            float airMinutes = _config.rules.airMinutes * Mathf.Max(0.5f, _astronaut.SuitTanks.AirScale);
             int airSecond = s.AirOut ? -1 - Mathf.CeilToInt(Mathf.Max(0f, s.SecondsLeft))
                 : s.BurningAir ? int.MaxValue
-                : VisorReadout.AirSeconds(s.Air, _config.rules.airMinutes);
+                : VisorReadout.AirSeconds(s.Air, airMinutes);
             if (airSecond != _airSecond)
             {
                 _airSecond = airSecond;
-                _airWords = VisorReadout.AirLine(s.Air, _config.rules.airMinutes, s.AirOut, s.SecondsLeft, s.BurningAir).ToUpperInvariant();
+                _airWords = VisorReadout.AirLine(s.Air, airMinutes, s.AirOut, s.SecondsLeft, s.BurningAir).ToUpperInvariant();
             }
             ShowAir(s.Air, airTone, airTone != GaugeTone.Alarm || blink);
             if (armourShown)
@@ -421,6 +440,33 @@ namespace OrbitalAnte.Spacewalk
 
         // Bottom, top, left, right: lit by the nozzle whose flame is on that side. A push forward (the flames
         // are behind you) lights all four a little.
+        /// <summary>
+        /// A badge from the Locker, sewn on the suit plate's top right corner: a ring in its accent round its own
+        /// colour, with a point of the accent in the middle. Clear of the corner screw and of the armour's chevrons.
+        /// </summary>
+        void SewBadge(RectTransform plate)
+        {
+            Color colour = Items.LockerLook.Colour(_look.BadgeColour, new Color(0.2f, 0.3f, 0.62f));
+            Color accent = Items.LockerLook.Colour(_look.BadgeAccent, new Color(0.95f, 0.78f, 0.3f));
+            Image ring = HullKit.Box(plate, "Badge", 361f, 7f, 22f, 22f, accent);
+            ring.sprite = UiKit.Circle;
+            Image face = HullKit.Box(plate, "BadgeFace", 363.5f, 9.5f, 17f, 17f, colour);
+            face.sprite = UiKit.Circle;
+            Image point = HullKit.Box(plate, "BadgePoint", 369.5f, 15.5f, 5f, 5f, accent);
+            point.sprite = UiKit.Circle;
+        }
+
+        /// <summary>
+        /// A visor from the Locker tints the world while you are in the open, faded in over a third of a second as
+        /// you step out and away as you come in. In twelve steps, so the picture finish is told only a few times.
+        /// </summary>
+        void TintVisor(bool on)
+        {
+            _tintShown = Mathf.MoveTowards(_tintShown, on ? 1f : 0f, Time.unscaledDeltaTime / 0.35f);
+            float step = Mathf.Round(_tintShown * 12f) / 12f;
+            OrbitalAnte.Look.PostFx.VisorTint = Color.Lerp(Color.white, _tint, step);
+        }
+
         static readonly int[] RimNozzle = { JetGlow.Down, JetGlow.Up, JetGlow.Left, JetGlow.Right };
 
         void Rim(bool on)
@@ -439,6 +485,8 @@ namespace OrbitalAnte.Spacewalk
 
         void OnDestroy()
         {
+            // A tint left on would stay on the title screen and the next run.
+            if (_look.Tinted) OrbitalAnte.Look.PostFx.VisorTint = Color.white;
             if (_rimSprite != null) Destroy(_rimSprite);
             if (_rimTexture != null) Destroy(_rimTexture);
             if (_shadeSprite != null) Destroy(_shadeSprite);

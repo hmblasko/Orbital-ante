@@ -206,11 +206,13 @@ namespace OrbitalAnte.Weapons
         }
 
         /// <summary>Starts a reload if this many hands can do one. Returns true if it started.</summary>
-        public bool StartReload(int hands)
+        /// <param name="scale">How many times longer the reload takes than the gun's own (a Locker upgrade's gain or cost for the player; 1 for everyone else). Kept between 0.5 and 2.</param>
+        public bool StartReload(int hands, float scale = 1f)
         {
             if (!CanReload(hands)) return false;
             EndAutomaticBurst();
-            _reloadTotal = ReloadSecondsFor(hands);
+            if (float.IsNaN(scale) || float.IsInfinity(scale)) scale = 1f;
+            _reloadTotal = ReloadSecondsFor(hands) * Math.Max(0.5f, Math.Min(2f, scale));
             _reloadLeft = _reloadTotal;
             if (_reloadLeft <= 0f)
             {

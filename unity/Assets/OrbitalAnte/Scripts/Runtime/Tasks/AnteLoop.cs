@@ -25,6 +25,9 @@ namespace OrbitalAnte.Tasks
         public static AnteLoop Current { get; private set; }
 
         public AnteRun Run { get; private set; }
+
+        /// <summary>The Locker upgrade this run was started with (its gain and cost are in every ante's build), or null.</summary>
+        public Items.ItemSpec LockerUpgrade { get; private set; }
         public TaskConfig Config { get; private set; }
         /// <summary>The streak of quick kills (shown on the readout; the task director feeds it).</summary>
         public Streak Streak { get; private set; }
@@ -113,6 +116,8 @@ namespace OrbitalAnte.Tasks
             AnteBalance balance = AnteBalanceData.Load().balance;
             // The full perk list (20 Nov 2026): every perk in it is wired into the game.
             Run = new AnteRun(balance, seed, RoguelitePerks.Create());
+            // The Locker's upgrade, fixed for the whole run (Ralph loop pass 4): its gain and its cost go into the build.
+            LockerUpgrade = Items.LockerLook.Upgrade();
             // The starting kit and the perks still locked (goal unlocks, AnteLoop.Unlocks.cs), before the build is published.
             BeginUnlocks();
             _recap = new RunRecap();
@@ -143,6 +148,7 @@ namespace OrbitalAnte.Tasks
             // A run left mid-ante (restart or quit) still counts toward the records.
             if (Run != null && !_recorded) RecapAndRecord();
             Run = null;
+            LockerUpgrade = null;
             Enemies.EnemySpawner.Pressure = new EnemyPressure { Sharpness = 1f };
             Enemies.EnemySpawner.PressureAnte = 1;
             if (Current == this) Current = null;

@@ -21,6 +21,7 @@ namespace OrbitalAnte.Combat
 
         static Func<bool> _lowStance;
         static Spacewalk.SuitSupplies _suit;
+        static Cockpit.ShipSupplies _ship;
 
         /// <summary>Raised after <see cref="Mods"/> changes.</summary>
         public static event Action Changed;
@@ -32,22 +33,25 @@ namespace OrbitalAnte.Combat
             Changed?.Invoke();
         }
 
-        /// <summary>The solar-system run's player has been built.</summary>
-        public static void Attach(PlayerHealth armour, Func<bool> lowStance, Spacewalk.SuitSupplies suit = null)
+        /// <summary>The solar-system run's player has been built (and its ship's tanks, which a Locker upgrade can change).</summary>
+        public static void Attach(PlayerHealth armour, Func<bool> lowStance, Spacewalk.SuitSupplies suit = null, Cockpit.ShipSupplies ship = null)
         {
             Player = armour;
             _lowStance = lowStance;
             _suit = suit;
+            _ship = ship;
             ApplyToPlayer();
         }
 
         public static void Clear()
         {
             if (Player != null) Player.SetBuild(1f, 1f, false);
-            if (_suit != null) _suit.AirScale = 1f;
+            if (_suit != null) { _suit.AirScale = 1f; _suit.FuelScale = 1f; }
+            if (_ship != null) _ship.FuelScale = 1f;
             Player = null;
             _lowStance = null;
             _suit = null;
+            _ship = null;
             Mods = RunMods.Neutral;
             Changed?.Invoke();
         }
@@ -57,6 +61,7 @@ namespace OrbitalAnte.Combat
             Player = null;
             _lowStance = null;
             _suit = null;
+            _ship = null;
             Mods = RunMods.Neutral;
             Changed = null;
         }
@@ -64,8 +69,16 @@ namespace OrbitalAnte.Combat
         static void ApplyToPlayer()
         {
             if (Player != null) Player.SetBuild(Mods.MaxHealth, Mods.Regen, Mods.NoRegen);
-            if (_suit != null) _suit.AirScale = Mods.Oxygen;
+            if (_suit != null)
+            {
+                _suit.AirScale = Mods.Oxygen;
+                _suit.FuelScale = Mods.JetFuel;
+            }
+            if (_ship != null) _ship.FuelScale = Mods.ShipFuel;
         }
+
+        /// <summary>How many times longer the player's reloads take (a Locker upgrade's; 1 outside a run).</summary>
+        public static float ReloadTime => Mods.ReloadTime;
 
         public static float HealthShare => Player != null ? Player.Fraction : 1f;
 

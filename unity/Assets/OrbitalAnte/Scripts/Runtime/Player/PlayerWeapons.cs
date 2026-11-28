@@ -155,6 +155,9 @@ namespace OrbitalAnte.Player
             weapon.transform.localPosition = Vector3.zero;
             weapon.transform.localRotation = Quaternion.identity;
             weapon.transform.localScale = Vector3.one;
+            // The Locker's skin for this kind of gun (or the one for every gun), on any gun that comes into the
+            // player's hands, picked up or handed over; before the cabin light, whose twin the skin brings with it.
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data != null ? weapon.Data.Id : null));
             OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
             _holder.localPosition = RestPosition(weapon.Data);
             _holder.localRotation = Quaternion.identity;
@@ -345,7 +348,7 @@ namespace OrbitalAnte.Player
             // The player always has both hands. (Enemies are the ones who lose them.)
             const int hands = 2;
 
-            if (GameInput.Reload.WasPressedThisFrame() && state.StartReload(hands))
+            if (GameInput.Reload.WasPressedThisFrame() && state.StartReload(hands, OrbitalAnte.Combat.RunEffects.ReloadTime))
             {
                 OnReloadStarted();
             }
@@ -358,7 +361,7 @@ namespace OrbitalAnte.Player
             {
                 fx.Audio.PlayClick(weapon.Muzzle.position, 1.5f);
                 // Pulling the trigger on an empty gun reloads it, so nobody is stuck clicking.
-                if (state.StartReload(hands)) OnReloadStarted();
+                if (state.StartReload(hands, OrbitalAnte.Combat.RunEffects.ReloadTime)) OnReloadStarted();
             }
 
             if (shot.Fired && RollsBackfire(weapon.Data))

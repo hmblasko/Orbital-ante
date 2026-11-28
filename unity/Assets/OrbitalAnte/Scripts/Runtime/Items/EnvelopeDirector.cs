@@ -136,17 +136,21 @@ namespace OrbitalAnte.Items
             List<ItemEffect> effects = ItemCatalog.CreateEffects();
             Prize prize = book.Open(ticket, EnvelopeConfig.Load().odds, catalog, effects);
             if (!prize.IsValid) return false;
+            ItemSpec item = catalog.Find(i => i.id == prize.itemId);
+            // A prize goes to work by itself where its place is empty (never an upgrade: each has a cost), saved with it.
+            bool inUse = Locker.AutoUse(SaveSystem.Data, item, prize.effectId) || Locker.InUse(SaveSystem.Data, item, prize.effectId);
             SaveSystem.Save();
 
-            ItemSpec item = catalog.Find(i => i.id == prize.itemId);
             ItemEffect effect = effects.Find(e => e.id == prize.effectId);
             OwnedItem owned = book.Inventory.Find(prize.itemId, prize.effectId);
             _screen.UseCard(EnvelopeTextures.Card("Card", item, prize.rarity, effect?.colour));
-            _screen.Show(ShowFor(item, prize, effect, owned, ticket), whenDone);
+            // In the middle of a run its lander, suit and numbers are already built: the prize shows from the next run.
+            _screen.Show(ShowFor(item, prize, effect, owned, ticket, inUse, GameSession.Mode == GameMode.Playing), whenDone);
             return true;
         }
 
-        public static EnvelopeShow ShowFor(ItemSpec item, Prize prize, ItemEffect effect, OwnedItem owned, EnvelopeTicket ticket)
+        public static EnvelopeShow ShowFor(ItemSpec item, Prize prize, ItemEffect effect, OwnedItem owned, EnvelopeTicket ticket,
+            bool inUse = false, bool midRun = false)
         {
             string weaponName = null;
             if (item.category == ItemCategory.WeaponSkin && !string.IsNullOrEmpty(item.weaponId))
@@ -171,6 +175,7 @@ namespace OrbitalAnte.Items
                 effectColour = effect?.colour,
                 ownedCount = owned != null ? owned.count : 1,
                 fromTest = ticket.fromTest,
+                useLine = Locker.RevealWords(item, inUse, weaponName, midRun),
             };
         }
 
@@ -185,6 +190,8 @@ namespace OrbitalAnte.Items
         public int ClearTests()
         {
             int gone = Book().ClearTests();
+            // Test prizes that were in use come out of use with them.
+            Locker.Tidy(SaveSystem.Data, LockerLook.Find);
             SaveSystem.Save();
             return gone;
         }

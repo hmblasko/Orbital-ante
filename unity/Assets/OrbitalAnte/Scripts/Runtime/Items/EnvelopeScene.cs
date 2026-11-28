@@ -72,6 +72,8 @@ namespace OrbitalAnte.Items
         public float[] effectColour;
         public int ownedCount = 1;
         public bool fromTest;
+        /// <summary>Where the prize went into use, or how to put it to use (<c>Locker.RevealWords</c>). Empty for a painting.</summary>
+        public string useLine = "";
     }
 
     /// <summary>
@@ -94,6 +96,8 @@ namespace OrbitalAnte.Items
         static readonly float[] Gold = { 0.98f, 0.86f, 0.55f };
         static readonly float[] Cream = { 0.96f, 0.92f, 0.82f };
         static readonly float[] Muted = { 0.70f, 0.68f, 0.72f };
+        /// <summary>HullKit.Good: the colour that says a prize is in use, here and in the Collection.</summary>
+        static readonly float[] InUse = { 0.624f, 0.878f, 0.478f };
 
         /// <summary>The moments of a reveal, in seconds from the start. Rarer prizes build up longer.</summary>
         public struct Beats
@@ -316,6 +320,9 @@ namespace OrbitalAnte.Items
                 string owned = show.ownedCount > 1 ? "You now have " + show.ownedCount + " of these." : "Added to your collection.";
                 if (show.fromTest) owned += " (Test item: can be cleared from the collection.)";
                 RevealLine(items, "owned", owned, y + 14f, 50f, 18, Muted, s0, 6);
+                // What the prize does now: green when it went to work by itself (the Collection's IN USE colour).
+                bool working = show.useLine != null && show.useLine.StartsWith("In use", StringComparison.Ordinal);
+                RevealLine(items, "use", show.useLine, y + 66f, 50f, 18, working ? InUse : Cream, s0, 7);
                 Text(items, "prompt", show.prompt, 640f, 748f, 1000f, 26f, 16, Muted,
                     Smooth(0.6f, 1.2f, s0) * (0.6f + 0.3f * (float)Math.Sin(t * 3f)));
             }

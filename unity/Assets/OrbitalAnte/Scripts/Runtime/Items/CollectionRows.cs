@@ -1,0 +1,124 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using OrbitalAnte.Save;
+
+namespace OrbitalAnte.Items
+{
+    /// <summary>
+    /// The Collection page's rows (Ralph loop pass 4): every line the player owns, grouped by where it is used (in the
+    /// Locker's order: the upgrade, the lander, the guns, the suit's pieces, then paintings), rarest first within a
+    /// group, newest first within a rarity; six to a page. Plain C#, so the order and the words are tested.
+    /// </summary>
+    public static class CollectionRows
+    {
+        public const int PerPage = 6;
+
+        /// <summary>The rarity a line is shown at: a line with an effect is Celestial whatever its item.</summary>
+        public static ItemRarity RarityOf(OwnedItem line, ItemSpec item)
+        {
+            if (line != null && !string.IsNullOrEmpty(line.effectId)) return ItemRarity.Celestial;
+            return item != null ? item.rarity : ItemRarity.Common;
+        }
+
+        /// <summary>The group a line sorts into: the Locker's places in order, then anything with no place.</summary>
+        static int Group(ItemSpec item)
+        {
+            LockerSlot slot = Locker.SlotOf(item);
+            return slot == LockerSlot.None ? 99 : (int)slot;
+        }
+
+        /// <summary>The owned lines whose item is known, in the page's order.</summary>
+        public static List<OwnedItem> Sorted(ItemInventory inventory, Func<string, ItemSpec> find)
+        {
+            var lines = new List<OwnedItem>();
+            if (inventory == null) return lines;
+            var items = new Dictionary<string, ItemSpec>();
+            for (int i = 0; i < inventory.Items.Count; i++)
+            {
+                OwnedItem line = inventory.Items[i];
+                if (line == null || string.IsNullOrEmpty(line.itemId)) continue;
+                if (!items.TryGetValue(line.itemId, out ItemSpec item))
+                {
+                    item = find != null ? find(line.itemId) : null;
+                    items[line.itemId] = item;
+                }
+                if (item != null) lines.Add(line);
+            }
+            lines.Sort((a, b) =>
+            {
+                ItemSpec ia = items[a.itemId], ib = items[b.itemId];
+                int ga = Group(ia), gb = Group(ib);
+                if (ga != gb) return ga.CompareTo(gb);
+                int ra = (int)RarityOf(a, ia), rb = (int)RarityOf(b, ib);
+                if (ra != rb) return rb.CompareTo(ra);
+                return b.firstSerial.CompareTo(a.firstSerial);
+            });
+            return lines;
+        }
+
+        public static int Pages(int lines) => Math.Max(1, (Math.Max(0, lines) + PerPage - 1) / PerPage);
+
+        /// <summary>A page kept inside the pages there are.</summary>
+        public static int ClampPage(int page, int lines) => Math.Max(0, Math.Min(page, Pages(lines) - 1));
+
+        /// <summary>A row's words: "Comet Trail Fishbowl Dome · helmet x2".</summary>
+        public static string RowWords(ItemSpec item, OwnedItem line, string effectName, string gunName = null)
+        {
+            if (item == null) return "";
+            var s = new StringBuilder();
+            if (!string.IsNullOrEmpty(effectName)) s.Append(effectName).Append(' ');
+            s.Append(item.displayName).Append("  · ").Append(KindWords(item, gunName));
+            if (line != null && line.count > 1) s.Append("  x").Append(line.count);
+            return s.ToString();
+        }
+
+        /// <summary>A short name for what an item is: "upgrade", "ship paint", "skin, every gun", "skin, pistol", "helmet", "painting".</summary>
+        public static string KindWords(ItemSpec item, string gunName = null)
+        {
+            if (item == null) return "";
+            switch (item.category)
+            {
+                case ItemCategory.Upgrade: return "upgrade";
+                case ItemCategory.ShipPaint: return "ship paint";
+                case ItemCategory.WeaponSkin:
+                    return string.IsNullOrEmpty(item.weaponId) ? "skin, every gun"
+                        : "skin, " + (string.IsNullOrEmpty(gunName) ? item.weaponId.ToLowerInvariant() : gunName.ToLowerInvariant());
+                case ItemCategory.Cosmetic: return ItemLook.SlotName(item.slot);
+                default: return "painting";
+            }
+        }
+
+        /// <summary>How many of the owned lines are in use.</summary>
+        public static int InUseCount(SaveData save, List<OwnedItem> lines, Func<string, ItemSpec> find)
+        {
+            int n = 0;
+            if (save == null || lines == null) return 0;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                ItemSpec item = find != null ? find(lines[i].itemId) : null;
+                if (item != null && Locker.InUse(save, item, lines[i].effectId)) n++;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// The details under the rows for one line: what it is, what it does in the game, whether it is in use and
+        /// what choosing it does, and (for a painting) where it will go.
+        /// </summary>
+        public static string Details(SaveData save, ItemSpec item, OwnedItem line, string effectName, Func<string, ItemSpec> find, string gunName = null)
+        {
+            if (item == null) return "";
+            var s = new StringBuilder();
+            s.Append(ItemLook.KindLine(item, RarityOf(line, item), gunName)).Append('\n');
+            if (Locker.Usable(item)) s.Append(Locker.DoesWords(item, gunName)).Append('\n').Append(Locker.StateWords(save, item, line != null ? line.effectId : "", find));
+            else s.Append(item.blurb).Append('\n').Append("Paintings are kept for the frames on the cabin wall, which are still to be built.");
+            var extra = new List<string>();
+            if (!string.IsNullOrEmpty(effectName)) extra.Add("Effect: " + effectName);
+            if (line != null && line.count > 1) extra.Add("You have " + line.count);
+            if (line != null && line.fromTest) extra.Add("Test item");
+            if (extra.Count > 0) s.Append('\n').Append(string.Join("  ·  ", extra));
+            return s.ToString();
+        }
+    }
+}

@@ -8,6 +8,8 @@
 // smoothness, metal and hollows come from three pictures instead of the corners (the third pair of extra numbers
 // says where a corner sits on them), and the baked bumps of the normal map bend the light. Everything else, the
 // sky, the Sun, the lamp, the cave light, the shine and the haze, is the same OA_Look.hlsl as every other model.
+// The player's own guns can wear a prize skin from the Locker (keyword _OA_SKIN, Ralph loop pass 4): OA_Skin below
+// repaints the painted parts (and, for some patterns, the bare metal) before the light is worked out.
 Shader "OrbitalAnte/Model"
 {
     Properties
@@ -20,6 +22,9 @@ Shader "OrbitalAnte/Model"
         [NoScaleOffset] _ColorMap ("Colour (sRGB)", 2D) = "white" {}
         [NoScaleOffset][Normal] _NormalMap ("Baked bumps (tangent space, green up)", 2D) = "bump" {}
         [NoScaleOffset] _MaskMap ("Hollows (R), smoothness (G), bare metal (B), linear", 2D) = "red" {}
+        _SkinColour ("Skin colour", Color) = (1, 1, 1, 1)
+        _SkinAccent ("Skin accent", Color) = (1, 1, 1, 1)
+        _SkinSet ("Skin pattern (x), how much of the paint it covers (y)", Vector) = (0, 0, 0, 0)
     }
 
     SubShader
@@ -35,6 +40,10 @@ Shader "OrbitalAnte/Model"
             half _Glow;
             half _Paint;
             half _PaintScale;
+            // Declared for every variant, so all of them keep one layout (the SRP batcher needs that).
+            half4 _SkinColour;
+            half4 _SkinAccent;
+            half4 _SkinSet;
         CBUFFER_END
 
         #define OA_RECEIVES_SHADOWS
@@ -101,9 +110,88 @@ Shader "OrbitalAnte/Model"
             // Every model material is made in code at run time, so the textured variant must be kept in the
             // build whether or not any saved material uses it (shader_feature would strip it).
             #pragma multi_compile_local _ _OA_TEXTURED
+            // The Locker's gun skins (ModelLibrary.SkinnedMaterialFor), made at run time too.
+            #pragma multi_compile_local _ _OA_SKIN
             // URP's switches for the Sun's cast shadows (OA_SunShade in OA_Look.hlsl reads them).
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
+
+        #if defined(_OA_SKIN)
+            // Pattern numbers, as Items.SkinPattern has them (the rule test
+            // EverySkinPattern_IsOneTheModelShaderDraws_ByTheSameNumber reads these lines): OA_SKIN_PAINT 1, OA_SKIN_STRIPES 2, OA_SKIN_GRAIN 3, OA_SKIN_PEARL 4, OA_SKIN_FLAKE 5,
+            // OA_SKIN_STARS 6, OA_SKIN_GILT 7.
+            half OA_SkinHash(float3 p)
+            {
+                p = frac(p * 0.3183099 + 0.1);
+                p *= 17.0;
+                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }
+
+            // A prize skin on the player's gun. p is the gun's own space in metres; range is how far off the eye is,
+            // so fine patterns settle to their average before they would shimmer. Painted parts (everything that is
+            // not bare metal) take the skin, with the pictures' own light and dark (wear, grime, edges) kept in it.
+            void OA_Skin(inout half3 albedo, inout half gloss, inout half metal, float3 p, half3 normal, half3 toEye, float range)
+            {
+                half pattern = _SkinSet.x;
+                half cover = saturate(_SkinSet.y);
+                half painted = saturate(1.0 - metal * 1.25) * cover;
+                half detail = saturate(dot(albedo, half3(0.299, 0.587, 0.114)) * 2.2);
+                half shading = lerp(0.55, 1.15, detail);
+                half3 colour = _SkinColour.rgb;
+                half3 accent = _SkinAccent.rgb;
+                half3 skin = colour;
+                half skinGloss = 0.35;
+                if (pattern > 1.5 && pattern < 2.5)
+                {
+                    // Stripes: diagonal bands 2.5 cm wide, evened out to their average from 4 to 10 m off.
+                    half band = step(0.5, frac(dot(p, float3(0.0, 0.7071, 0.7071)) * 20.0));
+                    band = lerp(band, 0.5, saturate((range - 4.0) / 6.0));
+                    skin = lerp(colour, accent, band);
+                    skinGloss = 0.3;
+                }
+                else if (pattern > 2.5 && pattern < 3.5)
+                {
+                    // Wood: grain lines along the gun's length, bent a little so they never look ruled, with a
+                    // finer grain inside them close up (gone by 3 m, before it could shimmer).
+                    half wave = sin(p.y * 90.0 + sin(p.z * 9.0) * 2.0 + p.x * 30.0);
+                    half grain = sin(p.y * 420.0 + sin(p.z * 23.0) * 3.0) * saturate(1.0 - range / 3.0);
+                    skin = lerp(colour, accent, saturate(smoothstep(-0.2, 0.9, wave) * 0.55 + grain * 0.12));
+                    skinGloss = 0.45;
+                }
+                else if (pattern > 3.5 && pattern < 4.5)
+                {
+                    // Mother of pearl: pale, with a colour that moves as the gun turns.
+                    half facing = saturate(dot(normal, toEye));
+                    half sheen = sin(facing * 6.0 + dot(p, float3(11.0, 7.0, 5.0))) * 0.5 + 0.5;
+                    skin = lerp(colour, accent, sheen * (1.0 - facing * 0.5));
+                    skinGloss = 0.75;
+                }
+                else if (pattern > 4.5 && pattern < 5.5)
+                {
+                    // Candy over chrome: deep colour with fine flake (gone by 3 m), and the bare metal under it tinted.
+                    half flake = step(0.94, OA_SkinHash(floor(p * 400.0))) * saturate(1.0 - range / 3.0);
+                    skin = lerp(colour, accent, flake * 0.7);
+                    skinGloss = 0.85;
+                    albedo = lerp(albedo, saturate(albedo * colour * 1.6), metal * cover);
+                }
+                else if (pattern > 5.5 && pattern < 6.5)
+                {
+                    // Star chart: night blue scattered with gold points (gone by 4 m).
+                    half star = step(0.985, OA_SkinHash(floor(p * 220.0))) * saturate(1.0 - range / 4.0);
+                    skin = lerp(colour, accent, star);
+                    skinGloss = 0.4;
+                }
+                else if (pattern > 6.5)
+                {
+                    // Gilded: gold leaf over every part, bare metal included.
+                    painted = cover;
+                    skinGloss = 0.7;
+                    metal = lerp(metal, 1.0, cover * 0.8);
+                }
+                albedo = lerp(albedo, skin * shading, painted);
+                gloss = lerp(gloss, skinGloss, painted);
+            }
+        #endif
 
             half4 frag(Varyings input) : SV_Target
             {
@@ -136,6 +224,11 @@ Shader "OrbitalAnte/Model"
                 half hollow = 1.0;
                 half gloss = input.finish.x;
                 half metal = input.finish.y;
+            #endif
+            #if defined(_OA_SKIN)
+                // positionOS carries the paint's patch size; the skin measures in the gun's own metres.
+                OA_Skin(albedo, gloss, metal, input.positionOS / max((float)_PaintScale, 1.0), normal,
+                    normalize(_WorldSpaceCameraPos.xyz - input.positionWS), range);
             #endif
                 float3 up = _OA_SkyUp.xyz;
 

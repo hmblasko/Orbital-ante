@@ -528,11 +528,10 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void AVersion4Save_IsBroughtUpTo5_WithNothingUnlocked_AndStandardChosen()
+        public void AVersion4Save_IsBroughtUpToDate_WithNothingUnlocked_AndStandardChosen()
         {
             var data = new SaveData { version = 4, runsEnded = 3, bestAnte = 3, unlocks = null, unlocksSeen = null, kit = null, perksToShow = null };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
-            Assert.AreEqual(5, data.version);
             Assert.AreEqual(SaveData.CurrentVersion, data.version);
             Assert.IsNotNull(data.unlocks);
             Assert.IsEmpty(data.unlocks);

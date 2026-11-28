@@ -350,7 +350,8 @@ namespace OrbitalAnte.Core
                 if (astronaut != null)
                 {
                     // The run's build (perks, attributes, hazard) acts on this player only.
-                    Combat.RunEffects.Attach(astronaut.Armour, () => astronaut.Stances.Current != Spacewalk.Stance.Stand, astronaut.SuitTanks);
+                    Combat.RunEffects.Attach(astronaut.Armour, () => astronaut.Stances.Current != Spacewalk.Stance.Stand, astronaut.SuitTanks,
+                        _space.Dash != null ? _space.Dash.Supplies : null);
                     if (_runPerks != null) _runPerks.Weapons = astronaut.Weapons;
                     // The suit can only be shot outside; its cracks and arcs belong to the view out of the helmet.
                     _hud.WatchHurt(astronaut.Armour, astronaut.Eye != null ? astronaut.Eye.transform : null,

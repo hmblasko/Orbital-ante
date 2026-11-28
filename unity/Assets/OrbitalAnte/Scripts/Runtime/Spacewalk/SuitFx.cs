@@ -62,7 +62,9 @@ namespace OrbitalAnte.Spacewalk
             pack.transform.localPosition = new Vector3(0f, ShipLayout.EyeHeight, 0f);
             fx._pack = pack.transform;
             fx._flameMesh = Cone(8);
-            fx._flameMaterial = new Material(PlanetMaterials.VertexColour(config.jetColour, 0f, 2f, false));
+            // A jet pack from the Locker colours the flames (Ralph loop pass 4); never so deep a red that a jet reads as damage.
+            Color flame = Items.LockerLook.Colour(Items.LockerLook.Suit().Jet, config.jetColour);
+            fx._flameMaterial = new Material(PlanetMaterials.VertexColour(flame, 0f, 2f, false));
             fx._flameMaterial.name = "OA_SuitJet";
             for (int i = 0; i < fx._flames.Length; i++)
             {

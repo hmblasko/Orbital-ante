@@ -50,6 +50,9 @@ namespace OrbitalAnte.Cockpit
         /// <summary>The share of push the engines can give for want of fuel: 1, or the reserve when dry.</summary>
         public float PushFactor => FuelOut ? Clamp01(Rules.reservePush) : 1f;
 
+        /// <summary>How much bigger the fuel tank is than standard (below 1 for a Locker upgrade's cost, 28 Nov 2026). A tank lasts this many times longer; filling takes no longer.</summary>
+        public float FuelScale = 1f;
+
         public ShipSupplies(SupplyRules rules = null)
         {
             Rules = rules ?? new SupplyRules();
@@ -66,7 +69,7 @@ namespace OrbitalAnte.Cockpit
             push = push < 0f ? 0f : push > 3f ? 3f : push;
             if (push > 0.01f)
             {
-                float use = push * (boost ? Math.Max(1f, Rules.boostCost) : 1f) / Math.Max(1f, Rules.fuelSeconds);
+                float use = push * (boost ? Math.Max(1f, Rules.boostCost) : 1f) / Math.Max(1f, Rules.fuelSeconds * Math.Max(0.5f, FuelScale));
                 Fuel = Math.Max(0f, Fuel - use * dt);
             }
             float leak = (Rules.sealedCabinUsesAir ? 1f : 0f) + Math.Max(0, brokenWindows) * Math.Max(0f, Rules.leakPerBrokenWindow);

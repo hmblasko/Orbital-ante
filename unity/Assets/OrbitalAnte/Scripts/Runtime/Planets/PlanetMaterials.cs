@@ -37,6 +37,11 @@ namespace OrbitalAnte.Planets
         static readonly int MaskMapId = Shader.PropertyToID("_MaskMap");
         /// <summary>The model shader's switch for drawing from texture pictures (OA_Model.shader).</summary>
         public const string TexturedKeyword = "_OA_TEXTURED";
+        /// <summary>The model shader's layer for a Locker gun skin (OA_Skin in OA_Model.shader).</summary>
+        public const string SkinKeyword = "_OA_SKIN";
+        static readonly int SkinColourId = Shader.PropertyToID("_SkinColour");
+        static readonly int SkinAccentId = Shader.PropertyToID("_SkinAccent");
+        static readonly int SkinSetId = Shader.PropertyToID("_SkinSet");
         static readonly int GroundId = Shader.PropertyToID("_Ground");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
@@ -74,6 +79,18 @@ namespace OrbitalAnte.Planets
         static readonly Dictionary<long, Material> VertexCache = new Dictionary<long, Material>();
         static readonly Dictionary<int, Material> ModelCache = new Dictionary<int, Material>();
         static readonly Dictionary<string, Material> TexturedCache = new Dictionary<string, Material>();
+        /// <summary>Skinned copies of model materials, by the material they copy and the skin's own key.</summary>
+        static readonly Dictionary<SkinKey, Material> SkinCache = new Dictionary<SkinKey, Material>();
+
+        readonly struct SkinKey : System.IEquatable<SkinKey>
+        {
+            readonly Material _source;
+            readonly string _look;
+            public SkinKey(Material source, string look) { _source = source; _look = look ?? ""; }
+            public bool Equals(SkinKey other) => ReferenceEquals(_source, other._source) && _look == other._look;
+            public override bool Equals(object obj) => obj is SkinKey other && Equals(other);
+            public override int GetHashCode() => (_source != null ? _source.GetHashCode() : 0) * 397 ^ _look.GetHashCode();
+        }
 
         /// <summary>True when the ground is drawn with the game's own shader (far-picture blending, lamp, cave darkness).</summary>
         public static bool OwnTerrain { get { Look(); return _terrain != null; } }
@@ -116,6 +133,11 @@ namespace OrbitalAnte.Planets
                 if (m != null) Object.Destroy(m);
             }
             TexturedCache.Clear();
+            foreach (Material m in SkinCache.Values)
+            {
+                if (m != null) Object.Destroy(m);
+            }
+            SkinCache.Clear();
         }
 
         public static void SetStrength(Material material, float strength)
@@ -298,6 +320,28 @@ namespace OrbitalAnte.Planets
             m.SetTexture(MaskMapId, mask);
             m.EnableKeyword(TexturedKeyword);
             TexturedCache[key] = m;
+            return m;
+        }
+
+        /// <summary>
+        /// A copy of one of the model materials (<see cref="Model"/> or <see cref="TexturedModel"/>) wearing a Locker gun
+        /// skin: the shader's <see cref="SkinKeyword"/> layer with the skin's pattern and two colours (sRGB; Unity makes
+        /// them linear). One per material and skin, shared by every gun that wears it, destroyed with the others when
+        /// a world is built. Null when <paramref name="source"/> is not drawn with the model shader (simple shaders,
+        /// Shine at 0): the gun then keeps its own look.
+        /// </summary>
+        public static Material SkinnedModel(Material source, string look, Color colour, Color accent, int pattern, float cover = 1f)
+        {
+            Look();
+            if (source == null || _model == null || source.shader != _model || string.IsNullOrEmpty(look)) return null;
+            var key = new SkinKey(source, look);
+            if (SkinCache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            var m = new Material(source) { name = source.name + " skin " + look };
+            m.SetColor(SkinColourId, colour);
+            m.SetColor(SkinAccentId, accent);
+            m.SetVector(SkinSetId, new Vector4(pattern, Mathf.Clamp01(cover), 0f, 0f));
+            m.EnableKeyword(SkinKeyword);
+            SkinCache[key] = m;
             return m;
         }
 

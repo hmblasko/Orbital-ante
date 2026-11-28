@@ -172,6 +172,20 @@ namespace OrbitalAnte.UI
             return plate;
         }
 
+        /// <summary>
+        /// Repaints a plate made by <see cref="Plate"/>: its edge (the plate's own picture) and its face. For a plate
+        /// whose colours come from the Locker (the suit plate); every other plate keeps the kit's own colours.
+        /// </summary>
+        public static void PaintPlate(RectTransform plate, Color face, Color edge)
+        {
+            if (plate == null) return;
+            Image own = plate.GetComponent<Image>();
+            if (own != null) own.color = edge;
+            Transform faceRect = plate.Find("Face");
+            Image faceImage = faceRect != null ? faceRect.GetComponent<Image>() : null;
+            if (faceImage != null) faceImage.color = face;
+        }
+
         /// <summary>A plain rectangle of colour inside a plate, placed like <see cref="At(RectTransform,float,float,float,float)"/> but by its top.</summary>
         public static Image Box(RectTransform plate, string name, float x, float top, float width, float height, Color colour)
         {

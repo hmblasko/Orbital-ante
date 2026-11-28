@@ -76,6 +76,8 @@ static class Program
             downLine = item.category == ItemCategory.Upgrade ? ItemLook.UpgradeDownLine(item) : "",
             effectName = effect != null ? effect.displayName : "",
             effectColour = effect != null ? effect.colour : null,
+            // As on a profile whose place for it is empty: a cosmetic goes to work by itself, an upgrade waits (Locker).
+            useLine = Locker.RevealWords(item, item.category != ItemCategory.Upgrade),
         };
         Png.Write(Path.Combine(folder, "Card.png"), EnvelopeArt.Card(item, rarity, effect != null ? effect.colour : null));
 

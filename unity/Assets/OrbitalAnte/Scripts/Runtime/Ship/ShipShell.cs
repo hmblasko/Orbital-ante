@@ -101,12 +101,15 @@ namespace OrbitalAnte.Ship
 
         // ------------------------------------------------------------------ outside
 
-        /// <summary>The outside of the cabin. Lit by the Sun at run time, not baked.</summary>
-        public static ShipMesh Hull()
+        /// <summary>
+        /// The outside of the cabin. Lit by the Sun at run time, not baked. <paramref name="paint"/> is the ship paint
+        /// in use from the Locker, or null for the lander's own white, grey and gold (Ralph loop pass 4).
+        /// </summary>
+        public static ShipMesh Hull(HullPaint paint = null)
         {
             var b = new MeshBuilder();
-            PanelledSheet(b, ShipLayout.OuterPoint, HullPanel, HullColour, away: true);
-            Cap(b, inside: false);
+            PanelledSheet(b, ShipLayout.OuterPoint, HullPanel, panel => HullColour(panel, paint), away: true);
+            Cap(b, inside: false, paint);
 
             // A skirt tucking the bottom of the bowl down into the top of the base, so no gap shows.
             b.Color(HullDark);
@@ -145,19 +148,36 @@ namespace OrbitalAnte.Ship
             return 200 + column / 8;
         }
 
-        static P3 HullColour(int panel)
+        /// <summary>Which kind of panel a hull panel number is (<see cref="HullPanel"/>), for its colour and a paint's.</summary>
+        public static HullPanelKind HullPanelKindOf(int panel)
         {
-            if (panel == 0) return MeshBuilder.Web(HullGrey);
+            if (panel == 0) return HullPanelKind.Band;
             if (panel < 200)
             {
                 // Mostly white, with the odd dark or gold panel, in a fixed pattern (the same ship every time).
                 int k = (panel * 7 + 3) % 16;
-                if (k == 0 || k == 9) return MeshBuilder.Web(HullDark);
-                if (k == 5) return MeshBuilder.Web(HullGold);
-                if (k % 3 == 0) return MeshBuilder.Web(HullGrey);
-                return MeshBuilder.Web(HullWhite);
+                if (k == 0 || k == 9) return HullPanelKind.WallDark;
+                if (k == 5) return HullPanelKind.WallGold;
+                if (k % 3 == 0) return HullPanelKind.WallGrey;
+                return HullPanelKind.WallLight;
             }
-            return MeshBuilder.Web(panel % 2 == 0 ? HullWhite : "#CFCBC0");
+            return HullPanelKind.Roof;
+        }
+
+        static P3 HullColour(int panel, HullPaint paint)
+        {
+            HullPanelKind kind = HullPanelKindOf(panel);
+            bool roofOdd = kind == HullPanelKind.Roof && panel % 2 != 0;
+            if (kind == HullPanelKind.WallDark) return MeshBuilder.Web(HullDark);
+            if (paint != null) return paint.Panel(kind, roofOdd);
+            switch (kind)
+            {
+                case HullPanelKind.Band:
+                case HullPanelKind.WallGrey: return MeshBuilder.Web(HullGrey);
+                case HullPanelKind.WallGold: return MeshBuilder.Web(HullGold);
+                case HullPanelKind.Roof: return MeshBuilder.Web(roofOdd ? "#CFCBC0" : HullWhite);
+                default: return MeshBuilder.Web(HullWhite);
+            }
         }
 
         // ------------------------------------------------------------------ glass
@@ -472,9 +492,10 @@ namespace OrbitalAnte.Ship
         }
 
         /// <summary>The round cap that closes the top of the dome.</summary>
-        static void Cap(MeshBuilder b, bool inside)
+        static void Cap(MeshBuilder b, bool inside, HullPaint paint = null)
         {
             b.Color(inside ? Ceiling : HullWhite);
+            if (!inside && paint != null) b.Paint = paint.Panel(HullPanelKind.Cap, false);
             int last = ShipLayout.WallRows - 1;
             int first = b.VertexCount;
             for (int i = 0; i < ShipLayout.WallColumns; i++) b.Add(inside ? ShipLayout.InnerPoint(i, last) : ShipLayout.OuterPoint(i, last));

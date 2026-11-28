@@ -38,6 +38,8 @@ namespace OrbitalAnte.Look
         /// <summary>Each open-air material with its cabin twin, both ways round, for <see cref="SetIndoors"/>.</summary>
         static readonly Dictionary<Material, Material> IndoorOf = new Dictionary<Material, Material>();
         static readonly Dictionary<Material, Material> OutdoorOf = new Dictionary<Material, Material>();
+        /// <summary>Each skinned material (a Locker gun skin) and the plain material it copies, for <see cref="Wear"/>.</summary>
+        static readonly Dictionary<Material, Material> PlainOf = new Dictionary<Material, Material>();
 
         public static void ResetStatics()
         {
@@ -54,6 +56,7 @@ namespace OrbitalAnte.Look
             Pictures.Clear();
             IndoorOf.Clear();
             OutdoorOf.Clear();
+            PlainOf.Clear();
         }
 
         /// <summary>The model's data, or null if there is no such model (or its file is damaged; the Console says why).</summary>
@@ -201,6 +204,81 @@ namespace OrbitalAnte.Look
                 else if (!indoors && OutdoorOf.TryGetValue(now, out Material back)) renderer.sharedMaterial = back;
             }
         }
+
+        // ------------------------------------------------------------------ Locker gun skins (Ralph loop pass 4)
+
+        static readonly List<MeshRenderer> Renderers = new List<MeshRenderer>();
+
+        /// <summary>
+        /// Dresses every library model piece under <paramref name="root"/> in a gun skin from the Locker, or takes a
+        /// skin off (<paramref name="look"/> null). Pieces that shine by themselves, and anything that is not drawn
+        /// with a library model material (stand-in shapes, a third-party model, effects), are left as they are. Each
+        /// skinned material gets its cabin or open-air twin too, so <see cref="SetIndoors"/> keeps working. Shared
+        /// materials only: wearing the same skin again creates nothing. Under simple shaders, or with Shine at 0, a
+        /// gun keeps its own look.
+        /// </summary>
+        public static void Wear(GameObject root, Items.SkinLook? look)
+        {
+            if (root == null) return;
+            ForgetDestroyed(PlainOf);
+            root.GetComponentsInChildren(true, Renderers);
+            for (int i = 0; i < Renderers.Count; i++)
+            {
+                MeshRenderer renderer = Renderers[i];
+                if (renderer == null || ModelFile.Shines(renderer.gameObject.name)) continue;
+                Material now = renderer.sharedMaterial;
+                if (now == null) continue;
+                Material plain = PlainOf.TryGetValue(now, out Material under) ? under : now;
+                if (!IsModelMaterial(plain)) continue;
+                Material want = look.HasValue ? SkinnedOf(plain, look.Value) : plain;
+                if (want != null && want != now) renderer.sharedMaterial = want;
+            }
+            Renderers.Clear();
+        }
+
+        /// <summary>True for a material this library draws its models with (open air or cabin, textured or not).</summary>
+        static bool IsModelMaterial(Material m)
+        {
+            if (m == null) return false;
+            return m == Outdoor() || m == Indoor() || IndoorOf.ContainsKey(m) || OutdoorOf.ContainsKey(m);
+        }
+
+        static Material SkinnedOf(Material plain, Items.SkinLook look)
+        {
+            Material skinned = Skinned(plain, look);
+            if (skinned == null) return null;
+            // Its twin: the plain material's own, skinned the same way, so the gun can go in and out of the cabin.
+            Material outdoor = Outdoor(), indoor = Indoor();
+            Material twin = plain == outdoor ? indoor
+                : plain == indoor ? outdoor
+                : IndoorOf.TryGetValue(plain, out Material plainIndoor) ? plainIndoor
+                : OutdoorOf.TryGetValue(plain, out Material plainOutdoor) ? plainOutdoor
+                : null;
+            if (twin == null || twin == plain) return skinned;
+            Material skinnedTwin = Skinned(twin, look);
+            if (skinnedTwin == null) return skinned;
+            bool plainIsIndoor = plain == indoor || OutdoorOf.ContainsKey(plain);
+            if (plainIsIndoor)
+            {
+                OutdoorOf[skinned] = skinnedTwin;
+                IndoorOf[skinnedTwin] = skinned;
+            }
+            else
+            {
+                IndoorOf[skinned] = skinnedTwin;
+                OutdoorOf[skinnedTwin] = skinned;
+            }
+            return skinned;
+        }
+
+        static Material Skinned(Material plain, Items.SkinLook look)
+        {
+            Material m = PlanetMaterials.SkinnedModel(plain, look.Key, ToColour(look.Colour), ToColour(look.Accent), (int)look.Pattern);
+            if (m != null) PlainOf[m] = plain;
+            return m;
+        }
+
+        static Color ToColour(float[] c) => c != null && c.Length == 3 ? new Color(c[0], c[1], c[2]) : Color.white;
 
         static Entry Get(string id)
         {

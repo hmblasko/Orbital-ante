@@ -282,6 +282,12 @@ namespace OrbitalAnte.Ante
         public float Move = 1f;
         /// <summary>How many times longer the suit's air lasts.</summary>
         public float Oxygen = 1f;
+        /// <summary>How many times longer the suit's jet tank lasts (a Locker upgrade's, Ralph loop pass 4).</summary>
+        public float JetFuel = 1f;
+        /// <summary>How many times longer the ship's fuel tank lasts (a Locker upgrade's).</summary>
+        public float ShipFuel = 1f;
+        /// <summary>How many times longer a reload of the player's gun takes (a Locker upgrade's; below 1 is quicker).</summary>
+        public float ReloadTime = 1f;
         public float FocusGain = 1f;
         public float FocusOnMeleeKill;
         public float HealOnKill, HealOnMeleeKill, HealOnSplat, HealOnLowHealthKill;
@@ -299,7 +305,8 @@ namespace OrbitalAnte.Ante
         public static readonly RunMods Neutral = new RunMods();
 
         /// <param name="tacticalBoost">A scratch-off's temporary tactical perk: +10% damage for one ante.</param>
-        public static RunMods From(PerkLoadout perks, AttributeShop attributes, Hazard hazard, AnteBalance balance, bool tacticalBoost = false)
+        /// <param name="lockerUpgrade">The upgrade in use from the Locker, or null: its gain and its cost go on top of the rest (<see cref="Items.UpgradeEffects"/>).</param>
+        public static RunMods From(PerkLoadout perks, AttributeShop attributes, Hazard hazard, AnteBalance balance, bool tacticalBoost = false, Items.ItemSpec lockerUpgrade = null)
         {
             balance = balance ?? new AnteBalance();
             var m = new RunMods { Hazard = hazard, LowHealthLine = balance.lowHealthLine, CloseRange = balance.closeRange };
@@ -340,6 +347,7 @@ namespace OrbitalAnte.Ante
             m.LongShotCloser = Math.Max(0f, Math.Min(balance.longShotMetres * 0.5f, all.Sum(PerkStat.LongShotCloser)));
             m.LandingTimeBack = Math.Max(0f, all.Sum(PerkStat.LandingTimeBack));
             m.TimeOnLongShot = Math.Max(0f, all.Sum(PerkStat.TimeOnLongShot));
+            Items.UpgradeEffects.Apply(m, lockerUpgrade);
             return m;
         }
 

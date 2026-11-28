@@ -36,7 +36,7 @@ namespace OrbitalAnte.Tasks
         void PublishBuild()
         {
             if (Run == null) { RunEffects.Clear(); return; }
-            RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte));
+            RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte, LockerUpgrade));
             // In overtime the enemies are as sharp as under Hunted. Not its extra heavies: an enemy keeps the kind it
             // first woke as for the whole run, so heavies woken in overtime would stay heavies in every later ante.
             EnemyPressure pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
@@ -231,7 +231,11 @@ namespace OrbitalAnte.Tasks
                 PerkFamily f = PerkFamilies.All[i];
                 if (Run.Perks.FamilyCount(f) > 0) parts.Add(PerkFamilies.Progress(Run.Perks, f, Run.Balance));
             }
-            return parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
+            string build = parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
+            // The Locker's upgrade is part of the build all run (Ralph loop pass 4): its gain and its cost, in words.
+            if (LockerUpgrade == null) return build;
+            string locker = "Locker upgrade: " + Items.Locker.UpgradeWords(LockerUpgrade);
+            return build.Length == 0 ? locker : build + "\n" + locker;
         }
 
         /// <summary>The break's perk pick, on the star chart (Matthew chose option A, 21 Nov 2026).</summary>

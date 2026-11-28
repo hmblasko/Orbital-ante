@@ -17,6 +17,14 @@ namespace OrbitalAnte.Look
         const float SettingsInterval = 0.25f;
 
         public static PostFx Instance { get; private set; }
+
+        /// <summary>
+        /// The visor's colour filter over the world (white for none): set by the suit display while a visor from the
+        /// Locker is worn in the open (Ralph loop pass 4). Applied only when it changes; the on-screen displays are
+        /// drawn after the picture finish, so they are never tinted.
+        /// </summary>
+        public static Color VisorTint = Color.white;
+        Color _visorApplied = Color.white;
         public string Status { get; private set; } = "not built";
         public readonly List<string> Missing = new List<string>();
 
@@ -40,6 +48,7 @@ namespace OrbitalAnte.Look
             // Release asset settings before a replacement captures them, including with domain reload off.
             if (Instance != null) Instance.enabled = false;
             Instance = null;
+            VisorTint = Color.white;
         }
 
         public static PostFx Ensure(GameObject host, LookConfig config)
@@ -153,6 +162,7 @@ namespace OrbitalAnte.Look
             SetParameter(_grade, "postExposure", settings.Exposure);
             SetParameter(_grade, "contrast", settings.Contrast);
             SetParameter(_grade, "saturation", settings.Saturation);
+            SetParameter(_grade, "colorFilter", _visorApplied);
             SetMember(_balance, "active", Mathf.Abs(settings.Warmth) > 0.01f);
             SetParameter(_balance, "temperature", settings.Warmth);
             SetMember(_split, "active", settings.SplitTone > 0.001f);
@@ -180,6 +190,11 @@ namespace OrbitalAnte.Look
             if (_config == null) return;
             if (Time.unscaledTime >= _nextSettingsCheck) RefreshSettings();
             if (!_active) return;
+            if (VisorTint != _visorApplied)
+            {
+                _visorApplied = VisorTint;
+                SetParameter(_grade, "colorFilter", _visorApplied);
+            }
             // Existing camera discovery stays before drawing; unchanged settings only compare a value
             // struct four times per second, with no reflection, boxing or collection creation.
             if (Camera.allCamerasCount > _cameras.Length) _cameras = new Camera[Camera.allCamerasCount * 2];

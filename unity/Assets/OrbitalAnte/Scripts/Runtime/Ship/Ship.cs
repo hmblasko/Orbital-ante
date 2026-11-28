@@ -136,7 +136,8 @@ namespace OrbitalAnte.Ship
             // ---- cabin
             int cabin = Model.IndexOf("cabin");
             GameObject cabinGo = NewPart(cabin, new Vector3(0f, 1.2f, 0f));
-            AddVisual(cabinGo, ShipShell.Hull(), "Hull", outside, HullRoundDegrees);
+            // The hull wears the Locker's ship paint, if one is in use (Ralph loop pass 4); the cabin inside never does.
+            AddVisual(cabinGo, ShipShell.Hull(Items.LockerLook.ShipPaint()), "Hull", outside, HullRoundDegrees);
             AddVisual(cabinGo, ShipProps.HullDetails(), "HullDetails", outside);
             AddConvex(cabinGo, ShipShell.CabinCollision(), "CabinCollision", grip);
             _anchors[cabin].Add(new Vector3(0f, 1.25f, -2.3f));

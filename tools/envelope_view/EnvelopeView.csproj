@@ -11,7 +11,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
-    <Compile Include="$(OARoot)Items/ItemRules.cs;$(OARoot)Items/ItemCatalog.cs;$(OARoot)Items/EnvelopeRules.cs;$(OARoot)Items/EnvelopeArt.cs;$(OARoot)Items/EnvelopeScene.cs" />
+    <Compile Include="$(OARoot)Items/ItemRules.cs;$(OARoot)Items/ItemCatalog.cs;$(OARoot)Items/EnvelopeRules.cs;$(OARoot)Items/EnvelopeArt.cs;$(OARoot)Items/EnvelopeScene.cs;$(OARoot)Items/Locker.cs;$(OARoot)Items/PrizeLooks.cs" />
+    <Compile Include="$(OARoot)Ship/HullPaint.cs;$(OARoot)Ship/MeshBuilder.cs" />
     <Compile Include="$(OARoot)Core/SeededRandom.cs;$(OARoot)Save/SaveData.cs" />
     <Compile Include="$(OARoot)Ante/*.cs" Exclude="$(OARoot)Ante/AnteBalanceData.cs" />
   </ItemGroup>
