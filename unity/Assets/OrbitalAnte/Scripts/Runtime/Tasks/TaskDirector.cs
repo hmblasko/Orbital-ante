@@ -338,11 +338,24 @@ namespace OrbitalAnte.Tasks
             if (credit == null) return;
             credit.Hits++;
             if (!outcome.Killed) return;
+            // A sea creature cannot leave the water: killed by someone it could not reach (from the shore, or hovering
+            // over the sea) it pays nothing toward the ante, its bonus missions or the unlocks, and the note says why,
+            // so it is never a hidden rule (constitution 3) and never free points (5).
+            if (!creature.InReach)
+            {
+                AnteLoop.Note(CreatureTiers.OutOfReach);
+                return;
+            }
             Astronaut player = Player;
             KillFacts f = FactsOf(outcome, player);
             f.oneShot = credit.Hits == 1;
-            Vector3 at = creature is Creatures.IWindup windup ? windup.WindupPoint : outcome.Target.transform.position;
-            f.longShot = LongShot(f, player, at);
+            // The creature is alive in the call that raises its hit today; one heard late (destroyed) still pays, but
+            // where it was can no longer be asked, so it is never a long shot.
+            if (outcome.Target != null)
+            {
+                Vector3 at = creature is Creatures.IWindup windup ? windup.WindupPoint : outcome.Target.transform.position;
+                f.longShot = LongShot(f, player, at);
+            }
             f.freshGun = FreshGun(outcome, f, player);
             int feats = StyleKill.Feats(f, out string style);
             PayKill(CreatureTiers.KindFor(credit.Kind), credit.Claim, credit.Body, f, feats, string.IsNullOrEmpty(style) ? "KILL" : style);

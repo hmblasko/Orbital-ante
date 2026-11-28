@@ -17,7 +17,7 @@ DIRECTION: dict = {
     ],
     "combatTrack": "combat_all_in",
     "combatEnter": 60,       # intensity that starts the combat music
-    "combatExit": 38,        # it must fall below this...
+    "combatExit": 48,        # it must fall below this (over the danger music's Hunted, 46, so a search after a fight is heard as tension)...
     "combatMinSeconds": 14,  # ...and combat music must have played at least this long, before it resolves
     "ambushIntensity": 85,   # a jump straight to this skips the riser and lands the hit on the next beat
     # How one piece hands over to the next. First matching rule wins; "*" matches anything, "" is silence.

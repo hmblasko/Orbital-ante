@@ -33,9 +33,11 @@ namespace OrbitalAnte.Audio
         readonly MusicDanger _danger = new MusicDanger();
         float _nextHuntRead;
         int _aware;
-        bool _coming;
+        bool _coming, _creatureAware;
         float _creatureAt = -1000f;
         Ship.Astronaut _crew;
+        // The arena or solar world last played: a new one (a restart goes straight from one world to the next) starts calm.
+        Component _world;
 
         void OnEnable()
         {
@@ -53,8 +55,12 @@ namespace OrbitalAnte.Audio
         // A creature began a warning at the player: that is a fight, even though nothing has been fired.
         void OnCreatureWindup(Creatures.IWindup source) => _creatureAt = Time.time;
 
-        /// <summary>The danger the music follows: the place's calm, and over it being hunted, a fight, the last plates.</summary>
-        float Threat(float calm, PlayerHealth armour)
+        /// <summary>
+        /// The danger the music follows: the place's calm, and over it being hunted or a fight; and, told to the
+        /// director, whether someone is after the player (no rests) and whether the last plates thin the music.
+        /// <paramref name="counted"/>: who is after the player is counted here (the solar system, not the range).
+        /// </summary>
+        float Threat(AudioDirector d, float calm, PlayerHealth armour, bool counted)
         {
             var sense = new DangerSense
             {
@@ -63,9 +69,13 @@ namespace OrbitalAnte.Audio
                 SinceCreature = Time.time - _creatureAt,
                 Aware = _aware,
                 Coming = _coming,
+                CreatureAware = _creatureAware,
+                Counted = counted,
                 Armour = armour != null && armour.Max > 0f ? armour.Fraction : 1f,
             };
-            return _danger.Threat(sense);
+            float threat = _danger.Threat(sense);
+            d.SetMusicDanger(_danger.SomeoneAfter, _danger.OnTheLastPlates);
+            return threat;
         }
 
         void OnPlayerHit(HitOutcome outcome)
@@ -116,12 +126,16 @@ namespace OrbitalAnte.Audio
                 LeaveWorld(d);
                 d.SetMusicContext("menu");
                 d.Intensity.SetThreat(0f);
+                d.SetMusicDanger(false, false);
                 _danger.Reset();
                 _aware = 0;
                 _coming = false;
+                _creatureAware = false;
+                _creatureAt = -1000f;
                 return;
             }
 
+            NewWorld(d, game.Arena != null ? (Component)game.Arena : game.Space);
             if (game.Arena != null)
             {
                 Watch(game.Arena.Health);
@@ -132,7 +146,8 @@ namespace OrbitalAnte.Audio
                 // it. The range has no camps to hunt the player, so nobody is ever "coming".
                 _aware = 0;
                 _coming = false;
-                d.Intensity.SetThreat(Threat(24f, game.Arena.Health));
+                _creatureAware = false;
+                d.Intensity.SetThreat(Threat(d, 24f, game.Arena.Health, false));
                 if (!GameSession.Paused) Footsteps(game.Arena.Player);
             }
             else if (game.Space != null)
@@ -145,10 +160,30 @@ namespace OrbitalAnte.Audio
             }
         }
 
+        /// <summary>
+        /// A world not played before starts calm. "Try again" on the death page goes straight from one run's world to
+        /// the next without passing the menu, and the death page stops the game's clock, so a creature's warning just
+        /// before dying would still be a fight on the new run's pad, and the old fight's heat would carry over too.
+        /// </summary>
+        void NewWorld(AudioDirector d, Component world)
+        {
+            if (_world == world) return;
+            _world = world;
+            _creatureAt = -1000f;
+            _danger.Reset();
+            _aware = 0;
+            _coming = false;
+            _creatureAware = false;
+            _nextHuntRead = 0f;
+            d.Intensity.Reset();
+            d.SetMusicDanger(false, false);
+        }
+
         void LeaveWorld(AudioDirector d)
         {
             Watch(null);
             _crew = null;
+            _creatureAt = -1000f;
             _walker = null;
             _craft = null;
             if (_worldLoops)
@@ -277,12 +312,14 @@ namespace OrbitalAnte.Audio
                 _nextHuntRead = Time.unscaledTime + 0.25f;
                 if (world.Enemies != null) world.Enemies.Hunters(out _aware, out _coming);
                 else { _aware = 0; _coming = false; }
+                // A sea creature that has noticed the swimmer: tension while it comes, and its fight holds between strikes.
+                _creatureAware = world.Seas != null && world.Seas.AnyAware;
             }
             // Flying hard is its own excitement: thrust lifts the flight music's layers, still under the fight music.
             // A run's later antes are a little fuller (MusicDanger.Calm); danger goes over the top.
             Tasks.AnteLoop loop = Tasks.AnteLoop.Current;
             int ante = loop != null && loop.Run != null ? loop.Run.Director.Ante : 0;
-            d.Intensity.SetThreat(Threat(MusicDanger.Calm(context == "flight", _engine, ante), crew != null ? crew.Armour : null));
+            d.Intensity.SetThreat(Threat(d, MusicDanger.Calm(context == "flight", _engine, ante), crew != null ? crew.Armour : null, true));
         }
 
         /// <summary>A tick when the highlighted button changes on any menu.</summary>

@@ -163,18 +163,59 @@ the seas were a detour from the goal; and in the solar system the music heard on
   (`CreatureTiers`: the Pack biter 1, the Drifting maw and the Strider 3, the rest 2), the style feats, ON A ROLL, the
   Ghost set's time back, a bonus mission's bounty or style, and the kill unlocks. Every creature names itself as the
   target of its hits and carries a `CreatureCredit` given by whatever woke it; only the seas do so today, so the maw and
-  the biters pay and the practice range never does.
+  the biters pay and the practice range never does. Only from within its reach (`ICreature.InReach`): a swimmer killed
+  from the shore or from over the sea pays nothing, and the note says what does.
 - Claims are one per world, haunt and place. The seas remember a pack's dead fish one by one: a pack woken again comes
   back without them, and still counts them toward its size, so its last fish makes off as it would have.
 - A kill made while swimming is no longer AIRBORNE (it was, for camp kills too: a floating suit is "not grounded").
-- The music's steady level follows how things stand (`Audio/MusicDanger.cs`): calm (a little fuller each ante, as Part
-  B section 14 asks), tension while an armed enemy knows where you are or one is on its way to look, the fight music for
-  the readout's six seconds after a sighting or a creature's warning, its top layer on the last plates (with the suit's
-  pulse). The suit's armour is watched in the solar system, so being hurt is heard, except a crash's own hurt (Part B
-  wants no crash music). Out on foot, which piece plays is read where the player is, not where the ship is.
+- The music's steady level follows how things stand (`Audio/MusicDanger.cs`): calm (fuller each ante, 4 an ante up to
+  8, so it is heard by ante 3; flying, the lift goes with the engines and coasting stays quiet), hunted (the tension
+  layer while an armed enemy knows where you are or holds a place to look for you, from a sound, an alarm or a restless
+  squad's call, or a swimmer has noticed you), a fight (the readout's six seconds after a sighting by an armed enemy,
+  or a creature's warning, held up to 24 s between a creature's strikes). On the last plates in a fight the music
+  thins (its top layers held off, 4 dB down) so the suit's pulse is heard. No rests while someone is after you; a fight
+  back within a minute comes in on the hit at a later entry point; the fight music's exit is now 48, so a search after
+  a fight is heard as tension. The suit's armour is watched in the solar system, except a crash's own hurt (Part B
+  wants no crash music). Out on foot, which piece plays is read where the player is, not where the ship is. A new world
+  (a restart) starts the music calm.
 
 **Checked:**
 
-- `dotnet test tools/rules-tests`: 3,095 run, 3,094 passed, 1 skipped (the cabin bake check, as before), on the first
-  build; 14 tests are new (`CreatureKillTests`, `MusicDangerTests`).
+- `dotnet test tools/rules-tests`: 3,104 run, 3,103 passed, 1 skipped (the cabin bake check, as before), after the
+  reviews' fixes; 23 tests are new (`CreatureKillTests` 8, `MusicDangerTests` 12, three in `AudioRulesTests`) and one
+  was changed (a fight flaring up as the ending is counted in now comes back on the hit). The first build had 3,094 of
+  3,095 passing.
 - Runtime compile check: clean apart from the two known `excludeLayers` lines.
+- The music's rules in the manifest were refreshed from `tools/audio/music/__init__.py` with `build.py music --only
+  none` (no sound was rendered again); only `combatExit` changed.
+- Nothing was listened to.
+
+**Specialist reviews** (each run on this pass's first build, each finding checked before it was applied):
+
+- unity-reviewer: a rover crash would have brought fight music (the knock is now kept out); a creature's warning just
+  before dying carried into the next run's pad, because "Try again" goes straight from one world to the next with the
+  clock stopped (a new world now starts calm, and the old fight's heat goes too); the creature-kill path read a
+  destroyed creature's position if a hit were ever heard late (now it still pays, never as a long shot); an all-dead
+  pack could be made empty and block the world's other packs (refused now). The destroy order, one payment per animal,
+  the dead fish's memory, the sea test's frame and the subscriptions were confirmed safe. Not changed: the creature
+  code asks `TaskIds` for its claims (every claim's form in one place).
+- game-designer: sea creatures paid full price to a player they could not hurt (shots pass the sea's surface; the
+  swimmers ignore anyone out of the water), so a maw shot from a hover paid Tier 3 at no risk: kills from out of reach
+  now pay nothing, with a note (its first choice, shots that stop at the surface, would change every fight near water
+  and is left as a design question). Most ways enemies come looking were silent in the music (only a restless squad's
+  call counted, and it stopped counting as the squad closed in): every way is counted now, held by a test that reads
+  the code. Rests muted being hunted; creature fights would have flapped between strikes; a fight back soon opened with
+  the same riser; a disarmed enemy's sighting held the fight music; the last plates' chaos layer would have buried the
+  pulse; the ante's lift came after most first runs end and filled the coast. All applied as in the report. It found
+  the tiers fair. Its Deck acceptance criteria and playtest protocol are in the report.
+- deck-performance: fits the budget. The sea test asked for a full ground reading on every airborne hit, which high
+  above a world could cost a full-detail height: it now asks only the sea's radius. Budget rows written.
+
+**Scores after:** see `scorecard.md`, pass 3. Clear goal 7 to 8, enjoyable gameplay 6 to 7, the rest unchanged.
+
+**Left open:** nothing here has run in Unity, and the music has not been listened to. Known limits: an animal put away
+and woken again comes back healed; sea creatures killed from out of reach still count toward the gun ladder and Focus,
+as before; the land creatures pay nothing until a spawner brings them onto a world; whether shots should stop at the
+sea's surface is a design question for later. The Deck acceptance needs a per-event log of the music's band, piece
+and layers beside shots and points (not built). Next pass: gap 4, envelope prizes that do something in the game, and
+more unlocks.

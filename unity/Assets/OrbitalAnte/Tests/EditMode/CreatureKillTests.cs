@@ -158,9 +158,32 @@ namespace OrbitalAnte.Tests.EditMode
                     StringAssert.Contains("public CreatureCredit Credit { get; set; }", text, name);
                     Assert.AreEqual(Regex.Matches(text, @"outcome\.Enemy = true;").Count, Regex.Matches(text, @"outcome\.Enemy = true;\s*outcome\.Target = this;").Count,
                         name + ": every hit that counts as an enemy names it as the target");
+                    // A swimmer reaches only someone in the water with it; on land a creature can always come to the player.
+                    bool swims = name == "Maw" || name == "Biter";
+                    if (swims)
+                    {
+                        StringAssert.Contains("public bool InReach => _inReach;", text, name);
+                        StringAssert.Contains("_inReach = Water == null || senses.PlayerInWater;", text, name + ": in reach exactly when it takes notice of the player");
+                    }
+                    else StringAssert.Contains("public bool InReach => true;", text, name);
                 }
             }
             Assert.AreEqual(8, classes, "the eight creature classes (the walker is two kinds)");
+        }
+
+        [Test]
+        public void ASeaCreatureKilledFromOutOfItsReach_PaysNothing_AndTheNoteSaysWhatDoes()
+        {
+            string director = File.ReadAllText(Path.Combine(RuntimeFolder(), "Tasks", "TaskDirector.cs"));
+            int at = director.IndexOf("void OnCreatureHit(", System.StringComparison.Ordinal);
+            Assume.That(at >= 0, "OnCreatureHit not found");
+            string body = director.Substring(at, director.IndexOf("KillFacts FactsOf(", at, System.StringComparison.Ordinal) - at);
+            int refuse = body.IndexOf("if (!creature.InReach)", System.StringComparison.Ordinal);
+            Assert.GreaterOrEqual(refuse, 0, "the kill is refused when the creature could not reach the player");
+            Assert.Less(refuse, body.IndexOf("PayKill(", System.StringComparison.Ordinal), "before anything is paid, counted for a bonus mission or an unlock");
+            StringAssert.Contains("AnteLoop.Note(CreatureTiers.OutOfReach)", body, "never a hidden rule");
+            StringAssert.Contains("WATER", CreatureTiers.OutOfReach, "it says where they do pay");
+            Assert.LessOrEqual(CreatureTiers.OutOfReach.Length, 46, "as short as the readout's other notes");
         }
     }
 }

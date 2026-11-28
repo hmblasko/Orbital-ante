@@ -291,7 +291,7 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void Music_AFightThatFlaresUpAsTheEndingIsCountedIn_LetsTheEndingLandThenFadesItUnderTheRiser()
+        public void Music_AFightThatFlaresUpAsTheEndingIsCountedIn_LetsTheEndingLand_ThenComesBackOnTheHit()
         {
             var brain = new MusicBrain(Small());
             brain.SetContext("walk");
@@ -312,11 +312,102 @@ namespace OrbitalAnte.Tests
             }
             List<MusicCommand> fights = all.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight");
             Assert.AreEqual(2, fights.Count);
-            MusicCommand riser = all.FindLast(x => x.Kind == MusicCommandKind.PlayCue && x.Cue == "riser");
-            Assert.GreaterOrEqual(riser.Time, stopAt - 1e-6, "the new riser must not start before the old fight music has finished leaving");
+            MusicCommand back = all.FindLast(x => x.Kind == MusicCommandKind.PlayCue && (x.Cue == "riser" || x.Cue == "hit"));
+            Assert.AreEqual("hit", back.Cue, "a fight back within a minute comes in on the hit, not on the riser again");
+            Assert.GreaterOrEqual(back.Time, stopAt - 1e-6, "the new fight must not start before the old fight music has finished leaving");
             MusicCommand fade = all.Find(x => x.Kind == MusicCommandKind.StopCue);
-            Assert.AreEqual("ending", fade.Cue, "the ending still ringing is faded out under the riser");
-            Assert.Less(fade.Time, fights[1].Time);
+            Assert.AreEqual("ending", fade.Cue, "the ending still ringing is faded out as the fight comes back");
+            Assert.LessOrEqual(fade.Time, fights[1].Time);
+        }
+
+        [Test]
+        public void Music_AFightBackWithinAMinute_ComesInOnTheHit_AtTheFightsLaterEntryPointsInTurn()
+        {
+            AudioManifest m = Small();
+            m.Tracks["fight"].EntryBars = new[] { 1, 3, 7 };
+            var brain = new MusicBrain(m);
+            brain.SetContext("walk");
+            // Someone is after the player all along, so the calm piece never rests between the fights.
+            brain.Hunted = true;
+            // Fights at 14 s, 60 s and 100 s (each within a minute of the last one ending), and one after a long quiet.
+            List<MusicCommand> c = Drive(brain, 10, 300, t => (t > 14 && t < 16) || (t > 60 && t < 62) || (t > 100 && t < 102) || (t > 250 && t < 252) ? 75f : 10f);
+            List<MusicCommand> fights = c.FindAll(x => x.Kind == MusicCommandKind.StartTrack && x.Track == "fight");
+            Assert.AreEqual(4, fights.Count);
+            double bar = m.Tracks["fight"].BarSeconds;
+            Assert.AreEqual(0.0, fights[0].Offset, 1e-9, "the first fight starts from its top, where its riser lands");
+            Assert.AreEqual(2 * bar, fights[1].Offset, 1e-6, "back within a minute: a later entry point (bar 3)");
+            Assert.AreEqual(6 * bar, fights[2].Offset, 1e-6, "and the next one in turn (bar 7)");
+            Assert.AreEqual(0.0, fights[3].Offset, 1e-9, "after a long quiet it opens like the first again");
+            List<string> cues = c.FindAll(x => x.Kind == MusicCommandKind.PlayCue && (x.Cue == "riser" || x.Cue == "hit")).ConvertAll(x => x.Cue);
+            CollectionAssert.AreEqual(new[] { "riser", "hit", "hit", "riser" }, cues);
+        }
+
+        [Test]
+        public void Music_DoesNotRestWhileSomeoneIsAfterThePlayer_AndARestEndsWhenTheyCome()
+        {
+            // Looked for through the end of its second time round: it goes round once more, and rests at the end of that.
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            var all = new List<MusicCommand>();
+            var frame = new List<MusicCommand>();
+            double start = -1;
+            for (double t = 10; t < 90; t += 0.02)
+            {
+                brain.Hunted = start >= 0 && t < start + 40.0;
+                frame.Clear();
+                brain.Update(t, 10f, frame);
+                foreach (MusicCommand c in frame)
+                {
+                    all.Add(c);
+                    if (start < 0 && c.Kind == MusicCommandKind.StartTrack) start = c.Time;
+                }
+            }
+            MusicCommand stop = all.Find(x => x.Kind == MusicCommandKind.StopTrack);
+            Assert.AreEqual(start + 48.0, stop.Time + stop.Seconds, 1e-6, "one more time round, and the rest falls at its end, never part-way through");
+
+            // Resting, and someone comes looking: the rest ends at once.
+            brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            all.Clear();
+            start = -1;
+            for (double t = 10; t < 90; t += 0.02)
+            {
+                brain.Hunted = start >= 0 && t >= start + 40.0;
+                frame.Clear();
+                brain.Update(t, 10f, frame);
+                foreach (MusicCommand c in frame)
+                {
+                    all.Add(c);
+                    if (start < 0 && c.Kind == MusicCommandKind.StartTrack) start = c.Time;
+                }
+            }
+            stop = all.Find(x => x.Kind == MusicCommandKind.StopTrack);
+            Assert.AreEqual(start + 32.0, stop.Time + stop.Seconds, 1e-6, "it rested as always after its second time round");
+            List<MusicCommand> starts = all.FindAll(x => x.Kind == MusicCommandKind.StartTrack);
+            Assert.AreEqual(2, starts.Count);
+            Assert.GreaterOrEqual(starts[1].Time, start + 40.0 - 1e-6);
+            Assert.Less(starts[1].Time, start + 40.0 + 1.0, "being looked for is never heard as silence");
+        }
+
+        [Test]
+        public void Music_TheLastPlatesHoldTheFightsTopLayersOff_AndGiveThemBack()
+        {
+            var brain = new MusicBrain(Small());
+            brain.SetContext("walk");
+            var all = new List<MusicCommand>();
+            var frame = new List<MusicCommand>();
+            for (double t = 10; t < 60; t += 0.02)
+            {
+                brain.Thin = t >= 30 && t < 45;
+                frame.Clear();
+                brain.Update(t, 90f, frame);
+                all.AddRange(frame);
+            }
+            List<MusicCommand> lead = all.FindAll(x => x.Kind == MusicCommandKind.StemGain && x.Track == "fight" && x.Stem == "lead");
+            CollectionAssert.AreEqual(new[] { 1f, 0f, 1f }, lead.ConvertAll(x => x.Gain), "on, held off on the last plates, back after");
+            Assert.That(lead[1].Time, Is.InRange(30.0, 30.0 + MusicBrain.Lead + 1.6 + 1e-6), "on the next bar line");
+            Assert.That(lead[2].Time, Is.InRange(45.0, 45.0 + MusicBrain.Lead + 1.6 + 1e-6));
+            Assert.IsFalse(all.Exists(x => x.Kind == MusicCommandKind.StemGain && x.Stem == "all" && x.Gain < 0.5f), "the fight's floor plays on");
         }
 
         [Test]

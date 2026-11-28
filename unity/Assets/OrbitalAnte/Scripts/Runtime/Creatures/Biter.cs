@@ -55,6 +55,8 @@ namespace OrbitalAnte.Creatures
         /// <summary>A member died: its place in the pack, so a sea can leave it out when the pack is woken again.</summary>
         public event System.Action<int> Lost;
         public int Living => Pack.Living;
+        /// <summary>True while the pack has noticed the swimmer (one fish did, so they all know): for the music.</summary>
+        public bool AwareOfPlayer => Pack.Alerted && Pack.Living > 0;
 
         /// <summary>The middle of the living fish (where the pack is, not where it was made), in world space.</summary>
         public Vector3 Middle
@@ -70,7 +72,8 @@ namespace OrbitalAnte.Creatures
         }
 
         /// <summary>
-        /// Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game.
+        /// Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game, or if every place
+        /// in the pack is dead.
         /// <paramref name="dead"/> are places in the pack already killed (a pack woken again): they are left out, but
         /// still count toward its size. <paramref name="credit"/> says who pays for the fish in each place.
         /// </summary>
@@ -83,6 +86,11 @@ namespace OrbitalAnte.Creatures
                 Debug.LogWarning("Orbital Ante: the Pack biter's model (Resources/Models/" + BiterLayout.Model + ") is missing, so no pack was made.");
                 return null;
             }
+            int size = Mathf.Max(1, count), alive = 0;
+            for (int i = 0; i < size; i++)
+                if (dead == null || !dead.Contains(i)) alive++;
+            // Every fish of this pack is dead: there is no pack to make (an empty one would never say it was gone).
+            if (alive == 0) return null;
             var go = new GameObject(name ?? "Biter pack");
             go.transform.SetParent(parent, false);
             go.transform.SetPositionAndRotation(home, rotation);
@@ -96,11 +104,11 @@ namespace OrbitalAnte.Creatures
             shoal._home = home;
             Vector3 up = rotation * Vector3.up;
             int killed = 0;
-            for (int i = 0; i < Mathf.Max(1, count); i++)
+            for (int i = 0; i < size; i++)
             {
                 if (dead != null && dead.Contains(i)) { killed++; continue; }
                 // Round where they live, each a little higher or lower, all swimming the same way round.
-                float a = i * Mathf.PI * 2f / Mathf.Max(1, count);
+                float a = i * Mathf.PI * 2f / size;
                 Vector3 out_ = rotation * new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
                 Vector3 at = home + out_ * rules.shoalRadius + up * ((i % 3 - 1) * 0.5f);
                 Quaternion facing = Quaternion.LookRotation(Vector3.Cross(up, out_), up);
@@ -181,6 +189,9 @@ namespace OrbitalAnte.Creatures
         public int Place { get; private set; }
         /// <summary>Who pays for it, given by its shoal; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
+        public bool InReach => _inReach;
+        bool _inReach = true;
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
         public Vector3 WindupPoint => transform.position;
         public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
@@ -391,6 +402,7 @@ namespace OrbitalAnte.Creatures
                 senses.PlayerVelocity = D(transform.InverseTransformDirection(_playerVelocity));
             }
             else _hadChest = false;
+            _inReach = Water == null || senses.PlayerInWater;
             return senses;
         }
 

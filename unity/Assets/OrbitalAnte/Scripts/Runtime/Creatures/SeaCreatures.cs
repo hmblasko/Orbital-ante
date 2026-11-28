@@ -68,6 +68,25 @@ namespace OrbitalAnte.Creatures
         /// <summary>Swimmers awake right now.</summary>
         public int LiveCount => _live.Count;
 
+        /// <summary>
+        /// True while a swimmer awake has noticed the player in the water with it (a Drifting maw, or a pack of Pack
+        /// biters): the music hears it as being hunted, and holds a creature's fight between its strikes.
+        /// </summary>
+        public bool AnyAware
+        {
+            get
+            {
+                for (int i = 0; i < _live.Count; i++)
+                {
+                    Component who = _live[i].Who;
+                    if (who == null) continue;
+                    if (who is Maw maw && maw.AwareOfPlayer) return true;
+                    if (who is BiterShoal pack && pack.AwareOfPlayer) return true;
+                }
+                return false;
+            }
+        }
+
         public static SeaCreatures Build(SolarSystemWorld world, CreatureConfig config)
         {
             var go = new GameObject("Sea creatures");

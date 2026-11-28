@@ -65,6 +65,11 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by its sea; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
+        public bool InReach => _inReach;
+        /// <summary>True while it has noticed the swimmer (alive, and they are in the water within its notice): for the music.</summary>
+        public bool AwareOfPlayer => Alive && _aware;
+        bool _inReach = true, _aware;
         public MawBody Body { get; private set; }
         public MawBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its mouth.</summary>
@@ -288,6 +293,7 @@ namespace OrbitalAnte.Creatures
                 // It takes no notice of anyone who is not in the water with it (in the arena, everyone is).
                 senses.PlayerInWater = Water == null || (Suit != null && Water(chest).Above > 0.3f);
             }
+            _inReach = Water == null || senses.PlayerInWater;
             return senses;
         }
 
@@ -303,6 +309,7 @@ namespace OrbitalAnte.Creatures
 
             MawSenses senses = Senses(here, out Transform eye, out bool hostile);
             MawOrders orders = Brain.Think(dt, senses, Body);
+            _aware = orders.Aware;
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = MouthPoint();

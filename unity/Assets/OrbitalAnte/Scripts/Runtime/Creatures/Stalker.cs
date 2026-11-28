@@ -52,6 +52,8 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
         public CreatureCredit Credit { get; set; }
+        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
+        public bool InReach => true;
         public StalkerBody Body { get; private set; }
         public StalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>

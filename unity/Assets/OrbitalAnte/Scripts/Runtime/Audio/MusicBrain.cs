@@ -47,7 +47,11 @@ namespace OrbitalAnte.Audio
     /// - Combat music takes over above one intensity and lets go only below a lower one, and never before it has
     ///   played for a minimum time, so the music cannot flap between two pieces.
     /// - After a piece has been round a set number of times it rests, and comes back later. Silence is part of
-    ///   the score.
+    ///   the score. Not while someone is after the player (<see cref="Hunted"/>): then it goes round once more, and
+    ///   a rest under way ends.
+    /// - A fight that flares up again within <see cref="ReturnSeconds"/> of the last one ending does not open like
+    ///   the first: it comes back on the downbeat hit, at one of the fight piece's later entry points.
+    /// - On the last plates of armour (<see cref="Thin"/>) the fight music's top layers are held off.
     /// Because it only produces commands, the same class drives the game, the tests and the offline preview.
     /// </summary>
     public sealed class MusicBrain
@@ -77,9 +81,29 @@ namespace OrbitalAnte.Audio
         double _calmSince = -1;
         string _lastCue = "";
         double _lastCueEnd;
+        double _combatEnded = -1e9;
+        int _returns;
+        int _restLater;
 
         /// <summary>How long the danger must stay low before a fight counts as over. Without it, danger that comes and goes every few seconds would end and restart the combat music each time.</summary>
         public const double CalmSeconds = 4.0;
+
+        /// <summary>A fight that starts again within this many seconds of the last one's music letting go comes back on the hit, at a later entry point (Part B section 14: never repetitive).</summary>
+        public const double ReturnSeconds = 60.0;
+
+        /// <summary>
+        /// Someone is after the player (MusicDanger: hunted, or a fight). A piece does not rest while it is true: it
+        /// goes round once more instead, and a rest under way ends, so being looked for is never heard as silence.
+        /// Set by the game every frame.
+        /// </summary>
+        public bool Hunted { get; set; }
+
+        /// <summary>
+        /// The player is on the last plates of armour in a fight: every layer that starts at the combat level or above
+        /// (the fight piece's lead and chaos) is held off, so the suit's pulse is heard over the music. Set by the game
+        /// every frame.
+        /// </summary>
+        public bool Thin { get; set; }
 
         public MusicBrain(AudioManifest manifest)
         {
@@ -141,12 +165,18 @@ namespace OrbitalAnte.Audio
                 {
                     _combat = false;
                     _calmSince = -1;
+                    _combatEnded = now;
                 }
             }
 
             string home = ctx != null ? ctx.Track : "";
             string want = _combat ? _m.CombatTrack : home;
-            if (!_combat && now < _restUntil) want = "";
+            if (!_combat && now < _restUntil)
+            {
+                // Someone after the player ends the rest: being looked for is never heard as silence.
+                if (Hunted) _restUntil = -1;
+                else want = "";
+            }
             if (want.Length > 0 && !_m.Tracks.ContainsKey(want)) want = "";
             string have = _track != null ? _track.Id : "";
 
@@ -166,9 +196,12 @@ namespace OrbitalAnte.Audio
                 {
                     // Time to rest? Plan it one bar before the end of the last time round, so the piece fades
                     // across its final bars and stops exactly where it would have started over.
-                    double end = _trackStart + ctx.MaxLoops * _track.Seconds;
+                    double end = _trackStart + (ctx.MaxLoops + _restLater) * _track.Seconds;
                     double fade = Math.Min(2 * _track.BarSeconds, 6.0);
-                    if (now >= end - fade - Lead)
+                    // Someone is after the player: the piece goes round once more, and the rest falls at the end of a
+                    // later time round (never part-way through one).
+                    if (now >= end - fade - Lead && Hunted) _restLater++;
+                    else if (now >= end - fade - Lead)
                     {
                         double start = Math.Max(now + Lead, end - fade);
                         commands.Add(new MusicCommand { Kind = MusicCommandKind.StopTrack, Track = _track.Id, Time = start, Seconds = Math.Max(0.05, end - start) });
@@ -194,9 +227,11 @@ namespace OrbitalAnte.Audio
             // and the very first music after a silent start does not get a riser out of nowhere unless it is combat.
             CueDef cue = null;
             bool ambush = false;
+            // A fight back within a minute of the last comes in on the hit (no riser) at a later entry point.
+            bool returning = to.Length > 0 && to == _m.CombatTrack && now - _combatEnded < ReturnSeconds;
             if (!cameFromRest && to.Length > 0)
             {
-                if (rule.AmbushCue.Length > 0 && _heading >= _m.AmbushIntensity && _m.Cues.TryGetValue(rule.AmbushCue, out CueDef a))
+                if (rule.AmbushCue.Length > 0 && (_heading >= _m.AmbushIntensity || returning) && _m.Cues.TryGetValue(rule.AmbushCue, out CueDef a))
                 {
                     cue = a;
                     ambush = true;
@@ -265,8 +300,9 @@ namespace OrbitalAnte.Audio
             // A hush is a breath between the two; a negative one overlaps them instead.
             double enter = Math.Max(earliest, change + (from.Length > 0 || cue != null ? rule.Hush : 0.0));
             double fadeIn = cameFromRest ? Math.Max(rule.FadeIn, 6.0) : rule.FadeIn;
-            // Combat always starts from its top (the riser is written to land there). Other pieces rotate through
-            // their entry points, so the fifth return from a fight does not open like the first.
+            // Combat starts from its top (the riser is written to land there), unless it is back within a minute of
+            // the last fight: then it takes its later entry points in turn. Other pieces rotate through their entry
+            // points, so the fifth return from a fight does not open like the first.
             double offset = 0;
             _plays.TryGetValue(next.Id, out int plays);
             _plays[next.Id] = plays + 1;
@@ -276,10 +312,12 @@ namespace OrbitalAnte.Audio
                 int bar = next.EntryBars[plays % next.EntryBars.Length];
                 if (bar >= 1 && bar <= next.Bars) offset = (bar - 1) * next.BarSeconds;
             }
+            else if (returning && !leadIn) offset = LaterEntry(next);
             commands.Add(new MusicCommand { Kind = MusicCommandKind.StartTrack, Track = next.Id, Time = enter, Seconds = fadeIn, Gain = 1f, Offset = offset });
             _track = next;
             _trackStart = enter - offset;
             _trackEnter = enter;
+            _restLater = 0;
             _stemOn = new bool[next.Stems.Length];
             _stemChanged = new double[next.Stems.Length];
             // Coming out of a fight the next piece starts from its barest layers and builds again from there,
@@ -288,7 +326,7 @@ namespace OrbitalAnte.Audio
             for (int i = 0; i < next.Stems.Length; i++)
             {
                 StemDef s = next.Stems[i];
-                _stemOn[i] = intensity >= s.Lo && intensity <= s.Hi + StemHysteresis && (!bare || s.Lo <= 0f);
+                _stemOn[i] = intensity >= s.Lo && intensity <= s.Hi + StemHysteresis && (!bare || s.Lo <= 0f) && !HeldOff(s);
                 _stemChanged[i] = enter;
                 commands.Add(new MusicCommand { Kind = MusicCommandKind.StemGain, Track = next.Id, Stem = s.Id, Time = enter, Seconds = 0, Gain = _stemOn[i] ? 1f : 0f });
             }
@@ -308,6 +346,7 @@ namespace OrbitalAnte.Audio
                 bool want = on
                     ? intensity >= s.Lo - StemHysteresis && intensity <= s.Hi + StemHysteresis
                     : intensity >= s.Lo && intensity <= s.Hi;
+                if (HeldOff(s)) want = false;
                 if (want == on) continue;
                 if (now - _stemChanged[i] < StemHoldBars * bar) continue;
                 double at = NextBoundary(now + Lead, "bar");
@@ -317,6 +356,25 @@ namespace OrbitalAnte.Audio
                 _stemOn[i] = want;
                 _stemChanged[i] = at;
             }
+        }
+
+        /// <summary>A layer the last plates hold off: one that starts at the combat level or above.</summary>
+        bool HeldOff(StemDef s) => Thin && s.Lo >= _m.CombatEnter;
+
+        /// <summary>A later entry point of a piece (any after bar 1), taken in turn, as an offset in seconds; 0 if it has none.</summary>
+        double LaterEntry(MusicTrackDef t)
+        {
+            int later = 0;
+            for (int i = 0; i < t.EntryBars.Length; i++) if (t.EntryBars[i] > 1 && t.EntryBars[i] <= t.Bars) later++;
+            if (later == 0) return 0;
+            int pick = _returns++ % later;
+            for (int i = 0; i < t.EntryBars.Length; i++)
+            {
+                int bar = t.EntryBars[i];
+                if (bar <= 1 || bar > t.Bars) continue;
+                if (pick-- == 0) return (bar - 1) * t.BarSeconds;
+            }
+            return 0;
         }
 
         /// <summary>The first grid line of the current piece at or after <paramref name="t"/>.</summary>

@@ -187,8 +187,15 @@ namespace OrbitalAnte.AI
             return _hasCover ? ReactionTime * 0.7f : ReactionTime;
         }
 
-        /// <summary>True while it is on its way to a place it was sent to look (a lull's call, an alarm).</summary>
+        /// <summary>True while it is on its way to a place a restless camp's call sent it to look (SendToLook); an alarm's place is <see cref="LookingForPlayer"/>.</summary>
         public bool OnItsWay => Time.time < _sentUntil;
+
+        /// <summary>
+        /// True while it holds a place to look for the player: one it heard them at, an alarm's (a Scout's flare, a
+        /// mast's call, a supply drop, overtime's hunt, all through <c>CombatWorld.RaiseAlarm</c>) or one a restless
+        /// camp was sent to. The music hears it as being hunted (<c>EnemySpawner.Hunters</c>).
+        /// </summary>
+        public bool LookingForPlayer => _heardAt != null;
 
         CoverQuery BaseQuery(Vector3 eye, Vector3 centre, float radius, bool prone)
         {

@@ -3337,7 +3337,7 @@
   ],
   "combatTrack": "combat_all_in",
   "combatEnter": 60,
-  "combatExit": 38,
+  "combatExit": 48,
   "combatMinSeconds": 14,
   "ambushIntensity": 85,
   "transitions": [

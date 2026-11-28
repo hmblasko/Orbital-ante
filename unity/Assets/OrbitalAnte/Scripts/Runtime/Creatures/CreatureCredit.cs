@@ -35,5 +35,12 @@ namespace OrbitalAnte.Creatures
     {
         /// <summary>Who pays for it; null where nothing does (the practice range).</summary>
         CreatureCredit Credit { get; }
+
+        /// <summary>
+        /// True while the player is where it can strike them. A kill made from out of its reach pays nothing, because it
+        /// could not fight back: a swimmer reaches only someone in the water with it (shot from the shore or from over
+        /// the sea, it pays nothing, and the note says why). The land creatures always say true.
+        /// </summary>
+        bool InReach { get; }
     }
 }

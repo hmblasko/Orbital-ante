@@ -121,8 +121,9 @@ namespace OrbitalAnte.Enemies
 
         /// <summary>
         /// For the music (<see cref="Audio.MusicDanger"/>): how many armed enemies present know where the player is, and
-        /// whether one that does not is on its way to look (a restless squad, an alarm, overtime's hunt). A walk
-        /// along the present list, no physics: a few times a second is nothing.
+        /// whether one that does not holds a place to look for them (<see cref="AI.MannequinCombat.LookingForPlayer"/>:
+        /// a sound it heard, an alarm, a restless squad's call, overtime's hunt). A walk along the present list, no
+        /// physics: a few times a second is nothing.
         /// </summary>
         public void Hunters(out int aware, out bool coming)
         {
@@ -133,7 +134,7 @@ namespace OrbitalAnte.Enemies
                 Live l = _live[i];
                 if (l.Who == null || l.Combat == null || !l.Who.Alive || l.Combat.Weapon == null) continue;
                 if (l.Combat.AwareOfPlayer) aware++;
-                else if (l.Combat.OnItsWay) coming = true;
+                else if (l.Combat.LookingForPlayer) coming = true;
             }
         }
 

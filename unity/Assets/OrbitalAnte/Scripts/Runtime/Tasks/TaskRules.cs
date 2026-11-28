@@ -474,6 +474,12 @@ namespace OrbitalAnte.Tasks
         /// <summary>Every creature kind there is, for the rule tests.</summary>
         public static readonly string[] Kinds = { "Strider", "Sprinter", "Roller", "Hunter", "Screamer", "Ambusher", "Stalker", "Maw", "Biter" };
 
+        /// <summary>
+        /// The note when a sea creature is killed from out of its reach (from the shore, or from over the sea): it could
+        /// not fight back, so it pays nothing, and this says what does.
+        /// </summary>
+        public const string OutOfReach = "SEA KILLS PAY ONLY IN THE WATER WITH THEM";
+
         public static ScoreEventKind KindFor(string kind)
         {
             switch (kind)
