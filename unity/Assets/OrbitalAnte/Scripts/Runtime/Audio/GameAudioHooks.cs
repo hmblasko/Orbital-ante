@@ -35,6 +35,7 @@ namespace OrbitalAnte.Audio
         int _aware;
         bool _coming;
         float _creatureAt = -1000f;
+        Ship.Astronaut _crew;
 
         void OnEnable()
         {
@@ -89,6 +90,8 @@ namespace OrbitalAnte.Audio
         {
             AudioDirector d = AudioDirector.Instance;
             if (d == null) return;
+            // A crash that hurts (the rover's) is not an attack, and Part B wants no crash music: the music never hears it.
+            if (_crew != null && _crew.TakingAKnock) return;
             d.Intensity.Report(IntensityEvent.DamageTaken, Mathf.Clamp(amount / 8f, 0.5f, 2f));
         }
 
@@ -122,6 +125,7 @@ namespace OrbitalAnte.Audio
             if (game.Arena != null)
             {
                 Watch(game.Arena.Health);
+                _crew = null;
                 d.Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Open };
                 d.SetMusicContext("surface");
                 // A little steady threat keeps the walking layers in; sightings, creatures and the last plates go over
@@ -135,6 +139,7 @@ namespace OrbitalAnte.Audio
             {
                 // The suit's armour: being hurt is heard (DamageTaken), and so are its last plates.
                 Ship.Astronaut crew = game.Space.Astronaut;
+                _crew = crew;
                 Watch(crew != null ? crew.Armour : null);
                 Flight(d, game.Space);
             }
@@ -143,6 +148,7 @@ namespace OrbitalAnte.Audio
         void LeaveWorld(AudioDirector d)
         {
             Watch(null);
+            _crew = null;
             _walker = null;
             _craft = null;
             if (_worldLoops)

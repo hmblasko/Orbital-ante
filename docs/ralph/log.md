@@ -150,3 +150,31 @@ early, leaving a quiet gap before the mark; an aim's tail is cut to the default 
 underfoot an arc can swap sides of the ring; the Roller's "still in its way" is measured along its line. The Deck
 acceptance needs a per-strike log (kind, on screen, first sideways move against the lock, hit or miss), not built.
 Next pass: gap 3, creature kills pay toward the ante and the music hears the player being hurt and hunted.
+
+## Pass 3 (28 Nov 2026): creature kills pay, and the music hears danger
+
+**Gap closed:** a creature fight paid nothing toward the ante (the task director scored only the camps' soldiers), so
+the seas were a detour from the goal; and in the solar system the music heard only gunfire. Being seen, hunted, hurt
+(the suit's armour was never watched there) or set on by a creature (which never shoots) left it where the place put it.
+
+**Built** (report `docs/reports/creature-kills-and-danger-music.md`):
+
+- Creature kills pay like a camp's (`TaskDirector.OnCreatureHit`, through the same `PayKill`): the tier
+  (`CreatureTiers`: the Pack biter 1, the Drifting maw and the Strider 3, the rest 2), the style feats, ON A ROLL, the
+  Ghost set's time back, a bonus mission's bounty or style, and the kill unlocks. Every creature names itself as the
+  target of its hits and carries a `CreatureCredit` given by whatever woke it; only the seas do so today, so the maw and
+  the biters pay and the practice range never does.
+- Claims are one per world, haunt and place. The seas remember a pack's dead fish one by one: a pack woken again comes
+  back without them, and still counts them toward its size, so its last fish makes off as it would have.
+- A kill made while swimming is no longer AIRBORNE (it was, for camp kills too: a floating suit is "not grounded").
+- The music's steady level follows how things stand (`Audio/MusicDanger.cs`): calm (a little fuller each ante, as Part
+  B section 14 asks), tension while an armed enemy knows where you are or one is on its way to look, the fight music for
+  the readout's six seconds after a sighting or a creature's warning, its top layer on the last plates (with the suit's
+  pulse). The suit's armour is watched in the solar system, so being hurt is heard, except a crash's own hurt (Part B
+  wants no crash music). Out on foot, which piece plays is read where the player is, not where the ship is.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`: 3,095 run, 3,094 passed, 1 skipped (the cabin bake check, as before), on the first
+  build; 14 tests are new (`CreatureKillTests`, `MusicDangerTests`).
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.

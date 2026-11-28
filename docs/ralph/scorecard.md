@@ -36,11 +36,22 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 6 | = | Unchanged | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue |
 | 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 3 (28 Nov 2026): after creature kills pay and the danger music
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | +1 | Every fight now counts toward the ante: a creature kill pays on the camps' tier table with the same feats, streak, bonus missions and unlocks, once a run (`TaskDirector.OnCreatureHit`, `CreatureTiers`, `TaskIds.Creature`, held by `CreatureKillTests`); the gaps listed at pass 0 (nothing beyond one run, creature fights off the goal) are both closed | Nothing left that can be closed without the Deck: whether the goal reads at a glance in a fight is a playtest question |
+| 2 | Easily understandable | 7 | = | The music now says where the player stands: calm, looked for (tension), a fight (for the readout's six seconds after a sighting or a creature's warning), the last plates (with the suit's pulse) (`Audio/MusicDanger.cs`, `MusicDangerTests`) | Where to shoot a creature is taught only by knocks, blood and the hit marker; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | The adaptive music Part B section 14 asks for now follows antes and danger, not only gunfire (measured against the music's own model, never listened to) | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | +1 | A sea fight is now a way to score, not a detour; the music rises when you are found and hurt, and holds tension while a squad comes to look | Land creatures live only in the practice range; nothing seen in Unity |
+| 5 | Fun unlockables | 6 | = | Creature kills count toward the kill unlocks | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue |
+| 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
 2. ~~**Understandable: creature tells.**~~ Done in pass 2.
-3. **Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**
+3. ~~**Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**~~ Done in pass 3.
 4. **Unlockables: envelope prizes do something** (ship paint, gun skins, upgrades as sidegrades), and more unlocks.
 5. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
 6. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
