@@ -381,13 +381,20 @@ namespace OrbitalAnte.Tasks
             return fresh;
         }
 
-        /// <summary>The suit's boots are under the sea: floating, but not in the air.</summary>
+        /// <summary>
+        /// The suit's boots are under the sea: floating, but not in the air. Only the sea's own height is asked (the
+        /// sea is a ball at sea level, as <see cref="PlanetWorld.Read"/> has it), never the ground's, which can cost
+        /// a full-detail height high above a world.
+        /// </summary>
         bool InTheSea(Astronaut player)
         {
             SolarSystem system = _world != null ? _world.System : null;
             if (player.Suit == null || system == null || system.Focus == null || _world.Planets == null) return false;
             int body = system.Focus.Neighbourhood;
-            return body > 0 && _world.Planets.Read(body, player.Suit.position).Underwater;
+            PlanetSurface surface = body > 0 ? _world.Planets.SurfaceOf(body) : null;
+            if (surface == null || !surface.Ready || surface.Terrain == null || !surface.Terrain.HasSea) return false;
+            double r = surface.Body.transform.InverseTransformPoint(player.Suit.position).magnitude;
+            return r < surface.SurfaceRadius + surface.Terrain.SeaLevel;
         }
 
         /// <summary>Pays a kill and passes it on: the streak, the Ghost set's time back, a bonus mission and the unlocks.</summary>
