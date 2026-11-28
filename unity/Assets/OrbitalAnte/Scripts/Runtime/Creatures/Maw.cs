@@ -395,7 +395,7 @@ namespace OrbitalAnte.Creatures
                 Audio.AudioDirector.Play("gore.splat", chest, 0.6f, 0.8f);
                 PlayerHealth player = CombatWorld.Player;
                 Transform head = _node[0];
-                if (player != null) player.TakeDamage((float)orders.Bite, head != null ? head.forward : transform.forward);
+                if (player != null) player.TakeDamage((float)orders.Bite, head != null ? head.forward : transform.forward, StrikeWords.Mouth);
             }
         }
 

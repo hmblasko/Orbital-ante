@@ -91,6 +91,17 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
 | 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 8 (28 Nov 2026): after land creatures on the worlds
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 7 | = | A creature's kill names its strike on the death page in plain words, never a placeholder name (`StrikeWords`); a creature's fight is a fight for the whole game, so no tip, unlock banner or restless squad's radio call comes in the middle of one (`ReadoutFocus.CreatureFight`, held by `CreatureFightTests`); a kill that does not pay says why (KILLS PAY ONLY WHEN IT CAN GET AT YOU); what lives where can be learned at a glance, each kind of world led by its own animal | Unchanged: a development-only playtest log (gap 9); nothing seen in Unity |
+| 3 | Strong aesthetics | 6 | = | The walkers' legs reach the ground they stand on, on any slope (measured offline: no foot drawn more than 3 cm off walking straight); creatures lie with the ground and fly over cliffs without passing through them | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | The Strider, the Sprinter, the Roller and the Screamer live on the worlds' ground, each kind of world with its own animals, more of them each ante, their kills paying toward the ante when they could answer the player (`LandCreatures`, `LandField`, `LandReach`, held by `LandRulesTests`); the Roller's crash only against something solid | Creatures and the camps ignore each other in the fights the placement makes likely (gap 12); the three cave and burrow creatures are not on the worlds yet; nothing seen in Unity |
+| 5 | Fun unlockables | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
@@ -101,11 +112,18 @@ None of them is a playtest result. Bar: 8 on every line.
 6. ~~**Unlockables: Celestial effects drawn.**~~ Done in pass 6. Paintings framed on the cabin wall stay blocked on
    the five public-domain pictures.
 7. ~~**Understandable: where to shoot a creature.**~~ Done in pass 7.
-8. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
-9. **Understandable: a development-only playtest log.** One log the Deck playtests of passes 2 to 7 can be counted
-   from (hits by zone, kills, aim lines shown, creatures' marks and whether they hurt, unlock moments), kept in memory
-   and written at a run's end, editor and development builds only. The design review's last cloud item for line 2.
+8. ~~**Gameplay: land creatures on the real worlds.**~~ Done in pass 8 (the Strider, the Sprinter, the Roller and the
+   Screamer; the Ambusher, the Cave hunter and the Blind stalker wait for soft ground and caves).
+9. **Understandable: a development-only playtest log.** One log the Deck playtests of passes 2 to 8 can be counted
+   from (hits by zone, kills, aim lines shown, creatures' marks and whether they hurt, unlock moments, land creatures
+   met and how each fight ended, kills that did not pay), kept in memory and written at a run's end, editor and
+   development builds only. The design review's last cloud item for line 2.
 10. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
 11. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
    would make "get in the water with them" a rule you can see, but lets a swimmer dive out of gunfire (pass 3's design
    review). A design question to settle before the seas get more creatures.
+12. **Gameplay: creatures and the camps notice each other.** In a run most fights with a creature will bring a camp's
+   squad to the sound (pass 8's design review: 83 to 100% of haunts, by world, have a camp within a shot's hearing),
+   but the two sides ignore each other and enemy fire passes through creatures (`EnemyShootMask`). Start cheap: a claw,
+   roll, scream or bite that lands on an enemy hurts and gibs it, and enemy fire stops at a creature. Milestone 12's
+   "moment worth laughing about".

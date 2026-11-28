@@ -485,3 +485,74 @@ covers the place it names (from standing height a body behind a head shows a lit
 the Ambusher's body lengths do not share damage, so a burst can ring gold without killing (accepted); a
 development-only playtest log (gap 9). Next pass: gap 8, land creatures on the real worlds.
 
+
+## Pass 8 (28 Nov 2026): land creatures on the worlds
+
+**Gap closed:** gap 8, land creatures on the real worlds. The four creatures that walk and fly (the Strider, the
+Sprinter, the Roller and the Screamer) lived only in the practice range, so what a player learned of their warnings
+(pass 2) and weak places (pass 7) never paid in a run (pass 3), and every fight on a world's ground was a camp's.
+
+**Built** (report `docs/reports/land-creatures.md`):
+
+- Where they live (`Creatures/LandRules.cs`, plain C#): each world's own animals from the brief (`LandHabitats`), each
+  kind of world led by its own animal (the hot, dry worlds by the Sprinter, the airless moons by the Strider, the
+  worlds under air by the Screamer, the Roller everywhere at most a third, the Screamer only under air); haunts seeded
+  per world on dry, gentle ground with room to fight round it, well apart and clear of the pad, the camps, the bases,
+  ponds and caves (`LandField`); half of them lived in at ante 1, three quarters at ante 2, all from ante 3, and a
+  haunt lived in once is lived in for the rest of the run.
+- On the solar world (`Creatures/LandCreatures.cs`): the haunts worked out on a background job after the world's camps
+  are known; the nearest lived-in haunt woken at 110 m, never within 70 m, two at once at most, put away beyond 180 m;
+  the dead remembered for the run; every animal given its credit and a claim per haunt.
+- Keeping to a round, hilly world (`Creatures/CreatureGround.cs`): the built ground found without colliders, "up" away
+  from the world's middle, places kept in the world's space; a step refused by ground steeper than the kind takes
+  (measured over the half metre ahead), the water's edge (the sea and ponds) and cave mouths, and stopped by anything
+  standing higher than it steps over (30 cm, the Strider 1.2 m); the Roller and the Screamer lie with the ground, the
+  Screamer's flight eased onto what is below it and never drawn inside a cliff; the practice range kept line for line.
+- The walkers' legs on slopes (`WalkerAnimator`, only when given the ground): feet follow the ground, a foot steps once
+  its leg is stretched past 90% of its reach, is put down within 86%, the body comes down so every foot that is down is
+  within 88%, and a foot still out of reach slips along the ground toward its leg. Measured offline with a probe: walking
+  straight, no foot is drawn more than 3 cm off on either walker (it was 7,831 frames of about 55,000 for the Sprinter).
+- A kill pays only when the animal could answer the player (`LandReach`): kept from them for 4 s with its steps refused
+  and no ground gained, it cannot, until it gains ground or they come within reach; its own opening never counts against
+  it; the note says KILLS PAY ONLY WHEN IT CAN GET AT YOU.
+- From the design review, for every creature: a creature's fight is a fight for the whole game (`ReadoutFocus` with
+  the creature stamps: no tips, no unlock banner or save, no restless squad's radio call in the middle of one); a
+  creature's kill names its strike on the death page in plain words (`StrikeWords`: "Caught in a giant claw.", and nine
+  more); an animal with nothing left to hurt the player with is not after them, so the music lets go; ground the Roller
+  cannot roll up ends its roll like any other opening, and only something solid is a crash.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`, on the first build: 3,214 run, 3,213 passed, 1 skipped (the cabin bake check). New:
+  `LandRulesTests` (12).
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.
+
+**Specialist reviews** (on this pass's first build; each finding checked before it was applied; the report's "Reviews"
+section has all of them by number):
+
+- game-designer (measured with a Python copy of the placement rules over 20 seeds a world, geometry only): the four
+  findings that broke rules 3, 5 or 7 (a creature's fight not a fight, the death words, kills it could never answer,
+  the Roller's unseen crash threshold), all applied; the world mixes could not be told apart (each kind of world now led
+  by its own animal, tested on proportions); the music tense over a harmless animal; never wake within 70 m, room to
+  fight round a haunt, the Strider's 1.2 m step-over and the slope test at each kind's steepest, all applied. Its
+  finding that camps will join most creature fights (83 to 100% of haunts have a camp within a shot's hearing) is kept
+  as it is and said in the report; the two sides noticing each other is the new gap 12.
+- unity-reviewer: slopes judged over one frame's run (tile seams read as cliffs), a flying Screamer sinking into steep
+  ground, walking on air over cave mouths, feet sliding on refused steps, take-off snapping upright, ponds ignored, a
+  ball crashing at a downhill lip and no budget row: all applied. It checked by reading that the practice range is the
+  same line for line.
+- deck-performance: the plane cache was the largest cost (now 1,024 places, the slot from the hash's top 10 bits); the
+  Sprinter's hitbox sync now only near or seen; the wake frame (guessed 2 to 4 ms), loose pieces and reading planted
+  feet once are left to be measured. Budget section written from it.
+- After the fixes: `dotnet test tools/rules-tests` 3,222 run, 3,221 passed, 1 skipped (`LandRulesTests` now 16,
+  `CreatureFightTests` 3 new, one more in `RollerRulesTests`); compile check clean apart from the two known lines.
+
+**Scores after:** see `scorecard.md`, pass 8. No line moves: gameplay stays 7 because creatures and the camps ignore
+each other in the fights the placement makes likely (gap 12), and line 2 still waits on a development-only playtest
+log (gap 9).
+
+**Left open:** nothing here has run in Unity or on a Deck. Whether a foot slipping on the steepest ground at full pace,
+or a Strider walking crouched on a steep slope, looks right; whether an animal can be trapped among rocks; whether the
+worlds feel alive without crowding the camps. Not built: the Ambusher, the Cave hunter and the Blind stalker on the
+worlds (they need soft ground and caves); an animal held below a ledge backing off home; creatures and the camps
+noticing each other (gap 12). Next pass: gap 9 or gap 12, by re-scoring.

@@ -313,8 +313,9 @@ namespace OrbitalAnte.Audio
                 _nextHuntRead = Time.unscaledTime + 0.25f;
                 if (world.Enemies != null) world.Enemies.Hunters(out _aware, out _coming);
                 else { _aware = 0; _coming = false; }
-                // A sea creature that has noticed the swimmer: tension while it comes, and its fight holds between strikes.
-                _creatureAware = world.Seas != null && world.Seas.AnyAware;
+                // A creature that has noticed the player (a swimmer in the water with them, or one of the land's that sees
+                // them or is hurt): tension while it comes, and its fight holds between strikes.
+                _creatureAware = world.Seas != null && world.Seas.AnyAware || world.Land != null && world.Land.AnyAware;
             }
             // Flying hard is its own excitement: thrust lifts the flight music's layers, still under the fight music.
             // A run's later antes are a little fuller (MusicDanger.Calm); danger goes over the top.

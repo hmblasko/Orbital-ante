@@ -151,8 +151,11 @@ namespace OrbitalAnte.Creatures
         public CreatureCredit Credit { get; set; }
         /// <summary>Its kind's name, its model's ("Strider", "Sprinter"), for the aim line (<see cref="WhereToShoot"/>). <see cref="Kind"/> is its layout.</summary>
         string ICreature.Kind => _l != null ? _l.Model : null;
-        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
-        public bool InReach => true;
+        /// <summary>
+        /// Whether it could answer the player: in the practice range always; on a world, until it has been kept from them
+        /// a while (on a ledge it cannot climb, beyond the sea's edge: <see cref="LandReach"/>), so a kill from there pays nothing.
+        /// </summary>
+        public bool InReach => !(_footing is LandFooting) || _reach.InReach;
         public WalkerBody Body { get; private set; }
         public WalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of its body.</summary>
@@ -162,8 +165,35 @@ namespace OrbitalAnte.Creatures
         /// <summary>Its warning ends as the claw lands, so it never shows a strike to step out of.</summary>
         public bool Threatens => true;
         public bool Alive => Body != null && Body.Alive;
+        /// <summary>
+        /// True while it sees the player or, hurt, still knows where they are, and can still hurt them: for the music and
+        /// the readout, as a creature after them (one with nothing left to strike with, backing away, is not).
+        /// </summary>
+        public bool AwareOfPlayer => Alive && (_sees || Brain != null && Brain.Alerted)
+                                     && (Body.CanStrike(WalkerLayout.Right) || Body.CanStrike(WalkerLayout.Left));
         public event System.Action<Walker> Died;
         public WalkerLayout Kind => _l;
+
+        /// <summary>
+        /// What it stands on: flat ground in the practice range (the old rule), a world's own ground out there
+        /// (<see cref="LandFooting"/>, given by <see cref="LandCreatures"/>), which its feet are put on too.
+        /// </summary>
+        public Footing Footing
+        {
+            get => _footing;
+            set
+            {
+                _footing = value ?? Footing.Flat;
+                _groundUnder = _footing is LandFooting land ? new GroundUnder(land) : null;
+            }
+        }
+        /// <summary>The steepest ground it walks over on a world (rise over run); the practice range is flat.</summary>
+        public float Steepest { get; set; } = 0.6f;
+        /// <summary>What it steps over on a world (metres high); higher is a wall to it. The practice range keeps its old shin.</summary>
+        public float StepOver { get; set; } = CreatureGround.StepOver;
+        Footing _footing = Footing.Flat;
+        GroundUnder _groundUnder;
+        readonly LandReach _reach = new LandReach();
 
         static readonly List<Walker> Everyone = new List<Walker>();
         public static IReadOnlyList<Walker> All => Everyone;
@@ -180,6 +210,7 @@ namespace OrbitalAnte.Creatures
         readonly Transform[] _finger = new Transform[2];
         readonly int[] _shown = new int[WalkerLayout.Limbs];
         Transform _carapace, _belly, _bodyRoot;
+        /// <summary>Where it started, in its parent's space, so it holds on a world that turns and is moved under the player.</summary>
         Vector3 _home;
         bool _blocked, _sees;
         float _nextLook;
@@ -208,7 +239,7 @@ namespace OrbitalAnte.Creatures
             _animator = new WalkerAnimator(kind);
             Body = new WalkerBody(kind, rules.hp);
             Brain = new WalkerBrain(kind, rules, seed);
-            _home = transform.position;
+            _home = transform.parent != null ? transform.parent.InverseTransformPoint(transform.position) : transform.position;
             // Not every walker looks for the player on the same frame.
             _nextLook = Time.time + (seed & 0xff) / 1024f;
             _material = ModelLibrary.MaterialFor(kind.Model);
@@ -277,7 +308,7 @@ namespace OrbitalAnte.Creatures
             }
             ModelDetail.Attach(gameObject, kind.Model, DetailRule.BodyRange * (kind == WalkerLayout.Strider ? 1.6f : 1.1f), true);
             Everyone.Add(this);
-            Pose(0.0001f, new WalkerOrders { StrikeSide = -1 });
+            Pose(0.0001f, new WalkerOrders { StrikeSide = -1 }, Vector3.zero);
         }
 
         Transform Piece(string piece, Transform parent)
@@ -325,7 +356,8 @@ namespace OrbitalAnte.Creatures
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            var senses = new WalkerSenses { Blocked = _blocked, Home = D(transform.InverseTransformPoint(_home)), BodyHeight = _pose.BodyPosition.Y };
+            Vector3 home = transform.parent != null ? transform.parent.TransformPoint(_home) : _home;
+            var senses = new WalkerSenses { Blocked = _blocked, Home = D(transform.InverseTransformPoint(home)), BodyHeight = _pose.BodyPosition.Y };
             Transform eye = CombatWorld.PlayerPresent ? CombatWorld.PlayerEye : null;
             if (eye != null && !CombatWorld.EnemiesHoldFire)
             {
@@ -355,11 +387,36 @@ namespace OrbitalAnte.Creatures
             // wind-up as it starts, and its mark the very frame it takes aim.
             WindupRead read = orders.StrikeSide >= 0 ? Windups.Walker(orders, Brain.LockShare(Body)) : WindupRead.None;
             WindupTell.Tell(this, _windup.Step(read), _raiseSound, _aimSound, _bodyRoot.position);
+            Vector3 before = transform.position;
             Walk(orders, dt);
-            Pose(dt, orders);
-            // A quick animal's hitboxes must be where it is drawn when the player's shot is traced this frame.
-            if (_l.Trot) Physics.SyncTransforms();
+            // On a world: back on the ground under it and upright round the world, and its feet on that ground too.
+            CreatureGround.Keep(_footing, transform);
+            _groundUnder?.Frame(transform);
+            // Its feet are told the way it really went, not the way it was told to: a refused step leaves them planted.
+            Vector3 moved = transform.position - before;
+            Pose(dt, orders, transform.InverseTransformDirection(moved) / dt);
+            if (_footing is LandFooting) Watch(eye, moved, _blocked, dt);
+            // A quick animal's hitboxes must be where it is drawn when the player's shot is traced this frame, while they
+            // can see it or are near (not every frame far off: a sync moves every changed collider in the scene).
+            Transform near = CombatWorld.PlayerEye;
+            if (_l.Trot && near != null && (_sees || (near.position - transform.position).sqrMagnitude < 1600f)) Physics.SyncTransforms();
             if (orders.Landed && eye != null) ClawLanded(orders, eye);
+        }
+
+        /// <summary>Whether it is kept from the player (on a world): how far off they are along the ground and above it, whether its step was refused, and whether it gained on them.</summary>
+        void Watch(Transform eye, Vector3 moved, bool refused, float dt)
+        {
+            if (eye == null)
+            {
+                _reach.Reset();
+                return;
+            }
+            Vector3 up = transform.up, to = eye.position - up * 1.6f - transform.position;
+            float rise = Vector3.Dot(to, up);
+            Vector3 flat = to - up * rise;
+            float across = flat.magnitude;
+            float gained = across > 1e-3f ? Vector3.Dot(moved, flat / across) : 0f;
+            _reach.Step(AwareOfPlayer, refused, across, rise, gained, _rules.strikeRange, 3.0, dt);
         }
 
         void Walk(in WalkerOrders orders, float dt)
@@ -371,33 +428,30 @@ namespace OrbitalAnte.Creatures
             if (step.sqrMagnitude <= 0f) return;
             Vector3 to = transform.position + step;
             // Its legs step over things; its body does not go through them.
-            // (The ball is kept clear of the ground when it is down on its belly, or the ground itself would stop it.)
+            // (The ball is kept clear of the ground when it is down on its belly, or the ground itself would stop it;
+            // on a world it is measured from the ground ahead, so a slope is not a wall.)
             float bodyHeight = _bodyRoot.localPosition.y;
-            if (Physics.CheckSphere(to + up * Mathf.Max(0.8f, bodyHeight) + step.normalized * 0.6f, 0.55f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            if (Physics.CheckSphere(CreatureGround.Above(_footing, to + step.normalized * 0.6f, up, Mathf.Max(0.8f, bodyHeight)), 0.55f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
             {
                 _blocked = true;
                 return;
             }
-            // Stay on the ground: look for it from above where it is going.
-            if (Physics.Raycast(to + up * 3f, -up, out RaycastHit ground, 9f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            // Stay on the ground where it is going (a step too high or too steep is a wall to it).
+            if (CreatureGround.Step(_footing, transform.position, ref to, up, Steepest, StepOver) != StepResult.Taken)
             {
-                // A step up or down of more than a shin is a wall to it for now (its feet are placed on level ground).
-                if (Mathf.Abs(Vector3.Dot(ground.point - to, up)) > 0.3f)
-                {
-                    _blocked = true;
-                    return;
-                }
-                to = ground.point;
+                _blocked = true;
+                return;
             }
             transform.position = to;
         }
 
-        void Pose(float dt, in WalkerOrders orders)
+        void Pose(float dt, in WalkerOrders orders, Vector3 velocity)
         {
             var input = new WalkerAnimInput
             {
-                Velocity = orders.Velocity, TurnRate = orders.TurnRate,
+                Velocity = new Vec3d(velocity.x, 0, velocity.z), TurnRate = orders.TurnRate,
                 StrikeSide = orders.StrikeSide, StrikeT = orders.StrikeT, StrikeAt = orders.StrikeAt,
+                Ground = _groundUnder?.Height,
             };
             _animator.Update(Body, input, dt, _pose);
             _bodyRoot.SetLocalPositionAndRotation(V(_pose.BodyPosition), Q(_pose.BodyRotation));
@@ -450,7 +504,7 @@ namespace OrbitalAnte.Creatures
             // Never through a wall.
             if (Physics.Linecast(_bodyRoot.position, chest, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
             PlayerHealth player = CombatWorld.Player;
-            if (player != null) player.TakeDamage(_rules.strikeDamage * (float)Body.StrikeShare, (chest - _bodyRoot.position).normalized);
+            if (player != null) player.TakeDamage(_rules.strikeDamage * (float)Body.StrikeShare, (chest - _bodyRoot.position).normalized, _l.Attack == WalkerAttack.Lunge ? StrikeWords.Lunge : StrikeWords.Claw);
         }
 
         // ------------------------------------------------------------------ being hit

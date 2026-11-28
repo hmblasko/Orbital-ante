@@ -52,8 +52,13 @@ namespace OrbitalAnte.Creatures
         public CreatureCredit Credit { get; set; }
         /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
         public string Kind => "Screamer";
-        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
-        public bool InReach => true;
+        /// <summary>
+        /// Whether it could answer the player: in the practice range always; on a world, until it has been kept from them
+        /// a while (beyond how far it roams from home, behind something it cannot fly past: <see cref="LandReach"/>), so a
+        /// kill from there pays nothing.
+        /// </summary>
+        public bool InReach => !(Footing is LandFooting) || _reach.InReach;
+        readonly LandReach _reach = new LandReach();
         public const string WarnSound = Windups.ScreamerWarning, AimSound = Windups.ScreamerAim, ScreamSound = "creature.screamer.scream";
 
         public ScreamerBody Body { get; private set; }
@@ -67,7 +72,22 @@ namespace OrbitalAnte.Creatures
         readonly WindupTrack _windup = new WindupTrack();
         bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
+        /// <summary>
+        /// True while it sees the player or, hurt, still knows where they are, and can still hurt them: for the music and
+        /// the readout, as a creature after them (one with no drums left, silent, is not).
+        /// </summary>
+        public bool AwareOfPlayer => Alive && (_sees || Brain != null && Brain.Alerted) && Body.CanScream;
         public event System.Action<Screamer> Died;
+
+        /// <summary>
+        /// What it stands on and flies over: flat ground in the practice range (the old rule), a world's own ground
+        /// out there (<see cref="LandFooting"/>, given by <see cref="LandCreatures"/>), and the sea's top where it flies over one.
+        /// </summary>
+        public Footing Footing { get; set; } = Footing.Flat;
+        /// <summary>The steepest ground it walks over on a world (rise over run); the practice range is flat.</summary>
+        public float Steepest { get; set; } = 0.7f;
+        /// <summary>On foot on a slope it lies along the ground under its legs, never more than this from upright (radians).</summary>
+        const float LeanMost = 0.35f;
 
         static readonly List<Screamer> Everyone = new List<Screamer>();
         public static IReadOnlyList<Screamer> All => Everyone;
@@ -89,6 +109,7 @@ namespace OrbitalAnte.Creatures
         /// <summary>Where it started and a direction along the ground, both in its parent's space, so they hold on a world that turns.</summary>
         Vector3 _home, _north;
         bool _blocked, _sees, _loud, _unsettled;
+        /// <summary>Where the player's feet were last frame, in its parent's space.</summary>
         Vector3 _playerWas;
         bool _playerKnown;
         float _nextLook;
@@ -251,9 +272,16 @@ namespace OrbitalAnte.Creatures
             if (hostile)
             {
                 senses.Player = D(transform.InverseTransformPoint(feet));
-                // How the player is moving, so it can land where they are going.
-                if (_playerKnown) senses.PlayerVelocity = D(transform.InverseTransformDirection((feet - _playerWas) / dt));
-                _playerWas = feet;
+                // How the player is moving, so it can land where they are going. Measured in its parent's space (on a
+                // world, the world's), so the world being moved under the player is not taken for a dash.
+                Vector3 held = parent != null ? parent.InverseTransformPoint(feet) : feet;
+                if (_playerKnown)
+                {
+                    Vector3 went = held - _playerWas;
+                    if (parent != null) went = parent.TransformVector(went);
+                    senses.PlayerVelocity = D(transform.InverseTransformDirection(went / dt));
+                }
+                _playerWas = held;
                 _playerKnown = true;
                 if (Time.time >= _nextLook)
                 {
@@ -290,14 +318,38 @@ namespace OrbitalAnte.Creatures
                 Audio.AudioDirector.Play("impact.dirt", transform.position, 1f, 0.7f);
                 _animator.Flinch(new Vec3d(0, -3.0, 0));
             }
+            Vector3 before = transform.position;
             Vector3 moved = Move(orders, dt);
-            // In the air, and after landing until it is down, its root is eased onto the ground below it.
-            if (InAir(orders.Mode) || _unsettled) _unsettled = Settle((float)orders.Height, dt);
+            // In the air, and after landing until it is down, its root is eased onto the ground below it (on a world,
+            // or the water's top), upright round the world; on foot it is kept on the ground and lies along it.
+            bool aloft = InAir(orders.Mode) || _unsettled;
+            if (aloft) _unsettled = CreatureGround.Settle(Footing, transform, (float)orders.Height, 7f, dt);
+            if (aloft) CreatureGround.Upright(Footing, transform, dt);
+            else if (Footing is LandFooting land && land.AboveWater(land.OnTheGround(transform.position)) > 0.0)
+                CreatureGround.Keep(Footing, transform, (float)(ScreamerLayout.BodyFront - ScreamerLayout.BodyBack) * 0.5f, (float)ScreamerLayout.BodyHalfWidth, LeanMost, dt);
             Pose(dt, orders, moved / dt);
+            if (Footing is LandFooting) Watch(hostile ? eye : null, transform.position - before, _blocked, dt);
             // While the player can see it, its hitboxes must be where it is drawn when their shot is traced.
             if (_sees) Physics.SyncTransforms();
             if (_rings != null) _rings.Run(orders.Mode == ScreamerMode.Scream, orders.Pulse, RingsFrom(), transform.forward, up, (float)ScreamerBrain.Range(_rules, Body), _rules.coneHalfAngle, dt);
             if (orders.Pulse && hostile) Hurt(eye, feet);
+        }
+
+        /// <summary>Whether it is kept from the player (on a world): how far off they are along the ground and above it, whether its step was refused, and whether it gained on them.</summary>
+        void Watch(Transform eye, Vector3 moved, bool refused, float dt)
+        {
+            if (eye == null)
+            {
+                _reach.Reset();
+                return;
+            }
+            Vector3 up = transform.up, to = eye.position - up * 1.6f - transform.position;
+            float rise = Vector3.Dot(to, up);
+            Vector3 flat = to - up * rise;
+            float across = flat.magnitude;
+            float gained = across > 1e-3f ? Vector3.Dot(moved, flat / across) : 0f;
+            // Its scream reaches along the ground and, from where it perches, some way up a slope.
+            _reach.Step(AwareOfPlayer, refused, across, rise, gained, _rules.screamRange, 6.0, dt);
         }
 
         Vector3 Chest() => _body != null ? _body.position : transform.position + transform.up * 0.5f;
@@ -348,7 +400,7 @@ namespace OrbitalAnte.Creatures
             if (Physics.Linecast(from, head, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
             _threatens = true;
             PlayerHealth player = CombatWorld.Player;
-            if (player != null) player.TakeDamage((float)(rate * _rules.pulseSeconds), (head - from).normalized);
+            if (player != null) player.TakeDamage((float)(rate * _rules.pulseSeconds), (head - from).normalized, StrikeWords.Scream);
         }
 
         /// <summary>Turns it and moves it along the ground; the answer is how far it really went, in its own frame after the turn.</summary>
@@ -364,37 +416,26 @@ namespace OrbitalAnte.Creatures
             float height = (float)orders.Height;
             // Stopped by anything solid where its body is: at its height in the air, just off the ground on foot.
             float radius = air ? 0.55f : 0.36f;
-            // (Never lower than a body length, so taking off is not blocked by the ground it leaves.)
-            Vector3 step = to - transform.position, probe = up * (air ? Mathf.Max(height, 0.3f) + 0.5f : 0.5f);
-            if (Physics.CheckSphere(to + probe, radius, Layers.WorldMask, QueryTriggerInteraction.Ignore)
-                || Physics.SphereCast(transform.position + probe, radius, step.normalized, out _, step.magnitude, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            // (Never lower than a body length, so taking off is not blocked by the ground it leaves; on a world measured
+            // from the ground under it, so a hillside or a ridge is never a wall to it: it climbs over, its root kept off
+            // the ground by CreatureGround.Settle. Rocks, trees and buildings standing on the ground are walls.)
+            Vector3 step = to - transform.position;
+            float above = air ? Mathf.Max(height, 0.3f) + 0.5f : 0.5f;
+            Vector3 probeTo = CreatureGround.Above(Footing, to, up, above), probeFrom = CreatureGround.Above(Footing, transform.position, up, above);
+            if (Physics.CheckSphere(probeTo, radius, Layers.WorldMask, QueryTriggerInteraction.Ignore)
+                || Physics.SphereCast(probeFrom, radius, (probeTo - probeFrom).normalized, out _, (probeTo - probeFrom).magnitude, Layers.WorldMask, QueryTriggerInteraction.Ignore))
             {
                 _blocked = true;
                 return Vector3.zero;
             }
-            if (!air && Physics.Raycast(to + up * 3f, -up, out RaycastHit ground, 9f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            // On foot it stays on the ground where it is going (a step too high or too steep is a wall to it).
+            if (!air && CreatureGround.Step(Footing, transform.position, ref to, up, Steepest) != StepResult.Taken)
             {
-                // On foot a step up or down of more than a shin is a wall to it for now (it is placed on level ground).
-                if (Mathf.Abs(Vector3.Dot(ground.point - to, up)) > 0.3f)
-                {
-                    _blocked = true;
-                    return Vector3.zero;
-                }
-                to = ground.point;
+                _blocked = true;
+                return Vector3.zero;
             }
             transform.position = to;
             return local;
-        }
-
-        /// <summary>In the air its root follows the ground below it, eased, so flying over a wall is not a jump.</summary>
-        bool Settle(float height, float dt)
-        {
-            Vector3 up = transform.up, at = transform.position;
-            if (!Physics.Raycast(at + up * (height + 3f), -up, out RaycastHit ground, height + 15f, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return false;
-            float rise = Vector3.Dot(ground.point - at, up), step = Mathf.Clamp(rise, -7f * dt, 7f * dt);
-            transform.position = at + up * step;
-            // The answer: is there still some way to go.
-            return Mathf.Abs(rise - step) > 0.02f;
         }
 
         void Pose(float dt, in ScreamerOrders orders, Vector3 velocity)

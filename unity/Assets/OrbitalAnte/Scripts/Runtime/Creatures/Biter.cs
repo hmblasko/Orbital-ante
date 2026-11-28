@@ -441,7 +441,7 @@ namespace OrbitalAnte.Creatures
                 Vector3 chest = eye.position - transform.up * 0.35f;
                 Audio.AudioDirector.Play("gore.splat", chest, 0.7f, 1.2f);
                 PlayerHealth player = CombatWorld.Player;
-                if (player != null) player.TakeDamage((float)orders.Bite, transform.forward);
+                if (player != null) player.TakeDamage((float)orders.Bite, transform.forward, StrikeWords.Shoal);
             }
             return posedNear;
         }

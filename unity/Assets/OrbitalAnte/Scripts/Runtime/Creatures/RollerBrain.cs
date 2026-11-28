@@ -73,6 +73,11 @@ namespace OrbitalAnte.Creatures
         public Vec3d Home;
         /// <summary>Something solid is in the way of the last move.</summary>
         public bool Blocked;
+        /// <summary>
+        /// The ground itself refused the last move (steeper than it can go, the water's edge: on a world). A ball's roll
+        /// ends there as any roll ends, on its back for the usual time; only something solid is a crash.
+        /// </summary>
+        public bool Stopped;
     }
 
     public struct RollerOrders
@@ -105,7 +110,7 @@ namespace OrbitalAnte.Creatures
         readonly RollerRules _rules;
         readonly SeededRandom _random;
         double _t, _rest, _alert, _planned, _rolled, _backFor, _rollFor, _wanderFor, _wanderTurn;
-        bool _landed;
+        bool _landed, _fallBack;
 
         public RollerBrain(RollerRules rules, int seed)
         {
@@ -184,14 +189,18 @@ namespace OrbitalAnte.Creatures
                         _rolled = 0.0;
                         _rollFor = 0.0;
                         Crashed = false;
+                        _fallBack = false;
                     }
                     break;
 
                 case RollerMode.Roll:
                 {
-                    if (senses.Blocked && _rollFor > 0.0)
+                    // Something solid is a crash; ground it cannot roll up or off (on a world) ends the roll as any roll
+                    // ends, on its back for the usual time. Either way it falls open back the way it came.
+                    if ((senses.Blocked || senses.Stopped) && _rollFor > 0.0)
                     {
-                        Crashed = true;
+                        Crashed = senses.Blocked;
+                        _fallBack = true;
                         Enter(RollerMode.Open);
                         break;
                     }
@@ -209,8 +218,8 @@ namespace OrbitalAnte.Creatures
                 }
 
                 case RollerMode.Open:
-                    // Stopped by something solid, it falls open back the way it came, not into what stopped it.
-                    if (Crashed) orders.Velocity = new Vec3d(0, 0, -(0.5 * RollerLayout.TotalLength - RollerLayout.BallRadius + 0.3) / Math.Max(0.1, _rules.openSeconds));
+                    // Stopped short, it falls open back the way it came, not into what stopped it.
+                    if (_fallBack) orders.Velocity = new Vec3d(0, 0, -(0.5 * RollerLayout.TotalLength - RollerLayout.BallRadius + 0.3) / Math.Max(0.1, _rules.openSeconds));
                     _t += dt / Math.Max(0.1, _rules.openSeconds);
                     if (_t >= 1.0)
                     {

@@ -323,7 +323,7 @@ namespace OrbitalAnte.Creatures
             Audio.AudioDirector.Play("gore.splat", chest, 0.5f, 1.0f);
             PlayerHealth player = CombatWorld.Player;
             Vector3 way = chest - from;
-            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward);
+            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward, StrikeWords.Heard);
         }
 
         /// <summary>Moves the head; the answer is how far it really went, in its own frame after the turn.</summary>

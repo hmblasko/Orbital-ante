@@ -71,8 +71,6 @@ namespace OrbitalAnte.Spacewalk
         bool _plateUp;
         int _timesUp = -1;
         float _plateUpAt = -1000f;
-        // When a creature last began a warning at the player (game time): a fight, for the beads.
-        float _creatureAt = -1000f;
         /// <summary>How long a fresh hit flashes the armour's plates.</summary>
         const float HitFlashSeconds = 0.25f;
         Texture2D _beadTexture;
@@ -135,7 +133,6 @@ namespace OrbitalAnte.Spacewalk
             if (_look.Badge) SewBadge(_plate);
             BuildBeads();
             Items.LockerLook.Changed += ApplyLook;
-            OrbitalAnte.AI.CombatWorld.CreatureWindup += OnCreatureWindup;
 
             // Air: a tank that drains, its per cent, and the time left at a resting breath.
             Image tank = HullKit.Box(_plate, "Tank", 18f, 15f, 30f, 92f, HullKit.PlateEdge);
@@ -398,8 +395,8 @@ namespace OrbitalAnte.Spacewalk
         {
             if (_beads == null || _beadLooks == null) return;
             bool alarm = _noticeAlarm && _noticePlate.gameObject.activeSelf;
-            // The same fight the top-right readout keeps to (ReadoutFocus), or a creature's warning within as long.
-            bool fight = Tasks.AnteLoop.InFight || Time.time - _creatureAt < Tasks.ReadoutFocus.FightHold;
+            // The same fight the top-right readout keeps to (ReadoutFocus): a sighting, or a creature's warning or hunt.
+            bool fight = Tasks.AnteLoop.InFight;
             bool hushed = Items.CelestialPlate.Hushed(alarm, plateBlinks, fight);
             float shown = Items.CelestialPlate.Shown(_beadShown, hushed, Time.unscaledDeltaTime);
             if (shown <= 0f && _beadShown <= 0f) return;
@@ -710,12 +707,9 @@ namespace OrbitalAnte.Spacewalk
             }
         }
 
-        void OnCreatureWindup(Creatures.IWindup source) => _creatureAt = Time.time;
-
         void OnDestroy()
         {
             Items.LockerLook.Changed -= ApplyLook;
-            OrbitalAnte.AI.CombatWorld.CreatureWindup -= OnCreatureWindup;
             // A tint left on would stay on the title screen and the next run.
             if (_look.Tinted) OrbitalAnte.Look.PostFx.VisorTint = Color.white;
             if (_rimSprite != null) Destroy(_rimSprite);

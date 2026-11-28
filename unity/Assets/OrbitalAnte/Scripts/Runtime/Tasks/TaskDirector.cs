@@ -351,7 +351,7 @@ namespace OrbitalAnte.Tasks
         /// <summary>
         /// A creature the player hit. Its kill is the hit itself (a creature has no spawner to say it went down), and it
         /// pays like a camp's: its tier, the style feats, the streak, a bonus mission's bounty and the unlocks. Only an
-        /// animal that was told who pays for it (<see cref="Creatures.CreatureCredit"/>, the seas) counts.
+        /// animal that was told who pays for it (<see cref="Creatures.CreatureCredit"/>, given by the seas and the land) counts.
         /// </summary>
         void OnCreatureHit(in HitOutcome outcome, Creatures.ICreature creature)
         {
@@ -359,12 +359,13 @@ namespace OrbitalAnte.Tasks
             if (credit == null) return;
             credit.Hits++;
             if (!outcome.Killed) return;
-            // A sea creature cannot leave the water: killed by someone it could not reach (from the shore, or hovering
-            // over the sea) it pays nothing toward the ante, its bonus missions or the unlocks, and the note says why,
-            // so it is never a hidden rule (constitution 3) and never free points (5).
+            // A sea creature cannot leave the water, and a land creature cannot climb every ledge: killed by someone it
+            // could not reach (from the shore, hovering over the sea, from a ledge it was kept from) it pays nothing
+            // toward the ante, its bonus missions or the unlocks, and the note says why, so it is never a hidden rule
+            // (constitution 3) and never free points (5).
             if (!creature.InReach)
             {
-                AnteLoop.Note(CreatureTiers.OutOfReach);
+                AnteLoop.Note(CreatureTiers.NoPayNote(credit.Kind));
                 return;
             }
             Astronaut player = Player;

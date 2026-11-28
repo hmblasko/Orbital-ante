@@ -42,7 +42,9 @@ namespace OrbitalAnte.Creatures
         /// <summary>
         /// True while the player is where it can strike them. A kill made from out of its reach pays nothing, because it
         /// could not fight back: a swimmer reaches only someone in the water with it (shot from the shore or from over
-        /// the sea, it pays nothing, and the note says why). The land creatures always say true.
+        /// the sea, it pays nothing, and the note says why); a land creature on a world, until it has been kept from the
+        /// player for <see cref="LandReach.KeptSeconds"/> without gaining ground while it hunts them (on a ledge it cannot
+        /// climb). The creatures that only live in the practice range always say true.
         /// </summary>
         bool InReach { get; }
     }

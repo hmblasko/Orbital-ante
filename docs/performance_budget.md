@@ -633,3 +633,28 @@ To read off in Unity: in the arena, fire full-auto into a Strider's lid and swee
 Usage, `HitMarker.OnPlayerHit` and `GameAudioHooks.OnPlayerHit` should show 0 B of GC Alloc on hit frames and
 `Canvas.SendWillRenderCanvases` with `Canvas.BuildBatch` under 0.1 ms; on the frame the first aim line appears, note
 the worst frame time and look for `Font.CacheFontForText`; the Audio module's Playing Sources should stay at 48 or under.
+
+## Land creatures (Ralph loop pass 8, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+The Deck cost review's numbers: guessed from the code and a model of the plane cache's own hash. A ground sample is
+3.6 to 4.9 µs under .NET; on the Deck under Mono it is guessed at 9 to 30 µs.
+
+| | Cost | Cap |
+|---|---|---|
+| Haunt search (`LandCreatures`, `LandField.Build`) | Once a world, the first time the player is near it, on a background core: up to 1,200 tries at 1 to 9 ground samples each, guessed 5 to 100 ms of one worker. Patient: ranked as a ground tile 400 m off and never on the last free core | 30 haunts a world |
+| Waking (`LandCreatures.Think`) | Twice a second over at most 30 haunts, no garbage. A wake builds the whole creature in one frame (about 40 objects, and up to 17 sphere checks for a clear spot to stand it), guessed 2 to 4 ms, and allocates about 1 to 2 KB (names, closures) | one a think; 2 awake (`liveCap`); woken at 110 m, never within 70 m; put away beyond 180 m |
+| Standing on the ground (`LandFooting`, `CreatureGround`) | Every frame while awake, seen or not, on the built tiles with no colliders (`PlanetSurface.GroundRadius`): a walker asks 12 to 19 times, the Roller 5 to 7, the Screamer 3 to 9. Answered from the plane cache (`BuiltGround`), now 1,024 places, about 40 KB a body (it was 256: with two walkers the model gave 2 to 4 misses a frame, guessed 0.1 to 0.3 ms). Now guessed 0.5 to 1 miss a frame; a miss is three ground samples, guessed 30 to 90 µs. A tile rebuilt finer under a walker misses its triangles at once, guessed 0.4 to 1.4 ms that frame | 2 creatures |
+| Walkers' legs on slopes (`WalkerAnimator`, given the ground) | A stretch check per leg and the lowering over eight legs: a few dozen multiplications, no ground reads. A foot that slips reads the ground 8 times (a binary search toward its hip, through the cache). Offline: slips are under 5% of foot frames on gentle ground, up to about a fifth at full pace on the steepest | 8 legs a walker |
+| Physics queries | One sphere check and one ray a moving frame (the Screamer also a sphere cast), mostly broadphase far off, guessed under 0.05 ms for two. `Physics.SyncTransforms`: the Sprinter only while the player sees it or is within 40 m (it was every frame, even 180 m off), the Roller while rolling, the Screamer while it sees the player; guessed 0.02 to 0.1 ms a call | |
+| Pictures | About 30 MB of texture memory (Strider 12, Roller 12, Sprinter 3, Screamer 3), not readable, so no copy on the CPU. Read once a session while the first run is got ready, guessed 0.1 to 0.4 s. Model pictures held for the session reach about 135 MB after a practice-range visit, so the 140 MB cap now limits memory as well as disk | 4 kinds |
+| Loose pieces | Each gets a `GravityBody` and is pulled like a gib, but sits outside the 40-gib and 12-gun caps: a step while they fly is guessed at 0.35 to 0.65 ms | 34 between all creatures |
+| The shared fight test (`ReadoutFocus.CreatureFight`, `LandReach`) | One float written a frame by each spawner while one of its creatures is after the player; two subtractions and compares where a fight is asked about; a few additions a moving frame for each creature's reach | |
+
+If it proves dear on the Deck, in this order: read a planted foot's ground once as it lands (guessed 0.2 to 0.7 misses
+a frame), the lean four times a second instead of every frame, build a wake over several frames as the biter shoal
+does (if a wake measures over 3 ms), and cap loose pieces at 16 on worlds.
+
+To read off in Unity, with two creatures awake, on Earth then Mars: (1) in the Profiler's CPU Usage, `Walker.Update`,
+`Roller.Update` and `Screamer.Update` should each be under 0.25 ms with 0 B of GC Alloc; (2) `Physics.SyncTransforms`
+(Calls and Time ms); (3) on a wake frame, `LandCreatures.Update` should be under 3 ms; (4) texture memory about 30 MB
+higher than before; (5) `BuiltGround.Misses` per frame (counted but not yet on F3) should be under 1.

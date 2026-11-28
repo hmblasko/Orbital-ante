@@ -158,12 +158,19 @@ namespace OrbitalAnte.Tests.EditMode
                     StringAssert.Contains("public CreatureCredit Credit { get; set; }", text, name);
                     Assert.AreEqual(Regex.Matches(text, @"outcome\.Enemy = true;").Count, Regex.Matches(text, @"outcome\.Enemy = true;\s*outcome\.Target = this;").Count,
                         name + ": every hit that counts as an enemy names it as the target");
-                    // A swimmer reaches only someone in the water with it; on land a creature can always come to the player.
+                    // A swimmer reaches only someone in the water with it; a creature that lives on the worlds' ground
+                    // until it has been kept from the player a while (LandReach); the rest can always come to them.
                     bool swims = name == "Maw" || name == "Biter";
+                    bool onLand = name == "Walker" || name == "Roller" || name == "Screamer";
                     if (swims)
                     {
                         StringAssert.Contains("public bool InReach => _inReach;", text, name);
                         StringAssert.Contains("_inReach = Water == null || senses.PlayerInWater;", text, name + ": in reach exactly when it takes notice of the player");
+                    }
+                    else if (onLand)
+                    {
+                        StringAssert.IsMatch(@"public bool InReach => !\(_?[Ff]ooting is LandFooting\) \|\| _reach\.InReach;", text, name + ": always in the practice range, on a world until kept away");
+                        StringAssert.Contains("_reach.Step(", text, name + ": its reach is watched");
                     }
                     else StringAssert.Contains("public bool InReach => true;", text, name);
                 }
@@ -181,9 +188,18 @@ namespace OrbitalAnte.Tests.EditMode
             int refuse = body.IndexOf("if (!creature.InReach)", System.StringComparison.Ordinal);
             Assert.GreaterOrEqual(refuse, 0, "the kill is refused when the creature could not reach the player");
             Assert.Less(refuse, body.IndexOf("PayKill(", System.StringComparison.Ordinal), "before anything is paid, counted for a bonus mission or an unlock");
-            StringAssert.Contains("AnteLoop.Note(CreatureTiers.OutOfReach)", body, "never a hidden rule");
+            StringAssert.Contains("AnteLoop.Note(CreatureTiers.NoPayNote(credit.Kind))", body, "never a hidden rule");
             StringAssert.Contains("WATER", CreatureTiers.OutOfReach, "it says where they do pay");
             Assert.LessOrEqual(CreatureTiers.OutOfReach.Length, 46, "as short as the readout's other notes");
+            Assert.AreEqual(CreatureTiers.OutOfReach, CreatureTiers.NoPayNote("Maw"));
+            Assert.AreEqual(CreatureTiers.OutOfReach, CreatureTiers.NoPayNote("Biter"));
+            // A land creature kept from the player (on a ledge it cannot climb) says so in its own words.
+            foreach (string kind in new[] { "Strider", "Sprinter", "Roller", "Screamer" })
+                Assert.AreEqual(CreatureTiers.KeptAway, CreatureTiers.NoPayNote(kind), kind);
+            StringAssert.Contains("GET AT YOU", CreatureTiers.KeptAway, "it says when they do pay");
+            Assert.LessOrEqual(CreatureTiers.KeptAway.Length, 46, "as short as the readout's other notes");
+            foreach (string kind in CreatureTiers.Kinds)
+                StringAssert.DoesNotContain(kind.ToUpperInvariant(), CreatureTiers.KeptAway, "never a placeholder name on screen");
         }
     }
 }

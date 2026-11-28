@@ -132,7 +132,11 @@ namespace OrbitalAnte.Creatures
 
         void Update()
         {
-            if (_world == null || _config == null || Time.time < _nextThink) return;
+            if (_world == null || _config == null) return;
+            // A swimmer after the player is a fight for the rest of the game too (the readout, the tips, the restless
+            // camps), as a sighting is: said every frame one is (Ralph loop pass 8).
+            if (_live.Count > 0 && AnyAware) CombatWorld.CreatureAwareAt = Time.time;
+            if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.5f;
             Think();
         }

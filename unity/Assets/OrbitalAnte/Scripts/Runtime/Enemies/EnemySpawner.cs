@@ -465,6 +465,8 @@ namespace OrbitalAnte.Enemies
                 float d = (l.Who.transform.position - at).sqrMagnitude;
                 if (d < best) { best = d; callee = l; }
             }
+            // A creature's fight is no quiet either: the clock starts again once it is over.
+            if (!fighting && Tasks.ReadoutFocus.CreatureFight(now - CombatWorld.CreatureWarnedAt, now - CombatWorld.CreatureAwareAt)) fighting = true;
             // Driving, the clock stands still: a squad sent to a place long driven past, or a camp woken far off and
             // put back to sleep a moment later, is wasted. Hiding stands it still too.
             Astronaut crew = _world.Astronaut;

@@ -305,7 +305,7 @@ namespace OrbitalAnte.Creatures
             if (first) Audio.AudioDirector.Play("gore.splat", chest, 0.6f, 0.9f);
             PlayerHealth player = CombatWorld.Player;
             Vector3 way = chest - from;
-            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward);
+            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward, StrikeWords.Burrow);
         }
 
         /// <summary>Whoever it holds goes where it drags them; they can still look round and shoot.</summary>

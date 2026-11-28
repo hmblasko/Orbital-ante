@@ -549,13 +549,11 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(1f, CelestialPlate.Shown(1f, false, -5f), "a step back in time changes nothing");
             Assert.AreEqual(0.5f, CelestialPlate.Shown(0.5f, true, float.NaN));
             // What the suit's readout hands it: the notice's alarm, the plate's own blinks and the fight the top-right
-            // readout keeps to, or a creature's warning as lately.
+            // readout keeps to, which since Ralph loop pass 8 holds a creature's warning and a creature after the player too.
             string hud = Runtime("Spacewalk", "SuitHud.cs");
             Assert.IsNotNull(hud);
             StringAssert.Contains("CelestialPlate.Hushed(alarm, plateBlinks, fight)", hud);
-            StringAssert.Contains("Tasks.AnteLoop.InFight || Time.time - _creatureAt < Tasks.ReadoutFocus.FightHold", hud);
-            StringAssert.Contains("CombatWorld.CreatureWindup += OnCreatureWindup;", hud);
-            StringAssert.Contains("CombatWorld.CreatureWindup -= OnCreatureWindup;", hud);
+            StringAssert.Contains("bool fight = Tasks.AnteLoop.InFight;", hud);
             StringAssert.Contains("VisorReadout.AirTone(s.AirLow, s.AirOut, s.BurningAir) == GaugeTone.Alarm", hud);
         }
 

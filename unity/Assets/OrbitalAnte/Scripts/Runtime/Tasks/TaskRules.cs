@@ -489,6 +489,15 @@ namespace OrbitalAnte.Tasks
         /// </summary>
         public const string OutOfReach = "SEA KILLS PAY ONLY IN THE WATER WITH THEM";
 
+        /// <summary>
+        /// The note when a land creature is killed after it was kept from the player (on a ledge it cannot climb, across
+        /// a drop): it could not fight back, so it pays nothing, and this says what does (Ralph loop pass 8).
+        /// </summary>
+        public const string KeptAway = "KILLS PAY ONLY WHEN IT CAN GET AT YOU";
+
+        /// <summary>The note for a kill that pays nothing because the creature could not reach the player.</summary>
+        public static string NoPayNote(string kind) => Swims(kind) ? OutOfReach : KeptAway;
+
         /// <summary>The creatures of the seas (<see cref="Creatures.SeaCreatures"/>): the Drifting maw and the Pack biter.</summary>
         public static bool Swims(string kind) => kind == "Maw" || kind == "Biter";
 
@@ -541,6 +550,8 @@ namespace OrbitalAnte.Tasks
         public static string Enemy(string body, int camp, int member) => "enemy:" + body + ".c" + camp + ".m" + member;
         /// <summary>A creature: its world, its haunt there and its place in the haunt (a fish's place in its pack; 0 for one alone).</summary>
         public static string Creature(string body, int haunt, int place) => "creature:" + body + ".h" + haunt + ".p" + place;
+        /// <summary>A creature of the land (<see cref="Creatures.LandCreatures"/>): its world and its haunt there, a claim apart from the seas'.</summary>
+        public static string LandCreature(string body, int haunt) => "creature:" + body + ".land" + haunt;
         public static string Mast(string body, int baseIndex) => "mast:" + body + "." + baseIndex;
         public static string Salvage(string body, int n) => "salvage:" + body + "." + n;
         public static string Drop(int ante, int n) => "drop:a" + ante + "." + n;

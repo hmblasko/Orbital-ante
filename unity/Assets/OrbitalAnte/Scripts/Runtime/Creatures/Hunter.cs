@@ -246,7 +246,7 @@ namespace OrbitalAnte.Creatures
             if (Physics.Linecast(from, chest, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
             Audio.AudioDirector.Play("gore.splat", chest, 0.5f, 1.1f);
             PlayerHealth player = CombatWorld.Player;
-            if (player != null) player.TakeDamage(_rules.biteDamage, (chest - from).normalized);
+            if (player != null) player.TakeDamage(_rules.biteDamage, (chest - from).normalized, StrikeWords.Rear);
         }
 
         /// <summary>Moves the head; the answer is how far it really went, in its own frame after the turn.</summary>

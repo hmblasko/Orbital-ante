@@ -245,7 +245,7 @@ namespace OrbitalAnte.Tests.EditMode
             public Vec3d At = Vec3d.Zero;
             public double Yaw;
             public Vec3d Player;
-            public bool Blocked, WasHit, Butted;
+            public bool Blocked, Stopped, WasHit, Butted;
             public double Exposed, Time;
 
             public Field(Vec3d player, int seed = 3)
@@ -258,7 +258,7 @@ namespace OrbitalAnte.Tests.EditMode
 
             public RollerOrders Step()
             {
-                var senses = new RollerSenses { SeesPlayer = true, Player = Local(Player), Home = Local(Vec3d.Zero), Blocked = Blocked };
+                var senses = new RollerSenses { SeesPlayer = true, Player = Local(Player), Home = Local(Vec3d.Zero), Blocked = Blocked, Stopped = Stopped };
                 RollerOrders orders = Brain.Think(Body, senses, Dt);
                 Yaw += orders.TurnRate * Dt;
                 At += QuatD.AngleAxis(Vec3d.Up, Yaw).Rotate(orders.Velocity) * Dt;
@@ -349,6 +349,45 @@ namespace OrbitalAnte.Tests.EditMode
                 return field.Exposed;
             }
             Assert.Greater(Exposure(true), Exposure(false) + 1.0);
+        }
+
+        /// <summary>
+        /// On a world the ball can meet ground it cannot roll up or off (steeper than its roll, a drop, the water's edge).
+        /// That ends the roll as any roll ends, on its back for the usual time: only something solid that stands up is a
+        /// crash (from the design review of pass 8: a slope a player cannot see the limit of gave the long crash).
+        /// </summary>
+        [Test]
+        public void GroundItCannotRollUp_EndsTheRollLikeAnyOther_OnlySomethingSolidIsACrash()
+        {
+            double Exposure(bool stopped, bool blocked, out bool crashed, out double fellBack)
+            {
+                var field = new Field(new Vec3d(0, 0, 12));
+                bool rolled = false;
+                double stoppedAt = -1, endedAt = -1;
+                for (int i = 0; i < 60 * 12; i++)
+                {
+                    RollerOrders orders = field.Step();
+                    if (orders.Mode == RollerMode.Roll) { rolled = true; field.Player = new Vec3d(50, 0, 0); }
+                    bool there = orders.Mode == RollerMode.Roll && field.At.Z > 6;
+                    field.Stopped = stopped && there;
+                    field.Blocked = blocked && there;
+                    if (orders.Mode == RollerMode.Open && stoppedAt < 0) stoppedAt = field.At.Z;
+                    if (orders.Mode == RollerMode.OnBack && endedAt < 0) endedAt = field.At.Z;
+                    if (rolled && orders.Mode == RollerMode.Walk) break;
+                }
+                crashed = field.Brain.Crashed;
+                fellBack = stoppedAt - endedAt;
+                return field.Exposed;
+            }
+            double plain = Exposure(false, false, out bool plainCrash, out _);
+            double ground = Exposure(true, false, out bool groundCrash, out double groundBack);
+            double wall = Exposure(false, true, out bool wallCrash, out _);
+            Assert.IsFalse(plainCrash);
+            Assert.IsFalse(groundCrash, "the ground stopping it is no crash");
+            Assert.IsTrue(wallCrash);
+            Assert.AreEqual(plain, ground, 0.35, "on its back for the usual time");
+            Assert.Greater(wall, ground + 1.0, "only a crash leaves it longer");
+            Assert.That(groundBack, Is.InRange(0.6, 1.1), "it falls open back the way it came, not into the slope");
         }
 
         [Test]

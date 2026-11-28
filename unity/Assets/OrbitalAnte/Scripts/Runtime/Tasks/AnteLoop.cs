@@ -511,8 +511,20 @@ namespace OrbitalAnte.Tasks
             _canvas.gameObject.SetActive(false);
         }
 
-        /// <summary>True while an enemy has had the player in sight lately: the readout keeps to what a fight needs.</summary>
-        public static bool InFight => ReadoutFocus.InFight(Time.time - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt);
+        /// <summary>
+        /// True while a fight is on: an enemy has had the player in sight lately, or a creature has warned or is after them
+        /// (<see cref="ReadoutFocus.InFight(float, float, float)"/>). The readout keeps to what a fight needs, and tips, an
+        /// unlock's moment and the restless camps wait.
+        /// </summary>
+        public static bool InFight
+        {
+            get
+            {
+                float now = Time.time;
+                return ReadoutFocus.InFight(now - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt, now - OrbitalAnte.AI.CombatWorld.CreatureWarnedAt,
+                                            now - OrbitalAnte.AI.CombatWorld.CreatureAwareAt);
+            }
+        }
 
         void Pop(string text) => Pop(text, PopFeedback.LookFor(PopTier.Plain));
 

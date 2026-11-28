@@ -58,9 +58,19 @@ namespace OrbitalAnte.Player
             Current = Mathf.Min(Max, Current + amount);
         }
 
-        public void TakeDamage(float amount, Vector3 bulletDirection)
+        /// <summary>
+        /// What the last hit was, in the death page's words ("Caught in a giant claw."), or null for a shot and anything
+        /// else that does not say: read by whoever names the death when <see cref="Died"/> is raised.
+        /// </summary>
+        public string LastCause { get; private set; }
+
+        public void TakeDamage(float amount, Vector3 bulletDirection) => TakeDamage(amount, bulletDirection, null);
+
+        /// <param name="cause">What this hit was, in the death page's words (<see cref="Creatures.StrikeWords"/>); null for a shot.</param>
+        public void TakeDamage(float amount, Vector3 bulletDirection, string cause)
         {
             if (!Alive || amount <= 0f) return;
+            LastCause = cause;
             Current = Mathf.Max(0f, Current - amount);
             _lastHitTime = Time.time;
             LastHitUnscaledTime = Time.unscaledTime;
@@ -71,6 +81,7 @@ namespace OrbitalAnte.Player
         public void Revive()
         {
             Current = Max;
+            LastCause = null;
             _lastHitTime = -100f;
         }
 

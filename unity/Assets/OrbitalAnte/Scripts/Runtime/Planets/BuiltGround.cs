@@ -13,11 +13,15 @@ namespace OrbitalAnte.Planets
     ///
     /// Remembers the planes of the triangles asked about lately, so asking again where someone stands costs a
     /// few sums instead of three ground samples. One per body; main thread only (not safe to share between
-    /// threads). The terrain never changes after it is built, so a remembered plane never goes stale.
+    /// threads). The terrain never changes after it is built, so a remembered plane never goes stale. 1,024 planes
+    /// (about 40 KB a body): since Ralph loop pass 8 two land creatures read the ground under themselves and their
+    /// feet every frame as well as the player, the ship and the suit, and at 256 they pushed each other out.
     /// </summary>
     public sealed class BuiltGround
     {
-        const int Slots = 256;
+        const int Slots = 1024;
+        /// <summary>The hash's top bits that pick a slot: log2 of <see cref="Slots"/>.</summary>
+        const int SlotBits = 10;
 
         readonly PlanetTerrain _terrain;
         readonly long[] _keys = new long[Slots];
@@ -41,7 +45,7 @@ namespace OrbitalAnte.Planets
         {
             TerrainMesher.SurfaceCell(face, level, x, y, direction, out int i, out int j, out bool far);
             long key = Key(face, level, x, y, i, j, far);
-            int slot = (int)((ulong)(key * unchecked((long)0x9E3779B97F4A7C15UL)) >> 56) & (Slots - 1);
+            int slot = (int)((ulong)(key * unchecked((long)0x9E3779B97F4A7C15UL)) >> (64 - SlotBits)) & (Slots - 1);
             if (_keys[slot] != key)
             {
                 TerrainMesher.CellPlane(_terrain, face, level, x, y, i, j, far, out _normals[slot], out _offsets[slot]);

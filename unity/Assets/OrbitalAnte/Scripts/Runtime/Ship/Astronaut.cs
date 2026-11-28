@@ -224,7 +224,9 @@ namespace OrbitalAnte.Ship
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
-            a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
+            // A creature's strike says what it was (Creatures/StrikeWords); a shot, or anything else, the old words.
+            a.Armour.Died += () => a.Die(!string.IsNullOrEmpty(a.Armour.LastCause) ? a.Armour.LastCause
+                                         : a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
             // Measured from the boots. The boots are the lowest point of the suit's capsule and never honestly
             // below the ground (on a slope they stand a little above it), and the ground checked is the real,
             // built one, so a quarter of a metre deep is already sunk (about where the check for ground under the
