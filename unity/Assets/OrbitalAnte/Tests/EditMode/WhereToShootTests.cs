@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using OrbitalAnte.Core;
 using OrbitalAnte.Creatures;
@@ -9,8 +10,9 @@ namespace OrbitalAnte.Tests
 {
     /// <summary>
     /// Where to shoot each creature (Ralph loop pass 7): every kind has one weak place that rings gold and is its quickest
-    /// kill, armour that only knocks, pieces it fights with that ring as a disarm when they come off, and a short line that
-    /// says where to aim the first time its armour turns the player's shots.
+    /// kill, armour that only knocks, pieces it fights with that ring as a disarm when they come off (and are never grey
+    /// while they hold), and a short line that names the piece that turned the shot and says where to aim, the first time
+    /// its armour turns the player's shots.
     /// </summary>
     public class WhereToShootTests
     {
@@ -166,8 +168,23 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual(HitZone.Armour, WhereToShoot.Roller(RollerPiece.Plate, false, false));
             Assert.AreEqual(HitZone.Plain, WhereToShoot.Roller(RollerPiece.Plate, true, false), "a plate shot off is a piece off, not a glance");
             Assert.AreEqual(HitZone.Plain, WhereToShoot.Roller(RollerPiece.Tail, true, false));
-            Assert.AreEqual(HitZone.Armour, WhereToShoot.Ambusher(AmbusherPiece.Jaw, false), "a jaw that holds knocks");
+        }
+
+        [Test]
+        public void APieceToShootOff_IsNeverGrey_WhileItHolds()
+        {
+            // Grey means "the slow way". A jaw that holds the player is shot off to make it let go, and a drum to choke a
+            // scream, so neither may ever be marked as armour (game-designer review, pass 7: the Ambusher's jaw was).
+            Assert.AreEqual(HitZone.Plain, WhereToShoot.Ambusher(AmbusherPiece.Jaw, false), "the Ambusher's jaw, holding the player or not");
             Assert.AreEqual(HitZone.WeaponOff, WhereToShoot.Ambusher(AmbusherPiece.Jaw, true));
+            Assert.AreEqual(HitZone.Plain, WhereToShoot.Maw(MawPiece.Jaw, false));
+            Assert.AreEqual(HitZone.Plain, WhereToShoot.Biter(BiterPiece.Jaw, false));
+            Assert.AreEqual(HitZone.Plain, WhereToShoot.Screamer(ScreamerPiece.Drum, false));
+            Assert.AreEqual(HitZone.Plain, WhereToShoot.Walker(false, false, false), "a walker's claw arm or jaw that is still on");
+            foreach (KeyValuePair<string, List<Piece>> kind in Kinds())
+                foreach (Piece p in kind.Value)
+                    if (p.Name == "jaw" || p.Name == "drum")
+                        Assert.AreNotEqual(HitZone.Armour, p.Zone, kind.Key + "'s " + p.Name + " is marked as the slow way");
         }
 
         [Test]
@@ -247,13 +264,53 @@ namespace OrbitalAnte.Tests
                     continue;
                 }
                 Assert.IsNotNull(line, kind.Key + " has armour but no line saying where to aim");
-                StringAssert.StartsWith(WhereToShoot.ArmourWord + " · ", line);
-                // Read in the second it is up, under the crosshair, at 15 px: at most 44 letters.
+                string shell = WhereToShoot.ShellWord(kind.Key);
+                StringAssert.StartsWith(shell + " · ", line);
+                Assert.IsTrue(Regex.IsMatch(shell, "^[A-Z]{3,5}$"), kind.Key + ": the piece that turned the shot is one short word, " + shell);
+                // "ARMOUR" is the player's own suit on the suit plate (ARMOUR FAILING, NO ARMOUR LEFT): never here.
+                StringAssert.DoesNotContain("ARMOUR", line, kind.Key);
+                StringAssert.DoesNotContain("ARMOR", line, kind.Key);
+                // Read in the second it is up, over the crosshair, at 15 px: at most 44 letters.
                 Assert.LessOrEqual(line.Length, 44, kind.Key + ": " + line);
                 Assert.AreEqual(line.ToUpperInvariant(), line, "the plates' words are capitals");
-                StringAssert.Contains("AIM", WhereToShoot.AimLine(kind.Key).Replace("SHOOT", "AIM"), "it says where to aim");
+                string aim = WhereToShoot.AimLine(kind.Key);
+                StringAssert.Contains("AIM", aim.Replace("SHOOT", "AIM"), "it says where to aim");
+                // One place to aim at: a drum or a claw is taught by its own cyan mark.
+                Assert.IsFalse(Regex.IsMatch(aim, @"\bOR\b"), kind.Key + " names two places: " + aim);
             }
             Assert.IsNull(WhereToShoot.Line("SomethingNew"), "a kind added later says nothing until it has its line");
+            Assert.IsNull(WhereToShoot.ShellWord("Biter"), "the Pack biter has no armour");
+        }
+
+        [Test]
+        public void TheLines_SayWhenTheWeakPlaceCanBeShot_WhereItIsHidden()
+        {
+            // The first glance off an Ambusher nearly always lands while only its head is out, and it ducks when hit, so its
+            // line says when its body can be shot (game-designer review, pass 7).
+            StringAssert.Contains("WHEN IT REARS", WhereToShoot.AimLine("Ambusher"));
+            // A Roller's soft side shows only on its back ("flips" also fits its curl, and "underneath" faces up then).
+            StringAssert.Contains("ON ITS BACK", WhereToShoot.AimLine("Roller"));
+            StringAssert.DoesNotContain("FLIP", WhereToShoot.AimLine("Roller"));
+            StringAssert.DoesNotContain("UNDERNEATH", WhereToShoot.AimLine("Roller"));
+            // The Drifting maw's weak place is there only while its mouth is open.
+            StringAssert.Contains("WHEN IT OPENS", WhereToShoot.AimLine("Maw"));
+        }
+
+        [Test]
+        public void TheBestKill_IsTheSameForTheMarkerAndTheSlowMo()
+        {
+            foreach (HitZone zone in new[] { HitZone.Plain, HitZone.Armour, HitZone.Vital, HitZone.WeaponOff })
+                foreach (bool killed in new[] { false, true })
+                    foreach (bool headshot in new[] { false, true })
+                    {
+                        bool best = HitZones.BestKill(killed, headshot, zone);
+                        HitKind shown = HitConfirm.Classify(true, true, false, false, false, killed, headshot, zone);
+                        Assert.AreEqual(best, shown == HitKind.HeadshotKill, zone + (killed ? " killed" : "") + (headshot ? " headshot" : ""));
+                    }
+            Assert.IsTrue(HitZones.BestKill(true, false, HitZone.Vital), "a creature killed through its weak place");
+            Assert.IsTrue(HitZones.BestKill(true, true, HitZone.Plain), "a person's headshot kill, as before");
+            Assert.IsFalse(HitZones.BestKill(true, false, HitZone.Armour), "killed through its armour: a plain kill");
+            Assert.IsFalse(HitZones.BestKill(false, false, HitZone.Vital), "a hit on the weak place that does not kill");
         }
 
         [Test]

@@ -220,6 +220,83 @@ def main() -> int:
         lines.append(f"| {kind} | {mark * 1000:.0f} ms | {a979:.0f} / {a1629:.0f} | {' / '.join(f'{r:.0f}' for r in w_rings)} | {over:.1f} dB | {heard:.1f} dB |")
     lines.append("")
 
+    # ------------------------------------------------------------ the player's own glances and knocks against the marks
+    # A shot that a creature's armour turns plays the glance (in the player's head, every shot) and the creature's knock
+    # (impact.armor, where it landed), while the creatures that face the player armour-first wind up; the one hard mark
+    # that says "move" must never be buried by them or taken for one (game-designer review, Ralph loop pass 7). So both
+    # are soft-fronted and dull where the bright marks are hard, the glance is quieter than every mark as played, and
+    # each measures far from every mark. The knock is measured at every pitch the creatures play it at (keep in step
+    # with their impact.armor calls: Walker, Roller, Maw, Hunter, Screamer, Stalker, Ambusher).
+    knock_pitches = (0.45, 0.55, 0.6, 0.7, 0.8, 0.85, 0.9, 1.0)
+
+    def front(x):
+        """How hard its front is: its level 1 ms after it starts (reaches 5 per cent of its loudest), as a share of its
+        loudest moment in the first 60 ms, on a 0.5 ms envelope. The bright marks are at 0.6 to 1, a soft rise near 0.1."""
+        w = max(1, int(0.0005 * SR))
+        e = np.sqrt(np.convolve(x * x, np.ones(w) / w, "same"))
+        pk = int(np.argmax(e[:int(0.06 * SR)]))
+        start = int(np.argmax(e[:pk + 1] >= 0.05 * e[pk]))
+        return float(e[min(pk, start + int(0.001 * SR))] / (e[pk] + 1e-20))
+
+    def early_centroid(x):
+        seg = x[:int(0.045 * SR)]
+        f, pw = signal.welch(seg, SR, nperseg=min(1024, len(seg)))
+        return float((f * pw).sum() / (pw.sum() + 1e-20))
+
+    def at_pitch(x, p):
+        return x if abs(p - 1.0) < 1e-6 else signal.resample(x, int(round(len(x) / p)))
+
+    marks = {}
+    for kind in windups:
+        a = by_id.get(f"creature.{kind}.aim")
+        if a is not None:
+            x = signal.sosfilt(hp200, mono(a["clips"][0]))
+            marks[kind] = (x, loudest(x)[1] + a["volumeDb"], features(x))
+    lines.append("## The glance and the armour knock against the marks\n")
+    lines.append("A shot that a creature's armour turns plays the glance and the creature's knock, while the creature may be about "
+                 "to give its one hard mark. *Front* is its level 1 ms after it starts as a share of its loudest moment, above 200 Hz "
+                 "(the bright marks are at 0.6 to 1); allowed for the glance, which is in the player's head on every shot: at most "
+                 "0.35 (the knock keeps a knock's front). *Brightness* is the centre of its first 45 ms; allowed: under 2 kHz (the "
+                 "bright marks are at 2.4 to 4.8 kHz). *Under the quietest mark* compares the loudest 5 ms above 200 Hz as played (the glance only; the knock plays "
+                 "where the mark does); allowed: at least 6 dB. *Nearest mark* is the gunshots' measure of difference to the closest "
+                 "mark (two sounds closer than 1.5 are told apart badly); allowed: at least 3. *Rings*: as for the wind-ups, under 10.\n")
+    lines.append("| Sound | Front | Brightness | Under the quietest mark | Nearest mark | Rings at 979 / 1629 / 640 Hz |")
+    lines.append("|---|---|---|---|---|---|")
+    g = by_id.get("hit.glance")
+    k = by_id.get("impact.armor")
+    check(g is not None and k is not None, "no hit.glance or impact.armor event")
+    # (name, the file's sound above 200 Hz, its volume, the pitches it is played at, in the player's head)
+    played = []
+    if g is not None:
+        played.append(("hit.glance", signal.sosfilt(hp200, mono(g["clips"][0])), g["volumeDb"], (1.0,), True))
+    if k is not None:
+        # Each creature's pitch, and as far as the event's own pitch spread takes it either way.
+        spread = 2.0 ** (float(k.get("pitchVar", 0.0)) / 12.0)
+        pitches = sorted({round(p * f, 4) for p in knock_pitches for f in (1.0 / spread, 1.0, spread)})
+        for i, clip in enumerate(k["clips"]):
+            played.append((f"impact.armor {i + 1} (worst of {pitches[0]:.2f} to {pitches[-1]:.2f})",
+                           signal.sosfilt(hp200, mono(clip)), k["volumeDb"], tuple(pitches), False))
+    for name, base, vol, pitches, own in played:
+        fr = br = -1.0
+        nearest, rings = (99.0, ""), [-99.0, -99.0, -99.0]
+        for p in pitches:
+            x = base if p == 1.0 else signal.sosfilt(hp200, at_pitch(base, p))
+            fr, br = max(fr, front(x)), max(br, early_centroid(x))
+            nearest = min(nearest, min((float(np.linalg.norm(features(x) - fm)), kind) for kind, (_, _, fm) in marks.items()))
+            rings = [max(r, max(ring_over(x, at - 0.002, f0) for at in loudest(x, 3)[0])) for r, f0 in zip(rings, (979.0, 1629.0, 640.0))]
+        under = min(mdb for _, mdb, _ in marks.values()) - (loudest(base)[1] + vol) if own else None
+        check(br < 2000.0, f"{name}: its first 45 ms centre at {br:.0f} Hz, as bright as a creature's mark")
+        check(nearest[0] >= 3.0, f"{name}: measures {nearest[0]:.1f} from creature.{nearest[1]}.aim")
+        check(max(rings) < 10, f"{name}: rings like the clock's wood ({' / '.join(f'{r:.0f}' for r in rings)} dB)")
+        if own:
+            # The glance is in the player's head on every shot, so its front must be soft as well; the knock is the
+            # shell where the shot landed, and keeps a knock's front.
+            check(fr <= 0.35, f"{name}: {fr:.2f} of its loudest within 1 ms of starting, as hard as a creature's mark")
+            check(under >= 6.0, f"{name}: only {under:.1f} dB under the quietest mark as played")
+        lines.append(f"| {name} | {fr:.2f} | {br:.0f} Hz | {'' if under is None else f'{under:.1f} dB'} | "
+                     f"{nearest[0]:.1f} ({nearest[1]}) | {' / '.join(f'{r:.0f}' for r in rings)} |")
+    lines.append("")
+
     # ------------------------------------------------------------ music
     lines.append("## Music\n")
     lines.append("| Piece | Tempo | Bars | Length | Stems | Full mix | True peak | Under 250 Hz | Above 2 kHz | Loop exactness |")

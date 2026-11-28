@@ -80,6 +80,17 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 8 | +1 | The top tier is no longer a name only (the gap listed since pass 4): each of the six effects is drawn where its item shows, on the gun in hand, on the lander's hull or round the suit's readout (`Items/CelestialLooks.cs`, `OA_Fx` in `OA_Model.shader`, `SuitHud` beads), and the words say where; with pass 5's reach this is what the design review asked for 8 | Nothing left that can be closed without the Deck: paintings wait for frames and the five public-domain pictures, ship parts for the ship's parts (Part B's own unlock targets), and whether the unlocks feel worth chasing is a playtest question |
 | 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 7 (28 Nov 2026): after where to shoot a creature
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 7 | = | Where to shoot a creature is taught (the gap listed since pass 2): every hit on one says where it landed in the marks players learn on people, armour that held a small grey X and a soft knock with no bell, the weak place the head's gold and bell (a kill through it the headshot kill's marker, chime and slow-mo), a claw, jaw or drum shot off the disarm's cyan; grey never marks a piece the player should shoot; the first time a kind's armour turns a shot, one line over the crosshair names the piece and where to aim, twice at most and never once it is found (`Creatures/WhereToShoot.cs`, `UI/HitConfirm.cs`, held by `WhereToShootTests`); the glance and the creatures' shell knock are held to every creature's mark by `tools/audio/qa.py` | The design review's last cloud item for 8: a development-only playtest log, so the protocols of passes 2 to 7 can be counted on the Deck (until then, from video); whether the line ever covers what it names; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | Two sounds remade from code: the glance, soft and dull, and the shell knock, which no longer rings at the ante clock's pitches (measured, not listened to) | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | Shooting a creature no longer stops time on every hit (only a piece off, a choke or a kill does, as for people), so full-auto fire at one stops stuttering; the best way to kill each creature now sounds and feels best | Land creatures live only in the practice range; nothing seen in Unity |
+| 5 | Fun unlockables | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
@@ -89,10 +100,12 @@ None of them is a playtest result. Bar: 8 on every line.
 5. ~~**Unlockables: reach.**~~ Done in pass 5 (earned looks).
 6. ~~**Unlockables: Celestial effects drawn.**~~ Done in pass 6. Paintings framed on the cabin wall stay blocked on
    the five public-domain pictures.
-7. **Understandable: where to shoot a creature.** Only knocks, blood and the hit marker teach a creature's soft and
-   armoured pieces.
+7. ~~**Understandable: where to shoot a creature.**~~ Done in pass 7.
 8. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
-9. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
-10. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
+9. **Understandable: a development-only playtest log.** One log the Deck playtests of passes 2 to 7 can be counted
+   from (hits by zone, kills, aim lines shown, creatures' marks and whether they hurt, unlock moments), kept in memory
+   and written at a run's end, editor and development builds only. The design review's last cloud item for line 2.
+10. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
+11. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
    would make "get in the water with them" a rule you can see, but lets a swimmer dive out of gunfire (pass 3's design
    review). A design question to settle before the seas get more creatures.

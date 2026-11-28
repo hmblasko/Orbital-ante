@@ -419,3 +419,69 @@ section 12 asks.
 shine; now 40 to 52 ms a pipeline on a cold cache); making the effect a keyword only if its register cost measures
 over 0.1 ms; the Collection's rows name an effect but do not show its beads; paintings wait for frames and the five
 public-domain pictures. Next pass: gap 7, where to shoot a creature.
+
+## Pass 7 (28 Nov 2026): where to shoot a creature
+
+**Gap closed:** where to shoot a creature. Every creature has one weak place that kills it quickest, armour that is
+the slow way and pieces it fights with that can be shot off, but only a knock and blood told them apart, and the hit
+bell rang the same on the Strider's lid as on its belly. The Pack biter's weak place, its head, even played the armour
+knock.
+
+**Built** (report `docs/reports/where-to-shoot.md`):
+
+- Every hit on a creature says where it landed (`Core/HitZone`, carried by `HitOutcome.Zone`): armour that held,
+  the weak place, or a piece it strikes with shot off, from one function per kind in `Creatures/WhereToShoot.cs`
+  (plain C#), set in each creature's `TakeHit`; its armour knock now plays exactly when the zone says armour. The
+  seven creatures' piece enums moved into their plain layout files so the rules can name them.
+- The marker says it in the language players learn on people (`UI/HitConfirm.cs`): a glance is a small, thin, grey X
+  that does not pop, with the new `hit.glance` in place of the bell; the weak place is the head's gold and bell a fifth
+  up, and a kill through it the headshot kill's marker, chime and slow-mo (`HitZones.BestKill`); a claw, jaw or drum
+  shot off is the disarm's cyan and bell a fourth up (never the disarm unlock goal). People are marked exactly as
+  before.
+- The first time a kind's armour turns a shot, until the player has hit its weak place, one line over the crosshair
+  names the piece and where to aim ("LID · AIM UNDER IT, AT THE BELLY"; `Creatures/AimLines`): at most twice a kind
+  ever, 40 s apart, only with the new-player tips on, remembered per profile, forgotten with the tips.
+- Fixed on the way: every hit on a creature asked for a 50 ms hitstop and a limb's shake, armour included, because the
+  creatures gave every hit some juice; now only a piece off, a choke or a kill does, as for people. The creatures'
+  shell knock (`impact.armor`) was struck metal that rang at the ante clock's pitches at most of the pitches the
+  creatures play it at; it is now noise with no ring.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`, on the first build: 3,199 run, 3,198 passed, 1 skipped (the cabin bake check), after
+  one line was shortened to fit its 44 letters. New: `WhereToShootTests` (10).
+- Runtime compile check: clean apart from the two known `excludeLayers` lines (one slip fixed first: `Walker` already
+  had a `Kind`, so its `ICreature.Kind` is written out for the interface).
+- `tools/audio/qa.py`: PASS, the 8 warnings it had before.
+
+**Specialist reviews** (on this pass's first build; each finding checked before it was applied):
+
+- game-designer: the glance's crack measured like the marks of the four creatures that face the player armour-first
+  while they wind up (remade soft-fronted and dull, and `qa.py` now holds the glance and the shell knock to every
+  creature's mark, which is how the knock's clock ring was found); "ARMOUR" is the player's own suit on the suit plate
+  (each kind names its piece: LID, HEAD, SHELL, SKULL); three lines reworded (the Ambusher's pointed at a body usually
+  underground, the Roller's "flips" fitted its curl, the Screamer's named two places); the Ambusher's jaw was grey while
+  it holds, though shooting it off frees the player (plain now, with a rule test); the line under the crosshair covered
+  what it names (moved over it; not proven with offline frames). Its answers: gold on the Blind stalker's and Ambusher's
+  bodies, the maw's throat, and no bell on armour, all yes. Its view: line 2 reaches 8 with these and a
+  development-only playtest log.
+- unity-reviewer: a line held still under the death page showed again on the launch pad (put away at every run's
+  start); the line's memory was not reset between Play sessions with domain reload off (`HitMarker.ResetStatics`); the
+  Ambusher and the Screamer read the zone after a one-hit-kill gun's follow-up had reset their shared result (moved
+  above it); the line met the arena's pick-up prompt (moved); a wrong comment about hitstop. Its design question, that
+  the headshot slow-mo never fired for creatures, is answered: it fires for a kill through the weak place.
+- deck-performance: nothing blocks, no garbage a hit; the line's alpha is now set only on the frames it changes. Budget
+  rows written from it.
+- After the fixes: `dotnet test tools/rules-tests` 3,202 run, 3,201 passed, 1 skipped (`WhereToShootTests` now 13);
+  compile check clean apart from the two known lines; `qa.py` PASS with the new section (the glance 0.10 of its loudest
+  1 ms in where the bright marks are 0.6 to 1, centred at 1.3 kHz, 6.4 dB under the quietest mark; the knock under
+  2 kHz and ringing under 10 dB at every pitch from 0.42 to 1.06).
+
+**Scores after:** see `scorecard.md`, pass 7. No line moves: line 2's listed gap is closed in design, and the design
+review's last cloud item for 8 is a playtest log (gap 9).
+
+**Left open:** nothing here has run in Unity or on a Deck, and no sound has been listened to. Whether the line ever
+covers the place it names (from standing height a body behind a head shows a little above it, about 30 px at 8 m);
+the Ambusher's body lengths do not share damage, so a burst can ring gold without killing (accepted); a
+development-only playtest log (gap 9). Next pass: gap 8, land creatures on the real worlds.
+

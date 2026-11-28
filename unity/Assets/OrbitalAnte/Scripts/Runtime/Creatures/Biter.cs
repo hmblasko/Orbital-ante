@@ -534,7 +534,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : outcome.Zone == HitZone.Vital ? 0.2f : 0.15f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : 0f;
             return outcome;
         }
 

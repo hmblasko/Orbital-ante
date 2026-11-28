@@ -516,7 +516,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.7f : choked ? 0.6f : armour ? 0.04f : part.Piece == MawPiece.Throat ? 0.3f : soft ? 0.15f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.7f : choked ? 0.6f : 0f;
             return outcome;
         }
 

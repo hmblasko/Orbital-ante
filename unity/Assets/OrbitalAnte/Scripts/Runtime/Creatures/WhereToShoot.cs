@@ -16,17 +16,38 @@ namespace OrbitalAnte.Creatures
     ///   and the hit marker and its sound say it back (<c>UI.HitConfirm</c>): armour that held is a small grey X and a dull
     ///   knock with no bell; the weak place is the gold X and the higher bell of a person's head; a claw, a jaw or a drum
     ///   shot off is the cyan X and the bell of a disarm. So the lesson of the people ("the head") carries over as "the
-    ///   place that rings gold", whatever that place is on a body that is not a person's.
+    ///   place that rings gold", whatever that place is on a body that is not a person's. Grey only ever means the slow
+    ///   way: a piece the player should shoot (a jaw that holds them, a drum) is never grey while it holds.
     /// - The first time a kind's armour turns the player's shots, and only until they have hit its weak place, one short
-    ///   line under the crosshair says where to aim (<see cref="AimLine"/>; when, <see cref="AimLines"/>).
+    ///   line over the crosshair names the piece that turned the shot and says where to aim (<see cref="Line"/>; when,
+    ///   <see cref="AimLines"/>).
     ///
     /// The weak place is always the quickest kill of the pieces that kill (rule test
     /// <c>EveryCreature_HasOneWeakPlace_AndItIsTheQuickestKill</c>).
     /// </summary>
     public static class WhereToShoot
     {
-        /// <summary>The first word of every aim line, drawn in the glance's grey so the line and the mark read as one.</summary>
-        public const string ArmourWord = "ARMOUR";
+        /// <summary>
+        /// The first word of a kind's line: the piece of it that turns shots, drawn in the glance's grey so the line and
+        /// the mark read as one. Never "ARMOUR", which is the player's own suit (the suit plate's ARMOUR FAILING and NO
+        /// ARMOUR LEFT, the perks' words) and would read as a warning about them (game-designer review, pass 7). Null for a
+        /// kind with no armour.
+        /// </summary>
+        public static string ShellWord(string kind)
+        {
+            switch (kind)
+            {
+                case "Strider": return "LID";
+                case "Sprinter":
+                case "Hunter":
+                case "Ambusher": return "HEAD";
+                case "Roller":
+                case "Screamer": return "SHELL";
+                case "Stalker":
+                case "Maw": return "SKULL";
+                default: return null;
+            }
+        }
 
         /// <summary>
         /// A Strider or a Sprinter. <paramref name="soft"/> is its soft piece (the Strider's belly, the Sprinter's
@@ -87,13 +108,17 @@ namespace OrbitalAnte.Creatures
             }
         }
 
-        /// <summary>An Ambusher: the armoured head and jaws (a jaw is armour until it breaks, and then a weapon lost), the body.</summary>
+        /// <summary>
+        /// An Ambusher: the armoured head, the body, and the jaws. A jaw is shot off to make it let go of the player, so it
+        /// is never marked as the slow way: plain while it holds, a weapon gone once it breaks (game-designer review,
+        /// pass 7), like every other jaw.
+        /// </summary>
         public static HitZone Ambusher(AmbusherPiece piece, bool brokeOff)
         {
             switch (piece)
             {
                 case AmbusherPiece.Head: return HitZone.Armour;
-                case AmbusherPiece.Jaw: return brokeOff ? HitZone.WeaponOff : HitZone.Armour;
+                case AmbusherPiece.Jaw: return brokeOff ? HitZone.WeaponOff : HitZone.Plain;
                 case AmbusherPiece.Seg: return HitZone.Vital;
                 default: return HitZone.Plain;
             }
@@ -133,9 +158,10 @@ namespace OrbitalAnte.Creatures
         }
 
         /// <summary>
-        /// Where to aim instead, said once when a kind's armour turns the player's shots: in the words of what can be seen
-        /// (its underside, the end behind, the open throat), short enough to read in the second it is up. Null for a kind
-        /// with no armour (the Pack biter) or none written yet, which then says nothing.
+        /// Where to aim instead, said once when a kind's armour turns the player's shots: one place, in the words of what
+        /// can be seen and when (its underside, the end behind, the open throat, when it rears), short enough to read in
+        /// the second it is up. A drum or a claw is left to its own cyan mark. Null for a kind with no armour (the Pack
+        /// biter) or none written yet, which then says nothing.
         /// </summary>
         public static string AimLine(string kind)
         {
@@ -143,21 +169,21 @@ namespace OrbitalAnte.Creatures
             {
                 case "Strider": return "AIM UNDER IT, AT THE BELLY";
                 case "Sprinter": return "AIM FOR THE ABDOMEN BEHIND";
-                case "Roller": return "SHOOT UNDERNEATH WHEN IT FLIPS";
+                case "Roller": return "SHOOT ITS BELLY WHILE ON ITS BACK";
                 case "Hunter": return "AIM JUST BEHIND THE HEAD";
-                case "Screamer": return "AIM AT THE ABDOMEN OR SIDE DRUMS";
-                case "Ambusher": return "AIM FOR THE BODY BEHIND THE HEAD";
+                case "Screamer": return "AIM FOR ITS SOFT ABDOMEN";
+                case "Ambusher": return "WHEN IT REARS, AIM AT ITS BODY";
                 case "Stalker": return "AIM FOR THE BODY, NOT THE HEAD";
                 case "Maw": return "SHOOT DOWN ITS THROAT WHEN IT OPENS";
                 default: return null;
             }
         }
 
-        /// <summary>The whole line as shown: the armour word, a dot, and where to aim.</summary>
+        /// <summary>The whole line as shown: the piece that turned the shot, a dot, and where to aim.</summary>
         public static string Line(string kind)
         {
-            string aim = AimLine(kind);
-            return aim == null ? null : ArmourWord + " · " + aim;
+            string shell = ShellWord(kind), aim = AimLine(kind);
+            return shell == null || aim == null ? null : shell + " · " + aim;
         }
     }
 
@@ -194,7 +220,7 @@ namespace OrbitalAnte.Creatures
         /// </summary>
         public bool Glanced(string kind, float now)
         {
-            if (string.IsNullOrEmpty(kind) || WhereToShoot.AimLine(kind) == null || _found.Contains(kind)) return false;
+            if (string.IsNullOrEmpty(kind) || WhereToShoot.Line(kind) == null || _found.Contains(kind)) return false;
             if (Told(kind) >= MostTold) return false;
             if (now - _lastTold < Gap) return false;
             _told[kind] = Told(kind) + 1;

@@ -64,13 +64,18 @@ def impact_flesh(rng, v):
 
 @sfx("impact.armor", "combat", variants=2, pitchVar=1.0, volVarDb=1.5, volumeDb=-6, maxVoices=3, **IMPACT)
 def impact_armor(rng, v):
-    """Bullet on a hard suit shell: a plate knock with a cracked, ceramic edge."""
-    x = metal_hit(rng, 0.3, [620, 1480, 2330, 3900], decays=[0.03, 0.025, 0.015, 0.01], hardness=1.6)
-    n = len(x)
+    """Bullet on a creature's shell (a lid, a skull, plates): a hard, dry knock with a crack in its edge and no ring.
+    Made of noise through broad filters, never of partials: the first knock was struck metal, and at the pitches the
+    creatures play it at (0.45 to 1) its partials rang by the ante clock's tick and warning (979, 1629 and 640 Hz),
+    a family no creature may borrow (Ralph loop pass 7; tools/audio/qa.py measures it at every one of those pitches)."""
+    n = secs(0.2)
     t = np.arange(n) / SR
-    x += dsp.sine(170, n) * np.exp(-t / 0.03) * 0.5
-    x += dsp.highpass(dsp.white(n, rng), 5000) * np.exp(-t / 0.004) * 0.3
-    return finish(dsp.saturate(x, 1.8), -4, 0.05)
+    centre = (820.0, 920.0)[v % 2]
+    body = dsp.svf(dsp.white(n, rng), centre * (1.0 + 0.4 * np.exp(-t / 0.005)), 0.9, "bp") * np.exp(-t / 0.012)
+    crack = dsp.bandpass(dsp.white(n, rng), 1500, 4200) * np.exp(-t / 0.0018) * 0.16
+    knock = dsp.bandpass(dsp.white(n, rng), 360, 900) * np.exp(-t / 0.016) * 0.85
+    x = dsp.saturate(body + crack + knock, 1.6)
+    return finish(x, -4, 0.05)
 
 
 # ----------------------------------------------------------------------------- gore
@@ -176,24 +181,25 @@ def hit_marker(rng, v):
     return finish(x, -4, 0.05)
 
 
-@sfx("hit.glance", "combat", variants=1, pitchVar=0.0, volumeDb=-13, cooldownMs=50, maxVoices=2, **UI_HIT)
+@sfx("hit.glance", "combat", variants=1, pitchVar=0.0, volumeDb=-17, cooldownMs=50, maxVoices=2, **UI_HIT)
 def hit_glance(rng, v):
     """A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's
-    reward goes only to shots that work. Dry, short and unpitched on purpose: a tight crack of noise, a padded thud
-    under it, and a whisper of the shot skating off (a band of noise sliding down), with no partials that ring, so it
-    is never a bell (rewards), never the clock's wood (whose ticks are two sine partials) and never a suit tone. Measured:
-    all of it between 500 Hz and 6 kHz, two thirds between 2 and 6 kHz (the Deck's own speakers carry it), centred near
-    3 kHz where the bell is a pure 1.2 kHz, over in a tenth of a second. Quieter than the bell; the creature's own knock
-    (impact.armor, in the world, centred near 500 Hz) plays with it, so the two read as one knock and scrape."""
-    n = secs(0.12)
+    reward goes only to shots that work. A dull, soft-fronted thud and the shot skidding off (a band of noise sliding
+    from about 1.8 kHz down to 0.9 kHz), no partials that ring, so it is never a bell (rewards), never the clock's wood
+    (two sine partials) and never a suit tone. Nothing in it is a click: its front rises over about 5 ms and nothing
+    above 2.6 kHz is kept, because the creatures that face the player armour-first warn with one hard, bright mark
+    (game-designer review, pass 7: the first glance had a crack that measured like those marks). Quieter than every
+    mark as played; the creature's own knock (impact.armor, in the world) plays with it, so the two read as one
+    knock and skid. tools/audio/qa.py holds it to all of that."""
+    n = secs(0.14)
     t = np.arange(n) / SR
-    crack = dsp.bandpass(dsp.white(n, rng), 900, 3600) * np.exp(-t / 0.0035) * 1.3
-    thud = dsp.bandpass(dsp.white(n, rng), 260, 900) * np.exp(-t / 0.012) * 0.9
-    # The skate: a band of noise whose middle falls from about 4 kHz to 1.6 kHz as it fades.
-    centre = 1600 + 2400 * np.exp(-t / 0.025)
-    skate = dsp.svf(dsp.white(n, rng), centre, 2.2, "bp") * np.exp(-t / 0.03) * np.minimum(t / 0.004, 1.0) * 0.45
-    x = dsp.saturate(crack + thud + skate, 1.4)
-    return finish(x, -5, 0.03, hp=180)
+    # A raised-cosine rise over 5 ms: the whole sound has a soft front.
+    rise = 0.5 - 0.5 * np.cos(np.pi * np.clip(t / 0.005, 0.0, 1.0))
+    thud = dsp.bandpass(dsp.white(n, rng), 280, 1000) * np.exp(-t / 0.018)
+    centre = 900 + 900 * np.exp(-t / 0.03)
+    skid = dsp.svf(dsp.white(n, rng), centre, 1.4, "bp") * np.exp(-t / 0.04) * 0.55
+    x = dsp.lowpass((thud + skid) * rise, 2600, order=4)
+    return finish(x, -5, 0.035, hp=200)
 
 
 @sfx("hit.headshot", "combat", variants=1, pitchVar=0.0, volumeDb=-6, cooldownMs=60, maxVoices=2, **UI_HIT)

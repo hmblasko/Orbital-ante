@@ -19,4 +19,15 @@ namespace OrbitalAnte.Core
         /// <summary>A piece it fights with came off: a claw, a jaw, a drum. Its strike is weaker or gone, like a disarm.</summary>
         WeaponOff = 3,
     }
+
+    /// <summary>Rules about hit zones that more than one system asks.</summary>
+    public static class HitZones
+    {
+        /// <summary>
+        /// A kill through the place that kills quickest: a person's head still on its body, or a creature's weak place
+        /// (Ralph loop pass 7). It gets the headshot kill's marker and chime (<c>UI.HitConfirm</c>) and, when it is
+        /// switched on, the headshot slow-mo (<c>Core.TimeFx</c>), so the best way to kill each creature feels the best.
+        /// </summary>
+        public static bool BestKill(bool killed, bool headshotKill, HitZone zone) => killed && (headshotKill || zone == HitZone.Vital);
+    }
 }

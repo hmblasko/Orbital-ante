@@ -422,7 +422,7 @@ Matthew asked for lighting to be baked in. How that is read, until he says other
 | Looping beds | One source each, created when first asked for, stopped (not destroyed) when faded out. In flight: cabin, main engine and up to three manoeuvring thrusters at once (two directions plus turning), so about 5; opposite thrusters never sound together except for a fifth of a second while one fades. |
 | Low-pass filters | One per one-shot voice, switched on only where there is thin air or vacuum. In normal air none are running. |
 | Reverb | One reverb zone for the whole game, following the listener. |
-| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 22.9 MiB for the 227 effect clips the manifest loads, going by the WAV files (27 Nov 2026; `reward.unlock` is 0.53 MiB of it, the creature sounds made in Ralph loop pass 2 1.1 MiB). Read the real figure as Total Audio Memory in the Profiler's Audio module. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
+| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 22.9 MiB for the 228 effect clips the manifest loads, going by the WAV files (28 Nov 2026; `reward.unlock` is 0.53 MiB of it, the creature sounds made in Ralph loop pass 2 1.1 MiB, `hit.glance` from pass 7 13 KB). Read the real figure as Total Audio Memory in the Profiler's Audio module. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
 | Per-frame work | A fixed loop over the playing stems and beds to set volumes, and the music director's update (a few comparisons). No allocations in play; the debug panel builds a string ten times a second and lays its text out on every screen event, only while it is open (F9). |
 | Loading | Music (24 stems and 5 cues) is read in one go as the game starts, before the first frame: a guess of 0.1 s from internal storage and up to 0.5 s from a microSD card. Sound effects are loaded a few per frame during the first seconds on the main menu, so the first gunshot does not hitch. The audio device is also restarted once at start-up to raise the voice limit to 48; moving that into project settings (`ProjectSetup.cs`) would remove the restart. |
 
@@ -618,3 +618,18 @@ read the GPU frame time in the Profiler's GPU module with the effect on and off;
 gun, aiming down sights; (3) with a suit effect, outside a fight, `SuitHud.LateUpdate` and `Canvas.BuildBatch` in CPU
 Usage (Time ms and GC Alloc); (4) on the Deck, Radeon GPU Profiler's VGPR count for `OA_Model`'s forward pass, and the
 frame on which the first trooper of a run comes into view.
+
+## Where to shoot a creature (Ralph loop pass 7, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Hit zones (`WhereToShoot`, the creatures' `TakeHit`, `HitConfirm.Classify`) | One enum switch a hit (a walker also checks each limb it loses); `is ICreature` only for a creature hit that is not Plain; no garbage | one per player hit |
+| Creature hitstops | A saving: a creature hit that takes nothing off no longer asks for a hitstop or a shake (it asked for 50 ms of each on every hit before), so full-auto fire at a creature no longer changes the time scale on every shot | a piece off, a choke or a kill |
+| Marker reshapes | Fire swept between a lid and a belly now changes the X between glance, body and the weak place: each change lays out 16 rects and sets 4 colours (guessed well under 0.1 ms) | at most about 8 a second (a glance never cuts a real hit's marker short) |
+| Aim line (`AimLines`, `HitMarker`) | Per glance while a kind has lines left: up to 4 look-ups and one `PlayerPrefs.GetInt`. Once a session: the PlayerPrefs read (under 1 KB). When one shows: one rich-text label rebuilt (about 1,500 vertices with its outline and shadow), one more draw call while it is up, its alpha set only on the frames it changes (the fade), `SetString` in memory only (Unity writes it on quit). Guessed 0.05 to 0.2 ms on the frame it appears | 2 lines a kind, 8 kinds, 40 s apart: at most 16 lines and 25 writes a profile |
+| `hit.glance` | 0.14 s mono, about 13 KB unpacked at the title screen's warm-up; plays instead of the bell, so firing into armour holds fewer voices than before (2, not the bell's 3). The remade `impact.armor` is two 0.2 s clips as before (it was 0.3 s) | 2 voices, 50 ms cooldown |
+
+To read off in Unity: in the arena, fire full-auto into a Strider's lid and sweep to its belly; in the Profiler's CPU
+Usage, `HitMarker.OnPlayerHit` and `GameAudioHooks.OnPlayerHit` should show 0 B of GC Alloc on hit frames and
+`Canvas.SendWillRenderCanvases` with `Canvas.BuildBatch` under 0.1 ms; on the frame the first aim line appears, note
+the worst frame time and look for `Font.CacheFontForText`; the Audio module's Playing Sources should stay at 48 or under.

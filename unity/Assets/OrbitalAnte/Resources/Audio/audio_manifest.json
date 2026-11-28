@@ -1005,7 +1005,7 @@
    "clips": [
     "Audio/Sfx/combat/hit_glance"
    ],
-   "volumeDb": -13,
+   "volumeDb": -17,
    "volVarDb": 0.0,
    "pitchVar": 0.0,
    "spatial": 0.0,
@@ -1017,7 +1017,7 @@
    "loop": false,
    "vacuum": "ui",
    "pitchSteps": [],
-   "note": "A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's reward goes only to shots that work. Dry, short and unpitched on purpose: a tight crack of noise, a padded thud under it, and a whisper of the shot skating off (a band of noise sliding down), with no partials that ring, so it is never a bell (rewards), never the clock's wood (whose ticks are two sine partials) and never a suit tone. Measured: all of it between 500 Hz and 6 kHz, two thirds between 2 and 6 kHz (the Deck's own speakers carry it), centred near 3 kHz where the bell is a pure 1.2 kHz, over in a tenth of a second. Quieter than the bell; the creature's own knock (impact.armor, in the world, centred near 500 Hz) plays with it, so the two read as one knock and scrape."
+   "note": "A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's reward goes only to shots that work. A dull, soft-fronted thud and the shot skidding off (a band of noise sliding from about 1.8 kHz down to 0.9 kHz), no partials that ring, so it is never a bell (rewards), never the clock's wood (two sine partials) and never a suit tone. Nothing in it is a click: its front rises over about 5 ms and nothing above 2.6 kHz is kept, because the creatures that face the player armour-first warn with one hard, bright mark (game-designer review, pass 7: the first glance had a crack that measured like those marks). Quieter than every mark as played; the creature's own knock (impact.armor, in the world) plays with it, so the two read as one knock and skid. tools/audio/qa.py holds it to all of that."
   },
   {
    "id": "hit.headshot",
@@ -1098,7 +1098,7 @@
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "note": "Bullet on a hard suit shell: a plate knock with a cracked, ceramic edge."
+   "note": "Bullet on a creature's shell (a lid, a skull, plates): a hard, dry knock with a crack in its edge and no ring. Made of noise through broad filters, never of partials: the first knock was struck metal, and at the pitches the creatures play it at (0.45 to 1) its partials rang by the ante clock's tick and warning (979, 1629 and 640 Hz), a family no creature may borrow (Ralph loop pass 7; tools/audio/qa.py measures it at every one of those pitches)."
   },
   {
    "id": "impact.dirt",

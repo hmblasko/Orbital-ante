@@ -453,11 +453,12 @@ namespace OrbitalAnte.Creatures
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
+            // Where it landed, for the hit marker: the abdomen rings gold, the fore body only knocks, and a drum shot off
+            // takes its scream down a voice, like a disarm (WhereToShoot). Read before the one-hit-kill line below, which
+            // starts the shared result afresh.
+            outcome.Zone = WhereToShoot.Screamer(part.Piece, part.Piece == ScreamerPiece.Drum && result.DrumLost >= 0);
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitBody(0, lethal: true).Killed;
-            // Where it landed, for the hit marker: the abdomen rings gold, the fore body only knocks, and a drum shot off
-            // takes its scream down a voice, like a disarm (WhereToShoot).
-            outcome.Zone = WhereToShoot.Screamer(part.Piece, part.Piece == ScreamerPiece.Drum && result.DrumLost >= 0);
             bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
@@ -471,7 +472,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == ScreamerPiece.Drum ? 0.8f : 0.5f) : armour ? 0.04f : soft ? 0.2f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == ScreamerPiece.Drum ? 0.8f : 0.5f) : 0f;
             return outcome;
         }
 

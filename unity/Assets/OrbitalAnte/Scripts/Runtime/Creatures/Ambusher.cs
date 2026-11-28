@@ -403,17 +403,18 @@ namespace OrbitalAnte.Creatures
                     break;
             }
             bool killed = result.Killed;
+            // Where it landed, for the hit marker: the body rings gold, the head only knocks, and a jaw is plain while it
+            // holds (it is shot off to break a hold) and a weapon gone once it breaks (WhereToShoot). Read before the
+            // one-hit-kill line below, which starts the shared result afresh.
+            outcome.Zone = WhereToShoot.Ambusher(part.Piece, part.Piece == AmbusherPiece.Jaw && result.JawLost >= 0);
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
-            // Where it landed, for the hit marker: the body rings gold, the head and a jaw that holds only knock, and a jaw
-            // shot off is a weapon gone (WhereToShoot).
-            outcome.Zone = WhereToShoot.Ambusher(part.Piece, part.Piece == AmbusherPiece.Jaw && result.JawLost >= 0);
             bool armour = outcome.Zone == HitZone.Armour;
             if (!killed) Brain.Hurt(hit.Damage, Body);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0, push.z) * (outcome.Severed ? 1.5 : 0.5));
             GoreFx gore = GoreFx.Instance;
-            // Its head and jaws are armour and say so: no blood, a dull knock, until they break. Its body bleeds.
+            // Its head is armour and says so: no blood, a dull knock. Its body and its jaws bleed, like every other jaw.
             if (armour && !killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.85f);
             else if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 16 : 8, outcome.Severed ? 6f : 4.5f);
             if (killed)
@@ -421,7 +422,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : armour ? 0.04f : 0.2f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : 0f;
             return outcome;
         }
 

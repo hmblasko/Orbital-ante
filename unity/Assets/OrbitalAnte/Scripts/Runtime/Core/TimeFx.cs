@@ -50,7 +50,8 @@ namespace OrbitalAnte.Core
                 _hitstopUntil = Mathf.Max(_hitstopUntil, now + stop);
             }
 
-            if (outcome.HeadshotKill && FeelSettings.HeadshotSlowMo)
+            // A person's headshot kill, or a creature killed through its weak place (the same marker and chime).
+            if (HitZones.BestKill(outcome.Killed, outcome.HeadshotKill, outcome.Zone) && FeelSettings.HeadshotSlowMo)
             {
                 _slowMoUntil = Mathf.Max(_slowMoUntil, now + stop + _cfg.headshotSlowMoDuration);
             }

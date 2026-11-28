@@ -77,7 +77,7 @@ namespace OrbitalAnte.UI
             HitZone zone = HitZone.Plain)
         {
             if (!hit) return HitKind.None;
-            if (killed) return headshotKill || zone == HitZone.Vital ? HitKind.HeadshotKill : HitKind.Kill;
+            if (killed) return HitZones.BestKill(true, headshotKill, zone) ? HitKind.HeadshotKill : HitKind.Kill;
             if (disarmed) return HitKind.Disarm;
             if (!enemy) return HitKind.None;
             if (zone == HitZone.WeaponOff) return HitKind.Disarm;

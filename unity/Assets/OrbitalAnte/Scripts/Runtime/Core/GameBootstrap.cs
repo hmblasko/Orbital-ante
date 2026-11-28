@@ -52,6 +52,7 @@ namespace OrbitalAnte.Core
             OrbitalAnte.Ship.PlayerBurstFx.ResetStatics();
             CombatEvents.ResetStatics();
             Hud.ResetStatics();
+            HitMarker.ResetStatics();
             Audio.AudioDirector.ResetStatics();
             Audio.AudioDemoSequence.ResetStatics();
             Audio.AudioDebugPanel.ResetStatics();

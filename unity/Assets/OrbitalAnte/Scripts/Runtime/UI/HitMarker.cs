@@ -15,9 +15,10 @@ namespace OrbitalAnte.UI
     /// hidden there). Only hits by the player on living enemies show.
     ///
     /// Creatures say where a hit landed (<see cref="HitZone"/>): a glance off armour is a small grey X, the weak place
-    /// gold. The first time a kind's armour turns the player's shots, until they have hit its weak place, one line under
+    /// gold. The first time a kind's armour turns the player's shots, until they have hit its weak place, one line over
     /// the crosshair says where to aim instead (<see cref="WhereToShoot.Line"/>; when, <see cref="AimLines"/>; remembered
-    /// in PlayerPrefs, written only in memory here so a fight never waits on the disk; Unity saves it on quit).
+    /// in PlayerPrefs, written only in memory here so a fight never waits on the disk; the end of a run and quitting save
+    /// it).
     /// </summary>
     public sealed class HitMarker : MonoBehaviour
     {
@@ -34,8 +35,12 @@ namespace OrbitalAnte.UI
         static readonly Color Grey = new Color(0.62f, 0.62f, 0.60f);
         const string GreyHex = "#9E9E99";
 
-        /// <summary>Where the aim line sits: under the crosshair, inside the damage ring, below the melee TAKEDOWN (-52).</summary>
-        const float AimLineY = -78f;
+        /// <summary>
+        /// Where the aim line sits: over the crosshair, inside the damage ring (112), clear of the biggest X. Not under it:
+        /// there the line covered what it names (a belly under a lid, a reared body under a head) and met the pick-up
+        /// prompts (-92, -96) and the melee TAKEDOWN (-52) (the specialist reviews, pass 7).
+        /// </summary>
+        const float AimLineY = 70f;
         const string AimKey = "oa.aim.lines";
         static AimLines _aimLines;
 
@@ -51,6 +56,8 @@ namespace OrbitalAnte.UI
         bool _showing;
         Text _aim;
         float _aimAge = -1f;
+        // The alpha last handed to the line's renderer: set only when it changes (it holds at 1 for most of its time up).
+        float _aimAlpha = -1f;
 
         /// <summary>The kind of the marker showing now, for tests and the debug readout.</summary>
         public HitKind Showing => _showing ? _kind : HitKind.None;
@@ -65,6 +72,12 @@ namespace OrbitalAnte.UI
             PlayerPrefs.DeleteKey(AimKey);
         }
 
+        /// <summary>
+        /// Drops the memory read from PlayerPrefs (Play mode with domain reload off): its clock is the play session's, and
+        /// PlayerPrefs may have been cleared in between.
+        /// </summary>
+        public static void ResetStatics() => _aimLines = null;
+
         static AimLines Lines => _aimLines ?? (_aimLines = AimLines.Parse(PlayerPrefs.GetString(AimKey, string.Empty)));
 
         public static HitMarker Create(Transform uiRoot)
@@ -76,10 +89,21 @@ namespace OrbitalAnte.UI
             return marker;
         }
 
-        /// <summary>Shows or hides the marker's canvas along with the rest of the HUD.</summary>
+        /// <summary>
+        /// Shows or hides the marker's canvas along with the rest of the HUD. This is called at every run's start and on
+        /// the title screen, so a line held still under the death page never shows again on the launch pad.
+        /// </summary>
         public void SetVisible(bool visible)
         {
             if (_canvas != null) _canvas.gameObject.SetActive(visible);
+            StopAimLine();
+        }
+
+        void StopAimLine()
+        {
+            _aimAge = -1f;
+            _aimAlpha = -1f;
+            if (_aim != null) _aim.enabled = false;
         }
 
         void Build()
@@ -154,10 +178,10 @@ namespace OrbitalAnte.UI
             if (shown != HitKind.Glance || Lines.HasFound(kind) || Lines.Told(kind) >= AimLines.MostTold) return;
             if (!FeelSettings.GuideTips || !Lines.Glanced(kind, Time.unscaledTime)) return;
             PlayerPrefs.SetString(AimKey, Lines.Store());
-            string aim = WhereToShoot.AimLine(kind);
-            _aim.text = "<color=" + GreyHex + ">" + WhereToShoot.ArmourWord + "</color> · " + aim;
+            _aim.text = "<color=" + GreyHex + ">" + WhereToShoot.ShellWord(kind) + "</color> · " + WhereToShoot.AimLine(kind);
             _aim.enabled = true;
             _aimAge = 0f;
+            _aimAlpha = 1f;
             _aim.canvasRenderer.SetAlpha(1f);
         }
 
@@ -165,15 +189,16 @@ namespace OrbitalAnte.UI
         {
             if (_aimAge >= 0f)
             {
-                // Stands still while the game is paused (and through a hitstop), so a line is never lost under the menu.
+                // Stands still while the game is paused, so a line is never lost under the menu. (A hitstop leaves the time
+                // scale above 0, so it runs on through one: 120 ms at most.)
                 if (Time.timeScale > 0f) _aimAge += Time.unscaledDeltaTime;
                 float a = AimLines.Alpha(_aimAge);
-                if (a <= 0f)
+                if (a <= 0f) StopAimLine();
+                else if (a != _aimAlpha)
                 {
-                    _aim.enabled = false;
-                    _aimAge = -1f;
+                    _aimAlpha = a;
+                    _aim.canvasRenderer.SetAlpha(a);
                 }
-                else _aim.canvasRenderer.SetAlpha(a);
             }
             if (!_showing) return;
             float age = Time.unscaledTime - _shownAt;
