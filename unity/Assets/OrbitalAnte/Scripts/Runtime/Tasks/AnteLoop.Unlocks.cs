@@ -255,6 +255,12 @@ namespace OrbitalAnte.Tasks
                 Note(_kitNote, false);
                 _kitNote = null;
             }
+            // The Locker's upgrade is said once the kit's note (or anything else) has finished, never over it.
+            if (_kitNote == null && _upgradeNote != null && Run != null && Run.Director.IsRunning && !_notes.Holding && _notes.Text == null)
+            {
+                Note(_upgradeNote, false);
+                _upgradeNote = null;
+            }
 
             bool shown = _canvas != null && _canvas.gameObject.activeSelf;
             if (_unlockBannerLeft > 0f && !paused && shown)

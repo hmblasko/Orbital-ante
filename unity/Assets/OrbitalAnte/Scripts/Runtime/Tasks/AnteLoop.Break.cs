@@ -234,7 +234,8 @@ namespace OrbitalAnte.Tasks
             string build = parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
             // The Locker's upgrade is part of the build all run (Ralph loop pass 4): its gain and its cost, in words.
             if (LockerUpgrade == null) return build;
-            string locker = "Locker upgrade: " + Items.Locker.UpgradeWords(LockerUpgrade);
+            // "Locker" is kept off the screen until the launch base has a real one (Part B section 8).
+            string locker = "Upgrade in use: " + Items.Locker.UpgradeWords(LockerUpgrade) + ". Change it in Collection.";
             return build.Length == 0 ? locker : build + "\n" + locker;
         }
 
@@ -500,7 +501,7 @@ namespace OrbitalAnte.Tasks
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     break;
                 default:
-                    _breakNote = "Ticket: a cosmetic token (kept for the locker when it exists).";
+                    _breakNote = "Ticket: a cosmetic token (nothing uses tokens yet).";
                     Audio.AudioDirector.PlayLocal("reward.tier4");
                     break;
             }

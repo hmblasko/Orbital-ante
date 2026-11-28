@@ -18,6 +18,18 @@ namespace OrbitalAnte.Items
         [Tooltip("Everything about the item. Names and rarities are placeholders until Matthew sets them; the art is Fable's.")]
         public ItemSpec spec = new ItemSpec();
 
+        [Tooltip("Which set of the game's built-in upgrade numbers this asset came from. When the game's numbers move on, an upgrade's gain, cost and blurb are set to the new ones as it loads (everything else you changed is kept). Set this to 9999 to keep your own numbers for good.")]
+        public int catalogVersion;
+
+        void OnEnable()
+        {
+            // An asset made before an upgrade was retuned still holds the old numbers. Like the Look asset's grade,
+            // nothing here has been edited by hand in practice, and the alternative is a step for Matthew.
+            if (spec == null || catalogVersion >= ItemCatalog.Version) return;
+            ItemCatalog.FollowUpgrade(spec, name, catalogVersion);
+            catalogVersion = ItemCatalog.Version;
+        }
+
         public override string DisplayName => spec != null ? spec.displayName : name;
 
         public override void Validate(List<string> problems)
@@ -39,6 +51,7 @@ namespace OrbitalAnte.Items
             var data = CreateInstance<ItemData>();
             data.name = spec.id;
             data.spec = spec.Copy();
+            data.catalogVersion = ItemCatalog.Version;
             return data;
         }
     }

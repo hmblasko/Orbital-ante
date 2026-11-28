@@ -575,3 +575,13 @@ To read off in Unity: in the arena, turn hard while two creatures warn and read 
 | In the sea on a hit (`TaskDirector.InTheSea`) | Only while airborne, once per player hit on an enemy: one point turned into the world's space and compared with the sea's radius (about 1 µs). It asks nothing of the ground, which high above a world could cost a full-detail height | one gun hit a frame, a few for a melee swing |
 
 To read off in Unity: jet over a camp and shoot, and read `TaskDirector.OnPlayerHit` in the Profiler's CPU Usage (under 0.05 ms on a hit frame, 0 B on hits that do not kill) and `GameAudioHooks.Update` (under 0.02 ms, 0 B); during two short fights, the Audio module's Playing Sources at 48 or under and Audio CPU under 10%, and in the F9 panel's command log `StartTrack combat_all_in` no more than once every 14 s.
+
+## The Locker (Ralph loop pass 4, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Gun skins (`OA_Model.shader`, `OA_Skin`) | A branch on a material value every model takes the same way, so no new shader programs (the forward pass keeps its 12 variants) and no stall the first time a skinned gun is drawn. Every model pixel now also takes one `fwidth` and two compares (the pattern's footprint), outside the branch: guessed under 0.01 ms for the screen. A skinned gun's pixels run one pattern (a hash or a few `sin`s): guessed under 0.1 ms with the gun filling a quarter of the screen. One extra material per source material and skin, made the first time it is worn | the player's guns only (enemies' guns never wear one); one material set per skin worn, destroyed when the world is rebuilt |
+| Skins read (`LockerLook.SkinFor`) | The save's skins are read once per world into a small dictionary; each gun put in the hand is one dictionary look-up and no garbage | one read per world |
+| Hull paint (`HullPaint`, `ShipShell.Hull`) | The hull's mesh is coloured once when the lander is built (a run's start); no cost in flight. Unpainted, the mesh is exactly as before | one hull per run |
+| Suit look (`SuitHud`, `SuitFx`, `PostFx.VisorTint`) | Colours set once when the suit's display is built; the visor tint fades over 0.35 s through a setter delegate bound once (no reflection per frame) and is one colour multiply in URP's existing colour grade, which already runs | one tint, outside the ship only |
+| Collection page | Built at boot and inactive until shown; six rows rewritten when a page opens, a row is pressed or the page turns; a save on each press (`SaveSystem.Save`, see "Saving an unlock mid-run" for its cost), on the title screen only | title screen only |

@@ -12,6 +12,47 @@ namespace OrbitalAnte.Items
     /// </summary>
     public static class ItemCatalog
     {
+        /// <summary>
+        /// Which set of built-in upgrade numbers this catalogue holds. The setup tool makes each item's asset once and
+        /// then leaves it alone, so an asset made from an older set takes its upgrade's gain, cost and blurb from here
+        /// when it loads (<see cref="ItemData"/>; an asset whose Catalog Version is 9999 keeps its own). Raise this
+        /// whenever an upgrade's numbers change. 2: Ralph loop pass 4's design review (28 Nov 2026) retuned Big Lungs,
+        /// Light Frame, Deep Focus and Heavy Hands so each is a real choice.
+        /// </summary>
+        public const int Version = 2;
+
+        static Dictionary<string, ItemSpec> _byId;
+
+        /// <summary>The built-in item with this id, or null. A shared copy: read it, never change it.</summary>
+        public static ItemSpec Default(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+            if (_byId == null)
+            {
+                var all = new Dictionary<string, ItemSpec>();
+                foreach (ItemSpec item in CreateDefaults()) all[item.id] = item;
+                _byId = all;
+            }
+            return _byId.TryGetValue(id, out ItemSpec found) ? found : null;
+        }
+
+        /// <summary>
+        /// Brings an older asset's upgrade up to the catalogue's numbers (<see cref="Version"/>): the gain, the cost and
+        /// the blurb, nothing else. True if anything was taken from the catalogue.
+        /// </summary>
+        public static bool FollowUpgrade(ItemSpec asset, string id, int assetVersion)
+        {
+            if (asset == null || assetVersion >= Version || asset.category != ItemCategory.Upgrade) return false;
+            ItemSpec built = Default(id);
+            if (built == null || built.category != ItemCategory.Upgrade) return false;
+            asset.upgradeUp = built.upgradeUp;
+            asset.upgradeUpAmount = built.upgradeUpAmount;
+            asset.upgradeDown = built.upgradeDown;
+            asset.upgradeDownAmount = built.upgradeDownAmount;
+            asset.blurb = built.blurb;
+            return true;
+        }
+
         public static List<ItemSpec> CreateDefaults()
         {
             return new List<ItemSpec>
@@ -35,12 +76,12 @@ namespace OrbitalAnte.Items
                 Skin("SkinSniperGilded", "Gilded Long Shot", ItemRarity.Legendary, "Sniper", "Gold leaf on the sniper, hand laid.", 0.90f, 0.70f, 0.25f, 1.00f, 0.92f, 0.65f),
 
                 // ---- In-game upgrades (sidegrades) ----
-                Upgrade("UpgradeBigLungs", "Big Lungs", ItemRarity.Common, "Bigger air tank, heavier suit.", UpgradeStat.SuitAir, 0.12f, UpgradeStat.MoveSpeed, 0.05f),
-                Upgrade("UpgradeLightFrame", "Light Frame", ItemRarity.Common, "Faster on foot, thinner armour.", UpgradeStat.MoveSpeed, 0.08f, UpgradeStat.SuitArmour, 0.10f),
+                Upgrade("UpgradeBigLungs", "Big Lungs", ItemRarity.Common, "Bigger air tank, heavier suit.", UpgradeStat.SuitAir, 0.25f, UpgradeStat.MoveSpeed, 0.04f),
+                Upgrade("UpgradeLightFrame", "Light Frame", ItemRarity.Common, "Faster on foot, thinner armour.", UpgradeStat.MoveSpeed, 0.12f, UpgradeStat.SuitArmour, 0.10f),
                 Upgrade("UpgradeHotLoads", "Hot Loads", ItemRarity.Uncommon, "Harder hits, slower reloads.", UpgradeStat.GunDamage, 0.10f, UpgradeStat.ReloadSpeed, 0.12f),
                 Upgrade("UpgradeSpareTank", "Spare Jet Tank", ItemRarity.Uncommon, "More jet fuel, less ship fuel.", UpgradeStat.JetFuel, 0.20f, UpgradeStat.ShipFuel, 0.10f),
-                Upgrade("UpgradeDeepFocus", "Deep Focus", ItemRarity.Rare, "More Focus, softer melee.", UpgradeStat.Focus, 0.20f, UpgradeStat.MeleeDamage, 0.15f),
-                Upgrade("UpgradeHeavyHands", "Heavy Hands", ItemRarity.Exotic, "Melee hits land like a truck; guns kick less hard.", UpgradeStat.MeleeDamage, 0.25f, UpgradeStat.GunDamage, 0.08f),
+                Upgrade("UpgradeDeepFocus", "Deep Focus", ItemRarity.Rare, "More Focus, slower on your feet.", UpgradeStat.Focus, 0.20f, UpgradeStat.MoveSpeed, 0.05f),
+                Upgrade("UpgradeHeavyHands", "Heavy Hands", ItemRarity.Exotic, "Hits like a truck. Thinks like one too.", UpgradeStat.MeleeDamage, 0.45f, UpgradeStat.Focus, 0.15f),
 
                 // ---- Ship paints ----
                 Paint("PaintMoonDust", "Moon Dust Grey", ItemRarity.Common, "The colour of everything on the Moon.", 0.62f, 0.62f, 0.60f, 0.80f, 0.80f, 0.78f),

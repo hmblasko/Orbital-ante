@@ -97,8 +97,9 @@ namespace OrbitalAnte.Tests
             Assert.IsTrue(perks.Add(RoguelitePerks.Create().Find(p => p.id == "perk.glass_cannon")));
             RunMods without = RunMods.From(perks, null, Hazard.None, new AnteBalance());
             RunMods with = RunMods.From(perks, null, Hazard.None, new AnteBalance(), false, Find("UpgradeHeavyHands"));
-            Assert.AreEqual(without.MeleeDamage * 1.25f, with.MeleeDamage, 1e-5f);
-            Assert.AreEqual(without.GunDamage * 0.92f, with.GunDamage, 1e-5f, "the cost is applied as surely as the gain");
+            Assert.AreEqual(without.MeleeDamage * 1.45f, with.MeleeDamage, 1e-5f);
+            Assert.AreEqual(without.FocusGain * 0.85f, with.FocusGain, 1e-5f, "the cost is applied as surely as the gain");
+            Assert.AreEqual(without.GunDamage, with.GunDamage, 1e-5f);
             Assert.AreEqual(without.MaxHealth, with.MaxHealth, 1e-5f);
             RunMods none = RunMods.From(perks, null, Hazard.None, new AnteBalance(), false, null);
             Assert.AreEqual(without.GunDamage, none.GunDamage, 1e-6f);
@@ -137,6 +138,80 @@ namespace OrbitalAnte.Tests
             shipPlain.Tick(10f, 1f, false, false, 0);
             Assert.AreEqual(1f - 10f / shipRules.fuelSeconds, shipPlain.Fuel, 1e-4f);
             Assert.AreEqual(1f - 10f / (shipRules.fuelSeconds * 0.9f), ship.Fuel, 1e-4f);
+        }
+
+        [Test]
+        public void NoUpgradesCost_IsGunOrMeleeDamage()
+        {
+            // Pass 4's design review: the guns' damage sits just above the hits-to-break lines, so a few per cent less
+            // adds a hit to many limbs and heads; and melee damage is paid only while a found melee weapon is held.
+            foreach (ItemSpec u in Of(ItemCategory.Upgrade))
+            {
+                Assert.AreNotEqual(UpgradeStat.GunDamage, u.upgradeDown, u.id);
+                Assert.AreNotEqual(UpgradeStat.MeleeDamage, u.upgradeDown, u.id);
+            }
+        }
+
+        [Test]
+        public void AnUpgrade_IsNamedInTheSameWordsAsThePerks()
+        {
+            List<PerkDefinition> perks = RoguelitePerks.Create();
+            string thickSkin = perks.Find(p => p.id == "perk.thick_skin").Describe();
+            StringAssert.Contains(ItemLook.StatName(UpgradeStat.SuitArmour), thickSkin);
+            StringAssert.Contains(ItemLook.StatName(UpgradeStat.MoveSpeed), thickSkin);
+            StringAssert.Contains(ItemLook.StatName(UpgradeStat.Focus), perks.Find(p => p.id == "perk.cold_blood").Describe());
+            Assert.AreEqual("max armour", ItemLook.StatName(UpgradeStat.SuitArmour), "the suit plate's word for the player's health");
+        }
+
+        [Test]
+        public void AnOlderItemAsset_TakesTheRetunedUpgrade_AndKeepsEverythingElse()
+        {
+            ItemSpec asset = Find("UpgradeHeavyHands").Copy();
+            asset.upgradeUpAmount = 0.25f;
+            asset.upgradeDown = UpgradeStat.GunDamage;
+            asset.upgradeDownAmount = 0.08f;
+            asset.blurb = "Melee hits land like a truck; guns kick less hard.";
+            asset.displayName = "Matthew's Hands";
+            asset.colour = new[] { 0.1f, 0.2f, 0.3f };
+            Assert.IsTrue(ItemCatalog.FollowUpgrade(asset, "UpgradeHeavyHands", 0));
+            Assert.AreEqual(0.45f, asset.upgradeUpAmount, 1e-6f);
+            Assert.AreEqual(UpgradeStat.Focus, asset.upgradeDown);
+            Assert.AreEqual(0.15f, asset.upgradeDownAmount, 1e-6f);
+            Assert.AreEqual(Find("UpgradeHeavyHands").blurb, asset.blurb);
+            Assert.AreEqual("Matthew's Hands", asset.displayName, "only the gain, the cost and the blurb follow");
+            Assert.AreEqual(0.1f, asset.colour[0]);
+
+            ItemSpec kept = Find("UpgradeHeavyHands").Copy();
+            kept.upgradeUpAmount = 0.3f;
+            Assert.IsFalse(ItemCatalog.FollowUpgrade(kept, "UpgradeHeavyHands", 9999), "9999 keeps its own numbers");
+            Assert.AreEqual(0.3f, kept.upgradeUpAmount);
+            Assert.IsFalse(ItemCatalog.FollowUpgrade(kept, "UpgradeHeavyHands", ItemCatalog.Version), "an asset already up to date is left alone");
+            ItemSpec paint = Find("PaintMoonDust").Copy();
+            paint.blurb = "Mine.";
+            Assert.IsFalse(ItemCatalog.FollowUpgrade(paint, "PaintMoonDust", 0), "only upgrades follow");
+            Assert.AreEqual("Mine.", paint.blurb);
+            Assert.IsFalse(ItemCatalog.FollowUpgrade(Find("UpgradeBigLungs").Copy(), "UpgradeMatthewsOwn", 0), "an upgrade the catalogue does not know keeps its own");
+            Assert.AreSame(ItemCatalog.Default("UpgradeBigLungs"), ItemCatalog.Default("UpgradeBigLungs"));
+            Assert.IsNull(ItemCatalog.Default(""));
+        }
+
+        [Test]
+        public void ABiggerAirTank_AlsoFeedsTheJetsLonger_WhenTheyBurnAir()
+        {
+            var rules = new SuitRules();
+            var plain = new SuitSupplies(rules);
+            var bigger = new SuitSupplies(rules) { AirScale = 1.25f };
+            // The jet tank dry: the jets burn air.
+            plain.Set(1f, 0f);
+            bigger.Set(1f, 0f);
+            for (int i = 0; i < 100; i++)
+            {
+                plain.Tick(0.1f, false, false, 1f, 1f);
+                bigger.Tick(0.1f, false, false, 1f, 1f);
+            }
+            Assert.IsTrue(bigger.BurningAir);
+            Assert.AreEqual(1f - 10f / rules.airAsFuelSeconds, plain.Air, 1e-4f);
+            Assert.AreEqual(1f - 10f / (rules.airAsFuelSeconds * 1.25f), bigger.Air, 1e-4f);
         }
 
         [Test]
@@ -250,9 +325,10 @@ namespace OrbitalAnte.Tests
                 Assert.IsTrue(m.Success, "the shader does not list " + name);
                 Assert.AreEqual((int)pattern, int.Parse(m.Groups[1].Value), name);
             }
-            // Made at run time, so the variant must be kept in a build whatever the saved materials say.
-            StringAssert.Contains("#pragma multi_compile_local _ _OA_SKIN", text);
-            StringAssert.DoesNotContain("shader_feature_local _ _OA_SKIN", text);
+            // A branch on the material's own number, never a keyword: a keyword would need shader programs of its own,
+            // built the first time a skinned gun is drawn, mid-fight on the Deck (pass 4's Deck review).
+            StringAssert.Contains("[branch] if (_SkinSet.y > 0.0)", text);
+            StringAssert.DoesNotContain("_OA_SKIN", text);
             // In the one material buffer every variant shares (the SRP batcher needs one layout).
             int start = text.IndexOf("CBUFFER_START(UnityPerMaterial)", StringComparison.Ordinal);
             int end = text.IndexOf("CBUFFER_END", start, StringComparison.Ordinal);
@@ -390,13 +466,18 @@ namespace OrbitalAnte.Tests
         [Test]
         public void TheReveal_SaysWhereThePrizeWentToWork_BelowTheRestAndAboveThePrompt()
         {
-            foreach (bool upgrade in new[] { false, true })
+            for (int kind = 0; kind < 3; kind++)
             {
+                bool upgrade = kind == 0, celestial = kind == 2;
                 var show = new EnvelopeShow
                 {
-                    mode = EnvelopeMode.Reveal, serial = 3, rarity = ItemRarity.Rare, cardTexture = "Card", itemName = "Thing", kindLine = "Rare thing",
-                    blurb = "A line.", prompt = "Press A", upLine = upgrade ? "+10% gun damage" : "", downLine = upgrade ? "-12% reload speed" : "",
+                    mode = EnvelopeMode.Reveal, serial = 3, rarity = celestial ? ItemRarity.Celestial : ItemRarity.Rare, cardTexture = "Card",
+                    itemName = "Thing", kindLine = "Rare thing", blurb = "A line.", prompt = "Press A",
+                    upLine = upgrade ? "+10% gun damage" : "", downLine = upgrade ? "-12% reload speed" : "",
                     useLine = upgrade ? Locker.RevealWords(Find("UpgradeHotLoads"), false) : Locker.RevealWords(Find("PaintMoonDust"), true),
+                    inUse = !upgrade,
+                    effectName = celestial ? "Aurora" : "", effectColour = celestial ? new[] { 0.35f, 1f, 0.65f } : null,
+                    effectNote = celestial ? Locker.EffectNotShown : "",
                 };
                 var items = new List<DrawItem>();
                 EnvelopeScene.Frame(show, EnvelopeScene.BeatsFor(show.rarity).Done + 1f, items);
@@ -409,6 +490,8 @@ namespace OrbitalAnte.Tests
                 Assert.GreaterOrEqual(use.y - use.h * 0.5f, owned.y + owned.h * 0.5f, "below the owned line, not over it");
                 Assert.Less(use.y + use.h * 0.5f, prompt.y - prompt.h * 0.5f, "above the prompt");
                 Assert.AreEqual(upgrade ? 0.96f : 0.624f, use.r, 1e-3f, upgrade ? "a hint in cream" : "in use, in the Collection's green");
+                if (celestial)
+                    Assert.AreEqual("Effect: Aurora (not shown yet)", items.Find(i => i.key == "effect").text, "an effect is never promised as if it were drawn");
             }
         }
     }

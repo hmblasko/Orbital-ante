@@ -200,24 +200,27 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("cost", upgrade);
             StringAssert.Contains("Collection", upgrade);
             StringAssert.Contains("Collection", Locker.RevealWords(Find("HelmetCrown"), false));
+            Assert.AreEqual("Your Fishbowl Dome is in its place: swap this in from Collection on the title screen.",
+                Locker.RevealWords(Find("HelmetCrown"), false, null, false, "Fishbowl Dome"), "it names what is in the way");
             Assert.AreEqual("", Locker.RevealWords(Find("ArtStarryNight"), false), "a painting has no place to go yet");
         }
 
         [Test]
-        public void TheCollection_SaysWhatChoosingAPrizeDoes()
+        public void TheCollection_SaysWhatPressingAPrizeDoes()
         {
             SaveData save = Owning("VisorSunset", "HelmetFishbowl", "HelmetCrown");
-            Assert.AreEqual("Choose it to put it to use.", Locker.StateWords(save, Find("HelmetCrown"), "", Find));
+            Assert.AreEqual("Press to put it to use.", Locker.StateWords(save, Find("HelmetCrown"), "", Find));
             Locker.Use(save, Find("HelmetFishbowl"), "");
-            Assert.AreEqual("Choose it to put it to use, in place of Fishbowl Dome.", Locker.StateWords(save, Find("HelmetCrown"), "", Find));
-            Assert.AreEqual("In use. Choose it to take it off.", Locker.StateWords(save, Find("HelmetFishbowl"), "", Find));
+            Assert.AreEqual("Press to use it instead of Fishbowl Dome.", Locker.StateWords(save, Find("HelmetCrown"), "", Find));
+            Assert.AreEqual("In use. Press to take it off.", Locker.StateWords(save, Find("HelmetFishbowl"), "", Find));
             Assert.AreEqual("", Locker.StateWords(save, Find("ArtHaywain"), "", Find));
         }
 
         [Test]
         public void AnUpgrade_IsAlwaysNamedWithItsGainAndItsCost()
         {
-            Assert.AreEqual("Big Lungs (+12% suit air, -5% running speed)", Locker.UpgradeWords(Find("UpgradeBigLungs")));
+            Assert.AreEqual("Big Lungs (+25% suit air, -4% walking speed)", Locker.UpgradeWords(Find("UpgradeBigLungs")));
+            Assert.AreEqual("Heavy Hands (+45% melee damage, -15% Focus from kills and limbs)", Locker.UpgradeWords(Find("UpgradeHeavyHands")));
             foreach (ItemSpec item in Catalog)
             {
                 if (item.category != ItemCategory.Upgrade) continue;
@@ -264,16 +267,18 @@ namespace OrbitalAnte.Tests
         }
 
         [Test]
-        public void TheDetails_SayWhatAPrizeDoes_AndWhatChoosingItDoes()
+        public void TheDetails_SayWhatAPrizeDoes_AndWhatPressingItDoes()
         {
             SaveData save = Owning("UpgradeHotLoads", "ArtGreatWave", "SkinRifleStarChart");
             var owned = new ItemInventory(save.items);
             string upgrade = CollectionRows.Details(save, Find("UpgradeHotLoads"), owned.Find("UpgradeHotLoads", ""), "", Find);
             StringAssert.Contains("+10% gun damage and -12% reload speed", upgrade);
-            StringAssert.Contains("Choose it to put it to use", upgrade);
+            StringAssert.Contains("Press to put it to use", upgrade);
             string painting = CollectionRows.Details(save, Find("ArtGreatWave"), owned.Find("ArtGreatWave", ""), "", Find);
             StringAssert.Contains("cabin wall", painting);
-            StringAssert.DoesNotContain("Choose it", painting);
+            StringAssert.DoesNotContain("Press", painting, "pressing a painting does nothing yet");
+            string celestial = CollectionRows.Details(save, Find("SkinRifleStarChart"), owned.Find("SkinRifleStarChart", ""), "Aurora", Find, "Rifle");
+            StringAssert.Contains("Effect: Aurora (not shown yet)", celestial, "an effect is never promised as if it were drawn");
             string skin = CollectionRows.Details(save, Find("SkinRifleStarChart"), owned.Find("SkinRifleStarChart", ""), "", Find, "Rifle");
             StringAssert.Contains("Goes on the Rifle whenever you carry one.", skin);
             Locker.Use(save, Find("SkinRifleStarChart"), "");

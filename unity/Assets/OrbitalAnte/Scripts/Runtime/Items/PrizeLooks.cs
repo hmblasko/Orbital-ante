@@ -66,9 +66,10 @@ namespace OrbitalAnte.Items
         public SkinPattern Pattern;
         public float[] Colour;
         public float[] Accent;
+        /// <summary>A short name for the material cache: the same look is always the same material. Made once, by <see cref="PrizeLooks.Skin"/>.</summary>
+        public string Key;
 
-        /// <summary>A short name for the material cache: the same look is always the same material.</summary>
-        public string Key => (int)Pattern + ":" + ItemLook.Hex(Colour) + ItemLook.Hex(Accent);
+        public static string KeyFor(SkinPattern pattern, float[] colour, float[] accent) => (int)pattern + ":" + ItemLook.Hex(colour) + ItemLook.Hex(accent);
     }
 
     /// <summary>
@@ -99,12 +100,14 @@ namespace OrbitalAnte.Items
 
         public static SkinLook Skin(ItemSpec item)
         {
-            return new SkinLook
+            var look = new SkinLook
             {
                 Pattern = PatternOf(item != null ? item.id : ""),
                 Colour = Safe(item?.colour, 0.6f, 0.6f, 0.6f),
                 Accent = Safe(item?.accent, 0.9f, 0.8f, 0.5f),
             };
+            look.Key = SkinLook.KeyFor(look.Pattern, look.Colour, look.Accent);
+            return look;
         }
 
         // ------------------------------------------------------------------ ship paints

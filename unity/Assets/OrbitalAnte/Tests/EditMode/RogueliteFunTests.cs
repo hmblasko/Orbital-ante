@@ -92,7 +92,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("+20% points for signal masts", Perk("perk.quiet_professional").Describe());
             Assert.AreEqual("+20% points for kills, -40% health regeneration", Perk("perk.all_in").Describe());
             Assert.AreEqual("+15% walking speed, +6% damage taken", Perk("perk.no_brakes").Describe());
-            Assert.AreEqual("+15% max HP, -5% walking speed", Perk("perk.thick_skin").Describe());
+            Assert.AreEqual("+15% max armour, -5% walking speed", Perk("perk.thick_skin").Describe());
         }
 
         [Test]

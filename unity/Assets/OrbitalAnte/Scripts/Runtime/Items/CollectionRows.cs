@@ -112,9 +112,9 @@ namespace OrbitalAnte.Items
             var s = new StringBuilder();
             s.Append(ItemLook.KindLine(item, RarityOf(line, item), gunName)).Append('\n');
             if (Locker.Usable(item)) s.Append(Locker.DoesWords(item, gunName)).Append('\n').Append(Locker.StateWords(save, item, line != null ? line.effectId : "", find));
-            else s.Append(item.blurb).Append('\n').Append("Paintings are kept for the frames on the cabin wall, which are still to be built.");
+            else s.Append(item.blurb).Append('\n').Append("Kept for the cabin wall: no frame to hang it in yet.");
             var extra = new List<string>();
-            if (!string.IsNullOrEmpty(effectName)) extra.Add("Effect: " + effectName);
+            if (!string.IsNullOrEmpty(effectName)) extra.Add("Effect: " + effectName + " (" + Locker.EffectNotShown + ")");
             if (line != null && line.count > 1) extra.Add("You have " + line.count);
             if (line != null && line.fromTest) extra.Add("Test item");
             if (extra.Count > 0) s.Append('\n').Append(string.Join("  ·  ", extra));

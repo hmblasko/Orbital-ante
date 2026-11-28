@@ -25,6 +25,8 @@ namespace OrbitalAnte.Look
         /// </summary>
         public static Color VisorTint = Color.white;
         Color _visorApplied = Color.white;
+        // The colour filter's own setter, found once (a visor's fade writes it a dozen times): no reflection or boxing per write.
+        Action<Color> _setFilter;
         public string Status { get; private set; } = "not built";
         public readonly List<string> Missing = new List<string>();
 
@@ -105,6 +107,7 @@ namespace OrbitalAnte.Look
                 _bloom = Add("Bloom");
                 _tone = Add("Tonemapping");
                 _grade = Add("ColorAdjustments");
+                BindFilter();
                 _balance = Add("WhiteBalance");
                 _split = Add("SplitToning");
                 _vignette = Add("Vignette");
@@ -193,7 +196,9 @@ namespace OrbitalAnte.Look
             if (VisorTint != _visorApplied)
             {
                 _visorApplied = VisorTint;
-                SetParameter(_grade, "colorFilter", _visorApplied);
+                // Apply has already marked the filter as overridden; only its colour changes here.
+                if (_setFilter != null) _setFilter(_visorApplied);
+                else SetParameter(_grade, "colorFilter", _visorApplied);
             }
             // Existing camera discovery stays before drawing; unchanged settings only compare a value
             // struct four times per second, with no reflection, boxing or collection creation.
@@ -403,6 +408,25 @@ namespace OrbitalAnte.Look
                 return null;
             }
             return add.Invoke(_profile, new object[] { type, false });
+        }
+
+        /// <summary>Finds the colour filter's setter on the grade, for <see cref="VisorTint"/>. Left null if this URP has none.</summary>
+        void BindFilter()
+        {
+            _setFilter = null;
+            if (_grade == null) return;
+            try
+            {
+                FieldInfo field = _grade.GetType().GetField("colorFilter", BindingFlags.Public | BindingFlags.Instance);
+                object parameter = field != null ? field.GetValue(_grade) : null;
+                PropertyInfo value = parameter != null ? FindProperty(parameter.GetType(), "value") : null;
+                MethodInfo set = value != null && value.PropertyType == typeof(Color) ? value.GetSetMethod() : null;
+                if (set != null) _setFilter = (Action<Color>)Delegate.CreateDelegate(typeof(Action<Color>), parameter, set);
+            }
+            catch (Exception)
+            {
+                _setFilter = null;
+            }
         }
 
         /// <summary>Sets one dial of an effect and marks it as "use my value, not the default".</summary>

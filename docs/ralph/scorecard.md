@@ -47,14 +47,29 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 6 | = | Creature kills count toward the kill unlocks | Envelope prizes still do nothing in the game; ten unlocks is a small catalogue |
 | 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
 
+## Pass 4 (28 Nov 2026): after the Locker (envelope prizes that do something)
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 7 | = | Every prize says where it went or how to put it to use, an upgrade's cost is written wherever it is named (reveal, Collection, a note at the run's start, the break), and the stats use the perks' own words (`Items/Locker.cs`, `CollectionRows`, held by `LockerTests`) | Where to shoot a creature is taught only by knocks, blood and the hit marker; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | Seven gun skin patterns that keep the pictures' wear and fade before they could crawl, six hull paints that keep the lander's dark panels and window bands, suit looks held to the plate's contrast (`Items/PrizeLooks.cs`, `OA_Skin`, `HullPaint`, held by `PrizeLookTests`); the reveal checked offline with the game's own fonts | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | Six upgrades that change a run's shape, each a sidegrade with its cost on another number, none on gun or melee damage | Land creatures live only in the practice range; nothing seen in Unity |
+| 5 | Fun unlockables | 7 | +1 | Envelope prizes now do something (the gap listed since pass 0): one in use per place (upgrade, ship paint, gun skins, helmet, visor, suit, jetpack, badge), a won cosmetic goes to work by itself where its place is empty, one press on the Collection page puts a prize to use or takes it off, and older item assets follow retuned upgrades (`Items/Locker.cs`, `PrizeLooks.cs`, `ItemCatalog.Version`) | Reach: prizes open only after ante 9, so a new player meets none for many runs (the envelope rule is Matthew's, 16 Nov 2026); ten goal unlocks is a small catalogue; Celestial effects are not drawn; paintings wait for frames and Matthew's downloads |
+| 6 | All-round fun | 6 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
 2. ~~**Understandable: creature tells.**~~ Done in pass 2.
 3. ~~**Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**~~ Done in pass 3.
-4. **Unlockables: envelope prizes do something** (ship paint, gun skins, upgrades as sidegrades), and more unlocks.
-5. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
-6. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
-7. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
+4. ~~**Unlockables: envelope prizes do something.**~~ Done in pass 4 (the Locker).
+5. **Unlockables: reach.** Envelopes open only after ante 9, so the Collection stays empty for a new player. Goal
+   unlocks that give a cosmetic, a skin or a paint (within a new player's reach, like the first goals) would fill it
+   early; more goals; Celestial effects drawn; paintings framed on the cabin wall (needs the five public-domain
+   pictures from Matthew).
+6. **Gameplay: land creatures on the real worlds** (walkers need ground following first).
+7. **Aesthetics: the guns** (blocked on Matthew's downloads) and the seat view (PR 72's card).
+8. **Gameplay: shots and the sea's surface.** Bullets pass through the sea both ways; stopping them at the surface
    would make "get in the water with them" a rule you can see, but lets a swimmer dive out of gunfire (pass 3's design
    review). A design question to settle before the seas get more creatures.

@@ -325,27 +325,33 @@ namespace OrbitalAnte.Items
         /// <summary>
         /// The line under a prize as it is revealed: where it went into use by itself, or how to put it to use. Empty
         /// for a painting (which has no place yet). <paramref name="midRun"/>: the reveal came in the middle of a run,
-        /// whose lander, suit and numbers were built at its start, so the prize shows from the next run.
+        /// whose lander, suit, guns and numbers were built at its start, so the prize shows from the next run.
+        /// <paramref name="inPlaceOf"/>: the name of what is in its place (<see cref="InPlaceOf"/>), when it did not go in.
         /// </summary>
-        public static string RevealWords(ItemSpec item, bool inUse, string gunName = null, bool midRun = false)
+        public static string RevealWords(ItemSpec item, bool inUse, string gunName = null, bool midRun = false, string inPlaceOf = null)
         {
             if (!Usable(item)) return "";
             if (inUse) return "In use " + WhereWords(item, gunName) + (midRun ? " from your next run." : ".");
             if (SlotOf(item) == LockerSlot.Upgrade)
                 return "Every upgrade has a cost, so it waits for you: put it to use from Collection on the title screen.";
+            if (!string.IsNullOrEmpty(inPlaceOf))
+                return "Your " + inPlaceOf + " is in its place: swap this in from Collection on the title screen.";
             return "Something is already in its place: swap it in from Collection on the title screen.";
         }
 
+        /// <summary>What the reveal and the Collection add after a Celestial effect's name while effects are not drawn.</summary>
+        public const string EffectNotShown = "not shown yet";
+
         /// <summary>
-        /// The Collection's line on whether an item is in use and what choosing it does: "In use. Choose it to take it
-        /// off." / "Choose it to put it to use, in place of Sunset Visor." Empty for a painting.
+        /// The Collection's line on whether an item is in use and what pressing it does: "In use. Press to take it off."
+        /// / "Press to use it instead of Sunset Visor." / "Press to put it to use." Empty for a painting.
         /// </summary>
         public static string StateWords(SaveData save, ItemSpec item, string effectId, Func<string, ItemSpec> find)
         {
             if (!Usable(item)) return "";
-            if (InUse(save, item, effectId)) return "In use. Choose it to take it off.";
+            if (InUse(save, item, effectId)) return "In use. Press to take it off.";
             string instead = InPlaceOf(save, item, find);
-            return "Choose it to put it to use" + (instead.Length > 0 ? ", in place of " + instead + "." : ".");
+            return instead.Length > 0 ? "Press to use it instead of " + instead + "." : "Press to put it to use.";
         }
 
         /// <summary>The name of what an item would take the place of if it were put to use, or "" for an empty place.</summary>

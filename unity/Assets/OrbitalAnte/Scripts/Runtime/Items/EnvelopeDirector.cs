@@ -140,17 +140,18 @@ namespace OrbitalAnte.Items
             // A prize goes to work by itself where its place is empty (never an upgrade: each has a cost), saved with it.
             bool inUse = Locker.AutoUse(SaveSystem.Data, item, prize.effectId) || Locker.InUse(SaveSystem.Data, item, prize.effectId);
             SaveSystem.Save();
+            string inPlaceOf = inUse ? null : Locker.InPlaceOf(SaveSystem.Data, item, LockerLook.Find);
 
             ItemEffect effect = effects.Find(e => e.id == prize.effectId);
             OwnedItem owned = book.Inventory.Find(prize.itemId, prize.effectId);
             _screen.UseCard(EnvelopeTextures.Card("Card", item, prize.rarity, effect?.colour));
             // In the middle of a run its lander, suit and numbers are already built: the prize shows from the next run.
-            _screen.Show(ShowFor(item, prize, effect, owned, ticket, inUse, GameSession.Mode == GameMode.Playing), whenDone);
+            _screen.Show(ShowFor(item, prize, effect, owned, ticket, inUse, GameSession.Mode == GameMode.Playing, inPlaceOf), whenDone);
             return true;
         }
 
         public static EnvelopeShow ShowFor(ItemSpec item, Prize prize, ItemEffect effect, OwnedItem owned, EnvelopeTicket ticket,
-            bool inUse = false, bool midRun = false)
+            bool inUse = false, bool midRun = false, string inPlaceOf = null)
         {
             string weaponName = null;
             if (item.category == ItemCategory.WeaponSkin && !string.IsNullOrEmpty(item.weaponId))
@@ -175,7 +176,9 @@ namespace OrbitalAnte.Items
                 effectColour = effect?.colour,
                 ownedCount = owned != null ? owned.count : 1,
                 fromTest = ticket.fromTest,
-                useLine = Locker.RevealWords(item, inUse, weaponName, midRun),
+                useLine = Locker.RevealWords(item, inUse, weaponName, midRun, inPlaceOf),
+                inUse = inUse && Locker.Usable(item),
+                effectNote = effect != null ? Locker.EffectNotShown : "",
             };
         }
 

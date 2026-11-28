@@ -189,7 +189,8 @@ namespace OrbitalAnte.Ante
                            + ScoreWays.ShortList() + ".";
                 case PerkStat.ShipFuelPerImpulse: return amount + " ship fuel per thrust";
                 case PerkStat.WeaponDamage: return amount + " weapon damage";
-                case PerkStat.MaxHp: return amount + " max HP";
+                // "Armour" is what the suit plate and its notices call the player's health (pass 4: the Locker's words match).
+                case PerkStat.MaxHp: return amount + " max armour";
                 case PerkStat.EvaLateralThrust: return amount + " EVA sideways thrust";
                 case PerkStat.IncomingDamage: return amount + " damage taken";
                 case PerkStat.HealOnKill: return "kills heal " + Whole(effect.value);

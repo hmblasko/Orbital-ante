@@ -445,6 +445,17 @@ namespace OrbitalAnte.UI
 
         public void OnDeselect(UnityEngine.EventSystems.BaseEventData eventData) => Restore();
 
+        /// <summary>
+        /// Sets the label's own colour, the one it shows when its button is not the chosen one. While it is chosen
+        /// the label stays dark and takes this colour back when the choice moves on.
+        /// </summary>
+        public void SetColour(Color colour)
+        {
+            if (Label == null) return;
+            if (_dark) _was = colour;
+            else Label.color = colour;
+        }
+
         void OnDisable() => Restore();
 
         void Restore()

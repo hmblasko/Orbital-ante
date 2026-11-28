@@ -74,6 +74,10 @@ namespace OrbitalAnte.Items
         public bool fromTest;
         /// <summary>Where the prize went into use, or how to put it to use (<c>Locker.RevealWords</c>). Empty for a painting.</summary>
         public string useLine = "";
+        /// <summary>True when the prize went into use: the use line is drawn in the Collection's IN USE green.</summary>
+        public bool inUse;
+        /// <summary>Said after the effect's name in brackets while effects are not drawn in the game (<c>Locker.EffectNotShown</c>).</summary>
+        public string effectNote = "";
     }
 
     /// <summary>
@@ -306,7 +310,8 @@ namespace OrbitalAnte.Items
                 float y = 370f;
                 if (!string.IsNullOrEmpty(show.effectName))
                 {
-                    RevealLine(items, "effect", "Effect: " + show.effectName, y, 30f, 22, show.effectColour ?? light, s0, 3, bold: true);
+                    string note = string.IsNullOrEmpty(show.effectNote) ? "" : " (" + show.effectNote + ")";
+                    RevealLine(items, "effect", "Effect: " + show.effectName + note, y, 30f, 22, show.effectColour ?? light, s0, 3, bold: true);
                     y += 40f;
                 }
                 RevealLine(items, "blurb", show.blurb, y + 8f, 58f, 20, Cream, s0, 4, italic: true);
@@ -321,8 +326,7 @@ namespace OrbitalAnte.Items
                 if (show.fromTest) owned += " (Test item: can be cleared from the collection.)";
                 RevealLine(items, "owned", owned, y + 14f, 50f, 18, Muted, s0, 6);
                 // What the prize does now: green when it went to work by itself (the Collection's IN USE colour).
-                bool working = show.useLine != null && show.useLine.StartsWith("In use", StringComparison.Ordinal);
-                RevealLine(items, "use", show.useLine, y + 66f, 50f, 18, working ? InUse : Cream, s0, 7);
+                RevealLine(items, "use", show.useLine, y + 66f, 50f, 18, show.inUse ? InUse : Cream, s0, 7);
                 Text(items, "prompt", show.prompt, 640f, 748f, 1000f, 26f, 16, Muted,
                     Smooth(0.6f, 1.2f, s0) * (0.6f + 0.3f * (float)Math.Sin(t * 3f)));
             }

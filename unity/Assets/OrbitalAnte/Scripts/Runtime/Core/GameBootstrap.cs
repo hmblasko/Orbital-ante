@@ -322,6 +322,8 @@ namespace OrbitalAnte.Core
             _restarting = false;
             BankPlayTime();
             Save.SaveSystem.Save();
+            // What the Locker has in use is read afresh for each world (its skins the first time a gun is held).
+            Items.LockerLook.NewWorld();
 
             // The menu camera and its listener go off first, so there is only ever one audio listener.
             _menuListener.enabled = false;

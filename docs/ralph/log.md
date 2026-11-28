@@ -219,3 +219,57 @@ as before; the land creatures pay nothing until a spawner brings them onto a wor
 sea's surface is a design question for later. The Deck acceptance needs a per-event log of the music's band, piece
 and layers beside shots and points (not built). Next pass: gap 4, envelope prizes that do something in the game, and
 more unlocks.
+
+## Pass 4 (28 Nov 2026): the Locker, envelope prizes that do something
+
+**Gap closed:** the prize envelope (Matthew, 16 Nov 2026: "an item system like tf2") gave upgrades, ship paints, gun
+skins and suit pieces that were only listed in the collection. Nothing in the game used them, so the envelope promised
+nothing.
+
+**Built** (report `docs/reports/locker.md`):
+
+- The Locker (`Items/Locker.cs`, plain C#): one prize in use per place (upgrade, ship paint, a skin for every gun and
+  one of a gun's own per gun, helmet, visor, suit, jetpack, badge), saved in layout 6. A won cosmetic, skin or paint
+  goes to work by itself only where its place is empty; an upgrade never does, because each has a cost.
+- Upgrades are sidegrades (`UpgradeEffects`): a gain and a cost on two different numbers, multiplied into the run's
+  build on top of the perks, clamped to 0.5 to 2. New numbers the run can change: jet fuel, ship fuel, reload time.
+  The cost is written wherever the upgrade is named: the reveal, the Collection page, a note as the run starts, the
+  break and the UPGRADES page.
+- Looks (`Items/PrizeLooks.cs`): six hull paints that keep the lander's dark panels and window bands; seven gun skin
+  patterns in the model shader that keep the pictures' wear; helmet edge shade, a gentle visor tint, suit plate
+  colours held to 7:1 contrast for the plate's words, jet colours that are never a damage red, and a badge.
+- The reveal says where the prize went, what is in its place, or how to put an upgrade to use. The Collection page
+  (six rows a page, grouped by place) puts a prize to use or takes it off in one press and says what each does.
+- Fixed on the way: the suit plate's air time ignored a bigger tank bought in the shop.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`: 3,142 run, 3,141 passed, 1 skipped (the cabin bake check, as before), after the
+  reviews' fixes. 38 tests are new (`LockerTests` 17, `PrizeLookTests` 21); `UnlockTests` no longer pins the save
+  layout, and two older tests take the perks' word "max armour". The first full run after the fixes had one failure (a
+  test still holding Heavy Hands' first numbers); it was fixed and re-run with every test that reads the changed files.
+- Runtime compile check: clean apart from the two known `excludeLayers` lines.
+- Offline shader check: all 30 model shader programs pass glslang (the same count as before the skins).
+- `tools/envelope_view` draws the reveal as the game does; the upgrade, helmet and Celestial reveals were looked at.
+
+**Specialist reviews** (each run on this pass's first build, each finding checked before it was applied):
+
+- game-designer: three upgrades were weak or cost in the wrong place (retuned; no upgrade costs gun or melee damage,
+  held by a test; older item assets follow the catalogue through `ItemCatalog.Version`); the stat words differed from
+  the perks'; "Locker" on screen promised Part B's base locker (kept off screen); the cost was first seen at the
+  break (now a note at the run's start); "Choose" became "Press"; the reveal names what is already in a place;
+  paintings say KEPT; a Celestial effect says it is not shown yet. Its next gap: reach.
+- deck-performance: the skin keyword would have doubled the model shader's forward programs and stalled on first
+  use (now a branch on a material value); skins were looked up in the save every time a gun came into the hand (now
+  once a world); the visor tint used reflection every frame (setter bound once). Not changed: a save on every
+  Collection press (title screen only). Budget rows written.
+- unity-reviewer: B did nothing on the Collection page and a stray click left the D-pad with nothing to move (both
+  fixed); the flake and star patterns would likely crawl on the held gun (now faded by the pixel's footprint, the fine
+  wood grain with them); the save layout change means older builds will not write the save (said in the report).
+
+**Scores after:** see `scorecard.md`, pass 4. Fun unlockables 6 to 7, the rest unchanged.
+
+**Left open:** nothing here has run in Unity. Prizes open only after ante 9, so a new player meets the Collection
+late; Celestial effects are not drawn; paintings wait for frames on the cabin wall and the five public-domain
+pictures; the ticket's cosmetic token is still used by nothing. Next pass: gap 5, reach (goal unlocks that give a
+cosmetic, and more goals).

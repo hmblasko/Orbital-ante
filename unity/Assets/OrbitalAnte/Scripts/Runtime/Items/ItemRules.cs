@@ -218,11 +218,11 @@ namespace OrbitalAnte.Items
             switch (stat)
             {
                 case UpgradeStat.GunDamage: return "gun damage";
-                case UpgradeStat.MoveSpeed: return "running speed";
+                case UpgradeStat.MoveSpeed: return "walking speed";
                 case UpgradeStat.SuitAir: return "suit air";
-                case UpgradeStat.SuitArmour: return "suit armour";
+                case UpgradeStat.SuitArmour: return "max armour";
                 case UpgradeStat.JetFuel: return "jet fuel";
-                case UpgradeStat.Focus: return "Focus";
+                case UpgradeStat.Focus: return "Focus from kills and limbs";
                 case UpgradeStat.ReloadSpeed: return "reload speed";
                 case UpgradeStat.ShipFuel: return "ship fuel";
                 case UpgradeStat.MeleeDamage: return "melee damage";
@@ -242,7 +242,7 @@ namespace OrbitalAnte.Items
             return RarityName(shownRarity) + " " + kind + (detail.Length > 0 ? " (" + detail + ")" : "");
         }
 
-        /// <summary>What an upgrade does, as two short lines ("+15% jet fuel", "-10% suit armour").</summary>
+        /// <summary>What an upgrade does, as two short lines ("+15% jet fuel", "-10% max armour").</summary>
         public static string UpgradeUpLine(ItemSpec item) => "+" + Percent(item.upgradeUpAmount) + " " + StatName(item.upgradeUp);
         public static string UpgradeDownLine(ItemSpec item) => "-" + Percent(item.upgradeDownAmount) + " " + StatName(item.upgradeDown);
 

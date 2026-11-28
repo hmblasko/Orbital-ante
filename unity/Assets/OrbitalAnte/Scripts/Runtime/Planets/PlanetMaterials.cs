@@ -37,8 +37,6 @@ namespace OrbitalAnte.Planets
         static readonly int MaskMapId = Shader.PropertyToID("_MaskMap");
         /// <summary>The model shader's switch for drawing from texture pictures (OA_Model.shader).</summary>
         public const string TexturedKeyword = "_OA_TEXTURED";
-        /// <summary>The model shader's layer for a Locker gun skin (OA_Skin in OA_Model.shader).</summary>
-        public const string SkinKeyword = "_OA_SKIN";
         static readonly int SkinColourId = Shader.PropertyToID("_SkinColour");
         static readonly int SkinAccentId = Shader.PropertyToID("_SkinAccent");
         static readonly int SkinSetId = Shader.PropertyToID("_SkinSet");
@@ -325,8 +323,9 @@ namespace OrbitalAnte.Planets
 
         /// <summary>
         /// A copy of one of the model materials (<see cref="Model"/> or <see cref="TexturedModel"/>) wearing a Locker gun
-        /// skin: the shader's <see cref="SkinKeyword"/> layer with the skin's pattern and two colours (sRGB; Unity makes
-        /// them linear). One per material and skin, shared by every gun that wears it, destroyed with the others when
+        /// skin: the skin's pattern, cover and two colours (sRGB; Unity makes them linear) for the shader's OA_Skin, which
+        /// runs only where the cover is above 0. Not a keyword: the copy uses its source's own shader program, so a skin
+        /// never waits for a new one to be built. One per material and skin, shared by every gun that wears it, destroyed with the others when
         /// a world is built. Null when <paramref name="source"/> is not drawn with the model shader (simple shaders,
         /// Shine at 0): the gun then keeps its own look.
         /// </summary>
@@ -339,8 +338,8 @@ namespace OrbitalAnte.Planets
             var m = new Material(source) { name = source.name + " skin " + look };
             m.SetColor(SkinColourId, colour);
             m.SetColor(SkinAccentId, accent);
-            m.SetVector(SkinSetId, new Vector4(pattern, Mathf.Clamp01(cover), 0f, 0f));
-            m.EnableKeyword(SkinKeyword);
+            // A cover of 0 would switch the skin off; anything put on is at least a trace.
+            m.SetVector(SkinSetId, new Vector4(pattern, Mathf.Clamp(cover, 0.01f, 1f), 0f, 0f));
             SkinCache[key] = m;
             return m;
         }

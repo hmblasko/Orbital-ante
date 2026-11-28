@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using OrbitalAnte.Core;
 using OrbitalAnte.Items;
 using OrbitalAnte.Save;
 using UnityEngine;
@@ -32,6 +33,7 @@ namespace OrbitalAnte.UI
         readonly Button[] _rows = new Button[CollectionRows.PerPage];
         readonly Text[] _rowWords = new Text[CollectionRows.PerPage];
         readonly Text[] _rowState = new Text[CollectionRows.PerPage];
+        readonly ChosenInk[] _rowInk = new ChosenInk[CollectionRows.PerPage];
         readonly Image[] _rowRarity = new Image[CollectionRows.PerPage];
 
         List<OwnedItem> _lines = new List<OwnedItem>();
@@ -120,7 +122,9 @@ namespace OrbitalAnte.UI
             stateRect.pivot = new Vector2(1f, 0.5f);
             stateRect.sizeDelta = new Vector2(100f, 0f);
             stateRect.anchoredPosition = new Vector2(-14f, 0f);
-            row.gameObject.AddComponent<ChosenInk>().Label = state;
+            var ink = row.gameObject.AddComponent<ChosenInk>();
+            ink.Label = state;
+            _rowInk[i] = ink;
 
             _rows[i] = row;
             _rowWords[i] = words;
@@ -135,12 +139,14 @@ namespace OrbitalAnte.UI
             if (Locker.Tidy(SaveSystem.Data, LockerLook.Find) > 0) SaveSystem.Save();
             _page = 0;
             Refresh();
-            if (EventSystem.current != null)
-            {
-                GameObject first = _open.gameObject.activeSelf ? _open.gameObject
-                    : _rows[0].gameObject.activeSelf ? _rows[0].gameObject : _back.gameObject;
-                EventSystem.current.SetSelectedGameObject(first);
-            }
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(FirstChoice());
+        }
+
+        // The button a page starts on: an envelope waiting to be opened, else the first prize, else Back.
+        GameObject FirstChoice()
+        {
+            return _open.gameObject.activeSelf ? _open.gameObject
+                : _rows[0].gameObject.activeSelf ? _rows[0].gameObject : _back.gameObject;
         }
 
         void OpenNext()
@@ -212,7 +218,10 @@ namespace OrbitalAnte.UI
                 OwnedItem line = _lines[index];
                 ItemSpec item = Find(line.itemId);
                 _rowWords[i].text = CollectionRows.RowWords(item, line, EffectName(line), GunName(item));
-                _rowState[i].text = item != null && Locker.InUse(data, item, line.effectId) ? "IN USE" : "";
+                // IN USE in green; a painting, which has no place to go to work yet, says KEPT in the dim colour.
+                bool kept = item != null && !Locker.Usable(item);
+                _rowState[i].text = kept ? "KEPT" : item != null && Locker.InUse(data, item, line.effectId) ? "IN USE" : "";
+                _rowInk[i].SetColour(kept ? HullKit.Dim : HullKit.Good);
                 _rowRarity[i].color = ToColour(ItemLook.RarityColour(CollectionRows.RarityOf(line, item)));
             }
             _rowsSpace.minHeight = _lines.Count > 0 ? CollectionRows.PerPage * RowHeight + (CollectionRows.PerPage - 1) * RowGap : 0f;
@@ -228,8 +237,22 @@ namespace OrbitalAnte.UI
 
         void Update()
         {
-            if (_canvas == null || !_canvas.gameObject.activeSelf || EventSystem.current == null) return;
+            if (_canvas == null || !_canvas.gameObject.activeSelf || EventSystem.current == null || GameInput.Asset == null) return;
+            // B / Esc / Backspace goes back to the title, as on the title's own pages. (While an envelope opens, this
+            // page is hidden, so the press that ends the reveal never reaches it.)
+            if (GameInput.UiCancel.WasPressedThisFrame())
+            {
+                BackRequested?.Invoke();
+                return;
+            }
             GameObject chosen = EventSystem.current.currentSelectedGameObject;
+            // A click on empty space clears the choice; the next push of the D-pad or stick chooses again. Only a
+            // push, not A: a press would land on the button it chose and open an envelope nobody asked to open.
+            if ((chosen == null || !chosen.activeInHierarchy) && GameInput.UiNavigate.ReadValue<Vector2>().sqrMagnitude > 0.25f)
+            {
+                chosen = FirstChoice();
+                EventSystem.current.SetSelectedGameObject(chosen);
+            }
             if (chosen == _shownFor && !_detailsDirty) return;
             _shownFor = chosen;
             _detailsDirty = false;
@@ -250,7 +273,7 @@ namespace OrbitalAnte.UI
             if (_lines.Count == 0)
                 return "Nothing yet. Every run starts with a sealed envelope: clear Ante 9 and it opens.\n" +
                        "Prizes go to work from here: upgrades for every run, paint for your lander, skins for your guns and pieces for your suit.";
-            return "Choose a prize to put it to use, or to take it off. One upgrade at a time, and every upgrade has a cost.\n" +
+            return "Press a prize to put it to use, or to take it off. One upgrade at a time, and every upgrade has a cost.\n" +
                    "What you change here shows from your next run.";
         }
 
