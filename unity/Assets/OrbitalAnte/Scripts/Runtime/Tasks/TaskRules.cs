@@ -465,6 +465,33 @@ namespace OrbitalAnte.Tasks
     }
 
     /// <summary>
+    /// Which kill tier a creature scores as, by its kind (its model's name), on the same table as the camps: a
+    /// creature fight counts toward the ante like any other fight, so the seas are somewhere to score, not a
+    /// detour. Tiers follow how much it takes to bring one down and how long it keeps the player in danger.
+    /// </summary>
+    public static class CreatureTiers
+    {
+        /// <summary>Every creature kind there is, for the rule tests.</summary>
+        public static readonly string[] Kinds = { "Strider", "Sprinter", "Roller", "Hunter", "Screamer", "Ambusher", "Stalker", "Maw", "Biter" };
+
+        public static ScoreEventKind KindFor(string kind)
+        {
+            switch (kind)
+            {
+                // A Pack biter dies to a shot or two in the head; the danger is the pack, and every fish pays.
+                case "Biter": return ScoreEventKind.EnemyTier1;
+                // The two big ones: hundreds of points of body to get through, armour over the rest, and a strike that
+                // holds or flattens. Paid like a camp's heavy.
+                case "Maw":
+                case "Strider": return ScoreEventKind.EnemyTier3;
+                // The rest (Sprinter, Roller, Cave hunter, Screamer, Ambusher, Blind stalker) and kinds added later:
+                // one weak place to find and one strike to read, like a marksman.
+                default: return ScoreEventKind.EnemyTier2;
+            }
+        }
+    }
+
+    /// <summary>
     /// How bumpy the ground is under a landing, from the ground radius under the ship and at points around it.
     /// A rock-tower top stands well above its surroundings; a canyon floor sits well below.
     /// </summary>
@@ -494,6 +521,8 @@ namespace OrbitalAnte.Tasks
     public static class TaskIds
     {
         public static string Enemy(string body, int camp, int member) => "enemy:" + body + ".c" + camp + ".m" + member;
+        /// <summary>A creature: its world, its haunt there and its place in the haunt (a fish's place in its pack; 0 for one alone).</summary>
+        public static string Creature(string body, int haunt, int place) => "creature:" + body + ".h" + haunt + ".p" + place;
         public static string Mast(string body, int baseIndex) => "mast:" + body + "." + baseIndex;
         public static string Salvage(string body, int n) => "salvage:" + body + "." + n;
         public static string Drop(int ante, int n) => "drop:a" + ante + "." + n;

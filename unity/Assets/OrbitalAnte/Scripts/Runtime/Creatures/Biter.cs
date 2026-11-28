@@ -47,10 +47,13 @@ namespace OrbitalAnte.Creatures
         BiterRules _rules;
         string _name;
         System.Func<Vector3, MawWater> _water;
+        System.Func<int, CreatureCredit> _credit;
         Vector3 _home;
         public BiterPack Pack { get; } = new BiterPack();
         /// <summary>Every member is dead.</summary>
         public event System.Action<BiterShoal> Gone;
+        /// <summary>A member died: its place in the pack, so a sea can leave it out when the pack is woken again.</summary>
+        public event System.Action<int> Lost;
         public int Living => Pack.Living;
 
         /// <summary>The middle of the living fish (where the pack is, not where it was made), in world space.</summary>
@@ -66,9 +69,14 @@ namespace OrbitalAnte.Creatures
             }
         }
 
-        /// <summary>Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game.</summary>
+        /// <summary>
+        /// Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game.
+        /// <paramref name="dead"/> are places in the pack already killed (a pack woken again): they are left out, but
+        /// still count toward its size. <paramref name="credit"/> says who pays for the fish in each place.
+        /// </summary>
         public static BiterShoal Create(Vector3 home, Quaternion rotation, Transform parent, CreatureConfig config, int count, string name = null,
-                                        System.Func<Vector3, MawWater> water = null)
+                                        System.Func<Vector3, MawWater> water = null, ICollection<int> dead = null,
+                                        System.Func<int, CreatureCredit> credit = null)
         {
             if (ModelLibrary.Find(BiterLayout.Model) == null)
             {
@@ -84,10 +92,13 @@ namespace OrbitalAnte.Creatures
             shoal._rules = rules;
             shoal._name = name ?? "Biter";
             shoal._water = water;
+            shoal._credit = credit;
             shoal._home = home;
             Vector3 up = rotation * Vector3.up;
+            int killed = 0;
             for (int i = 0; i < Mathf.Max(1, count); i++)
             {
+                if (dead != null && dead.Contains(i)) { killed++; continue; }
                 // Round where they live, each a little higher or lower, all swimming the same way round.
                 float a = i * Mathf.PI * 2f / Mathf.Max(1, count);
                 Vector3 out_ = rotation * new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
@@ -95,6 +106,7 @@ namespace OrbitalAnte.Creatures
                 Quaternion facing = Quaternion.LookRotation(Vector3.Cross(up, out_), up);
                 shoal._unborn.Add(new Unborn { At = at, Facing = facing, Place = i });
             }
+            shoal.Pack.KilledBefore(killed);
             shoal.MakeOne();
             return shoal;
         }
@@ -106,6 +118,7 @@ namespace OrbitalAnte.Creatures
             _unborn.RemoveAt(0);
             // Where the pack swam to meanwhile does not matter: a fish joins the ring from where it was to start.
             Biter fish = Biter.Make(u.At, u.Facing, _parent, _rules, this, u.Place, _name + " " + (u.Place + 1), _water, _home);
+            fish.Credit = _credit != null ? _credit(u.Place) : null;
             _members.Add(fish);
             fish.Died += OnDied;
         }
@@ -113,6 +126,7 @@ namespace OrbitalAnte.Creatures
         void OnDied(Biter fish)
         {
             _members.Remove(fish);
+            Lost?.Invoke(fish.Place);
             if (_members.Count == 0 && _unborn.Count == 0)
             {
                 Gone?.Invoke(this);
@@ -159,10 +173,14 @@ namespace OrbitalAnte.Creatures
     /// - A dart bites only what is at its mouth on the way: a step aside is a miss. It has no pull and no hold.
     /// - In the combat arena the pack swims in the air a little over the ground, as a stand-in for a sea.
     /// </summary>
-    public sealed class Biter : MonoBehaviour, IWindup
+    public sealed class Biter : MonoBehaviour, IWindup, ICreature
     {
         public BiterBody Body { get; private set; }
         public BiterBrain Brain { get; private set; }
+        /// <summary>Its place in its pack.</summary>
+        public int Place { get; private set; }
+        /// <summary>Who pays for it, given by its shoal; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
         public Vector3 WindupPoint => transform.position;
         public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
@@ -216,6 +234,7 @@ namespace OrbitalAnte.Creatures
         void Build(BiterRules rules, BiterPack pack, int place, Vector3 home)
         {
             _rules = rules;
+            Place = place;
             Body = new BiterBody(rules.hp);
             Brain = new BiterBrain(rules, pack, place);
             _homeParent = transform.parent;
@@ -454,6 +473,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             BiterHit result;
             bool bone = false;
             switch (part.Piece)

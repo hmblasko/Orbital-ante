@@ -50,8 +50,10 @@ namespace OrbitalAnte.Creatures
     /// - It dies when its head gives way or any length of its body is shot through; then whatever is out of the
     ///   ground comes apart.
     /// </summary>
-    public sealed class Ambusher : MonoBehaviour, IWindup
+    public sealed class Ambusher : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public AmbusherBody Body { get; private set; }
         public AmbusherBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
@@ -367,6 +369,7 @@ namespace OrbitalAnte.Creatures
             // Under the ground, and until its head is out of it again, nothing reaches it.
             if (!Alive || Brain.Buried || (Brain.Mode == AmbusherMode.Rise && _pose.NodePosition[0].Y < 0.0)) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             AmbusherHit result;
             bool armour = false;
             switch (part.Piece)

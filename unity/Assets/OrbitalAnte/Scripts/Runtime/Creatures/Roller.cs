@@ -47,8 +47,10 @@ namespace OrbitalAnte.Creatures
     ///   own transform's up, never +Y.
     /// - It dies only when its soft body or its head gives way; then it bursts into its segments.
     /// </summary>
-    public sealed class Roller : MonoBehaviour, IWindup
+    public sealed class Roller : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public RollerBody Body { get; private set; }
         public RollerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of the ball.</summary>
@@ -351,6 +353,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             RollerHit result;
             bool armour = false;
             switch (part.Piece)

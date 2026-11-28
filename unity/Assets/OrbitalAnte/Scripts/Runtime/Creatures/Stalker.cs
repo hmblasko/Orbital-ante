@@ -48,8 +48,10 @@ namespace OrbitalAnte.Creatures
     /// - It is blind: no sight line is ever traced for it. What it gets is how loud the player is and where they are,
     ///   and its brain decides from those what it can hear and feel.
     /// </summary>
-    public sealed class Stalker : MonoBehaviour, IWindup
+    public sealed class Stalker : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public StalkerBody Body { get; private set; }
         public StalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
@@ -379,6 +381,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             StalkerHit result;
             bool armour = false, soft = false;
             switch (part.Piece)

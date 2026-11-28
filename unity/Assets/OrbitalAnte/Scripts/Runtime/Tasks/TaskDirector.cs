@@ -305,36 +305,102 @@ namespace OrbitalAnte.Tasks
 
         void OnPlayerHit(HitOutcome outcome)
         {
-            if (!outcome.Enemy || !(outcome.Target is Mannequin who) || who == null) return;
+            if (!outcome.Enemy) return;
+            if (outcome.Target is Creatures.ICreature creature)
+            {
+                OnCreatureHit(outcome, creature);
+                return;
+            }
+            if (!(outcome.Target is Mannequin who) || who == null) return;
             Astronaut player = Player;
             bool known = _hits.TryGetValue(who, out HitRecord before);
-            var facts = new KillFacts
+            KillFacts facts = FactsOf(outcome, player);
+            if (outcome.Killed)
             {
-                airborne = player != null && player.Airborne,
+                // The first hit that landed on it, and from how far.
+                facts.oneShot = !known || before.Hits == 0;
+                facts.longShot = LongShot(facts, player, who.transform.position);
+                facts.freshGun = FreshGun(outcome, facts, player);
+                facts.takenApart = AllFourLimbsOff(who);
+            }
+            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
+
+        }
+
+        /// <summary>
+        /// A creature the player hit. Its kill is the hit itself (a creature has no spawner to say it went down), and it
+        /// pays like a camp's: its tier, the style feats, the streak, a bonus mission's bounty and the unlocks. Only an
+        /// animal that was told who pays for it (<see cref="Creatures.CreatureCredit"/>, the seas) counts.
+        /// </summary>
+        void OnCreatureHit(in HitOutcome outcome, Creatures.ICreature creature)
+        {
+            Creatures.CreatureCredit credit = creature.Credit;
+            if (credit == null) return;
+            credit.Hits++;
+            if (!outcome.Killed) return;
+            Astronaut player = Player;
+            KillFacts f = FactsOf(outcome, player);
+            f.oneShot = credit.Hits == 1;
+            Vector3 at = creature is Creatures.IWindup windup ? windup.WindupPoint : outcome.Target.transform.position;
+            f.longShot = LongShot(f, player, at);
+            f.freshGun = FreshGun(outcome, f, player);
+            int feats = StyleKill.Feats(f, out string style);
+            PayKill(CreatureTiers.KindFor(credit.Kind), credit.Claim, credit.Body, f, feats, string.IsNullOrEmpty(style) ? "KILL" : style);
+        }
+
+        /// <summary>What is true of a hit on an enemy whoever it was: what made it and how the player stood.</summary>
+        KillFacts FactsOf(in HitOutcome outcome, Astronaut player)
+        {
+            return new KillFacts
+            {
+                // In the sea the suit floats, but swimming is not being in the air.
+                airborne = player != null && player.Airborne && !InTheSea(player),
                 rover = outcome.Source == HitSource.Rover,
                 melee = outcome.Source == HitSource.Melee,
                 lowStance = player != null && player.Mode == AstronautMode.Outside && player.Stances.Current != Spacewalk.Stance.Stand,
                 lowArmour = _loop != null && _loop.Run != null && Combat.RunEffects.HealthShare < _loop.Run.Balance.lowHealthLine,
             };
-            if (outcome.Killed)
-            {
-                // The first hit that landed on it, and from how far.
-                facts.oneShot = !known || before.Hits == 0;
-                if (player != null && player.Eye != null && !facts.rover && !facts.melee)
-                {
-                    float longShot = Mathf.Max(10f, _rules.longShot - Combat.RunEffects.Mods.LongShotCloser);
-                    facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
-                }
-                string gun = facts.rover ? "rover" : facts.melee ? "melee"
-                           : !string.IsNullOrEmpty(outcome.SourceId) ? outcome.SourceId
-                           : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
-                               ? player.Weapons.Current.Data.Id : "gun";
-                facts.freshGun = _fresh.IsFresh(gun);
-                _fresh.Remember(gun);
-                facts.takenApart = AllFourLimbsOff(who);
-            }
-            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
+        }
 
+        bool LongShot(in KillFacts facts, Astronaut player, Vector3 target)
+        {
+            if (player == null || player.Eye == null || facts.rover || facts.melee) return false;
+            float longShot = Mathf.Max(10f, _rules.longShot - Combat.RunEffects.Mods.LongShotCloser);
+            return (target - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
+        }
+
+        /// <summary>Whether the tool that made a kill is fresh this ante (FRESH GUN), and remembers it as used.</summary>
+        bool FreshGun(in HitOutcome outcome, in KillFacts facts, Astronaut player)
+        {
+            string gun = facts.rover ? "rover" : facts.melee ? "melee"
+                       : !string.IsNullOrEmpty(outcome.SourceId) ? outcome.SourceId
+                       : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
+                           ? player.Weapons.Current.Data.Id : "gun";
+            bool fresh = _fresh.IsFresh(gun);
+            _fresh.Remember(gun);
+            return fresh;
+        }
+
+        /// <summary>The suit's boots are under the sea: floating, but not in the air.</summary>
+        bool InTheSea(Astronaut player)
+        {
+            SolarSystem system = _world != null ? _world.System : null;
+            if (player.Suit == null || system == null || system.Focus == null || _world.Planets == null) return false;
+            int body = system.Focus.Neighbourhood;
+            return body > 0 && _world.Planets.Read(body, player.Suit.position).Underwater;
+        }
+
+        /// <summary>Pays a kill and passes it on: the streak, the Ghost set's time back, a bonus mission and the unlocks.</summary>
+        void PayKill(ScoreEventKind kind, string claim, int body, in KillFacts f, int feats, string label)
+        {
+            int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
+            // The sound comes when the streak starts paying: the next task gets the feat.
+            if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
+            ScoreResult paid = Score(kind, claim, feats, label);
+            // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
+            if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
+            AnteLoop.ContractKill(body, f);
+            AnteLoop.UnlockKill(f);
         }
 
         static bool AllFourLimbsOff(Mannequin who)
@@ -382,14 +448,7 @@ namespace OrbitalAnte.Tasks
                     feats = StyleKill.Feats(f, out string style);
                     label = string.IsNullOrEmpty(style) ? "KILL" : style;
                 }
-                int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
-                // The sound comes when the streak starts paying: the next task gets the feat.
-                if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
-                ScoreResult paid = Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
-                // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
-                if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
-                AnteLoop.ContractKill(e.Body, f);
-                AnteLoop.UnlockKill(f);
+                PayKill(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), e.Body, f, feats, label);
             }
             if (who != null) _woke.Remove(who);
 

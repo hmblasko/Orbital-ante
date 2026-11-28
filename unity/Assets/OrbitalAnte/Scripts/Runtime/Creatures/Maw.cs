@@ -61,8 +61,10 @@ namespace OrbitalAnte.Creatures
     ///   from. In the suit that is a force on the suit; the arena's player (who has no water) is slid over the ground.
     /// - In the combat arena it swims in the air a little over the ground, as a stand-in for a sea.
     /// </summary>
-    public sealed class Maw : MonoBehaviour, IWindup
+    public sealed class Maw : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by its sea; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public MawBody Body { get; private set; }
         public MawBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its mouth.</summary>
@@ -435,6 +437,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             MawHit result;
             bool armour = false, soft = false, choked = false;
             switch (part.Piece)

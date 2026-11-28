@@ -145,8 +145,10 @@ namespace OrbitalAnte.Creatures
     ///   by the animator. "Up" is its own transform's up, never +Y.
     /// - It dies only when its soft piece or its armoured one gives way; then it bursts.
     /// </summary>
-    public sealed class Walker : MonoBehaviour, IWindup
+    public sealed class Walker : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public WalkerBody Body { get; private set; }
         public WalkerBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of its body.</summary>
@@ -458,6 +460,7 @@ namespace OrbitalAnte.Creatures
             if (!isJaw && part.Limb >= 0 && part.Segment >= _shown[part.Limb]) return outcome;
             if (isJaw && _jaw[part.Limb - WalkerLayout.Limbs] == null) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             WalkerHit result;
             if (isJaw)
             {

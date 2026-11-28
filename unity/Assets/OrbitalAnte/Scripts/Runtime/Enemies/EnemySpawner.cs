@@ -119,6 +119,24 @@ namespace OrbitalAnte.Enemies
         /// <summary>Everyone standing or lying about, living or not: what the cap is measured against.</summary>
         public int PresentCount { get; private set; }
 
+        /// <summary>
+        /// For the music (<see cref="Audio.MusicDanger"/>): how many armed enemies present know where the player is, and
+        /// whether one that does not is on its way to look (a restless squad, an alarm, overtime's hunt). A walk
+        /// along the present list, no physics: a few times a second is nothing.
+        /// </summary>
+        public void Hunters(out int aware, out bool coming)
+        {
+            aware = 0;
+            coming = false;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive || l.Combat.Weapon == null) continue;
+                if (l.Combat.AwareOfPlayer) aware++;
+                else if (l.Combat.OnItsWay) coming = true;
+            }
+        }
+
         /// <summary>Enemies alive and awake right now.</summary>
         public int LiveCount { get; private set; }
         /// <summary>Enemies killed this run.</summary>

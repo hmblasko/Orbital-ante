@@ -48,8 +48,10 @@ namespace OrbitalAnte.Creatures
     /// - Its scream hurts whoever the rules say is in front of it and in range, unless something solid is between
     ///   them. The rings that race out of it show where that is.
     /// </summary>
-    public sealed class Screamer : MonoBehaviour, IWindup
+    public sealed class Screamer : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public const string WarnSound = Windups.ScreamerWarning, AimSound = Windups.ScreamerAim, ScreamSound = "creature.screamer.scream";
 
         public ScreamerBody Body { get; private set; }
@@ -417,6 +419,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             ScreamerHit result;
             bool armour = false, soft = false;
             switch (part.Piece)

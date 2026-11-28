@@ -29,13 +29,42 @@ namespace OrbitalAnte.Audio
         float _wantSince;
         float _nextGroundRead;
         float _lastDing = -100f;
+        // What the danger is, for the music (MusicDanger): read a few times a second.
+        readonly MusicDanger _danger = new MusicDanger();
+        float _nextHuntRead;
+        int _aware;
+        bool _coming;
+        float _creatureAt = -1000f;
 
-        void OnEnable() => CombatEvents.PlayerHitSomething += OnPlayerHit;
+        void OnEnable()
+        {
+            CombatEvents.PlayerHitSomething += OnPlayerHit;
+            AI.CombatWorld.CreatureWindup += OnCreatureWindup;
+        }
 
         void OnDisable()
         {
             CombatEvents.PlayerHitSomething -= OnPlayerHit;
+            AI.CombatWorld.CreatureWindup -= OnCreatureWindup;
             Watch(null);
+        }
+
+        // A creature began a warning at the player: that is a fight, even though nothing has been fired.
+        void OnCreatureWindup(Creatures.IWindup source) => _creatureAt = Time.time;
+
+        /// <summary>The danger the music follows: the place's calm, and over it being hunted, a fight, the last plates.</summary>
+        float Threat(float calm, PlayerHealth armour)
+        {
+            var sense = new DangerSense
+            {
+                Calm = calm,
+                SinceSeen = Time.time - AI.CombatWorld.PlayerLastSeenAt,
+                SinceCreature = Time.time - _creatureAt,
+                Aware = _aware,
+                Coming = _coming,
+                Armour = armour != null && armour.Max > 0f ? armour.Fraction : 1f,
+            };
+            return _danger.Threat(sense);
         }
 
         void OnPlayerHit(HitOutcome outcome)
@@ -84,6 +113,9 @@ namespace OrbitalAnte.Audio
                 LeaveWorld(d);
                 d.SetMusicContext("menu");
                 d.Intensity.SetThreat(0f);
+                _danger.Reset();
+                _aware = 0;
+                _coming = false;
                 return;
             }
 
@@ -92,13 +124,18 @@ namespace OrbitalAnte.Audio
                 Watch(game.Arena.Health);
                 d.Space = new ListenerSpace { Air = 1f, Enclosure = Enclosure.Open };
                 d.SetMusicContext("surface");
-                // Nothing in the arena reports danger yet, so a little steady threat keeps the walking layers in.
-                d.Intensity.SetThreat(24f);
+                // A little steady threat keeps the walking layers in; sightings, creatures and the last plates go over
+                // it. The range has no camps to hunt the player, so nobody is ever "coming".
+                _aware = 0;
+                _coming = false;
+                d.Intensity.SetThreat(Threat(24f, game.Arena.Health));
                 if (!GameSession.Paused) Footsteps(game.Arena.Player);
             }
             else if (game.Space != null)
             {
-                Watch(null);
+                // The suit's armour: being hurt is heard (DamageTaken), and so are its last plates.
+                Ship.Astronaut crew = game.Space.Astronaut;
+                Watch(crew != null ? crew.Armour : null);
                 Flight(d, game.Space);
             }
         }
@@ -210,7 +247,10 @@ namespace OrbitalAnte.Audio
             {
                 _nextGroundRead = Time.unscaledTime + 0.25f;
                 string want = "flight";
-                Planets.GroundReading g = planets.Read(world.System.Frame.Anchor, craft.transform.position);
+                // Where the listener is: out on foot that is the player (a cave or the sea they have walked or swum
+                // into), not the ship they left.
+                Vector3 ears = crew != null && crew.InTheOpen && crew.Eye != null ? crew.Eye.transform.position : craft.transform.position;
+                Planets.GroundReading g = planets.Read(world.System.Frame.Anchor, ears);
                 if (g.Known)
                 {
                     if (g.InCave || g.Underwater || g.UnderClouds) want = "mystery";
@@ -225,9 +265,18 @@ namespace OrbitalAnte.Audio
             }
             string context = _flightContext;
             d.SetMusicContext(context);
-            // Flying hard is its own excitement: thrust lifts the flight music's layers.
-            // It stays under the level where combat music takes over; that is for fights.
-            d.Intensity.SetThreat(context == "flight" ? 20f + 36f * _engine : 22f);
+            // Who is after the player, read with the ground a few times a second.
+            if (Time.unscaledTime >= _nextHuntRead)
+            {
+                _nextHuntRead = Time.unscaledTime + 0.25f;
+                if (world.Enemies != null) world.Enemies.Hunters(out _aware, out _coming);
+                else { _aware = 0; _coming = false; }
+            }
+            // Flying hard is its own excitement: thrust lifts the flight music's layers, still under the fight music.
+            // A run's later antes are a little fuller (MusicDanger.Calm); danger goes over the top.
+            Tasks.AnteLoop loop = Tasks.AnteLoop.Current;
+            int ante = loop != null && loop.Run != null ? loop.Run.Director.Ante : 0;
+            d.Intensity.SetThreat(Threat(MusicDanger.Calm(context == "flight", _engine, ante), crew != null ? crew.Armour : null));
         }
 
         /// <summary>A tick when the highlighted button changes on any menu.</summary>

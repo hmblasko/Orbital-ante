@@ -46,8 +46,10 @@ namespace OrbitalAnte.Creatures
     ///   is its own transform's up, never +Y.
     /// - It dies only when its head or its fore body gives way; then it comes apart at every joint.
     /// </summary>
-    public sealed class Hunter : MonoBehaviour, IWindup
+    public sealed class Hunter : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
         public HunterBody Body { get; private set; }
         public HunterBrain Brain { get; private set; }
         /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
@@ -302,6 +304,7 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             HunterHit result;
             bool armour = false, soft = false;
             switch (part.Piece)
