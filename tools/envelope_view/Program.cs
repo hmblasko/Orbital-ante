@@ -78,10 +78,11 @@ static class Program
             effectColour = effect != null ? effect.colour : null,
             // As on a profile whose place for it is empty: a cosmetic goes to work by itself, an upgrade waits (Locker).
             useLine = Locker.RevealWords(item, item.category != ItemCategory.Upgrade),
-            // As the game shows it: a prize that went to work by itself in the target-met green, and an effect that
-            // is not drawn yet saying so.
+            // As the game shows it: a prize that went to work by itself in the target-met green, and an effect saying
+            // where it is seen (on your gun, on your lander, round your suit's readout).
             inUse = item.category != ItemCategory.Upgrade && Locker.Usable(item),
-            effectNote = effect != null ? Locker.EffectNotShown : "",
+            effectNote = effect != null ? Locker.EffectWhere(item) : "",
+            effectId = effect != null ? effect.id : "",
         };
         Png.Write(Path.Combine(folder, "Card.png"), EnvelopeArt.Card(item, rarity, effect != null ? effect.colour : null));
 

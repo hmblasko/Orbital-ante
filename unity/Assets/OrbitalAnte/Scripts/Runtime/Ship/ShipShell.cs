@@ -140,6 +140,26 @@ namespace OrbitalAnte.Ship
             return b.Finish();
         }
 
+        /// <summary>
+        /// For each corner of a hull made by <see cref="Hull"/>, 1 where it is painted and 0 where it is the dark trim the
+        /// paint never touches (the dark wall panels, the skirt and the bands round the windows), so a ship paint's
+        /// Celestial effect plays over the paint only (Ralph loop pass 6). Told apart by the trim's own colour.
+        /// </summary>
+        public static float[] PaintedCorners(ShipMesh hull)
+        {
+            if (hull == null || hull.Colors == null) return new float[0];
+            P3 dark = MeshBuilder.Web(HullDark);
+            int count = hull.VertexCount;
+            var painted = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                int o = i * 3;
+                bool trim = Math.Abs(hull.Colors[o] - dark.X) < 1e-4f && Math.Abs(hull.Colors[o + 1] - dark.Y) < 1e-4f && Math.Abs(hull.Colors[o + 2] - dark.Z) < 1e-4f;
+                painted[i] = trim ? 0f : 1f;
+            }
+            return painted;
+        }
+
         static int HullPanel(int column, int row)
         {
             if (ShipLayout.InWindow(column, row)) return -1;

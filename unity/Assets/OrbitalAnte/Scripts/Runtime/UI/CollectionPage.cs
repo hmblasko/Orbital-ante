@@ -70,7 +70,9 @@ namespace OrbitalAnte.UI
             _details.supportRichText = true;
             _open = UiKit.Button(card, "Open an envelope", OpenNext, 50f, 22);
 
-            // Testing only: both on one row, so the page still fits a 16:9 screen with them showing.
+            // Testing only: all on one row, so the page still fits a 16:9 screen with them showing. "Try the next effect"
+            // puts the next Celestial effect on a test gun skin, ship paint and suit piece, in use (Locker.TryNextEffect),
+            // so each effect can be checked in a run; "Clear tests" takes test envelopes and items away and out of use.
             _tests = UiKit.NewRect("Tests", card);
             UiKit.HStack(_tests, 10f);
             UiKit.SetLayout(_tests.gameObject, 38f);
@@ -79,13 +81,19 @@ namespace OrbitalAnte.UI
                 EnvelopeDirector.Instance?.WinTestEnvelope();
                 Refresh();
             }, 38f, 16);
-            UiKit.SetLayout(win.gameObject, 38f, 300f, 1f);
-            Button clear = UiKit.Button(_tests, "Clear test envelopes and items", () =>
+            UiKit.SetLayout(win.gameObject, 38f, 220f, 1f);
+            Button effect = UiKit.Button(_tests, "Try the next effect", () =>
+            {
+                EnvelopeDirector.Instance?.TryNextEffect();
+                Refresh();
+            }, 38f, 16);
+            UiKit.SetLayout(effect.gameObject, 38f, 220f, 1f);
+            Button clear = UiKit.Button(_tests, "Clear tests", () =>
             {
                 EnvelopeDirector.Instance?.ClearTests();
                 Refresh();
             }, 38f, 16);
-            UiKit.SetLayout(clear.gameObject, 38f, 300f, 1f);
+            UiKit.SetLayout(clear.gameObject, 38f, 220f, 1f);
 
             _back = UiKit.Button(card, "Back", () => BackRequested?.Invoke(), 46f, 22);
             _canvas.gameObject.SetActive(false);

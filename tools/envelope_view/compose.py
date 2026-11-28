@@ -143,13 +143,17 @@ def draw_one(canvas, it, textures, by_parent):
     else:
         if it["w"] <= 0 or it["h"] <= 0:
             return
-        group = Image.new("RGBA", (int(it["w"]), int(it["h"])), (0, 0, 0, 0))
+        # A group that does not clip (as in the game, where only a group marked clip has a mask) keeps what its
+        # children draw a little outside its edge: a Celestial prize's beads sit just outside the card.
+        m = 0 if it.get("clip") else 32
+        w, h = it["w"] + 2 * m, it["h"] + 2 * m
+        group = Image.new("RGBA", (int(w), int(h)), (0, 0, 0, 0))
         for child in by_parent.get(it["key"], []):
-            draw_one(group, child, textures, by_parent)
+            draw_one(group, child if m == 0 else dict(child, x=child["x"] + m, y=child["y"] + m), textures, by_parent)
         a = it["rgba"][3]
         if a < 1:
             group = tinted(group, (1, 1, 1, a))
-        place(canvas, group, dict(it, w=it["w"], h=it["h"]))
+        place(canvas, group, dict(it, w=w, h=h, px=(it["px"] * it["w"] + m) / w, py=(it["py"] * it["h"] + m) / h))
 
 
 def main():

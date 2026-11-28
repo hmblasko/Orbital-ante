@@ -183,7 +183,8 @@ namespace OrbitalAnte.Items
                 fromTest = ticket.fromTest,
                 useLine = Locker.RevealWords(item, inUse, weaponName, inPlaceOf),
                 inUse = inUse && Locker.Usable(item),
-                effectNote = effect != null ? Locker.EffectNotShown : "",
+                effectNote = effect != null ? Locker.EffectWhere(item) : "",
+                effectId = effect != null ? effect.id : "",
             };
         }
 
@@ -193,6 +194,21 @@ namespace OrbitalAnte.Items
             if (!TestsAllowed) return;
             Book().KeepTestEnvelope();
             SaveSystem.Save();
+        }
+
+        /// <summary>
+        /// Puts the next Celestial effect to use on test items (an every-gun skin, a ship paint, a suit piece), so each
+        /// effect can be checked in a run (editor and development builds; <see cref="Locker.TryNextEffect"/>). Returns the
+        /// effect's name, or "".
+        /// </summary>
+        public string TryNextEffect()
+        {
+            if (!TestsAllowed) return "";
+            string id = Locker.TryNextEffect(SaveSystem.Data, Catalog(), ItemCatalog.CreateEffects());
+            if (id.Length == 0) return "";
+            SaveSystem.Save();
+            ItemEffect effect = CelestialLooks.Effect(id);
+            return effect != null ? effect.displayName : id;
         }
 
         public int ClearTests()

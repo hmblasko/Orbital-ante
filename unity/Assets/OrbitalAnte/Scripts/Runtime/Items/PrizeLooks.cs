@@ -60,12 +60,14 @@ namespace OrbitalAnte.Items
         Gilt = 7,
     }
 
-    /// <summary>How one gun skin is drawn: a pattern and its two colours (sRGB, 0 to 1).</summary>
+    /// <summary>How one gun skin is drawn: a pattern and its two colours (sRGB, 0 to 1), and a Celestial skin's effect.</summary>
     public struct SkinLook
     {
         public SkinPattern Pattern;
         public float[] Colour;
         public float[] Accent;
+        /// <summary>The Celestial effect the skin carries, drawn over the gun in the player's hands (Ralph loop pass 6), or null.</summary>
+        public CelestialLook? Effect;
         /// <summary>A short name for the material cache: the same look is always the same material. Made once, by <see cref="PrizeLooks.Skin"/>.</summary>
         public string Key;
 
@@ -100,16 +102,35 @@ namespace OrbitalAnte.Items
             }
         }
 
-        public static SkinLook Skin(ItemSpec item)
+        /// <summary>
+        /// How a skin is drawn, with the Celestial effect it carries (<paramref name="effectId"/>, "" or null for none; an id
+        /// no effect has counts as none). The same skin with and without its effect are two looks.
+        /// </summary>
+        public static SkinLook Skin(ItemSpec item, string effectId = null)
         {
             var look = new SkinLook
             {
                 Pattern = PatternOf(item != null ? item.id : ""),
                 Colour = Safe(item?.colour, 0.6f, 0.6f, 0.6f),
                 Accent = Safe(item?.accent, 0.9f, 0.8f, 0.5f),
+                Effect = CelestialLooks.For(effectId, CelestialPlace.Gun),
             };
-            look.Key = SkinLook.KeyFor(look.Pattern, look.Colour, look.Accent);
+            look.Key = SkinLook.KeyFor(look.Pattern, look.Colour, look.Accent) + (look.Effect.HasValue ? "+" + look.Effect.Value.Key : "");
             return look;
+        }
+
+        /// <summary>
+        /// The skin as one gun wears it: a gun that can blow up in the player's hands (the Wildcard,
+        /// <c>WeaponData.backfireChance</c> above 0) never shows a Celestial effect, because moving light on that gun would
+        /// read as a warning that it is about to. Its paint and pattern stay.
+        /// </summary>
+        public static SkinLook? OnGun(SkinLook? look, bool canBlowUp)
+        {
+            if (!look.HasValue || !canBlowUp || !look.Value.Effect.HasValue) return look;
+            SkinLook plain = look.Value;
+            plain.Effect = null;
+            plain.Key = SkinLook.KeyFor(plain.Pattern, plain.Colour, plain.Accent);
+            return plain;
         }
 
         // ------------------------------------------------------------------ ship paints
@@ -217,6 +238,11 @@ namespace OrbitalAnte.Items
         /// <summary>A patch sewn on the suit plate.</summary>
         public bool Badge;
         public float[] BadgeColour, BadgeAccent;
+        /// <summary>
+        /// The Celestial effects on the suit's pieces in use (helmet, visor, suit, pack, badge, each once), drawn as beads
+        /// of light round the suit plate (Ralph loop pass 6), or null for none. Set by LockerLook.Suit from the save.
+        /// </summary>
+        public string[] Effects;
 
         /// <summary>The shade colour the suit is built with (SuitHud's own).</summary>
         public static readonly float[] StandardShade = { 0.04f, 0.03f, 0.03f };

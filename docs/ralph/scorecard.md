@@ -69,6 +69,17 @@ None of them is a playtest result. Bar: 8 on every line.
 | 5 | Fun unlockables | 7 | = | Reach closed (the gap listed since pass 4): eighteen one-run goals, eight of them looks in places of their own, three within a first run's reach; each look goes on as its moment shows (`LockerLook.Refresh`), an envelope's prize takes an earned look's place, and the envelope's printed odds are unchanged (3,000 envelopes rolled both ways, `EarnedLookTests`) | Still short of 8: the Celestial tier's effects are not drawn (Part B section 12's "special effects (e.g. fire)"; the words say "not shown yet"), the one piece of this line the cloud can still close; paintings wait for frames and the five public-domain pictures |
 | 6 | All-round fun | 7 | +1 | The reason for one more run now reaches a first-time player: a first run tends to end with a look on the lander or the guns and the next unlock named, where before a new player's Collection stayed empty for many runs | Moves with the other five, and with a playtest |
 
+## Pass 6 (28 Nov 2026): after the Celestial effects are drawn
+
+| # | Criterion | Score | Change | Evidence | Biggest gaps |
+|---|---|---|---|---|---|
+| 1 | Clear goal | 8 | = | Unchanged | Nothing left that can be closed without the Deck |
+| 2 | Easily understandable | 7 | = | Every effect says where it is seen ("on every gun", "on that gun", "on your lander", "round your suit's readout"), and none can be read as a hit, a warning, damage or an aim tell: light on the item only, never past white, steady second to second, faded by the hull's damage, never on an enemy's gun or on the gun that can blow up, the plate's beads outside the plate, paler than every readout colour that means something and dark in a fight or beside a warning (held by `CelestialLooksTests`) | Where to shoot a creature is taught only by knocks, blood and the hit marker; nothing seen or heard in Unity |
+| 3 | Strong aesthetics | 6 | = | Six moving effects made from code, judged offline from the shader's own sums: flames, curtains, comets, clouds, falling stars and turning dark bands on the gun and the hull (fire as slow clouds on the hull), and beads round the suit plate and round the prize card on the reveal | Unchanged: the guns (Matthew's downloads), the seat view (PR 72), nothing of the realism passes seen in Unity |
+| 4 | Enjoyable gameplay | 7 | = | Unchanged | Land creatures live only in the practice range; nothing seen in Unity |
+| 5 | Fun unlockables | 8 | +1 | The top tier is no longer a name only (the gap listed since pass 4): each of the six effects is drawn where its item shows, on the gun in hand, on the lander's hull or round the suit's readout (`Items/CelestialLooks.cs`, `OA_Fx` in `OA_Model.shader`, `SuitHud` beads), and the words say where; with pass 5's reach this is what the design review asked for 8 | Nothing left that can be closed without the Deck: paintings wait for frames and the five public-domain pictures, ship parts for the ship's parts (Part B's own unlock targets), and whether the unlocks feel worth chasing is a playtest question |
+| 6 | All-round fun | 7 | = | Moves with the other five | Moves with the other five, and with a playtest |
+
 ## Gaps, biggest first
 
 1. ~~**Unlockables: goal unlocks.**~~ Done in pass 1.
@@ -76,9 +87,8 @@ None of them is a playtest result. Bar: 8 on every line.
 3. ~~**Goals and gameplay: creature kills pay; the music hears being hurt and hunted.**~~ Done in pass 3.
 4. ~~**Unlockables: envelope prizes do something.**~~ Done in pass 4 (the Locker).
 5. ~~**Unlockables: reach.**~~ Done in pass 5 (earned looks).
-6. **Unlockables: Celestial effects drawn.** The top tier (Part B section 12: "an Unusual-like top tier featuring
-   special effects (e.g. fire)") is rolled and saved, but its effect is not drawn on the item; the words say "not
-   shown yet". Doable in code. Paintings framed on the cabin wall stay blocked on the five public-domain pictures.
+6. ~~**Unlockables: Celestial effects drawn.**~~ Done in pass 6. Paintings framed on the cabin wall stay blocked on
+   the five public-domain pictures.
 7. **Understandable: where to shoot a creature.** Only knocks, blood and the hit marker teach a creature's soft and
    armoured pieces.
 8. **Gameplay: land creatures on the real worlds** (walkers need ground following first).

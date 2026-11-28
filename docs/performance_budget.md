@@ -598,3 +598,23 @@ To read off in Unity: jet over a camp and shoot, and read `TaskDirector.OnPlayer
 | Title screen Unlocks and Collection pages | The Unlocks text set once per visit or list switch, a save at most once per list with something new; the Collection runs an 18-step check when it opens and saves only when it mended or tidied something | title screen only |
 
 To read off in Unity: on a new profile, shoot an enemy's arm off, then a leg, and read `OA.SaveSystem.Save` in the Profiler's CPU Usage on the frame after the fight ends (Time ms); then the same on the frame after the first touchdown on the Moon, and on the frame after that read `Ship.Repaint` (Time ms and GC Alloc: the hull painted Roll Pattern); at a gun ladder hand-over with a skin in use, read `PlayerWeapons` (Time ms and GC Alloc).
+
+## Celestial effects (Ralph loop pass 6, 28 Nov 2026): estimates from reading the code and an offline compile, not measured in Unity
+
+The shader counts come from glslang with stand-in URP files, then Mesa's RADV/ACO compiler for the Deck's GPU on a
+null device: not Unity's compiler and not a Deck. Times on the Deck are guesses.
+
+| | Cost | Cap |
+|---|---|---|
+| Effect on the held gun and the hull (`OA_Fx` in `OA_Model.shader`) | A branch on `_FxSet.y` (a material value), taken one way by a whole draw, and each motion a branch of its own. Where it is drawn, offline +200 (Event Horizon) to +390 (Solar Flare) steps a pixel. It works out its share first (painted corner, damage shade, the pixel's footprint) and returns at none, so the hull's dark trim, broken panels and pixels too far away for the pattern pay a few steps only, and the hull's turn round its axis (`atan2`) is worked out on the hull alone. Guessed: Solar Flare on the gun 0.17 to 0.35 ms aiming down sights, 0.07 to 0.14 ms from the hip; Aurora on the hull 0.28 to 0.55 ms with the lander filling half the screen (beside it, or a pole camera's view), up to 1.1 ms filling it; nothing through the windows from the seat | one gun in hand, one hull |
+| Effect code in every model draw | A program's registers are counted over all its code, so every `OA_Model` forward pixel, worn or not, needs 64 VGPRs instead of 56 (16 waves a SIMD, not 18), offline, measured again after the share-first change. Guessed under 0.1 ms in a fight | 0.1 ms; past it, make the effect a keyword (`multi_compile_local _ _OA_FX`, twelve more programs) and warm it at a run's start, because a gun ladder step can bring a Celestial gun into the hand mid-fight |
+| Model pipeline build | Offline, an `OA_Model` forward pipeline typically builds in 40 to 52 ms (22 to 33 ms without the effect code), at its first draw on a cold shader cache: the first trooper, gun or base of a run, which is what "Model shader" above guessed at 5 to 30 ms. Steam's shader pre-caching and Mesa's disk cache take it away on later runs; nothing in the game warms shaders yet | warm at a run's start (the known follow-up in "Model shader") |
+| Suit plate beads (`SuitHud.LightBeads`) | 86 colours a frame while a suit effect shows, dark and skipped in a fight and beside a warning: 2 to 17 µs a frame on the cloud, 0 B, guessed under 0.1 ms on the Deck; only the beads' own canvas is batched again (guessed 0.02 to 0.05 ms, 1 to 2 UI draw calls); 86 objects built when the HUD or the suit look changes (guessed 0.5 to 2 ms, once) | one plate, 86 beads |
+| Reveal beads (`EnvelopeScene.EffectBeads`) | About 110 more pieces in the envelope screen's draw list while a Celestial prize's reveal shows, their keys made each frame like the screen's other pieces (a few KB of strings a frame), on a page out of play | the reveal only |
+| Celestial materials | Up to two per gun material per worn look (about 10, guessed 0.1 to 0.4 ms each as the gun comes into the hand), one per hull effect; no new shader programs | kept for the world |
+
+To read off in Unity: (1) put Aurora on the hull ("Try the next effect" in the Collection) and, beside the lander,
+read the GPU frame time in the Profiler's GPU module with the effect on and off; (2) the same with Solar Flare on the
+gun, aiming down sights; (3) with a suit effect, outside a fight, `SuitHud.LateUpdate` and `Canvas.BuildBatch` in CPU
+Usage (Time ms and GC Alloc); (4) on the Deck, Radeon GPU Profiler's VGPR count for `OA_Model`'s forward pass, and the
+frame on which the first trooper of a run comes into view.

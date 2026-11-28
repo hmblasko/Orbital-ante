@@ -40,6 +40,10 @@ namespace OrbitalAnte.Planets
         static readonly int SkinColourId = Shader.PropertyToID("_SkinColour");
         static readonly int SkinAccentId = Shader.PropertyToID("_SkinAccent");
         static readonly int SkinSetId = Shader.PropertyToID("_SkinSet");
+        static readonly int FxColourId = Shader.PropertyToID("_FxColour");
+        static readonly int FxSecondId = Shader.PropertyToID("_FxSecond");
+        static readonly int FxSetId = Shader.PropertyToID("_FxSet");
+        static readonly int FxShapeId = Shader.PropertyToID("_FxShape");
         static readonly int GroundId = Shader.PropertyToID("_Ground");
         static readonly int BackdropId = Shader.PropertyToID("_Backdrop");
         static readonly int BackdropStrengthId = Shader.PropertyToID("_BackdropStrength");
@@ -329,7 +333,9 @@ namespace OrbitalAnte.Planets
         /// a world is built. Null when <paramref name="source"/> is not drawn with the model shader (simple shaders,
         /// Shine at 0): the gun then keeps its own look.
         /// </summary>
-        public static Material SkinnedModel(Material source, string look, Color colour, Color accent, int pattern, float cover = 1f)
+        /// <param name="effect">A Celestial skin's effect (Ralph loop pass 6), drawn over the gun by the shader's OA_Fx; null for none. The look's key must say which.</param>
+        public static Material SkinnedModel(Material source, string look, Color colour, Color accent, int pattern, float cover = 1f,
+            OrbitalAnte.Items.CelestialLook? effect = null)
         {
             Look();
             if (source == null || _model == null || source.shader != _model || string.IsNullOrEmpty(look)) return null;
@@ -340,9 +346,53 @@ namespace OrbitalAnte.Planets
             m.SetColor(SkinAccentId, accent);
             // A cover of 0 would switch the skin off; anything put on is at least a trace.
             m.SetVector(SkinSetId, new Vector4(pattern, Mathf.Clamp(cover, 0.01f, 1f), 0f, 0f));
+            SetCelestial(m, effect);
             SkinCache[key] = m;
             return m;
         }
+
+        /// <summary>
+        /// The lander's outside hull wearing a ship paint's Celestial effect (Ralph loop pass 6): the model shader's plain
+        /// material (which lights the hull's corner colours exactly as the ground's shader does, with no shine, since the
+        /// hull says nothing about it) with the effect set, drawn only on the panels the mesh marks as painted (the alpha of
+        /// its colours). One per effect, destroyed with the others when a world is built. Null under simple shaders or
+        /// with Shine at 0 (no model shader): the hull then keeps its own material and shows no effect.
+        /// </summary>
+        public static Material CelestialHull(OrbitalAnte.Items.CelestialLook effect)
+        {
+            Look();
+            if (_model == null || effect.Motion == OrbitalAnte.Items.CelestialMotion.None) return null;
+            Material source = Model(1f, 0f, 1f);
+            if (source == null || source.shader != _model) return null;
+            var key = new SkinKey(source, "hull " + effect.Key);
+            if (SkinCache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            var m = new Material(source) { name = "OA_Model hull " + effect.EffectId };
+            SetCelestial(m, effect);
+            SkinCache[key] = m;
+            return m;
+        }
+
+        /// <summary>
+        /// Sets a model material's Celestial effect (the shader's _FxColour, _FxSecond, _FxSet and _FxShape), or switches it
+        /// off. Colours are sRGB (Unity makes them linear). A strength of 0 would switch the effect off, so anything put on
+        /// is at least a trace; the shader never lifts a pixel past white whatever the numbers say.
+        /// </summary>
+        static void SetCelestial(Material m, OrbitalAnte.Items.CelestialLook? effect)
+        {
+            if (m == null) return;
+            if (!effect.HasValue || effect.Value.Motion == OrbitalAnte.Items.CelestialMotion.None)
+            {
+                m.SetVector(FxSetId, new Vector4(0f, 0f, 0f, 1f));
+                return;
+            }
+            OrbitalAnte.Items.CelestialLook fx = effect.Value;
+            m.SetColor(FxColourId, Srgb(fx.Colour));
+            m.SetColor(FxSecondId, Srgb(fx.Second));
+            m.SetVector(FxSetId, new Vector4((int)fx.Motion, Mathf.Clamp(fx.Strength, 0.01f, 1f), Mathf.Max(0f, fx.Speed), Mathf.Max(fx.Size, 0.001f)));
+            m.SetVector(FxShapeId, new Vector4(Mathf.Max(fx.Finest, 0.001f), fx.RoundUpright ? 1f : 0f, Mathf.Clamp01(fx.Dark), 0f));
+        }
+
+        static Color Srgb(float[] c) => c != null && c.Length == 3 ? new Color(c[0], c[1], c[2], 1f) : Color.white;
 
         // Unity's particle shaders are the standard ones that show a mesh's own colours.
         static Material VertexLitBase()

@@ -211,7 +211,8 @@ namespace OrbitalAnte.Look
 
         /// <summary>
         /// Dresses every library model piece under <paramref name="root"/> in a gun skin from the Locker, or takes a
-        /// skin off (<paramref name="look"/> null). Pieces that shine by themselves, and anything that is not drawn
+        /// skin off (<paramref name="look"/> null), with a Celestial skin's effect (Ralph loop pass 6) in the same material.
+        /// Pieces that shine by themselves, and anything that is not drawn
         /// with a library model material (stand-in shapes, a third-party model, effects), are left as they are. Each
         /// skinned material gets its cabin or open-air twin too, so <see cref="SetIndoors"/> keeps working. Shared
         /// materials only: wearing the same skin again creates nothing. Under simple shaders, or with Shine at 0, a
@@ -273,7 +274,7 @@ namespace OrbitalAnte.Look
 
         static Material Skinned(Material plain, Items.SkinLook look)
         {
-            Material m = PlanetMaterials.SkinnedModel(plain, look.Key, ToColour(look.Colour), ToColour(look.Accent), (int)look.Pattern);
+            Material m = PlanetMaterials.SkinnedModel(plain, look.Key, ToColour(look.Colour), ToColour(look.Accent), (int)look.Pattern, 1f, look.Effect);
             if (m != null) PlainOf[m] = plain;
             return m;
         }

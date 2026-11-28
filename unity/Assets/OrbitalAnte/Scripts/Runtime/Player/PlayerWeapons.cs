@@ -103,7 +103,7 @@ namespace OrbitalAnte.Player
         {
             Weapon weapon = Current;
             if (weapon == null) return;
-            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data != null ? weapon.Data.Id : null));
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data));
             OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
         }
 
@@ -174,7 +174,7 @@ namespace OrbitalAnte.Player
             weapon.transform.localScale = Vector3.one;
             // The Locker's skin for this kind of gun (or the one for every gun), on any gun that comes into the
             // player's hands, picked up or handed over; before the cabin light, whose twin the skin brings with it.
-            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data != null ? weapon.Data.Id : null));
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data));
             OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
             _holder.localPosition = RestPosition(weapon.Data);
             _holder.localRotation = Quaternion.identity;

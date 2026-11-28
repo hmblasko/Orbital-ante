@@ -477,7 +477,7 @@ namespace OrbitalAnte.Tests
                     useLine = upgrade ? Locker.RevealWords(Find("UpgradeHotLoads"), false) : Locker.RevealWords(Find("PaintMoonDust"), true),
                     inUse = !upgrade,
                     effectName = celestial ? "Aurora" : "", effectColour = celestial ? new[] { 0.35f, 1f, 0.65f } : null,
-                    effectNote = celestial ? Locker.EffectNotShown : "",
+                    effectNote = celestial ? Locker.EffectWhere(Find("PaintMoonDust")) : "",
                 };
                 var items = new List<DrawItem>();
                 EnvelopeScene.Frame(show, EnvelopeScene.BeatsFor(show.rarity).Done + 1f, items);
@@ -491,7 +491,7 @@ namespace OrbitalAnte.Tests
                 Assert.Less(use.y + use.h * 0.5f, prompt.y - prompt.h * 0.5f, "above the prompt");
                 Assert.AreEqual(upgrade ? 0.96f : 0.624f, use.r, 1e-3f, upgrade ? "a hint in cream" : "in use, in the Collection's green");
                 if (celestial)
-                    Assert.AreEqual("Effect: Aurora (not shown yet)", items.Find(i => i.key == "effect").text, "an effect is never promised as if it were drawn");
+                    Assert.AreEqual("Effect: Aurora (on your lander)", items.Find(i => i.key == "effect").text, "the reveal says where the effect is seen");
             }
         }
     }

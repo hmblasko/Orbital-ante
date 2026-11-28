@@ -139,7 +139,7 @@ namespace OrbitalAnte.Items
             var extra = new List<string>();
             UnlockDefinition goal = ItemCatalog.IsEarned(item.id) ? UnlockCatalog.ForTarget(item.id) : null;
             if (goal != null) extra.Add("Earned for " + UnlockCatalog.ShortGoal(goal.goal));
-            if (!string.IsNullOrEmpty(effectName)) extra.Add("Effect: " + effectName + " (" + Locker.EffectNotShown + ")");
+            if (!string.IsNullOrEmpty(effectName)) extra.Add(Locker.EffectWords(item, effectName));
             if (line != null && line.count > 1) extra.Add("You have " + line.count);
             if (line != null && line.fromTest) extra.Add("Test item");
             if (extra.Count > 0) s.Append('\n').Append(string.Join("  ·  ", extra));

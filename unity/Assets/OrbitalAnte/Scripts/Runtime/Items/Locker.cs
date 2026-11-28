@@ -9,7 +9,9 @@ namespace OrbitalAnte.Items
     // upgrade changes every run (its gain and its cost, Part B section 4's sidegrade rule), a ship paint goes on the
     // lander, a gun skin on the player's guns, and the suit's pieces on what the player sees of their own suit (the
     // edge of the helmet, the tint of the visor, the suit's readout plate, the jets' flames). Paintings are kept until
-    // the cabin has frames for them. Plain C#; the Unity side reads what is in use as a run is built.
+    // the cabin has frames for them. A Celestial item's effect is drawn where the item shows (pass 6, CelestialLooks):
+    // on the gun in the player's hands, on the lander's hull, or round the suit's readout. Plain C#; the Unity side reads
+    // what is in use as a run is built.
 
     /// <summary>Where a prize is used. One item at a time in each, except skins (one for every gun, and one of a gun's own per gun).</summary>
     public enum LockerSlot
@@ -353,8 +355,105 @@ namespace OrbitalAnte.Items
             return "Something is already in its place: swap it in from Collection on the title screen.";
         }
 
-        /// <summary>What the reveal and the Collection add after a Celestial effect's name while effects are not drawn.</summary>
-        public const string EffectNotShown = "not shown yet";
+        /// <summary>
+        /// Where a Celestial effect on this item is seen, said in brackets after the effect's name on the reveal and in the
+        /// Collection (Ralph loop pass 6): "on every gun" for a skin for every gun, "on that gun" for a gun's own skin (the
+        /// line above it names the gun; the one gun that can blow up, the Wildcard, never shows an effect), "on your lander"
+        /// (its painted hull), "round your suit's readout" (beads of light round the plate, for every suit piece: the
+        /// player never sees the suit itself). Empty for an item that cannot carry one.
+        /// </summary>
+        public static string EffectWhere(ItemSpec item)
+        {
+            switch (SlotOf(item))
+            {
+                case LockerSlot.Skin: return string.IsNullOrEmpty(item.weaponId) ? "on every gun" : "on that gun";
+                case LockerSlot.Paint: return "on your lander";
+                case LockerSlot.Helmet:
+                case LockerSlot.Visor:
+                case LockerSlot.Suit:
+                case LockerSlot.Pack:
+                case LockerSlot.Badge: return "round your suit's readout";
+                default: return "";
+            }
+        }
+
+        /// <summary>A Celestial effect's line on the reveal and in the Collection: "Effect: Aurora (on every gun)".</summary>
+        public static string EffectWords(ItemSpec item, string effectName)
+        {
+            if (string.IsNullOrEmpty(effectName)) return "";
+            string where = EffectWhere(item);
+            return "Effect: " + effectName + (where.Length > 0 ? " (" + where + ")" : "");
+        }
+
+        /// <summary>
+        /// The Celestial effects on the items in use in these places, in the order given, each once: only items that
+        /// exist and still fit their place, and only effects the game draws (<see cref="CelestialLooks.Effect"/>). Single
+        /// places only (not gun skins, which go by gun). Empty when there are none.
+        /// </summary>
+        public static List<string> EffectsInUse(SaveData save, Func<string, ItemSpec> find, params LockerSlot[] slots)
+        {
+            var effects = new List<string>();
+            if (find == null || slots == null) return effects;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                LockerItem place = Worn(save, slots[i]);
+                if (place == null || string.IsNullOrEmpty(place.effectId) || effects.Contains(place.effectId)) continue;
+                ItemSpec item = find(place.itemId);
+                if (item == null || SlotOf(item) != slots[i] || CelestialLooks.Effect(place.effectId) == null) continue;
+                effects.Add(place.effectId);
+            }
+            return effects;
+        }
+
+        /// <summary>
+        /// Editor and development builds only (the Collection's test row, "Try the next effect"): puts the next Celestial
+        /// effect to use on an every-gun skin, a ship paint and a suit piece, as test items, so each of the six can be seen
+        /// in the game without opening some two hundred envelopes (Celestial is half a per cent of them). Each press brings
+        /// the effect after the one the lander wears now, in the catalogue's order. The lines are test items, cleared with
+        /// the rest (<see cref="EnvelopeBook.ClearTests"/>, then <see cref="Tidy"/>); a real line the player already owns is
+        /// used as it is, never counted up. Returns the effect's id, or "" when nothing could be put to use.
+        /// </summary>
+        public static string TryNextEffect(SaveData save, IReadOnlyList<ItemSpec> catalog, IReadOnlyList<ItemEffect> effects)
+        {
+            if (save == null || catalog == null || effects == null || effects.Count == 0) return "";
+            if (save.items == null) save.items = new List<OwnedItem>();
+            Loadout l = Of(save);
+            int at = -1;
+            for (int i = 0; i < effects.Count; i++)
+                if (effects[i] != null && effects[i].id == l.paint.effectId) at = i;
+            ItemEffect effect = effects[(at + 1) % effects.Count];
+            if (effect == null) return "";
+            var owned = new ItemInventory(save.items);
+            bool any = false;
+            foreach (ItemSpec item in TestBases(catalog))
+            {
+                if (!owned.Has(item.id, effect.id))
+                    owned.Add(new Prize { itemId = item.id, effectId = effect.id, rarity = ItemRarity.Celestial }, 0, true);
+                any |= Use(save, item, effect.id);
+            }
+            return any ? effect.id : "";
+        }
+
+        /// <summary>The items <see cref="TryNextEffect"/> puts an effect on: an every-gun skin, a ship paint and a suit piece (a badge if there is one).</summary>
+        static List<ItemSpec> TestBases(IReadOnlyList<ItemSpec> catalog)
+        {
+            ItemSpec skin = null, paint = null, suit = null;
+            for (int i = 0; i < catalog.Count; i++)
+            {
+                ItemSpec item = catalog[i];
+                if (item == null || !item.CanCarryEffect || !PrizeRoll.InEnvelopes(item)) continue;
+                LockerSlot slot = SlotOf(item);
+                if (slot == LockerSlot.Skin && string.IsNullOrEmpty(item.weaponId)) { if (skin == null) skin = item; }
+                else if (slot == LockerSlot.Paint) { if (paint == null) paint = item; }
+                else if (slot == LockerSlot.Badge) suit = suit != null && SlotOf(suit) == LockerSlot.Badge ? suit : item;
+                else if (slot >= LockerSlot.Helmet && slot <= LockerSlot.Pack && suit == null) suit = item;
+            }
+            var bases = new List<ItemSpec>(3);
+            if (skin != null) bases.Add(skin);
+            if (paint != null) bases.Add(paint);
+            if (suit != null) bases.Add(suit);
+            return bases;
+        }
 
         /// <summary>
         /// The Collection's line on whether an item is in use and what pressing it does: "In use. Press to take it off."

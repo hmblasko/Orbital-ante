@@ -14,7 +14,8 @@ namespace OrbitalAnte.Spacewalk
     /// chevrons that go dark one by one; jet fuel as a row of blocks. Your speed and what it is measured against,
     /// the tether and your stance are lines just above the plate. One notice at a time on a strip low in the
     /// middle, with hazard stripes when it is an alarm. The lower corners of the view are shaded like the edge of
-    /// a helmet's glass, and the rim of the visor glows on the side a jet is burning.
+    /// a helmet's glass, and the rim of the visor glows on the side a jet is burning. A suit piece with a Celestial
+    /// effect (Ralph loop pass 6) runs beads of pale light round the outside of the plate.
     /// </summary>
     public sealed class SuitHud : MonoBehaviour
     {
@@ -56,6 +57,26 @@ namespace OrbitalAnte.Spacewalk
         Items.SuitLook _look;
         Color _jetColour, _tint = Color.white;
         float _tintShown;
+        // The Celestial effects on the suit's pieces (Ralph loop pass 6): beads of light round the outside of the plate,
+        // on a canvas of their own, so their colours changing every frame never make the rest of the readout re-batch.
+        RectTransform _beadFrame;
+        Image[] _beads;
+        Items.CelestialPlate.Bead[] _beadPath;
+        Items.CelestialPlate.Look[] _beadLooks;
+        float _beadRound;
+        /// <summary>How much of the beads' light shows: 0 while they are hushed (CelestialPlate.Hushed, Shown).</summary>
+        float _beadShown = 1f;
+        // Whether the plate showed last frame, how many times it has come up (0 the first: which effect's turn it is) and
+        // when it last did (the beads' flourish, CelestialPlate.Strength).
+        bool _plateUp;
+        int _timesUp = -1;
+        float _plateUpAt = -1000f;
+        // When a creature last began a warning at the player (game time): a fight, for the beads.
+        float _creatureAt = -1000f;
+        /// <summary>How long a fresh hit flashes the armour's plates.</summary>
+        const float HitFlashSeconds = 0.25f;
+        Texture2D _beadTexture;
+        Sprite _beadSprite;
 
         public bool Shown => _panel != null && _panel.gameObject.activeSelf;
         public string NoticeShown => _shownNotice;
@@ -112,7 +133,9 @@ namespace OrbitalAnte.Spacewalk
             HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
                 Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
             if (_look.Badge) SewBadge(_plate);
+            BuildBeads();
             Items.LockerLook.Changed += ApplyLook;
+            OrbitalAnte.AI.CombatWorld.CreatureWindup += OnCreatureWindup;
 
             // Air: a tank that drains, its per cent, and the time left at a resting breath.
             Image tank = HullKit.Box(_plate, "Tank", 18f, 15f, 30f, 92f, HullKit.PlateEdge);
@@ -155,9 +178,10 @@ namespace OrbitalAnte.Spacewalk
             _jetBlocks = HullKit.Blocks(_jetRow, "Jet", 254f, 99f, HullReadout.JetBlocks, 10f, 10f, 3f);
             _plate.gameObject.SetActive(false);
 
-            // Speed, tether and stance: lines just above the plate.
+            // Speed, tether and stance: lines just above the plate, clear of a Celestial effect's beads, which run 4 px
+            // outside the plate's edge (its top is at 146; the beads reach 153).
             _panel = UiKit.NewRect("Suit", _canvas.transform);
-            UiKit.Pin(_panel, new Vector2(0f, 0f), new Vector2(HullKit.Margin + 2f, 152f), new Vector2(520f, 72f));
+            UiKit.Pin(_panel, new Vector2(0f, 0f), new Vector2(HullKit.Margin + 2f, 160f), new Vector2(520f, 72f));
             // Shadow only: this line is rewritten several times a second, and an outline draws it four more times.
             _speed = UiKit.Halo(HullKit.Mono(_panel, string.Empty, 17, UiKit.Cream));
             UiKit.Pin((RectTransform)_speed.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(520f, 22f));
@@ -169,7 +193,7 @@ namespace OrbitalAnte.Spacewalk
             UiKit.Pin((RectTransform)_stance.transform, new Vector2(0f, 0f), new Vector2(0f, 48f), new Vector2(520f, 22f));
 
             // The one notice: a strip low in the middle, between the two plates. Hazard stripes mean an alarm.
-            _noticePlate = HullKit.Plate(_canvas.transform, "Notice", new Vector2(0.5f, 0f), new Vector2(0f, 104f), new Vector2(380f, 46f), false);
+            _noticePlate = HullKit.Plate(_canvas.transform, "Notice", new Vector2(0.5f, 0f), new Vector2(HullReadout.NoticeShift, 104f), new Vector2(380f, 46f), false);
             _noticeStripes = new[] { HullKit.HazardStrip(_noticePlate, true, 6f), HullKit.HazardStrip(_noticePlate, false, 6f) };
             _notice = HullKit.Stencil(_noticePlate, string.Empty, 21, Color.white, TextAnchor.MiddleCenter);
             UiKit.Stretch((RectTransform)_notice.transform);
@@ -267,6 +291,7 @@ namespace OrbitalAnte.Spacewalk
             if (!SameColour(was.PlateFace, _look.PlateFace) || !SameColour(was.PlateEdge, _look.PlateEdge))
                 HullKit.PaintPlate(_plate, Items.LockerLook.Colour(_look.PlateFace, HullKit.PlateFace, HullKit.PlateFace.a),
                     Items.LockerLook.Colour(_look.PlateEdge, HullKit.PlateEdge, HullKit.PlateEdge.a));
+            if (!SameWords(was.Effects, _look.Effects)) BuildBeads();
             if (was.Badge == _look.Badge && SameColour(was.BadgeColour, _look.BadgeColour) && SameColour(was.BadgeAccent, _look.BadgeAccent)) return;
             if (_badge != null)
             {
@@ -275,6 +300,124 @@ namespace OrbitalAnte.Spacewalk
             }
             if (_look.Badge) SewBadge(_plate);
         }
+
+        static bool SameWords(string[] a, string[] b)
+        {
+            int na = a != null ? a.Length : 0, nb = b != null ? b.Length : 0;
+            if (na != nb) return false;
+            for (int i = 0; i < na; i++) if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// The beads round the plate for the Celestial effects on the suit's pieces (made again when those change mid-run),
+        /// or none. One soft dot stretched along the edge per bead, placed by <c>CelestialPlate.Path</c> just outside the
+        /// plate and clear of its corners, so a bead never lies over a number or the plate's own edge.
+        /// </summary>
+        void BuildBeads()
+        {
+            DropBeads();
+            string[] effects = _look.Effects;
+            if (effects == null || effects.Length == 0 || _plate == null) return;
+            var looks = new System.Collections.Generic.List<Items.CelestialPlate.Look>(effects.Length);
+            for (int i = 0; i < effects.Length; i++)
+            {
+                Items.CelestialPlate.Look? look = Items.CelestialPlate.For(effects[i]);
+                if (look.HasValue) looks.Add(look.Value);
+            }
+            if (looks.Count == 0) return;
+            _beadLooks = looks.ToArray();
+            // A look put on mid-run shows off at once (the plate coming up does the same).
+            _plateUpAt = Time.unscaledTime;
+            Vector2 size = _plate.sizeDelta;
+            _beadPath = Items.CelestialPlate.Path(size.x, size.y).ToArray();
+            _beadRound = 2f * (size.x + size.y);
+            if (_beadSprite == null) MakeBeadSprite();
+
+            _beadFrame = UiKit.NewRect("Celestial", _plate);
+            UiKit.Stretch(_beadFrame);
+            _beadFrame.SetAsFirstSibling();
+            // A canvas inside the suit's: drawn in its place among the plate's pieces, batched by itself.
+            _beadFrame.gameObject.AddComponent<Canvas>();
+            _beads = new Image[_beadPath.Length];
+            for (int i = 0; i < _beadPath.Length; i++)
+            {
+                Items.CelestialPlate.Bead b = _beadPath[i];
+                RectTransform rt = UiKit.NewRect("Bead", _beadFrame);
+                rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = new Vector2(b.X, -b.Y);
+                rt.sizeDelta = b.Upright
+                    ? new Vector2(Items.CelestialPlate.BeadWidth, Items.CelestialPlate.BeadLength)
+                    : new Vector2(Items.CelestialPlate.BeadLength, Items.CelestialPlate.BeadWidth);
+                Image bead = UiKit.AddImage(rt, Color.white, _beadSprite);
+                bead.type = Image.Type.Simple;
+                bead.canvasRenderer.SetAlpha(0f);
+                _beads[i] = bead;
+            }
+        }
+
+        void DropBeads()
+        {
+            if (_beadFrame != null) Destroy(_beadFrame.gameObject);
+            _beadFrame = null;
+            _beads = null;
+            _beadPath = null;
+            _beadLooks = null;
+        }
+
+        /// <summary>A soft round dot (brightest in the middle, gone at its edge), stretched into each bead.</summary>
+        void MakeBeadSprite()
+        {
+            const int n = 32;
+            _beadTexture = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "CelestialBead" };
+            var px = new Color32[n * n];
+            for (int y = 0; y < n; y++)
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;
+                    float d = u * u + v * v;
+                    float a = d >= 1f ? 0f : Mathf.Exp(-d * 3f) * (1f - d);
+                    px[y * n + x] = new Color(1f, 1f, 1f, a);
+                }
+            }
+            _beadTexture.SetPixels32(px);
+            _beadTexture.Apply(false, true);
+            _beadSprite = Sprite.Create(_beadTexture, new Rect(0f, 0f, n, n), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+        }
+
+        /// <summary>
+        /// Lights the beads for this moment: the effect whose turn it is (the next each time the plate comes up), in its two
+        /// pale colours, at full strength for a moment as the plate comes up and then at its idle strength, and dark while
+        /// they are hushed: an alarm on the notice beside the plate, the plate itself blinking (<paramref name="plateBlinks"/>),
+        /// or a fight. Unscaled time, like the rest of the readout: a hitstop, Focus or a pause never changes the motion.
+        /// Colours go on the renderers: no layout or mesh is rebuilt, only the beads' own canvas is batched again.
+        /// </summary>
+        void LightBeads(bool plateBlinks)
+        {
+            if (_beads == null || _beadLooks == null) return;
+            bool alarm = _noticeAlarm && _noticePlate.gameObject.activeSelf;
+            // The same fight the top-right readout keeps to (ReadoutFocus), or a creature's warning within as long.
+            bool fight = Tasks.AnteLoop.InFight || Time.time - _creatureAt < Tasks.ReadoutFocus.FightHold;
+            bool hushed = Items.CelestialPlate.Hushed(alarm, plateBlinks, fight);
+            float shown = Items.CelestialPlate.Shown(_beadShown, hushed, Time.unscaledDeltaTime);
+            if (shown <= 0f && _beadShown <= 0f) return;
+            _beadShown = shown;
+            float t = Time.unscaledTime;
+            float strength = shown * Items.CelestialPlate.Strength(t - _plateUpAt);
+            Items.CelestialPlate.Look look = _beadLooks[Items.CelestialPlate.TurnFor(_beadLooks.Length, _timesUp)];
+            for (int i = 0; i < _beads.Length; i++)
+            {
+                float v = Items.CelestialPlate.Light(look.Motion, _beadPath[i].Along, _beadRound, t, out float w);
+                Color c = Mix(look.Colour, look.Second, w);
+                c.a = v * strength;
+                _beads[i].canvasRenderer.SetColor(c);
+            }
+        }
+
+        static Color Mix(float[] a, float[] b, float w) => new Color(
+            Mathf.Lerp(a[0], b[0], w), Mathf.Lerp(a[1], b[1], w), Mathf.Lerp(a[2], b[2], w), 1f);
 
         static bool SameColour(float[] a, float[] b)
         {
@@ -303,13 +446,27 @@ namespace OrbitalAnte.Spacewalk
             if (_suitColumn.gameObject.activeSelf != armourShown) _suitColumn.gameObject.SetActive(armourShown);
             if (_jetRow.gameObject.activeSelf != panel) _jetRow.gameObject.SetActive(panel);
             // Driving, the rover's speed and boost bar have the low middle: the notice strip sits above them.
-            float noticeY = _astronaut.Mode == AstronautMode.Driving ? 176f : 104f;
-            if (!Mathf.Approximately(_noticePlate.anchoredPosition.y, noticeY)) _noticePlate.anchoredPosition = new Vector2(0f, noticeY);
+            // On foot it is centred in the gap between the lower plates (HullReadout.NoticeShift).
+            bool driving = _astronaut.Mode == AstronautMode.Driving;
+            var noticeAt = new Vector2(driving ? 0f : HullReadout.NoticeShift, driving ? 176f : 104f);
+            if (_noticePlate.anchoredPosition != noticeAt) _noticePlate.anchoredPosition = noticeAt;
             bool shade = show && open && _config.visorShade > 0.001f;
             for (int i = 0; i < 2; i++) if (_shade[i].enabled != shade) _shade[i].enabled = shade;
             if (_look.Tinted) TintVisor(open && !_astronaut.Dead && !OrbitalAnte.Cockpit.CockpitDash.WatchingScreen);
 
             Rim(outside && show);
+            // Each time the plate comes up (stepping outside) the beads show off for a moment, and with several suit
+            // effects the next one takes its turn.
+            if (show && !_plateUp) { _timesUp++; _plateUpAt = now; }
+            _plateUp = show;
+            if (show)
+            {
+                // The plate warning by blinking (as below): air at alarm, low jet fuel, a fresh hit on the armour.
+                bool plateBlinks = (panel && s.FuelLow)
+                    || VisorReadout.AirTone(s.AirLow, s.AirOut, s.BurningAir) == GaugeTone.Alarm
+                    || (armourShown && now - _astronaut.Armour.LastHitUnscaledTime < HitFlashSeconds);
+                LightBeads(plateBlinks);
+            }
             if (!show)
             {
                 if (_shownNotice.Length > 0) { _shownNotice = string.Empty; _notice.text = string.Empty; _noticeKey = -1; }
@@ -341,7 +498,7 @@ namespace OrbitalAnte.Spacewalk
             {
                 float armour = _astronaut.Armour.Fraction;
                 // A fresh hit flashes the plates for a moment.
-                bool hit = now - _astronaut.Armour.LastHitUnscaledTime < 0.25f;
+                bool hit = now - _astronaut.Armour.LastHitUnscaledTime < HitFlashSeconds;
                 ShowArmour(armour, VisorReadout.SuitTone(armour), !hit || blink);
             }
 
@@ -553,15 +710,20 @@ namespace OrbitalAnte.Spacewalk
             }
         }
 
+        void OnCreatureWindup(Creatures.IWindup source) => _creatureAt = Time.time;
+
         void OnDestroy()
         {
             Items.LockerLook.Changed -= ApplyLook;
+            OrbitalAnte.AI.CombatWorld.CreatureWindup -= OnCreatureWindup;
             // A tint left on would stay on the title screen and the next run.
             if (_look.Tinted) OrbitalAnte.Look.PostFx.VisorTint = Color.white;
             if (_rimSprite != null) Destroy(_rimSprite);
             if (_rimTexture != null) Destroy(_rimTexture);
             if (_shadeSprite != null) Destroy(_shadeSprite);
             if (_shadeTexture != null) Destroy(_shadeTexture);
+            if (_beadSprite != null) Destroy(_beadSprite);
+            if (_beadTexture != null) Destroy(_beadTexture);
         }
     }
 }

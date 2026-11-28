@@ -305,7 +305,7 @@ namespace OrbitalAnte.Tests
             StringAssert.Contains("cabin wall", painting);
             StringAssert.DoesNotContain("Press", painting, "pressing a painting does nothing yet");
             string celestial = CollectionRows.Details(save, Find("SkinRifleStarChart"), owned.Find("SkinRifleStarChart", ""), "Aurora", Find, "Rifle");
-            StringAssert.Contains("Effect: Aurora (not shown yet)", celestial, "an effect is never promised as if it were drawn");
+            StringAssert.Contains("Effect: Aurora (on that gun)", celestial, "the details say where the effect is seen: the Rifle, named just above");
             string skin = CollectionRows.Details(save, Find("SkinRifleStarChart"), owned.Find("SkinRifleStarChart", ""), "", Find, "Rifle");
             StringAssert.Contains("Goes on the Rifle whenever you carry one.", skin);
             Locker.Use(save, Find("SkinRifleStarChart"), "");

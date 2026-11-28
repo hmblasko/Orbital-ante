@@ -15,7 +15,8 @@ namespace OrbitalAnte.Items
     /// earned by a goal, or an envelope's prize at ante 9) calls <see cref="RefreshSoon"/>, and the lander's hull, the suit's
     /// display and jets, and the gun in hand put it on there and then (Ralph loop pass 5: a look is seen when it is
     /// earned). The run's numbers (an upgrade) never change mid-run. An item that is in use but whose asset has gone, or
-    /// no longer fits its place, counts as nothing.
+    /// no longer fits its place, counts as nothing. A Celestial item's effect comes with it (Ralph loop pass 6): a skin's
+    /// on the gun, a paint's on the hull, the suit pieces' round the suit plate.
     /// </summary>
     public static class LockerLook
     {
@@ -41,16 +42,35 @@ namespace OrbitalAnte.Items
         /// <summary>The lander's paint, or null for its own white, grey and gold.</summary>
         public static HullPaint ShipPaint() => PrizeLooks.Paint(Worn(LockerSlot.Paint));
 
-        /// <summary>The id of the paint in use, or "" for the lander's own: the hull is built again only when this changes.</summary>
+        /// <summary>
+        /// The id of the paint in use and of its Celestial effect ("+" between them), or "" for the lander's own: the hull
+        /// is built again only when this changes.
+        /// </summary>
         public static string ShipPaintId()
         {
             ItemSpec paint = Worn(LockerSlot.Paint);
-            return paint != null ? paint.id : string.Empty;
+            if (paint == null) return string.Empty;
+            List<string> effect = Locker.EffectsInUse(SaveSystem.Data, Find, LockerSlot.Paint);
+            return effect.Count > 0 ? paint.id + "+" + effect[0] : paint.id;
         }
 
-        /// <summary>What the suit's pieces in use change in the view and on the suit plate.</summary>
-        public static SuitLook Suit() =>
-            PrizeLooks.Suit(Worn(LockerSlot.Helmet), Worn(LockerSlot.Visor), Worn(LockerSlot.Suit), Worn(LockerSlot.Pack), Worn(LockerSlot.Badge));
+        /// <summary>The Celestial effect the lander's paint carries, drawn over its painted panels (Ralph loop pass 6), or null.</summary>
+        public static CelestialLook? ShipEffect()
+        {
+            List<string> effect = Locker.EffectsInUse(SaveSystem.Data, Find, LockerSlot.Paint);
+            return effect.Count > 0 ? CelestialLooks.For(effect[0], CelestialPlace.Hull) : null;
+        }
+
+        static readonly LockerSlot[] SuitSlots = { LockerSlot.Helmet, LockerSlot.Visor, LockerSlot.Suit, LockerSlot.Pack, LockerSlot.Badge };
+
+        /// <summary>What the suit's pieces in use change in the view and on the suit plate, with their Celestial effects.</summary>
+        public static SuitLook Suit()
+        {
+            SuitLook look = PrizeLooks.Suit(Worn(LockerSlot.Helmet), Worn(LockerSlot.Visor), Worn(LockerSlot.Suit), Worn(LockerSlot.Pack), Worn(LockerSlot.Badge));
+            List<string> effects = Locker.EffectsInUse(SaveSystem.Data, Find, SuitSlots);
+            look.Effects = effects.Count > 0 ? effects.ToArray() : null;
+            return look;
+        }
 
         // The skins in use, read once a world: by gun id, "" for the skin on every gun.
         static readonly Dictionary<string, SkinLook> Skins = new Dictionary<string, SkinLook>();
@@ -99,6 +119,15 @@ namespace OrbitalAnte.Items
             Changed?.Invoke();
         }
 
+        /// <summary>
+        /// The skin this gun wears in the player's hands, or null for none, with no Celestial effect on a gun that can blow
+        /// up (<see cref="PrizeLooks.OnGun"/>).
+        /// </summary>
+        public static SkinLook? SkinFor(Weapons.WeaponData gun)
+        {
+            return PrizeLooks.OnGun(SkinFor(gun != null ? gun.Id : null), gun != null && gun.backfireChance > 0f);
+        }
+
         /// <summary>The skin a gun of this kind wears in the player's hands, or null for none. A gun's own skin wins over the one for every gun.</summary>
         public static SkinLook? SkinFor(string gunId)
         {
@@ -121,7 +150,7 @@ namespace OrbitalAnte.Items
                 // The skin's own gun, as its item says (a skin moved to another gun in the Inspector is not worn).
                 string gun = string.IsNullOrEmpty(item.weaponId) ? "" : item.weaponId;
                 if ((skin.gunId ?? "") != gun) continue;
-                Skins[gun] = PrizeLooks.Skin(item);
+                Skins[gun] = PrizeLooks.Skin(item, skin.effectId);
             }
         }
 

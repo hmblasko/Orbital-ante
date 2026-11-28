@@ -339,3 +339,83 @@ effects are drawn (the design review would have given 8).
 **Left open:** nothing here has run in Unity. Celestial effects are not drawn (the words say "not shown yet"), the
 one part of the unlockables line the cloud can still close; paintings wait for frames and the five public-domain
 pictures; the ticket's cosmetic token is still used by nothing. Next pass: gap 6, the Celestial effects.
+
+## Pass 6 (28 Nov 2026): Celestial effects drawn
+
+**Gap closed:** the top tier's effects. Part B section 12 asks for "an Unusual-like top tier featuring special effects
+(e.g. fire)"; since pass 4 a Celestial prize went to work as an ordinary skin, paint or suit piece and its effect said
+"not shown yet".
+
+**Built** (report `docs/reports/celestial-effects.md`):
+
+- Six effects drawn where the item shows: moving light on the gun in the player's hands and on the lander's painted
+  hull (`OA_Fx` in `OA_Model.shader`, a branch on a material value, no keyword), pale beads of light just outside the
+  suit's readout plate for a helmet, visor, suit, jetpack or badge (`SuitHud.BuildBeads`, `LightBeads`), and the same
+  beads round the prize card on the envelope's reveal (`EnvelopeScene.EffectBeads`). Solar Flare (rising tongues,
+  white-hot cores, on the gun; slow clouds in fire colours on the hull, which never rise), Aurora (swaying curtains),
+  Comet Tail (heads running from the muzzle back to the hand), Nebula Drift (slow clouds), Starfall (stars lit one at
+  a time, sliding down), Event Horizon (turning dark bands with bright rims).
+- The sums are plain C# (`Items/CelestialLooks.cs`: `CelestialLooks.Surface`, `Lift`, `TurnedNoise`, `Face`,
+  `RunScale`, `HullDamageShare`, `BloomShare`, the shader's hash and noise; `CelestialPlate` for the beads), so the
+  tests and the offline previews judge what the GPU draws; a rule test compares the two sets of numbers.
+- Never mistaken for damage, a warning or an aim tell: light on the item's surface only, never past white (under 1%
+  of it reaches the bloom at the default threshold), steady from one second to the next (flames first swelled
+  together about once a second; the noise is now read on a grid turned against the item), no reaction to anything in
+  a fight, no star lit in under 0.48 s, comets never run toward the muzzle, the hull's dark trim left plain
+  (`ShipShell.PaintedCorners` in the mesh's colour alpha), the hull's effect faded by its damage and gone from a
+  broken panel, Event Horizon only 20% dark on the hull, no seam, cut or sparkle round the cabin, never on an enemy's
+  gun (`MannequinCombat.TryPickUp` takes the skin off) or on a gun that can blow up (the Wildcard wears the skin, not
+  its effect), and the beads outside the plate, at most 0.7 alpha, never lit from dark in under a quarter second,
+  paler than the readout's orange, green and blue.
+- The plate is quiet when it matters: the beads go dark beside a warning on the plate or the notice strip and in a
+  fight (the readout's own fight, or a creature's warning), show off for 3 s as the plate comes up and then idle at
+  0.45, and with several suit effects the next one shows each time the plate comes up. The speed lines moved up 8 px
+  and the notice strip 12 px right to stay clear of them.
+- Words: "Effect: Aurora (on every gun)", "(on that gun)", "(on your lander)", "(round your suit's readout)" on the
+  reveal and in the Collection (`Locker.EffectWhere`, `EffectWords`); "not shown yet" is gone.
+- A test button for Unity: the Collection's test row, "Try the next effect" (`Locker.TryNextEffect`, editor and
+  development builds), puts the next effect on a test gun skin, ship paint and badge, in use; Celestial is one
+  envelope in two hundred.
+- Fixed on the way: `tools/envelope_view` had not compiled since pass 5 (`Unlocks.cs` reads `LaunchSite`); it now
+  picks its files the way the rule tests do, and draws what a group puts outside its bounds unless the group clips.
+
+**Checked:**
+
+- `dotnet test tools/rules-tests`, on the first build: 3,182 run, 3,181 passed, 1 skipped (the cabin bake check, as
+  before). New: `CelestialLooksTests` (17); `LockerTests` and `PrizeLookTests` follow the new words.
+- Runtime compile check: clean apart from the two known `excludeLayers` lines (one slip fixed first: the cabin's
+  `ShipMeshes.SetBaked` had been given the hull's new alpha, which it does not take).
+- Offline shader check of `OA_Model.shader` (glslang, every pass and keyword set): no failures; no reserved names.
+- Offline pictures of every effect on a gun, round the hull and round the plate, from the C# sums, and of the reveal
+  with each effect's beads (`tools/envelope_view`).
+
+**Specialist reviews** (on this pass's first build; each finding checked before it was applied):
+
+- game-designer: the beads moved through the plate's own warnings and touched the speed line (hushed, and the lines
+  moved); Solar Flare's rising flames on the hull read as thrust or fire (clouds there); Event Horizon darkened the
+  hull like damage (20% there, and every hull effect fades with the damage); the reveal's sparks were the same for
+  every effect and the plate's idle was a faint dotted frame (the effect's own beads on the reveal, a 3 s flourish,
+  then 0.45); two fast comet heads read as "claim me" (one slow head); turns every 10 s changed the plate in a fight
+  (a turn on each step outside); the words should name the gun ("on every gun", "on that gun"); the Wildcard wore an
+  effect (never now); Starfall lit too many stars a second on a rifle (half speed); "never blooms" rested on the
+  default threshold (held by a test). Its view: this meets section 12 on the gun and the hull.
+- unity-reviewer: only the first motion had `[branch]` (each has its own now); no budget line (written); Starfall's
+  cells cut stars along four upright lines on the hull (two faces there, cells round the turn); a sparkle at the dome's
+  top (the pattern fades toward the axis); the words said the light does not slow with Focus, which it does
+  (corrected); the longest reveal line nearly wrapped (a size smaller past 44 letters, and tested).
+- deck-performance (an offline compile for the Deck's GPU, not Unity's compiler): the effect's share came after the
+  whole sum (now first, with an early return, and the hull's `atan2` on the hull alone); the effect adds about 200 to
+  390 steps a pixel where it is drawn; every model pixel now needs 64 registers instead of 56, worn or not (measured
+  again after the change: still 64); a model pipeline builds in about 40 to 52 ms on a cold cache instead of 22 to 33.
+  Kept a material value, not a keyword, so a gun ladder step never builds a program mid-fight; the budget says to make
+  it a keyword and warm it if the register cost measures over 0.1 ms. Budget rows written from it.
+- After the fixes: `dotnet test tools/rules-tests` 3,189 run, 3,188 passed, 1 skipped (`CelestialLooksTests` now 24);
+  compile check clean apart from the two known lines; offline shader check of `OA_Model.shader`: no failures.
+
+**Scores after:** see `scorecard.md`, pass 6. Fun unlockables 7 to 8: with pass 5's reach, the top tier now does what
+section 12 asks.
+
+**Left open:** nothing here has run in Unity or on a Deck. Warming the model shader at a run's start (owed since the
+shine; now 40 to 52 ms a pipeline on a cold cache); making the effect a keyword only if its register cost measures
+over 0.1 ms; the Collection's rows name an effect but do not show its beads; paintings wait for frames and the five
+public-domain pictures. Next pass: gap 7, where to shoot a creature.

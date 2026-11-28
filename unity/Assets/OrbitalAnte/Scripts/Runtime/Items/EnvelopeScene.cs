@@ -76,8 +76,10 @@ namespace OrbitalAnte.Items
         public string useLine = "";
         /// <summary>True when the prize went into use: the use line is drawn in the Collection's IN USE green.</summary>
         public bool inUse;
-        /// <summary>Said after the effect's name in brackets while effects are not drawn in the game (<c>Locker.EffectNotShown</c>).</summary>
+        /// <summary>Said after the effect's name in brackets: where the effect is seen in the game (<c>Locker.EffectWhere</c>).</summary>
         public string effectNote = "";
+        /// <summary>The Celestial effect's id: its own beads of light run round the prize card (<c>CelestialPlate</c>).</summary>
+        public string effectId = "";
     }
 
     /// <summary>
@@ -93,6 +95,9 @@ namespace OrbitalAnte.Items
         public const string TexLining = "Lining", TexPocket = "Pocket", TexFlapOut = "FlapOut", TexFlapIn = "FlapIn";
         public const string TexSeal = "Seal", TexSealLeft = "SealLeft", TexSealRight = "SealRight", TexCrack = "Crack";
         public const string TexRays = "Rays", TexGlint = "Glint", TexSheen = "Sheen", TexBackdrop = "Backdrop", TexSolid = "Solid", TexShadow = "Shadow";
+        public const string TexBead = "Bead";
+        /// <summary>An effect line on the reveal longer than this many letters is drawn a size smaller, so it stays on one line.</summary>
+        public const int EffectLineLong = 44;
 
         /// <summary>How long the envelope takes to rise into view.</summary>
         public const float RiseTime = 0.9f;
@@ -294,7 +299,7 @@ namespace OrbitalAnte.Items
             {
                 Card(items, show, cx, cy, cScale, cRot, 1f, t, b, true);
                 Sparks(items, show, cx, cy, t - b.burst, rank, rc);
-                if (show.rarity == ItemRarity.Celestial) Orbiters(items, show, cx, cy, cScale, t);
+                if (show.rarity == ItemRarity.Celestial) EffectBeads(items, show, t - b.burst);
             }
             if (flash > 0.002f) Image(items, "flash", TexSolid, 640f, 400f, ScreenW, ScreenH, 1f, 1f, 0f, Mix(rc, new[] { 1f, 1f, 1f }, 0.5f), flash);
 
@@ -311,7 +316,10 @@ namespace OrbitalAnte.Items
                 if (!string.IsNullOrEmpty(show.effectName))
                 {
                     string note = string.IsNullOrEmpty(show.effectNote) ? "" : " (" + show.effectNote + ")";
-                    RevealLine(items, "effect", "Effect: " + show.effectName + note, y, 30f, 22, show.effectColour ?? light, s0, 3, bold: true);
+                    string line = "Effect: " + show.effectName + note;
+                    // One line, never two (a second would run into the blurb): the longest (49 letters) is about 520 of
+                    // the 540 pixels at 22, so a long one drops a size.
+                    RevealLine(items, "effect", line, y, 30f, line.Length > EffectLineLong ? 20 : 22, show.effectColour ?? light, s0, 3, bold: true);
                     y += 40f;
                 }
                 RevealLine(items, "blurb", show.blurb, y + 8f, 58f, 20, Cream, s0, 4, italic: true);
@@ -514,18 +522,41 @@ namespace OrbitalAnte.Items
         }
 
         /// <summary>A Celestial card keeps its effect's sparks drifting round it.</summary>
-        static void Orbiters(List<DrawItem> items, EnvelopeShow show, float cx, float cy, float scale, float t)
+        /// <summary>How far outside the card's edge its effect's beads run, and how much larger than the suit plate's they are drawn.</summary>
+        const float BeadGap = 8f, BeadGrow = 1.5f;
+
+        /// <summary>
+        /// A Celestial prize's own effect, as beads of light running round the card (the motion the suit's plate gives it,
+        /// <c>CelestialPlate.Light</c>), in the effect's own colours, larger and brighter than on the plate and clear of the
+        /// card's frame: each of the six moves its own way on the reveal. Children of the card, so they turn and grow with
+        /// it; they come up over the first 0.8 s after the burst.
+        /// </summary>
+        static void EffectBeads(List<DrawItem> items, EnvelopeShow show, float since)
         {
-            float[] c = show.effectColour ?? new[] { 1f, 1f, 1f };
-            for (int i = 0; i < 14; i++)
+            if (since <= 0f) return;
+            ItemEffect effect = CelestialLooks.Effect(show.effectId);
+            if (effect == null) return;
+            CelestialMotion motion = CelestialLooks.MotionOf(effect.id);
+            float[] colour = effect.colour != null && effect.colour.Length == 3 ? effect.colour : new[] { 1f, 1f, 1f };
+            float[] second = CelestialLooks.SecondOf(effect.id, colour);
+            float up = Smooth(0f, 0.8f, since);
+            float width = EnvelopeArt.CardWidth + 2f * BeadGap, height = EnvelopeArt.CardHeight + 2f * BeadGap;
+            List<CelestialPlate.Bead> path = CelestialPlate.Path(width, height);
+            float round = 2f * (width + height);
+            for (int i = 0; i < path.Count; i++)
             {
-                float h1 = Hash01(i, 11), h2 = Hash01(i, 12), h3 = Hash01(i, 13);
-                float ang = h1 * 6.2832f + t * (0.4f + 0.5f * h2) * (i % 2 == 0 ? 1f : -1f);
-                float rx = (170f + 40f * h3) * scale, ry = (230f + 40f * h2) * scale;
-                float lift = ((t * 0.15f + h3) % 1f) * 40f;
-                float x = cx + (float)Math.Cos(ang) * rx, y = cy + (float)Math.Sin(ang) * ry - lift;
-                float tw = 0.5f + 0.5f * (float)Math.Sin(t * (3f + 3f * h1) + i);
-                Image(items, "orbit" + i, TexGlint, x, y, 22f + 18f * h2, 22f + 18f * h2, 1f, 1f, t * 40f * (h1 - 0.5f), c, 0.35f + 0.6f * tw);
+                CelestialPlate.Bead bead = path[i];
+                float v = CelestialPlate.Light(motion, bead.Along, round, since, out float w);
+                if (v * up <= 0.001f) continue;
+                float bw = (bead.Upright ? CelestialPlate.BeadWidth : CelestialPlate.BeadLength) * BeadGrow;
+                float bh = (bead.Upright ? CelestialPlate.BeadLength : CelestialPlate.BeadWidth) * BeadGrow;
+                items.Add(new DrawItem
+                {
+                    key = "bead" + i, kind = DrawKind.Image, parent = "card", texture = TexBead,
+                    x = bead.X - BeadGap, y = bead.Y - BeadGap, w = bw, h = bh, px = 0.5f, py = 0.5f, sx = 1f, sy = 1f,
+                    r = colour[0] + (second[0] - colour[0]) * w, g = colour[1] + (second[1] - colour[1]) * w,
+                    b = colour[2] + (second[2] - colour[2]) * w, a = Clamp01(v / CelestialPlate.Most * up),
+                });
             }
         }
 
