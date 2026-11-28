@@ -25,6 +25,12 @@ namespace OrbitalAnte.Tasks
         public static AnteLoop Current { get; private set; }
 
         public AnteRun Run { get; private set; }
+
+        /// <summary>The Locker upgrade this run was started with (its gain and cost are in every ante's build), or null.</summary>
+        public Items.ItemSpec LockerUpgrade { get; private set; }
+
+        /// <summary>The upgrade's note, waiting to be said once the line is free (after any kit's note).</summary>
+        string _upgradeNote;
         public TaskConfig Config { get; private set; }
         /// <summary>The streak of quick kills (shown on the readout; the task director feeds it).</summary>
         public Streak Streak { get; private set; }
@@ -90,11 +96,13 @@ namespace OrbitalAnte.Tasks
             BuildHud();
             _chartView = StarChartView.Create(transform);
             RunPerksFx.Note += OnPerkNote;
+            GunLadderFx.ReachedTop += OnLadderTop;
         }
 
         void OnDestroy()
         {
             RunPerksFx.Note -= OnPerkNote;
+            GunLadderFx.ReachedTop -= OnLadderTop;
             if (Current == this) Current = null;
         }
 
@@ -111,6 +119,12 @@ namespace OrbitalAnte.Tasks
             AnteBalance balance = AnteBalanceData.Load().balance;
             // The full perk list (20 Nov 2026): every perk in it is wired into the game.
             Run = new AnteRun(balance, seed, RoguelitePerks.Create());
+            // The Locker's upgrade, fixed for the whole run (Ralph loop pass 4): its gain and its cost go into the build,
+            // and it is said once as the run starts, so its cost is in view before the first break (constitution rule 3).
+            LockerUpgrade = Items.LockerLook.Upgrade();
+            _upgradeNote = LockerUpgrade != null ? "UPGRADE: " + Items.Locker.UpgradeWords(LockerUpgrade).ToUpperInvariant() : null;
+            // The starting kit and the perks still locked (goal unlocks, AnteLoop.Unlocks.cs), before the build is published.
+            BeginUnlocks();
             _recap = new RunRecap();
             Current = this;
             ResetBreak();
@@ -139,6 +153,8 @@ namespace OrbitalAnte.Tasks
             // A run left mid-ante (restart or quit) still counts toward the records.
             if (Run != null && !_recorded) RecapAndRecord();
             Run = null;
+            LockerUpgrade = null;
+            _upgradeNote = null;
             Enemies.EnemySpawner.Pressure = new EnemyPressure { Sharpness = 1f };
             Enemies.EnemySpawner.PressureAnte = 1;
             if (Current == this) Current = null;
@@ -167,6 +183,7 @@ namespace OrbitalAnte.Tasks
             if (loop == null || loop.Run == null) return default;
             loop.BeforeReport(ref scoreEvent);
             ScoreResult result = loop.Run.Report(scoreEvent);
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Points(loop.Run.Director.Ante, scoreEvent, label, result);
             if (result.Awarded && result.points > 0)
             {
                 // Sized by what the player did (PopFeedback): a plain kill small, feats and big hauls bigger and louder.
@@ -177,6 +194,7 @@ namespace OrbitalAnte.Tasks
             }
             loop.AfterReport(scoreEvent, result, label);
             loop._recap?.Add(scoreEvent, result, loop.Run.Director.Ante, label);
+            loop.UnlockScored(result);
             return result;
         }
 
@@ -191,6 +209,7 @@ namespace OrbitalAnte.Tasks
         {
             AnteLoop loop = Current;
             if (loop == null || loop._noteLine == null) return;
+            if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Note(text);
             loop._notes.Offer(text, important);
             loop.ShowNote();
         }
@@ -200,7 +219,13 @@ namespace OrbitalAnte.Tasks
             bool on = _notes.Text != null;
             if (on) _noteLine.text = _notes.Text;
             if (_noteLine.gameObject.activeSelf != on) _noteLine.gameObject.SetActive(on);
+            // The playtest log counts the notes really shown, apart from those offered (design review, pass 9).
+            if (_notes.Showings == _noteShowings) return;
+            _noteShowings = _notes.Showings;
+            if (on && Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.NoteShown(_notes.Text);
         }
+
+        int _noteShowings;
 
         // A restless squad was sent (Enemies/LullRules): the radio call's twin in words, for a muted Deck.
         void OnSquadSent(Vector3 from)
@@ -217,6 +242,9 @@ namespace OrbitalAnte.Tasks
 
         void Update()
         {
+            WriteOwedUnlockSave();
+            // A look that went to work goes on here, never on the frame the save is written (Ralph loop pass 5).
+            Items.LockerLook.RefreshIfDue(Save.SaveSystem.SavedFrame == Time.frameCount);
             if (Run == null) return;
             // The run-start envelope holds the world without pausing it: the clock waits too.
             bool paused = GameSession.Paused || TimeFlow.Held;
@@ -253,6 +281,7 @@ namespace OrbitalAnte.Tasks
                       + "). Bank from the pause menu, or keep scoring"
                     : "TARGET MET: bank it from the pause menu, or keep scoring", true);
             }
+            UpdateUnlocks(dt, paused);
             // Upgrades in the field (21 Nov 2026): on foot, Upgrades opens the shop at any time in an ante, and the
             // star chart once the target is met. In the seat Select is still Floodlights.
             // Never while dying: the burst's hold keeps the ante running for a moment, and nothing may be spent then.
@@ -332,12 +361,14 @@ namespace OrbitalAnte.Tasks
                 case AntePhase.Intermission:
                     // Keep going after the last ante comes here too: its sounds were played on the victory page.
                     if (_fromVictory) { _fromVictory = false; ShowCard(); break; }
+                    UnlockAnteCleared(ante);
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     // Ante 9 is the envelope's; clearing earlier antes changes nothing there yet, but it is told.
                     if (Envelopes != null) Envelopes.AnteCleared(ante);
                     ShowCard();
                     break;
                 case AntePhase.Victory:
+                    UnlockAnteCleared(ante);
                     Audio.AudioDirector.PlayLocal("reward.tier4");
                     if (Envelopes != null) Envelopes.AnteCleared(ante, ShowVictory);
                     else ShowVictory();
@@ -361,8 +392,9 @@ namespace OrbitalAnte.Tasks
             if (Menu == null || Run == null) return;
             // Nothing is recorded yet: a run that keeps going is recorded when it really ends.
             int score = Run.Ledger.LifetimeRunScore;
+            string unlocked = string.IsNullOrEmpty(UnlockBreakLines) ? string.Empty : UnlockBreakLines + "\n";
             Menu.ShowChoices("ALL ANTES CLEARED",
-                "You cleared all " + Run.Director.Ante + " antes. Run score " + score.ToString("N0", Inv) + ".\n"
+                "You cleared all " + Run.Director.Ante + " antes. Run score " + score.ToString("N0", Inv) + ".\n" + unlocked
                 + "Keep going for endless antes, each one asking more, until you die. Your best ante counts on the records.",
                 new List<PauseMenu.MenuChoice>
                 {
@@ -403,6 +435,7 @@ namespace OrbitalAnte.Tasks
             Audio.AudioDirector.PlayLocal("reward.multiplier");
             Note("ANTE " + Run.Director.Ante + ": " + Run.Director.Target.ToString("N0", Inv) + " TO BANK");
             _skippedPerk = false;
+            BeginAnteUnlocks();
             BeginAnteEffects();
             AnteBegan?.Invoke(Run.Director.Ante);
         }
@@ -480,11 +513,26 @@ namespace OrbitalAnte.Tasks
             UiKit.Halo(_noteLine, true);
             if (_noteLine != null) _noteLine.gameObject.SetActive(false);
 
+            // Under the note line, where the gun ladder's NEW GUN shows: the unlock moment's banner (the two never share it).
+            BuildUnlockHud();
+
             _canvas.gameObject.SetActive(false);
         }
 
-        /// <summary>True while an enemy has had the player in sight lately: the readout keeps to what a fight needs.</summary>
-        public static bool InFight => ReadoutFocus.InFight(Time.time - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt);
+        /// <summary>
+        /// True while a fight is on: an enemy has had the player in sight lately, or a creature has warned or is after them
+        /// (<see cref="ReadoutFocus.InFight(float, float, float)"/>). The readout keeps to what a fight needs, and tips, an
+        /// unlock's moment and the restless camps wait.
+        /// </summary>
+        public static bool InFight
+        {
+            get
+            {
+                float now = Time.time;
+                return ReadoutFocus.InFight(now - OrbitalAnte.AI.CombatWorld.PlayerLastSeenAt, now - OrbitalAnte.AI.CombatWorld.CreatureWarnedAt,
+                                            now - OrbitalAnte.AI.CombatWorld.CreatureAwareAt);
+            }
+        }
 
         void Pop(string text) => Pop(text, PopFeedback.LookFor(PopTier.Plain));
 

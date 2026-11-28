@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Draws the envelope pieces and the scene's draw lists offline (no Unity). See README.md. -->
+  <!--
+    Draws the envelope pieces and the scene's draw lists offline (no Unity). See README.md.
+    Every Unity-free file under Scripts/Runtime is compiled, picked the same way as tools/rules-tests (a file is left
+    out when it uses Unity outside a comment), so a rule file that gains a plain C# dependency never breaks the tool.
+  -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
@@ -7,12 +11,20 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0162;CS0414;CS0649;CS0169</NoWarn>
     <OARoot>$(MSBuildThisFileDirectory)../../unity/Assets/OrbitalAnte/Scripts/Runtime/</OARoot>
+    <OAUnityPattern>(?m)^(?!\s*(//|\*|/\*)).*\b(using\s+Unity|UnityEngine\.|UnityEditor\.|MonoBehaviour|ScriptableObject)</OAUnityPattern>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
-    <Compile Include="$(OARoot)Items/ItemRules.cs;$(OARoot)Items/ItemCatalog.cs;$(OARoot)Items/EnvelopeRules.cs;$(OARoot)Items/EnvelopeArt.cs;$(OARoot)Items/EnvelopeScene.cs" />
-    <Compile Include="$(OARoot)Core/SeededRandom.cs;$(OARoot)Save/SaveData.cs" />
-    <Compile Include="$(OARoot)Ante/*.cs" Exclude="$(OARoot)Ante/AnteBalanceData.cs" />
+    <OACandidate Include="$(OARoot)**/*.cs" />
   </ItemGroup>
+  <Target Name="OASelectRuleSources" BeforeTargets="BeforeBuild;CoreCompile">
+    <ItemGroup>
+      <OAUnitySide Include="@(OACandidate)"
+                   Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(OACandidate.FullPath)')), '$(OAUnityPattern)'))" />
+      <OARuleSource Include="@(OACandidate)" Exclude="@(OAUnitySide)" />
+      <Compile Include="@(OARuleSource)" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
 </Project>

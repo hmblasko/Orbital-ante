@@ -86,7 +86,20 @@ namespace OrbitalAnte.Creatures
 
         Spring _height, _shiftX, _shiftZ, _roll, _pitch;
         double _time;
-        bool _started;
+        bool _started, _posed;
+
+        /// <summary>
+        /// A foot further from its hip than this share of the leg's full reach steps first, whatever its place: on a
+        /// slope a foot left behind going up (or put ahead going down) is out of reach long before it is far from where it
+        /// would stand, and the leg would be drawn short of it, in the air (Ralph loop pass 8).
+        /// </summary>
+        public const double ReachStep = 0.90;
+        /// <summary>A foot is never put down further from its hip than this share of the leg's full reach.</summary>
+        public const double ReachPlace = 0.86;
+        /// <summary>The body is let down until every foot that is down is within this share of its leg's reach.</summary>
+        public const double ReachBend = 0.88;
+        /// <summary>A foot that is down is kept this much inside the leg's full reach (metres; the drawn leg stops 0.02 short).</summary>
+        public const double SlipShort = 0.03;
 
         /// <summary>How many feet are in the air.</summary>
         public int Swinging { get; private set; }
@@ -101,13 +114,14 @@ namespace OrbitalAnte.Creatures
 
         static double Ground(in WalkerAnimInput input, double x, double z) => input.Ground != null ? input.Ground(x, z) : 0.0;
 
-        Vec3d Home(int limb, in WalkerAnimInput input, double spread)
+        /// <summary>Where a foot would like to stand; with <paramref name="grounded"/> false its height is left at 0 (only its place along the ground is wanted).</summary>
+        Vec3d Home(int limb, in WalkerAnimInput input, double spread, bool grounded = true)
         {
             Vec3d home = _l.FootHome(limb);
             Vec3d hip = _l.HipModelled(limb) * _l.Size;
             hip = new Vec3d(hip.X, 0, hip.Z);
             home = hip + (home - hip) * spread;
-            return new Vec3d(home.X, Ground(input, home.X, home.Z), home.Z);
+            return new Vec3d(home.X, grounded ? Ground(input, home.X, home.Z) : 0.0, home.Z);
         }
 
         void Start(WalkerBody body, in WalkerAnimInput input)
@@ -140,6 +154,22 @@ namespace OrbitalAnte.Creatures
                 _foot[limb] = back.Rotate(_foot[limb] - flat * dt);
                 _from[limb] = back.Rotate(_from[limb] - flat * dt);
             }
+            // On uneven ground (a world's) the body rises and falls as it goes: the ground is read again under every foot
+            // that is down and at both ends of every step, so a foot stays on the ground and not at the height it had.
+            if (input.Ground != null)
+            {
+                for (int limb = 0; limb < WalkerLayout.Limbs; limb++)
+                {
+                    if (!body.CarriesWeight(limb)) continue;
+                    if (!_swing[limb])
+                    {
+                        _foot[limb] = new Vec3d(_foot[limb].X, input.Ground(_foot[limb].X, _foot[limb].Z), _foot[limb].Z);
+                        continue;
+                    }
+                    _from[limb] = new Vec3d(_from[limb].X, input.Ground(_from[limb].X, _from[limb].Z), _from[limb].Z);
+                    _to[limb] = new Vec3d(_to[limb].X, input.Ground(_to[limb].X, _to[limb].Z), _to[limb].Z);
+                }
+            }
 
             // 2. Which feet step. The one furthest from where it would like to be goes first; never one whose
             //    neighbour (next along its side, or opposite) is in the air; never more than half of them at once.
@@ -152,6 +182,8 @@ namespace OrbitalAnte.Creatures
                 if (_swing[limb]) Swinging++;
             }
             int most = Math.Max(1, stance == WalkerStance.Standing && !_l.Trot ? (carrying - 3) / 2 + 1 : carrying / 2);
+            // On a world's ground (never in the practice range, whose ground is flat) the legs are kept within reach.
+            bool onGround = _posed && input.Ground != null;
             double spread = Spread(share);
             double radius = _l.StrideRadius * (stance == WalkerStance.Standing ? 1.0 : 0.6);
             double stepTime = Math.Max(_l.StepFast, Math.Min(_l.StepSlow, _l.StepSlow - _l.StepQuicken * speed)) * (stance == WalkerStance.Standing ? 1.0 + 0.5 * (1.0 - share) : 1.6);
@@ -162,10 +194,12 @@ namespace OrbitalAnte.Creatures
                 for (int limb = 0; limb < WalkerLayout.Limbs; limb++)
                 {
                     if (!body.CarriesWeight(limb) || _swing[limb] || NeighbourInAir(body, limb)) continue;
-                    Vec3d home = Home(limb, input, spread);
+                    Vec3d home = Home(limb, input, spread, false);
                     double off = new Vec3d(_foot[limb].X - home.X, 0, _foot[limb].Z - home.Z).Magnitude;
-                    bool wants = off > radius || (_still[limb] > 1.1 && off > 0.22 * radius && speed < 0.05 && Math.Abs(input.TurnRate) < 0.02);
-                    if (wants && off > worst) { worst = off; pick = limb; }
+                    bool far = onGround && Stretch(pose, body, limb) > ReachStep;
+                    bool wants = far || off > radius || (_still[limb] > 1.1 && off > 0.22 * radius && speed < 0.05 && Math.Abs(input.TurnRate) < 0.02);
+                    double need = far ? 10.0 + off : off;
+                    if (wants && need > worst) { worst = need; pick = limb; }
                 }
                 if (pick < 0) break;
                 Vec3d target = _l.FootHome(pick);
@@ -178,6 +212,17 @@ namespace OrbitalAnte.Creatures
                 target = QuatD.AngleAxis(Vec3d.Up, Math.Max(-0.3, Math.Min(0.3, input.TurnRate * 0.45))).Rotate(target);
                 _from[pick] = _foot[pick];
                 _to[pick] = new Vec3d(target.X, Ground(input, target.X, target.Z), target.Z);
+                // Never put down out of the leg's reach (ahead going down a slope, or below a ledge): drawn in toward the hip.
+                if (onGround)
+                {
+                    Vec3d at = Hip(pose, pick);
+                    double furthest = Reach(pick, body.Kept(pick)) * ReachPlace;
+                    for (int k = 0; k < 8 && (_to[pick] - at).Magnitude > furthest; k++)
+                    {
+                        double x = at.X + (_to[pick].X - at.X) * 0.8, z = at.Z + (_to[pick].Z - at.Z) * 0.8;
+                        _to[pick] = new Vec3d(x, Ground(input, x, z), z);
+                    }
+                }
                 _swing[pick] = true;
                 _t[pick] = 0.0;
                 _length[pick] = stepTime;
@@ -222,6 +267,9 @@ namespace OrbitalAnte.Creatures
             double heightWanted = Math.Max(under, groundHere) + _l.BellyHeight
                                   + (_l.StandHeight - _l.BellyHeight) * share
                                   - _l.Dip * Swinging * standing + _l.Breath * Math.Sin(_time * 1.3) * standing;
+            // A foot down a slope from its hip (behind going up, ahead going down) is reached by bending: the body is let
+            // down until every foot that is down is within reach again, as far as its belly allows.
+            if (onGround) heightWanted -= LowerToReach(body, pose);
             double rollWanted = 0.075 * (right - left) * standing;
             double pitchWanted = 0.06 * (rear - front) * standing;
             if (right > 0 && left > 0) rollWanted += Math.Atan2(groundR / right - groundL / left, 2.0 * _l.FootReach) ;
@@ -264,6 +312,9 @@ namespace OrbitalAnte.Creatures
                 if (kept == 0) continue;
                 Vec3d hip = pose.BodyPosition + pose.BodyRotation.Rotate(_l.HipModelled(limb) * _l.Size);
                 if (kept == 1) { Wave(pose, limb, kept, hip, 0.55, 0.20, 5.0); continue; }
+                // On a world's ground a foot that is down is never drawn in the air: one still out of reach (a stride
+                // that could not step for its neighbours) slips along the ground toward the leg, as a foot does on a slope.
+                if (input.Ground != null && pose.Planted[limb]) Slip(input, limb, hip, Reach(limb, kept) - SlipShort);
                 pose.End[limb] = _foot[limb];
                 Bend(pose, limb, hip, _foot[limb], kept, _l.TipBend);
             }
@@ -331,6 +382,7 @@ namespace OrbitalAnte.Creatures
                     pose.FingerRotation[side] = turn * QuatD.AngleAxis(Vec3d.Right, _l.FingerOpens * open);
                 }
             }
+            _posed = true;
         }
 
         /// <summary>0 at rest, 1 while the claw is at full stretch.</summary>
@@ -358,6 +410,61 @@ namespace OrbitalAnte.Creatures
             return new Vec3d(sign * (_l.ArmRest.X + 0.83 * sway * wave),
                              Math.Max(_l.ArmFloor, height - _l.ArmRest.Y + 1.17 * sway * Math.Sin(_time * 0.9 * quick + side * 1.3) + 1.5 * sway * Math.Min(1.0, speed)),
                              _l.ArmRest.Z + sway * wave);
+        }
+
+        /// <summary>How far the body must come down for every foot that is down to be within <see cref="ReachBend"/> of its leg's reach (metres, never past its belly).</summary>
+        double LowerToReach(WalkerBody body, WalkerPose pose)
+        {
+            double most = 0.0;
+            for (int limb = 0; limb < WalkerLayout.Limbs; limb++)
+            {
+                if (WalkerLayout.IsArm(limb) || !body.CarriesWeight(limb) || _swing[limb]) continue;
+                Vec3d hip = Hip(pose, limb), to = _foot[limb] - hip;
+                double reach = Reach(limb, body.Kept(limb)) * ReachBend;
+                double across = to.X * to.X + to.Z * to.Z, below = -to.Y;
+                if (below <= 0.0 || across >= reach * reach) continue;
+                double fits = Math.Sqrt(reach * reach - across);
+                if (below > fits) most = Math.Max(most, below - fits);
+            }
+            return Math.Min(most, (_l.StandHeight - _l.BellyHeight) * 0.6);
+        }
+
+        /// <summary>How many times a foot that is down has slipped toward its leg (for tests: rare on gentle ground).</summary>
+        public int Slips { get; private set; }
+
+        /// <summary>Slides a foot that is down along the ground toward its hip until it is within <paramref name="reach"/>.</summary>
+        void Slip(in WalkerAnimInput input, int limb, Vec3d hip, double reach)
+        {
+            Vec3d foot = _foot[limb];
+            if ((foot - hip).Magnitude <= reach) return;
+            Slips++;
+            // The share of the way from below the hip out to the foot that is still within reach (one is the foot itself).
+            double lo = 0.0, hi = 1.0;
+            for (int k = 0; k < 7; k++)
+            {
+                double mid = 0.5 * (lo + hi);
+                double x = hip.X + (foot.X - hip.X) * mid, z = hip.Z + (foot.Z - hip.Z) * mid;
+                if ((new Vec3d(x, input.Ground(x, z), z) - hip).Magnitude <= reach) lo = mid; else hi = mid;
+            }
+            double fx = hip.X + (foot.X - hip.X) * lo, fz = hip.Z + (foot.Z - hip.Z) * lo;
+            _foot[limb] = new Vec3d(fx, input.Ground(fx, fz), fz);
+        }
+
+        /// <summary>Where a limb's joint on the body is in walker space, as last posed.</summary>
+        Vec3d Hip(WalkerPose pose, int limb) => pose.BodyPosition + pose.BodyRotation.Rotate(_l.HipModelled(limb) * _l.Size);
+
+        /// <summary>How far a limb reaches from its joint at full stretch (as <see cref="Bend"/> draws it), metres.</summary>
+        public double Reach(int limb, int kept)
+        {
+            double a = _l.Length(limb, 0), b = _l.Length(limb, 1), c = kept >= 3 ? _l.Length(limb, 2) : 0.0;
+            return a + Math.Sqrt(b * b + c * c + 2.0 * b * c * Math.Cos(_l.TipBend));
+        }
+
+        /// <summary>How far a foot is from its joint, as a share of the leg's full reach (1 or more: out of reach).</summary>
+        double Stretch(WalkerPose pose, WalkerBody body, int limb)
+        {
+            double reach = Reach(limb, body.Kept(limb));
+            return reach > 1e-6 ? (_foot[limb] - Hip(pose, limb)).Magnitude / reach : 0.0;
         }
 
         bool NeighbourInAir(WalkerBody body, int limb)

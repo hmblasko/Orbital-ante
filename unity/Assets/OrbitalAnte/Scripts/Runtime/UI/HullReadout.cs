@@ -115,6 +115,14 @@ namespace OrbitalAnte.UI
         /// </summary>
         public const float NoticeMost = 440f, NoticePadding = 64f;
 
+        /// <summary>
+        /// How far right of the screen's middle the notice strip sits on foot (pixels), so it is centred in the gap
+        /// between the suit plate (400 wide, lower left) and the gun plate (376, lower right): at its widest it is 8 px
+        /// clear of each, and clear of a Celestial effect's beads, which run 7 px outside the suit plate (Ralph loop pass
+        /// 6). Centred on the screen, the widest strip lay 4 px over the suit plate on the Deck's 1280 canvas.
+        /// </summary>
+        public const float NoticeShift = 12f;
+
         public static float NoticeWidth(float wordsWidth)
         {
             float w = wordsWidth + NoticePadding;

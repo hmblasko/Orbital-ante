@@ -486,6 +486,22 @@ namespace OrbitalAnte.Items
             return img;
         }
 
+        /// <summary>A soft round dot, brightest in the middle and gone at its edge, stretched into each of a Celestial effect's beads (the suit plate's are the same).</summary>
+        public static ArtImage Bead()
+        {
+            const int n = 32;
+            var img = new ArtImage(n, n);
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;
+                float d = u * u + v * v;
+                float a = d >= 1f ? 0f : (float)Math.Exp(-d * 3f) * (1f - d);
+                if (a > 0.003f) img.Set(x, y, 1f, 1f, 1f, a);
+            }
+            return img;
+        }
+
         /// <summary>A soft band of light, swept over the envelope and the card.</summary>
         public static ArtImage Sheen()
         {
@@ -551,6 +567,7 @@ namespace OrbitalAnte.Items
                 { EnvelopeScene.TexCrack, CrackGlow },
                 { EnvelopeScene.TexRays, () => Rays() },
                 { EnvelopeScene.TexGlint, () => Glint() },
+                { EnvelopeScene.TexBead, Bead },
                 { EnvelopeScene.TexSheen, Sheen },
                 { EnvelopeScene.TexBackdrop, Backdrop },
                 { EnvelopeScene.TexShadow, Shadow },

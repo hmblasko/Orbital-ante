@@ -93,7 +93,20 @@ namespace OrbitalAnte.Save
             }
         }
 
+        /// <summary>Times each write in the Profiler (search OA.SaveSystem.Save), without Deep Profile.</summary>
+        static readonly Unity.Profiling.ProfilerMarker SaveMarker = new Unity.Profiling.ProfilerMarker("OA.SaveSystem.Save");
+
         public static void Save()
+        {
+            SavedFrame = Time.frameCount;
+            using (SaveMarker.Auto())
+                SaveNow();
+        }
+
+        /// <summary>The frame the save was last asked to write on, so other one-off work can keep off that frame (-1 before any).</summary>
+        public static int SavedFrame { get; private set; } = -1;
+
+        static void SaveNow()
         {
             try
             {

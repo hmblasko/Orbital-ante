@@ -268,7 +268,7 @@ namespace OrbitalAnte.Tests
                 Assert.IsNotEmpty(perk.Describe(), perk.id);
                 Assert.Greater(perk.tags.Length, 0, perk.id);
             }
-            Assert.AreEqual("+20% weapon damage, -15% max HP", PerkCatalog.CreateDefaults()[2].Describe());
+            Assert.AreEqual("+20% weapon damage, -15% max armour", PerkCatalog.CreateDefaults()[2].Describe());
         }
 
         [Test]

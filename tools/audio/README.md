@@ -31,7 +31,7 @@ Run all of these from the repository root.
 | `python3 tools/audio/build.py sfx --only weapon.rifle` | Only the events whose id starts with that text. |
 | `python3 tools/audio/build.py music --only combat_all_in` | Only that piece. `--only cue` renders the transition cues and refreshes the music rules in the manifest. |
 | `OA_SEAM_CHECK=1 python3 tools/audio/build.py music` | Also proves each loop is exact (renders three copies and compares the third with the second). |
-| `python3 tools/audio/qa.py` | Measures every file and writes `docs/audio/qa_report.md`. Fails if anything clips, is missing, loops badly, or if two weapons measure alike. |
+| `python3 tools/audio/qa.py` | Measures every file and writes `docs/audio/qa_report.md`. Fails if anything clips, is missing, loops badly, if two weapons measure alike, if a creature's warning rings like the ante clock, or if the glance or the shell knock could be taken for a creature's mark. |
 | `python3 tools/audio/table.py weapon` | Prints the stored measurements for files whose path contains that text. |
 | `python3 tools/audio/spectro.py <files>` | Draws spectrograms. |
 | `dotnet run --project tools/audio/sim -- unity/Assets/OrbitalAnte/Resources/Audio/audio_manifest.json tools/audio/build/demo/schedule.json` | Runs the game's real music director and audio rules over the five-minute showcase script (no Unity needed) and records every decision. |

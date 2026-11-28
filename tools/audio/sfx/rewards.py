@@ -253,3 +253,34 @@ def target_met(rng, v):
     x += _sparkle(len(x), rng, 0.2, 0.6, 30, 0.04)
     x = dsp.reverb(x, 1.3, 0.2, 0.45, seed=36)
     return finish(x, -3, 0.4, limit=True)
+
+
+@sfx("reward.unlock", "rewards", volumeDb=-8, cooldownMs=1500, maxVoices=1, priority=30, **UI)
+def unlock(rng, v):
+    """A goal met that unlocks a perk or a starting kit for every run after (Ralph loop pass 1, 27 Nov 2026). The
+    one reward that starts mechanical: a key's three pins click up and a latch drops, then what was locked opens
+    out, a run up the D pentatonic on harp and celesta into the ante cell's top (B to D), landing on D and A held
+    over a D major ninth on glass. No other reward has the lock, and none ends on the open fifth, so it is never
+    taken for a kill, a cleared ante or the target."""
+    L = 2.9
+    n = secs(L)
+    lock = np.zeros(n)
+    # Three pins, each a little higher, then the latch: small, dry and close, like a real lock.
+    for i, (at, f) in enumerate([(0.0, 3100.0), (0.085, 3500.0), (0.17, 3950.0)]):
+        pin = metal_hit(rng, 0.05, [f, f * 1.47, f * 2.31], decays=[0.008, 0.005, 0.003], gains=[1, 0.5, 0.25], hardness=1.1)
+        dsp.place(lock, pin, secs(at), 0.38 + 0.05 * i)
+    latch = metal_hit(rng, 0.14, [520, 1180, 1730, 2600], decays=[0.04, 0.025, 0.015, 0.01], gains=[1, 0.7, 0.4, 0.25], hardness=0.9)
+    dsp.place(lock, latch, secs(0.27), 0.75)
+    m = secs(0.12)
+    tt = np.arange(m) / SR
+    dsp.place(lock, dsp.sine(170, m) * np.exp(-tt / 0.03) * 0.35, secs(0.27), 1.0)
+    x = dsp.pad_to(dsp.stereo(lock), n)
+
+    # What it opened: the run (sixteenths at 120 bpm after the latch), then the landing.
+    run = line("r:.75 D5:.125 E5:.125 F#5:.125 A5:.125 B5:.25 D6:2.5", vel=102)
+    x += _sampled(run, GM["harp"], L, 0.9) * 0.75 + _sampled(run, GM["celesta"], L, 0.9) * 0.55
+    x += _synth(line("r:1.5 [D6 A6]:2", vel=96), synth.v_bell, L, rng, decay=1.3, bright=0.8) * 0.5
+    x += _synth(line("r:1.4 [D4 F#4 A4 E5]:2.2", vel=72), synth.v_glass, L, rng, attack=0.35, release=1.2) * 0.85
+    x += _sparkle(len(x), rng, 0.8, 1.2, 38, 0.045)
+    x = dsp.reverb(x, 1.8, 0.24, 0.42, seed=39)
+    return finish(x, -3, 0.6, limit=True)

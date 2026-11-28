@@ -73,6 +73,13 @@ namespace OrbitalAnte.Ship
         readonly RaycastHit[] _rayHits = new RaycastHit[8];
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
+        /// <summary>The outside hull's mesh, which a ship paint put to use mid-run repaints (<see cref="Repaint"/>).</summary>
+        MeshFilter _hull;
+        MeshRenderer _hullRenderer;
+        /// <summary>The hull's own material (shared, never destroyed here), for a paint with no Celestial effect.</summary>
+        Material _plainHull;
+        /// <summary>The paint the hull was built in ("" for the lander's own), so a refresh for any other look leaves it be.</summary>
+        string _hullPaintId = string.Empty;
 
         // ------------------------------------------------------------------ building
 
@@ -136,7 +143,16 @@ namespace OrbitalAnte.Ship
             // ---- cabin
             int cabin = Model.IndexOf("cabin");
             GameObject cabinGo = NewPart(cabin, new Vector3(0f, 1.2f, 0f));
-            AddVisual(cabinGo, ShipShell.Hull(), "Hull", outside, HullRoundDegrees);
+            // The hull wears the Locker's ship paint, if one is in use (Ralph loop pass 4); the cabin inside never does.
+            // A paint that goes to work mid-run (earned, or won at ante 9) repaints it there and then (pass 5).
+            // A paint with a Celestial effect (pass 6) draws its moving light over the painted panels, with the model
+            // shader's copy of the hull's material.
+            _hullPaintId = Items.LockerLook.ShipPaintId();
+            _plainHull = outside;
+            GameObject hullGo = AddRenderer(cabinGo, HullMesh(out Material hullMaterial), "Hull", hullMaterial);
+            _hull = hullGo.GetComponent<MeshFilter>();
+            _hullRenderer = hullGo.GetComponent<MeshRenderer>();
+            Items.LockerLook.Changed += Repaint;
             AddVisual(cabinGo, ShipProps.HullDetails(), "HullDetails", outside);
             AddConvex(cabinGo, ShipShell.CabinCollision(), "CabinCollision", grip);
             _anchors[cabin].Add(new Vector3(0f, 1.25f, -2.3f));
@@ -1044,8 +1060,50 @@ namespace OrbitalAnte.Ship
                    (worst >= 0 ? "   worst: " + Model.Parts[worst].Name + " " + Mathf.RoundToInt(Model.Fraction(worst) * 100f) + "%" : "   no damage");
         }
 
+        /// <summary>
+        /// The Locker's looks changed in the middle of a run (<c>LockerLook.Refresh</c>): the outside hull takes the
+        /// ship paint in use now. Only its colours differ, so the new mesh replaces the old one on the same renderer;
+        /// the collider, the cabin and the baked light are untouched. Building the hull costs a few ms and over a MB on
+        /// the Deck (deck-performance review), so it is done only when the paint really changed.
+        /// </summary>
+        void Repaint()
+        {
+            if (_hull == null) return;
+            string paintId = Items.LockerLook.ShipPaintId();
+            if (paintId == _hullPaintId) return;
+            _hullPaintId = paintId;
+            Mesh old = _hull.sharedMesh;
+            Mesh fresh = HullMesh(out Material material);
+            _hull.sharedMesh = fresh;
+            // The damage shade is a property block on the renderer, so it stays through a change of material.
+            if (_hullRenderer != null && _hullRenderer.sharedMaterial != material) _hullRenderer.sharedMaterial = material;
+            if (old != null && old != fresh)
+            {
+                _owned.Remove(old);
+                Destroy(old);
+            }
+        }
+
+        /// <summary>
+        /// The outside hull in the paint in use (owned by this ship), and the material to draw it with: the plain one, or
+        /// for a paint with a Celestial effect (Ralph loop pass 6) the model shader's copy that draws it, with the painted
+        /// panels marked in the mesh. Under simple shaders, or with Shine at 0, there is no such copy and the hull stays
+        /// plain (and its mesh unmarked, as it always was).
+        /// </summary>
+        Mesh HullMesh(out Material material)
+        {
+            ShipMesh data = ShipShell.Hull(Items.LockerLook.ShipPaint());
+            Items.CelestialLook? effect = Items.LockerLook.ShipEffect();
+            Material celestial = effect.HasValue ? PlanetMaterials.CelestialHull(effect.Value) : null;
+            material = celestial != null ? celestial : _plainHull;
+            Mesh mesh = ShipMeshes.ToMesh(data, "Hull", null, HullRoundDegrees, celestial != null ? ShipShell.PaintedCorners(data) : null);
+            _owned.Add(mesh);
+            return mesh;
+        }
+
         void OnDestroy()
         {
+            Items.LockerLook.Changed -= Repaint;
             if (Boarded == this) Boarded = null;
             if (_bakeJob != null) _bakeJob.Cancel();
             if (_panes != null)

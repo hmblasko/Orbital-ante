@@ -37,6 +37,8 @@ namespace OrbitalAnte.Creatures
         public BiterRules biter = new BiterRules();
         [Tooltip("The big swimmers in the seas: how many haunts a world has, how deep the water must be, when one is woken, how many at once. Untick the first box to leave the seas empty.")]
         public SeaFieldRules seas = new SeaFieldRules();
+        [Tooltip("The creatures of the land on the worlds (the Strider, the Sprinter, the Roller and the Screamer): how many haunts a world has, how far they keep from the camps and the launch pad, how many are lived in at each ante, when one is woken, how many at once, how steep each kind walks. Untick the first box to leave the ground to the camps.")]
+        public LandFieldRules land = new LandFieldRules();
 
         [Tooltip("How many Striders the combat test arena starts with (0 for none).")]
         [Range(0, 3)] public int arenaStriders = 1;

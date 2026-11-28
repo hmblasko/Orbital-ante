@@ -53,6 +53,11 @@ namespace OrbitalAnte.Ship
         public OrbitalAnte.Rover.MoonRover Rover { get; set; }
         /// <summary>Outside in the suit, on foot or driving: where you breathe the suit's air and can be shot.</summary>
         public bool InTheOpen => Mode == AstronautMode.Outside || Mode == AstronautMode.Driving;
+        /// <summary>
+        /// True only while a crash's own damage is being taken (the rover's), so whoever hears the armour being hurt
+        /// can tell a knock from an attack (the music hears only attacks: Part B wants no crash music).
+        /// </summary>
+        public bool TakingAKnock { get; private set; }
 
         /// <summary>What the player can do right now, for the HUD ("E: buckle in"). Empty when nothing.</summary>
         public string Prompt { get; private set; } = string.Empty;
@@ -219,7 +224,9 @@ namespace OrbitalAnte.Ship
             a.Armour = suitGo.AddComponent<PlayerHealth>();
             a.Armour.Initialize(a._look);
             a.Armour.Damaged += (amount, direction) => a._lastBlow = direction;
-            a.Armour.Died += () => a.Die(a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
+            // A creature's strike says what it was (Creatures/StrikeWords); a shot, or anything else, the old words.
+            a.Armour.Died += () => a.Die(!string.IsNullOrEmpty(a.Armour.LastCause) ? a.Armour.LastCause
+                                         : a.Mode == AstronautMode.Driving ? "Killed while driving the rover." : "Shot down outside the ship.");
             // Measured from the boots. The boots are the lowest point of the suit's capsule and never honestly
             // below the ground (on a slope they stand a little above it), and the ground checked is the real,
             // built one, so a quarter of a metre deep is already sunk (about where the check for ground under the
@@ -1076,7 +1083,12 @@ namespace OrbitalAnte.Ship
                 Die("Crashed the rover at " + Mathf.RoundToInt(speed * 3.6f) + " km/h.");
                 return;
             }
-            if (damage > 0f && Armour != null) Armour.TakeDamage(damage, -from);
+            if (damage > 0f && Armour != null)
+            {
+                TakingAKnock = true;
+                try { Armour.TakeDamage(damage, -from); }
+                finally { TakingAKnock = false; }
+            }
         }
 
         /// <summary>

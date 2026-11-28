@@ -46,6 +46,7 @@ namespace OrbitalAnte.Space
         public PlanetWorld Planets { get; private set; }
         public OrbitalAnte.Enemies.EnemySpawner Enemies { get; private set; }
         public OrbitalAnte.Creatures.SeaCreatures Seas { get; private set; }
+        public OrbitalAnte.Creatures.LandCreatures Land { get; private set; }
         public OrbitalAnte.Bases.PlanetBases Bases { get; private set; }
 
         public void Build(int seed, StartPlace place = StartPlace.FromConfig)
@@ -134,6 +135,8 @@ namespace OrbitalAnte.Space
             Enemies = OrbitalAnte.Enemies.EnemySpawner.Build(this, OrbitalAnte.Enemies.EnemyConfig.Load());
             // After the enemies: the big swimmers' loose pieces are kept with the enemies' own.
             Seas = OrbitalAnte.Creatures.SeaCreatures.Build(this, OrbitalAnte.Creatures.CreatureConfig.Load());
+            // And the creatures of the land, which keep clear of the enemies' camps.
+            Land = OrbitalAnte.Creatures.LandCreatures.Build(this, OrbitalAnte.Creatures.CreatureConfig.Load());
             Dash = OrbitalAnte.Cockpit.CockpitDash.Create(this, OrbitalAnte.Cockpit.CockpitConfig.Load());
             // Works out the cabin's soft light now if no ready-made bake came with the build.
             Ship.BakeLightIfNeeded();

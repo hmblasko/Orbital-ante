@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum AmbusherPiece { Head, Seg, Jaw, Feeler }
-
     /// <summary>One hitbox of an Ambusher: its head, a length of its body, a jaw or a feeler.</summary>
     public sealed class AmbusherPart : MonoBehaviour, IHittable
     {
@@ -50,10 +48,23 @@ namespace OrbitalAnte.Creatures
     /// - It dies when its head gives way or any length of its body is shot through; then whatever is out of the
     ///   ground comes apart.
     /// </summary>
-    public sealed class Ambusher : MonoBehaviour
+    public sealed class Ambusher : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Ambusher";
+        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
+        public bool InReach => true;
         public AmbusherBody Body { get; private set; }
         public AmbusherBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => HeadPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>Its strike is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Ambusher> Died;
 
@@ -61,7 +72,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Ambusher> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string CoilSound = "creature.ambusher.coil", StrikeSound = "creature.ambusher.strike", RiseSound = "creature.ambusher.rise";
+        const string CoilSound = Windups.AmbusherWarning, AimSound = Windups.AmbusherAim, StrikeSound = "creature.ambusher.strike", RiseSound = "creature.ambusher.rise";
 
         AmbusherRules _rules;
         readonly AmbusherAnimator _animator = new AmbusherAnimator();
@@ -256,12 +267,14 @@ namespace OrbitalAnte.Creatures
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = transform.position + up * 0.3f;
-                // The warning is heard as well as seen (an enemy's warning stands in until its own sound is there).
-                if (orders.Mode == AmbusherMode.Coil && !Audio.AudioDirector.Play(CoilSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.8f, 1.3f);
+                // The strike and the rise are heard, in its own sounds (never another creature's or an enemy's).
                 if (orders.Mode == AmbusherMode.Strike) Audio.AudioDirector.Play(StrikeSound, at);
-                if (orders.Mode == AmbusherMode.Rise && !Audio.AudioDirector.Play(RiseSound, at)) Audio.AudioDirector.Play("impact.dirt", at, 0.8f, 0.7f);
+                if (orders.Mode == AmbusherMode.Rise) Audio.AudioDirector.Play(RiseSound, at);
                 _lastMode = orders.Mode;
             }
+            // Its warning is heard and seen (UI/WindupCues) until the strike is over: its own wind-up as it rears, and its
+            // mark (the jaws flying wide) the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Ambusher(orders)), CoilSound, AimSound, transform.position + up * 0.3f);
             Move(orders, dt);
             _felt = hostile && senses.Player.Magnitude < AmbusherBrain.FeelRange(_rules, Body, senses.Noise);
             Solid(!Brain.Buried);
@@ -292,7 +305,7 @@ namespace OrbitalAnte.Creatures
             if (first) Audio.AudioDirector.Play("gore.splat", chest, 0.6f, 0.9f);
             PlayerHealth player = CombatWorld.Player;
             Vector3 way = chest - from;
-            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward);
+            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward, StrikeWords.Burrow);
         }
 
         /// <summary>Whoever it holds goes where it drags them; they can still look round and shoot.</summary>
@@ -358,14 +371,13 @@ namespace OrbitalAnte.Creatures
             // Under the ground, and until its head is out of it again, nothing reaches it.
             if (!Alive || Brain.Buried || (Brain.Mode == AmbusherMode.Rise && _pose.NodePosition[0].Y < 0.0)) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             AmbusherHit result;
-            bool armour = false;
             switch (part.Piece)
             {
                 case AmbusherPiece.Jaw:
                     result = Body.HitJaw(part.Index, hit.Damage, hit.Sever);
                     outcome.Label = "Ambusher jaw";
-                    armour = result.JawLost < 0;
                     if (result.JawLost >= 0)
                     {
                         LoseJaw(result.JawLost, hit.Direction);
@@ -388,17 +400,21 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Ambusher head";
-                    armour = true;
                     break;
             }
             bool killed = result.Killed;
+            // Where it landed, for the hit marker: the body rings gold, the head only knocks, and a jaw is plain while it
+            // holds (it is shot off to break a hold) and a weapon gone once it breaks (WhereToShoot). Read before the
+            // one-hit-kill line below, which starts the shared result afresh.
+            outcome.Zone = WhereToShoot.Ambusher(part.Piece, part.Piece == AmbusherPiece.Jaw && result.JawLost >= 0);
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            bool armour = outcome.Zone == HitZone.Armour;
             if (!killed) Brain.Hurt(hit.Damage, Body);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0, push.z) * (outcome.Severed ? 1.5 : 0.5));
             GoreFx gore = GoreFx.Instance;
-            // Its head and jaws are armour and say so: no blood, a dull knock, until they break. Its body bleeds.
+            // Its head is armour and says so: no blood, a dull knock. Its body and its jaws bleed, like every other jaw.
             if (armour && !killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.85f);
             else if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 16 : 8, outcome.Severed ? 6f : 4.5f);
             if (killed)
@@ -406,7 +422,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : armour ? 0.04f : 0.2f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : 0f;
             return outcome;
         }
 

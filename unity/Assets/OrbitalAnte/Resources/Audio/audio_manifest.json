@@ -182,6 +182,26 @@
    "note": "The clock has run out short of the target and the hunt is on: the clock's own wood, struck hard once, over a low drum that falls away, with a short dry rattle after it. It belongs to the clock family (the 30 s knocks and the last-ten ticks lead into it), and it is nothing like the suit's two-note air warning, so \"time is up\" and \"air is low\" can never be mistaken for each other."
   },
   {
+   "id": "creature.ambusher.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_ambusher_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the ringing scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+  },
+  {
    "id": "creature.ambusher.coil",
    "bus": "CombatImpacts",
    "clips": [
@@ -194,12 +214,12 @@
    "minDist": 3,
    "maxDist": 90,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "note": "The Ambusher's warning, 0.9 s: a wet hiss that tightens as it rears, ticks of its jaws half closing, and at 0.5 s (where it takes aim) the scrape of both jaws flying wide. After the scrape, stepping aside is a miss."
+   "note": "The Ambusher's wind-up, 0.9 s: a wet hiss that tightens as it rears, and ticks of its jaws half closing."
   },
   {
    "id": "creature.ambusher.rise",
@@ -244,6 +264,248 @@
    "note": "The strike: its length thrown out through the air in under a fifth of a second, and the jaws snapping shut."
   },
   {
+   "id": "creature.biter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_biter_aim"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the hard crack of its jaws setting and its fins sweeping back, then a held breath before the dart. After the crack, turning back is the dodge."
+  },
+  {
+   "id": "creature.biter.dart",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_biter_dart_01",
+    "Audio/Sfx/creature/creature_biter_dart_02"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 150,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The dart: a fish the size of a man ripping through the water past you, and its jaws snapping shut as it goes by."
+  },
+  {
+   "id": "creature.biter.mark",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_biter_mark"
+   ],
+   "volumeDb": -6,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "A Pack biter's wind-up, heard through water: its teeth chattering as its jaws flare, and a swish as it rolls its silver flank to the light."
+  },
+  {
+   "id": "creature.hunter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_hunter_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the double click of its fangs flying wide, the hiss still tightening, then the whip of its head coming down, gone where it lands. After the click, stepping aside is a miss."
+  },
+  {
+   "id": "creature.hunter.rear",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_hunter_rear"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Cave hunter's wind-up: the skitter of its many legs as the front of its body lifts, under a dry hiss that tightens."
+  },
+  {
+   "id": "creature.maw.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_maw_aim"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.1,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a deep hollow thoom as its jaw drops fully open, and the water starting to move. After the thoom it hardly turns: swimming sideways is the way out."
+  },
+  {
+   "id": "creature.maw.choke",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_maw_choke_01",
+    "Audio/Sfx/creature/creature_maw_choke_02"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 300,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It chokes (a shot down its open throat): two hard gags, and the water it drew in coughed back out as a burst of bubbles."
+  },
+  {
+   "id": "creature.maw.gape",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_maw_gape"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.1,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Drifting maw's wind-up, heard through water: the slow creak of its jaw as its mouth opens wider and wider, and a few bubbles getting away."
+  },
+  {
+   "id": "creature.maw.inhale",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_maw_inhale"
+   ],
+   "volumeDb": -4,
+   "volVarDb": 0.0,
+   "pitchVar": 0.05,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 90,
+   "priority": 55,
+   "cooldownMs": 400,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It draws in, 2.6 s: a roaring rush of water into its mouth that swells and climbs, so its rising tells how long it has left, and stops dead at the end."
+  },
+  {
+   "id": "creature.roller.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_roller_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the heavy clunk of the ball snapping shut, then a low grinding roll as it sets off. After the clunk it cannot turn: a step aside is a miss."
+  },
+  {
+   "id": "creature.roller.curl",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_roller_curl"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Roller's wind-up: its plates sliding over one another as it curls, rough scrapes coming quicker and quicker."
+  },
+  {
+   "id": "creature.screamer.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_screamer_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.2,
+   "spatial": 1.0,
+   "minDist": 5,
+   "maxDist": 220,
+   "priority": 50,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a hard double click of both drums as its wings and abdomen jerk to full height."
+  },
+  {
    "id": "creature.screamer.scream",
    "bus": "CombatImpacts",
    "clips": [
@@ -276,12 +538,72 @@
    "minDist": 5,
    "maxDist": 220,
    "priority": 50,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "note": "The Screamer's warning: single dry clicks of its drums that quicken into a rattle over one second, rising, with a hard double click at 0.6 s where it takes aim. The end of the climb is the moment the scream starts."
+   "note": "The Screamer's wind-up, 1 s: dry clicks of its drums quickening into a rattle as it lifts its abdomen and fans its wings, rising until the scream starts. Its aim is a separate mark."
+  },
+  {
+   "id": "creature.sprinter.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_sprinter_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the sharp snick of its jaws cocking, then a hiss that ends as it lunges. After the snick, stepping aside is a miss."
+  },
+  {
+   "id": "creature.sprinter.raise",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_sprinter_raise"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Sprinter's wind-up: a dry, fast chitter as it rubs its jaws together (a camel spider's sound), rising."
+  },
+  {
+   "id": "creature.stalker.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_stalker_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.12,
+   "spatial": 1.0,
+   "minDist": 3,
+   "maxDist": 70,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: the pop of its jaw dropping wide and its gills snapping out. After the pop, stepping aside is a miss."
   },
   {
    "id": "creature.stalker.click",
@@ -318,12 +640,12 @@
    "minDist": 3,
    "maxDist": 70,
    "priority": 55,
-   "cooldownMs": 300,
+   "cooldownMs": 60,
    "maxVoices": 2,
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "note": "The warning, 0.9 s: a long wet breath drawn in through its opening mouth, rising, and at 0.45 s (where it takes aim) the pop of the jaw dropping wide and the gills snapping out. After the pop, stepping aside is a miss."
+   "note": "The Blind stalker's wind-up, 0.9 s: a long wet breath drawn in through its opening mouth, rising."
   },
   {
    "id": "creature.stalker.hear",
@@ -366,6 +688,46 @@
    "vacuum": "air",
    "pitchSteps": [],
    "note": "The lunge: its whole wet length thrown across the ground in a fifth of a second, and the jaws clapping shut."
+  },
+  {
+   "id": "creature.strider.aim",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_strider_aim"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "It takes aim: a hard double clack as the claw sets open, then the heavy whoosh of the swing, gone where the claw comes down. After the clack, stepping aside is a miss."
+  },
+  {
+   "id": "creature.strider.raise",
+   "bus": "CombatImpacts",
+   "clips": [
+    "Audio/Sfx/creature/creature_strider_raise"
+   ],
+   "volumeDb": -5,
+   "volVarDb": 0.0,
+   "pitchVar": 0.15,
+   "spatial": 1.0,
+   "minDist": 4,
+   "maxDist": 110,
+   "priority": 55,
+   "cooldownMs": 60,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "air",
+   "pitchSteps": [],
+   "note": "The Strider's wind-up: its claw arm creaking up joint by joint, heavy shell grinding on shell."
   },
   {
    "id": "enemy.flare.fire",
@@ -638,6 +1000,26 @@
    "note": "A chunk landing."
   },
   {
+   "id": "hit.glance",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/combat/hit_glance"
+   ],
+   "volumeDb": -17,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 10,
+   "cooldownMs": 50,
+   "maxVoices": 2,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "A shot that a creature's armour turned (Ralph loop pass 7): played in place of the hit bell, so the bell's reward goes only to shots that work. A dull, soft-fronted thud and the shot skidding off (a band of noise sliding from about 1.8 kHz down to 0.9 kHz), no partials that ring, so it is never a bell (rewards), never the clock's wood (two sine partials) and never a suit tone. Nothing in it is a click: its front rises over about 5 ms and nothing above 2.6 kHz is kept, because the creatures that face the player armour-first warn with one hard, bright mark (game-designer review, pass 7: the first glance had a crack that measured like those marks). Quieter than every mark as played; the creature's own knock (impact.armor, in the world) plays with it, so the two read as one knock and skid. tools/audio/qa.py holds it to all of that."
+  },
+  {
    "id": "hit.headshot",
    "bus": "UI",
    "clips": [
@@ -716,7 +1098,7 @@
    "loop": false,
    "vacuum": "air",
    "pitchSteps": [],
-   "note": "Bullet on a hard suit shell: a plate knock with a cracked, ceramic edge."
+   "note": "Bullet on a creature's shell (a lid, a skull, plates): a hard, dry knock with a crack in its edge and no ring. Made of noise through broad filters, never of partials: the first knock was struck metal, and at the pitches the creatures play it at (0.45 to 1) its partials rang by the ante clock's tick and warning (979, 1629 and 640 Hz), a family no creature may borrow (Ralph loop pass 7; tools/audio/qa.py measures it at every one of those pitches)."
   },
   {
    "id": "impact.dirt",
@@ -1820,6 +2202,26 @@
    "vacuum": "ui",
    "pitchSteps": [],
    "note": "Exceptional: the whole first phrase of the Orbital Ante theme as a fanfare. Brass, vibes and glockenspiel, a run up into it, the theme's flattened-seventh wink in the harmony, and a cymbal to finish."
+  },
+  {
+   "id": "reward.unlock",
+   "bus": "UI",
+   "clips": [
+    "Audio/Sfx/rewards/reward_unlock"
+   ],
+   "volumeDb": -8,
+   "volVarDb": 0.0,
+   "pitchVar": 0.0,
+   "spatial": 0.0,
+   "minDist": 2.0,
+   "maxDist": 60.0,
+   "priority": 30,
+   "cooldownMs": 1500,
+   "maxVoices": 1,
+   "loop": false,
+   "vacuum": "ui",
+   "pitchSteps": [],
+   "note": "A goal met that unlocks a perk or a starting kit for every run after (Ralph loop pass 1, 27 Nov 2026). The one reward that starts mechanical: a key's three pins click up and a latch drops, then what was locked opens out, a run up the D pentatonic on harp and celesta into the ante cell's top (B to D), landing on D and A held over a D major ninth on glass. No other reward has the lock, and none ends on the open fifth, so it is never taken for a kill, a cleared ante or the target."
   },
   {
    "id": "ship.cabin.loop",
@@ -2955,7 +3357,7 @@
   ],
   "combatTrack": "combat_all_in",
   "combatEnter": 60,
-  "combatExit": 38,
+  "combatExit": 48,
   "combatMinSeconds": 14,
   "ambushIntensity": 85,
   "transitions": [

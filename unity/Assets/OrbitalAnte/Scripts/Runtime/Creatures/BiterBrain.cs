@@ -130,6 +130,15 @@ namespace OrbitalAnte.Creatures
             Living++;
         }
 
+        /// <summary>
+        /// Members the player killed before the pack was put away and woken again. It is still the pack it was, so
+        /// they count toward its size, and its last fish makes off just as it would have (<see cref="Broken"/>).
+        /// </summary>
+        public void KilledBefore(int count)
+        {
+            if (count > 0) Started += count;
+        }
+
         /// <summary>A member died: it gives up its turn and the pack is smaller.</summary>
         public void Lost(BiterBrain brain)
         {

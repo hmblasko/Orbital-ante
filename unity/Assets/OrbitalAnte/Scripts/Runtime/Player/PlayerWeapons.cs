@@ -90,6 +90,23 @@ namespace OrbitalAnte.Player
         /// </summary>
         public bool Indoors { get; set; }
 
+        // Subscribed for the component's whole life, not only while enabled: the weapons are switched off while the
+        // player is seated or driving, and the gun in hand must still take a look earned meanwhile.
+        void Awake() => OrbitalAnte.Items.LockerLook.Changed += WearAgain;
+        void OnDestroy() => OrbitalAnte.Items.LockerLook.Changed -= WearAgain;
+
+        /// <summary>
+        /// A look went to work in the middle of a run (<c>LockerLook.Refresh</c>, Ralph loop pass 5): the gun in hand
+        /// puts its skin on now, so it is seen as it is earned; a carried gun puts its own on as it comes into the hand.
+        /// </summary>
+        void WearAgain()
+        {
+            Weapon weapon = Current;
+            if (weapon == null) return;
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data));
+            OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
+        }
+
         /// <summary>
         /// Where the view's kick goes when there is no arena <see cref="FpsController"/> (the astronaut in the real
         /// game). Null means no kick.
@@ -155,6 +172,9 @@ namespace OrbitalAnte.Player
             weapon.transform.localPosition = Vector3.zero;
             weapon.transform.localRotation = Quaternion.identity;
             weapon.transform.localScale = Vector3.one;
+            // The Locker's skin for this kind of gun (or the one for every gun), on any gun that comes into the
+            // player's hands, picked up or handed over; before the cabin light, whose twin the skin brings with it.
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, OrbitalAnte.Items.LockerLook.SkinFor(weapon.Data));
             OrbitalAnte.Look.ModelLibrary.SetIndoors(weapon.gameObject, Indoors);
             _holder.localPosition = RestPosition(weapon.Data);
             _holder.localRotation = Quaternion.identity;
@@ -345,7 +365,7 @@ namespace OrbitalAnte.Player
             // The player always has both hands. (Enemies are the ones who lose them.)
             const int hands = 2;
 
-            if (GameInput.Reload.WasPressedThisFrame() && state.StartReload(hands))
+            if (GameInput.Reload.WasPressedThisFrame() && state.StartReload(hands, OrbitalAnte.Combat.RunEffects.ReloadTime))
             {
                 OnReloadStarted();
             }
@@ -358,7 +378,7 @@ namespace OrbitalAnte.Player
             {
                 fx.Audio.PlayClick(weapon.Muzzle.position, 1.5f);
                 // Pulling the trigger on an empty gun reloads it, so nobody is stuck clicking.
-                if (state.StartReload(hands)) OnReloadStarted();
+                if (state.StartReload(hands, OrbitalAnte.Combat.RunEffects.ReloadTime)) OnReloadStarted();
             }
 
             if (shot.Fired && RollsBackfire(weapon.Data))
@@ -370,6 +390,7 @@ namespace OrbitalAnte.Player
             if (shot.Fired)
             {
                 LastShotTime = Time.time;
+                if (Playtest.PlaytestHooks.Log != null) Playtest.PlaytestHooks.Shot(weapon.Data.Id);
                 Vector3 direction = Ballistics.SpreadDirection(_eye.transform.forward, shot.SpreadDegrees, _rng);
                 ShotResult result = Ballistics.FireFromPlayer(weapon.Data, _eye.transform.position, direction);
                 fx.Shot(weapon.Data, weapon.Muzzle.position, result.End);

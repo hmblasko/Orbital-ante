@@ -36,7 +36,7 @@ namespace OrbitalAnte.Tasks
         void PublishBuild()
         {
             if (Run == null) { RunEffects.Clear(); return; }
-            RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte));
+            RunEffects.Publish(RunMods.From(Run.Perks, Run.Attributes, CurrentHazard, Run.Balance, _tacticalThisAnte, LockerUpgrade));
             // In overtime the enemies are as sharp as under Hunted. Not its extra heavies: an enemy keeps the kind it
             // first woke as for the whole run, so heavies woken in overtime would stay heavies in every later ante.
             EnemyPressure pressure = EnemyPressure.For(Run.Director.Ante, CurrentHazard, Run.Balance);
@@ -141,6 +141,7 @@ namespace OrbitalAnte.Tasks
             string sets = SetsLine();
             if (sets.Length > 0) body.Append(sets).Append("\n");
             if (!string.IsNullOrEmpty(_breakNote)) body.Append(_breakNote).Append("\n");
+            if (!string.IsNullOrEmpty(UnlockBreakLines)) body.Append(UnlockBreakLines).Append("\n");
             if (Run.Director.ClearedInOvertime) body.Append("Made it in overtime. Close one!\n");
             if (!string.IsNullOrEmpty(_contractResult)) body.Append(_contractResult).Append("\n");
             body.Append("Ante ").Append(ante + 1).Append(" needs ").Append(N(next)).Append(" in ")
@@ -164,9 +165,11 @@ namespace OrbitalAnte.Tasks
             choices.Add(new PauseMenu.MenuChoice("Start ante " + (ante + 1), StartPressed));
             choices.Add(new PauseMenu.MenuChoice("Restart or quit", ShowLeave));
             // Seven rows at full height no longer fit a 1280 x 800 screen (agent review, 25 Nov 2026): shorter rows then.
+            // The body grows to its words (a goal unlocked at the clear adds a line); the menu shrinks the rows to fit.
             bool full = choices.Count >= 7;
-            Menu.ShowChoices("ANTE " + ante + " CLEARED", body.ToString(), choices, null, full ? 176f : 190f, _keepSlot,
-                false, full ? 56f : PauseMenu.ChoiceButtonHeight);
+            string words = body.ToString().TrimEnd('\n');
+            Menu.ShowChoices("ANTE " + ante + " CLEARED", words, choices, null, full ? 176f : 190f,
+                _keepSlot, false, full ? 56f : PauseMenu.ChoiceButtonHeight);
             _keepSlot = -1;
         }
 
@@ -212,6 +215,8 @@ namespace OrbitalAnte.Tasks
         string LastPerkName()
         {
             IReadOnlyList<PerkDefinition> owned = Run.Perks.Owned;
+            // The first antes of a kit run have no pick: the kit's perks were those picks, and one more is its price.
+            if (Run.Director.PickGivenAhead && !_skippedPerk && !Run.Director.PerkTakenEarly) return KitPickWords();
             return _skippedPerk ? "skipped" : owned.Count > 0 ? owned[owned.Count - 1].displayName : "none";
         }
 
@@ -226,7 +231,12 @@ namespace OrbitalAnte.Tasks
                 PerkFamily f = PerkFamilies.All[i];
                 if (Run.Perks.FamilyCount(f) > 0) parts.Add(PerkFamilies.Progress(Run.Perks, f, Run.Balance));
             }
-            return parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
+            string build = parts.Count == 0 ? string.Empty : "Your build: " + string.Join("   ", parts);
+            // The Locker's upgrade is part of the build all run (Ralph loop pass 4): its gain and its cost, in words.
+            if (LockerUpgrade == null) return build;
+            // "Locker" is kept off the screen until the launch base has a real one (Part B section 8).
+            string locker = "Upgrade in use: " + Items.Locker.UpgradeWords(LockerUpgrade) + ". Change it in Collection.";
+            return build.Length == 0 ? locker : build + "\n" + locker;
         }
 
         /// <summary>The break's perk pick, on the star chart (Matthew chose option A, 21 Nov 2026).</summary>
@@ -318,6 +328,7 @@ namespace OrbitalAnte.Tasks
                 choices.Add(new PauseMenu.MenuChoice("Pick a perk  (" + offers + " on offer)", () => ShowFieldPerks(0), offers > 0));
             }
             else if (d.PerkTakenEarly) choices.Add(new PauseMenu.MenuChoice("Perk: " + LastPerkName(), null, false));
+            else if (d.PickGivenAhead) choices.Add(new PauseMenu.MenuChoice("Perk: " + KitPickWords(), null, false));
             else if (d.IsLastAnte) choices.Add(new PauseMenu.MenuChoice("Perk: none on the last ante", null, false));
             else choices.Add(new PauseMenu.MenuChoice("Perk: yours when you meet the target  (" + N(Mathf.Max(0, d.Target - Run.Ledger.AnteEarned)) + " to go)", null, false));
             choices.Add(new PauseMenu.MenuChoice("Shop  (" + N(Run.Ledger.SpendablePoints) + " to spend)", () => ShowShop(-1, () => ShowFieldUpgrades(1))));
@@ -351,10 +362,13 @@ namespace OrbitalAnte.Tasks
         StarChartPage ChartPage(int selected)
         {
             int price = Run.RerollPrice;
+            List<PerkDefinition> offers = Run.PerkOffers();
             return new StarChartPage
             {
                 loadout = Run.Perks,
-                offers = Run.PerkOffers(),
+                offers = offers,
+                // A perk unlocked since the last draft is on a card: it says NEW (AnteLoop.Unlocks.cs).
+                newPerkId = ShowingNewPerk(offers),
                 balance = Run.Balance,
                 wallet = Run.Ledger.SpendablePoints,
                 rerollPrice = price,
@@ -487,7 +501,7 @@ namespace OrbitalAnte.Tasks
                     Audio.AudioDirector.PlayLocal("reward.tier3");
                     break;
                 default:
-                    _breakNote = "Ticket: a cosmetic token (kept for the locker when it exists).";
+                    _breakNote = "Ticket: a cosmetic token (nothing uses tokens yet).";
                     Audio.AudioDirector.PlayLocal("reward.tier4");
                     break;
             }
@@ -573,13 +587,18 @@ namespace OrbitalAnte.Tasks
             {
                 var names = new List<string>();
                 for (int i = 0; i < Run.Perks.Owned.Count; i++) names.Add(Run.Perks.Owned[i].displayName);
-                s.Append("Build: ").Append(string.Join(", ", names)).Append("\n");
+                // A kit run says so: Try again starts with the same kit (it is changed at New run).
+                StartingKit kit = StartingKits.Find(Run.KitId);
+                s.Append("Build: ").Append(string.Join(", ", names));
+                if (kit != null && kit.perkIds.Length > 0) s.Append(" (started with the ").Append(kit.displayName).Append(')');
+                s.Append("\n");
             }
             string story = _recap != null ? _recap.Lines() : string.Empty;
             if (story.Length > 0) s.Append(story).Append("\n");
             if (newAnte) s.Append("NEW RECORD: your highest ante!\n");
             else if (newScore) s.Append("NEW RECORD: your best run score!\n");
-            s.Append(RunRecap.NextLine(cleared, Run.Balance.AnteCount));
+            // This run's unlocks, the next two to earn, then the next mark (Ante/Unlocks.cs, UnlockRecap).
+            s.Append(UnlockRecapLines(cleared));
             return s.ToString();
         }
     }

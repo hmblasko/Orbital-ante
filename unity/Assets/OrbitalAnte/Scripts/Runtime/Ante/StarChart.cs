@@ -42,6 +42,8 @@ namespace OrbitalAnte.Ante
         /// <summary>The line at the bottom: what this pick does for the chart.</summary>
         public string chartLine;
         public bool completesSet;
+        /// <summary>Unlocked since the last draft (Ante/Unlocks.cs): the card says NEW.</summary>
+        public bool isNew;
     }
 
     /// <summary>
@@ -148,7 +150,8 @@ namespace OrbitalAnte.Ante
         }
 
         /// <summary>The three cards (or fewer), each with its gains and costs on their own lines.</summary>
-        public static List<ChartCard> Cards(PerkLoadout loadout, IList<PerkDefinition> offers, AnteBalance balance)
+        /// <param name="newPerkId">A perk unlocked since the last draft, whose card says NEW; null for none.</param>
+        public static List<ChartCard> Cards(PerkLoadout loadout, IList<PerkDefinition> offers, AnteBalance balance, string newPerkId = null)
         {
             balance = balance ?? new AnteBalance();
             int size = PerkFamilies.SetSize(balance);
@@ -165,6 +168,7 @@ namespace OrbitalAnte.Ante
                     familyName = FamilyName(perk.family),
                     rarity = RarityName(perk.rarity),
                     name = perk.displayName,
+                    isNew = !string.IsNullOrEmpty(newPerkId) && perk.id == newPerkId,
                 };
                 for (int i = 0; i < perk.effects.Length; i++)
                 {

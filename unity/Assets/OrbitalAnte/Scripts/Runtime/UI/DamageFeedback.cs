@@ -1,3 +1,5 @@
+using OrbitalAnte.Core;
+using OrbitalAnte.Creatures;
 using OrbitalAnte.Player;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,7 +13,16 @@ namespace OrbitalAnte.UI
     ///
     /// Works for whichever <see cref="PlayerHealth"/> it is given: the arena's player, or the suit outside the
     /// ship. Colours and alphas are set on the renderers, so nothing makes the canvas lay itself out again.
+    ///
+    /// Every arc keeps pointing at what it warns of as the player turns (Ralph loop pass 2): a hit or a sighting keeps
+    /// the way it came from, and a creature's wind-up (<see cref="WindupCues"/>) follows the creature itself, so an arc
+    /// is followed round by turning toward it. An arc is turned only when it has moved a quarter of a degree. The amber
+    /// arcs are hidden while the game is paused and once the player is dead: they are about what is coming.
+    ///
+    /// Late in the frame, after the player's own scripts have turned the eye (the arena's FpsController turns it in its
+    /// LateUpdate), so an arc is never a frame behind the view.
     /// </summary>
+    [DefaultExecutionOrder(100)]
     public sealed class DamageFeedback : MonoBehaviour
     {
         static readonly Color Red = new Color(0.95f, 0.16f, 0.12f);
@@ -38,6 +49,19 @@ namespace OrbitalAnte.UI
         readonly float[] _warnAngle = new float[ThreatCues.MaxMarkers];
         readonly float[] _warnTime = new float[ThreatCues.MaxMarkers];
         readonly float[] _warnBeat = new float[ThreatCues.MaxMarkers];
+        // Which way, in the world, each red and amber arc points: the arcs are turned to it every frame, so they keep
+        // pointing at the danger as the player turns. Zero when the way is not known (the arc keeps its first angle).
+        readonly Vector3[] _markerDir = new Vector3[DamageCues.MaxMarkers];
+        readonly Vector3[] _warnDir = new Vector3[ThreatCues.MaxMarkers];
+        // Creatures winding up (UI/WindupCues): each arc follows its creature and reads its stage every frame.
+        readonly Image[] _beasts = new Image[WindupCues.MaxMarkers];
+        readonly IWindup[] _beastSource = new IWindup[WindupCues.MaxMarkers];
+        readonly WindupStage[] _beastStage = new WindupStage[WindupCues.MaxMarkers];
+        readonly float[] _beastSince = new float[WindupCues.MaxMarkers];
+        readonly float[] _beastEnded = new float[WindupCues.MaxMarkers];
+        readonly float[] _beastAlpha = new float[WindupCues.MaxMarkers];
+        readonly float[] _beastAngle = new float[WindupCues.MaxMarkers];
+        readonly float[] _beastSpan = new float[WindupCues.MaxMarkers];
         float _lastSting = -100f;
         readonly PulseClock _pulse = new PulseClock();
         float _glowStrength, _glowTime = -100f, _lastSound = -100f;
@@ -68,6 +92,7 @@ namespace OrbitalAnte.UI
             if (_health != null) _health.Damaged += OnDamaged;
             for (int i = 0; i < _markerTime.Length; i++) _markerTime[i] = -100f;
             for (int i = 0; i < _warnTime.Length; i++) _warnTime[i] = -100f;
+            for (int i = 0; i < _beastSource.Length; i++) _beastSource[i] = null;
             _glowTime = -100f;
             _shownCracks = -1;
             if (_canvas != null) _canvas.gameObject.SetActive(_health != null);
@@ -77,23 +102,54 @@ namespace OrbitalAnte.UI
         {
             AI.CombatWorld.PlayerSpotted += OnSpotted;
             AI.CombatWorld.SquadSent += OnSquadSent;
+            AI.CombatWorld.CreatureWindup += OnWindup;
         }
 
         void OnDisable()
         {
             AI.CombatWorld.PlayerSpotted -= OnSpotted;
             AI.CombatWorld.SquadSent -= OnSquadSent;
+            AI.CombatWorld.CreatureWindup -= OnWindup;
+            for (int i = 0; i < _beastSource.Length; i++) _beastSource[i] = null;
         }
 
         bool Showing => _health != null && _health.Alive && _view != null && (_visible == null || _visible());
 
-        /// <summary>The screen angle toward a point in the world, as the damage markers measure it.</summary>
-        float AngleToward(Vector3 point)
+        /// <summary>
+        /// The eye's place and axes, read once: every read of a transform's axes or place walks up its parents, so a
+        /// frame that turns ten arcs reads them once, not thirty times.
+        /// </summary>
+        readonly struct Eye
         {
-            Vector3 to = point - _view.position;
-            if (to.sqrMagnitude < 1e-6f) return 90f;
-            to.Normalize();
-            return DamageCues.MarkerAngle(Vector3.Dot(to, _view.right), Vector3.Dot(to, _view.up), Vector3.Dot(to, _view.forward));
+            readonly Vector3 _at, _right, _up, _forward;
+
+            Eye(Transform view)
+            {
+                view.GetPositionAndRotation(out _at, out Quaternion turn);
+                _right = turn * Vector3.right;
+                _up = turn * Vector3.up;
+                _forward = turn * Vector3.forward;
+            }
+
+            public static Eye Of(Transform view) => new Eye(view);
+
+            /// <summary>The screen angle of a way in the world (a unit vector), as the damage markers measure it.</summary>
+            public float AngleOf(Vector3 way) =>
+                DamageCues.MarkerAngle(Vector3.Dot(way, _right), Vector3.Dot(way, _up), Vector3.Dot(way, _forward));
+
+            /// <summary>The screen angle toward a point in the world.</summary>
+            public float AngleToward(Vector3 point)
+            {
+                Vector3 to = point - _at;
+                return to.sqrMagnitude < 1e-6f ? 90f : AngleOf(to.normalized);
+            }
+
+            /// <summary>The way from the eye to a point, or zero if the point is at the eye.</summary>
+            public Vector3 WayTo(Vector3 point)
+            {
+                Vector3 to = point - _at;
+                return to.sqrMagnitude < 1e-6f ? Vector3.zero : to.normalized;
+            }
         }
 
         void OnSpotted(Vector3 from, float beat, bool hidden)
@@ -101,7 +157,8 @@ namespace OrbitalAnte.UI
             if (!Showing) return;
             // Game time, like the enemy's beat: in Focus or hitstop the arc lasts as long as the beat really does.
             float now = Time.time;
-            float angle = AngleToward(from);
+            Eye eye = Eye.Of(_view);
+            float angle = eye.AngleToward(from);
             // A squad seen together shares one arc; otherwise the oldest arc makes way.
             int slot = -1, oldest = 0;
             for (int i = 0; i < _warnTime.Length; i++)
@@ -111,6 +168,7 @@ namespace OrbitalAnte.UI
             }
             if (slot < 0) slot = oldest;
             _warnAngle[slot] = angle;
+            _warnDir[slot] = eye.WayTo(from);
             _warnTime[slot] = now;
             _warnBeat[slot] = beat;
             _warns[slot].rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - WarnSpan * 0.5f);
@@ -122,10 +180,54 @@ namespace OrbitalAnte.UI
             }
         }
 
+        /// <summary>
+        /// A creature has begun a warning: an arc on the amber ring that follows it until its strike is over. A creature
+        /// already shown keeps its arc; otherwise a free arc, then one fading out, then the arc of the creature furthest
+        /// away, if this one is nearer: the nearest dangers are the ones shown (each is heard in any case).
+        /// </summary>
+        void OnWindup(IWindup source)
+        {
+            if (!Showing || source == null) return;
+            Vector3 eye = _view.position;
+            float furthest = (source.WindupPoint - eye).sqrMagnitude;
+            int slot = -1, free = -1, fading = -1, far = -1;
+            for (int i = 0; i < _beastSource.Length; i++)
+            {
+                IWindup shown = _beastSource[i];
+                if (ReferenceEquals(shown, source)) { slot = i; break; }
+                if (shown == null) { if (free < 0) free = i; continue; }
+                if (_beastStage[i] == WindupStage.None || (shown is Object o && o == null)) { if (fading < 0) fading = i; continue; }
+                float d = (shown.WindupPoint - eye).sqrMagnitude;
+                if (d > furthest) { furthest = d; far = i; }
+            }
+            if (slot < 0) slot = free >= 0 ? free : fading >= 0 ? fading : far;
+            if (slot < 0) return;
+            bool fresh = !ReferenceEquals(_beastSource[slot], source) || _beastStage[slot] == WindupStage.None;
+            _beastSource[slot] = source;
+            _beastStage[slot] = source.Windup;
+            _beastSince[slot] = Time.time;
+            if (fresh)
+            {
+                // Turned straight to it on its first frame, never swung round from where another arc was, and as bright
+                // at once as its stage says: the first frame must be seen.
+                _beastAngle[slot] = Eye.Of(_view).AngleToward(source.WindupPoint);
+                _beastSpan[slot] = WindupCues.Span(_beastStage[slot], source.WindupProgress, 0f);
+                _beastAlpha[slot] = WindupCues.Alpha(_beastStage[slot], true);
+                SetArc(_beasts[slot], _beastAngle[slot], _beastSpan[slot]);
+            }
+        }
+
+        static void SetArc(Image arc, float angle, float span)
+        {
+            arc.fillAmount = span / 360f;
+            // Centre the arc on the angle: the fill runs anticlockwise from the rect's right.
+            arc.rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - span * 0.5f);
+        }
+
         void OnSquadSent(Vector3 from)
         {
             if (!Showing) return;
-            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(AngleToward(from)));
+            Audio.AudioDirector.PlayLocal("enemy.radio.call", 0.9f, 1f, DamageCues.SoundPan(Eye.Of(_view).AngleToward(from)));
         }
 
         void OnDestroy()
@@ -224,6 +326,23 @@ namespace OrbitalAnte.UI
                 _warns[i] = img;
                 _warnTime[i] = -100f;
             }
+            // Creature wind-ups: on the same amber ring, because they mean the same (danger from there, coming).
+            for (int i = 0; i < _beasts.Length; i++)
+            {
+                RectTransform rt = UiKit.NewRect("WindupMarker" + i, _canvas.transform);
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = Vector2.zero;
+                float outer = WarnRadius + 10f;
+                rt.sizeDelta = new Vector2(2f * outer, 2f * outer);
+                Image img = UiKit.AddImage(rt, Amber, UiKit.Ring);
+                img.type = Image.Type.Filled;
+                img.fillMethod = Image.FillMethod.Radial360;
+                img.fillOrigin = (int)Image.Origin360.Right;
+                img.fillClockwise = false;
+                img.fillAmount = WindupCues.StartSpan / 360f;
+                img.enabled = false;
+                _beasts[i] = img;
+            }
             _canvas.gameObject.SetActive(false);
         }
 
@@ -240,10 +359,11 @@ namespace OrbitalAnte.UI
         {
             float now = Time.unscaledTime;
             float angle = 270f;
+            Vector3 toShooter = Vector3.zero;
             if (_view != null && bulletDirection.sqrMagnitude > 1e-8f)
             {
-                Vector3 toShooter = -bulletDirection.normalized;
-                angle = DamageCues.MarkerAngle(Vector3.Dot(toShooter, _view.right), Vector3.Dot(toShooter, _view.up), Vector3.Dot(toShooter, _view.forward));
+                toShooter = -bulletDirection.normalized;
+                angle = Eye.Of(_view).AngleOf(toShooter);
             }
 
             // A hit from about the same way as one still showing refreshes it rather than taking a new slot.
@@ -255,6 +375,7 @@ namespace OrbitalAnte.UI
             }
             if (slot < 0) slot = oldest;
             _markerAngle[slot] = angle;
+            _markerDir[slot] = toShooter;
             _markerTime[slot] = now;
             // Centre the arc on the angle: the fill runs anticlockwise from the rect's right.
             _markers[slot].rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - MarkerSpan * 0.5f);
@@ -281,20 +402,32 @@ namespace OrbitalAnte.UI
             bool show = _visible == null || _visible();
             float now = Time.unscaledTime;
 
+            bool looking = _view != null;
+            Eye eye = looking ? Eye.Of(_view) : default;
             for (int i = 0; i < _markers.Length; i++)
             {
                 float a = show ? DamageCues.MarkerAlpha(now - _markerTime[i]) : 0f;
                 bool on = a > 0.01f;
                 if (_markers[i].enabled != on) _markers[i].enabled = on;
-                if (on) _markers[i].canvasRenderer.SetAlpha(a);
+                if (!on) continue;
+                _markers[i].canvasRenderer.SetAlpha(a);
+                if (looking && _markerDir[i] != Vector3.zero) Follow(_markers[i], ref _markerAngle[i], eye.AngleOf(_markerDir[i]), MarkerSpan);
             }
+
+            // The amber arcs warn of what is coming: none while paused (the game's clock has stopped) or once dead.
+            bool amber = show && looking && _health.Alive && !GameSession.Paused;
+            // Creatures first, so a "seen" arc knows whether a creature that has taken aim is beside it.
+            for (int i = 0; i < _beasts.Length; i++) StepWindup(i, amber, in eye);
 
             for (int i = 0; i < _warns.Length; i++)
             {
-                float a = show ? ThreatCues.Alpha(Time.time - _warnTime[i], _warnBeat[i]) : 0f;
+                float a = amber ? ThreatCues.Alpha(Time.time - _warnTime[i], _warnBeat[i]) : 0f;
                 bool on = a > 0.01f;
                 if (_warns[i].enabled != on) _warns[i].enabled = on;
-                if (on) _warns[i].canvasRenderer.SetAlpha(a);
+                if (!on) continue;
+                if (_warnDir[i] != Vector3.zero) Follow(_warns[i], ref _warnAngle[i], eye.AngleOf(_warnDir[i]), WarnSpan);
+                if (Crowded(_warnAngle[i])) a *= WindupCues.CrowdedShare;
+                _warns[i].canvasRenderer.SetAlpha(a);
             }
 
             float glow = show ? DamageCues.GlowFade(_glowStrength, now - _glowTime) * 0.75f : 0f;
@@ -320,6 +453,78 @@ namespace OrbitalAnte.UI
                     if (_cracks[i].enabled != on) _cracks[i].enabled = on;
                 }
             }
+        }
+
+        /// <summary>Turns an arc of fixed width to where it now points, if that has moved enough to see.</summary>
+        static void Follow(Image arc, ref float shown, float angle, float span)
+        {
+            if (!WindupCues.Turned(shown, angle)) return;
+            shown = angle;
+            arc.rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle - span * 0.5f);
+        }
+
+        /// <summary>
+        /// One creature's arc for this frame: its stage, countdown and threat read from the creature, its brightness and
+        /// width from <see cref="WindupCues"/>, turned toward it. When the warning is over (or the creature is gone) it
+        /// fades where it last pointed, then lets the arc go.
+        /// </summary>
+        void StepWindup(int i, bool show, in Eye eye)
+        {
+            IWindup source = _beastSource[i];
+            Image arc = _beasts[i];
+            if (source == null)
+            {
+                if (arc.enabled) arc.enabled = false;
+                return;
+            }
+            float now = Time.time;
+            // A creature destroyed while it warned is a Unity null: its arc fades where it was.
+            bool gone = source is Object o && o == null;
+            WindupStage stage = gone ? WindupStage.None : source.Windup;
+            if (stage != _beastStage[i])
+            {
+                if (stage == WindupStage.None) _beastEnded[i] = now;
+                _beastStage[i] = stage;
+                _beastSince[i] = now;
+            }
+            float a;
+            if (stage != WindupStage.None)
+            {
+                bool threatens = stage != WindupStage.Striking || source.Threatens;
+                a = _beastAlpha[i] = WindupCues.Ease(_beastAlpha[i], WindupCues.Alpha(stage, threatens), Time.deltaTime);
+            }
+            else
+            {
+                float since = now - _beastEnded[i];
+                if (since >= WindupCues.FadeSeconds)
+                {
+                    _beastSource[i] = null;
+                    if (arc.enabled) arc.enabled = false;
+                    return;
+                }
+                a = WindupCues.Fade(_beastAlpha[i], since);
+            }
+            if (!show) a = 0f;
+            bool on = a > 0.01f;
+            if (arc.enabled != on) arc.enabled = on;
+            if (!on) return;
+            arc.canvasRenderer.SetAlpha(a);
+            float span = stage == WindupStage.None ? _beastSpan[i] : WindupCues.Span(stage, source.WindupProgress, now - _beastSince[i]);
+            float angle = gone ? _beastAngle[i] : eye.AngleToward(source.WindupPoint);
+            if (Mathf.Abs(span - _beastSpan[i]) >= WindupCues.SpanStep || (stage == WindupStage.Striking && span != _beastSpan[i]) || WindupCues.Turned(_beastAngle[i], angle))
+            {
+                _beastSpan[i] = span;
+                _beastAngle[i] = angle;
+                SetArc(arc, angle, span);
+            }
+        }
+
+        /// <summary>Is a "seen" arc pointing here beside a creature's arc that has taken aim (and is showing)?</summary>
+        bool Crowded(float seenAngle)
+        {
+            for (int i = 0; i < _beasts.Length; i++)
+                if (_beasts[i].enabled && _beastSource[i] != null && WindupCues.Crowds(_beastStage[i], _beastAngle[i], seenAngle)) return true;
+            return false;
         }
 
         /// <summary>

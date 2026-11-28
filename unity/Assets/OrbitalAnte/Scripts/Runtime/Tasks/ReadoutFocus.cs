@@ -23,6 +23,25 @@ namespace OrbitalAnte.Tasks
         /// <summary>True while a fight is on: an enemy saw the player within the hold.</summary>
         public static bool InFight(float sinceSeen) => sinceSeen >= 0f && sinceSeen < FightHold;
 
+        /// <summary>
+        /// How long after a creature last knew where the player is it still counts as the fight (its spawner says so every
+        /// frame it does, so this only bridges a frame or two).
+        /// </summary>
+        public const float AwareHold = 1f;
+
+        /// <summary>
+        /// True while a fight is on, for everything that waits out a fight (the readout, the tips, an unlock's moment and
+        /// its save, the restless camps): an armed enemy saw the player within the hold, a creature began a warning within
+        /// it, or a creature knows where the player is and can still hurt them. (Ralph loop pass 8, from the design review:
+        /// a creature's fight did not count, so tips, an unlock banner or a squad's radio call could come in the middle of one.)
+        /// </summary>
+        public static bool InFight(float sinceSeen, float sinceCreatureWarned, float sinceCreatureAware)
+            => InFight(sinceSeen) || CreatureFight(sinceCreatureWarned, sinceCreatureAware);
+
+        /// <summary>A creature's fight: a warning begun within the hold, or one that knows where the player is.</summary>
+        public static bool CreatureFight(float sinceWarned, float sinceAware)
+            => InFight(sinceWarned) || (sinceAware >= 0f && sinceAware < AwareHold);
+
         /// <summary>How many "+points" lines show.</summary>
         public static int Pops(bool inFight) => inFight ? PopsInAFight : PopsAtRest;
 

@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum MawPiece { Head, Jaw, Seg, Fin, BackFin, TailFin, Throat }
-
     /// <summary>One hitbox of a Drifting maw: its skull, its lower jaw, a length of body, a fin, or the way down its open throat.</summary>
     public sealed class MawPart : MonoBehaviour, IHittable
     {
@@ -61,10 +59,27 @@ namespace OrbitalAnte.Creatures
     ///   from. In the suit that is a force on the suit; the arena's player (who has no water) is slid over the ground.
     /// - In the combat arena it swims in the air a little over the ground, as a stand-in for a sea.
     /// </summary>
-    public sealed class Maw : MonoBehaviour
+    public sealed class Maw : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by its sea; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Maw";
+        /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
+        public bool InReach => _inReach;
+        /// <summary>True while it has noticed the swimmer (alive, and they are in the water within its notice): for the music.</summary>
+        public bool AwareOfPlayer => Alive && _aware;
+        bool _inReach = true, _aware;
         public MawBody Body { get; private set; }
         public MawBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its mouth.</summary>
+        public Vector3 WindupPoint => MouthPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>While it draws in: its pull still has the player. Out of the cone (the way out is sideways), it no longer threatens.</summary>
+        public bool Threatens => _threatens;
+        readonly WindupTrack _windup = new WindupTrack();
+        bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Maw> Died;
         /// <summary>What the water is like at a place in Unity's space. Null: the combat arena, where the air stands in for a sea.</summary>
@@ -74,7 +89,9 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Maw> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string GapeSound = "creature.maw.gape", InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
+        const string GapeSound = Windups.MawWarning, AimSound = Windups.MawAim, InhaleSound = "creature.maw.inhale", ChokeSound = "creature.maw.choke";
+        /// <summary>The draw-in sound's length: played faster or slower to last as long as the draw-in does.</summary>
+        const double InhaleDesigned = 2.6;
         /// <summary>In the arena it is told the floor is this much lower than it is, so its mouth comes down to someone standing on it.</summary>
         const float ArenaSink = 1.3f;
 
@@ -276,6 +293,7 @@ namespace OrbitalAnte.Creatures
                 // It takes no notice of anyone who is not in the water with it (in the arena, everyone is).
                 senses.PlayerInWater = Water == null || (Suit != null && Water(chest).Above > 0.3f);
             }
+            _inReach = Water == null || senses.PlayerInWater;
             return senses;
         }
 
@@ -291,15 +309,19 @@ namespace OrbitalAnte.Creatures
 
             MawSenses senses = Senses(here, out Transform eye, out bool hostile);
             MawOrders orders = Brain.Think(dt, senses, Body);
+            _aware = orders.Aware;
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = MouthPoint();
-                // Each change the player must notice is heard (other sounds stand in until its own are there).
-                if (orders.Mode == MawMode.Gape && !Audio.AudioDirector.Play(GapeSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.9f, 0.5f);
-                if (orders.Mode == MawMode.Inhale && !Audio.AudioDirector.Play(InhaleSound, at)) Audio.AudioDirector.Play("enemy.heavy.spinup", at, 0.9f, 0.6f);
-                if (orders.Mode == MawMode.Reel && !Audio.AudioDirector.Play(ChokeSound, at)) Audio.AudioDirector.Play("gore.splat", at, 1f, 0.6f);
+                // Each change the player must notice is heard, in its own sounds (never another creature's or an enemy's).
+                if (orders.Mode == MawMode.Inhale) Audio.AudioDirector.Play(InhaleSound, at, 1f, Windups.PitchFor(InhaleDesigned, _rules.inhaleSeconds));
+                if (orders.Mode == MawMode.Reel) Audio.AudioDirector.Play(ChokeSound, at);
                 _lastMode = orders.Mode;
             }
+            // Its warning is heard and seen (UI/WindupCues) until the draw-in is over: its own wind-up as its mouth opens,
+            // and its mark the very frame it takes aim. While it draws in, the arc dims once the pull no longer has them.
+            WindupTell.Tell(this, _windup.Step(Windups.Maw(orders)), GapeSound, AimSound, MouthPoint());
+            _threatens = orders.Mode != MawMode.Inhale || orders.Pull.Magnitude > 1e-9;
             Vector3 moved = Move(orders, dt);
             // Cruising far from anyone it is posed five times a second, not every frame.
             Transform near = CombatWorld.PlayerEye;
@@ -373,7 +395,7 @@ namespace OrbitalAnte.Creatures
                 Audio.AudioDirector.Play("gore.splat", chest, 0.6f, 0.8f);
                 PlayerHealth player = CombatWorld.Player;
                 Transform head = _node[0];
-                if (player != null) player.TakeDamage((float)orders.Bite, head != null ? head.forward : transform.forward);
+                if (player != null) player.TakeDamage((float)orders.Bite, head != null ? head.forward : transform.forward, StrikeWords.Mouth);
             }
         }
 
@@ -422,8 +444,9 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             MawHit result;
-            bool armour = false, soft = false, choked = false;
+            bool soft = false, choked = false;
             switch (part.Piece)
             {
                 case MawPiece.Fin:
@@ -461,13 +484,16 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Maw skull";
-                    armour = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: down its throat rings gold, the skull only knocks, and the jaw shot off
+            // is its bite gone (WhereToShoot).
+            outcome.Zone = WhereToShoot.Maw(part.Piece, part.Piece == MawPiece.Jaw && result.JawLost);
+            bool armour = outcome.Zone == HitZone.Armour;
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             if (!killed)
             {
@@ -477,7 +503,7 @@ namespace OrbitalAnte.Creatures
                 if (choked)
                 {
                     _animator.Flinch(new Vec3d(0, 1.0, -2.5));
-                    if (!Audio.AudioDirector.Play(ChokeSound, hit.Point)) Audio.AudioDirector.Play("gore.splat", hit.Point, 1f, 0.6f);
+                    Audio.AudioDirector.Play(ChokeSound, hit.Point);
                 }
             }
             _animator.Flinch(new Vec3d(push.x, push.y, push.z) * (outcome.Severed ? 1.5 : 0.3));
@@ -490,7 +516,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.7f : choked ? 0.6f : armour ? 0.04f : part.Piece == MawPiece.Throat ? 0.3f : soft ? 0.15f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.7f : choked ? 0.6f : 0f;
             return outcome;
         }
 

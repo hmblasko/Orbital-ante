@@ -127,6 +127,8 @@ namespace OrbitalAnte.Tasks
             public float At;
             public KillFacts Facts;
             public int Hits;
+            /// <summary>Legs it still stood on after the last hit (two before the first), for the leg-off goal unlock.</summary>
+            public int Legs;
         }
 
         struct WokeRecord
@@ -178,7 +180,7 @@ namespace OrbitalAnte.Tasks
             var problems = _rules.Problems();
             if (problems.Count > 0) Debug.LogWarning("Task rules: " + string.Join(" ", problems));
             // A run that starts on the pad has already "landed" on Earth.
-            if (world.StartedOnPad) _noFirstLanding.Add("Earth");
+            if (world.StartedOnPad) _noFirstLanding.Add(Launch.LaunchSite.BodyId);
             // The first seconds of a run settle the ship onto its legs: not a landing.
             _quietUntil = Time.time + 3f;
             if (loop != null)
@@ -305,34 +307,145 @@ namespace OrbitalAnte.Tasks
 
         void OnPlayerHit(HitOutcome outcome)
         {
-            if (!outcome.Enemy || !(outcome.Target is Mannequin who) || who == null) return;
+            // A gun shot out of an enemy's hands answers as the gun, not the enemy (Weapon.Hit).
+            if (outcome.Disarmed) AnteLoop.UnlockDisarm();
+            if (!outcome.Enemy) return;
+            if (outcome.Target is Creatures.ICreature creature)
+            {
+                OnCreatureHit(outcome, creature);
+                return;
+            }
+            if (!(outcome.Target is Mannequin who) || who == null) return;
             Astronaut player = Player;
             bool known = _hits.TryGetValue(who, out HitRecord before);
-            var facts = new KillFacts
-            {
-                airborne = player != null && player.Airborne,
-                rover = outcome.Source == HitSource.Rover,
-                melee = outcome.Source == HitSource.Melee,
-            };
+            KillFacts facts = FactsOf(outcome, player);
             if (outcome.Killed)
             {
                 // The first hit that landed on it, and from how far.
                 facts.oneShot = !known || before.Hits == 0;
-                if (player != null && player.Eye != null && !facts.rover && !facts.melee)
-                {
-                    float longShot = Mathf.Max(10f, _rules.longShot - Combat.RunEffects.Mods.LongShotCloser);
-                    facts.longShot = (who.transform.position - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
-                }
-                string gun = facts.rover ? "rover" : facts.melee ? "melee"
-                           : !string.IsNullOrEmpty(outcome.SourceId) ? outcome.SourceId
-                           : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
-                               ? player.Weapons.Current.Data.Id : "gun";
-                facts.freshGun = _fresh.IsFresh(gun);
-                _fresh.Remember(gun);
+                facts.longShot = LongShot(facts, player, who.transform.position);
+                facts.freshGun = FreshGun(outcome, facts, player);
                 facts.takenApart = AllFourLimbsOff(who);
             }
-            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1 };
+            int stood = known ? before.Legs : 2, legs = LegsStoodOn(who);
+            if (outcome.Severed && !outcome.Killed)
+            {
+                // The hand or arm holding its gun came off in this hit: the gun fell as the part did (MannequinCombat).
+                MannequinCombat combat = _woke.TryGetValue(who, out WokeRecord woke) && woke.Combat != null ? woke.Combat : who.GetComponent<MannequinCombat>();
+                if (combat != null && combat.DisarmedFrame == Time.frameCount) AnteLoop.UnlockDisarm();
+                // A leg off one that stood on two drops it to the ground. Not a torso blown away, which takes both legs
+                // with it: the goal teaches the leg shot (Unity review, Ralph loop pass 5).
+                if (stood == 2 && legs < 2 && who.Model != null && who.Model.OnBody(BodyPartId.Torso)) AnteLoop.UnlockLegOff();
+            }
+            _hits[who] = new HitRecord { At = Now, Facts = facts, Hits = (known ? before.Hits : 0) + 1, Legs = legs };
+        }
 
+        /// <summary>Legs a living enemy still stands on: 0, 1 or 2 (0 once it is dead).</summary>
+        static int LegsStoodOn(Mannequin who)
+        {
+            BodyModel m = who.Model;
+            if (m == null || !m.Alive) return 0;
+            return (m.LegWorks(true) ? 1 : 0) + (m.LegWorks(false) ? 1 : 0);
+        }
+
+        /// <summary>
+        /// A creature the player hit. Its kill is the hit itself (a creature has no spawner to say it went down), and it
+        /// pays like a camp's: its tier, the style feats, the streak, a bonus mission's bounty and the unlocks. Only an
+        /// animal that was told who pays for it (<see cref="Creatures.CreatureCredit"/>, given by the seas and the land) counts.
+        /// </summary>
+        void OnCreatureHit(in HitOutcome outcome, Creatures.ICreature creature)
+        {
+            Creatures.CreatureCredit credit = creature.Credit;
+            if (credit == null) return;
+            credit.Hits++;
+            if (!outcome.Killed) return;
+            // A sea creature cannot leave the water, and a land creature cannot climb every ledge: killed by someone it
+            // could not reach (from the shore, hovering over the sea, from a ledge it was kept from) it pays nothing
+            // toward the ante, its bonus missions or the unlocks, and the note says why, so it is never a hidden rule
+            // (constitution 3) and never free points (5).
+            if (!creature.InReach)
+            {
+                AnteLoop.Note(CreatureTiers.NoPayNote(credit.Kind));
+                return;
+            }
+            Astronaut player = Player;
+            KillFacts f = FactsOf(outcome, player);
+            f.oneShot = credit.Hits == 1;
+            // The creature is alive in the call that raises its hit today; one heard late (destroyed) still pays, but
+            // where it was can no longer be asked, so it is never a long shot.
+            if (outcome.Target != null)
+            {
+                Vector3 at = creature is Creatures.IWindup windup ? windup.WindupPoint : outcome.Target.transform.position;
+                f.longShot = LongShot(f, player, at);
+            }
+            f.freshGun = FreshGun(outcome, f, player);
+            // In reach, a swimmer is always killed from in the water with it (InReach above).
+            f.seaCreature = CreatureTiers.Swims(credit.Kind);
+            int feats = StyleKill.Feats(f, out string style);
+            PayKill(CreatureTiers.KindFor(credit.Kind), credit.Claim, credit.Body, f, feats, string.IsNullOrEmpty(style) ? "KILL" : style);
+        }
+
+        /// <summary>What is true of a hit on an enemy whoever it was: what made it and how the player stood.</summary>
+        KillFacts FactsOf(in HitOutcome outcome, Astronaut player)
+        {
+            return new KillFacts
+            {
+                // In the sea the suit floats, but swimming is not being in the air.
+                airborne = player != null && player.Airborne && !InTheSea(player),
+                rover = outcome.Source == HitSource.Rover,
+                melee = outcome.Source == HitSource.Melee,
+                lowStance = player != null && player.Mode == AstronautMode.Outside && player.Stances.Current != Spacewalk.Stance.Stand,
+                lowArmour = _loop != null && _loop.Run != null && Combat.RunEffects.HealthShare < _loop.Run.Balance.lowHealthLine,
+                inFocus = Combat.DeepBreathFx.Amount >= TaskRules.FocusKillAt,
+            };
+        }
+
+        bool LongShot(in KillFacts facts, Astronaut player, Vector3 target)
+        {
+            if (player == null || player.Eye == null || facts.rover || facts.melee) return false;
+            float longShot = Mathf.Max(10f, _rules.longShot - Combat.RunEffects.Mods.LongShotCloser);
+            return (target - player.Eye.transform.position).sqrMagnitude >= longShot * longShot;
+        }
+
+        /// <summary>Whether the tool that made a kill is fresh this ante (FRESH GUN), and remembers it as used.</summary>
+        bool FreshGun(in HitOutcome outcome, in KillFacts facts, Astronaut player)
+        {
+            string gun = facts.rover ? "rover" : facts.melee ? "melee"
+                       : !string.IsNullOrEmpty(outcome.SourceId) ? outcome.SourceId
+                       : player != null && player.Weapons != null && player.Weapons.Current != null && player.Weapons.Current.Data != null
+                           ? player.Weapons.Current.Data.Id : "gun";
+            bool fresh = _fresh.IsFresh(gun);
+            _fresh.Remember(gun);
+            return fresh;
+        }
+
+        /// <summary>
+        /// The suit's boots are under the sea: floating, but not in the air. Only the sea's own height is asked (the
+        /// sea is a ball at sea level, as <see cref="PlanetWorld.Read"/> has it), never the ground's, which can cost
+        /// a full-detail height high above a world.
+        /// </summary>
+        bool InTheSea(Astronaut player)
+        {
+            SolarSystem system = _world != null ? _world.System : null;
+            if (player.Suit == null || system == null || system.Focus == null || _world.Planets == null) return false;
+            int body = system.Focus.Neighbourhood;
+            PlanetSurface surface = body > 0 ? _world.Planets.SurfaceOf(body) : null;
+            if (surface == null || !surface.Ready || surface.Terrain == null || !surface.Terrain.HasSea) return false;
+            double r = surface.Body.transform.InverseTransformPoint(player.Suit.position).magnitude;
+            return r < surface.SurfaceRadius + surface.Terrain.SeaLevel;
+        }
+
+        /// <summary>Pays a kill and passes it on: the streak, the Ghost set's time back, a bonus mission and the unlocks.</summary>
+        void PayKill(ScoreEventKind kind, string claim, int body, in KillFacts f, int feats, string label)
+        {
+            int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
+            // The sound comes when the streak starts paying: the next task gets the feat.
+            if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
+            ScoreResult paid = Score(kind, claim, feats, label);
+            // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
+            if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
+            AnteLoop.ContractKill(body, f);
+            AnteLoop.UnlockKill(f);
         }
 
         static bool AllFourLimbsOff(Mannequin who)
@@ -380,13 +493,7 @@ namespace OrbitalAnte.Tasks
                     feats = StyleKill.Feats(f, out string style);
                     label = string.IsNullOrEmpty(style) ? "KILL" : style;
                 }
-                int streak = _loop != null ? _loop.Streak.Add(Now) : 0;
-                // The sound comes when the streak starts paying: the next task gets the feat.
-                if (streak == _rules.streakForFeat) Audio.AudioDirector.PlayLocal("reward.multiplier", 0.7f);
-                ScoreResult paid = Score(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), feats, label);
-                // The Ghost set puts time back for a LONG SHOT kill (20 Nov 2026).
-                if (paid.Awarded && f.longShot) AnteLoop.LongShotKill();
-                AnteLoop.ContractKill(e.Body, f);
+                PayKill(kind, TaskIds.Enemy(e.BodyId, e.Camp, e.Member), e.Body, f, feats, label);
             }
             if (who != null) _woke.Remove(who);
 
@@ -618,6 +725,7 @@ namespace OrbitalAnte.Tasks
                 Audio.AudioDirector.PlayLocal("reward.loot.rare");
                 Score(ScoreEventKind.SalvageDelivered, TaskIds.Salvage(c.World.Id, c.Index), feats, Join("SALVAGE DELIVERED", label));
                 AnteLoop.ContractCrateDelivered();
+                AnteLoop.UnlockSalvageHome();
             }
         }
 
@@ -922,6 +1030,7 @@ namespace OrbitalAnte.Tasks
                     "FIRST LANDING: " + (surface.Body.Spec.displayName ?? id).ToUpperInvariant());
             }
             AnteLoop.ContractLanded(body);
+            AnteLoop.UnlockLanded(id);
 
             // Rough ground: the ground under the legs stands well above or below the ground around them.
             Transform t = surface.Body.transform;

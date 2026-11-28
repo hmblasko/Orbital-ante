@@ -1,4 +1,5 @@
 using System;
+using OrbitalAnte.Core;
 
 namespace OrbitalAnte.UI
 {
@@ -7,20 +8,28 @@ namespace OrbitalAnte.UI
     {
         /// <summary>Nothing to confirm: a miss, a rock, the ship, a loose limb, a gun lying on the ground.</summary>
         None,
+        /// <summary>
+        /// A creature's armour held (<see cref="HitZone.Armour"/>): a small grey X that does not pop, and a dull knock in
+        /// place of the ding. It did a little, and says "not here".
+        /// </summary>
+        Glance,
         Body,
         /// <summary>A limb came off a living enemy.</summary>
         Limb,
         /// <summary>A gun was knocked out of an enemy's hands.</summary>
         Disarm,
-        /// <summary>A hit on the head that did not kill yet (a head takes a few rifle hits).</summary>
+        /// <summary>
+        /// A hit on the head that did not kill yet (a head takes a few rifle hits), or on a creature's one weak place
+        /// (<see cref="HitZone.Vital"/>): the place that kills it, whatever kind of body it is.
+        /// </summary>
         Head,
         Kill,
-        /// <summary>Killed by destroying a head still on its body.</summary>
+        /// <summary>Killed by destroying a head still on its body, or a creature killed through its weak place.</summary>
         HeadshotKill,
     }
 
     /// <summary>The colour family of a marker. The drawing turns these into the HUD's colours.</summary>
-    public enum MarkerTone { White, Gold, Cyan, Red }
+    public enum MarkerTone { White, Gold, Cyan, Red, Grey }
 
     /// <summary>
     /// How a hit on an enemy is confirmed (Matthew, 16 Nov 2026: visual hit markers "just like" a tactical shooter
@@ -32,6 +41,11 @@ namespace OrbitalAnte.UI
     /// kill. The ding is our own small bell (tools/audio, `hit.marker`), a fifth higher for the head and a fourth
     /// higher for a disarm; kills have their own two- and three-bell chimes. Only hits on living enemies count,
     /// so shooting rocks, the ship or loose limbs never rings.
+    ///
+    /// Creatures (Ralph loop pass 7) say where a hit landed (<see cref="HitZone"/>), so the same marks teach where to
+    /// shoot each one: armour that held is a glance (small, grey, no pop, a dull knock and no bell, so the reward goes
+    /// only to shots that work); its one weak place is a head (gold, the bell a fifth up), and a kill through it a
+    /// headshot kill; a claw, jaw or drum shot off is a disarm (cyan, a fourth up), as a gun shot out of a hand is.
     /// </summary>
     public static class HitConfirm
     {
@@ -48,21 +62,28 @@ namespace OrbitalAnte.UI
         public const float DisarmPitch = 1.3348f;
 
         public const string BodyDing = "hit.marker";
+        /// <summary>The dull knock for a glance off a creature's armour: dry and unpitched, never a bell (tools/audio).</summary>
+        public const string GlanceDing = "hit.glance";
         public const string KillDing = "hit.kill";
         public const string HeadshotDing = "hit.headshot";
 
         /// <summary>
         /// What a hit was, from the flags a hit reports. <paramref name="enemy"/> means the living body of an
         /// enemy was hit (not a corpse or a loose piece); a disarm comes from hitting a gun in someone's hands.
+        /// <paramref name="zone"/> is where on a creature it landed (people leave it Plain): its weak place counts as a
+        /// head, a piece it fights with shot off as a disarm, and armour that held as a glance.
         /// </summary>
-        public static HitKind Classify(bool hit, bool enemy, bool head, bool severed, bool disarmed, bool killed, bool headshotKill)
+        public static HitKind Classify(bool hit, bool enemy, bool head, bool severed, bool disarmed, bool killed, bool headshotKill,
+            HitZone zone = HitZone.Plain)
         {
             if (!hit) return HitKind.None;
-            if (killed) return headshotKill ? HitKind.HeadshotKill : HitKind.Kill;
+            if (killed) return HitZones.BestKill(true, headshotKill, zone) ? HitKind.HeadshotKill : HitKind.Kill;
             if (disarmed) return HitKind.Disarm;
             if (!enemy) return HitKind.None;
-            if (head) return HitKind.Head;
-            return severed ? HitKind.Limb : HitKind.Body;
+            if (zone == HitZone.WeaponOff) return HitKind.Disarm;
+            if (head || zone == HitZone.Vital) return HitKind.Head;
+            if (severed) return HitKind.Limb;
+            return zone == HitZone.Armour ? HitKind.Glance : HitKind.Body;
         }
 
         /// <summary>How much a kind outranks another: a lesser hit never cuts a bigger one's marker short.</summary>
@@ -70,12 +91,13 @@ namespace OrbitalAnte.UI
         {
             switch (kind)
             {
-                case HitKind.Body: return 1;
+                case HitKind.Glance: return 1;
+                case HitKind.Body: return 2;
                 case HitKind.Limb:
-                case HitKind.Disarm: return 2;
-                case HitKind.Head: return 3;
-                case HitKind.Kill: return 4;
-                case HitKind.HeadshotKill: return 5;
+                case HitKind.Disarm: return 3;
+                case HitKind.Head: return 4;
+                case HitKind.Kill: return 5;
+                case HitKind.HeadshotKill: return 6;
                 default: return 0;
             }
         }
@@ -85,6 +107,7 @@ namespace OrbitalAnte.UI
         {
             switch (kind)
             {
+                case HitKind.Glance: return 0.16f;
                 case HitKind.Body: return 0.22f;
                 case HitKind.Head: return 0.28f;
                 case HitKind.Limb:
@@ -103,6 +126,7 @@ namespace OrbitalAnte.UI
         {
             switch (kind)
             {
+                case HitKind.Glance: return 7f;
                 case HitKind.Body: return 10f;
                 case HitKind.Head: return 11f;
                 case HitKind.Limb:
@@ -114,15 +138,16 @@ namespace OrbitalAnte.UI
         }
 
         /// <summary>Distance from the middle of the screen to the inner end of each tick, reference pixels.</summary>
-        public static float TickGap(HitKind kind) => kind >= HitKind.Kill ? 9f : kind == HitKind.Body ? 7f : 8f;
+        public static float TickGap(HitKind kind) => kind >= HitKind.Kill ? 9f : kind == HitKind.Body || kind == HitKind.Glance ? 7f : 8f;
 
         /// <summary>Thickness of each tick, reference pixels.</summary>
-        public static float TickWidth(HitKind kind) => kind >= HitKind.Kill ? 3.5f : kind == HitKind.Body ? 2.5f : 3f;
+        public static float TickWidth(HitKind kind) => kind >= HitKind.Kill ? 3.5f : kind == HitKind.Glance ? 2f : kind == HitKind.Body ? 2.5f : 3f;
 
         public static MarkerTone Tone(HitKind kind)
         {
             switch (kind)
             {
+                case HitKind.Glance: return MarkerTone.Grey;
                 case HitKind.Head: return MarkerTone.Gold;
                 case HitKind.Disarm: return MarkerTone.Cyan;
                 case HitKind.Kill:
@@ -161,10 +186,12 @@ namespace OrbitalAnte.UI
 
         /// <summary>
         /// Size of the X against its resting size: it starts popped out and settles in <see cref="PopSeconds"/>
-        /// (eased, so it snaps rather than slides). Kills pop out further.
+        /// (eased, so it snaps rather than slides). Kills pop out further; a glance does not pop at all, because
+        /// nothing much happened.
         /// </summary>
         public static float Scale(HitKind kind, float age)
         {
+            if (kind == HitKind.Glance) return 1f;
             float pop = kind >= HitKind.Kill ? 1.5f : 1.3f;
             if (!(age >= 0f)) return pop;
             if (age >= PopSeconds) return 1f;
@@ -178,6 +205,7 @@ namespace OrbitalAnte.UI
             switch (kind)
             {
                 case HitKind.None: return null;
+                case HitKind.Glance: return GlanceDing;
                 case HitKind.Kill: return KillDing;
                 case HitKind.HeadshotKill: return HeadshotDing;
                 default: return BodyDing;

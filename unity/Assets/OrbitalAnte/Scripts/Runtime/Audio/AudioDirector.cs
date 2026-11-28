@@ -64,6 +64,7 @@ namespace OrbitalAnte.Audio
         bool _slowSounding;
         float _musicDuck = 1f;
         float _duckUntil;
+        bool _musicHunted, _musicThin;
         System.Random _rng = new System.Random(12345);
 
         public AudioManifest Manifest { get; private set; }
@@ -487,6 +488,19 @@ namespace OrbitalAnte.Audio
         /// <summary>Asks for a reward sound. The reward rules decide if and when it plays.</summary>
         public void Reward(RewardKind kind) => Rewards.Request(kind, Time.unscaledTimeAsDouble);
 
+        static readonly float ThinGain = MixMath.DbToGain(MusicDanger.ThinDb);
+
+        /// <summary>
+        /// The game's danger (MusicDanger), told every frame: someone is after the player (a piece does not rest, see
+        /// <see cref="MusicBrain.Hunted"/>), and the player is on the last plates in a fight (the music thins: the
+        /// fight piece's top layers are held off and it dips by <see cref="MusicDanger.ThinDb"/>).
+        /// </summary>
+        public void SetMusicDanger(bool hunted, bool thin)
+        {
+            _musicHunted = hunted;
+            _musicThin = thin;
+        }
+
         public void SetMusicContext(string context)
         {
             if (Music != null) Music.Brain.SetContext(context);
@@ -517,6 +531,8 @@ namespace OrbitalAnte.Audio
 
             // Music dips under a big reward and sits back while the game is paused.
             float duck = GameSession.Paused ? 0.4f : Time.unscaledTime < _duckUntil ? 0.6f : 1f;
+            // On the last plates in a fight the music sits back, so the suit's pulse is heard over it.
+            if (_musicThin && !GameSession.Paused) duck = Mathf.Min(duck, ThinGain);
             _musicDuck = Mathf.MoveTowards(_musicDuck, duck, dt * 1.6f);
 
             // Slow motion, read from the game's own time scale (audio never sets it). Eased, so a two-frame
@@ -537,6 +553,8 @@ namespace OrbitalAnte.Audio
             if (Ready && Music.Loaded)
             {
                 Music.Duck = _musicDuck * MixMath.SlowMusicGain(SlowMotion);
+                Music.Brain.Hunted = _musicHunted;
+                Music.Brain.Thin = _musicThin;
                 Music.Tick(Intensity.Value, Intensity.Target, AudioPrefs.BusGain(AudioBus.Music));
             }
 

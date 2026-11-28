@@ -73,6 +73,11 @@ namespace OrbitalAnte.Creatures
         public Vec3d Home;
         /// <summary>Something solid is in the way of the last move.</summary>
         public bool Blocked;
+        /// <summary>
+        /// The ground itself refused the last move (steeper than it can go, the water's edge: on a world). A ball's roll
+        /// ends there as any roll ends, on its back for the usual time; only something solid is a crash.
+        /// </summary>
+        public bool Stopped;
     }
 
     public struct RollerOrders
@@ -105,7 +110,7 @@ namespace OrbitalAnte.Creatures
         readonly RollerRules _rules;
         readonly SeededRandom _random;
         double _t, _rest, _alert, _planned, _rolled, _backFor, _rollFor, _wanderFor, _wanderTurn;
-        bool _landed;
+        bool _landed, _fallBack;
 
         public RollerBrain(RollerRules rules, int seed)
         {
@@ -126,6 +131,22 @@ namespace OrbitalAnte.Creatures
         /// <summary>Does a ball whose middle is at the creature's origin hit someone whose feet are here (creature space)?</summary>
         public bool RollHits(Vec3d playerFeet) =>
             Math.Sqrt(playerFeet.X * playerFeet.X + playerFeet.Z * playerFeet.Z) < _rules.hitRadius && playerFeet.Y < 1.3 && playerFeet.Y > -2.0;
+
+        /// <summary>How much further than its reach, to the side or up and down, someone still counts as in the roll's way.</summary>
+        public const double InTheWayMargin = 1.0;
+
+        /// <summary>
+        /// Is someone whose feet are here (creature space) still in the way of the roll under way? For the visor, which
+        /// dims a strike that can no longer reach the player (UI/WindupCues): ahead of the ball or level with it, short of
+        /// where the roll ends, and no further to the side than a step past its reach. False when it is not rolling.
+        /// </summary>
+        public bool RollReaches(Vec3d playerFeet)
+        {
+            if (Mode != RollerMode.Roll) return false;
+            double reach = _rules.hitRadius, side = reach + InTheWayMargin;
+            return playerFeet.Z > -reach && playerFeet.Z < _planned - _rolled + reach && Math.Abs(playerFeet.X) < side
+                   && playerFeet.Y < 1.3 + InTheWayMargin && playerFeet.Y > -2.0 - InTheWayMargin;
+        }
 
         void Enter(RollerMode mode)
         {
@@ -168,14 +189,18 @@ namespace OrbitalAnte.Creatures
                         _rolled = 0.0;
                         _rollFor = 0.0;
                         Crashed = false;
+                        _fallBack = false;
                     }
                     break;
 
                 case RollerMode.Roll:
                 {
-                    if (senses.Blocked && _rollFor > 0.0)
+                    // Something solid is a crash; ground it cannot roll up or off (on a world) ends the roll as any roll
+                    // ends, on its back for the usual time. Either way it falls open back the way it came.
+                    if ((senses.Blocked || senses.Stopped) && _rollFor > 0.0)
                     {
-                        Crashed = true;
+                        Crashed = senses.Blocked;
+                        _fallBack = true;
                         Enter(RollerMode.Open);
                         break;
                     }
@@ -193,8 +218,8 @@ namespace OrbitalAnte.Creatures
                 }
 
                 case RollerMode.Open:
-                    // Stopped by something solid, it falls open back the way it came, not into what stopped it.
-                    if (Crashed) orders.Velocity = new Vec3d(0, 0, -(0.5 * RollerLayout.TotalLength - RollerLayout.BallRadius + 0.3) / Math.Max(0.1, _rules.openSeconds));
+                    // Stopped short, it falls open back the way it came, not into what stopped it.
+                    if (_fallBack) orders.Velocity = new Vec3d(0, 0, -(0.5 * RollerLayout.TotalLength - RollerLayout.BallRadius + 0.3) / Math.Max(0.1, _rules.openSeconds));
                     _t += dt / Math.Max(0.1, _rules.openSeconds);
                     if (_t >= 1.0)
                     {

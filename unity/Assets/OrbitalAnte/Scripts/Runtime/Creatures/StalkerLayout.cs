@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Blind stalker that can be hit: its skull, a length of body or tail, a leg or a gill.</summary>
+    public enum StalkerPiece { Head, Seg, Leg, Gill }
+
     /// <summary>
     /// Every dimension and piece name of the Blind stalker (placeholder name; "Stalker" in code): an alien from the olm,
     /// the blind cave salamander (Matthew, 17 Nov 2026), at about fifteen times life size: 4.3 m long, a pale eel of a

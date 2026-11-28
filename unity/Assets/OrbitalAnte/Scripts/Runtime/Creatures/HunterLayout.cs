@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Cave hunter that can be hit: its armoured head, a segment (the first few are its soft fore body) or a leg.</summary>
+    public enum HunterPiece { Head, Seg, Leg }
+
     /// <summary>
     /// Every dimension and piece name of the Cave hunter (placeholder name; "Hunter" in code): an alien from the giant
     /// centipede (Matthew, 17 Nov 2026), six metres long, a flat head with two curved fangs and long feelers, sixteen

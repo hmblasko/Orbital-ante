@@ -111,8 +111,11 @@ namespace OrbitalAnte.Spacewalk
         public float PushFactor => Fuel > 0f || Air > 0f ? 1f : 0f;
         public bool Filling { get; private set; }
 
-        /// <summary>How much bigger the air tank is than standard (the Oxygen attribute bought between antes, 20 Nov 2026). Breathing lasts this many times longer.</summary>
+        /// <summary>How much bigger the air tank is than standard (the Oxygen attribute bought between antes, 20 Nov 2026, and a Locker upgrade). Breathing, and jets burning air, last this many times longer.</summary>
         public float AirScale = 1f;
+
+        /// <summary>How much bigger the jet tank is than standard (a Locker upgrade, 28 Nov 2026). Pushing lasts this many times longer.</summary>
+        public float FuelScale = 1f;
 
         public SuitSupplies(SuitRules rules = null)
         {
@@ -133,11 +136,12 @@ namespace OrbitalAnte.Spacewalk
 
             if (push > 0.01f)
             {
-                if (Fuel > 0f) Fuel = Math.Max(0f, Fuel - push * dt / Math.Max(1f, Rules.fuelSeconds));
+                if (Fuel > 0f) Fuel = Math.Max(0f, Fuel - push * dt / Math.Max(1f, Rules.fuelSeconds * Math.Max(0.5f, FuelScale)));
                 else if (Air > 0f)
                 {
                     BurningAir = true;
-                    Air = Math.Max(0f, Air - push * dt / Math.Max(1f, Rules.airAsFuelSeconds));
+                    // A bigger air tank holds more air for the jets too (the shop's Oxygen, a Locker upgrade).
+                    Air = Math.Max(0f, Air - push * dt / Math.Max(1f, Rules.airAsFuelSeconds * Math.Max(0.5f, AirScale)));
                 }
             }
             if (onSuitAir) Air = Math.Max(0f, Air - dt / Math.Max(1f, Rules.airMinutes * 60f * Math.Max(0.5f, AirScale)));

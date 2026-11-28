@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum RollerPiece { Head, Soft, Plate, Tail, Leg }
-
     /// <summary>One hitbox of a Roller: its head, a segment's soft body, a plate, the tail fan or a leg.</summary>
     public sealed class RollerPart : MonoBehaviour, IHittable
     {
@@ -47,12 +45,46 @@ namespace OrbitalAnte.Creatures
     ///   own transform's up, never +Y.
     /// - It dies only when its soft body or its head gives way; then it bursts into its segments.
     /// </summary>
-    public sealed class Roller : MonoBehaviour
+    public sealed class Roller : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Roller";
+        /// <summary>
+        /// Whether it could answer the player: in the practice range always; on a world, until it has been kept from them
+        /// a while (on a ledge it cannot climb, beyond the sea's edge: <see cref="LandReach"/>), so a kill from there pays nothing.
+        /// </summary>
+        public bool InReach => !(Footing is LandFooting) || _reach.InReach;
+        readonly LandReach _reach = new LandReach();
         public RollerBody Body { get; private set; }
         public RollerBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): the middle of the ball.</summary>
+        public Vector3 WindupPoint => Middle();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>While it rolls: still coming the player's way (<see cref="RollerBrain.RollReaches"/>), and it has not hit them already.</summary>
+        public bool Threatens => _threatens;
+        readonly WindupTrack _windup = new WindupTrack();
+        bool _threatens = true;
         public bool Alive => Body != null && Body.Alive;
+        /// <summary>
+        /// True while it sees the player or, hurt, still knows where they are, and can still hurt them: for the music and
+        /// the readout, as a creature after them (one with too few plates to roll, making off, is not).
+        /// </summary>
+        public bool AwareOfPlayer => Alive && (_sees || Brain != null && Brain.Alerted) && Body.CanRoll;
         public event System.Action<Roller> Died;
+
+        /// <summary>
+        /// What it stands on: flat ground in the practice range (the old rule), a world's own ground out there
+        /// (<see cref="LandFooting"/>, given by <see cref="LandCreatures"/>), which it lies along on a slope.
+        /// </summary>
+        public Footing Footing { get; set; } = Footing.Flat;
+        /// <summary>The steepest ground it walks over on a world, and rolls over as a ball (rise over run); the practice range is flat.</summary>
+        public float Steepest { get; set; } = 0.6f;
+        public float RollSteepest { get; set; } = 0.45f;
+        /// <summary>The most it leans to lie along a slope, radians from upright.</summary>
+        const float LeanMost = 0.6f;
 
         static readonly List<Roller> Everyone = new List<Roller>();
         public static IReadOnlyList<Roller> All => Everyone;
@@ -64,8 +96,9 @@ namespace OrbitalAnte.Creatures
         readonly Transform[] _link = new Transform[RollerLayout.Links];
         readonly Transform[] _plate = new Transform[RollerLayout.Segs];
         readonly Transform[] _leg = new Transform[RollerLayout.Legs];
+        /// <summary>Where it started, in its parent's space, so it holds on a world that turns and is moved under the player.</summary>
         Vector3 _home;
-        bool _blocked, _sees, _hitThisRoll;
+        bool _blocked, _stopped, _sees, _hitThisRoll;
         float _nextLook;
         RollerMode _lastMode = RollerMode.Walk;
         Material _material;
@@ -91,7 +124,7 @@ namespace OrbitalAnte.Creatures
             _rules = rules;
             Body = new RollerBody(rules.hp);
             Brain = new RollerBrain(rules, seed);
-            _home = transform.position;
+            _home = transform.parent != null ? transform.parent.InverseTransformPoint(transform.position) : transform.position;
             // Not every creature looks for the player on the same frame.
             _nextLook = Time.time + (seed & 0xff) / 1024f;
             _material = ModelLibrary.MaterialFor(RollerLayout.Model);
@@ -164,7 +197,7 @@ namespace OrbitalAnte.Creatures
             }
             ModelDetail.Attach(gameObject, RollerLayout.Model, DetailRule.BodyRange * 1.1f, true);
             Everyone.Add(this);
-            Pose(0.0001f, new RollerOrders());
+            Pose(0.0001f, new RollerOrders(), Vector3.zero);
         }
 
         Transform Mesh(string piece, Transform parent)
@@ -216,7 +249,8 @@ namespace OrbitalAnte.Creatures
             float dt = Mathf.Min(Time.deltaTime, 0.05f);
             if (dt <= 0f) return;
 
-            var senses = new RollerSenses { Blocked = _blocked, Home = D(transform.InverseTransformPoint(_home)) };
+            Vector3 home = transform.parent != null ? transform.parent.TransformPoint(_home) : _home;
+            var senses = new RollerSenses { Blocked = _blocked, Stopped = _stopped, Home = D(transform.InverseTransformPoint(home)) };
             Transform eye = CombatWorld.PlayerPresent ? CombatWorld.PlayerEye : null;
             Vector3 up = transform.up;
             if (eye != null && !CombatWorld.EnemiesHoldFire)
@@ -240,27 +274,37 @@ namespace OrbitalAnte.Creatures
             RollerOrders orders = Brain.Think(Body, senses, dt);
             if (orders.Mode != _lastMode)
             {
-                Vector3 at = Middle();
                 if (orders.Mode == RollerMode.Wind)
                 {
-                    // The warning can be heard as well as seen (its own sound once there is one).
                     _hitThisRoll = false;
-                    if (!Audio.AudioDirector.Play("creature.roller.curl", at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.8f, 0.5f);
+                    _threatens = true;
                 }
                 else if (orders.Mode == RollerMode.Open && Brain.Crashed)
                 {
-                    Audio.AudioDirector.Play("impact.armor", at, 1f, 0.45f);
+                    Audio.AudioDirector.Play("impact.armor", Middle(), 1f, 0.45f);
                     _animator.Flinch(new Vec3d(0, 1.5, -2.5));
                 }
                 _lastMode = orders.Mode;
             }
+            // Its warning is heard and seen (UI/WindupCues) until the roll is over: its own wind-up as it starts to curl,
+            // and its mark the very frame it snaps shut and takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Roller(orders)), Windups.RollerWarning, Windups.RollerAim, Middle());
+            Vector3 before = transform.position;
             Move(orders, dt);
-            Pose(dt, orders);
+            // On a world: back on the ground under it, lying along it (a ball or flat), upright round the world.
+            CreatureGround.Keep(Footing, transform, (float)RollerLayout.TotalLength * 0.5f, (float)RollerLayout.PlateHalfWidth, LeanMost, dt);
+            // Posed by the way it really went, not the way it was told to: a ball that was stopped does not spin on the spot.
+            Vector3 moved = transform.position - before;
+            Pose(dt, orders, transform.InverseTransformDirection(moved) / dt);
+            if (Footing is LandFooting) Watch(eye, moved, _blocked || _stopped, dt);
             if (orders.Mode == RollerMode.Roll)
             {
                 // A fast ball's hitboxes must be where it is drawn when the player's shot is traced this frame.
                 Physics.SyncTransforms();
-                if (!_hitThisRoll && eye != null && !CombatWorld.EnemiesHoldFire && Brain.RollHits(D(transform.InverseTransformPoint(eye.position - up * 1.6f)))) Hurt(eye, _rules.rollDamage, true);
+                Vec3d feet = eye != null ? D(transform.InverseTransformPoint(eye.position - up * 1.6f)) : Vec3d.Zero;
+                if (!_hitThisRoll && eye != null && !CombatWorld.EnemiesHoldFire && Brain.RollHits(feet)) Hurt(eye, _rules.rollDamage, true);
+                // Once it has hit them, or they are out of its line, the arc on the visor dims: the dodge worked.
+                _threatens = !_hitThisRoll && eye != null && Brain.RollReaches(feet);
             }
             if (orders.Landed && eye != null && !CombatWorld.EnemiesHoldFire)
             {
@@ -280,7 +324,24 @@ namespace OrbitalAnte.Creatures
             if (roll) _hitThisRoll = true;
             Audio.AudioDirector.Play("gore.splat", chest, 0.5f, roll ? 0.55f : 0.8f);
             PlayerHealth player = CombatWorld.Player;
-            if (player != null) player.TakeDamage(damage, (chest - from).normalized);
+            if (player != null) player.TakeDamage(damage, (chest - from).normalized, roll ? StrikeWords.Roll : StrikeWords.Butt);
+        }
+
+        /// <summary>Whether it is kept from the player (on a world): how far off they are along the ground and above it, whether its step was refused, and whether it gained on them.</summary>
+        void Watch(Transform eye, Vector3 moved, bool refused, float dt)
+        {
+            if (eye == null)
+            {
+                _reach.Reset();
+                return;
+            }
+            Vector3 up = transform.up, to = eye.position - up * 1.6f - transform.position;
+            float rise = Vector3.Dot(to, up);
+            Vector3 flat = to - up * rise;
+            float across = flat.magnitude;
+            float gained = across > 1e-3f ? Vector3.Dot(moved, flat / across) : 0f;
+            // A ball reaches as far as it charges from.
+            _reach.Step(AwareOfPlayer, refused, across, rise, gained, _rules.chargeTo, 2.0, dt);
         }
 
         void Move(in RollerOrders orders, float dt)
@@ -289,6 +350,7 @@ namespace OrbitalAnte.Creatures
             if (orders.TurnRate != 0.0) transform.rotation = Quaternion.AngleAxis((float)orders.TurnRate * Mathf.Rad2Deg * dt, up) * transform.rotation;
             Vector3 step = transform.TransformDirection(V(orders.Velocity)) * dt;
             _blocked = false;
+            _stopped = false;
             if (step.sqrMagnitude <= 0f) return;
             Vector3 to = transform.position + step;
             // A ball is stopped by anything its own size; on foot, by anything in front of its head. Both checks are
@@ -297,28 +359,27 @@ namespace OrbitalAnte.Creatures
             float radius = ball ? (float)RollerLayout.BallRadius * 0.8f : 0.3f;
             float height = ball ? (float)RollerLayout.BallRadius : 0.5f;
             float ahead = ball ? 0.25f : (float)RollerLayout.TotalLength * 0.5f * Mathf.Sign((float)orders.Velocity.Z);
-            if (Physics.CheckSphere(to + up * height + transform.forward * ahead, radius, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            if (Physics.CheckSphere(CreatureGround.Above(Footing, to + transform.forward * ahead, up, height), radius, Layers.WorldMask, QueryTriggerInteraction.Ignore))
             {
                 _blocked = true;
                 return;
             }
-            // Stay on the ground: look for it from above where it is going.
-            if (Physics.Raycast(to + up * 3f, -up, out RaycastHit ground, 9f, Layers.WorldMask, QueryTriggerInteraction.Ignore))
+            // Stay on the ground where it is going (a step too high or too steep is a wall to it; a ball rolls up less than
+            // it walks). Ground a ball cannot roll over (too steep, the water's edge) ends its roll as any roll ends; only
+            // something solid is a crash.
+            StepResult went = CreatureGround.Step(Footing, transform.position, ref to, up, ball ? RollSteepest : Steepest);
+            if (went != StepResult.Taken)
             {
-                // A step up or down of more than a shin is a wall to it for now (it is placed on level ground).
-                if (Mathf.Abs(Vector3.Dot(ground.point - to, up)) > 0.3f)
-                {
-                    _blocked = true;
-                    return;
-                }
-                to = ground.point;
+                if (ball && went == StepResult.Ground) _stopped = true;
+                else _blocked = true;
+                return;
             }
             transform.position = to;
         }
 
-        void Pose(float dt, in RollerOrders orders)
+        void Pose(float dt, in RollerOrders orders, Vector3 velocity)
         {
-            var input = new RollerAnimInput { Velocity = orders.Velocity, TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T };
+            var input = new RollerAnimInput { Velocity = new Vec3d(velocity.x, 0, velocity.z), TurnRate = orders.TurnRate, Mode = orders.Mode, T = orders.T };
             _animator.Update(Body, input, dt, _pose);
             for (int i = 0; i < RollerLayout.Links; i++)
             {
@@ -339,8 +400,9 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             RollerHit result;
-            bool armour = false;
+            bool couldRoll = Body.CanRoll;
             switch (part.Piece)
             {
                 case RollerPiece.Leg:
@@ -350,17 +412,14 @@ namespace OrbitalAnte.Creatures
                 case RollerPiece.Plate:
                     result = Body.HitPlate(part.Index, hit.Damage, hit.Sever);
                     outcome.Label = "Roller plate";
-                    armour = true;
                     break;
                 case RollerPiece.Tail:
                     result = Body.HitTail(hit.Damage, hit.Sever);
                     outcome.Label = "Roller tail";
-                    armour = true;
                     break;
                 case RollerPiece.Head:
                     result = Body.HitBody(false, hit.Damage, hit.Lethal);
                     outcome.Label = "Roller head";
-                    armour = true;
                     break;
                 default:
                     result = Body.HitBody(true, hit.Damage, hit.Lethal);
@@ -371,19 +430,25 @@ namespace OrbitalAnte.Creatures
             outcome.Severed = result.Losses.Count > 0;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !result.Killed) result = Body.HitBody(true, 0, lethal: true);
+            // Where it landed, for the hit marker: plates, tail and head knock until they break; the soft body rings gold;
+            // the plate that leaves it too few to close into a ball takes its charge away (WhereToShoot).
+            outcome.Zone = WhereToShoot.Roller(part.Piece, outcome.Severed, couldRoll && Body.Alive && !Body.CanRoll);
+            bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.35));
             GoreFx gore = GoreFx.Instance;
             // Armour says it is armour: no blood, a dull knock, until it breaks. Everything else bleeds.
-            if (armour && !outcome.Severed && !result.Killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.6f);
+            if (armour && !result.Killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.7f, 0.6f);
             else if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 16 : 4, outcome.Severed ? 6f : 3f);
             if (result.Killed)
             {
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : armour ? 0.04f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? 0.6f : 0f;
             return outcome;
         }
 

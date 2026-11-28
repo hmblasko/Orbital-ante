@@ -182,13 +182,15 @@ namespace OrbitalAnte.Ante
                 case PerkStat.ScoreBonus:
                     return amount + " points for " + PointsFor(effect.kind, effect.tag);
                 case PerkStat.ChainScoreBonus:
+                    // The categories are named by what pays them today (ScoreWays), the same words as the Four Ways goal.
                     return "Up to " + amount + " score for a different category within "
                            + ScoreMath.Exact(balance.chainWindowSeconds).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
-                           + " seconds of your last score. Pays up to " + balance.chainUsesPerAnte + " times per ante."
-                           + " Categories are combat, exploration, bounty, objective, salvage, repair and landing.";
+                           + " seconds of your last score, " + balance.chainUsesPerAnte + " times per ante. Categories: "
+                           + ScoreWays.ShortList() + ".";
                 case PerkStat.ShipFuelPerImpulse: return amount + " ship fuel per thrust";
                 case PerkStat.WeaponDamage: return amount + " weapon damage";
-                case PerkStat.MaxHp: return amount + " max HP";
+                // "Armour" is what the suit plate and its notices call the player's health (pass 4: the Locker's words match).
+                case PerkStat.MaxHp: return amount + " max armour";
                 case PerkStat.EvaLateralThrust: return amount + " EVA sideways thrust";
                 case PerkStat.IncomingDamage: return amount + " damage taken";
                 case PerkStat.HealOnKill: return "kills heal " + Whole(effect.value);

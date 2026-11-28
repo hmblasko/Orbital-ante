@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum StalkerPiece { Head, Seg, Leg, Gill }
-
     /// <summary>One hitbox of a Blind stalker: its head, a length of body or tail, a leg (either bone) or a gill.</summary>
     public sealed class StalkerPart : MonoBehaviour, IHittable
     {
@@ -48,10 +46,23 @@ namespace OrbitalAnte.Creatures
     /// - It is blind: no sight line is ever traced for it. What it gets is how loud the player is and where they are,
     ///   and its brain decides from those what it can hear and feel.
     /// </summary>
-    public sealed class Stalker : MonoBehaviour
+    public sealed class Stalker : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Stalker";
+        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
+        public bool InReach => true;
         public StalkerBody Body { get; private set; }
         public StalkerBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => HeadPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>Its lunge is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Stalker> Died;
 
@@ -59,7 +70,7 @@ namespace OrbitalAnte.Creatures
         public static IReadOnlyList<Stalker> All => Everyone;
         public static void ResetStatics() => Everyone.Clear();
 
-        const string HearSound = "creature.stalker.hear", GapeSound = "creature.stalker.gape", LungeSound = "creature.stalker.lunge", ClickSound = "creature.stalker.click";
+        const string HearSound = "creature.stalker.hear", GapeSound = Windups.StalkerWarning, AimSound = Windups.StalkerAim, LungeSound = "creature.stalker.lunge", ClickSound = "creature.stalker.click";
 
         StalkerRules _rules;
         readonly StalkerAnimator _animator = new StalkerAnimator();
@@ -251,14 +262,16 @@ namespace OrbitalAnte.Creatures
             if (orders.Mode != _lastMode)
             {
                 Vector3 at = HeadPoint();
-                // Each change the player must notice is heard (other sounds stand in until its own are there).
-                if (orders.Mode == StalkerMode.Listen && !Audio.AudioDirector.Play(HearSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.4f, 0.7f);
-                if (orders.Mode == StalkerMode.Gape && !Audio.AudioDirector.Play(GapeSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.8f, 1.2f);
+                // Each change the player must notice is heard, in its own sounds (never another creature's or an enemy's).
+                if (orders.Mode == StalkerMode.Listen) Audio.AudioDirector.Play(HearSound, at);
                 if (orders.Mode == StalkerMode.Lunge) Audio.AudioDirector.Play(LungeSound, at);
                 _lastMode = orders.Mode;
             }
             // Each time it takes a new place it clicks, quietly: where you are now is known.
             else if (orders.Took && orders.Mode != StalkerMode.Still) Audio.AudioDirector.Play(ClickSound, HeadPoint(), 0.5f, 1f);
+            // Its warning is heard and seen (UI/WindupCues) until the lunge is over: its own wind-up as its jaw drops, and
+            // its mark the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Stalker(orders)), GapeSound, AimSound, HeadPoint());
             Vector3 moved = Move(orders, dt);
             // Lying still with nothing to hear (most of its life) it is posed five times a second, not every frame:
             // only the tip of its tail and its gills drift then.
@@ -310,7 +323,7 @@ namespace OrbitalAnte.Creatures
             Audio.AudioDirector.Play("gore.splat", chest, 0.5f, 1.0f);
             PlayerHealth player = CombatWorld.Player;
             Vector3 way = chest - from;
-            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward);
+            if (player != null) player.TakeDamage(damage, way.sqrMagnitude > 0.0001f ? way.normalized : transform.forward, StrikeWords.Heard);
         }
 
         /// <summary>Moves the head; the answer is how far it really went, in its own frame after the turn.</summary>
@@ -370,8 +383,9 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             StalkerHit result;
-            bool armour = false, soft = false;
+            bool soft = false;
             switch (part.Piece)
             {
                 case StalkerPiece.Leg:
@@ -398,13 +412,15 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Stalker skull";
-                    armour = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the trunk rings gold, the skull only knocks (WhereToShoot).
+            outcome.Zone = WhereToShoot.Stalker(part.Piece, part.Index);
+            bool armour = outcome.Zone == HitZone.Armour;
             if (!killed)
             {
                 // Pain tells it where, as a shot's noise would: it comes at whoever did it.
@@ -423,7 +439,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == StalkerPiece.Seg ? 0.8f : 0.5f) : armour ? 0.04f : soft ? 0.2f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == StalkerPiece.Seg ? 0.8f : 0.5f) : 0f;
             return outcome;
         }
 

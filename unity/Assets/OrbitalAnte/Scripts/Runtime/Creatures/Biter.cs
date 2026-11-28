@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum BiterPiece { Head, Jaw, Seg, Fin, BackFin, TailFin }
-
     /// <summary>One hitbox of a Pack biter: its head, its lower jaw, a length of body or a fin.</summary>
     public sealed class BiterPart : MonoBehaviour, IHittable
     {
@@ -47,11 +45,16 @@ namespace OrbitalAnte.Creatures
         BiterRules _rules;
         string _name;
         System.Func<Vector3, MawWater> _water;
+        System.Func<int, CreatureCredit> _credit;
         Vector3 _home;
         public BiterPack Pack { get; } = new BiterPack();
         /// <summary>Every member is dead.</summary>
         public event System.Action<BiterShoal> Gone;
+        /// <summary>A member died: its place in the pack, so a sea can leave it out when the pack is woken again.</summary>
+        public event System.Action<int> Lost;
         public int Living => Pack.Living;
+        /// <summary>True while the pack has noticed the swimmer (one fish did, so they all know): for the music.</summary>
+        public bool AwareOfPlayer => Pack.Alerted && Pack.Living > 0;
 
         /// <summary>The middle of the living fish (where the pack is, not where it was made), in world space.</summary>
         public Vector3 Middle
@@ -66,15 +69,26 @@ namespace OrbitalAnte.Creatures
             }
         }
 
-        /// <summary>Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game.</summary>
+        /// <summary>
+        /// Makes a pack of <paramref name="count"/> round a place. Null if the model is not in the game, or if every place
+        /// in the pack is dead.
+        /// <paramref name="dead"/> are places in the pack already killed (a pack woken again): they are left out, but
+        /// still count toward its size. <paramref name="credit"/> says who pays for the fish in each place.
+        /// </summary>
         public static BiterShoal Create(Vector3 home, Quaternion rotation, Transform parent, CreatureConfig config, int count, string name = null,
-                                        System.Func<Vector3, MawWater> water = null)
+                                        System.Func<Vector3, MawWater> water = null, ICollection<int> dead = null,
+                                        System.Func<int, CreatureCredit> credit = null)
         {
             if (ModelLibrary.Find(BiterLayout.Model) == null)
             {
                 Debug.LogWarning("Orbital Ante: the Pack biter's model (Resources/Models/" + BiterLayout.Model + ") is missing, so no pack was made.");
                 return null;
             }
+            int size = Mathf.Max(1, count), alive = 0;
+            for (int i = 0; i < size; i++)
+                if (dead == null || !dead.Contains(i)) alive++;
+            // Every fish of this pack is dead: there is no pack to make (an empty one would never say it was gone).
+            if (alive == 0) return null;
             var go = new GameObject(name ?? "Biter pack");
             go.transform.SetParent(parent, false);
             go.transform.SetPositionAndRotation(home, rotation);
@@ -84,17 +98,21 @@ namespace OrbitalAnte.Creatures
             shoal._rules = rules;
             shoal._name = name ?? "Biter";
             shoal._water = water;
+            shoal._credit = credit;
             shoal._home = home;
             Vector3 up = rotation * Vector3.up;
-            for (int i = 0; i < Mathf.Max(1, count); i++)
+            int killed = 0;
+            for (int i = 0; i < size; i++)
             {
+                if (dead != null && dead.Contains(i)) { killed++; continue; }
                 // Round where they live, each a little higher or lower, all swimming the same way round.
-                float a = i * Mathf.PI * 2f / Mathf.Max(1, count);
+                float a = i * Mathf.PI * 2f / size;
                 Vector3 out_ = rotation * new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
                 Vector3 at = home + out_ * rules.shoalRadius + up * ((i % 3 - 1) * 0.5f);
                 Quaternion facing = Quaternion.LookRotation(Vector3.Cross(up, out_), up);
                 shoal._unborn.Add(new Unborn { At = at, Facing = facing, Place = i });
             }
+            shoal.Pack.KilledBefore(killed);
             shoal.MakeOne();
             return shoal;
         }
@@ -106,6 +124,7 @@ namespace OrbitalAnte.Creatures
             _unborn.RemoveAt(0);
             // Where the pack swam to meanwhile does not matter: a fish joins the ring from where it was to start.
             Biter fish = Biter.Make(u.At, u.Facing, _parent, _rules, this, u.Place, _name + " " + (u.Place + 1), _water, _home);
+            fish.Credit = _credit != null ? _credit(u.Place) : null;
             _members.Add(fish);
             fish.Died += OnDied;
         }
@@ -113,6 +132,7 @@ namespace OrbitalAnte.Creatures
         void OnDied(Biter fish)
         {
             _members.Remove(fish);
+            Lost?.Invoke(fish.Place);
             if (_members.Count == 0 && _unborn.Count == 0)
             {
                 Gone?.Invoke(this);
@@ -159,10 +179,28 @@ namespace OrbitalAnte.Creatures
     /// - A dart bites only what is at its mouth on the way: a step aside is a miss. It has no pull and no hold.
     /// - In the combat arena the pack swims in the air a little over the ground, as a stand-in for a sea.
     /// </summary>
-    public sealed class Biter : MonoBehaviour
+    public sealed class Biter : MonoBehaviour, IWindup, ICreature
     {
         public BiterBody Body { get; private set; }
         public BiterBrain Brain { get; private set; }
+        /// <summary>Its place in its pack.</summary>
+        public int Place { get; private set; }
+        /// <summary>Who pays for it, given by its shoal; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>The pack it swims with. Not its parent: a fish is made beside its shoal, under the sea's or the arena's object.</summary>
+        public BiterShoal Shoal { get; private set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Biter";
+        /// <summary>True while the player is in the water with it, where it can reach them (always in the practice range).</summary>
+        public bool InReach => _inReach;
+        bool _inReach = true;
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => transform.position;
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>A dart is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Biter> Died;
         [System.NonSerialized] public System.Func<Vector3, MawWater> Water;
@@ -175,7 +213,7 @@ namespace OrbitalAnte.Creatures
             SeaCreatures.ResetStatics();
         }
 
-        const string MarkSound = "creature.biter.mark", DartSound = "creature.biter.dart";
+        const string MarkSound = Windups.BiterWarning, AimSound = Windups.BiterAim, DartSound = "creature.biter.dart";
         /// <summary>In the arena it is told the floor is this much lower than it is, so its mouth comes down to someone's chest.</summary>
         const float ArenaSink = 0.6f;
 
@@ -201,6 +239,7 @@ namespace OrbitalAnte.Creatures
             go.transform.SetParent(parent, false);
             go.transform.SetPositionAndRotation(position, rotation);
             var fish = go.AddComponent<Biter>();
+            fish.Shoal = shoal;
             fish.Water = water;
             fish.Build(rules ?? new BiterRules(), shoal != null ? shoal.Pack : null, place, home);
             return fish;
@@ -209,6 +248,7 @@ namespace OrbitalAnte.Creatures
         void Build(BiterRules rules, BiterPack pack, int place, Vector3 home)
         {
             _rules = rules;
+            Place = place;
             Body = new BiterBody(rules.hp);
             Brain = new BiterBrain(rules, pack, place);
             _homeParent = transform.parent;
@@ -365,6 +405,7 @@ namespace OrbitalAnte.Creatures
                 senses.PlayerVelocity = D(transform.InverseTransformDirection(_playerVelocity));
             }
             else _hadChest = false;
+            _inReach = Water == null || senses.PlayerInWater;
             return senses;
         }
 
@@ -381,12 +422,13 @@ namespace OrbitalAnte.Creatures
             BiterOrders orders = Brain.Think(dt, senses, Body);
             if (orders.Mode != _lastMode)
             {
-                Vector3 at = transform.position;
-                // The warning and the dart are each heard (other sounds stand in until its own are there).
-                if (orders.Mode == BiterMode.Mark && !Audio.AudioDirector.Play(MarkSound, at)) Audio.AudioDirector.Play("enemy.flare.raise", at, 0.7f, 1.4f);
-                if (orders.Mode == BiterMode.Dart && !Audio.AudioDirector.Play(DartSound, at)) Audio.AudioDirector.Play("creature.ambusher.strike", at, 0.6f, 1.5f);
+                // The dart is heard, in its own sound (never another creature's or an enemy's).
+                if (orders.Mode == BiterMode.Dart) Audio.AudioDirector.Play(DartSound, transform.position);
                 _lastMode = orders.Mode;
             }
+            // Its warning is heard and seen (UI/WindupCues) until the dart is over: its own wind-up as it marks the player,
+            // and its mark the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Biter(orders)), MarkSound, AimSound, transform.position);
             Vector3 moved = Move(orders, dt);
             Transform near = CombatWorld.PlayerEye;
             bool far = near == null || (near.position - transform.position).sqrMagnitude > 70f * 70f;
@@ -402,7 +444,7 @@ namespace OrbitalAnte.Creatures
                 Vector3 chest = eye.position - transform.up * 0.35f;
                 Audio.AudioDirector.Play("gore.splat", chest, 0.7f, 1.2f);
                 PlayerHealth player = CombatWorld.Player;
-                if (player != null) player.TakeDamage((float)orders.Bite, transform.forward);
+                if (player != null) player.TakeDamage((float)orders.Bite, transform.forward, StrikeWords.Shoal);
             }
             return posedNear;
         }
@@ -446,8 +488,8 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             BiterHit result;
-            bool bone = false;
             switch (part.Piece)
             {
                 case BiterPiece.Fin:
@@ -477,26 +519,27 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Biter head";
-                    // The head ding is for the shot that kills: the bony head mostly knocks.
-                    outcome.Head = result.Killed;
-                    bone = true;
                     break;
             }
             outcome.Severed = result.Lost;
             bool killed = result.Killed;
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: its head is its weak place and rings gold (it used to knock like armour,
+            // which said the opposite), and the jaw shot off is its bite gone (WhereToShoot).
+            outcome.Zone = WhereToShoot.Biter(part.Piece, part.Piece == BiterPiece.Jaw && result.JawLost);
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             if (!killed) Brain.Hurt();
             _animator.Flinch(new Vec3d(push.x, push.y, push.z) * (outcome.Severed ? 1.2 : 0.5));
             GoreFx gore = GoreFx.Instance;
-            if (bone && !killed) Audio.AudioDirector.Play("impact.armor", hit.Point, 0.5f, 1.3f);
             if (gore != null) gore.Burst(hit.Point, -hit.Direction, outcome.Severed ? 12 : 5, outcome.Severed ? 4.5f : 3f);
             if (killed)
             {
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : bone ? 0.12f : 0.15f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 0.8f : outcome.Severed ? 0.6f : 0f;
             return outcome;
         }
 

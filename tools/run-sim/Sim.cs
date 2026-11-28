@@ -67,6 +67,8 @@ namespace OrbitalAnte.RunSim
         public bool FieldPick;
         /// <summary>At the break, buy new offers once when none fits the build and the wallet holds twice the price.</summary>
         public bool Reroll;
+        /// <summary>Start the run with this starting kit (Ralph loop pass 1, 27 Nov 2026), or null for Standard.</summary>
+        public string Kit;
     }
 
     public sealed class AnteRow
@@ -130,6 +132,7 @@ namespace OrbitalAnte.RunSim
         {
             var balance = new AnteBalance { missedTarget = policy.Overtime ? MissedTarget.Overtime : MissedTarget.EndRun };
             var run = new AnteRun(balance, seed, RoguelitePerks.Create());
+            if (policy.Kit != null) run.StartWithKit(StartingKits.Find(policy.Kit));
             var rng = new Random(seed * 7919 + 13);
             int claim = 0, kills = 0, ladderStep = 0, ladderCredit = 0;
             float health = 100f, sinceHit = 99f, underFire = 0f, lastPop = 0f, clock = 0f;

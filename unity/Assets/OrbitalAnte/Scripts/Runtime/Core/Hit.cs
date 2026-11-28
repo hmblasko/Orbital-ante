@@ -33,6 +33,11 @@ namespace OrbitalAnte.Core
         /// <summary>The part hit was a head (whether or not it killed).</summary>
         public bool Head;
         /// <summary>
+        /// Where on a creature the hit landed (its armour, its one weak place, or a piece it fights with coming off),
+        /// for the hit marker and its sound. Left Plain for people and everything else.
+        /// </summary>
+        public HitZone Zone;
+        /// <summary>
         /// How big a moment this was, from 0 (nothing came off) to 1 (a kill). Drives hitstop and camera shake.
         /// </summary>
         public float Juice;
@@ -44,8 +49,9 @@ namespace OrbitalAnte.Core
         /// </summary>
         public float HitstopSeconds;
         /// <summary>
-        /// What was hit (the Mannequin for a body part), for systems that need to know who: the ante tasks credit
-        /// kills to the enemy's seeded id. Null for things that do not say.
+        /// What was hit (the Mannequin for a body part, the creature for any piece of a creature), for systems that need
+        /// to know who: the ante tasks credit kills to the enemy's seeded id, or to the creature's own claim
+        /// (<c>Creatures.ICreature</c>). Null for things that do not say.
         /// </summary>
         public Component Target;
         /// <summary>What the player hit it with. Set where the hit is raised.</summary>

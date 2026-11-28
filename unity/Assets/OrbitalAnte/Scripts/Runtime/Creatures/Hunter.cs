@@ -9,8 +9,6 @@ using UnityEngine;
 
 namespace OrbitalAnte.Creatures
 {
-    public enum HunterPiece { Head, Seg, Leg }
-
     /// <summary>One hitbox of a Cave hunter: its head, a segment or a leg.</summary>
     public sealed class HunterPart : MonoBehaviour, IHittable
     {
@@ -46,10 +44,23 @@ namespace OrbitalAnte.Creatures
     ///   is its own transform's up, never +Y.
     /// - It dies only when its head or its fore body gives way; then it comes apart at every joint.
     /// </summary>
-    public sealed class Hunter : MonoBehaviour
+    public sealed class Hunter : MonoBehaviour, IWindup, ICreature
     {
+        /// <summary>Who pays for it, given by whatever woke it; null in the practice range.</summary>
+        public CreatureCredit Credit { get; set; }
+        /// <summary>Its kind, its model's name, for the aim line (<see cref="WhereToShoot"/>).</summary>
+        public string Kind => "Hunter";
+        /// <summary>On land it can always come to the player, so a kill always pays.</summary>
+        public bool InReach => true;
         public HunterBody Body { get; private set; }
         public HunterBrain Brain { get; private set; }
+        /// <summary>Where its strike comes from, for the visor (UI/WindupCues): its head.</summary>
+        public Vector3 WindupPoint => HeadPoint();
+        public WindupStage Windup => isActiveAndEnabled && Alive ? _windup.Stage : WindupStage.None;
+        public float WindupProgress => _windup.Progress;
+        /// <summary>The whip of its head is over too soon to step out of part-way, so it always threatens.</summary>
+        public bool Threatens => true;
+        readonly WindupTrack _windup = new WindupTrack();
         public bool Alive => Body != null && Body.Alive;
         public event System.Action<Hunter> Died;
 
@@ -66,7 +77,6 @@ namespace OrbitalAnte.Creatures
         Vector3 _home;
         bool _blocked, _sees;
         float _nextLook;
-        HunterMode _lastMode = HunterMode.Run;
         Material _material;
 
         /// <summary>Makes a Cave hunter with its head at a place. Null if its model is not in the game.</summary>
@@ -216,12 +226,9 @@ namespace OrbitalAnte.Creatures
             }
 
             HunterOrders orders = Brain.Think(Body, senses, dt);
-            if (orders.Mode != _lastMode)
-            {
-                // The warning can be heard as well as seen (its own sound once there is one).
-                if (orders.Mode == HunterMode.Rear && !Audio.AudioDirector.Play("creature.hunter.rear", HeadPoint())) Audio.AudioDirector.Play("enemy.flare.raise", HeadPoint(), 0.8f, 1.5f);
-                _lastMode = orders.Mode;
-            }
+            // Its warning is heard and seen (UI/WindupCues) until the strike is over: its own wind-up as it rears, and its
+            // mark (the fangs flying wide) the very frame it takes aim.
+            WindupTell.Tell(this, _windup.Step(Windups.Hunter(orders)), Windups.HunterWarning, Windups.HunterAim, HeadPoint());
             Vector3 moved = Move(orders, dt);
             Pose(dt, orders, moved / dt);
             // While the player can see it, its hitboxes must be where it is drawn when their shot is traced: thin legs
@@ -239,7 +246,7 @@ namespace OrbitalAnte.Creatures
             if (Physics.Linecast(from, chest, Layers.WorldMask, QueryTriggerInteraction.Ignore)) return;
             Audio.AudioDirector.Play("gore.splat", chest, 0.5f, 1.1f);
             PlayerHealth player = CombatWorld.Player;
-            if (player != null) player.TakeDamage(_rules.biteDamage, (chest - from).normalized);
+            if (player != null) player.TakeDamage(_rules.biteDamage, (chest - from).normalized, StrikeWords.Rear);
         }
 
         /// <summary>Moves the head; the answer is how far it really went, in its own frame after the turn.</summary>
@@ -299,8 +306,9 @@ namespace OrbitalAnte.Creatures
             var outcome = new HitOutcome { Hit = true };
             if (!Alive) return outcome;
             outcome.Enemy = true;
+            outcome.Target = this;
             HunterHit result;
-            bool armour = false, soft = false;
+            bool soft = false;
             switch (part.Piece)
             {
                 case HunterPiece.Leg:
@@ -323,12 +331,14 @@ namespace OrbitalAnte.Creatures
                 default:
                     result = Body.HitHead(hit.Damage);
                     outcome.Label = "Hunter head";
-                    armour = true;
                     break;
             }
             bool killed = result.Killed;
             // A one-hit-kill gun kills wherever it lands, after the struck piece has taken its hit.
             if (hit.Lethal && !killed) killed = Body.HitHead(0, lethal: true).Killed;
+            // Where it landed, for the hit marker: the fore body rings gold, the head only knocks (WhereToShoot).
+            outcome.Zone = WhereToShoot.Hunter(part.Piece, part.Index);
+            bool armour = outcome.Zone == HitZone.Armour;
             Brain.Alert();
             Vector3 push = transform.InverseTransformDirection(hit.Direction);
             _animator.Flinch(new Vec3d(push.x, 0.4, push.z) * (outcome.Severed ? 1.5 : 0.4));
@@ -341,7 +351,9 @@ namespace OrbitalAnte.Creatures
                 outcome.Killed = true;
                 Burst(hit);
             }
-            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == HunterPiece.Seg ? 0.8f : 0.5f) : armour ? 0.04f : soft ? 0.2f : 0.12f;
+            // Hitstop and shake only when something came off or it died, as for people (Part B: on a limb popping): a hit
+            // that takes nothing off is 0, or every shot on a creature froze the game for 50 ms (pass 7).
+            outcome.Juice = outcome.Killed ? 1f : outcome.Severed ? (part.Piece == HunterPiece.Seg ? 0.8f : 0.5f) : 0f;
             return outcome;
         }
 

@@ -422,7 +422,7 @@ Matthew asked for lighting to be baked in. How that is read, until he says other
 | Looping beds | One source each, created when first asked for, stopped (not destroyed) when faded out. In flight: cabin, main engine and up to three manoeuvring thrusters at once (two directions plus turning), so about 5; opposite thrusters never sound together except for a fifth of a second while one fades. |
 | Low-pass filters | One per one-shot voice, switched on only where there is thin air or vacuum. In normal air none are running. |
 | Reverb | One reverb zone for the whole game, following the listener. |
-| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 12.5 MB. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
+| Memory | Music stays compressed in memory: about 44 MB for the five pieces going by the source files (Unity re-encodes them, so read the real figure from "Imported Size" in the Inspector). Sound effects are unpacked on load to plain 16-bit sound: about 22.9 MiB for the 228 effect clips the manifest loads, going by the WAV files (28 Nov 2026; `reward.unlock` is 0.53 MiB of it, the creature sounds made in Ralph loop pass 2 1.1 MiB, `hit.glance` from pass 7 13 KB). Read the real figure as Total Audio Memory in the Profiler's Audio module. If memory gets tight, music can move to streaming from disk (one setting in `AudioImportRules`), at the cost of less exact start times. |
 | Per-frame work | A fixed loop over the playing stems and beds to set volumes, and the music director's update (a few comparisons). No allocations in play; the debug panel builds a string ten times a second and lays its text out on every screen event, only while it is open (F9). |
 | Loading | Music (24 stems and 5 cues) is read in one go as the game starts, before the first frame: a guess of 0.1 s from internal storage and up to 0.5 s from a microSD card. Sound effects are loaded a few per frame during the first seconds on the main menu, so the first gunshot does not hitch. The audio device is also restarted once at start-up to raise the voice limit to 48; moving that into project settings (`ProjectSetup.cs`) would remove the restart. |
 
@@ -462,7 +462,7 @@ Note: in the Unity editor the numbers are worse than a real build, because the e
 
 ## Save reliability refinement: source review only
 
-Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. This is one save slot at run start, menu return and quit, with no added per-frame work. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
+Save checkpoints add up to two full-file UTF-8 reads with version-header-only deserialization, plus one read/deserialization of the old main before deciding whether to rotate the backup. The existing JSON serialization, temporary-file allocation/write and synchronous `Flush(true)` remain; promotion now uses `File.Replace` for an existing main. Writes happen at run start, every run end (records), menu return, quit, an envelope won or opened, the title screen's Unlocks page when something is new, and mid-run when a goal unlocks something new (at most 18 per profile, one write the frame after the goal, or after the fight it was met in: see "Saving an unlock mid-run"). None per frame. `SaveSystem.Save` carries the profiler marker `OA.SaveSystem.Save`. A latched newer-save or failed-load protection skips subsequent writes and I/O until reload/reset.
 
 Current save data is small. File size, allocations, storage latency and checkpoint-frame time have not been measured in Unity or on Deck; there is no promised maximum file-size cost. Profile `SaveSystem.Save`, `SaveFileStore.Write` and `FileStream.Flush` on internal storage and microSD. See `docs/reviews/save-recovery-and-version-protection.md` for the regression evidence and target-runtime checks.
 
@@ -543,3 +543,140 @@ The Steam Deck review's worst finding (up to about 225 primitives built in one f
 |---|---|---|
 | Readout focus (`ReadoutFocus`, `AnteLoop.InFight`) | A subtraction and compare per frame, no allocations | At most 3 `SetActive` calls (two "+points" rows, the task line) when a fight starts or ends, at most one flip per 6 s |
 | Selection hold (`SelectionHold` in `PauseMenu`) | Float arithmetic and one `IsPressed()` per frame, only while a menu page is open | One selection per page opening |
+
+## Goal unlocks and starting kits (Ralph loop pass 1, 27 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| `AnteLoop.UpdateUnlocks` (every frame) | A few compares, no allocation. A note's and the banner's text are set once per unlock, the kit note once a run; while the banner shows (3.5 s) one `canvasRenderer.SetAlpha` a frame, no canvas rebuild | 1 banner and 1 note at a time |
+| Counting goals (per award, kill and touchdown; the ladder's top once a run) | One set add, one bit or a few bool tests; no loop over enemies | none needed |
+| Drafts | Locked perks are taken out once per ante (one small set and list); a newly unlocked perk is put in the first draft that can use it (one list look-up and replace per draft rolled); its star chart card gets one more coloured word | once per ante |
+| Saving an unlock mid-run | `SaveSystem.Save` on the main thread: three reads, three parses, one pretty write, a temporary file flushed to disk (`Flush(true)`) and renamed over the save. A few KB of file, about 25 to 60 KB of garbage. The flush is the cost: not measured (guessed 1 to 20 ms on the Deck's own storage, longer while Steam writes). All goals met before the write share it, made the frame after (`AnteLoop.WriteOwedUnlockSave`), never on the kill's own frame. Since pass 5 a goal met in a fight waits for the fight to end, a pause or 20 s (`UnlockMoment.SaveNow`), so a new player's first fight (a disarm, then a leg shot off) writes once after it, not twice in it | only a goal not earned before: at most 18 writes per profile |
+| Break, victory and death pages | One or two more lines in a body set once per page. Each page shown measures its body once with the label's own text generator (`PauseMenu.WordsHeight`: one layout pass of a few hundred characters) and runs `MenuFit` arithmetic; bodies and buttons use best fit, which Unity works out only when the text or size changes | paused only |
+| Title screen Kit and Unlocks pages | Two cards built at boot, inactive until shown. Kit details written when the cursor moves to another kit; one rich-text label per visit; a save if anything was new | title screen only |
+| `reward.unlock` | 2.9 s stereo, unpacked on load in the title screen's warm-up: 0.53 MiB. One voice, 1.5 s cooldown | one per unlock |
+
+## Creature warnings on the visor (Ralph loop pass 2, 27 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Warning stage (`Windups`, `WindupTrack`) | One switch on a few fields a creature a frame, no garbage; `CombatWorld.CreatureWindup` once per warning, and at most two sounds a warning (its wind-up and its aim), each started on the frame its stage changes | one event and two sounds per warning |
+| Arcs that follow (`DamageFeedback`, `WindupCues`) | The eye's place and axes are read once a frame (`DamageFeedback.Eye`); every arc showing is re-angled with three dot products and an angle, and turned only on a move of 0.25 degrees or more. While turning, one re-batch a frame of the 20-image damage canvas (which a fading arc's `SetAlpha` causes anyway); a mesh rebuild of a creature's arc about once a frame while it counts down (only when its width has changed half a degree) and during its 0.08 s snap; each "seen" arc checks the three creature arcs for crowding (a few comparisons); no new draw call (same ring sprite) and no garbage. Guessed under 0.1 ms on the Deck | 4 red, 3 seen and 3 creature arcs (the nearest three creatures) |
+| Creature warning and strike sounds | 20 clips made in pass 2 (each creature's wind-up and aim, the maw's draw-in and choke, the biter's dart), 12.1 s, 1.1 MiB unpacked on load; all 35 creature clips load in 7 frames of the title screen's warm-up (four events a frame), at most 0.42 MiB in one; nothing loads mid-fight. One voice a sound (0.07 to 2.6 s), priority 55 (above impacts and gore, below guns, melee and the player's gear) | 2 voices a sound; a 60 ms cooldown on a warning's two sounds (so the next creature's is never silenced), 150 to 400 ms on the strikes |
+
+To read off in Unity: in the arena, turn hard while two creatures warn and read `DamageFeedback.LateUpdate` in the Profiler's CPU Usage (expect 0 B of GC Alloc) with `Canvas.BuildBatch`; the Audio module's Total Audio Memory should be about 1.1 MB more than before and Playing Sources under 48.
+
+## Creature kills and danger music (Ralph loop pass 3, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Danger music (`MusicDanger`, `GameAudioHooks`) | A few compares a frame, no garbage; four times a second `EnemySpawner.Hunters` walks the present enemies and `SeaCreatures.AnyAware` the awake swimmers (no physics, no garbage); the suit's armour is watched (one subscription). Sightings and creature warnings now start the combat piece more often: a hand-over is 5 to 6 scheduled starts, about 100 B, and the Audio row's 13 to 15 decoders for a few seconds | 12 present enemies, 2 swimmers; the combat piece plays at least 14 s and leaves only after 4 s under 48; a fight back within a minute comes in on the hit (no riser to decode); a layer changes at most once per 2 bars |
+| Creature kills (`CreatureCredit`, `TaskDirector.OnCreatureHit`) | A null check and an add per hit; a kill takes the camp kill's path, its claim made at wake. Each wake: a credit and a claim string per animal (about 200 B), a delegate per pack, a small set per haunt after its first kill | `liveCap` 2 swimmers, packs of 3 to 5 |
+| In the sea on a hit (`TaskDirector.InTheSea`) | Only while airborne, once per player hit on an enemy: one point turned into the world's space and compared with the sea's radius (about 1 µs). It asks nothing of the ground, which high above a world could cost a full-detail height | one gun hit a frame, a few for a melee swing |
+
+To read off in Unity: jet over a camp and shoot, and read `TaskDirector.OnPlayerHit` in the Profiler's CPU Usage (under 0.05 ms on a hit frame, 0 B on hits that do not kill) and `GameAudioHooks.Update` (under 0.02 ms, 0 B); during two short fights, the Audio module's Playing Sources at 48 or under and Audio CPU under 10%, and in the F9 panel's command log `StartTrack combat_all_in` no more than once every 14 s.
+
+## The Locker (Ralph loop pass 4, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Gun skins (`OA_Model.shader`, `OA_Skin`) | A branch on a material value every model takes the same way, so no new shader programs (the forward pass keeps its 12 variants) and no stall the first time a skinned gun is drawn. Every model pixel now also takes one `fwidth` and two compares (the pattern's footprint), outside the branch: guessed under 0.01 ms for the screen. A skinned gun's pixels run one pattern (a hash or a few `sin`s): guessed under 0.1 ms with the gun filling a quarter of the screen. One extra material per source material and skin, made the first time it is worn | the player's guns only (enemies' guns never wear one); one material set per skin worn, destroyed when the world is rebuilt |
+| Skins read (`LockerLook.SkinFor`) | The save's skins are read once per world into a small dictionary; each gun put in the hand is one dictionary look-up and no garbage | one read per world |
+| Hull paint (`HullPaint`, `ShipShell.Hull`) | The hull's mesh is coloured once when the lander is built (a run's start); no cost in flight. Unpainted, the mesh is exactly as before | one hull per run |
+| Suit look (`SuitHud`, `SuitFx`, `PostFx.VisorTint`) | Colours set once when the suit's display is built; the visor tint fades over 0.35 s through a setter delegate bound once (no reflection per frame) and is one colour multiply in URP's existing colour grade, which already runs | one tint, outside the ship only |
+| Collection page | Built at boot and inactive until shown; six rows rewritten when a page opens, a row is pressed or the page turns; a save on each press (`SaveSystem.Save`, see "Saving an unlock mid-run" for its cost), on the title screen only | title screen only |
+
+## Earned looks (Ralph loop pass 5, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Goal checks (`TaskDirector.OnPlayerHit`, `OnCreatureHit`) | Per hit a few bool, static and array reads; per severed limb one dictionary look-up (`GetComponent` only for an enemy the director never saw wake); per creature kill two string compares; 0 B | none needed |
+| Looks in use | As "The Locker": the skin for every gun runs its pattern on every held-gun pixel (Butterfingers is plain enamel, the cheapest; Sharkskin's flake on the pistol only, guessed under 0.02 ms); up to two materials per gun material the first time a gun comes into the hand, which on a gun ladder step can be mid-fight (guessed 0.1 to 0.4 ms each, kept for the world); paint, badge and visor tint set once | as "The Locker" |
+| Look put on mid-run (`LockerLook.RefreshSoon`, then `RefreshIfDue` from `AnteLoop.Update`) | Once at an unlock's moment or an ante 9 reveal, on the next frame that writes no save, however many looks one page names. Each listener changes only what changed: a new ship paint builds the hull again (off-engine 2.0 ms and 1.2 MB on a cloud Xeon; Deck guessed 2.5 to 6 ms), any other look leaves the hull alone (`LockerLook.ShipPaintId`); a new skin costs two materials per gun material on the gun in hand; a new jet colour one material; the suit plate's colours, the shade picture and the badge only when they changed. No new shader programs. The moment waits out a fight for up to 20 s, so a new skin can be put on in one | one a moment (3.5 s apart); none in the frame of a save |
+| Practice note (`Hud.OnPlayerHit`) | Per arena hit, a few bool reads; only a disarm, a limb or a kill reads the save once (`UnlockBook.Next`, 30 to 100 B) until the note has shown | practice range only, once a session |
+| Unlock saves | As "Saving an unlock mid-run", but a goal met in a fight is written after it (one write for a disarm and a leg off in the same fight); a landing goal writes the frame after touchdown | 18 per profile |
+| Title screen Unlocks and Collection pages | The Unlocks text set once per visit or list switch, a save at most once per list with something new; the Collection runs an 18-step check when it opens and saves only when it mended or tidied something | title screen only |
+
+To read off in Unity: on a new profile, shoot an enemy's arm off, then a leg, and read `OA.SaveSystem.Save` in the Profiler's CPU Usage on the frame after the fight ends (Time ms); then the same on the frame after the first touchdown on the Moon, and on the frame after that read `Ship.Repaint` (Time ms and GC Alloc: the hull painted Roll Pattern); at a gun ladder hand-over with a skin in use, read `PlayerWeapons` (Time ms and GC Alloc).
+
+## Celestial effects (Ralph loop pass 6, 28 Nov 2026): estimates from reading the code and an offline compile, not measured in Unity
+
+The shader counts come from glslang with stand-in URP files, then Mesa's RADV/ACO compiler for the Deck's GPU on a
+null device: not Unity's compiler and not a Deck. Times on the Deck are guesses.
+
+| | Cost | Cap |
+|---|---|---|
+| Effect on the held gun and the hull (`OA_Fx` in `OA_Model.shader`) | A branch on `_FxSet.y` (a material value), taken one way by a whole draw, and each motion a branch of its own. Where it is drawn, offline +200 (Event Horizon) to +390 (Solar Flare) steps a pixel. It works out its share first (painted corner, damage shade, the pixel's footprint) and returns at none, so the hull's dark trim, broken panels and pixels too far away for the pattern pay a few steps only, and the hull's turn round its axis (`atan2`) is worked out on the hull alone. Guessed: Solar Flare on the gun 0.17 to 0.35 ms aiming down sights, 0.07 to 0.14 ms from the hip; Aurora on the hull 0.28 to 0.55 ms with the lander filling half the screen (beside it, or a pole camera's view), up to 1.1 ms filling it; nothing through the windows from the seat | one gun in hand, one hull |
+| Effect code in every model draw | A program's registers are counted over all its code, so every `OA_Model` forward pixel, worn or not, needs 64 VGPRs instead of 56 (16 waves a SIMD, not 18), offline, measured again after the share-first change. Guessed under 0.1 ms in a fight | 0.1 ms; past it, make the effect a keyword (`multi_compile_local _ _OA_FX`, twelve more programs) and warm it at a run's start, because a gun ladder step can bring a Celestial gun into the hand mid-fight |
+| Model pipeline build | Offline, an `OA_Model` forward pipeline typically builds in 40 to 52 ms (22 to 33 ms without the effect code), at its first draw on a cold shader cache: the first trooper, gun or base of a run, which is what "Model shader" above guessed at 5 to 30 ms. Steam's shader pre-caching and Mesa's disk cache take it away on later runs; nothing in the game warms shaders yet | warm at a run's start (the known follow-up in "Model shader") |
+| Suit plate beads (`SuitHud.LightBeads`) | 86 colours a frame while a suit effect shows, dark and skipped in a fight and beside a warning: 2 to 17 µs a frame on the cloud, 0 B, guessed under 0.1 ms on the Deck; only the beads' own canvas is batched again (guessed 0.02 to 0.05 ms, 1 to 2 UI draw calls); 86 objects built when the HUD or the suit look changes (guessed 0.5 to 2 ms, once) | one plate, 86 beads |
+| Reveal beads (`EnvelopeScene.EffectBeads`) | About 110 more pieces in the envelope screen's draw list while a Celestial prize's reveal shows, their keys made each frame like the screen's other pieces (a few KB of strings a frame), on a page out of play | the reveal only |
+| Celestial materials | Up to two per gun material per worn look (about 10, guessed 0.1 to 0.4 ms each as the gun comes into the hand), one per hull effect; no new shader programs | kept for the world |
+
+To read off in Unity: (1) put Aurora on the hull ("Try the next effect" in the Collection) and, beside the lander,
+read the GPU frame time in the Profiler's GPU module with the effect on and off; (2) the same with Solar Flare on the
+gun, aiming down sights; (3) with a suit effect, outside a fight, `SuitHud.LateUpdate` and `Canvas.BuildBatch` in CPU
+Usage (Time ms and GC Alloc); (4) on the Deck, Radeon GPU Profiler's VGPR count for `OA_Model`'s forward pass, and the
+frame on which the first trooper of a run comes into view.
+
+## Where to shoot a creature (Ralph loop pass 7, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+| | Cost | Cap |
+|---|---|---|
+| Hit zones (`WhereToShoot`, the creatures' `TakeHit`, `HitConfirm.Classify`) | One enum switch a hit (a walker also checks each limb it loses); `is ICreature` only for a creature hit that is not Plain; no garbage | one per player hit |
+| Creature hitstops | A saving: a creature hit that takes nothing off no longer asks for a hitstop or a shake (it asked for 50 ms of each on every hit before), so full-auto fire at a creature no longer changes the time scale on every shot | a piece off, a choke or a kill |
+| Marker reshapes | Fire swept between a lid and a belly now changes the X between glance, body and the weak place: each change lays out 16 rects and sets 4 colours (guessed well under 0.1 ms) | at most about 8 a second (a glance never cuts a real hit's marker short) |
+| Aim line (`AimLines`, `HitMarker`) | Per glance while a kind has lines left: up to 4 look-ups and one `PlayerPrefs.GetInt`. Once a session: the PlayerPrefs read (under 1 KB). When one shows: one rich-text label rebuilt (about 1,500 vertices with its outline and shadow), one more draw call while it is up, its alpha set only on the frames it changes (the fade), `SetString` in memory only (Unity writes it on quit). Guessed 0.05 to 0.2 ms on the frame it appears | 2 lines a kind, 8 kinds, 40 s apart: at most 16 lines and 25 writes a profile |
+| `hit.glance` | 0.14 s mono, about 13 KB unpacked at the title screen's warm-up; plays instead of the bell, so firing into armour holds fewer voices than before (2, not the bell's 3). The remade `impact.armor` is two 0.2 s clips as before (it was 0.3 s) | 2 voices, 50 ms cooldown |
+
+To read off in Unity: in the arena, fire full-auto into a Strider's lid and sweep to its belly; in the Profiler's CPU
+Usage, `HitMarker.OnPlayerHit` and `GameAudioHooks.OnPlayerHit` should show 0 B of GC Alloc on hit frames and
+`Canvas.SendWillRenderCanvases` with `Canvas.BuildBatch` under 0.1 ms; on the frame the first aim line appears, note
+the worst frame time and look for `Font.CacheFontForText`; the Audio module's Playing Sources should stay at 48 or under.
+
+## Land creatures (Ralph loop pass 8, 28 Nov 2026): estimates from reading the code, not measured in Unity
+
+The Deck cost review's numbers: guessed from the code and a model of the plane cache's own hash. A ground sample is
+3.6 to 4.9 µs under .NET; on the Deck under Mono it is guessed at 9 to 30 µs.
+
+| | Cost | Cap |
+|---|---|---|
+| Haunt search (`LandCreatures`, `LandField.Build`) | Once a world, the first time the player is near it, on a background core: up to 1,200 tries at 1 to 9 ground samples each, guessed 5 to 100 ms of one worker. Patient: ranked as a ground tile 400 m off and never on the last free core | 30 haunts a world |
+| Waking (`LandCreatures.Think`) | Twice a second over at most 30 haunts, no garbage. A wake builds the whole creature in one frame (about 40 objects, and up to 17 sphere checks for a clear spot to stand it), guessed 2 to 4 ms, and allocates about 1 to 2 KB (names, closures) | one a think; 2 awake (`liveCap`); woken at 110 m, never within 70 m; put away beyond 180 m |
+| Standing on the ground (`LandFooting`, `CreatureGround`) | Every frame while awake, seen or not, on the built tiles with no colliders (`PlanetSurface.GroundRadius`): a walker asks 12 to 19 times, the Roller 5 to 7, the Screamer 3 to 9. Answered from the plane cache (`BuiltGround`), now 1,024 places, about 40 KB a body (it was 256: with two walkers the model gave 2 to 4 misses a frame, guessed 0.1 to 0.3 ms). Now guessed 0.5 to 1 miss a frame; a miss is three ground samples, guessed 30 to 90 µs. A tile rebuilt finer under a walker misses its triangles at once, guessed 0.4 to 1.4 ms that frame | 2 creatures |
+| Walkers' legs on slopes (`WalkerAnimator`, given the ground) | A stretch check per leg and the lowering over eight legs: a few dozen multiplications, no ground reads. A foot that slips reads the ground 8 times (a binary search toward its hip, through the cache). Offline: slips are under 5% of foot frames on gentle ground, up to about a fifth at full pace on the steepest | 8 legs a walker |
+| Physics queries | One sphere check and one ray a moving frame (the Screamer also a sphere cast), mostly broadphase far off, guessed under 0.05 ms for two. `Physics.SyncTransforms`: the Sprinter only while the player sees it or is within 40 m (it was every frame, even 180 m off), the Roller while rolling, the Screamer while it sees the player; guessed 0.02 to 0.1 ms a call | |
+| Pictures | About 30 MB of texture memory (Strider 12, Roller 12, Sprinter 3, Screamer 3), not readable, so no copy on the CPU. Read once a session while the first run is got ready, guessed 0.1 to 0.4 s. Model pictures held for the session reach about 135 MB after a practice-range visit, so the 140 MB cap now limits memory as well as disk | 4 kinds |
+| Loose pieces | Each gets a `GravityBody` and is pulled like a gib, but sits outside the 40-gib and 12-gun caps: a step while they fly is guessed at 0.35 to 0.65 ms | 34 between all creatures |
+| The shared fight test (`ReadoutFocus.CreatureFight`, `LandReach`) | One float written a frame by each spawner while one of its creatures is after the player; two subtractions and compares where a fight is asked about; a few additions a moving frame for each creature's reach | |
+
+If it proves dear on the Deck, in this order: read a planted foot's ground once as it lands (guessed 0.2 to 0.7 misses
+a frame), the lean four times a second instead of every frame, build a wake over several frames as the biter shoal
+does (if a wake measures over 3 ms), and cap loose pieces at 16 on worlds.
+
+To read off in Unity, with two creatures awake, on Earth then Mars: (1) in the Profiler's CPU Usage, `Walker.Update`,
+`Roller.Update` and `Screamer.Update` should each be under 0.25 ms with 0 B of GC Alloc; (2) `Physics.SyncTransforms`
+(Calls and Time ms); (3) on a wake frame, `LandCreatures.Update` should be under 3 ms; (4) texture memory about 30 MB
+higher than before; (5) `BuiltGround.Misses` per frame (counted but not yet on F3) should be under 1.
+
+## Playtest log (Ralph loop pass 9, 28 Nov 2026): estimates from reading the code and an off-engine run, not measured in Unity
+
+The Deck cost review's bench, run again after its findings were applied: the log's own plain C# under .NET 8 (Release,
+a 2.1 GHz Xeon), with made-up runs; on the Deck under Mono guessed at 2 to 4 times that. Only the editor and
+development builds have a recorder.
+
+| | Cost | Cap |
+|---|---|---|
+| Release build | No recorder: every hook is one null check (the creature warning hook first checks that its stage changed); `WindupChange` is 12 bytes (it was 3); no garbage | none needed |
+| In play, every frame | The antes (a few reads); for each creature warning under way, the dodge (two positions, the sums and the log's look-up: 0.3 µs and 0 B off-engine); a wake's frame time into a ring of 64 (sorted once, at a wake); F7 | one dodge per warning under way |
+| In play, four times a second | Each watched creature's notice and, until it is first seen, whether it is in the frame (one projection); on a world, for one in the frame not yet seen, a sight line of at most 64 ground reads through `PlanetSurface.GroundRadius` (the sums alone 1.1 to 1.3 µs; the reads guessed 0.02 to 0.2 ms through the plane cache); the music; enemy sight; and while an aim line shows, five rays along it (guessed under 0.05 ms) | 2 land creatures awake; one line a creature until it is seen |
+| Events | A creature hit that only strikes, after the first on that animal: 0.07 µs and 0 B (it was 1.2 to 1.6 µs and 0.7 KB); a hit with a line (the first, a piece off, the weak place, a kill): 0.74 µs and 0.4 KB; a warning's stage: 1.1 µs and 0.5 KB. Hits, stages and hurts check the cap before their words are built | 6,000 lines, 400 creatures, 2,000 warnings, 60 names a tally: 0.25 MB held for a typical run, 1.3 MB at the caps, freed at the run's end; put-away creatures let go |
+| Writing the log | 1.5 to 1.7 ms (mean 3.5) and 1.0 MB of garbage for a typical run (30 animals, 200 warnings, 1,300 lines); 8 to 11 ms and 3.7 MB for a long one (120, 800, 5,000); 7 to 15 ms and 7.2 MB at the caps; the two files and the trim 0.3 to 1.6 ms. On the first frame of the death and run-over pages, on pausing (at most every 30 s), at a restart, the title screen and quit, all frames the game stands still on; only F7 lands in play. Inside the profiler marker `OA.Playtest.Write` | two files a write; 40 runs kept, 0.1 to 1 MB each |
+
+If writing proves dear on the Deck: build the text on a worker (the log's records are only read), or size the text's
+buffer once from the line count.
+
+To read off in Unity (a development build, the Profiler's CPU Usage): (1) fire full-auto into a Strider's lid: GC Alloc
+on hit frames under 1 KB a hit (only the first hit makes a line); (2) after a long run, pause: that frame's time in
+`OA.Playtest.Write`; (3) with two land creatures awake, `PlaytestRecorder.Update` under 0.1 ms with 0 B; (4) a wake's
+three frame times in the file against the Profiler's frames at that wake.

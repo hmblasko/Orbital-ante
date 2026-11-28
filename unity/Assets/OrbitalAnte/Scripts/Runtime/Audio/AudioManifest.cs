@@ -132,7 +132,7 @@ namespace OrbitalAnte.Audio
         public readonly List<TransitionDef> Transitions = new List<TransitionDef>();
         public string CombatTrack = "";
         public float CombatEnter = 60f;
-        public float CombatExit = 38f;
+        public float CombatExit = 48f;
         public double CombatMinSeconds = 14;
         public float AmbushIntensity = 85f;
 
@@ -243,7 +243,7 @@ namespace OrbitalAnte.Audio
             }
             m.CombatTrack = MiniJson.Str(music, "combatTrack");
             m.CombatEnter = (float)MiniJson.Num(music, "combatEnter", 60);
-            m.CombatExit = (float)MiniJson.Num(music, "combatExit", 38);
+            m.CombatExit = (float)MiniJson.Num(music, "combatExit", 48);
             m.CombatMinSeconds = MiniJson.Num(music, "combatMinSeconds", 14);
             m.AmbushIntensity = (float)MiniJson.Num(music, "ambushIntensity", 85);
             return m;

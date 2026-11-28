@@ -136,17 +136,27 @@ namespace OrbitalAnte.Items
             List<ItemEffect> effects = ItemCatalog.CreateEffects();
             Prize prize = book.Open(ticket, EnvelopeConfig.Load().odds, catalog, effects);
             if (!prize.IsValid) return false;
-            SaveSystem.Save();
-
             ItemSpec item = catalog.Find(i => i.id == prize.itemId);
+            // A prize goes to work by itself where its place is empty or holds a look earned by a goal (never an
+            // upgrade: each has a cost), saved with it. What held its place is named either way.
+            string held = Locker.InPlaceOf(SaveSystem.Data, item, LockerLook.Find);
+            bool placed = Locker.AutoUse(SaveSystem.Data, item, prize.effectId);
+            bool inUse = placed || Locker.InUse(SaveSystem.Data, item, prize.effectId);
+            SaveSystem.Save();
+            string inPlaceOf = placed ? (string.IsNullOrEmpty(held) ? null : held) : inUse ? null : Locker.InPlaceOf(SaveSystem.Data, item, LockerLook.Find);
+            // In the middle of a run (the reveal at ante 9) the look goes on there and then: the lander, the suit and
+            // the gun in hand are told to read the Locker again.
+            if (placed && GameSession.Mode == GameMode.Playing) LockerLook.RefreshSoon();
+
             ItemEffect effect = effects.Find(e => e.id == prize.effectId);
             OwnedItem owned = book.Inventory.Find(prize.itemId, prize.effectId);
             _screen.UseCard(EnvelopeTextures.Card("Card", item, prize.rarity, effect?.colour));
-            _screen.Show(ShowFor(item, prize, effect, owned, ticket), whenDone);
+            _screen.Show(ShowFor(item, prize, effect, owned, ticket, inUse, inPlaceOf), whenDone);
             return true;
         }
 
-        public static EnvelopeShow ShowFor(ItemSpec item, Prize prize, ItemEffect effect, OwnedItem owned, EnvelopeTicket ticket)
+        public static EnvelopeShow ShowFor(ItemSpec item, Prize prize, ItemEffect effect, OwnedItem owned, EnvelopeTicket ticket,
+            bool inUse = false, string inPlaceOf = null)
         {
             string weaponName = null;
             if (item.category == ItemCategory.WeaponSkin && !string.IsNullOrEmpty(item.weaponId))
@@ -171,6 +181,10 @@ namespace OrbitalAnte.Items
                 effectColour = effect?.colour,
                 ownedCount = owned != null ? owned.count : 1,
                 fromTest = ticket.fromTest,
+                useLine = Locker.RevealWords(item, inUse, weaponName, inPlaceOf),
+                inUse = inUse && Locker.Usable(item),
+                effectNote = effect != null ? Locker.EffectWhere(item) : "",
+                effectId = effect != null ? effect.id : "",
             };
         }
 
@@ -182,9 +196,26 @@ namespace OrbitalAnte.Items
             SaveSystem.Save();
         }
 
+        /// <summary>
+        /// Puts the next Celestial effect to use on test items (an every-gun skin, a ship paint, a suit piece), so each
+        /// effect can be checked in a run (editor and development builds; <see cref="Locker.TryNextEffect"/>). Returns the
+        /// effect's name, or "".
+        /// </summary>
+        public string TryNextEffect()
+        {
+            if (!TestsAllowed) return "";
+            string id = Locker.TryNextEffect(SaveSystem.Data, Catalog(), ItemCatalog.CreateEffects());
+            if (id.Length == 0) return "";
+            SaveSystem.Save();
+            ItemEffect effect = CelestialLooks.Effect(id);
+            return effect != null ? effect.displayName : id;
+        }
+
         public int ClearTests()
         {
             int gone = Book().ClearTests();
+            // Test prizes that were in use come out of use with them.
+            Locker.Tidy(SaveSystem.Data, LockerLook.Find);
             SaveSystem.Save();
             return gone;
         }

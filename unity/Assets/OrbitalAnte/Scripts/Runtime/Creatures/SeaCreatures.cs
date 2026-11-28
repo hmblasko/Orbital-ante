@@ -10,11 +10,14 @@ namespace OrbitalAnte.Creatures
     /// <summary>
     /// The big swimmers in the seas of the solar system: the first creatures outside the combat arena. Where they
     /// live is seeded per world (<see cref="SeaField"/>); this wakes the animal of a haunt when the player comes
-    /// near it, puts it away when they leave, and remembers the ones that were killed for the rest of the run.
+    /// near it, puts it away when they leave, and remembers the ones that were killed for the rest of the run (a
+    /// pack's fish one by one, so a pack woken again comes back without them).
     ///
     /// - An animal is a child of its world, so it is carried round with it; "up" and the depth of water come from
     ///   the world's own terrain (<see cref="PlanetWorld.Read"/>), which needs no colliders.
     /// - At most <see cref="SeaFieldRules.liveCap"/> at once, and one is made a think, so nobody arrives as a hitch.
+    /// - Every animal is told who pays for it (<see cref="CreatureCredit"/>): its kind, its world and a claim per
+    ///   haunt and place, so a kill counts toward the ante once a run.
     /// </summary>
     public sealed class SeaCreatures : MonoBehaviour
     {
@@ -22,7 +25,11 @@ namespace OrbitalAnte.Creatures
         {
             public List<SeaHaunt> Haunts;
             public bool[] Gone, Awake;
+            /// <summary>Per haunt, the places in its pack whose fish were killed (null until one is).</summary>
+            public HashSet<int>[] Dead;
             public Transform Root;
+            /// <summary>The world's id, for claims ("earth").</summary>
+            public string Id;
         }
 
         sealed class Live
@@ -61,6 +68,25 @@ namespace OrbitalAnte.Creatures
         /// <summary>Swimmers awake right now.</summary>
         public int LiveCount => _live.Count;
 
+        /// <summary>
+        /// True while a swimmer awake has noticed the player in the water with it (a Drifting maw, or a pack of Pack
+        /// biters): the music hears it as being hunted, and holds a creature's fight between its strikes.
+        /// </summary>
+        public bool AnyAware
+        {
+            get
+            {
+                for (int i = 0; i < _live.Count; i++)
+                {
+                    Component who = _live[i].Who;
+                    if (who == null) continue;
+                    if (who is Maw maw && maw.AwareOfPlayer) return true;
+                    if (who is BiterShoal pack && pack.AwareOfPlayer) return true;
+                }
+                return false;
+            }
+        }
+
         public static SeaCreatures Build(SolarSystemWorld world, CreatureConfig config)
         {
             var go = new GameObject("Sea creatures");
@@ -94,6 +120,8 @@ namespace OrbitalAnte.Creatures
                 w = new World { Haunts = SeaField.Build(_config.seas, random, surface.SurfaceRadius + sea, d => sea - terrain.Height(d)) };
                 w.Gone = new bool[w.Haunts.Count];
                 w.Awake = new bool[w.Haunts.Count];
+                w.Dead = new HashSet<int>[w.Haunts.Count];
+                w.Id = surface.Body.Spec.id;
                 var root = new GameObject("Sea creatures");
                 root.transform.SetParent(surface.Body.transform, false);
                 w.Root = root.transform;
@@ -104,7 +132,11 @@ namespace OrbitalAnte.Creatures
 
         void Update()
         {
-            if (_world == null || _config == null || Time.time < _nextThink) return;
+            if (_world == null || _config == null) return;
+            // A swimmer after the player is a fight for the rest of the game too (the readout, the tips, the restless
+            // camps), as a sighting is: said every frame one is (Ralph loop pass 8).
+            if (_live.Count > 0 && AnyAware) CombatWorld.CreatureAwareAt = Time.time;
+            if (Time.time < _nextThink) return;
             _nextThink = Time.time + 0.5f;
             Think();
         }
@@ -133,6 +165,7 @@ namespace OrbitalAnte.Creatures
                 bool stay = w != null && l.Body == body && (where - at).sqrMagnitude < rules.sleepRange * rules.sleepRange;
                 if (stay) continue;
                 if (_worlds.TryGetValue(l.Body, out World was) && was != null) was.Awake[l.Haunt] = false;
+                Playtest.PlaytestHooks.PutAway(l.Who);
                 Destroy(l.Who.gameObject);
                 _live.RemoveAt(i);
             }
@@ -167,12 +200,26 @@ namespace OrbitalAnte.Creatures
             Quaternion facing = Quaternion.LookRotation(along.normalized, up);
             System.Func<Vector3, MawWater> water = place => WaterAt(bodyIndex, place);
             Component who;
+            string id = w.Id;
+            int hauntIndex = best;
             if (SeaField.IsPack(rules, haunt))
             {
-                BiterShoal shoal = BiterShoal.Create(home, facing, w.Root, _config, SeaField.PackSize(rules, haunt), "Biter pack " + best, water);
-                who = shoal;
+                int size = SeaField.PackSize(rules, haunt);
+                HashSet<int> dead = w.Dead[best];
+                if (dead != null && dead.Count >= size)
+                {
+                    w.Gone[best] = true;
+                    return;
+                }
+                who = BiterShoal.Create(home, facing, w.Root, _config, size, "Biter pack " + best, water, dead,
+                    place => new CreatureCredit(BiterLayout.Model, bodyIndex, OrbitalAnte.Tasks.TaskIds.Creature(id, hauntIndex, place)));
             }
-            else who = Maw.Create(home, facing, w.Root, _config, "Maw " + best, water);
+            else
+            {
+                Maw maw = Maw.Create(home, facing, w.Root, _config, "Maw " + best, water);
+                if (maw != null) maw.Credit = new CreatureCredit(MawLayout.Model, bodyIndex, OrbitalAnte.Tasks.TaskIds.Creature(id, hauntIndex, 0));
+                who = maw;
+            }
             if (who == null)
             {
                 // No model in this build: do not ask again.
@@ -182,9 +229,15 @@ namespace OrbitalAnte.Creatures
             w.Awake[best] = true;
             var live = new Live { Who = who, Body = body, Haunt = best };
             World there = w;
-            if (who is Maw maw) maw.Died += _ => there.Gone[live.Haunt] = true;
-            else if (who is BiterShoal pack) pack.Gone += _ => there.Gone[live.Haunt] = true;
+            if (who is Maw drifting) drifting.Died += _ => there.Gone[live.Haunt] = true;
+            else if (who is BiterShoal pack)
+            {
+                pack.Gone += _ => there.Gone[live.Haunt] = true;
+                pack.Lost += place => (there.Dead[live.Haunt] ??= new HashSet<int>()).Add(place);
+            }
             _live.Add(live);
+            if (Playtest.PlaytestHooks.Log != null)
+                Playtest.PlaytestHooks.Woke(who, who is BiterShoal ? Playtest.PlaytestLog.PackOf(BiterLayout.Model) : MawLayout.Model, surface.Body.Spec.displayName, body);
         }
 
         /// <summary>Where a haunt's animal lives, in its world's own space.</summary>

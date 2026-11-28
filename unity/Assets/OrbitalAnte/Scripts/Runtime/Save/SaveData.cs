@@ -5,8 +5,8 @@ using OrbitalAnte.Items;
 namespace OrbitalAnte.Save
 {
     /// <summary>
-    /// Everything that is kept between sessions. Deliberately tiny for now: Phase 1 has nothing to unlock or
-    /// collect yet, so this holds only what the test builds use. New fields are added here as systems arrive,
+    /// Everything that is kept between sessions: the last seed, the collection and its envelopes, the run records,
+    /// the goal unlocks and what is in use from the Locker. New fields are added here as systems arrive,
     /// and <see cref="SaveMigrations"/> brings old saves up to date so nobody's save is ever thrown away.
     ///
     /// Key bindings and the Feel toggles are kept in Unity's PlayerPrefs instead, because they belong to the
@@ -15,7 +15,7 @@ namespace OrbitalAnte.Save
     [Serializable]
     public sealed class SaveData
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 6;
 
         /// <summary>Which layout of this file was written. 0 means "not a save".</summary>
         public int version = CurrentVersion;
@@ -50,6 +50,20 @@ namespace OrbitalAnte.Save
         public int antesCleared;
         /// <summary>Solar-system runs that have ended (by death, the clock or victory).</summary>
         public int runsEnded;
+
+        // ---- Goal unlocks (added in version 5, 27 Nov 2026: Ante/Unlocks.cs) ----
+        /// <summary>Unlock ids earned ("unlock.kit.ghost"); each is one goal met in one run.</summary>
+        public List<string> unlocks = new List<string>();
+        /// <summary>Unlocks already shown on the title screen's Unlocks page (the rest are marked NEW).</summary>
+        public List<string> unlocksSeen = new List<string>();
+        /// <summary>The starting kit chosen for the next run ("kit.standard" for none).</summary>
+        public string kit = OrbitalAnte.Ante.StartingKits.StandardId;
+        /// <summary>Perk ids unlocked and not yet offered in a draft: the next draft shows the first, marked NEW.</summary>
+        public List<string> perksToShow = new List<string>();
+
+        // ---- The Locker (added in version 6, 28 Nov 2026: Items/Locker.cs) ----
+        /// <summary>Which prizes are in use: the upgrade, the ship paint, gun skins and the suit's pieces.</summary>
+        public Loadout locker = new Loadout();
     }
 
     /// <summary>Brings a save written by an older build up to the current layout, one version at a time.</summary>
@@ -87,9 +101,30 @@ namespace OrbitalAnte.Save
                 data.runsEnded = 0;
                 data.version = 4;
             }
+            if (data.version == 4)
+            {
+                // Version 5 added goal unlocks and the starting kit; an older save has earned none and starts Standard.
+                data.unlocks = new List<string>();
+                data.unlocksSeen = new List<string>();
+                data.kit = OrbitalAnte.Ante.StartingKits.StandardId;
+                data.perksToShow = new List<string>();
+                data.version = 5;
+            }
+            if (data.version == 5)
+            {
+                // Version 6 added the Locker; an older save has nothing in use (its prizes were only ever kept).
+                data.locker = new Loadout();
+                data.version = 6;
+            }
             // JsonUtility leaves a missing list as null on some paths; never hand one out.
             if (data.unopenedEnvelopes == null) data.unopenedEnvelopes = new List<EnvelopeTicket>();
             if (data.items == null) data.items = new List<OwnedItem>();
+            if (data.unlocks == null) data.unlocks = new List<string>();
+            if (data.unlocksSeen == null) data.unlocksSeen = new List<string>();
+            if (string.IsNullOrEmpty(data.kit)) data.kit = OrbitalAnte.Ante.StartingKits.StandardId;
+            if (data.perksToShow == null) data.perksToShow = new List<string>();
+            if (data.locker == null) data.locker = new Loadout();
+            data.locker.Repair();
 
             return data.version == SaveData.CurrentVersion;
         }

@@ -27,6 +27,8 @@ namespace OrbitalAnte.Spacewalk
         readonly Transform[] _flames = new Transform[JetGlow.Count * 2];
         Mesh _flameMesh, _tetherMesh;
         Material _flameMaterial, _tetherMaterial;
+        /// <summary>The colour the flames' material was made in, so a refresh for another look makes no new one.</summary>
+        Color _flameColour;
         GameObject _tether;
         Vector3[] _tetherPoints;
         AudioSource _jet, _voice;
@@ -62,7 +64,10 @@ namespace OrbitalAnte.Spacewalk
             pack.transform.localPosition = new Vector3(0f, ShipLayout.EyeHeight, 0f);
             fx._pack = pack.transform;
             fx._flameMesh = Cone(8);
-            fx._flameMaterial = new Material(PlanetMaterials.VertexColour(config.jetColour, 0f, 2f, false));
+            // A jet pack from the Locker colours the flames (Ralph loop pass 4); never so deep a red that a jet reads as damage.
+            Color flame = Items.LockerLook.Colour(Items.LockerLook.Suit().Jet, config.jetColour);
+            fx._flameColour = flame;
+            fx._flameMaterial = new Material(PlanetMaterials.VertexColour(flame, 0f, 2f, false));
             fx._flameMaterial.name = "OA_SuitJet";
             for (int i = 0; i < fx._flames.Length; i++)
             {
@@ -84,6 +89,7 @@ namespace OrbitalAnte.Spacewalk
                 go.SetActive(false);
                 fx._flames[i] = go.transform;
             }
+            Items.LockerLook.Changed += fx.Recolour;
 
             fx._tether = new GameObject("Tether");
             fx._tether.layer = Layers.Default;
@@ -236,8 +242,29 @@ namespace OrbitalAnte.Spacewalk
             _tetherMesh.RecalculateBounds();
         }
 
+        /// <summary>
+        /// A jet pack went to work in the middle of a run (<c>LockerLook.Refresh</c>, Ralph loop pass 5): the flames
+        /// take its colour now, so the look is seen as it is earned.
+        /// </summary>
+        void Recolour()
+        {
+            if (_config == null || _flameMaterial == null) return;
+            Color flame = Items.LockerLook.Colour(Items.LockerLook.Suit().Jet, _config.jetColour);
+            if (flame == _flameColour) return;
+            _flameColour = flame;
+            var fresh = new Material(PlanetMaterials.VertexColour(flame, 0f, 2f, false)) { name = "OA_SuitJet" };
+            for (int i = 0; i < _flames.Length; i++)
+            {
+                MeshRenderer r = _flames[i] != null ? _flames[i].GetComponent<MeshRenderer>() : null;
+                if (r != null) r.sharedMaterial = fresh;
+            }
+            Destroy(_flameMaterial);
+            _flameMaterial = fresh;
+        }
+
         void OnDestroy()
         {
+            Items.LockerLook.Changed -= Recolour;
             if (Sounds != null) Sounds.Destroy();
             if (_flameMesh != null) Destroy(_flameMesh);
             if (_tetherMesh != null) Destroy(_tetherMesh);

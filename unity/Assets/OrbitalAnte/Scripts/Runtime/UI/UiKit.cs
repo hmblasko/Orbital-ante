@@ -445,6 +445,17 @@ namespace OrbitalAnte.UI
 
         public void OnDeselect(UnityEngine.EventSystems.BaseEventData eventData) => Restore();
 
+        /// <summary>
+        /// Sets the label's own colour, the one it shows when its button is not the chosen one. While it is chosen
+        /// the label stays dark and takes this colour back when the choice moves on.
+        /// </summary>
+        public void SetColour(Color colour)
+        {
+            if (Label == null) return;
+            if (_dark) _was = colour;
+            else Label.color = colour;
+        }
+
         void OnDisable() => Restore();
 
         void Restore()
@@ -452,6 +463,27 @@ namespace OrbitalAnte.UI
             if (!_dark) return;
             _dark = false;
             if (Label != null && Label.color == UiKit.Ink) Label.color = _was;
+        }
+    }
+}
+
+namespace OrbitalAnte.UI
+{
+    /// <summary>
+    /// Hovering the mouse over a button chooses it, as the D-pad does, so whatever reads the chosen button (a kit's
+    /// details on the title screen) follows the mouse too.
+    /// </summary>
+    public sealed class SelectOnHover : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler
+    {
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData)
+        {
+            // Only a mouse that moved: a page appearing under a resting cursor (left in the middle of the screen by
+            // the cursor lock) must not move a controller player's choice (Unity review, 27 Nov 2026).
+            if (eventData == null || eventData.delta.sqrMagnitude < 0.01f) return;
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            var selectable = GetComponent<Selectable>();
+            if (events != null && selectable != null && selectable.IsInteractable() && events.currentSelectedGameObject != gameObject)
+                events.SetSelectedGameObject(gameObject);
         }
     }
 }

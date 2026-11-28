@@ -92,7 +92,7 @@ namespace OrbitalAnte.Tests
             Assert.AreEqual("+20% points for signal masts", Perk("perk.quiet_professional").Describe());
             Assert.AreEqual("+20% points for kills, -40% health regeneration", Perk("perk.all_in").Describe());
             Assert.AreEqual("+15% walking speed, +6% damage taken", Perk("perk.no_brakes").Describe());
-            Assert.AreEqual("+15% max HP, -5% walking speed", Perk("perk.thick_skin").Describe());
+            Assert.AreEqual("+15% max armour, -5% walking speed", Perk("perk.thick_skin").Describe());
         }
 
         [Test]
@@ -351,11 +351,11 @@ namespace OrbitalAnte.Tests
         // ---- records ----
 
         [Test]
-        public void AVersion3Save_IsBroughtUpTo4_WithNoRecords()
+        public void AVersion3Save_IsBroughtUpToDate_WithNoRecords()
         {
             var data = new SaveData { version = 3, runsStarted = 5, bestAnte = 99 };
             Assert.IsTrue(SaveMigrations.Upgrade(data));
-            Assert.AreEqual(4, data.version);
+            Assert.AreEqual(SaveData.CurrentVersion, data.version);
             Assert.AreEqual(0, data.bestAnte);
             Assert.AreEqual(0, data.runsEnded);
             Assert.AreEqual(5, data.runsStarted);

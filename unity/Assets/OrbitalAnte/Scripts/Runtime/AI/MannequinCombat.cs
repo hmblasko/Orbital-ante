@@ -197,6 +197,9 @@ namespace OrbitalAnte.AI
             // Right hand if it works, otherwise whatever hand is left.
             _gunSide = _owner.Model.HandUsable(false) ? MannequinRig.Right : MannequinRig.Left;
             Weapon = weapon;
+            // Only the player's guns wear Locker skins: one the player dropped goes back to its own paint in an enemy's
+            // hands, so a Celestial effect's moving light is never on an enemy's gun, where it could read as an aim tell.
+            OrbitalAnte.Look.ModelLibrary.Wear(weapon.gameObject, null);
             weapon.TakeByCharacter(this);
             weapon.transform.SetParent(transform, true);
             weapon.transform.localScale = Vector3.one;
@@ -244,6 +247,13 @@ namespace OrbitalAnte.AI
             KnockedOutOfHands(dir * _cfg.disarmKnockSpeed + transform.up * (_cfg.disarmKnockSpeed * 0.55f), 14f);
         }
 
+        /// <summary>
+        /// The frame the gun was last knocked out of its living hands (shot out, or the hand or arm holding it shot off),
+        /// or -1. A player's hit is raised the same frame it lands, so the task director reads a disarm from it for the
+        /// goal unlock (Ralph loop pass 5) without the hit having to say so.
+        /// </summary>
+        public int DisarmedFrame { get; private set; } = -1;
+
         /// <summary>The gun is gone from its hands while it lives: it drops, and the character is startled.</summary>
         void KnockedOutOfHands(Vector3 extraVelocity, float spin)
         {
@@ -251,6 +261,7 @@ namespace OrbitalAnte.AI
             Weapon weapon = Weapon;
             DropWeapon(extraVelocity, spin);
             if (weapon == null || _owner == null || !_owner.Alive) return;
+            DisarmedFrame = Time.frameCount;
             _lostGun = weapon;
             _startledUntil = Time.time + StartleSeconds;
             _grabbing = null;

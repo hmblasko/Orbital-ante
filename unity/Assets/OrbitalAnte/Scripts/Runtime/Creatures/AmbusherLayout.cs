@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of an Ambusher that can be hit: its armoured head, a length of its body, a jaw or a feeler.</summary>
+    public enum AmbusherPiece { Head, Seg, Jaw, Feeler }
+
     /// <summary>
     /// Every dimension and piece name of the Ambusher (placeholder name): an alien from the bobbit worm (Matthew,
     /// 17 Nov 2026). A worm as thick as a thigh and nearly six metres long that lives down a hole of its own, with

@@ -23,6 +23,11 @@ namespace OrbitalAnte.Tasks
         public int streakForFeat = 5;
         /// <summary>A kill from at least this far (metres from the eye) is a long shot.</summary>
         public float longShot = 60f;
+        /// <summary>
+        /// How slowed the world must be by Focus (<c>DeepBreathFx.Amount</c>, 0 to 1) for a kill to be a Focus kill: past
+        /// half way, so a kill in the tail of the ease out after letting go does not count (a goal unlock, never a feat).
+        /// </summary>
+        public const float FocusKillAt = 0.5f;
 
         // ---------------------------------------------------------------- signal masts
         /// <summary>Share of bases that have a signal mast standing near them.</summary>
@@ -139,6 +144,14 @@ namespace OrbitalAnte.Tasks
         public bool freshGun;
         /// <summary>All four limbs were off before the kill.</summary>
         public bool takenApart;
+        /// <summary>The player was crouched or lying prone (not a feat: it counts toward a goal unlock, Ante/Unlocks.cs).</summary>
+        public bool lowStance;
+        /// <summary>The player's armour was under the low-health line, as Last Stand reads it (not a feat: a goal unlock).</summary>
+        public bool lowArmour;
+        /// <summary>Focus had the world at least half slowed (<see cref="TaskRules.FocusKillAt"/>; not a feat: a goal unlock).</summary>
+        public bool inFocus;
+        /// <summary>A sea creature, killed from in the water with it (not a feat: a goal unlock).</summary>
+        public bool seaCreature;
     }
 
     /// <summary>
@@ -461,6 +474,51 @@ namespace OrbitalAnte.Tasks
     }
 
     /// <summary>
+    /// Which kill tier a creature scores as, by its kind (its model's name), on the same table as the camps: a
+    /// creature fight counts toward the ante like any other fight, so the seas are somewhere to score, not a
+    /// detour. Tiers follow how much it takes to bring one down and how long it keeps the player in danger.
+    /// </summary>
+    public static class CreatureTiers
+    {
+        /// <summary>Every creature kind there is, for the rule tests.</summary>
+        public static readonly string[] Kinds = { "Strider", "Sprinter", "Roller", "Hunter", "Screamer", "Ambusher", "Stalker", "Maw", "Biter" };
+
+        /// <summary>
+        /// The note when a sea creature is killed from out of its reach (from the shore, or from over the sea): it could
+        /// not fight back, so it pays nothing, and this says what does.
+        /// </summary>
+        public const string OutOfReach = "SEA KILLS PAY ONLY IN THE WATER WITH THEM";
+
+        /// <summary>
+        /// The note when a land creature is killed after it was kept from the player (on a ledge it cannot climb, across
+        /// a drop): it could not fight back, so it pays nothing, and this says what does (Ralph loop pass 8).
+        /// </summary>
+        public const string KeptAway = "KILLS PAY ONLY WHEN IT CAN GET AT YOU";
+
+        /// <summary>The note for a kill that pays nothing because the creature could not reach the player.</summary>
+        public static string NoPayNote(string kind) => Swims(kind) ? OutOfReach : KeptAway;
+
+        /// <summary>The creatures of the seas (<see cref="Creatures.SeaCreatures"/>): the Drifting maw and the Pack biter.</summary>
+        public static bool Swims(string kind) => kind == "Maw" || kind == "Biter";
+
+        public static ScoreEventKind KindFor(string kind)
+        {
+            switch (kind)
+            {
+                // A Pack biter dies to a shot or two in the head; the danger is the pack, and every fish pays.
+                case "Biter": return ScoreEventKind.EnemyTier1;
+                // The two big ones: hundreds of points of body to get through, armour over the rest, and a strike that
+                // holds or flattens. Paid like a camp's heavy.
+                case "Maw":
+                case "Strider": return ScoreEventKind.EnemyTier3;
+                // The rest (Sprinter, Roller, Cave hunter, Screamer, Ambusher, Blind stalker) and kinds added later:
+                // one weak place to find and one strike to read, like a marksman.
+                default: return ScoreEventKind.EnemyTier2;
+            }
+        }
+    }
+
+    /// <summary>
     /// How bumpy the ground is under a landing, from the ground radius under the ship and at points around it.
     /// A rock-tower top stands well above its surroundings; a canyon floor sits well below.
     /// </summary>
@@ -490,6 +548,10 @@ namespace OrbitalAnte.Tasks
     public static class TaskIds
     {
         public static string Enemy(string body, int camp, int member) => "enemy:" + body + ".c" + camp + ".m" + member;
+        /// <summary>A creature: its world, its haunt there and its place in the haunt (a fish's place in its pack; 0 for one alone).</summary>
+        public static string Creature(string body, int haunt, int place) => "creature:" + body + ".h" + haunt + ".p" + place;
+        /// <summary>A creature of the land (<see cref="Creatures.LandCreatures"/>): its world and its haunt there, a claim apart from the seas'.</summary>
+        public static string LandCreature(string body, int haunt) => "creature:" + body + ".land" + haunt;
         public static string Mast(string body, int baseIndex) => "mast:" + body + "." + baseIndex;
         public static string Salvage(string body, int n) => "salvage:" + body + "." + n;
         public static string Drop(int ante, int n) => "drop:a" + ante + "." + n;

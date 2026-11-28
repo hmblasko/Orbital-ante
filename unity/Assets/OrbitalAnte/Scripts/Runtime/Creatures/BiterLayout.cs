@@ -2,6 +2,9 @@ using OrbitalAnte.Core;
 
 namespace OrbitalAnte.Creatures
 {
+    /// <summary>The pieces of a Pack biter that can be hit: its head (its weak place), its lower jaw, its body, or a fin.</summary>
+    public enum BiterPiece { Head, Jaw, Seg, Fin, BackFin, TailFin }
+
     /// <summary>
     /// Every dimension and piece name of the Pack biter (placeholder name; "Biter" in code): an alien from the Goliath
     /// tigerfish (Matthew, 17 Nov 2026), a little over life size: 1.9 m of hard, deep-flanked silver body with dark bars,

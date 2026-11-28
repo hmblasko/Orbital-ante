@@ -37,7 +37,8 @@ namespace OrbitalAnte.Ship
 
         /// <param name="bakedLinear">Baked colours (linear light) to use in place of the mesh's paint, or null.</param>
         /// <param name="roundDegrees">Above zero, corners in the same place share their facing unless the surfaces meet at more than this angle, so a panelled curve shades round. Zero keeps every panel flat-edged.</param>
-        public static Mesh ToMesh(ShipMesh data, string name, float[] bakedLinear = null, float roundDegrees = 0f)
+        /// <param name="alpha">One number per corner for the colour's fourth (the hull's painted panels, for a Celestial effect: <see cref="ShipShell.PaintedCorners"/>), or null for 1 everywhere.</param>
+        public static Mesh ToMesh(ShipMesh data, string name, float[] bakedLinear = null, float roundDegrees = 0f, float[] alpha = null)
         {
             int count = data.VertexCount;
             var vertices = new Vector3[count];
@@ -58,7 +59,7 @@ namespace OrbitalAnte.Ship
                     r = data.Colors[o]; g = data.Colors[o + 1]; b = data.Colors[o + 2];
                     if (linear) { r = LightBake.ToLinear(r); g = LightBake.ToLinear(g); b = LightBake.ToLinear(b); }
                 }
-                colors[i] = new Color(r, g, b, 1f);
+                colors[i] = new Color(r, g, b, alpha != null && i < alpha.Length ? alpha[i] : 1f);
             }
             var mesh = new Mesh { name = name };
             if (count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;

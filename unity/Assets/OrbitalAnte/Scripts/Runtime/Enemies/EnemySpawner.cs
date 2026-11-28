@@ -119,6 +119,25 @@ namespace OrbitalAnte.Enemies
         /// <summary>Everyone standing or lying about, living or not: what the cap is measured against.</summary>
         public int PresentCount { get; private set; }
 
+        /// <summary>
+        /// For the music (<see cref="Audio.MusicDanger"/>): how many armed enemies present know where the player is, and
+        /// whether one that does not holds a place to look for them (<see cref="AI.MannequinCombat.LookingForPlayer"/>:
+        /// a sound it heard, an alarm, a restless squad's call, overtime's hunt). A walk along the present list, no
+        /// physics: a few times a second is nothing.
+        /// </summary>
+        public void Hunters(out int aware, out bool coming)
+        {
+            aware = 0;
+            coming = false;
+            for (int i = 0; i < _live.Count; i++)
+            {
+                Live l = _live[i];
+                if (l.Who == null || l.Combat == null || !l.Who.Alive || l.Combat.Weapon == null) continue;
+                if (l.Combat.AwareOfPlayer) aware++;
+                else if (l.Combat.LookingForPlayer) coming = true;
+            }
+        }
+
         /// <summary>Enemies alive and awake right now.</summary>
         public int LiveCount { get; private set; }
         /// <summary>Enemies killed this run.</summary>
@@ -446,6 +465,8 @@ namespace OrbitalAnte.Enemies
                 float d = (l.Who.transform.position - at).sqrMagnitude;
                 if (d < best) { best = d; callee = l; }
             }
+            // A creature's fight is no quiet either: the clock starts again once it is over.
+            if (!fighting && Tasks.ReadoutFocus.CreatureFight(now - CombatWorld.CreatureWarnedAt, now - CombatWorld.CreatureAwareAt)) fighting = true;
             // Driving, the clock stands still: a squad sent to a place long driven past, or a camp woken far off and
             // put back to sleep a moment later, is wasted. Hiding stands it still too.
             Astronaut crew = _world.Astronaut;

@@ -16,11 +16,11 @@ Written by `tools/audio/qa.py`. Every number here was measured from the files on
 
 ## Sound effects
 
-106 events, 194 files, all 48 kHz.
+142 events, 238 files, all 48 kHz.
 
 - Highest true peak in any file: -1.0 dB.
 - Clipped samples: 0 files affected.
-- Loudness of one-shots as played (file loudness plus the event's volume): -37 to -14 LUFS.
+- Loudness of one-shots as played (file loudness plus the event's volume): -41 to -14 LUFS.
 
 ## Weapon distinctiveness
 
@@ -36,6 +36,32 @@ Each shot is reduced to twelve numbers (length, tail decay, brightness, how pitc
 | **laser_revolver** | 3.4 | 4.3 | 6.1 | 4.0 | 6.5 | - | 3.7 | 4.2 | 0.7 |
 | **raygun** | 2.4 | 4.9 | 5.2 | 3.0 | 6.7 | 3.7 | - | 3.5 | 1.1 |
 | **laser_shotgun** | 2.5 | 6.7 | 3.2 | 2.4 | 8.5 | 4.2 | 3.5 | - | 0.7 |
+
+## Creature warnings and the clock
+
+Each creature warns with two sounds: its wind-up, then its aim (one hard mark, played when it takes aim). *Ring* is how far a sound stands, in dB, over its neighbouring pitches two semitones either side of the clock's tick (979 and 1629 Hz) or of its warning's knocks (640 Hz); the clock's own tick stands 37 to 55 dB over. Allowed: under 10. *Mark over wind-up* compares the loudest 5 ms of each above 200 Hz, as played (at least 5 dB). *Wind-up heard* is the wind-up's loudest 100 ms above 200 Hz, so a quiet one is not lost on the Deck's speakers (at least -35 dB).
+
+| Creature | Aim's mark at | Mark rings at 979 / 1629 Hz | Wind-up rings at 979 / 1629 / 640 Hz | Mark over wind-up | Wind-up heard |
+|---|---|---|---|---|---|
+| strider | 6 ms | -32 / 1 | -3 / -5 / -2 | 10.1 dB | -26.8 dB |
+| sprinter | 4 ms | -1 / -4 | -1 / -10 / -1 | 12.2 dB | -28.7 dB |
+| roller | 8 ms | -8 / 5 | 6 / 2 / 2 | 12.4 dB | -31.0 dB |
+| hunter | 4 ms | -3 / -3 | 3 / 3 / 0 | 11.2 dB | -26.3 dB |
+| maw | 7 ms | 0 / -16 | 3 / -3 / 7 | 8.0 dB | -26.4 dB |
+| biter | 4 ms | 2 / -3 | 3 / -6 / -1 | 8.9 dB | -29.3 dB |
+| screamer | 4 ms | 4 / -16 | 3 / -2 / -1 | 10.0 dB | -31.7 dB |
+| ambusher | 5 ms | -8 / -4 | 0 / 1 / 3 | 8.4 dB | -24.8 dB |
+| stalker | 4 ms | -14 / -4 | 1 / 6 / 2 | 19.0 dB | -31.1 dB |
+
+## The glance and the armour knock against the marks
+
+A shot that a creature's armour turns plays the glance and the creature's knock, while the creature may be about to give its one hard mark. *Front* is its level 1 ms after it starts as a share of its loudest moment, above 200 Hz (the bright marks are at 0.6 to 1); allowed for the glance, which is in the player's head on every shot: at most 0.35 (the knock keeps a knock's front). *Brightness* is the centre of its first 45 ms; allowed: under 2 kHz (the bright marks are at 2.4 to 4.8 kHz). *Under the quietest mark* compares the loudest 5 ms above 200 Hz as played (the glance only; the knock plays where the mark does); allowed: at least 6 dB. *Nearest mark* is the gunshots' measure of difference to the closest mark (two sounds closer than 1.5 are told apart badly); allowed: at least 3. *Rings*: as for the wind-ups, under 10.
+
+| Sound | Front | Brightness | Under the quietest mark | Nearest mark | Rings at 979 / 1629 / 640 Hz |
+|---|---|---|---|---|---|
+| hit.glance | 0.10 | 1317 Hz | 6.4 dB | 7.0 (strider) | 2 / 3 / 2 |
+| impact.armor 1 (worst of 0.42 to 1.06) | 1.00 | 1590 Hz |  | 4.0 (strider) | 6 / 4 / 9 |
+| impact.armor 2 (worst of 0.42 to 1.06) | 0.90 | 1847 Hz |  | 3.6 (strider) | 4 / 6 / 7 |
 
 ## Music
 
